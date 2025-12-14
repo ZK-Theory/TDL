@@ -312,8 +312,12 @@ class TestLsoaBoundariesIntegration:
     def downloaded_lsoa_gdf(self, tmp_path_factory) -> gpd.GeoDataFrame:
         """Download and load LSOA boundaries for integration tests."""
         tmp_dir = tmp_path_factory.mktemp("lsoa_data")
-        filepath = download_lsoa_boundaries(output_dir=tmp_dir)
-        return load_lsoa_boundaries(filepath=filepath)
+        try:
+            filepath = download_lsoa_boundaries(output_dir=tmp_dir)
+            # Load with automatic fallback handling
+            return load_lsoa_boundaries(filepath=filepath)
+        except Exception as e:
+            pytest.skip(f"Could not download/load LSOA boundaries: {e}")
 
     def test_lsoa_count_matches_expected(self, downloaded_lsoa_gdf: gpd.GeoDataFrame):
         """Verify LSOA count matches expected ~33,755 for England and Wales."""

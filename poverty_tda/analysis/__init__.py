@@ -36,6 +36,23 @@ from poverty_tda.analysis.critical_points import (
     to_geodataframe,
     validate_against_known_patterns,
 )
+from poverty_tda.analysis.counterfactual import (
+    CounterfactualAnalyzer,
+    CounterfactualResult,
+    Modification,
+    SurfaceModifier,
+    generate_counterfactual_report,
+    visualize_counterfactual,
+)
+from poverty_tda.analysis.interventions import (
+    ImpactModel,
+    Intervention,
+    InterventionPrioritizer,
+    InterventionType,
+    SimulationResult,
+    generate_intervention_report,
+    simulate_intervention,
+)
 from poverty_tda.analysis.pathways import (
     GatewayLSOA,
     IntegralLine,
@@ -103,4 +120,17 @@ __all__ = [
     "compute_gateway_impacts",
     "rank_gateway_lsoas",
     "gateway_summary_report",
+    "InterventionType",
+    "Intervention",
+    "ImpactModel",
+    "InterventionPrioritizer",
+    "SimulationResult",
+    "simulate_intervention",
+    "generate_intervention_report",
+    "Modification",
+    "SurfaceModifier",
+    "CounterfactualResult",
+    "CounterfactualAnalyzer",
+    "visualize_counterfactual",
+    "generate_counterfactual_report",
 ]
