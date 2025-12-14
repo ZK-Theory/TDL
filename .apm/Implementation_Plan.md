@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_5 - **PHASE 4 COMPLETE** (5/5 tasks). Financial: RegimeClassifier, ChangePointDetector, BacktestEngine. Poverty: InterventionPrioritizer, CounterfactualAnalyzer. 212 new tests.
+**Last Modification:** Manager_6 - **PHASE 5 IN PROGRESS** (Task 5.1 Complete). Perslay/PersFormer integration functional, temporal split implemented. Parallel tracks: Financial 5.1✅/5.2→ | Poverty 5.4→
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay).
 
 
@@ -363,10 +363,11 @@
 
 ## Phase 5: Deep Learning Integration
 
-### Task 5.1 – Perslay/PersFormer Integration - Financial - Agent_Financial_ML
+### Task 5.1 – Perslay/PersFormer Integration - Financial - Agent_Financial_ML ✅
 **Objective:** Integrate Perslay or PersFormer for learning on persistence diagrams.
 **Output:** DL model for persistence diagram sequence prediction.
 **Guidance:** Use PyTorch (consistent with other DL tasks). Reference TopoModelX docs at C:\Projects\TopoModelX\docs. Base implementation on giotto-tda's neural network utilities or PyTorch Geometric TopologyNet. Hyperparameters: start with hidden_dim=64, num_layers=2, learning_rate=1e-3. **CHECKPOINT** for architecture decisions. **Depends on: Tasks 3.1, 3.2, 3.3 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - Perslay (DeepSet) + LSTM/Transformer architecture. persistence_layers.py (496 lines), tda_neural.py (1050+ lines), 24 tests (23 unit + 1 integration). Architecture: Perslay selected over PersFormer for O(n) efficiency. Temporal splitting prevents future leakage. 86-90% code coverage.
 
 1. Ad-Hoc Delegation – Research Perslay/PersFormer architectures in TopoModelX and giotto-tda
 2. Implement persistence diagram vectorization layer (PyTorch)

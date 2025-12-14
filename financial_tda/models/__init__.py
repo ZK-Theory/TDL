@@ -10,6 +10,13 @@ from financial_tda.models.change_point_detector import (
     NormalPeriodCalibrator,
     validate_on_crisis_dates,
 )
+from financial_tda.models.persistence_layers import (
+    DeepSetPhi,
+    Perslay,
+    PowerWeight,
+    create_perslay,
+    pad_diagrams,
+)
 from financial_tda.models.regime_classifier import (
     RegimeClassifier,
     create_regime_labels,
@@ -17,6 +24,20 @@ from financial_tda.models.regime_classifier import (
     load_model,
     prepare_features,
     save_model,
+)
+from financial_tda.models.tda_neural import (
+    EarlyStopping,
+    PersistenceDataset,
+    PositionalEncoding,
+    RegimeDetectionModel,
+    TransformerRegimeDetector,
+    collate_persistence_batch,
+    compute_metrics,
+    create_regime_detector,
+    evaluate,
+    train_epoch,
+    train_model,
+    train_test_split_temporal,
 )
 
 __all__ = [
@@ -29,4 +50,21 @@ __all__ = [
     "ChangePointDetector",
     "NormalPeriodCalibrator",
     "validate_on_crisis_dates",
+    "Perslay",
+    "DeepSetPhi",
+    "PowerWeight",
+    "create_perslay",
+    "pad_diagrams",
+    "RegimeDetectionModel",
+    "TransformerRegimeDetector",
+    "PositionalEncoding",
+    "create_regime_detector",
+    "PersistenceDataset",
+    "collate_persistence_batch",
+    "train_test_split_temporal",
+    "train_epoch",
+    "evaluate",
+    "EarlyStopping",
+    "train_model",
+    "compute_metrics",
 ]
