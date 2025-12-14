@@ -673,7 +673,6 @@ class TestIntegrationWithWindowedPipeline:
         # Use window center for label assignment
         window_labels = []
         for _, row in features_df.iterrows():
-            center_idx = int((row["window_start"] + row["window_end"]) / 2)
             # Get majority label in window
             window_start = int(row["window_start"])
             window_end = int(row["window_end"])
