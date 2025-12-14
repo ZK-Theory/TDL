@@ -625,7 +625,6 @@ def simulate_intervention(
 
     # Apply intervention effect (simplified: uniform boost to target LSOAs)
     # In real implementation, would map LSOA codes to grid coordinates
-    mean_baseline_mobility = target_data["mobility"].mean()
     mobility_improvement = intervention.estimated_effect
 
     # Estimate population affected
