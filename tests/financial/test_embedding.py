@@ -46,9 +46,10 @@ class TestTakensEmbedding:
         for delay, dimension in test_cases:
             embedded = takens_embedding(ts, delay=delay, dimension=dimension)
             expected_rows = 500 - (dimension - 1) * delay
-            assert embedded.shape == (expected_rows, dimension), (
-                f"Failed for delay={delay}, dimension={dimension}"
-            )
+            assert embedded.shape == (
+                expected_rows,
+                dimension,
+            ), f"Failed for delay={delay}, dimension={dimension}"
 
     def test_embedding_values_correctness(self):
         """Test that embedding vectors contain correct values."""

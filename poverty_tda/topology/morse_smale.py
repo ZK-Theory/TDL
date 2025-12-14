@@ -524,18 +524,18 @@ def load_vtk_file(vtk_path: str):
     """Load VTK file using appropriate reader."""
     path = Path(vtk_path)
     suffix = path.suffix.lower()
-    
+
     readers = {
         ".vti": vtk.vtkXMLImageDataReader,
         ".vts": vtk.vtkXMLStructuredGridReader,
         ".vtp": vtk.vtkXMLPolyDataReader,
         ".vtk": vtk.vtkDataSetReader,
     }
-    
+
     reader_class = readers.get(suffix)
     if reader_class is None:
         raise ValueError(f"Unsupported format: {suffix}")
-    
+
     reader = reader_class()
     reader.SetFileName(vtk_path)
     reader.Update()
@@ -553,7 +553,7 @@ def compute_morse_smale_ttk(
     """Compute Morse-Smale complex using TTK."""
     # Load VTK data
     vtk_data = load_vtk_file(vtk_path)
-    
+
     # Get scalar range
     point_data = vtk_data.GetPointData()
     scalar_array = point_data.GetArray(scalar_name)
@@ -563,36 +563,36 @@ def compute_morse_smale_ttk(
             for i in range(point_data.GetNumberOfArrays())
         ]
         raise ValueError(f"Scalar '{scalar_name}' not found. Available: {available}")
-    
+
     scalars = vtk_to_numpy(scalar_array)
     scalar_min, scalar_max = float(scalars.min()), float(scalars.max())
     scalar_range = scalar_max - scalar_min
-    
+
     # Set active scalars
     point_data.SetActiveScalars(scalar_name)
-    
+
     # Compute absolute persistence threshold
     abs_threshold = persistence_threshold * scalar_range
-    
+
     # Create and configure Morse-Smale filter
     ms_filter = ttkMorseSmaleComplex()
     ms_filter.SetInputData(vtk_data)
     ms_filter.SetInputArrayToProcess(0, 0, 0, 0, scalar_name)
-    
+
     # Configure outputs
     ms_filter.SetComputeCriticalPoints(True)
     ms_filter.SetComputeAscendingSeparatrices1(compute_separatrices)
     ms_filter.SetComputeDescendingSeparatrices1(compute_separatrices)
     ms_filter.SetComputeAscendingSegmentation(compute_ascending)
     ms_filter.SetComputeDescendingSegmentation(compute_descending)
-    
+
     # Set persistence threshold
     ms_filter.SetSaddleConnectorsPersistenceThreshold(abs_threshold)
     ms_filter.SetThresholdIsAbsolute(True)
-    
+
     # Compute
     ms_filter.Update()
-    
+
     # Extract results
     result = {
         "critical_points": [],
@@ -601,29 +601,29 @@ def compute_morse_smale_ttk(
         "persistence_threshold": persistence_threshold,
         "abs_threshold": abs_threshold,
     }
-    
+
     # Port 0: Critical Points
     critical_points_output = ms_filter.GetOutput(0)
     if critical_points_output:
         n_points = critical_points_output.GetNumberOfPoints()
         cp_data = critical_points_output.GetPointData()
-        
+
         # Get critical type array
         type_array = cp_data.GetArray("CellDimension")
         value_array = cp_data.GetArray(scalar_name)
-        
+
         for i in range(n_points):
             pos = critical_points_output.GetPoint(i)
             cp_type = int(type_array.GetValue(i)) if type_array else -1
             value = float(value_array.GetValue(i)) if value_array else 0.0
-            
+
             result["critical_points"].append({
                 "point_id": i,
                 "position": [pos[0], pos[1], pos[2]],
                 "value": value,
                 "point_type": cp_type,
             })
-    
+
     # Port 1: 1-Separatrices
     if compute_separatrices:
         separatrices_output = ms_filter.GetOutput(1)
@@ -633,7 +633,7 @@ def compute_morse_smale_ttk(
             sep_type_array = sep_data.GetArray("SeparatrixType")
             source_array = sep_data.GetArray("SourceId")
             dest_array = sep_data.GetArray("DestinationId")
-            
+
             # Group cells by separatrix ID
             sep_dict = {}
             for i in range(separatrices_output.GetNumberOfCells()):
@@ -650,24 +650,24 @@ def compute_morse_smale_ttk(
                         "source_id": src_id,
                         "destination_id": dst_id,
                     }
-            
+
             result["separatrices"] = list(sep_dict.values())
-    
+
     # Port 3: Segmentation (manifolds)
     segmentation_output = ms_filter.GetOutput(3)
     if segmentation_output:
         seg_data = segmentation_output.GetPointData()
-        
+
         if compute_ascending:
             asc_array = seg_data.GetArray("AscendingManifold")
             if asc_array:
                 result["ascending_manifold"] = vtk_to_numpy(asc_array).tolist()
-        
+
         if compute_descending:
             desc_array = seg_data.GetArray("DescendingManifold")
             if desc_array:
                 result["descending_manifold"] = vtk_to_numpy(desc_array).tolist()
-    
+
     return result
 
 
@@ -681,9 +681,9 @@ if __name__ == "__main__":
     parser.add_argument("--compute-descending", type=int, default=1)
     parser.add_argument("--compute-separatrices", type=int, default=1)
     parser.add_argument("--output-json", required=True)
-    
+
     args = parser.parse_args()
-    
+
     try:
         result = compute_morse_smale_ttk(
             args.vtk_path,
@@ -693,10 +693,10 @@ if __name__ == "__main__":
             bool(args.compute_descending),
             bool(args.compute_separatrices),
         )
-        
+
         with open(args.output_json, "w") as f:
             json.dump(result, f)
-        
+
         print("SUCCESS")
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)

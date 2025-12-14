@@ -30,6 +30,7 @@ dev = [
     "ruff>=0.8.0",
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
+    "pre-commit>=4.0.0",
 ]
 kriging = [
     "pykrige>=1.7.0",
@@ -48,7 +49,7 @@ target-version = "py311"
 exclude = ["docs/notebooks/*.ipynb"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "W"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]

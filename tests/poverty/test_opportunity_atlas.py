@@ -448,9 +448,9 @@ class TestImdDataIntegration:
         jaywick = downloaded_imd_df[downloaded_imd_df["lsoa_code"] == JAYWICK_LSOA_CODE]
 
         assert len(jaywick) == 1, "Jaywick LSOA not found"
-        assert jaywick["imd_decile"].iloc[0] == 1, (
-            "Jaywick should be in decile 1 (most deprived)"
-        )
+        assert (
+            jaywick["imd_decile"].iloc[0] == 1
+        ), "Jaywick should be in decile 1 (most deprived)"
 
     def test_known_most_deprived_lads(self, downloaded_imd_df: pd.DataFrame):
         """Verify known deprived LADs have low average deciles."""

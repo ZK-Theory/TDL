@@ -111,16 +111,16 @@ def assert_persistence_diagram_valid(diagram: np.ndarray) -> None:
         AssertionError: If any validation check fails
     """
     assert diagram.ndim == 2, f"Diagram must be 2D array, got shape {diagram.shape}"
-    assert diagram.shape[1] == 2, (
-        f"Diagram must have 2 columns [birth, death], got {diagram.shape[1]}"
-    )
+    assert (
+        diagram.shape[1] == 2
+    ), f"Diagram must have 2 columns [birth, death], got {diagram.shape[1]}"
 
     # Check birth ≤ death
     births, deaths = diagram[:, 0], diagram[:, 1]
     invalid_features = births > deaths
-    assert not np.any(invalid_features), (
-        f"Found {np.sum(invalid_features)} features with birth > death"
-    )
+    assert not np.any(
+        invalid_features
+    ), f"Found {np.sum(invalid_features)} features with birth > death"
 
     # Check for NaN/Inf
     assert np.all(np.isfinite(diagram)), "Diagram contains NaN or Inf values"
@@ -147,16 +147,16 @@ def assert_betti_numbers_match(
     computed = np.asarray(computed)
     expected = np.asarray(expected)
 
-    assert computed.shape == expected.shape, (
-        f"Shape mismatch: computed {computed.shape} vs expected {expected.shape}"
-    )
+    assert (
+        computed.shape == expected.shape
+    ), f"Shape mismatch: computed {computed.shape} vs expected {expected.shape}"
 
     # For exact zeros in expected, use absolute tolerance
     zero_mask = expected == 0
     if np.any(zero_mask):
-        assert np.allclose(computed[zero_mask], 0, atol=FLOAT_TOLERANCE), (
-            "Computed values differ from expected zeros"
-        )
+        assert np.allclose(
+            computed[zero_mask], 0, atol=FLOAT_TOLERANCE
+        ), "Computed values differ from expected zeros"
 
     # For non-zero values, use relative tolerance
     nonzero_mask = ~zero_mask
@@ -198,9 +198,9 @@ def assert_bottleneck_distance_within(
         # Use Wasserstein-∞ (bottleneck) distance
         distance = wasserstein_distance(diagram1, diagram2, order=np.inf, internal_p=2)
 
-        assert distance <= threshold, (
-            f"Bottleneck distance {distance:.6f} exceeds threshold {threshold}"
-        )
+        assert (
+            distance <= threshold
+        ), f"Bottleneck distance {distance:.6f} exceeds threshold {threshold}"
 
     except ImportError:
         # Fallback: simplified implementation for testing

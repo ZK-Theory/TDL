@@ -144,9 +144,7 @@ class TestFetchTickerUnit:
         """Test handling of missing price data (delisted ticker)."""
         # Mock missing prices response
         mock_ticker = MagicMock()
-        mock_ticker.history.side_effect = YFPricesMissingError(
-            "DELISTED", {}
-        )
+        mock_ticker.history.side_effect = YFPricesMissingError("DELISTED", {})
         mock_ticker_cls.return_value = mock_ticker
 
         # Execute
@@ -378,7 +376,7 @@ class TestFetchTickerIntegration:
         # Note: yfinance behavior changed - now returns empty DataFrame
         # instead of raising
         result = fetch_ticker("INVALIDTICKER123456", "2020-01-01", "2020-01-02")
-        
+
         # Should return empty DataFrame for invalid ticker
         assert result.empty
 

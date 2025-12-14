@@ -383,9 +383,9 @@ class TestRegimeClassifier:
         # Each subsequent fold should have more training data
         train_sizes = [fold["train_size"] for fold in fold_details]
         for i in range(1, len(train_sizes)):
-            assert train_sizes[i] > train_sizes[i - 1], (
-                "Training set should grow with each fold"
-            )
+            assert (
+                train_sizes[i] > train_sizes[i - 1]
+            ), "Training set should grow with each fold"
 
     def test_cross_validate_metrics_range(self, synthetic_data):
         """Test that CV metrics are in valid range [0, 1]."""
@@ -718,9 +718,9 @@ class TestIntegrationWithWindowedPipeline:
             f"Precision={metrics['precision']:.3f}, Recall={metrics['recall']:.3f}"
         )
         # Also verify ROC-AUC is good (model is learning the patterns)
-        assert metrics.get("roc_auc", 0) >= 0.70, (
-            f"ROC-AUC {metrics.get('roc_auc', 0):.3f} < 0.70"
-        )
+        assert (
+            metrics.get("roc_auc", 0) >= 0.70
+        ), f"ROC-AUC {metrics.get('roc_auc', 0):.3f} < 0.70"
 
     def test_cross_validation_with_windowed_features(self, synthetic_regime_data):
         """Test time-series cross-validation with windowed feature extraction."""
@@ -768,9 +768,9 @@ class TestIntegrationWithWindowedPipeline:
         # Mean F1 should be positive - topological features in CV can be challenging
         # due to non-stationarity and limited crisis samples per fold
         print(f"\nCV Results: mean_F1={cv_results['mean_f1']:.3f}")
-        assert cv_results["mean_f1"] >= 0.0, (
-            f"Mean F1 should be non-negative, got {cv_results['mean_f1']:.3f}"
-        )
+        assert (
+            cv_results["mean_f1"] >= 0.0
+        ), f"Mean F1 should be non-negative, got {cv_results['mean_f1']:.3f}"
         # At least one fold should have some predictive power
         assert max(cv_results["f1"]) > 0.0, "At least one fold should have F1 > 0"
 

@@ -87,7 +87,7 @@ def fetch_ohlc(
 
     url = f"{COINGECKO_BASE_URL}/coins/{coin_id}/ohlc"
     params = {"vs_currency": vs_currency, "days": days}
-    
+
     # Add API key to headers if available
     headers = {}
     if COINGECKO_API_KEY:
@@ -223,7 +223,7 @@ def fetch_market_chart(
 
     url = f"{COINGECKO_BASE_URL}/coins/{coin_id}/market_chart"
     params = {"vs_currency": vs_currency, "days": days}
-    
+
     # Add API key to headers if available
     headers = {}
     if COINGECKO_API_KEY:
@@ -359,7 +359,7 @@ def fetch_historical_range(
         "from": start_ts,
         "to": end_ts,
     }
-    
+
     # Add API key to headers if available
     headers = {}
     if COINGECKO_API_KEY:
