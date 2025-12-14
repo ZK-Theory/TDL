@@ -270,7 +270,6 @@ class SurfaceModifier:
             j_max = min(self.surface.shape[1], int(j_center + radius + 1))
 
             # Get surrounding ring values (just outside radius)
-            ring_mask = np.zeros_like(self.modified_surface, dtype=bool)
             i_coords = np.arange(self.surface.shape[0])
             j_coords = np.arange(self.surface.shape[1])
             i_grid, j_grid = np.meshgrid(i_coords, j_coords, indexing="ij")
