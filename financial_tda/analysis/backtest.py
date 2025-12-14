@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from financial_tda.models.change_point_detector import ChangePointDetector
