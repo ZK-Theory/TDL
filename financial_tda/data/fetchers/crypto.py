@@ -11,6 +11,7 @@ CoinGecko API Documentation: https://www.coingecko.com/en/api/documentation
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Any
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 # CoinGecko base URL
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
+
+# Optional API key support (CoinGecko now requires auth for many endpoints)
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
 
 # Coin ID mapping for convenience
 COIN_IDS = {
@@ -84,9 +88,14 @@ def fetch_ohlc(
     url = f"{COINGECKO_BASE_URL}/coins/{coin_id}/ohlc"
     params = {"vs_currency": vs_currency, "days": days}
 
+    # Add API key to headers if available
+    headers = {}
+    if COINGECKO_API_KEY:
+        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, headers=headers, timeout=30)
 
             # Check for rate limiting
             if response.status_code == 429:
@@ -131,6 +140,16 @@ def fetch_ohlc(
             if e.response.status_code == 404:
                 logger.error(f"Invalid coin ID: {coin_id}")
                 raise ValueError(f"Invalid coin ID: {coin_id}") from e
+            elif e.response.status_code == 401:
+                logger.error(
+                    f"Unauthorized access for {coin_id}. "
+                    "CoinGecko API now requires authentication. "
+                    "Set COINGECKO_API_KEY environment variable."
+                )
+                raise ValueError(
+                    "CoinGecko API authentication required. "
+                    "Set COINGECKO_API_KEY environment variable."
+                ) from e
             elif attempt < max_retries - 1:
                 wait_time = BASE_RETRY_DELAY * (2**attempt)
                 logger.warning(
@@ -205,9 +224,14 @@ def fetch_market_chart(
     url = f"{COINGECKO_BASE_URL}/coins/{coin_id}/market_chart"
     params = {"vs_currency": vs_currency, "days": days}
 
+    # Add API key to headers if available
+    headers = {}
+    if COINGECKO_API_KEY:
+        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, headers=headers, timeout=30)
 
             if response.status_code == 429:
                 if attempt < max_retries - 1:
@@ -252,6 +276,16 @@ def fetch_market_chart(
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 raise ValueError(f"Invalid coin ID: {coin_id}") from e
+            elif e.response.status_code == 401:
+                logger.error(
+                    f"Unauthorized access for {coin_id}. "
+                    "CoinGecko API now requires authentication. "
+                    "Set COINGECKO_API_KEY environment variable."
+                )
+                raise ValueError(
+                    "CoinGecko API authentication required. "
+                    "Set COINGECKO_API_KEY environment variable."
+                ) from e
             elif attempt < max_retries - 1:
                 wait_time = BASE_RETRY_DELAY * (2**attempt)
                 logger.warning(
@@ -326,9 +360,14 @@ def fetch_historical_range(
         "to": end_ts,
     }
 
+    # Add API key to headers if available
+    headers = {}
+    if COINGECKO_API_KEY:
+        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, headers=headers, timeout=30)
 
             if response.status_code == 429:
                 if attempt < max_retries - 1:
@@ -375,6 +414,16 @@ def fetch_historical_range(
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 raise ValueError(f"Invalid coin ID: {coin_id}") from e
+            elif e.response.status_code == 401:
+                logger.error(
+                    f"Unauthorized access for {coin_id}. "
+                    "CoinGecko API now requires authentication. "
+                    "Set COINGECKO_API_KEY environment variable."
+                )
+                raise ValueError(
+                    "CoinGecko API authentication required. "
+                    "Set COINGECKO_API_KEY environment variable."
+                ) from e
             elif attempt < max_retries - 1:
                 wait_time = BASE_RETRY_DELAY * (2**attempt)
                 time.sleep(wait_time)

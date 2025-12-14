@@ -225,9 +225,9 @@ class TestCrossValidation:
 
         # Should have similar count (within reasonable tolerance)
         # Both should find n-1 H0 features (merging of components)
-        assert abs(h0_gtda - h0_gudhi) < 10, (
-            f"H0 count mismatch: gtda={h0_gtda}, gudhi={h0_gudhi}"
-        )
+        assert (
+            abs(h0_gtda - h0_gudhi) < 10
+        ), f"H0 count mismatch: gtda={h0_gtda}, gudhi={h0_gudhi}"
 
     def test_vr_gudhi_consistency_persistence_range(self):
         """Test that max persistence is similar between implementations."""
@@ -314,9 +314,9 @@ class TestLorenzTopology:
                 max_pers = np.max(persistence)
 
                 # Should have some significant H1 persistence
-                assert max_pers > 0.1, (
-                    f"Expected significant H1 persistence, got max={max_pers:.4f}"
-                )
+                assert (
+                    max_pers > 0.1
+                ), f"Expected significant H1 persistence, got max={max_pers:.4f}"
 
 
 class TestUtilityFunctions:

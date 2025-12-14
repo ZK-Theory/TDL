@@ -10,12 +10,58 @@ Thank you for contributing to the Topological Data Analysis (TDL) project! This 
 - **Configuration**: All ruff settings are defined in `pyproject.toml`
 - **Line Length**: Maximum 88 characters per line
 - **Target Python**: Python 3.11
+- **Selected Rules**: E (pycodestyle errors), F (pyflakes), I (isort), W (pycodestyle warnings)
 
-Run ruff before committing:
+#### Pre-Commit Hooks (Automatic)
+
+Pre-commit hooks are configured to automatically run linting and formatting on every commit. These hooks will:
+- Run ruff linting with auto-fix
+- Format code with ruff
+- Block commits if errors remain
+
+The hooks are **automatically installed** when you run:
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
+
+Your commits will now be automatically checked. If auto-fixes are applied, you'll need to stage the changes and commit again.
+
+#### Manual Linting (When Needed)
+
+To manually check or fix linting issues:
+
+**Check for issues:**
 ```bash
 ruff check .
+```
+
+**Auto-fix issues:**
+```bash
+ruff check . --fix
+```
+
+**Format code:**
+```bash
 ruff format .
 ```
+
+**Check and format together:**
+```bash
+ruff check . --fix && ruff format .
+```
+
+#### VS Code Integration (Recommended)
+
+Install the [Ruff VS Code extension](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) for real-time linting and format-on-save:
+
+1. Install extension: `charliermarsh.ruff`
+2. The repository's `.vscode/settings.json` is pre-configured with:
+   - Format on save
+   - Auto-fix on save
+   - Import organization on save
+
+With this setup, your code will be automatically formatted and fixed as you work, preventing linting errors before commit.
 
 ### Import Organization
 

@@ -77,9 +77,9 @@ def test_circle_has_one_connected_component(sample_point_cloud):
 
     # All persistences should be non-negative
     persistences = h0_diagram[:, 1] - h0_diagram[:, 0]
-    assert np.all(persistences >= -FLOAT_TOLERANCE), (
-        "All persistences must be non-negative"
-    )
+    assert np.all(
+        persistences >= -FLOAT_TOLERANCE
+    ), "All persistences must be non-negative"
 
 
 @pytest.mark.validation
@@ -121,9 +121,9 @@ def test_circle_has_one_loop(sample_point_cloud):
 
     # Loop should have significant persistence (relative to point cloud diameter)
     cloud_diameter = np.max(np.linalg.norm(circle[:, None] - circle, axis=2))
-    assert max_persistence > 0.1 * cloud_diameter, (
-        f"H1 feature too short-lived: {max_persistence} < 0.1 * {cloud_diameter}"
-    )
+    assert (
+        max_persistence > 0.1 * cloud_diameter
+    ), f"H1 feature too short-lived: {max_persistence} < 0.1 * {cloud_diameter}"
 
 
 @pytest.mark.validation
@@ -196,9 +196,9 @@ def test_persistence_diagram_birth_death_ordering(sample_point_cloud):
 
             # Additional explicit check
             births, deaths = dim_diagram[:, 0], dim_diagram[:, 1]
-            assert np.all(births <= deaths + FLOAT_TOLERANCE), (
-                f"Found H{dim} features with birth > death"
-            )
+            assert np.all(
+                births <= deaths + FLOAT_TOLERANCE
+            ), f"Found H{dim} features with birth > death"
 
 
 # ============================================================================
@@ -318,9 +318,9 @@ def test_end_to_end_topology_pipeline(sample_time_series):
     h1_diagram = diagrams[diagrams[:, 2] == 1, :2]
 
     # Sine wave should produce at least one H1 feature (periodic structure)
-    assert len(h1_diagram) > 0, (
-        "Periodic time series should have at least one H1 feature in embedding"
-    )
+    assert (
+        len(h1_diagram) > 0
+    ), "Periodic time series should have at least one H1 feature in embedding"
 
     # Validate diagram structure
     assert_persistence_diagram_valid(h1_diagram)

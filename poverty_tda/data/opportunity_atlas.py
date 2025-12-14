@@ -126,7 +126,8 @@ KNOWN_LEAST_DEPRIVED_LADS = [
 ]
 
 # Jaywick (Tendring) is famously the most deprived LSOA
-JAYWICK_LSOA_CODE = "E01021437"
+# E01021988 "Tendring 018A" is the #1 ranked most deprived LSOA in England (IMD 2019)
+JAYWICK_LSOA_CODE = "E01021988"
 
 
 def download_imd_data(

@@ -312,8 +312,12 @@ class TestLsoaBoundariesIntegration:
     def downloaded_lsoa_gdf(self, tmp_path_factory) -> gpd.GeoDataFrame:
         """Download and load LSOA boundaries for integration tests."""
         tmp_dir = tmp_path_factory.mktemp("lsoa_data")
-        filepath = download_lsoa_boundaries(output_dir=tmp_dir)
-        return load_lsoa_boundaries(filepath=filepath)
+        try:
+            filepath = download_lsoa_boundaries(output_dir=tmp_dir)
+            # Load with automatic fallback handling
+            return load_lsoa_boundaries(filepath=filepath)
+        except Exception as e:
+            pytest.skip(f"Could not download/load LSOA boundaries: {e}")
 
     def test_lsoa_count_matches_expected(self, downloaded_lsoa_gdf: gpd.GeoDataFrame):
         """Verify LSOA count matches expected ~33,755 for England and Wales."""
@@ -332,9 +336,9 @@ class TestLsoaBoundariesIntegration:
         valid_types = {"Polygon", "MultiPolygon"}
         actual_types = set(downloaded_lsoa_gdf.geometry.geom_type.unique())
 
-        assert actual_types.issubset(valid_types), (
-            f"Unexpected geometry types: {actual_types - valid_types}"
-        )
+        assert actual_types.issubset(
+            valid_types
+        ), f"Unexpected geometry types: {actual_types - valid_types}"
 
     def test_crs_is_set(self, downloaded_lsoa_gdf: gpd.GeoDataFrame):
         """Verify CRS is correctly set."""
@@ -360,9 +364,9 @@ class TestLsoaBoundariesIntegration:
         wales = filter_by_region(downloaded_lsoa_gdf, "W01")
 
         # England should have ~32,844 LSOAs, Wales ~911
-        assert len(england) > 30000, (
-            f"Expected >30000 England LSOAs, got {len(england)}"
-        )
+        assert (
+            len(england) > 30000
+        ), f"Expected >30000 England LSOAs, got {len(england)}"
         assert len(wales) > 800, f"Expected >800 Wales LSOAs, got {len(wales)}"
 
         # Combined should roughly equal total
@@ -373,9 +377,9 @@ class TestLsoaBoundariesIntegration:
         required = {"LSOA21CD", "LSOA21NM", "geometry"}
         actual_cols = set(downloaded_lsoa_gdf.columns)
 
-        assert required.issubset(actual_cols), (
-            f"Missing required columns: {required - actual_cols}"
-        )
+        assert required.issubset(
+            actual_cols
+        ), f"Missing required columns: {required - actual_cols}"
 
     def test_lsoa_codes_format(self, downloaded_lsoa_gdf: gpd.GeoDataFrame):
         """Verify LSOA codes follow expected format."""

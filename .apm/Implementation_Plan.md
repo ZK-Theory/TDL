@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_3 completed Phase 3 (Feature Engineering) - 7/7 tasks done, 282 new tests. Financial: sliding window pipeline with change detection. Poverty: gateway LSOA identification for intervention targeting.
+**Last Modification:** Manager_5 - **PHASE 4 COMPLETE** (5/5 tasks). Financial: RegimeClassifier, ChangePointDetector, BacktestEngine. Poverty: InterventionPrioritizer, CounterfactualAnalyzer. 212 new tests.
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay).
 
 
@@ -302,10 +302,11 @@
 
 ## Phase 4: Detection & ML Systems
 
-### Task 4.1 – Regime Classifier - Financial - Agent_Financial_ML
+### Task 4.1 – Regime Classifier - Financial - Agent_Financial_ML ✅
 **Objective:** Implement regime classifier (crisis vs normal) using topological features.
 **Output:** `financial_tda/models/regime_classifier.py` with training pipeline.
 **Guidance:** Use time-series aware train/test split (no look-ahead). Crisis labels: VIX > 25 for ≥5 consecutive days, or drawdown > 15% from recent peak. Normal: VIX < 20 for ≥20 consecutive days. Multiple classifier options for comparison. **Depends on: Task 3.4 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - RegimeClassifier with 4 classifier types (RF, SVM, XGBoost, GB), time-series CV, balanced class weights. 43 tests (40 pass, 3 skip due to gtda env). Added xgboost, joblib dependencies.
 
 1. Create `financial_tda/models/regime_classifier.py` with feature preprocessing
 2. Implement crisis/normal labeling (VIX-based and drawdown-based definitions)
@@ -314,20 +315,22 @@
 5. Implement cross-validation with appropriate metrics (precision, recall, F1)
 6. Create tests with synthetic regime data
 
-### Task 4.2 – Change-Point Detection - Bottleneck Distance - Agent_Financial_ML
+### Task 4.2 – Change-Point Detection - Bottleneck Distance - Agent_Financial_ML ✅
 **Objective:** Implement change-point detection using bottleneck distance.
 **Output:** `financial_tda/models/change_point_detector.py`.
 **Guidance:** Calibrate thresholds on historical normal periods (2004-2007, 2013-2019 excluding Aug 2015). Statistical significance testing. Validation crisis onset dates: 2008-09-15 (Lehman), 2015-08-11 (China devaluation), 2020-02-20 (COVID first drop), 2022-01-03 (rate hike sell-off). **Depends on: Task 3.4 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - NormalPeriodCalibrator with bootstrap CI, ChangePointDetector with z-scores/p-values, crisis validation framework. 42 tests (all pass).
 
 1. Create `financial_tda/models/change_point_detector.py` with bottleneck-based detection
 2. Implement threshold calibration using historical "normal" periods (2004-2007, 2013-2019)
 3. Add confidence intervals and statistical significance testing
 4. Create tests validating detection on known crisis onset dates (Lehman 2008-09-15, China 2015-08-11, COVID 2020-02-20, Rate hike 2022-01-03)
 
-### Task 4.3 – Backtest Framework - Historical Crises - Agent_Financial_ML
+### Task 4.3 – Backtest Framework - Historical Crises - Agent_Financial_ML ✅
 **Objective:** Implement backtesting on historical crises (2008, 2020, 2022).
 **Output:** `financial_tda/analysis/backtest.py` with results.
 **Guidance:** Compute lead time before crisis. Compare against volatility baseline. Crisis periods: GFC (2008-09-15 to 2009-03-09), COVID (2020-02-20 to 2020-03-23), Rate Hike (2022-01-03 to 2022-10-12). Success metric: detect regime change ≥5 trading days before peak drawdown. **Depends on: Tasks 4.1, 4.2 Output**
+**Completed:** Agent_Financial_ML - BacktestEngine with CrisisPeriod definitions, VolatilityBaseline comparison, lead time computation via np.busday_count(). 52 tests (all pass), 91% coverage.
 
 1. Create `financial_tda/analysis/backtest.py` with crisis period definitions (GFC, COVID, Rate Hike dates)
 2. Implement rolling window evaluation across historical data
@@ -335,20 +338,22 @@
 4. Generate precision/recall metrics per crisis event
 5. Create comparison against baseline (volatility-only) detection
 
-### Task 4.4 – Intervention Analysis Framework - Poverty - Agent_Poverty_ML
+### Task 4.4 – Intervention Analysis Framework - Poverty - Agent_Poverty_ML ✅
 **Objective:** Implement intervention targeting based on topological analysis.
 **Output:** `poverty_tda/analysis/interventions.py` module.
 **Guidance:** Prioritize gateway LSOAs by impact. Cost-benefit framework. Example scenarios: school quality improvement (+10% KS4 in gateway LSOA), transport link addition (reduce barrier height by 50%), job creation hub (flatten saddle point). **Depends on: Task 3.7 Output by Agent_Poverty_Topology**
+**Completed:** Agent_Poverty_ML - InterventionPrioritizer with 4 intervention types, ImpactModel, cost-benefit framework, scenario simulation. 38 tests (all pass), 99% coverage.
 
 1. Create `poverty_tda/analysis/interventions.py` with intervention targeting
 2. Implement gateway LSOA prioritization by impact potential
 3. Add intervention cost-benefit analysis based on topology
 4. Create tests with simulated scenarios (school improvement, transport link, job creation hub)
 
-### Task 4.5 – Counterfactual Analysis Module - Agent_Poverty_ML
+### Task 4.5 – Counterfactual Analysis Module - Agent_Poverty_ML ✅
 **Objective:** Implement counterfactual analysis ("what if barrier removed").
 **Output:** Counterfactual module with surface modification.
 **Guidance:** Recompute topology after modifications. Surface modification approach: Gaussian smoothing around saddle (increase values to "fill" barrier), linear interpolation to flatten saddle region. Measure: change in basin size, flow redistribution, population affected. Visualize before/after. **Depends on: Tasks 3.5, 3.6 Output by Agent_Poverty_Topology**
+**Completed:** Agent_Poverty_ML - SurfaceModifier with Gaussian/linear barrier removal, CounterfactualAnalyzer with topology comparison and population impact, visualization + reporting. 37 tests (all pass), 95% coverage.
 
 1. Implement surface modification utilities (Gaussian smoothing to remove saddles, linear interpolation for flattening)
 2. Recompute Morse-Smale complex on modified surface

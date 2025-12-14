@@ -128,6 +128,30 @@ def download_lsoa_boundaries(
                 if chunk:
                     f.write(chunk)
 
+        # Validate the downloaded GeoJSON file
+        try:
+            import json
+
+            with open(output_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Verify it has the expected GeoJSON structure
+            if not isinstance(data, dict):
+                raise ValueError("Downloaded file is not a valid GeoJSON object")
+
+            # Some ArcGIS REST APIs return FeatureCollection, others return raw features
+            if "features" not in data and "type" not in data:
+                raise ValueError("Downloaded file missing required GeoJSON structure")
+
+            logger.info(
+                f"Validated GeoJSON file: {len(data.get('features', []))} features"
+            )
+
+        except json.JSONDecodeError as json_err:
+            logger.error(f"Downloaded file is not valid JSON: {json_err}")
+            output_path.unlink()
+            raise ValueError(f"Downloaded file is not valid JSON: {json_err}")
+
         logger.info(f"Downloaded LSOA boundaries to {output_path}")
         return output_path
 
@@ -144,6 +168,7 @@ def load_lsoa_boundaries(
     simplify: bool = False,
     tolerance: float = 50.0,
     download_if_missing: bool = True,
+    engine: str = "pyogrio",
 ) -> gpd.GeoDataFrame:
     """
     Load LSOA boundaries into a GeoDataFrame.
@@ -159,6 +184,8 @@ def load_lsoa_boundaries(
             Default 50m provides good balance of detail and performance.
         download_if_missing: If True and filepath not provided, download data
             to default location.
+        engine: Geopandas file reading engine. Options: "pyogrio" (default),
+            "fiona". Automatically falls back to fiona if pyogrio fails.
 
     Returns:
         GeoDataFrame with LSOA boundaries. Contains columns:
@@ -196,7 +223,53 @@ def load_lsoa_boundaries(
             raise FileNotFoundError(f"Boundary file not found: {filepath}")
 
     logger.info(f"Loading LSOA boundaries from {filepath}")
-    gdf = gpd.read_file(filepath)
+
+    # Try to load with specified engine, with automatic fallback
+    try:
+        gdf = gpd.read_file(filepath, engine=engine)
+    except Exception as e:
+        # If pyogrio fails on GeoJSON, try alternative approaches
+        if engine == "pyogrio" and str(filepath).endswith(".geojson"):
+            logger.warning(
+                f"pyogrio failed to read GeoJSON ({e}), "
+                "attempting alternative loading strategies"
+            )
+
+            # Try reading as JSON and reconstructing
+            try:
+                import json
+
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                # Handle both FeatureCollection and raw features
+                if isinstance(data, dict):
+                    if "features" in data:
+                        gdf = gpd.GeoDataFrame.from_features(data["features"])
+                    elif "type" in data and data["type"] == "FeatureCollection":
+                        gdf = gpd.GeoDataFrame.from_features(data)
+                    else:
+                        # Might be raw features array
+                        gdf = gpd.GeoDataFrame.from_features(data)
+                else:
+                    raise ValueError("Unexpected GeoJSON structure")
+
+                # Set CRS - ArcGIS REST API uses EPSG:27700
+                gdf = gdf.set_crs(CRS_BRITISH_NATIONAL_GRID)
+                logger.info("Successfully loaded GeoJSON via JSON parsing")
+            except Exception as json_error:
+                # Final fallback: try fiona if available
+                try:
+                    gdf = gpd.read_file(filepath, engine="fiona")
+                    logger.info("Successfully loaded using fiona engine")
+                except Exception as fiona_error:
+                    raise IOError(
+                        f"Failed to load {filepath} with all available methods. "
+                        f"pyogrio error: {e}, json error: {json_error}, "
+                        f"fiona error: {fiona_error}"
+                    )
+        else:
+            raise
 
     # Validate expected columns exist
     _validate_lsoa_columns(gdf)

@@ -45,14 +45,14 @@ def sample_imd_df() -> pd.DataFrame:
                 "E01000002",
                 "E01000003",
                 "E01000004",
-                "E01021437",
+                "E01021988",  # Correct Jaywick LSOA code (IMD rank 1)
             ],
             "lsoa_name": [
                 "City of London 001A",
                 "City of London 001B",
                 "City of London 001C",
                 "City of London 001D",
-                "Tendring 016A",  # Jaywick
+                "Tendring 018A",  # Jaywick - most deprived LSOA in England
             ],
             "lad_code": [
                 "E09000001",
@@ -448,9 +448,9 @@ class TestImdDataIntegration:
         jaywick = downloaded_imd_df[downloaded_imd_df["lsoa_code"] == JAYWICK_LSOA_CODE]
 
         assert len(jaywick) == 1, "Jaywick LSOA not found"
-        assert jaywick["imd_decile"].iloc[0] == 1, (
-            "Jaywick should be in decile 1 (most deprived)"
-        )
+        assert (
+            jaywick["imd_decile"].iloc[0] == 1
+        ), "Jaywick should be in decile 1 (most deprived)"
 
     def test_known_most_deprived_lads(self, downloaded_imd_df: pd.DataFrame):
         """Verify known deprived LADs have low average deciles."""
