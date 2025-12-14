@@ -45,14 +45,14 @@ def sample_imd_df() -> pd.DataFrame:
                 "E01000002",
                 "E01000003",
                 "E01000004",
-                "E01021437",
+                "E01021988",  # Correct Jaywick LSOA code (IMD rank 1)
             ],
             "lsoa_name": [
                 "City of London 001A",
                 "City of London 001B",
                 "City of London 001C",
                 "City of London 001D",
-                "Tendring 016A",  # Jaywick
+                "Tendring 018A",  # Jaywick - most deprived LSOA in England
             ],
             "lad_code": [
                 "E09000001",
