@@ -501,12 +501,13 @@ class MobilitySurfaceModel(nn.Module):
         )
 
         # Compute feature map size after convolutions
-        # For 500×500 input: 500 → 250 → 125 → 62 → 31 (after 4 pooling layers)
-        # For patch attention (31×31 patches): 31 → 15 → 7 → 3 → 1
+        # For 64×64 input with 2 pooling: 64 → 32 → 16
+        # For patch attention (4×4 patches) with 2 pooling: 4 → 2 → 1
         self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
 
         # Prediction head
-        fc_input_size = num_feature_channels * 8 * 4 * 4  # After adaptive pooling
+        # Updated to match reduced channel count (base * 4 instead of base * 8)
+        fc_input_size = num_feature_channels * 4 * 4 * 4  # After adaptive pooling
         self.prediction_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(fc_input_size, 256),
@@ -555,21 +556,23 @@ class MobilitySurfaceModel(nn.Module):
             current_channels = input_channels
 
         # Build progressive feature extraction blocks
+        # Reduce number of pooling layers to avoid over-reduction
         channel_progression = [
             base_channels,
             base_channels * 2,
             base_channels * 4,
-            base_channels * 8,
         ]
 
-        for out_channels in channel_progression:
+        for i, out_channels in enumerate(channel_progression):
             # Residual block
-            layers.extend(
-                [
-                    self._residual_block(current_channels, out_channels),
-                    nn.MaxPool2d(2, 2),
-                ]
-            )
+            layers.append(self._residual_block(current_channels, out_channels))
+
+            # Only pool for first 2 blocks to avoid over-reduction
+            # For 64×64 input: 64→32→16 (2 pooling layers)
+            # For patch attention 4×4: stays at 4×4 or 2×2
+            if i < 2:
+                layers.append(nn.MaxPool2d(2, 2))
+
             current_channels = out_channels
 
         return nn.Sequential(*layers)
@@ -821,7 +824,7 @@ class SpatialTransformerTrainer:
             model.parameters(), lr=learning_rate, weight_decay=weight_decay
         )
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="min", factor=0.5, patience=5, verbose=True
+            self.optimizer, mode="min", factor=0.5, patience=5
         )
 
         # Training parameters
@@ -1028,3 +1031,361 @@ class SpatialTransformerTrainer:
         self.best_val_loss = checkpoint["best_val_loss"]
         self.best_model_state = checkpoint["model_state_dict"]
         logger.info(f"Loaded checkpoint from {path}")
+
+
+# ============================================================================
+# VISUALIZATION UTILITIES
+# ============================================================================
+
+
+def visualize_attention_map(
+    surface: np.ndarray,
+    attention: np.ndarray,
+    save_path: str | None = None,
+    title: str = "Spatial Attention on Mobility Surface",
+    cmap_surface: str = "viridis",
+    cmap_attention: str = "hot",
+    alpha: float = 0.5,
+    figsize: tuple[int, int] = (12, 5),
+) -> tuple:
+    """
+    Visualize attention heatmap overlaid on mobility surface.
+
+    Creates a side-by-side visualization showing:
+    1. Original mobility surface
+    2. Attention heatmap overlaid on surface
+
+    Args:
+        surface: 2D mobility surface array (H, W)
+        attention: 2D attention map array (H, W), values should be in [0, 1]
+        save_path: Optional path to save figure
+        title: Figure title
+        cmap_surface: Colormap for surface visualization
+        cmap_attention: Colormap for attention heatmap
+        alpha: Transparency of attention overlay (0=transparent, 1=opaque)
+        figsize: Figure size (width, height)
+
+    Returns:
+        Tuple of (fig, axes) matplotlib objects
+
+    Example:
+        >>> model = MobilitySurfaceModel(attention_type="patch")
+        >>> predictions, attention_map = model(surface_tensor)
+        >>> visualize_attention_map(
+        ...     surface.numpy(), attention_map[0].numpy(),
+        ...     save_path="attention_map.png"
+        ... )
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.error("matplotlib not installed - cannot visualize attention maps")
+        raise
+
+    # Normalize attention to [0, 1] if needed
+    attention_norm = attention.copy()
+    if attention_norm.max() > 1.0 or attention_norm.min() < 0.0:
+        attention_norm = (attention_norm - attention_norm.min()) / (
+            attention_norm.max() - attention_norm.min() + 1e-10
+        )
+
+    # Create figure
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+
+    # Plot 1: Original surface
+    im1 = axes[0].imshow(surface, cmap=cmap_surface, aspect="auto")
+    axes[0].set_title("Mobility Surface")
+    axes[0].set_xlabel("Grid X")
+    axes[0].set_ylabel("Grid Y")
+    plt.colorbar(im1, ax=axes[0], label="Mobility Score")
+
+    # Plot 2: Attention overlay
+    axes[1].imshow(surface, cmap=cmap_surface, aspect="auto")
+    im2 = axes[1].imshow(
+        attention_norm, cmap=cmap_attention, alpha=alpha, aspect="auto"
+    )
+    axes[1].set_title("Attention Heatmap Overlay")
+    axes[1].set_xlabel("Grid X")
+    axes[1].set_ylabel("Grid Y")
+    plt.colorbar(im2, ax=axes[1], label="Attention Weight")
+
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        logger.info(f"Saved attention visualization to {save_path}")
+
+    return fig, axes
+
+
+def analyze_attention_patterns(
+    model: MobilitySurfaceModel,
+    surfaces: list[np.ndarray] | torch.Tensor,
+    region_names: list[str] | None = None,
+    grid_coords: tuple[np.ndarray, np.ndarray] | None = None,
+    top_k: int = 5,
+) -> dict:
+    """
+    Aggregate attention across samples to identify important regions.
+
+    Analyzes which geographic regions consistently receive high attention
+    across multiple mobility surface samples. Useful for policy interpretation.
+
+    Args:
+        model: Trained MobilitySurfaceModel
+        surfaces: List of mobility surfaces (H, W) or batch tensor (N, 1, H, W)
+        region_names: Optional names for each surface/region
+        grid_coords: Optional tuple of (grid_x, grid_y) meshgrids for geographic mapping
+        top_k: Number of top attention regions to identify
+
+    Returns:
+        Dictionary with attention analysis:
+            - mean_attention: Average attention map across all samples (H, W)
+            - std_attention: Standard deviation of attention (H, W)
+            - top_regions: List of (row, col, attention_value) for top-k regions
+            - per_sample_attention: List of attention maps for each sample
+            - geographic_coords: Optional list of (x, y) coords for top regions
+
+    Example:
+        >>> model = trainer.get_best_model()
+        >>> results = analyze_attention_patterns(
+        ...     model, test_surfaces, region_names=["North", "South", "East"]
+        ... )
+        >>> print(f"Top attention region: {results['top_regions'][0]}")
+    """
+    model.eval()
+    device = next(model.parameters()).device
+
+    # Convert to tensor if needed
+    if isinstance(surfaces, list):
+        surfaces_tensor = torch.stack(
+            [torch.from_numpy(s).float().unsqueeze(0) for s in surfaces]
+        )
+    else:
+        surfaces_tensor = surfaces
+
+    # Collect attention maps
+    all_attention_maps = []
+    with torch.no_grad():
+        for i in range(surfaces_tensor.size(0)):
+            surface_batch = surfaces_tensor[i : i + 1].to(device)
+            _, attention_map = model(surface_batch)
+            all_attention_maps.append(attention_map.cpu().squeeze().numpy())
+
+    # Stack for analysis
+    attention_stack = np.stack(all_attention_maps, axis=0)  # (N, H, W)
+
+    # Compute statistics
+    mean_attention = attention_stack.mean(axis=0)
+    std_attention = attention_stack.std(axis=0)
+
+    # Find top-k attention regions
+    flat_mean = mean_attention.flatten()
+    top_indices = np.argsort(flat_mean)[-top_k:][::-1]
+    H, W = mean_attention.shape
+    top_regions = []
+
+    for idx in top_indices:
+        row = idx // W
+        col = idx % W
+        attention_value = mean_attention[row, col]
+        top_regions.append((row, col, float(attention_value)))
+
+    # Map to geographic coordinates if provided
+    geographic_coords = None
+    if grid_coords is not None:
+        grid_x, grid_y = grid_coords
+        geographic_coords = []
+        for row, col, _ in top_regions:
+            x = grid_x[row, col] if grid_x.ndim == 2 else grid_x[col]
+            y = grid_y[row, col] if grid_y.ndim == 2 else grid_y[row]
+            geographic_coords.append((float(x), float(y)))
+
+    logger.info(
+        f"Analyzed attention patterns across {len(all_attention_maps)} samples. "
+        f"Mean attention: {mean_attention.mean():.4f} ± {std_attention.mean():.4f}"
+    )
+
+    return {
+        "mean_attention": mean_attention,
+        "std_attention": std_attention,
+        "top_regions": top_regions,
+        "per_sample_attention": all_attention_maps,
+        "geographic_coords": geographic_coords,
+        "region_names": region_names,
+    }
+
+
+def plot_attention_aggregation(
+    analysis_results: dict,
+    save_path: str | None = None,
+    figsize: tuple[int, int] = (15, 5),
+) -> tuple:
+    """
+    Visualize aggregated attention patterns across samples.
+
+    Creates a three-panel plot showing:
+    1. Mean attention map
+    2. Standard deviation of attention
+    3. Consistency map (regions with consistently high attention)
+
+    Args:
+        analysis_results: Output from analyze_attention_patterns()
+        save_path: Optional path to save figure
+        figsize: Figure size
+
+    Returns:
+        Tuple of (fig, axes) matplotlib objects
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.error("matplotlib not installed - cannot visualize attention patterns")
+        raise
+
+    mean_attention = analysis_results["mean_attention"]
+    std_attention = analysis_results["std_attention"]
+
+    # Compute consistency: high mean, low std
+    consistency = mean_attention / (std_attention + 1e-6)
+
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+
+    # Plot 1: Mean attention
+    im1 = axes[0].imshow(mean_attention, cmap="hot", aspect="auto")
+    axes[0].set_title("Mean Attention")
+    plt.colorbar(im1, ax=axes[0], label="Attention")
+
+    # Plot 2: Std attention
+    im2 = axes[1].imshow(std_attention, cmap="viridis", aspect="auto")
+    axes[1].set_title("Attention Variability (Std)")
+    plt.colorbar(im2, ax=axes[1], label="Std")
+
+    # Plot 3: Consistency
+    im3 = axes[2].imshow(consistency, cmap="coolwarm", aspect="auto")
+    axes[2].set_title("Attention Consistency")
+    plt.colorbar(im3, ax=axes[2], label="Consistency")
+
+    # Mark top regions on mean attention plot
+    top_regions = analysis_results["top_regions"]
+    for i, (row, col, _) in enumerate(top_regions[:3]):  # Top 3
+        axes[0].plot(col, row, "w*", markersize=15, markeredgecolor="black")
+        axes[0].text(
+            col, row - 10, f"#{i + 1}", color="white", ha="center", fontweight="bold"
+        )
+
+    fig.suptitle(
+        "Aggregated Attention Pattern Analysis", fontsize=14, fontweight="bold"
+    )
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        logger.info(f"Saved attention aggregation plot to {save_path}")
+
+    return fig, axes
+
+
+def generate_policy_report(
+    analysis_results: dict,
+    region_metadata: dict | None = None,
+    output_path: str | None = None,
+) -> str:
+    """
+    Generate text report of attention patterns for policy interpretation.
+
+    Creates a human-readable summary of which geographic regions the model
+    focuses on, suitable for policy briefs and non-technical audiences.
+
+    Args:
+        analysis_results: Output from analyze_attention_patterns()
+        region_metadata: Optional dict mapping (row, col) to region info
+            (e.g., LAD names, LSOA codes)
+        output_path: Optional path to save report as text file
+
+    Returns:
+        Report text string
+
+    Example:
+        >>> analysis = analyze_attention_patterns(model, surfaces)
+        >>> report = generate_policy_report(
+        ...     analysis,
+        ...     region_metadata={(100, 200): "Greater London"}
+        ... )
+        >>> print(report)
+    """
+    top_regions = analysis_results["top_regions"]
+    mean_attention = analysis_results["mean_attention"]
+    std_attention = analysis_results["std_attention"]
+    geographic_coords = analysis_results.get("geographic_coords")
+    region_names = analysis_results.get("region_names")
+
+    # Build report
+    lines = []
+    lines.append("=" * 80)
+    lines.append("SPATIAL ATTENTION ANALYSIS - POLICY INTERPRETATION REPORT")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # Summary statistics
+    lines.append("SUMMARY STATISTICS:")
+    lines.append(
+        f"  Total samples analyzed: {len(analysis_results['per_sample_attention'])}"
+    )
+    lines.append(f"  Mean attention (overall): {mean_attention.mean():.4f}")
+    lines.append(f"  Attention variability (overall std): {std_attention.mean():.4f}")
+    lines.append("")
+
+    # Top attention regions
+    lines.append(f"TOP {len(top_regions)} HIGH-ATTENTION REGIONS:")
+    lines.append("  (Regions where the model consistently focuses for predictions)")
+    lines.append("")
+
+    for i, (row, col, attention_value) in enumerate(top_regions, 1):
+        lines.append(f"  #{i}: Grid Position ({row}, {col})")
+        lines.append(f"      Attention Score: {attention_value:.4f}")
+
+        # Add geographic coordinates if available
+        if geographic_coords and i <= len(geographic_coords):
+            x, y = geographic_coords[i - 1]
+            lines.append(f"      Geographic Coords: ({x:.0f}m E, {y:.0f}m N)")
+
+        # Add region metadata if available
+        if region_metadata and (row, col) in region_metadata:
+            lines.append(f"      Region: {region_metadata[(row, col)]}")
+
+        lines.append("")
+
+    # Policy implications
+    lines.append("POLICY IMPLICATIONS:")
+    lines.append(
+        "  The model learns to focus on specific geographic regions when predicting"
+    )
+    lines.append("  mobility outcomes. High-attention regions may represent:")
+    lines.append("    - Areas with strong influence on overall regional mobility")
+    lines.append("    - Regions with distinctive socioeconomic patterns")
+    lines.append("    - Potential intervention targets for policy")
+    lines.append("")
+
+    # Sample-specific analysis
+    if region_names:
+        lines.append("PER-SAMPLE ATTENTION SUMMARY:")
+        for i, name in enumerate(region_names):
+            sample_attention = analysis_results["per_sample_attention"][i]
+            mean_att = sample_attention.mean()
+            max_att = sample_attention.max()
+            lines.append(f"  {name}: Mean={mean_att:.4f}, Max={max_att:.4f}")
+        lines.append("")
+
+    lines.append("=" * 80)
+
+    report = "\n".join(lines)
+
+    # Save if requested
+    if output_path:
+        with open(output_path, "w") as f:
+            f.write(report)
+        logger.info(f"Saved policy report to {output_path}")
+
+    return report
