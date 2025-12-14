@@ -185,7 +185,7 @@ class RegimeDetectionModel(nn.Module):
         # Apply sequence model
         if self.sequence_model_type == "lstm":
             # LSTM: (batch, seq, hidden)
-            lstm_out, (h_n, c_n) = self.sequence_model(perslay_features)
+            _, (h_n, c_n) = self.sequence_model(perslay_features)
             # Use final hidden state from last layer
             # h_n shape: (num_layers * num_directions, batch, hidden)
             if self.sequence_model.bidirectional:
