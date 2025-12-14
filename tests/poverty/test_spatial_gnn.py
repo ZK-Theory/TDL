@@ -16,6 +16,7 @@ from shapely.geometry import Polygon
 
 from poverty_tda.models.spatial_gnn import (
     SpatialGNN,
+    SpatialGNNTrainer,
     build_lsoa_adjacency_graph,
     compute_edge_features,
     extract_node_features,
@@ -761,6 +762,229 @@ class TestSpatialGNN:
 
 
 # ============================================================================
+# TEST: SpatialGNNTrainer
+# ============================================================================
+
+
+class TestSpatialGNNTrainer:
+    """Test GNN training pipeline."""
+
+    def test_trainer_initialization(self):
+        """Test that trainer initializes correctly."""
+        model = SpatialGNN(input_dim=7, hidden_dim=32, num_layers=2)
+        trainer = SpatialGNNTrainer(
+            model, learning_rate=1e-3, weight_decay=1e-4, device="cpu"
+        )
+
+        assert trainer.learning_rate == 1e-3
+        assert trainer.weight_decay == 1e-4
+        assert trainer.device == "cpu"
+        assert isinstance(trainer.optimizer, torch.optim.Adam)
+
+    def test_spatial_split_ratios(self):
+        """Test that spatial split produces correct ratios."""
+        model = SpatialGNN(input_dim=7, hidden_dim=32)
+        trainer = SpatialGNNTrainer(model)
+
+        # Create dummy LSOA codes from 3 regions
+        lsoa_codes = (
+            [f"E0100000{i}" for i in range(7)]  # Region E01
+            + [f"E0200000{i}" for i in range(5)]  # Region E02
+            + [f"W0100000{i}" for i in range(3)]  # Region W01
+        )
+
+        # Create dummy GeoDataFrame
+        gdf = gpd.GeoDataFrame(
+            {"LSOA21CD": lsoa_codes},
+            geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])] * len(lsoa_codes),
+        )
+
+        train_mask, val_mask, test_mask = trainer.spatial_split(
+            lsoa_codes, gdf, train_ratio=0.6, val_ratio=0.2, test_ratio=0.2
+        )
+
+        # Check that masks cover all nodes
+        assert train_mask.sum() + val_mask.sum() + test_mask.sum() == len(lsoa_codes)
+
+        # Check no overlap
+        assert (train_mask & val_mask).sum() == 0
+        assert (train_mask & test_mask).sum() == 0
+        assert (val_mask & test_mask).sum() == 0
+
+    def test_spatial_split_preserves_regions(self):
+        """Test that spatial split keeps regions together."""
+        model = SpatialGNN(input_dim=7, hidden_dim=32)
+        trainer = SpatialGNNTrainer(model)
+
+        # Create LSOA codes where region is determined by prefix
+        lsoa_codes = (
+            [f"E01{i:05d}" for i in range(10)]  # Region E01
+            + [f"E02{i:05d}" for i in range(10)]  # Region E02
+        )
+
+        gdf = gpd.GeoDataFrame(
+            {"LSOA21CD": lsoa_codes},
+            geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])] * len(lsoa_codes),
+        )
+
+        train_mask, val_mask, test_mask = trainer.spatial_split(lsoa_codes, gdf)
+
+        # Check that entire regions are in one split (not mixed)
+        # Region E01: indices 0-9
+        e01_in_train = train_mask[:10].all()
+        e01_in_val = val_mask[:10].all()
+        e01_in_test = test_mask[:10].all()
+
+        # Exactly one should be True
+        assert sum([e01_in_train, e01_in_val, e01_in_test]) == 1
+
+    def test_train_reduces_loss(self):
+        """Test that training reduces loss."""
+        # Create small synthetic graph
+        model = SpatialGNN(input_dim=5, hidden_dim=16, num_layers=2)
+        trainer = SpatialGNNTrainer(model, learning_rate=1e-2)
+
+        # Synthetic data
+        num_nodes = 20
+        x = torch.randn(num_nodes, 5)
+        y = torch.randn(num_nodes)
+        edge_index = torch.tensor(
+            [[i, (i + 1) % num_nodes] for i in range(num_nodes)], dtype=torch.long
+        ).t()
+
+        # Simple split
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        train_mask[:14] = True
+        val_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        val_mask[14:] = True
+
+        # Train for few epochs
+        history = trainer.train(
+            x, y, edge_index, train_mask, val_mask, epochs=20, verbose=False
+        )
+
+        # Check that loss decreased
+        initial_loss = history["train_loss"][0]
+        final_loss = history["train_loss"][-1]
+        assert final_loss < initial_loss
+
+    def test_train_stops_early(self):
+        """Test early stopping when validation loss doesn't improve."""
+        model = SpatialGNN(input_dim=5, hidden_dim=16, num_layers=2)
+        trainer = SpatialGNNTrainer(model, early_stopping_patience=5)
+
+        # Synthetic data
+        num_nodes = 15
+        x = torch.randn(num_nodes, 5)
+        y = torch.randn(num_nodes)
+        edge_index = torch.tensor(
+            [[i, (i + 1) % num_nodes] for i in range(num_nodes)], dtype=torch.long
+        ).t()
+
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        train_mask[:10] = True
+        val_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        val_mask[10:] = True
+
+        # Train - should stop early
+        history = trainer.train(
+            x, y, edge_index, train_mask, val_mask, epochs=100, verbose=False
+        )
+
+        # Should stop before 100 epochs
+        assert len(history["train_loss"]) < 100
+
+    def test_evaluate_metrics(self):
+        """Test evaluation metrics computation."""
+        model = SpatialGNN(input_dim=7, hidden_dim=32)
+        trainer = SpatialGNNTrainer(model)
+
+        # Perfect predictions
+        y_true = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y_pred = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+
+        metrics = trainer.evaluate(y_pred, y_true)
+
+        assert metrics["rmse"] == 0.0
+        assert metrics["mae"] == 0.0
+        assert abs(metrics["r2"] - 1.0) < 1e-6  # Should be 1.0
+
+    def test_evaluate_metrics_imperfect(self):
+        """Test evaluation metrics with imperfect predictions."""
+        model = SpatialGNN(input_dim=7, hidden_dim=32)
+        trainer = SpatialGNNTrainer(model)
+
+        y_true = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y_pred = np.array([1.1, 2.1, 2.9, 4.2, 4.8])
+
+        metrics = trainer.evaluate(y_pred, y_true)
+
+        assert 0 < metrics["rmse"] < 1.0
+        assert 0 < metrics["mae"] < 1.0
+        assert 0 < metrics["r2"] < 1.0
+
+    def test_predict_shape(self):
+        """Test prediction output shape."""
+        model = SpatialGNN(input_dim=5, hidden_dim=16, num_layers=2)
+        trainer = SpatialGNNTrainer(model)
+
+        x = torch.randn(10, 5)
+        edge_index = torch.tensor(
+            [[i, (i + 1) % 10] for i in range(10)], dtype=torch.long
+        ).t()
+
+        predictions = trainer.predict(x, edge_index)
+
+        assert predictions.shape == (10,)
+        assert isinstance(predictions, np.ndarray)
+
+    def test_predict_with_mask(self):
+        """Test prediction with mask."""
+        model = SpatialGNN(input_dim=5, hidden_dim=16, num_layers=2)
+        trainer = SpatialGNNTrainer(model)
+
+        x = torch.randn(10, 5)
+        edge_index = torch.tensor(
+            [[i, (i + 1) % 10] for i in range(10)], dtype=torch.long
+        ).t()
+        mask = torch.zeros(10, dtype=torch.bool)
+        mask[3:7] = True
+
+        predictions = trainer.predict(x, edge_index, mask)
+
+        # Should only return 4 predictions (indices 3-6)
+        assert predictions.shape == (4,)
+
+    def test_training_history_tracking(self):
+        """Test that training history is tracked correctly."""
+        model = SpatialGNN(input_dim=5, hidden_dim=16, num_layers=2)
+        trainer = SpatialGNNTrainer(model)
+
+        num_nodes = 15
+        x = torch.randn(num_nodes, 5)
+        y = torch.randn(num_nodes)
+        edge_index = torch.tensor(
+            [[i, (i + 1) % num_nodes] for i in range(num_nodes)], dtype=torch.long
+        ).t()
+
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        train_mask[:10] = True
+        val_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        val_mask[10:] = True
+
+        history = trainer.train(
+            x, y, edge_index, train_mask, val_mask, epochs=10, verbose=False
+        )
+
+        # Check all history keys exist and have correct length
+        assert len(history["train_loss"]) <= 10
+        assert len(history["val_loss"]) == len(history["train_loss"])
+        assert len(history["val_rmse"]) == len(history["train_loss"])
+        assert len(history["val_mae"]) == len(history["train_loss"])
+        assert len(history["val_r2"]) == len(history["train_loss"])
+
+
+# ============================================================================
 # INTEGRATION TEST
 # ============================================================================
 
@@ -813,3 +1037,99 @@ class TestSpatialGraphIntegration:
 
         except FileNotFoundError:
             pytest.skip("LSOA boundary data not available for integration test")
+
+    def test_end_to_end_pipeline(self):
+        """
+        End-to-end integration test: Graph construction → Feature extraction → Training.
+
+        This test verifies the complete GNN pipeline works together on synthetic data
+        that mimics real LSOA structure.
+        """
+        # Create synthetic LSOA grid (5x5 = 25 LSOAs)
+        lsoa_codes = [f"E01{i:05d}" for i in range(25)]
+        polygons = []
+
+        for row in range(5):
+            for col in range(5):
+                x0, y0 = col, row
+                poly = Polygon([(x0, y0), (x0 + 1, y0), (x0 + 1, y0 + 1), (x0, y0 + 1)])
+                polygons.append(poly)
+
+        gdf = gpd.GeoDataFrame(
+            {"LSOA21CD": lsoa_codes}, geometry=polygons, crs="EPSG:27700"
+        )
+
+        # Step 1: Build adjacency graph
+        edge_index, graph_lsoa_codes = build_lsoa_adjacency_graph(
+            gdf, contiguity_type="queen"
+        )
+
+        assert len(graph_lsoa_codes) == 25
+        assert edge_index.shape[0] == 2
+
+        # Step 2: Create synthetic IMD data
+        imd_data = pd.DataFrame(
+            {
+                "lsoa_code": lsoa_codes,
+                "income_score": np.random.rand(25),
+                "employment_score": np.random.rand(25),
+                "education_score": np.random.rand(25),
+                "health_score": np.random.rand(25),
+                "crime_score": np.random.rand(25),
+                "housing_score": np.random.rand(25),
+                "environment_score": np.random.rand(25),
+            }
+        )
+
+        # Step 3: Extract node features
+        x = extract_node_features(graph_lsoa_codes, imd_data, normalization="zscore")
+
+        assert x.shape == (25, 7)
+
+        # Step 4: Create synthetic mobility labels
+        mobility_data = pd.DataFrame(
+            {
+                "lsoa_code": lsoa_codes,
+                "mobility_proxy": np.random.randn(25),
+            }
+        )
+
+        y = get_mobility_labels(graph_lsoa_codes, mobility_data)
+
+        assert y.shape == (25,)
+
+        # Step 5: Initialize model and trainer
+        model = SpatialGNN(input_dim=7, hidden_dim=16, num_layers=2)
+        trainer = SpatialGNNTrainer(model, learning_rate=1e-2)
+
+        # Step 6: Create train/val split
+        train_mask = torch.zeros(25, dtype=torch.bool)
+        train_mask[:18] = True
+        val_mask = torch.zeros(25, dtype=torch.bool)
+        val_mask[18:] = True
+
+        # Step 7: Train
+        history = trainer.train(
+            x, y, edge_index, train_mask, val_mask, epochs=10, verbose=False
+        )
+
+        # Verify training completed
+        assert len(history["train_loss"]) <= 10
+        assert len(history["val_loss"]) == len(history["train_loss"])
+
+        # Step 8: Make predictions
+        predictions = trainer.predict(x, edge_index, val_mask)
+
+        assert predictions.shape == (7,)  # 7 validation nodes
+
+        # Step 9: Evaluate
+        metrics = trainer.evaluate(predictions, y[val_mask].numpy())
+
+        assert "rmse" in metrics
+        assert "mae" in metrics
+        assert "r2" in metrics
+
+        # Metrics should be reasonable (not NaN/Inf)
+        assert np.isfinite(metrics["rmse"])
+        assert np.isfinite(metrics["mae"])
+        assert np.isfinite(metrics["r2"])

@@ -25,6 +25,13 @@ from financial_tda.models.regime_classifier import (
     prepare_features,
     save_model,
 )
+from financial_tda.models.rips_gnn import (
+    RipsGNN,
+    RipsGraphDataset,
+    build_rips_graph,
+    create_rips_dataset_from_embeddings,
+    create_rips_gnn,
+)
 from financial_tda.models.tda_neural import (
     EarlyStopping,
     PersistenceDataset,
@@ -67,4 +74,9 @@ __all__ = [
     "EarlyStopping",
     "train_model",
     "compute_metrics",
+    "RipsGNN",
+    "RipsGraphDataset",
+    "build_rips_graph",
+    "create_rips_gnn",
+    "create_rips_dataset_from_embeddings",
 ]

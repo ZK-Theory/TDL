@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_6 - **PHASE 5 IN PROGRESS** (Task 5.1 Complete). Perslay/PersFormer integration functional, temporal split implemented. Parallel tracks: Financial 5.1✅/5.2→ | Poverty 5.4→
+**Last Modification:** Manager_6 - **PHASE 5 IN PROGRESS** (2/6 tasks complete). Financial: 5.1✅ Perslay, 5.2🔄 RipsGNN. Poverty: 5.4✅ SpatialGNN, 5.5⏳ ready.
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay).
 
 
@@ -397,10 +397,11 @@
 3. Implement reconstruction error anomaly scoring (threshold at 95th percentile)
 4. Validate anomaly detection on crisis periods (2008, 2020, 2022)
 
-### Task 5.4 – GNN for Census Tracts - Poverty - Agent_Poverty_ML
+### Task 5.4 – GNN for Census Tracts - Poverty - Agent_Poverty_ML ✅
 **Objective:** Implement GNN with LSOAs as nodes for mobility prediction.
 **Output:** GNN module for spatial poverty analysis.
 **Guidance:** Use PyTorch Geometric. LSOA adjacency from shared boundaries (queen contiguity). Commuting data source: Census 2021 Origin-Destination data from NOMIS (WU03UK table) if available; fallback to geographic distance as edge weight. **Depends on: Task 1.5 Output by Agent_Poverty_Data**
+**Completed:** Agent_Poverty_ML - SpatialGNN with GraphSAGE layers, spatial_gnn.py (992 lines), 52 tests (94% coverage). Queen/rook contiguity via libpysal. Spatial splitting prevents geographic leakage. Dependencies: torch, torch-geometric, libpysal.
 
 1. Create LSOA adjacency graph from boundary data (queen contiguity)
 2. Add edge features (commuting flows from Census OD data if available, else geographic distance)

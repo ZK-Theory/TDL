@@ -660,3 +660,321 @@ class SpatialGNN(torch.nn.Module):
             f"num_layers={self.num_layers}, "
             f"dropout={self.dropout})"
         )
+
+
+# ============================================================================
+# TRAINING PIPELINE
+# ============================================================================
+
+
+class SpatialGNNTrainer:
+    """
+    Training pipeline for SpatialGNN with spatial train/val/test splits.
+
+    Implements a complete training workflow for GNN-based mobility prediction,
+    including spatial splitting to prevent geographic leakage, early stopping,
+    and comprehensive evaluation metrics.
+
+    Args:
+        model: SpatialGNN model instance.
+        learning_rate: Learning rate for Adam optimizer (default: 1e-3).
+        weight_decay: L2 regularization strength (default: 1e-4).
+        early_stopping_patience: Number of epochs without improvement before
+            stopping (default: 20).
+        device: Device to train on ("cpu" or "cuda").
+
+    Example:
+        >>> model = SpatialGNN(input_dim=7, hidden_dim=64)
+        >>> trainer = SpatialGNNTrainer(model, learning_rate=1e-3)
+        >>> # Prepare data
+        >>> x, y, edge_index, lsoa_codes = ...
+        >>> train_mask, val_mask, test_mask = trainer.spatial_split(lsoa_codes, gdf)
+        >>> # Train
+        >>> history = trainer.train(x, y, edge_index, train_mask, val_mask, epochs=100)
+    """
+
+    def __init__(
+        self,
+        model: SpatialGNN,
+        learning_rate: float = 1e-3,
+        weight_decay: float = 1e-4,
+        early_stopping_patience: int = 20,
+        device: str = "cpu",
+    ):
+        self.model = model.to(device)
+        self.device = device
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.early_stopping_patience = early_stopping_patience
+
+        # Optimizer and loss
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=learning_rate, weight_decay=weight_decay
+        )
+        self.criterion = torch.nn.MSELoss()
+
+        # Training history
+        self.history = {
+            "train_loss": [],
+            "val_loss": [],
+            "val_rmse": [],
+            "val_mae": [],
+            "val_r2": [],
+        }
+
+    def spatial_split(
+        self,
+        lsoa_codes: np.ndarray | list,
+        gdf: gpd.GeoDataFrame,
+        train_ratio: float = 0.7,
+        val_ratio: float = 0.15,
+        test_ratio: float = 0.15,
+        random_state: int = 42,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Create spatial train/val/test split to avoid geographic leakage.
+
+        Splits LSOAs geographically by grouping into regions (LADs or similar)
+        and assigning entire regions to train/val/test to prevent information
+        leakage from spatial autocorrelation.
+
+        Args:
+            lsoa_codes: Array or list of LSOA codes in graph node order.
+            gdf: GeoDataFrame with LSOA boundaries (must contain 'LSOA21CD').
+            train_ratio: Proportion for training (default: 0.7).
+            val_ratio: Proportion for validation (default: 0.15).
+            test_ratio: Proportion for test (default: 0.15).
+            random_state: Random seed for reproducibility.
+
+        Returns:
+            Tuple of (train_mask, val_mask, test_mask) as boolean tensors.
+
+        Example:
+            >>> train_mask, val_mask, test_mask = trainer.spatial_split(
+            ...     lsoa_codes, gdf, train_ratio=0.7, val_ratio=0.15, test_ratio=0.15
+            ... )
+            >>> print(f"Train: {train_mask.sum()}, Val: {val_mask.sum()}")
+        """
+        if not np.isclose(train_ratio + val_ratio + test_ratio, 1.0):
+            raise ValueError("Split ratios must sum to 1.0")
+
+        # Extract LSOA prefix (first 3-4 chars) as region identifier
+        # E01 = England, W01 = Wales, etc.
+        lsoa_codes_array = np.array(lsoa_codes)
+
+        # Group by region prefix (E01xxxxxx -> E01)
+        region_map = {}
+        for i, code in enumerate(lsoa_codes_array):
+            region = code[:3]  # E01, W01, etc.
+            if region not in region_map:
+                region_map[region] = []
+            region_map[region].append(i)
+
+        # Shuffle regions and split
+        np.random.seed(random_state)
+        regions = list(region_map.keys())
+        np.random.shuffle(regions)
+
+        # Calculate split points
+        n_regions = len(regions)
+        n_train = int(n_regions * train_ratio)
+        n_val = int(n_regions * val_ratio)
+
+        train_regions = regions[:n_train]
+        val_regions = regions[n_train : n_train + n_val]
+        test_regions = regions[n_train + n_val :]
+
+        # Create masks
+        num_nodes = len(lsoa_codes_array)
+        train_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        val_mask = torch.zeros(num_nodes, dtype=torch.bool)
+        test_mask = torch.zeros(num_nodes, dtype=torch.bool)
+
+        for region in train_regions:
+            for idx in region_map[region]:
+                train_mask[idx] = True
+
+        for region in val_regions:
+            for idx in region_map[region]:
+                val_mask[idx] = True
+
+        for region in test_regions:
+            for idx in region_map[region]:
+                test_mask[idx] = True
+
+        logger.info(
+            f"Spatial split: Train={train_mask.sum()}, Val={val_mask.sum()}, "
+            f"Test={test_mask.sum()} LSOAs"
+        )
+
+        return train_mask, val_mask, test_mask
+
+    def train(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        edge_index: torch.Tensor,
+        train_mask: torch.Tensor,
+        val_mask: torch.Tensor,
+        epochs: int = 100,
+        verbose: bool = True,
+    ) -> dict:
+        """
+        Train the GNN model.
+
+        Args:
+            x: Node features of shape [num_nodes, input_dim].
+            y: Target labels of shape [num_nodes].
+            edge_index: Edge indices of shape [2, num_edges].
+            train_mask: Boolean mask for training nodes.
+            val_mask: Boolean mask for validation nodes.
+            epochs: Maximum number of epochs (default: 100).
+            verbose: Whether to print progress (default: True).
+
+        Returns:
+            Dictionary with training history.
+
+        Example:
+            >>> history = trainer.train(
+            ...     x, y, edge_index, train_mask, val_mask, epochs=50)
+            >>> print(f"Final validation RMSE: {history['val_rmse'][-1]:.4f}")
+        """
+        # Move data to device
+        x = x.to(self.device)
+        y = y.to(self.device).view(-1, 1)  # Ensure shape [num_nodes, 1]
+        edge_index = edge_index.to(self.device)
+        train_mask = train_mask.to(self.device)
+        val_mask = val_mask.to(self.device)
+
+        best_val_loss = float("inf")
+        patience_counter = 0
+
+        for epoch in range(epochs):
+            # Training
+            self.model.train()
+            self.optimizer.zero_grad()
+
+            out = self.model(x, edge_index)
+            loss = self.criterion(out[train_mask], y[train_mask])
+
+            loss.backward()
+            self.optimizer.step()
+
+            # Validation
+            self.model.eval()
+            with torch.no_grad():
+                out = self.model(x, edge_index)
+                val_loss = self.criterion(out[val_mask], y[val_mask])
+
+                # Compute metrics
+                val_metrics = self.evaluate(
+                    out[val_mask].cpu().numpy(),
+                    y[val_mask].cpu().numpy(),
+                )
+
+            # Record history
+            self.history["train_loss"].append(loss.item())
+            self.history["val_loss"].append(val_loss.item())
+            self.history["val_rmse"].append(val_metrics["rmse"])
+            self.history["val_mae"].append(val_metrics["mae"])
+            self.history["val_r2"].append(val_metrics["r2"])
+
+            # Early stopping
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience_counter = 0
+                # Save best model (optional: could save checkpoint here)
+            else:
+                patience_counter += 1
+
+            if patience_counter >= self.early_stopping_patience:
+                if verbose:
+                    logger.info(
+                        f"Early stopping at epoch {epoch + 1} "
+                        f"(patience={self.early_stopping_patience})"
+                    )
+                break
+
+            # Log progress
+            if verbose and (epoch + 1) % 10 == 0:
+                logger.info(
+                    f"Epoch {epoch + 1}/{epochs} - "
+                    f"Train Loss: {loss.item():.4f}, "
+                    f"Val Loss: {val_loss.item():.4f}, "
+                    f"Val RMSE: {val_metrics['rmse']:.4f}"
+                )
+
+        return self.history
+
+    def evaluate(
+        self,
+        y_pred: np.ndarray,
+        y_true: np.ndarray,
+    ) -> dict[str, float]:
+        """
+        Compute evaluation metrics.
+
+        Args:
+            y_pred: Predicted values of shape [num_samples, 1] or [num_samples].
+            y_true: True values of shape [num_samples, 1] or [num_samples].
+
+        Returns:
+            Dictionary with metrics: rmse, mae, r2.
+
+        Example:
+            >>> metrics = trainer.evaluate(predictions, targets)
+            >>> print(f"RMSE: {metrics['rmse']:.4f}, R²: {metrics['r2']:.4f}")
+        """
+        y_pred = y_pred.flatten()
+        y_true = y_true.flatten()
+
+        # RMSE
+        mse = np.mean((y_pred - y_true) ** 2)
+        rmse = np.sqrt(mse)
+
+        # MAE
+        mae = np.mean(np.abs(y_pred - y_true))
+
+        # R²
+        ss_res = np.sum((y_true - y_pred) ** 2)
+        ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+        r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+
+        return {"rmse": rmse, "mae": mae, "r2": r2}
+
+    def predict(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        mask: torch.Tensor | None = None,
+    ) -> np.ndarray:
+        """
+        Make predictions on new data.
+
+        Args:
+            x: Node features of shape [num_nodes, input_dim].
+            edge_index: Edge indices of shape [2, num_edges].
+            mask: Optional boolean mask to select specific nodes.
+
+        Returns:
+            Predictions as numpy array of shape [num_nodes] or [num_selected_nodes].
+
+        Example:
+            >>> predictions = trainer.predict(x, edge_index, test_mask)
+            >>> print(f"Predicted mobility: mean={predictions.mean():.4f}")
+        """
+        self.model.eval()
+
+        x = x.to(self.device)
+        edge_index = edge_index.to(self.device)
+
+        with torch.no_grad():
+            out = self.model(x, edge_index)
+
+        predictions = out.cpu().numpy().flatten()
+
+        if mask is not None:
+            mask = mask.cpu().numpy() if isinstance(mask, torch.Tensor) else mask
+            predictions = predictions[mask]
+
+        return predictions
