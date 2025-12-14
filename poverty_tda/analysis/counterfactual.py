@@ -660,25 +660,19 @@ class CounterfactualAnalyzer:
         modified_morse_smale = None  # Would be computed via TTK subprocess
 
         # Compare critical points
-        if modified_morse_smale is not None:
-            critical_point_changes = self.compare_critical_points(
-                self.original_morse_smale, modified_morse_smale
-            )
-            barriers_removed = critical_point_changes["saddles_removed"]
-            traps_reduced = critical_point_changes["minima_removed"]
-        else:
-            # Placeholder values when TTK not available
-            critical_point_changes = {
-                "minima_removed": 0,
-                "minima_added": 0,
-                "saddles_removed": 0,
-                "saddles_added": 0,
-                "maxima_removed": 0,
-                "maxima_added": 0,
-                "total_change": 0,
-            }
-            barriers_removed = 0
-            traps_reduced = 0
+        # Placeholder values when TTK not available
+        # In a real implementation, compare critical points using TTK output
+        critical_point_changes = {
+            "minima_removed": 0,
+            "minima_added": 0,
+            "saddles_removed": 0,
+            "saddles_added": 0,
+            "maxima_removed": 0,
+            "maxima_added": 0,
+            "total_change": 0,
+        }
+        barriers_removed = 0
+        traps_reduced = 0
 
         # Create placeholder flow redistribution
         # Real implementation would compute from basin boundary changes
