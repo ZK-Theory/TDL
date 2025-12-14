@@ -839,6 +839,7 @@ class TestIntegrationWithWindowedPipeline:
             import xgboost  # noqa: F401
             classifier_types.append("xgboost")
         except ImportError:
+            # xgboost is not installed; skip adding it to classifier_types
             pass
 
         results = {}
