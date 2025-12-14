@@ -1,0 +1,69 @@
+[project]
+name = "tdl"
+version = "0.1.0"
+description = "Topological Data Analysis for Financial Market Regime Detection and UK Poverty Trap Analysis"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+authors = [
+    { name = "TDL Project" }
+]
+dependencies = [
+    "numpy>=1.23.0,<2.0.0",
+    "pandas>=2.0.0",
+    "scipy>=1.10.0",
+    "scikit-learn>=1.3.0",
+    "giotto-tda>=0.6.0",
+    "gudhi>=3.8.0",
+    "yfinance>=0.2.52",
+    "fredapi>=0.5.0",
+    "requests>=2.28.0",
+    "geopandas>=0.14.0",
+    "shapely>=2.0.0",
+    "pyproj>=3.6.0",
+    "pyvista>=0.42.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.0",
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+]
+kriging = [
+    "pykrige>=1.7.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["financial_tda*", "poverty_tda*", "shared*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = ["docs/notebooks/*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Notebooks have relaxed linting for line length and import ordering
+"*.ipynb" = ["E501", "E402", "I001", "F401", "F841"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["financial_tda", "poverty_tda", "shared"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers --cov=financial_tda --cov=poverty_tda --cov=shared"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "validation: marks tests as mathematical validation tests",
+]
