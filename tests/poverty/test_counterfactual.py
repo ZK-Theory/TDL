@@ -284,8 +284,6 @@ def test_fill_trap_gradient():
     # Points close to center that were below target should be raised more
     # than points farther away
     center_value = modified[10, 10]
-    nearby_value = modified[10, 12]
-    far_value = modified[10, 15]
     
     # Center should be raised most, farther points less (if they were below target)
     # But since surrounding values are 0.5 > 0.4 target, they won't be raised
