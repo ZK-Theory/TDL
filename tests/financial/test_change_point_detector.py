@@ -519,7 +519,6 @@ class TestChangePointDetector:
 
         # Filter by high confidence
         high_conf = result[result['confidence'] > 0.99]
-        low_conf = result[result['confidence'] <= 0.99]
 
         # Strong anomaly should have high confidence
         assert len(high_conf) >= 1
