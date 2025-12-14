@@ -27,10 +27,13 @@ from financial_tda.models.regime_classifier import (
 )
 from financial_tda.models.rips_gnn import (
     RipsGNN,
+    RipsGNNTrainer,
     RipsGraphDataset,
     build_rips_graph,
+    compare_rips_vs_perslay,
     create_rips_dataset_from_embeddings,
     create_rips_gnn,
+    train_val_test_split_temporal,
 )
 from financial_tda.models.tda_neural import (
     EarlyStopping,
@@ -75,8 +78,11 @@ __all__ = [
     "train_model",
     "compute_metrics",
     "RipsGNN",
+    "RipsGNNTrainer",
     "RipsGraphDataset",
     "build_rips_graph",
     "create_rips_gnn",
     "create_rips_dataset_from_embeddings",
+    "train_val_test_split_temporal",
+    "compare_rips_vs_perslay",
 ]

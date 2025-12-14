@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_6 - **PHASE 5 IN PROGRESS** (3/6 complete). Financial: 5.1✅, 5.2🔄 RipsGNN. Poverty: 5.4✅, 5.5✅, 5.6⏳ VAE ready.
+**Last Modification:** Manager_6 - **PHASE 5 COMPLETE** (6/6 tasks). Financial: 5.1✅ Perslay, 5.2✅ RipsGNN, 5.3✅ Autoencoder. Poverty: 5.4✅ SpatialGNN, 5.5✅ Transformer, 5.6✅ VAE.
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay).
 
 
@@ -375,10 +375,11 @@
 4. Add training loop with proper validation methodology and early stopping
 5. **CHECKPOINT**: Document architecture decisions for user review
 
-### Task 5.2 – GNN on Rips Complex - Financial [CHECKPOINT] - Agent_Financial_ML
+### Task 5.2 – GNN on Rips Complex - Financial [CHECKPOINT] - Agent_Financial_ML ✅
 **Objective:** Implement GNN learning edge weights for regime discrimination.
 **Output:** GNN module with Rips complex input.
 **Guidance:** Use PyTorch Geometric. Graph construction: nodes = points in embedding, edges = Rips complex edges at fixed filtration value (choose 90th percentile of pairwise distances). Architecture options: GCN (simpler), GAT (attention-based), GraphSAGE (sampling-based). **CHECKPOINT** for architecture selection. **Depends on: Task 2.2 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - 3 architectures (GCN, GAT, GraphSAGE). rips_gnn.py (856 lines), 30 tests (91% coverage). GAT: 98%±4% accuracy (primary). GraphSAGE: 7x faster (real-time). RipsGNN +33% over Perslay. Temporal splitting prevents leakage.
 
 1. Create Rips complex to PyTorch Geometric graph conversion (nodes from embedding, edges from filtration)
 2. Implement GNN architecture options (GCN, GAT, GraphSAGE) using PyTorch Geometric
@@ -387,10 +388,11 @@
 5. Create training pipeline with regime labels
 6. Create tests validating graph construction and forward pass
 
-### Task 5.3 – Autoencoder Anomaly Detection - Financial - Agent_Financial_ML
+### Task 5.3 – Autoencoder Anomaly Detection - Financial - Agent_Financial_ML ✅
 **Objective:** Implement autoencoder on persistence images for anomaly detection.
 **Output:** Autoencoder module with anomaly scoring.
 **Guidance:** Train on "normal" periods: 2004-2007 (pre-GFC), 2013-2019 (post-recovery, excluding Aug 2015). Reconstruction error for anomaly: threshold at 95th percentile of training error. CNN architecture: encoder 3 conv layers with pooling, symmetric decoder. **Depends on: Task 3.2 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - PersistenceAutoencoder (CNN, 32D latent), persistence_autoencoder.py (1055 lines), 37 tests (94% coverage). TPR 100% on crisis periods (2008 GFC, 2020 COVID, 2022 crypto). Lead time: 14 days early warning. Threshold at 95th percentile.
 
 1. Implement CNN autoencoder for persistence images (3-layer encoder/decoder)
 2. Train on "normal" market period data (2004-2007, 2013-2019 excluding Aug 2015)
@@ -420,10 +422,11 @@
 3. Train on mobility prediction task
 4. Analyze learned attention patterns for insight extraction
 
-### Task 5.6 – VAE for Opportunity Landscapes [CHECKPOINT] - Agent_Poverty_ML
+### Task 5.6 – VAE for Opportunity Landscapes [CHECKPOINT] - Agent_Poverty_ML ✅
 **Objective:** Implement VAE for latent space of opportunity landscapes.
 **Output:** VAE with counterfactual generation capability.
 **Guidance:** **CRITICAL CHECKPOINT** - Latent space interpretability is key for policy insights. Topology-aware loss optional but valuable: reference "Topology-Preserving Deep Image Segmentation" (Hu et al. 2019) for Betti number regularization approach. Latent dim: start with 8-16 dimensions. **Depends on: Task 2.4 Output by Agent_Poverty_Topology**
+**Completed:** Agent_Poverty_ML - OpportunityVAE (12D latent), β-VAE support, latent space analysis. opportunity_vae.py (1166 lines), 31 tests (87% coverage). Key interpretable dimensions: D11 (opportunity gradient r=-0.71 urban), D2 (spatial heterogeneity), D7 (deprivation). Counterfactual generation validated.
 
 1. Implement VAE architecture for mobility surface encoding (latent_dim=8-16)
 2. Train on regional mobility surfaces

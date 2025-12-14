@@ -576,3 +576,555 @@ def create_rips_gnn(
         dropout=dropout,
         heads=heads,
     )
+
+
+def train_val_test_split_temporal(
+    dataset: RipsGraphDataset,
+    train_ratio: float = 0.7,
+    val_ratio: float = 0.15,
+    test_ratio: float = 0.15,
+) -> tuple[list[int], list[int], list[int]]:
+    """
+    Split dataset indices into train/val/test with temporal ordering.
+
+    For financial time series, maintains chronological order to prevent
+    future leakage - training set comes from earlier time periods.
+
+    Args:
+        dataset: RipsGraphDataset to split.
+        train_ratio: Fraction for training. Default 0.7.
+        val_ratio: Fraction for validation. Default 0.15.
+        test_ratio: Fraction for testing. Default 0.15.
+
+    Returns:
+        Tuple of (train_indices, val_indices, test_indices).
+
+    Raises:
+        ValueError: If ratios don't sum to 1.0.
+
+    Examples:
+        >>> dataset = RipsGraphDataset(point_clouds, labels)
+        >>> train_idx, val_idx, test_idx = train_val_test_split_temporal(dataset)
+    """
+    if not np.isclose(train_ratio + val_ratio + test_ratio, 1.0):
+        raise ValueError(
+            f"Ratios must sum to 1.0, got {train_ratio + val_ratio + test_ratio}"
+        )
+
+    n_samples = len(dataset)
+    n_train = int(n_samples * train_ratio)
+    n_val = int(n_samples * val_ratio)
+
+    train_idx = list(range(n_train))
+    val_idx = list(range(n_train, n_train + n_val))
+    test_idx = list(range(n_train + n_val, n_samples))
+
+    logger.info(
+        "Temporal split: train=%d, val=%d, test=%d",
+        len(train_idx),
+        len(val_idx),
+        len(test_idx),
+    )
+
+    return train_idx, val_idx, test_idx
+
+
+class RipsGNNTrainer:
+    """
+    Training pipeline for RipsGNN models with early stopping.
+
+    Supports both GAT and GraphSAGE architectures with configurable
+    hyperparameters, early stopping, and comprehensive metrics tracking.
+
+    Args:
+        model: RipsGNN model to train.
+        dataset: RipsGraphDataset with training data.
+        train_idx: Indices for training set.
+        val_idx: Indices for validation set.
+        lr: Learning rate. Default 1e-3.
+        weight_decay: L2 regularization coefficient. Default 1e-4.
+        patience: Early stopping patience (epochs). Default 10.
+        device: Device for training ('cpu' or 'cuda'). Default 'cpu'.
+
+    Attributes:
+        model: GNN model being trained.
+        dataset: Graph dataset.
+        optimizer: Adam optimizer.
+        criterion: Cross-entropy loss.
+        history: Training history dict with losses and metrics.
+        best_val_loss: Best validation loss achieved.
+        patience_counter: Current patience counter value.
+
+    Examples:
+        >>> model = create_rips_gnn(input_dim=3, architecture="gat")
+        >>> dataset = RipsGraphDataset(point_clouds, labels)
+        >>> train_idx, val_idx, _ = train_val_test_split_temporal(dataset)
+        >>> trainer = RipsGNNTrainer(model, dataset, train_idx, val_idx)
+        >>> history = trainer.train(epochs=50)
+    """
+
+    def __init__(
+        self,
+        model: RipsGNN,
+        dataset: RipsGraphDataset,
+        train_idx: list[int],
+        val_idx: list[int],
+        lr: float = 1e-3,
+        weight_decay: float = 1e-4,
+        patience: int = 10,
+        device: str = "cpu",
+    ):
+        self.model = model.to(device)
+        self.dataset = dataset
+        self.train_idx = train_idx
+        self.val_idx = val_idx
+        self.device = device
+
+        self.optimizer = torch.optim.Adam(
+            model.parameters(), lr=lr, weight_decay=weight_decay
+        )
+        self.criterion = nn.CrossEntropyLoss()
+
+        # Early stopping
+        self.patience = patience
+        self.best_val_loss = float("inf")
+        self.patience_counter = 0
+        self.best_model_state = None
+
+        # History tracking
+        self.history = {
+            "train_loss": [],
+            "val_loss": [],
+            "train_acc": [],
+            "val_acc": [],
+        }
+
+        logger.info(
+            "Initialized RipsGNNTrainer: %s, train=%d, val=%d, lr=%.4f, device=%s",
+            model.architecture.upper(),
+            len(train_idx),
+            len(val_idx),
+            lr,
+            device,
+        )
+
+    def train_epoch(self) -> tuple[float, float]:
+        """
+        Train for one epoch.
+
+        Returns:
+            Tuple of (average_loss, accuracy).
+        """
+        self.model.train()
+
+        # Get training batch
+        train_batch = self.dataset.get_batch(self.train_idx).to(self.device)
+
+        # Forward pass
+        self.optimizer.zero_grad()
+        logits = self.model(train_batch)
+        loss = self.criterion(logits, train_batch.y.squeeze())
+
+        # Backward pass
+        loss.backward()
+        self.optimizer.step()
+
+        # Compute accuracy
+        with torch.no_grad():
+            preds = logits.argmax(dim=1)
+            accuracy = (preds == train_batch.y.squeeze()).float().mean().item()
+
+        return loss.item(), accuracy
+
+    def validate(self) -> tuple[float, float]:
+        """
+        Validate on validation set.
+
+        Returns:
+            Tuple of (validation_loss, validation_accuracy).
+        """
+        self.model.eval()
+
+        val_batch = self.dataset.get_batch(self.val_idx).to(self.device)
+
+        with torch.no_grad():
+            logits = self.model(val_batch)
+            loss = self.criterion(logits, val_batch.y.squeeze())
+
+            preds = logits.argmax(dim=1)
+            accuracy = (preds == val_batch.y.squeeze()).float().mean().item()
+
+        return loss.item(), accuracy
+
+    def train(self, epochs: int = 100, verbose: bool = True) -> dict:
+        """
+        Train model with early stopping.
+
+        Args:
+            epochs: Maximum number of epochs. Default 100.
+            verbose: Whether to print progress. Default True.
+
+        Returns:
+            Training history dictionary with losses and accuracies.
+        """
+        if verbose:
+            arch = self.model.architecture.upper()
+            print(f"Training {arch} for up to {epochs} epochs...")
+
+        for epoch in range(epochs):
+            # Train
+            train_loss, train_acc = self.train_epoch()
+            self.history["train_loss"].append(train_loss)
+            self.history["train_acc"].append(train_acc)
+
+            # Validate
+            val_loss, val_acc = self.validate()
+            self.history["val_loss"].append(val_loss)
+            self.history["val_acc"].append(val_acc)
+
+            # Early stopping check
+            if val_loss < self.best_val_loss:
+                self.best_val_loss = val_loss
+                self.patience_counter = 0
+                # Save best model state
+                self.best_model_state = {
+                    k: v.cpu().clone() for k, v in self.model.state_dict().items()
+                }
+            else:
+                self.patience_counter += 1
+
+            # Print progress
+            if verbose and (epoch + 1) % 10 == 0:
+                print(
+                    f"  Epoch {epoch + 1}/{epochs}: "
+                    f"train_loss={train_loss:.4f}, train_acc={train_acc * 100:.1f}%, "
+                    f"val_loss={val_loss:.4f}, val_acc={val_acc * 100:.1f}%"
+                )
+
+            # Early stopping
+            if self.patience_counter >= self.patience:
+                if verbose:
+                    print(f"  Early stopping at epoch {epoch + 1}")
+                break
+
+        # Restore best model
+        if self.best_model_state is not None:
+            self.model.load_state_dict(self.best_model_state)
+            if verbose:
+                print(f"  Restored best model (val_loss={self.best_val_loss:.4f})")
+
+        return self.history
+
+    def evaluate(self, test_idx: list[int]) -> dict:
+        """
+        Evaluate model on test set.
+
+        Args:
+            test_idx: Indices for test set.
+
+        Returns:
+            Dictionary with test metrics (loss, accuracy, predictions).
+        """
+        self.model.eval()
+
+        test_batch = self.dataset.get_batch(test_idx).to(self.device)
+
+        with torch.no_grad():
+            logits = self.model(test_batch)
+            loss = self.criterion(logits, test_batch.y.squeeze())
+
+            preds = logits.argmax(dim=1)
+            probs = torch.softmax(logits, dim=1)
+            accuracy = (preds == test_batch.y.squeeze()).float().mean().item()
+
+        results = {
+            "test_loss": loss.item(),
+            "test_accuracy": accuracy,
+            "predictions": preds.cpu().numpy(),
+            "probabilities": probs.cpu().numpy(),
+            "true_labels": test_batch.y.squeeze().cpu().numpy(),
+        }
+
+        logger.info(
+            "Test evaluation: loss=%.4f, accuracy=%.2f%%",
+            results["test_loss"],
+            results["test_accuracy"] * 100,
+        )
+
+        return results
+
+
+def compare_rips_vs_perslay(
+    point_clouds: list[NDArray[np.floating]],
+    labels: Tensor | NDArray[np.integer],
+    gnn_architecture: GNNArchitecture = "gat",
+    hidden_dim: int = 64,
+    num_layers: int = 2,
+    epochs: int = 50,
+    device: str = "cpu",
+) -> dict:
+    """
+    Compare RipsGNN approach against Perslay persistence diagram vectorization.
+
+    Trains both approaches on the same data and compares accuracy, inference
+    time, and other metrics. This utility helps determine which topological
+    approach is better suited for a specific regime detection task.
+
+    Args:
+        point_clouds: List of Takens embeddings (point clouds).
+        labels: Regime labels (0=normal, 1=crisis).
+        gnn_architecture: GNN architecture to use. Default "gat".
+        hidden_dim: Hidden dimension for both approaches. Default 64.
+        num_layers: Number of layers for both approaches. Default 2.
+        epochs: Training epochs for both models. Default 50.
+        device: Device for training. Default "cpu".
+
+    Returns:
+        Dictionary with comparison results including:
+            - rips_results: Metrics for RipsGNN approach
+            - perslay_results: Metrics for Perslay approach
+            - comparison: Summary comparison metrics
+
+    Examples:
+        >>> from financial_tda.topology import takens_embedding
+        >>> # Create embeddings from time series
+        >>> embeddings = [takens_embedding(ts, 3, 3) for ts in time_series]
+        >>> labels = np.array([0, 1, 0, 1, ...])
+        >>> results = compare_rips_vs_perslay(embeddings, labels)
+        >>> print(f"RipsGNN: {results['rips_results']['test_accuracy']*100:.1f}%")
+        >>> print(f"Perslay: {results['perslay_results']['test_accuracy']*100:.1f}%")
+
+    Notes:
+        Requires both torch-geometric (for RipsGNN) and giotto-tda (for Perslay)
+        to be installed. This comparison helps answer:
+        - Which approach achieves higher accuracy?
+        - Which is faster for inference?
+        - How do they scale with dataset size?
+    """
+    import time
+
+    from financial_tda.models.persistence_layers import create_perslay
+    from financial_tda.topology.filtration import compute_persistence_vr
+
+    # Convert labels if needed
+    if not isinstance(labels, Tensor):
+        labels = torch.tensor(labels, dtype=torch.long)
+
+    n_dims = point_clouds[0].shape[1]
+
+    print("=" * 75)
+    print("Comparison: RipsGNN vs Perslay")
+    print("=" * 75)
+
+    # ========== RipsGNN Approach ==========
+    print("\n1. Training RipsGNN...")
+
+    # Create Rips graph dataset
+    rips_dataset = RipsGraphDataset(point_clouds, labels)
+    train_idx, val_idx, test_idx = train_val_test_split_temporal(rips_dataset)
+
+    # Create and train RipsGNN
+    torch.manual_seed(42)
+    rips_model = create_rips_gnn(
+        input_dim=n_dims,
+        hidden_dim=hidden_dim,
+        output_dim=2,
+        num_layers=num_layers,
+        architecture=gnn_architecture,
+        dropout=0.3,
+    )
+
+    rips_trainer = RipsGNNTrainer(
+        model=rips_model,
+        dataset=rips_dataset,
+        train_idx=train_idx,
+        val_idx=val_idx,
+        lr=5e-4,
+        device=device,
+    )
+
+    rips_start = time.perf_counter()
+    rips_history = rips_trainer.train(epochs=epochs, verbose=False)
+    rips_train_time = time.perf_counter() - rips_start
+
+    rips_test_results = rips_trainer.evaluate(test_idx)
+
+    # Measure RipsGNN inference time
+    test_batch = rips_dataset.get_batch(test_idx).to(device)
+    rips_model.eval()
+    with torch.no_grad():
+        inference_times = []
+        for _ in range(50):
+            start = time.perf_counter()
+            _ = rips_model(test_batch)
+            inference_times.append(time.perf_counter() - start)
+    rips_inference_time = np.mean(inference_times) * 1000  # ms
+
+    print(f"   Training time: {rips_train_time:.2f}s")
+    print(f"   Test accuracy: {rips_test_results['test_accuracy'] * 100:.1f}%")
+    print(f"   Inference time: {rips_inference_time:.2f} ms")
+
+    # ========== Perslay Approach ==========
+    print("\n2. Training Perslay...")
+
+    # Compute persistence diagrams
+    print("   Computing persistence diagrams...")
+    persistence_diagrams = []
+    for pc in point_clouds:
+        try:
+            diagram = compute_persistence_vr(pc, homology_dimensions=(0, 1))
+            persistence_diagrams.append(
+                torch.tensor(diagram[:, :2], dtype=torch.float32)
+            )
+        except Exception as e:
+            logger.warning("Failed to compute persistence for cloud: %s", e)
+            # Use empty diagram as fallback
+            persistence_diagrams.append(torch.zeros(1, 2))
+
+    # Create Perslay model (single time window, not sequential)
+    torch.manual_seed(42)
+    perslay = create_perslay(
+        input_dim=2,
+        hidden_dims=[hidden_dim, hidden_dim // 2],
+        output_dim=hidden_dim,
+        perm_op="mean",
+        use_weight=True,
+    )
+
+    # Simple classifier on top of Perslay
+    perslay_classifier = nn.Sequential(
+        perslay,
+        nn.Linear(hidden_dim, hidden_dim // 2),
+        nn.ReLU(),
+        nn.Dropout(0.3),
+        nn.Linear(hidden_dim // 2, 2),
+    ).to(device)
+
+    # Train Perslay
+    optimizer = torch.optim.Adam(
+        perslay_classifier.parameters(), lr=5e-4, weight_decay=1e-4
+    )
+    criterion = nn.CrossEntropyLoss()
+
+    # Use same train/val/test split
+    train_diagrams = [persistence_diagrams[i] for i in train_idx]
+    val_diagrams = [persistence_diagrams[i] for i in val_idx]
+    test_diagrams = [persistence_diagrams[i] for i in test_idx]
+
+    train_labels = labels[train_idx]
+    val_labels = labels[val_idx]
+    test_labels = labels[test_idx]
+
+    perslay_start = time.perf_counter()
+    best_val_loss = float("inf")
+    patience_counter = 0
+
+    for epoch in range(epochs):
+        # Train
+        perslay_classifier.train()
+        optimizer.zero_grad()
+        logits = perslay_classifier(train_diagrams)
+        loss = criterion(logits, train_labels)
+        loss.backward()
+        optimizer.step()
+
+        # Validate
+        perslay_classifier.eval()
+        with torch.no_grad():
+            val_logits = perslay_classifier(val_diagrams)
+            val_loss = criterion(val_logits, val_labels)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss.item()
+            patience_counter = 0
+        else:
+            patience_counter += 1
+
+        if patience_counter >= 10:
+            break
+
+    perslay_train_time = time.perf_counter() - perslay_start
+
+    # Test Perslay
+    perslay_classifier.eval()
+    with torch.no_grad():
+        test_logits = perslay_classifier(test_diagrams)
+        test_loss = criterion(test_logits, test_labels)
+        test_preds = test_logits.argmax(dim=1)
+        test_acc = (test_preds == test_labels).float().mean().item()
+
+    # Measure Perslay inference time
+    with torch.no_grad():
+        inference_times = []
+        for _ in range(50):
+            start = time.perf_counter()
+            _ = perslay_classifier(test_diagrams)
+            inference_times.append(time.perf_counter() - start)
+    perslay_inference_time = np.mean(inference_times) * 1000  # ms
+
+    print(f"   Training time: {perslay_train_time:.2f}s")
+    print(f"   Test accuracy: {test_acc * 100:.1f}%")
+    print(f"   Inference time: {perslay_inference_time:.2f} ms")
+
+    # ========== Comparison Summary ==========
+    print("\n" + "=" * 75)
+    print("3. Comparison Summary:")
+    print("=" * 75)
+
+    comparison = {
+        "accuracy_diff": rips_test_results["test_accuracy"] - test_acc,
+        "train_time_ratio": rips_train_time / perslay_train_time,
+        "inference_time_ratio": rips_inference_time / perslay_inference_time,
+    }
+
+    print("\n   Accuracy:")
+    print(f"      RipsGNN:  {rips_test_results['test_accuracy'] * 100:.1f}%")
+    print(f"      Perslay:  {test_acc * 100:.1f}%")
+    print(f"      Diff:     {comparison['accuracy_diff'] * 100:+.1f}%")
+
+    print("\n   Training Time:")
+    print(f"      RipsGNN:  {rips_train_time:.2f}s")
+    print(f"      Perslay:  {perslay_train_time:.2f}s")
+    print(f"      Ratio:    {comparison['train_time_ratio']:.2f}x")
+
+    print("\n   Inference Time:")
+    print(f"      RipsGNN:  {rips_inference_time:.2f} ms")
+    print(f"      Perslay:  {perslay_inference_time:.2f} ms")
+    print(f"      Ratio:    {comparison['inference_time_ratio']:.2f}x")
+
+    # Determine winner
+    print("\n   Recommendation:")
+    acc_diff = comparison["accuracy_diff"] * 100
+    if comparison["accuracy_diff"] > 0.05:
+        print(f"      RipsGNN: Higher accuracy ({acc_diff:+.1f}%)")
+    elif comparison["accuracy_diff"] < -0.05:
+        print(f"      Perslay: Higher accuracy ({-acc_diff:+.1f}%)")
+    else:
+        print("      Similar accuracy (within 5%)")
+
+    time_ratio = comparison["inference_time_ratio"]
+    if time_ratio < 0.8:
+        print(f"      RipsGNN: Faster inference ({1 / time_ratio:.1f}x)")
+    elif time_ratio > 1.2:
+        print(f"      Perslay: Faster inference ({time_ratio:.1f}x)")
+    else:
+        print("      Similar inference speed")
+
+    print("=" * 75)
+
+    return {
+        "rips_results": {
+            "test_accuracy": rips_test_results["test_accuracy"],
+            "test_loss": rips_test_results["test_loss"],
+            "train_time": rips_train_time,
+            "inference_time_ms": rips_inference_time,
+            "history": rips_history,
+        },
+        "perslay_results": {
+            "test_accuracy": test_acc,
+            "test_loss": test_loss.item(),
+            "train_time": perslay_train_time,
+            "inference_time_ms": perslay_inference_time,
+        },
+        "comparison": comparison,
+    }
