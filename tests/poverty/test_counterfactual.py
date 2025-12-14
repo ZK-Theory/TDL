@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 # Mock MorseSmaleResult for testing
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass
