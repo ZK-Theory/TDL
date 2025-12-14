@@ -66,10 +66,14 @@ def create_regime_labels(
         prices: Price series (e.g., S&P 500 index) with DatetimeIndex.
         vix: VIX index series aligned with prices (same DatetimeIndex).
         vix_crisis_threshold: VIX level above which market is in crisis. Default 25.
-        vix_crisis_days: Minimum consecutive days VIX must exceed threshold. Default 5.
-        vix_normal_threshold: VIX level below which market is normal. Default 20.
-        vix_normal_days: Minimum consecutive days VIX must be below threshold. Default 20.
-        drawdown_threshold: Maximum drawdown from peak indicating crisis. Default 0.15 (15%).
+        vix_crisis_days: Minimum consecutive days VIX must exceed
+            threshold. Default 5.
+        vix_normal_threshold: VIX level below which market is normal.
+            Default 20.
+        vix_normal_days: Minimum consecutive days VIX must be below
+            threshold. Default 20.
+        drawdown_threshold: Maximum drawdown from peak indicating crisis.
+            Default 0.15 (15%).
         rolling_window: Window size for computing rolling peak. Default 252 (1 year).
 
     Returns:
@@ -77,8 +81,14 @@ def create_regime_labels(
         indexed by date.
 
     Examples:
-        >>> prices = pd.Series([100, 99, 85, 80, 95], index=pd.date_range('2020-01-01', periods=5))
-        >>> vix = pd.Series([15, 20, 35, 40, 25], index=pd.date_range('2020-01-01', periods=5))
+        >>> prices = pd.Series(
+        ...     [100, 99, 85, 80, 95],
+        ...     index=pd.date_range('2020-01-01', periods=5)
+        ... )
+        >>> vix = pd.Series(
+        ...     [15, 20, 35, 40, 25],
+        ...     index=pd.date_range('2020-01-01', periods=5)
+        ... )
         >>> labels = create_regime_labels(prices, vix)
         >>> print(labels)
 
@@ -426,9 +436,7 @@ class RegimeClassifier:
             # Compute balanced sample weights
             class_counts = np.bincount(y)
             total = len(y)
-            sample_weight = np.array(
-                [total / (2 * class_counts[label]) for label in y]
-            )
+            sample_weight = np.array([total / (2 * class_counts[label]) for label in y])
 
         # Fit classifier
         if sample_weight is not None:
@@ -624,7 +632,10 @@ def evaluate_classifier(
     Examples:
         >>> y_true = np.array([0, 0, 1, 1, 0])
         >>> y_pred = np.array([0, 1, 1, 0, 0])
-        >>> y_proba = np.array([[0.8, 0.2], [0.3, 0.7], [0.2, 0.8], [0.6, 0.4], [0.9, 0.1]])
+        >>> y_proba = np.array([
+        ...     [0.8, 0.2], [0.3, 0.7], [0.2, 0.8],
+        ...     [0.6, 0.4], [0.9, 0.1]
+        ... ])
         >>> metrics = evaluate_classifier(y_true, y_pred, y_proba)
         >>> print(f"F1: {metrics['f1']:.3f}")
     """

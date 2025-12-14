@@ -131,19 +131,22 @@ def download_lsoa_boundaries(
         # Validate the downloaded GeoJSON file
         try:
             import json
-            with open(output_path, 'r', encoding='utf-8') as f:
+
+            with open(output_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             # Verify it has the expected GeoJSON structure
             if not isinstance(data, dict):
                 raise ValueError("Downloaded file is not a valid GeoJSON object")
-            
+
             # Some ArcGIS REST APIs return FeatureCollection, others return raw features
-            if 'features' not in data and 'type' not in data:
+            if "features" not in data and "type" not in data:
                 raise ValueError("Downloaded file missing required GeoJSON structure")
-                
-            logger.info(f"Validated GeoJSON file: {len(data.get('features', []))} features")
-            
+
+            logger.info(
+                f"Validated GeoJSON file: {len(data.get('features', []))} features"
+            )
+
         except json.JSONDecodeError as json_err:
             logger.error(f"Downloaded file is not valid JSON: {json_err}")
             output_path.unlink()
@@ -220,36 +223,37 @@ def load_lsoa_boundaries(
             raise FileNotFoundError(f"Boundary file not found: {filepath}")
 
     logger.info(f"Loading LSOA boundaries from {filepath}")
-    
+
     # Try to load with specified engine, with automatic fallback
     try:
         gdf = gpd.read_file(filepath, engine=engine)
     except Exception as e:
         # If pyogrio fails on GeoJSON, try alternative approaches
-        if engine == "pyogrio" and str(filepath).endswith('.geojson'):
+        if engine == "pyogrio" and str(filepath).endswith(".geojson"):
             logger.warning(
                 f"pyogrio failed to read GeoJSON ({e}), "
                 "attempting alternative loading strategies"
             )
-            
+
             # Try reading as JSON and reconstructing
             try:
                 import json
-                with open(filepath, 'r', encoding='utf-8') as f:
+
+                with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                
+
                 # Handle both FeatureCollection and raw features
                 if isinstance(data, dict):
-                    if 'features' in data:
-                        gdf = gpd.GeoDataFrame.from_features(data['features'])
-                    elif 'type' in data and data['type'] == 'FeatureCollection':
+                    if "features" in data:
+                        gdf = gpd.GeoDataFrame.from_features(data["features"])
+                    elif "type" in data and data["type"] == "FeatureCollection":
                         gdf = gpd.GeoDataFrame.from_features(data)
                     else:
                         # Might be raw features array
                         gdf = gpd.GeoDataFrame.from_features(data)
                 else:
                     raise ValueError("Unexpected GeoJSON structure")
-                    
+
                 # Set CRS - ArcGIS REST API uses EPSG:27700
                 gdf = gdf.set_crs(CRS_BRITISH_NATIONAL_GRID)
                 logger.info("Successfully loaded GeoJSON via JSON parsing")

@@ -14,6 +14,7 @@ import pytest
 import requests
 
 from financial_tda.data.fetchers.crypto import (
+    COINGECKO_API_KEY,
     fetch_historical_range,
     fetch_market_chart,
     fetch_multiple_coins,
@@ -339,6 +340,10 @@ class TestCryptoIntegration:
         # Should have many observations (hourly for 7 days)
         assert len(eth) > 100
 
+    @pytest.mark.skipif(
+        not COINGECKO_API_KEY,
+        reason="CoinGecko API key required (set COINGECKO_API_KEY env var)",
+    )
     def test_crypto_winter_2022_bitcoin(self):
         """
         Test Bitcoin data during 2022 crypto winter.
@@ -367,6 +372,10 @@ class TestCryptoIntegration:
         drawdown = (nov_low - jan_high) / jan_high
         assert drawdown < -0.50, f"Expected >50% drawdown, got {drawdown * 100:.1f}%"
 
+    @pytest.mark.skipif(
+        not COINGECKO_API_KEY,
+        reason="CoinGecko API key required (set COINGECKO_API_KEY env var)",
+    )
     def test_crypto_winter_2022_ethereum(self):
         """
         Test Ethereum data during 2022 crypto winter.
@@ -387,6 +396,10 @@ class TestCryptoIntegration:
         assert jan_high > 3000, f"Expected Jan high > $3k, got ${jan_high}"
         assert nov_low < 1500, f"Expected Nov low < $1.5k, got ${nov_low}"
 
+    @pytest.mark.skipif(
+        not COINGECKO_API_KEY,
+        reason="CoinGecko API key required (set COINGECKO_API_KEY env var)",
+    )
     def test_terra_collapse_period_may_2022(self):
         """
         Test crypto market during Terra/LUNA collapse (May 2022).

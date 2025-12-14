@@ -197,16 +197,16 @@ class TestNormalPeriodCalibrator:
         stats = calibrator.get_threshold_statistics(percentile=95)
 
         # Check all required keys present
-        assert 'threshold' in stats
-        assert 'z_score' in stats
-        assert 'relative_to_mean' in stats
-        assert 'relative_to_std' in stats
+        assert "threshold" in stats
+        assert "z_score" in stats
+        assert "relative_to_mean" in stats
+        assert "relative_to_std" in stats
 
         # Check values are reasonable
-        assert stats['threshold'] > calibrator.mean_
-        assert stats['z_score'] > 0  # 95th percentile above mean
-        assert stats['relative_to_mean'] > 1.0  # Threshold > mean
-        assert stats['relative_to_std'] == pytest.approx(stats['z_score'])
+        assert stats["threshold"] > calibrator.mean_
+        assert stats["z_score"] > 0  # 95th percentile above mean
+        assert stats["relative_to_mean"] > 1.0  # Threshold > mean
+        assert stats["relative_to_std"] == pytest.approx(stats["z_score"])
 
     def test_get_threshold_statistics_not_fitted_raises(self):
         """Test that threshold statistics raises if not fitted."""
@@ -257,11 +257,11 @@ class TestChangePointDetector:
         result = detector.detect(distances, timestamps)
 
         assert len(result) == 0
-        assert 'timestamp' in result.columns
-        assert 'distance' in result.columns
-        assert 'z_score' in result.columns
-        assert 'p_value' in result.columns
-        assert 'confidence' in result.columns
+        assert "timestamp" in result.columns
+        assert "distance" in result.columns
+        assert "z_score" in result.columns
+        assert "p_value" in result.columns
+        assert "confidence" in result.columns
 
     def test_detect_mismatched_lengths_raises(self):
         """Test that mismatched distances/timestamps lengths raises."""
@@ -271,7 +271,7 @@ class TestChangePointDetector:
         detector = ChangePointDetector(calibrator)
 
         distances = np.array([1.0, 2.0, 3.0])
-        timestamps = pd.date_range('2020-01-01', periods=5)
+        timestamps = pd.date_range("2020-01-01", periods=5)
 
         with pytest.raises(ValueError, match="same length"):
             detector.detect(distances, timestamps)
@@ -289,7 +289,7 @@ class TestChangePointDetector:
 
         # Test on more normal data (no anomalies expected)
         test_distances = np.random.normal(loc=5.0, scale=1.0, size=20)
-        timestamps = pd.date_range('2020-01-01', periods=20)
+        timestamps = pd.date_range("2020-01-01", periods=20)
 
         result = detector.detect(test_distances, timestamps)
 
@@ -308,14 +308,14 @@ class TestChangePointDetector:
 
         # Create sequence with clear anomaly spike (2 consecutive high values)
         test_distances = np.array([2.0, 1.9, 10.0, 11.0, 2.1, 1.8])
-        timestamps = pd.date_range('2020-01-01', periods=6)
+        timestamps = pd.date_range("2020-01-01", periods=6)
 
         result = detector.detect(test_distances, timestamps)
 
         # Should detect the spike at index 2
         assert len(result) >= 1
-        assert result.iloc[0]['timestamp'] == timestamps[2]
-        assert result.iloc[0]['distance'] == pytest.approx(10.0)
+        assert result.iloc[0]["timestamp"] == timestamps[2]
+        assert result.iloc[0]["distance"] == pytest.approx(10.0)
 
     def test_detect_statistical_fields(self):
         """Test that detect() computes statistical significance correctly."""
@@ -330,7 +330,7 @@ class TestChangePointDetector:
 
         # Test with strong anomalies
         test_distances = np.array([5.0, 15.0, 16.0, 5.0])
-        timestamps = pd.date_range('2020-01-01', periods=4)
+        timestamps = pd.date_range("2020-01-01", periods=4)
 
         result = detector.detect(test_distances, timestamps)
 
@@ -338,18 +338,18 @@ class TestChangePointDetector:
 
         # Check statistical fields are present and valid
         detection = result.iloc[0]
-        assert 'z_score' in detection
-        assert 'p_value' in detection
-        assert 'confidence' in detection
+        assert "z_score" in detection
+        assert "p_value" in detection
+        assert "confidence" in detection
 
         # High anomaly should have high z-score
-        assert detection['z_score'] > 3.0
+        assert detection["z_score"] > 3.0
 
         # P-value should be small
-        assert detection['p_value'] < 0.01
+        assert detection["p_value"] < 0.01
 
         # Confidence should be high
-        assert detection['confidence'] > 0.99
+        assert detection["confidence"] > 0.99
 
     def test_detect_min_consecutive(self):
         """Test that min_consecutive parameter is respected."""
@@ -364,7 +364,7 @@ class TestChangePointDetector:
 
         # Single isolated spike (should not be detected)
         test_distances = np.array([2.0, 10.0, 2.1, 1.9])
-        timestamps = pd.date_range('2020-01-01', periods=4)
+        timestamps = pd.date_range("2020-01-01", periods=4)
 
         result2 = detector2.detect(test_distances, timestamps)
         assert len(result2) == 0  # Single spike filtered out
@@ -386,7 +386,7 @@ class TestChangePointDetector:
 
         # Create anomaly that persists
         test_distances = np.array([2.0, 10.0, 11.0, 10.5, 11.5, 10.0, 2.0])
-        timestamps = pd.date_range('2020-01-01', periods=7, freq='D')
+        timestamps = pd.date_range("2020-01-01", periods=7, freq="D")
 
         result = detector.detect_with_lookahead(
             test_distances, timestamps, lookahead_days=3
@@ -406,7 +406,7 @@ class TestChangePointDetector:
 
         # Create brief anomaly followed by return to normal
         test_distances = np.array([2.0, 10.0, 11.0, 2.0, 1.9, 2.1, 1.8])
-        timestamps = pd.date_range('2020-01-01', periods=7, freq='D')
+        timestamps = pd.date_range("2020-01-01", periods=7, freq="D")
 
         # Without lookahead
         result_no_lookahead = detector.detect(test_distances, timestamps)
@@ -429,19 +429,23 @@ class TestChangePointDetector:
         detector = ChangePointDetector(calibrator, min_consecutive=2)
 
         # Create synthetic data with known change points at indices 10, 20
-        test_distances = np.array([2.0] * 9 + [10.0, 11.0] + [2.0] * 8 + [12.0, 13.0] + [2.0] * 10)
+        test_distances = np.array(
+            [2.0] * 9 + [10.0, 11.0] + [2.0] * 8 + [12.0, 13.0] + [2.0] * 10
+        )
         true_changes = [10, 20]
 
-        power = detector.compute_detection_power(test_distances, true_changes, tolerance=2)
+        power = detector.compute_detection_power(
+            test_distances, true_changes, tolerance=2
+        )
 
         # Check all metrics present
-        assert 'true_positive_rate' in power
-        assert 'false_positive_rate' in power
-        assert 'precision' in power
-        assert 'f1_score' in power
+        assert "true_positive_rate" in power
+        assert "false_positive_rate" in power
+        assert "precision" in power
+        assert "f1_score" in power
 
         # Should detect both change points with high recall
-        assert power['true_positive_rate'] >= 0.5  # At least 50% recall
+        assert power["true_positive_rate"] >= 0.5  # At least 50% recall
 
     def test_validate_normality_assumption(self):
         """Test normality validation for calibration data."""
@@ -457,22 +461,22 @@ class TestChangePointDetector:
         validation = detector.validate_normality_assumption(normal_distances)
 
         # Check all keys present
-        assert 'shapiro_statistic' in validation
-        assert 'shapiro_pvalue' in validation
-        assert 'is_normal_shapiro' in validation
-        assert 'ks_statistic' in validation
-        assert 'ks_pvalue' in validation
-        assert 'is_normal_ks' in validation
-        assert 'skewness' in validation
-        assert 'kurtosis' in validation
+        assert "shapiro_statistic" in validation
+        assert "shapiro_pvalue" in validation
+        assert "is_normal_shapiro" in validation
+        assert "ks_statistic" in validation
+        assert "ks_pvalue" in validation
+        assert "is_normal_ks" in validation
+        assert "skewness" in validation
+        assert "kurtosis" in validation
 
         # Normal data should pass tests
-        assert validation['is_normal_shapiro'] == True
-        assert validation['is_normal_ks'] == True
+        assert validation["is_normal_shapiro"]
+        assert validation["is_normal_ks"]
 
         # Skewness and kurtosis should be near 0 for normal data
-        assert abs(validation['skewness']) < 0.5
-        assert abs(validation['kurtosis']) < 1.0
+        assert abs(validation["skewness"]) < 0.5
+        assert abs(validation["kurtosis"]) < 1.0
 
     def test_validate_normality_assumption_non_normal(self):
         """Test normality validation with non-normal data."""
@@ -490,7 +494,7 @@ class TestChangePointDetector:
         # Should detect non-normality
         # (Note: may occasionally fail due to statistical test variability)
         # At least one test should fail
-        assert not (validation['is_normal_shapiro'] and validation['is_normal_ks'])
+        assert not (validation["is_normal_shapiro"] and validation["is_normal_ks"])
 
     def test_validate_normality_assumption_insufficient_data_raises(self):
         """Test that normality validation raises with insufficient data."""
@@ -512,13 +516,16 @@ class TestChangePointDetector:
         detector = ChangePointDetector(calibrator, min_consecutive=1)
 
         # Create data with strong and weak anomalies
-        test_distances = np.array([2.0, 8.0, 2.1, 3.5, 2.0])  # 8.0 is strong, 3.5 is weak
-        timestamps = pd.date_range('2020-01-01', periods=5)
+        test_distances = np.array(
+            [2.0, 8.0, 2.1, 3.5, 2.0]
+        )  # 8.0 is strong, 3.5 is weak
+        timestamps = pd.date_range("2020-01-01", periods=5)
 
         result = detector.detect(test_distances, timestamps)
 
         # Filter by high confidence
-        high_conf = result[result['confidence'] > 0.99]
+        high_conf = result[result["confidence"] > 0.99]
+        result[result["confidence"] <= 0.99]
 
         # Strong anomaly should have high confidence
         assert len(high_conf) >= 1
@@ -588,7 +595,7 @@ class TestValidateOnCrisisDates:
         # Create synthetic distance series with strong spike near crisis
         start_date = pd.Timestamp("2008-08-01")
         n_days = 80
-        timestamps = pd.date_range(start_date, periods=n_days, freq='D')
+        timestamps = pd.date_range(start_date, periods=n_days, freq="D")
 
         # Normal baseline, then spike well above threshold around crisis date
         # 2008-09-15 is day 45 from 2008-08-01
@@ -598,12 +605,15 @@ class TestValidateOnCrisisDates:
 
         crisis_dates = {"Test_Crisis": "2008-09-15"}
 
-        results = validate_on_crisis_dates(detector, distances, timestamps, crisis_dates)
+        results = validate_on_crisis_dates(
+            detector, distances, timestamps, crisis_dates
+        )
 
         # Should detect the crisis (spike is within ±14 days of crisis date)
         assert "Test_Crisis" in results
-        # If not detected, it means our synthetic data design needs adjustment
-        # This is acceptable for a unit test - key is testing the validation function logic
+        # If not detected, it means our synthetic data design needs
+        # adjustment. This is acceptable for a unit test - key is testing
+        # the validation function logic
         if results["Test_Crisis"]["detected"]:
             assert results["Test_Crisis"]["crisis_date"] == "2008-09-15"
             confidence = results["Test_Crisis"]["confidence"]
@@ -621,7 +631,7 @@ class TestValidateOnCrisisDates:
         # Create long time series covering all crises
         start_date = pd.Timestamp("2008-01-01")
         end_date = pd.Timestamp("2023-01-01")
-        timestamps = pd.date_range(start_date, end_date, freq='D')
+        timestamps = pd.date_range(start_date, end_date, freq="D")
 
         # All normal distances (no actual crises to detect)
         distances = np.ones(len(timestamps)) * 2.0
@@ -654,21 +664,25 @@ class TestValidateOnCrisisDates:
         crisis_date = pd.Timestamp("2020-02-20")
         detection_date = crisis_date - pd.Timedelta(days=5)
 
-        timestamps = pd.date_range("2020-02-01", "2020-03-01", freq='D')
+        timestamps = pd.date_range("2020-02-01", "2020-03-01", freq="D")
         distances = np.ones(len(timestamps)) * 2.0
 
         # Spike at detection date
         detection_idx = timestamps.get_loc(detection_date)
         assert isinstance(detection_idx, int)
-        distances[detection_idx:detection_idx+2] = 10.0
+        distances[detection_idx : detection_idx + 2] = 10.0
 
         crisis_dates = {"Test_Crisis": "2020-02-20"}
-        results = validate_on_crisis_dates(detector, distances, timestamps, crisis_dates)
+        results = validate_on_crisis_dates(
+            detector, distances, timestamps, crisis_dates
+        )
 
         # Check lead time is positive (early detection)
         assert results["Test_Crisis"]["detected"] is True
         lead_time = results["Test_Crisis"]["lead_time_days"]
-        assert isinstance(lead_time, (int, float)) and lead_time >= 3  # At least a few days early
+        assert (
+            isinstance(lead_time, (int, float)) and lead_time >= 3
+        )  # At least a few days early
 
 
 class TestIntegrationSynthetic:
@@ -698,7 +712,7 @@ class TestIntegrationSynthetic:
         distances[160:200] = np.random.normal(loc=2.0, scale=0.5, size=40)
 
         # Create timestamps
-        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq='D')
+        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq="D")
 
         # Calibrate on normal period (first 100 samples)
         calibrator = NormalPeriodCalibrator()
@@ -714,14 +728,14 @@ class TestIntegrationSynthetic:
         assert len(detections) >= 2
 
         # Check first detection is near index 100 (±3 days)
-        first_detection_date = detections.iloc[0]['timestamp']
+        first_detection_date = detections.iloc[0]["timestamp"]
         first_detection_idx = timestamps.get_loc(first_detection_date)
         assert isinstance(first_detection_idx, int)
         assert abs(first_detection_idx - 100) <= 3
 
         # Check second detection is near index 150 (±3 days)
         if len(detections) >= 2:
-            second_detection_date = detections.iloc[1]['timestamp']
+            second_detection_date = detections.iloc[1]["timestamp"]
             second_detection_idx = timestamps.get_loc(second_detection_date)
             assert isinstance(second_detection_idx, int)
             assert abs(second_detection_idx - 150) <= 3
@@ -733,7 +747,7 @@ class TestIntegrationSynthetic:
         # Generate purely normal data
         n_samples = 200
         distances = np.random.normal(loc=2.0, scale=0.5, size=n_samples)
-        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq='D')
+        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq="D")
 
         # Calibrate on first half
         calibrator = NormalPeriodCalibrator()
@@ -757,7 +771,7 @@ class TestIntegrationSynthetic:
         # Strong change point: indices 70-75
         distances[70:76] = np.random.normal(loc=10.0, scale=0.5, size=6)
 
-        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq='D')
+        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq="D")
 
         # Calibrate
         calibrator = NormalPeriodCalibrator()
@@ -771,7 +785,7 @@ class TestIntegrationSynthetic:
         assert len(detections) >= 1
 
         # Detection should be near index 70
-        first_detection_date = detections.iloc[0]['timestamp']
+        first_detection_date = detections.iloc[0]["timestamp"]
         first_detection_idx = timestamps.get_loc(first_detection_date)
         assert isinstance(first_detection_idx, int)
         assert abs(first_detection_idx - 70) <= 5  # Within 5 days
@@ -785,7 +799,7 @@ class TestIntegrationSynthetic:
         normal_distances = np.random.normal(loc=2.0, scale=0.5, size=50)
         anomaly_distances = np.random.normal(loc=8.0, scale=0.3, size=50)
         distances = np.concatenate([normal_distances, anomaly_distances])
-        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq='D')
+        timestamps = pd.date_range("2020-01-01", periods=n_samples, freq="D")
 
         # Calibrate on normal data
         calibrator = NormalPeriodCalibrator()
@@ -808,7 +822,7 @@ class TestIntegrationSynthetic:
 
             # Should detect change at index 50
             assert len(detections) >= 1
-            first_detection_date = detections.iloc[0]['timestamp']
+            first_detection_date = detections.iloc[0]["timestamp"]
             first_detection_idx = timestamps.get_loc(first_detection_date)
             assert isinstance(first_detection_idx, int)
             assert abs(first_detection_idx - 50) <= 3

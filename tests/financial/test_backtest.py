@@ -204,13 +204,15 @@ class TestPrepareBacktestData:
     def test_returns_calculation(self):
         """Test that returns are calculated correctly."""
         dates = pd.date_range("2020-01-01", periods=10, freq="D")
-        prices = pd.Series([100, 101, 102, 101, 100, 99, 100, 101, 102, 103], index=dates)
+        prices = pd.Series(
+            [100, 101, 102, 101, 100, 99, 100, 101, 102, 103], index=dates
+        )
 
         result = prepare_backtest_data(prices)
 
         # First row with NaN return is dropped, so result starts at second price (101)
         assert result.index[0] == dates[1]
-        
+
         # The return value at index dates[1] corresponds to log(101/100)
         # because returns are calculated as log(price_t / price_{t-1})
         # At dates[1], price is 101, previous price (at dates[0]) is 100
@@ -243,7 +245,9 @@ class TestPrepareBacktestData:
     def test_missing_values_handling(self):
         """Test handling of missing values."""
         dates = pd.date_range("2020-01-01", periods=10, freq="D")
-        prices = pd.Series([100, 101, np.nan, 103, 104, 105, 106, 107, 108, 109], index=dates)
+        prices = pd.Series(
+            [100, 101, np.nan, 103, 104, 105, 106, 107, 108, 109], index=dates
+        )
 
         result = prepare_backtest_data(prices)
 
@@ -511,10 +515,12 @@ class TestBacktestEngine:
         mock_classifier = Mock()
         # Mock predictions: first 10 windows predict crisis (1), rest normal (0)
         mock_classifier.predict.return_value = np.array([1] * 10 + [0] * 40)
-        mock_classifier.predict_proba.return_value = np.column_stack([
-            np.random.rand(50),  # Normal probability
-            np.array([0.9] * 10 + [0.1] * 40),  # Crisis probability
-        ])
+        mock_classifier.predict_proba.return_value = np.column_stack(
+            [
+                np.random.rand(50),  # Normal probability
+                np.array([0.9] * 10 + [0.1] * 40),  # Crisis probability
+            ]
+        )
 
         engine = BacktestEngine(regime_classifier=mock_classifier)
 
@@ -524,12 +530,14 @@ class TestBacktestEngine:
 
         # Create features DataFrame
         feature_dates = pd.date_range("2008-09-01", periods=50, freq="D")
-        features = pd.DataFrame({
-            'window_start': feature_dates,
-            'window_end': feature_dates + pd.Timedelta(days=5),
-            'feature1': np.random.rand(50),
-            'feature2': np.random.rand(50),
-        })
+        features = pd.DataFrame(
+            {
+                "window_start": feature_dates,
+                "window_end": feature_dates + pd.Timedelta(days=5),
+                "feature1": np.random.rand(50),
+                "feature2": np.random.rand(50),
+            }
+        )
 
         # Use only GFC crisis for testing
         gfc = next(c for c in KNOWN_CRISES if c.name == "GFC")
@@ -675,7 +683,9 @@ class TestVolatilityBaseline:
         returns = np.random.normal(0, 0.01, size=100)
         # High volatility spike around COVID onset (Feb 20)
         covid_onset_idx = 50  # ~Feb 20
-        returns[covid_onset_idx-5:covid_onset_idx+10] = np.random.normal(0, 0.08, size=15)
+        returns[covid_onset_idx - 5 : covid_onset_idx + 10] = np.random.normal(
+            0, 0.08, size=15
+        )
 
         prices = pd.Series(100 * np.exp(returns.cumsum()), index=dates)
 
@@ -886,11 +896,13 @@ class TestIntegrationBacktest:
         np.random.seed(42)
 
         # Normal period, then crash, then recovery
-        returns = np.concatenate([
-            np.random.normal(0.0005, 0.01, 150),  # Normal
-            np.random.normal(-0.02, 0.03, 45),  # Crisis
-            np.random.normal(0.001, 0.015, 105),  # Recovery
-        ])
+        returns = np.concatenate(
+            [
+                np.random.normal(0.0005, 0.01, 150),  # Normal
+                np.random.normal(-0.02, 0.03, 45),  # Crisis
+                np.random.normal(0.001, 0.015, 105),  # Recovery
+            ]
+        )
 
         prices = pd.Series(100 * np.exp(returns.cumsum()), index=dates)
 
@@ -898,25 +910,27 @@ class TestIntegrationBacktest:
         mock_classifier = Mock()
         # Predict crisis around onset date
         mock_classifier.predict.return_value = np.array([0] * 35 + [1] * 5 + [0] * 10)
-        mock_classifier.predict_proba.return_value = np.column_stack([
-            np.random.rand(50),
-            np.array([0.1] * 35 + [0.9] * 5 + [0.2] * 10),
-        ])
+        mock_classifier.predict_proba.return_value = np.column_stack(
+            [
+                np.random.rand(50),
+                np.array([0.1] * 35 + [0.9] * 5 + [0.2] * 10),
+            ]
+        )
 
         # Create features
         feature_dates = pd.date_range("2021-01-01", periods=50, freq="D")
-        features = pd.DataFrame({
-            'window_start': feature_dates,
-            'window_end': feature_dates + pd.Timedelta(days=5),
-            'feature1': np.random.rand(50),
-        })
+        features = pd.DataFrame(
+            {
+                "window_start": feature_dates,
+                "window_end": feature_dates + pd.Timedelta(days=5),
+                "feature1": np.random.rand(50),
+            }
+        )
 
         # Run backtest with TDA engine
         engine = BacktestEngine(regime_classifier=mock_classifier)
         tda_results = engine.run_backtest(
-            prices,
-            features,
-            crisis_periods=[synthetic_crisis]
+            prices, features, crisis_periods=[synthetic_crisis]
         )
 
         # Run baseline
@@ -937,7 +951,9 @@ class TestIntegrationBacktest:
                         earliest = det
 
             if earliest is not None:
-                lead_time = compute_lead_time(earliest.timestamp, crisis.peak_drawdown_date)
+                lead_time = compute_lead_time(
+                    earliest.timestamp, crisis.peak_drawdown_date
+                )
                 baseline_results.lead_times[crisis.name] = lead_time
                 baseline_results.true_positives[crisis.name] = True
             else:

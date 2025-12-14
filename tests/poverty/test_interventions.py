@@ -22,7 +22,6 @@ from poverty_tda.analysis.interventions import (
     simulate_intervention,
 )
 
-
 # =============================================================================
 # INTERVENTION TYPE AND DATACLASS TESTS
 # =============================================================================
@@ -393,8 +392,10 @@ def test_compute_impact_score(
     # Impact should be in [0, 1]
     assert 0.0 <= impact <= 1.0
 
-    # Impact formula: 0.3×pop_norm + 0.3×trap + 0.2×barrier_norm + 0.2×flow_norm
-    # E01000001: pop=1000 (max=2000→0.5), trap=0.8, barrier=0.6 (max=0.6→1.0), flow=1 (max=3→0.333)
+    # Impact formula: 0.3×pop_norm + 0.3×trap + 0.2×barrier_norm
+    # + 0.2×flow_norm
+    # E01000001: pop=1000 (max=2000→0.5), trap=0.8,
+    # barrier=0.6 (max=0.6→1.0), flow=1 (max=3→0.333)
     expected = 0.3 * 0.5 + 0.3 * 0.8 + 0.2 * 1.0 + 0.2 * (1 / 3)
     assert impact == pytest.approx(expected, abs=1e-6)
 
@@ -430,7 +431,9 @@ def test_prioritize_by_impact_sorted_descending(
 
     # Check impact scores are descending
     impact_scores = result["impact_score"].values
-    assert all(impact_scores[i] >= impact_scores[i + 1] for i in range(len(impact_scores) - 1))
+    assert all(
+        impact_scores[i] >= impact_scores[i + 1] for i in range(len(impact_scores) - 1)
+    )
 
 
 def test_prioritize_by_impact_invalid_top_n(
@@ -483,7 +486,8 @@ def test_compute_cost_benefit_ratio_positive():
 def test_compute_cost_benefit_ratio_zero_cost():
     """Test that Intervention dataclass rejects zero cost at creation."""
     # Zero cost is already rejected by Intervention.__post_init__
-    # This test validates the dataclass validation happens before cost-benefit computation
+    # This test validates the dataclass validation happens before
+    # cost-benefit computation
     with pytest.raises(ValueError, match="Cost must be positive"):
         Intervention(
             intervention_id=1,
@@ -642,7 +646,9 @@ def test_simulate_intervention_missing_lsoas():
     )
 
     with pytest.raises(ValueError, match="not found in baseline_mobility"):
-        simulate_intervention(intervention, mobility_surface, baseline_mobility, gateway_lsoas)
+        simulate_intervention(
+            intervention, mobility_surface, baseline_mobility, gateway_lsoas
+        )
 
 
 def test_generate_intervention_report_basic():
@@ -743,7 +749,8 @@ def test_generate_intervention_report_with_simulations():
     assert report["priority_ranking"] is not None
     assert len(report["priority_ranking"]) == 2
 
-    # Check cost-benefit sorting (intervention 2 should rank first: 0.03/5 = 0.006 > 0.05/10 = 0.005)
+    # Check cost-benefit sorting (intervention 2 should rank first:
+    # 0.03/5 = 0.006 > 0.05/10 = 0.005)
     assert report["cost_benefit_summary"][0]["intervention_id"] == 2
 
 

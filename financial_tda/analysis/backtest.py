@@ -61,8 +61,10 @@ class CrisisPeriod:
         """Validate crisis period dates are in correct chronological order."""
         if not (self.onset_date <= self.peak_drawdown_date <= self.recovery_date):
             raise ValueError(
-                f"Crisis dates must be chronological: onset <= peak_drawdown <= recovery. "
-                f"Got: {self.onset_date} <= {self.peak_drawdown_date} <= {self.recovery_date}"
+                f"Crisis dates must be chronological: "
+                f"onset <= peak_drawdown <= recovery. "
+                f"Got: {self.onset_date} <= {self.peak_drawdown_date} "
+                f"<= {self.recovery_date}"
             )
 
     @property
@@ -172,7 +174,7 @@ def prepare_backtest_data(
 
     # Create result DataFrame
     result = pd.DataFrame(index=prices.index)
-    result['price'] = prices
+    result["price"] = prices
 
     # Add VIX if provided
     if vix is not None:
@@ -180,17 +182,19 @@ def prepare_backtest_data(
         # Align VIX to price index
         common_index = prices.index.intersection(vix.index)
         if len(common_index) == 0:
-            logger.warning("No overlapping dates between prices and VIX, omitting VIX column")
+            logger.warning(
+                "No overlapping dates between prices and VIX, omitting VIX column"
+            )
         else:
             result = result.loc[common_index]
-            result['vix'] = vix.loc[common_index]
+            result["vix"] = vix.loc[common_index]
 
     # Compute returns (log returns for better statistical properties)
-    result['returns'] = np.log(result['price'] / result['price'].shift(1))
+    result["returns"] = np.log(result["price"] / result["price"].shift(1))
 
     # Compute drawdown from running maximum
-    running_max = result['price'].expanding(min_periods=1).max()
-    result['drawdown'] = (result['price'] - running_max) / running_max
+    running_max = result["price"].expanding(min_periods=1).max()
+    result["drawdown"] = (result["price"] - running_max) / running_max
 
     # Handle missing values
     # Forward fill up to 5 days for weekends/holidays
@@ -207,8 +211,7 @@ def prepare_backtest_data(
         rows_dropped = rows_before - len(result)
         if rows_dropped > 1:  # Only warn if more than just the first row
             logger.warning(
-                "Dropped %d rows with NaN values after forward fill",
-                rows_dropped
+                "Dropped %d rows with NaN values after forward fill", rows_dropped
             )
 
     # Filter to date range
@@ -227,7 +230,7 @@ def prepare_backtest_data(
     if len(result) < 50:
         logger.warning(
             "Only %d data points available - may be insufficient for backtesting",
-            len(result)
+            len(result),
         )
 
     logger.info(
@@ -304,8 +307,10 @@ class BacktestEngine:
     known crisis periods, computing detection lead times and false positive rates.
 
     Attributes:
-        regime_classifier: Optional RegimeClassifier instance for regime-based detection.
-        change_detector: Optional ChangePointDetector instance for topology-based detection.
+        regime_classifier: Optional RegimeClassifier instance for
+            regime-based detection.
+        change_detector: Optional ChangePointDetector instance for
+            topology-based detection.
         window_size: Number of data points per analysis window. Default 50.
         stride: Number of points to advance between windows. Default 5.
 
@@ -339,7 +344,9 @@ class BacktestEngine:
             ValueError: If both classifier and detector are None.
         """
         if regime_classifier is None and change_detector is None:
-            raise ValueError("At least one of regime_classifier or change_detector must be provided")
+            raise ValueError(
+                "At least one of regime_classifier or change_detector must be provided"
+            )
 
         self.regime_classifier = regime_classifier
         self.change_detector = change_detector
@@ -363,12 +370,15 @@ class BacktestEngine:
 
         Args:
             prices: Price series with DatetimeIndex.
-            features: Optional windowed features DataFrame. Required if using regime_classifier.
-                Should have 'window_start', 'window_end' columns and feature columns.
-            crisis_periods: List of crisis periods to evaluate. If None, uses KNOWN_CRISES.
+            features: Optional windowed features DataFrame. Required if
+                using regime_classifier. Should have 'window_start',
+                'window_end' columns and feature columns.
+            crisis_periods: List of crisis periods to evaluate. If None,
+                uses KNOWN_CRISES.
 
         Returns:
-            BacktestResults containing all detections, lead times, and performance metrics.
+            BacktestResults containing all detections, lead times, and
+            performance metrics.
 
         Raises:
             ValueError: If features is None but regime_classifier is provided.
@@ -391,7 +401,9 @@ class BacktestEngine:
 
         # Run regime classifier if available
         if self.regime_classifier is not None and features is not None:
-            classifier_detections = self._run_classifier_backtest(features, crisis_periods)
+            classifier_detections = self._run_classifier_backtest(
+                features, crisis_periods
+            )
             results.detections.extend(classifier_detections)
 
         # Run change detector if available
@@ -417,7 +429,8 @@ class BacktestEngine:
                 results.true_positives[crisis.name] = True
 
                 logger.info(
-                    "Crisis '%s' detected %d trading days before peak (method=%s, confidence=%.3f)",
+                    "Crisis '%s' detected %d trading days before peak "
+                    "(method=%s, confidence=%.3f)",
                     crisis.name,
                     lead_time,
                     detection.method,
@@ -456,12 +469,16 @@ class BacktestEngine:
 
         # Get predictions for all windows
         # Features should already be prepared with proper columns
-        feature_cols = [col for col in features.columns if col not in ['window_start', 'window_end']]
+        feature_cols = [
+            col for col in features.columns if col not in ["window_start", "window_end"]
+        ]
         X = features[feature_cols].values
 
         try:
             predictions = self.regime_classifier.predict(X)
-            probabilities = self.regime_classifier.predict_proba(X)[:, 1]  # Crisis probability
+            probabilities = self.regime_classifier.predict_proba(X)[
+                :, 1
+            ]  # Crisis probability
         except Exception as e:
             logger.error("Regime classifier prediction failed: %s", e)
             return []
@@ -470,18 +487,20 @@ class BacktestEngine:
         crisis_mask = predictions == 1
 
         for idx in np.where(crisis_mask)[0]:
-            timestamp = pd.Timestamp(features.iloc[idx]['window_end'])
+            timestamp = pd.Timestamp(features.iloc[idx]["window_end"])
             confidence = float(probabilities[idx])
 
             # Associate with nearest crisis
             crisis_name = self._associate_with_crisis(timestamp, crisis_periods)
 
-            detections.append(Detection(
-                timestamp=timestamp,
-                method="classifier",
-                confidence=confidence,
-                crisis_name=crisis_name,
-            ))
+            detections.append(
+                Detection(
+                    timestamp=timestamp,
+                    method="classifier",
+                    confidence=confidence,
+                    crisis_name=crisis_name,
+                )
+            )
 
         logger.debug("Classifier: %d crisis detections", len(detections))
         return detections
@@ -531,8 +550,7 @@ class BacktestEngine:
         window_end = peak_drawdown_date
 
         valid_detections = [
-            d for d in detections
-            if window_start <= d.timestamp <= window_end
+            d for d in detections if window_start <= d.timestamp <= window_end
         ]
 
         if len(valid_detections) == 0:
@@ -696,8 +714,10 @@ class VolatilityBaseline:
         Initialize volatility baseline detector.
 
         Args:
-            window_size: Rolling window for volatility computation. Default 20 days.
-            threshold_percentile: Percentile for detection threshold (0-100). Default 95.
+            window_size: Rolling window for volatility computation.
+                Default 20 days.
+            threshold_percentile: Percentile for detection threshold
+                (0-100). Default 95.
 
         Raises:
             ValueError: If window_size < 2 or threshold_percentile not in (0, 100].
@@ -767,7 +787,6 @@ class VolatilityBaseline:
         # Extract local peaks to avoid consecutive detections
         detections = []
         in_spike = False
-        spike_start_idx = None
         spike_max_vol = -np.inf
         spike_max_idx = None
 
@@ -778,7 +797,6 @@ class VolatilityBaseline:
             if is_high and not in_spike:
                 # Start of new spike
                 in_spike = True
-                spike_start_idx = i
                 spike_max_vol = volatility.iloc[i]
                 spike_max_idx = i
 
@@ -804,16 +822,17 @@ class VolatilityBaseline:
                             crisis_name = crisis.name
                             break
 
-                detections.append(Detection(
-                    timestamp=peak_date,
-                    method="baseline",
-                    confidence=confidence,
-                    crisis_name=crisis_name,
-                ))
+                detections.append(
+                    Detection(
+                        timestamp=peak_date,
+                        method="baseline",
+                        confidence=confidence,
+                        crisis_name=crisis_name,
+                    )
+                )
 
                 # Reset spike tracking
                 in_spike = False
-                spike_start_idx = None
                 spike_max_vol = -np.inf
                 spike_max_idx = None
 
@@ -831,12 +850,14 @@ class VolatilityBaseline:
                         crisis_name = crisis.name
                         break
 
-            detections.append(Detection(
-                timestamp=peak_date,
-                method="baseline",
-                confidence=confidence,
-                crisis_name=crisis_name,
-            ))
+            detections.append(
+                Detection(
+                    timestamp=peak_date,
+                    method="baseline",
+                    confidence=confidence,
+                    crisis_name=crisis_name,
+                )
+            )
 
         logger.info(
             "VolatilityBaseline detected %d events (threshold=%.4f)",
@@ -871,7 +892,10 @@ def generate_backtest_report(
     Examples:
         >>> report = generate_backtest_report(tda_results, baseline_results)
         >>> print(report['summary'])
-        >>> print(f"Mean lead time: {report['aggregate_metrics']['mean_lead_time']} days")
+        >>> print(
+        ...     f"Mean lead time: "
+        ...     f"{report['aggregate_metrics']['mean_lead_time']} days"
+        ... )
 
     Notes:
         - Lead time improvement: positive = TDA better than baseline
@@ -915,21 +939,36 @@ def generate_backtest_report(
     n_missed = n_crises - n_detected
 
     detected_lead_times = [
-        lt for crisis_name, lt in results.lead_times.items()
+        lt
+        for crisis_name, lt in results.lead_times.items()
         if results.true_positives.get(crisis_name, False) and lt > 0
     ]
 
     mean_lead_time = float(np.mean(detected_lead_times)) if detected_lead_times else 0.0
-    median_lead_time = float(np.median(detected_lead_times)) if detected_lead_times else 0.0
+    median_lead_time = (
+        float(np.median(detected_lead_times)) if detected_lead_times else 0.0
+    )
 
     # Precision, Recall, F1
     true_positives = n_detected
     false_positives = results.false_positives
     false_negatives = n_missed
 
-    precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
-    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
-    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+    precision = (
+        true_positives / (true_positives + false_positives)
+        if (true_positives + false_positives) > 0
+        else 0.0
+    )
+    recall = (
+        true_positives / (true_positives + false_negatives)
+        if (true_positives + false_negatives) > 0
+        else 0.0
+    )
+    f1_score = (
+        2 * (precision * recall) / (precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
 
     report["aggregate_metrics"] = {
         "n_crises": n_crises,
@@ -948,16 +987,31 @@ def generate_backtest_report(
     if baseline_results is not None:
         baseline_n_detected = sum(baseline_results.true_positives.values())
         baseline_detected_lead_times = [
-            lt for crisis_name, lt in baseline_results.lead_times.items()
+            lt
+            for crisis_name, lt in baseline_results.lead_times.items()
             if baseline_results.true_positives.get(crisis_name, False) and lt > 0
         ]
 
-        baseline_mean_lead_time = float(np.mean(baseline_detected_lead_times)) if baseline_detected_lead_times else 0.0
+        baseline_mean_lead_time = (
+            float(np.mean(baseline_detected_lead_times))
+            if baseline_detected_lead_times
+            else 0.0
+        )
 
         baseline_fp = baseline_results.false_positives
-        baseline_precision = baseline_n_detected / (baseline_n_detected + baseline_fp) if (baseline_n_detected + baseline_fp) > 0 else 0.0
+        baseline_precision = (
+            baseline_n_detected / (baseline_n_detected + baseline_fp)
+            if (baseline_n_detected + baseline_fp) > 0
+            else 0.0
+        )
         baseline_recall = baseline_n_detected / n_crises if n_crises > 0 else 0.0
-        baseline_f1 = 2 * (baseline_precision * baseline_recall) / (baseline_precision + baseline_recall) if (baseline_precision + baseline_recall) > 0 else 0.0
+        baseline_f1 = (
+            2
+            * (baseline_precision * baseline_recall)
+            / (baseline_precision + baseline_recall)
+            if (baseline_precision + baseline_recall) > 0
+            else 0.0
+        )
 
         report["baseline_comparison"] = {
             "tda_mean_lead_time": mean_lead_time,
@@ -974,9 +1028,9 @@ def generate_backtest_report(
 
     # Generate text summary
     summary_lines = [
-        f"Backtest Results Summary:",
+        "Backtest Results Summary:",
         f"  Crises evaluated: {n_crises}",
-        f"  Detected: {n_detected}/{n_crises} ({n_detected/n_crises*100:.1f}%)",
+        f"  Detected: {n_detected}/{n_crises} ({n_detected / n_crises * 100:.1f}%)",
         f"  Mean lead time: {mean_lead_time:.1f} days",
         f"  Median lead time: {median_lead_time:.1f} days",
         f"  Precision: {precision:.3f}",
@@ -988,15 +1042,19 @@ def generate_backtest_report(
     if baseline_results is not None:
         improvement = report["baseline_comparison"]["lead_time_improvement"]
         f1_improvement = report["baseline_comparison"]["f1_improvement"]
-        summary_lines.extend([
-            f"",
-            f"Comparison to Baseline:",
-            f"  Lead time improvement: {improvement:+.1f} days",
-            f"  F1 improvement: {f1_improvement:+.3f}",
-        ])
+        summary_lines.extend(
+            [
+                "",
+                "Comparison to Baseline:",
+                f"  Lead time improvement: {improvement:+.1f} days",
+                f"  F1 improvement: {f1_improvement:+.3f}",
+            ]
+        )
 
     report["summary"] = "\n".join(summary_lines)
 
-    logger.info("Generated backtest report: %d crises, %d detected", n_crises, n_detected)
+    logger.info(
+        "Generated backtest report: %d crises, %d detected", n_crises, n_detected
+    )
 
     return report

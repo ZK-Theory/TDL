@@ -134,7 +134,9 @@ class ImpactModel:
         self.education_ks4_coefficient = 0.002  # Mobility per 1% KS4 improvement
 
         # Transport impact coefficients
-        self.transport_barrier_coefficient = 0.5  # Effect multiplier for barrier reduction
+        self.transport_barrier_coefficient = (
+            0.5  # Effect multiplier for barrier reduction
+        )
 
         # Employment impact coefficients
         self.employment_job_coefficient = 0.00001  # Mobility per job created
@@ -334,9 +336,7 @@ class InterventionPrioritizer:
         ]
         missing_cols = set(required_gateway_cols) - set(gateway_lsoas.columns)
         if missing_cols:
-            raise ValueError(
-                f"gateway_lsoas missing required columns: {missing_cols}"
-            )
+            raise ValueError(f"gateway_lsoas missing required columns: {missing_cols}")
 
         # Validate trap_scores
         required_trap_cols = ["basin_id", "total_score"]
@@ -412,9 +412,7 @@ class InterventionPrioritizer:
 
         # Normalize barrier strength
         max_barrier = self.gateway_lsoas["barrier_strength"].max()
-        barrier_norm = (
-            row["barrier_strength"] / max_barrier if max_barrier > 0 else 0.0
-        )
+        barrier_norm = row["barrier_strength"] / max_barrier if max_barrier > 0 else 0.0
 
         # Normalize flow convergence
         max_flow = self.gateway_lsoas["flow_convergence"].max()
@@ -475,8 +473,9 @@ class InterventionPrioritizer:
         available_cols = [col for col in result_cols if col in prioritized.columns]
 
         logger.info(
-            f"Prioritized top {top_n} gateway LSOAs for {intervention_type.value} "
-            f"intervention (mean impact score: {prioritized['impact_score'].mean():.3f})"
+            f"Prioritized top {top_n} gateway LSOAs for "
+            f"{intervention_type.value} intervention "
+            f"(mean impact score: {prioritized['impact_score'].mean():.3f})"
         )
 
         return prioritized[available_cols].reset_index(drop=True)
@@ -625,6 +624,7 @@ def simulate_intervention(
 
     # Apply intervention effect (simplified: uniform boost to target LSOAs)
     # In real implementation, would map LSOA codes to grid coordinates
+    target_data["mobility"].mean()
     mobility_improvement = intervention.estimated_effect
 
     # Estimate population affected
@@ -723,8 +723,12 @@ def generate_intervention_report(
             "top_gateways": top_3["lsoa_code"].tolist(),
             "total_population": int(df["population"].sum()),
             "mean_impact_score": float(df["impact_score"].mean()),
-            "highest_impact_lsoa": top_3.iloc[0]["lsoa_code"] if len(top_3) > 0 else None,
-            "highest_impact_score": float(top_3.iloc[0]["impact_score"]) if len(top_3) > 0 else 0.0,
+            "highest_impact_lsoa": top_3.iloc[0]["lsoa_code"]
+            if len(top_3) > 0
+            else None,
+            "highest_impact_score": float(top_3.iloc[0]["impact_score"])
+            if len(top_3) > 0
+            else 0.0,
         }
     report["recommendations_by_type"] = recommendations_by_type
 

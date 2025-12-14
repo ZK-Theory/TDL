@@ -159,9 +159,7 @@ class SurfaceModifier:
             f"value range [{surface.min():.3f}, {surface.max():.3f}]"
         )
 
-    def _coords_to_indices(
-        self, coords: tuple[float, float]
-    ) -> tuple[int, int] | None:
+    def _coords_to_indices(self, coords: tuple[float, float]) -> tuple[int, int] | None:
         """Convert (x, y) coordinates to grid indices.
 
         Args:
@@ -234,7 +232,8 @@ class SurfaceModifier:
         i_center, j_center = indices
 
         logger.info(
-            f"Removing barrier at {saddle_coords} (grid indices [{i_center}, {j_center}]) "
+            f"Removing barrier at {saddle_coords} "
+            f"(grid indices [{i_center}, {j_center}]) "
             f"with {method} method, radius={radius}"
         )
 
@@ -248,9 +247,7 @@ class SurfaceModifier:
             j_coords = np.arange(self.surface.shape[1])
             i_grid, j_grid = np.meshgrid(i_coords, j_coords, indexing="ij")
 
-            distances = np.sqrt(
-                (i_grid - i_center) ** 2 + (j_grid - j_center) ** 2
-            )
+            distances = np.sqrt((i_grid - i_center) ** 2 + (j_grid - j_center) ** 2)
             weights = np.exp(-(distances**2) / (2 * sigma**2))
             weights[distances > radius] = 0  # Limit to radius
 
@@ -273,9 +270,7 @@ class SurfaceModifier:
             i_coords = np.arange(self.surface.shape[0])
             j_coords = np.arange(self.surface.shape[1])
             i_grid, j_grid = np.meshgrid(i_coords, j_coords, indexing="ij")
-            distances = np.sqrt(
-                (i_grid - i_center) ** 2 + (j_grid - j_center) ** 2
-            )
+            distances = np.sqrt((i_grid - i_center) ** 2 + (j_grid - j_center) ** 2)
 
             # Ring: radius < distance < radius + 2
             ring_mask = (distances > radius) & (distances < radius + 2)
@@ -383,7 +378,9 @@ class SurfaceModifier:
         logger.info(f"Applying {len(modifications)} modifications")
 
         for idx, mod in enumerate(modifications, 1):
-            logger.debug(f"Applying modification {idx}/{len(modifications)}: {mod.type}")
+            logger.debug(
+                f"Applying modification {idx}/{len(modifications)}: {mod.type}"
+            )
 
             if mod.type == "remove_barrier":
                 method = mod.parameters.get("method", "gaussian")
@@ -399,9 +396,7 @@ class SurfaceModifier:
                 self.fill_trap(mod.coords, mod.radius, target_value)
 
             else:
-                raise ValueError(
-                    f"Modification {idx}: Unknown type '{mod.type}'"
-                )
+                raise ValueError(f"Modification {idx}: Unknown type '{mod.type}'")
 
         logger.info(
             f"All modifications applied. Final surface range: "
@@ -429,7 +424,9 @@ class SurfaceModifier:
         affected_mask = change > 1e-9  # Numerical tolerance
 
         return {
-            "mean_change": float(change[affected_mask].mean()) if affected_mask.any() else 0.0,
+            "mean_change": float(change[affected_mask].mean())
+            if affected_mask.any()
+            else 0.0,
             "max_change": float(change.max()),
             "affected_cells": int(affected_mask.sum()),
             "affected_fraction": float(affected_mask.sum() / change.size),
@@ -508,7 +505,8 @@ class CounterfactualAnalyzer:
         self.grid_y = grid_y
 
         logger.info(
-            f"CounterfactualAnalyzer initialized with surface shape {original_surface.shape}"
+            f"CounterfactualAnalyzer initialized with surface shape "
+            f"{original_surface.shape}"
         )
 
     def compare_critical_points(
@@ -531,14 +529,26 @@ class CounterfactualAnalyzer:
             - total_change: Net change in critical points
         """
         # Count original critical points by type
-        original_minima = sum(1 for cp in original_result.critical_points if cp.is_minimum)
-        original_saddles = sum(1 for cp in original_result.critical_points if cp.is_saddle)
-        original_maxima = sum(1 for cp in original_result.critical_points if cp.is_maximum)
+        original_minima = sum(
+            1 for cp in original_result.critical_points if cp.is_minimum
+        )
+        original_saddles = sum(
+            1 for cp in original_result.critical_points if cp.is_saddle
+        )
+        original_maxima = sum(
+            1 for cp in original_result.critical_points if cp.is_maximum
+        )
 
         # Count modified critical points by type
-        modified_minima = sum(1 for cp in modified_result.critical_points if cp.is_minimum)
-        modified_saddles = sum(1 for cp in modified_result.critical_points if cp.is_saddle)
-        modified_maxima = sum(1 for cp in modified_result.critical_points if cp.is_maximum)
+        modified_minima = sum(
+            1 for cp in modified_result.critical_points if cp.is_minimum
+        )
+        modified_saddles = sum(
+            1 for cp in modified_result.critical_points if cp.is_saddle
+        )
+        modified_maxima = sum(
+            1 for cp in modified_result.critical_points if cp.is_maximum
+        )
 
         # Compute changes
         minima_change = modified_minima - original_minima
@@ -552,7 +562,9 @@ class CounterfactualAnalyzer:
             "saddles_added": max(0, saddles_change),
             "maxima_removed": max(0, -maxima_change),
             "maxima_added": max(0, maxima_change),
-            "total_change": abs(minima_change) + abs(saddles_change) + abs(maxima_change),
+            "total_change": abs(minima_change)
+            + abs(saddles_change)
+            + abs(maxima_change),
         }
 
         logger.info(
@@ -593,9 +605,17 @@ class CounterfactualAnalyzer:
         total_affected = int(flow_redistribution["population_moved"].sum())
 
         # Compute average mobility change if mobility columns exist
-        if "from_mobility" in flow_redistribution.columns and "to_mobility" in flow_redistribution.columns:
-            mobility_changes = flow_redistribution["to_mobility"] - flow_redistribution["from_mobility"]
-            weighted_avg = (mobility_changes * flow_redistribution["population_moved"]).sum() / total_affected
+        if (
+            "from_mobility" in flow_redistribution.columns
+            and "to_mobility" in flow_redistribution.columns
+        ):
+            mobility_changes = (
+                flow_redistribution["to_mobility"]
+                - flow_redistribution["from_mobility"]
+            )
+            weighted_avg = (
+                mobility_changes * flow_redistribution["population_moved"]
+            ).sum() / total_affected
             avg_mobility_change = float(weighted_avg) if total_affected > 0 else 0.0
         else:
             avg_mobility_change = 0.0
@@ -654,9 +674,11 @@ class CounterfactualAnalyzer:
         # For now, create placeholder result with simplified analysis
 
         # Compare critical point counts (requires modified_morse_smale)
-        # This is a simplified placeholder - real implementation needs TTK recomputation
-        
-        # Create placeholder modified_morse_smale (in real implementation, this comes from TTK)
+        # This is a simplified placeholder - real implementation needs
+        # TTK recomputation
+
+        # Create placeholder modified_morse_smale (in real implementation,
+        # this comes from TTK)
         modified_morse_smale = None  # Would be computed via TTK subprocess
 
         # Compare critical points
@@ -676,11 +698,13 @@ class CounterfactualAnalyzer:
 
         # Create placeholder flow redistribution
         # Real implementation would compute from basin boundary changes
-        flow_redistribution = pd.DataFrame({
-            "from_basin": [],
-            "to_basin": [],
-            "population_moved": [],
-        })
+        flow_redistribution = pd.DataFrame(
+            {
+                "from_basin": [],
+                "to_basin": [],
+                "population_moved": [],
+            }
+        )
 
         # Estimate basin size changes (simplified)
         # Real implementation would compare basin masks before/after
@@ -743,7 +767,8 @@ def visualize_counterfactual(
         import matplotlib.pyplot as plt
     except ImportError:
         raise ImportError(
-            "matplotlib required for visualization. Install with: pip install matplotlib"
+            "matplotlib required for visualization. "
+            "Install with: pip install matplotlib"
         )
 
     figures = {}
@@ -778,7 +803,7 @@ def visualize_counterfactual(
 
     # Create figure for critical point changes
     fig2, ax = plt.subplots(figsize=(8, 6))
-    
+
     changes = result.critical_point_changes
     categories = ["Minima", "Saddles", "Maxima"]
     removed = [
@@ -795,8 +820,8 @@ def visualize_counterfactual(
     x = np.arange(len(categories))
     width = 0.35
 
-    ax.bar(x - width/2, removed, width, label="Removed", color="red", alpha=0.7)
-    ax.bar(x + width/2, added, width, label="Added", color="green", alpha=0.7)
+    ax.bar(x - width / 2, removed, width, label="Removed", color="red", alpha=0.7)
+    ax.bar(x + width / 2, added, width, label="Added", color="green", alpha=0.7)
 
     ax.set_ylabel("Count")
     ax.set_title("Critical Point Changes")
@@ -841,7 +866,8 @@ def generate_counterfactual_report(
 
     # Summary section
     report["summary"] = {
-        "intervention_description": intervention_description or "Counterfactual scenario",
+        "intervention_description": intervention_description
+        or "Counterfactual scenario",
         "barriers_removed": result.barriers_removed,
         "traps_reduced": result.traps_reduced,
         "population_affected": result.population_affected,
@@ -938,8 +964,9 @@ def generate_counterfactual_report(
     report["impact_assessment"] = {
         "impact_level": impact_level,
         "cost_benefit_note": (
-            "Compare topology changes with intervention cost to assess value for money. "
-            "Higher topology changes (especially barrier/trap removal) indicate stronger impact."
+            "Compare topology changes with intervention cost to assess "
+            "value for money. Higher topology changes (especially barrier/"
+            "trap removal) indicate stronger impact."
         ),
     }
 

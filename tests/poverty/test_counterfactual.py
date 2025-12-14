@@ -12,9 +12,11 @@ Tests cover:
 """
 
 import logging
+from dataclasses import dataclass, field
 
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend for testing
+
+matplotlib.use("Agg")  # Use non-interactive backend for testing
 
 import numpy as np
 import pandas as pd
@@ -32,7 +34,6 @@ from poverty_tda.analysis.counterfactual import (
 logger = logging.getLogger(__name__)
 
 # Mock MorseSmaleResult for testing
-from dataclasses import dataclass, field
 
 
 @dataclass
@@ -283,7 +284,9 @@ def test_fill_trap_gradient():
     # Points close to center that were below target should be raised more
     # than points farther away
     center_value = modified[10, 10]
-    
+    modified[10, 12]
+    modified[10, 15]
+
     # Center should be raised most, farther points less (if they were below target)
     # But since surrounding values are 0.5 > 0.4 target, they won't be raised
     # So we check center was raised significantly
@@ -340,7 +343,7 @@ def test_apply_modifications_sequential():
     # Create surface with saddle and trap
     surface = np.ones((20, 20)) * 0.5
     surface[10, 10] = 0.8  # Saddle
-    surface[5, 5] = 0.1    # Trap
+    surface[5, 5] = 0.1  # Trap
 
     grid_x = np.linspace(0, 100, 20)
     grid_y = np.linspace(0, 100, 20)
@@ -365,7 +368,7 @@ def test_apply_modifications_sequential():
 
     # Check both modifications applied
     assert modified[10, 10] < surface[10, 10]  # Saddle reduced
-    assert modified[5, 5] > surface[5, 5]      # Trap raised
+    assert modified[5, 5] > surface[5, 5]  # Trap raised
 
 
 def test_apply_modifications_missing_parameter():
@@ -556,16 +559,20 @@ def test_compute_population_impact_empty():
     morse_smale = MockMorseSmaleResult()
     analyzer = CounterfactualAnalyzer(surface, morse_smale)
 
-    flow_redistribution = pd.DataFrame({
-        "from_basin": [],
-        "to_basin": [],
-        "population_moved": [],
-    })
+    flow_redistribution = pd.DataFrame(
+        {
+            "from_basin": [],
+            "to_basin": [],
+            "population_moved": [],
+        }
+    )
 
-    lsoa_populations = pd.DataFrame({
-        "lsoa_code": ["E01000001"],
-        "population": [1000],
-    })
+    lsoa_populations = pd.DataFrame(
+        {
+            "lsoa_code": ["E01000001"],
+            "population": [1000],
+        }
+    )
 
     impact = analyzer.compute_population_impact(flow_redistribution, lsoa_populations)
 
@@ -580,18 +587,22 @@ def test_compute_population_impact_basic():
     morse_smale = MockMorseSmaleResult()
     analyzer = CounterfactualAnalyzer(surface, morse_smale)
 
-    flow_redistribution = pd.DataFrame({
-        "from_basin": [1, 2],
-        "to_basin": [3, 3],
-        "population_moved": [500, 300],
-        "from_mobility": [0.3, 0.35],
-        "to_mobility": [0.5, 0.55],
-    })
+    flow_redistribution = pd.DataFrame(
+        {
+            "from_basin": [1, 2],
+            "to_basin": [3, 3],
+            "population_moved": [500, 300],
+            "from_mobility": [0.3, 0.35],
+            "to_mobility": [0.5, 0.55],
+        }
+    )
 
-    lsoa_populations = pd.DataFrame({
-        "lsoa_code": ["E01000001", "E01000002"],
-        "population": [1000, 800],
-    })
+    lsoa_populations = pd.DataFrame(
+        {
+            "lsoa_code": ["E01000001", "E01000002"],
+            "population": [1000, 800],
+        }
+    )
 
     impact = analyzer.compute_population_impact(flow_redistribution, lsoa_populations)
 
@@ -646,7 +657,7 @@ def test_analyze_multiple_modifications():
     """Test analyze() with multiple modifications."""
     surface = np.ones((20, 20)) * 0.5
     surface[10, 10] = 0.8  # Saddle
-    surface[5, 5] = 0.1    # Trap
+    surface[5, 5] = 0.1  # Trap
 
     morse_smale = MockMorseSmaleResult(
         critical_points=[
@@ -739,6 +750,7 @@ def test_visualize_counterfactual_basic():
 
     # Clean up
     import matplotlib.pyplot as plt
+
     for fig in figures.values():
         plt.close(fig)
 
@@ -774,6 +786,7 @@ def test_visualize_counterfactual_with_grids():
 
     # Clean up
     import matplotlib.pyplot as plt
+
     for fig in figures.values():
         plt.close(fig)
 
@@ -839,7 +852,12 @@ def test_generate_counterfactual_report_multiple_modifications():
 
     modifications = [
         Modification(type="remove_barrier", coords=(50.0, 50.0), radius=5.0),
-        Modification(type="fill_trap", coords=(25.0, 25.0), radius=3.0, parameters={"target_value": 0.4}),
+        Modification(
+            type="fill_trap",
+            coords=(25.0, 25.0),
+            radius=3.0,
+            parameters={"target_value": 0.4},
+        ),
     ]
 
     result = CounterfactualResult(
@@ -932,11 +950,13 @@ def test_generate_counterfactual_report_with_flow_data():
     morse_smale = MockMorseSmaleResult()
     modification = Modification(type="remove_barrier", coords=(50.0, 50.0), radius=5.0)
 
-    flow_redistribution = pd.DataFrame({
-        "from_basin": [1, 2, 3],
-        "to_basin": [4, 4, 5],
-        "population_moved": [500, 300, 200],
-    })
+    flow_redistribution = pd.DataFrame(
+        {
+            "from_basin": [1, 2, 3],
+            "to_basin": [4, 4, 5],
+            "population_moved": [500, 300, 200],
+        }
+    )
 
     result = CounterfactualResult(
         modification=modification,
@@ -961,11 +981,11 @@ def test_full_counterfactual_workflow():
     """Integration test: full counterfactual analysis workflow."""
     # Step 1: Create synthetic surface with known barrier
     surface = np.ones((30, 30)) * 0.4
-    
+
     # Add a saddle barrier at center (high value)
     for i in range(12, 18):
         for j in range(12, 18):
-            distance = np.sqrt((i - 15)**2 + (j - 15)**2)
+            distance = np.sqrt((i - 15) ** 2 + (j - 15) ** 2)
             if distance < 4:
                 surface[i, j] = 0.7 - distance * 0.05
 
@@ -1015,7 +1035,9 @@ def test_full_counterfactual_workflow():
     assert "total_change" in result.critical_point_changes
 
     # Step 5: Generate visualizations
-    figures = visualize_counterfactual(surface, modified_surface, result, grid_x, grid_y)
+    figures = visualize_counterfactual(
+        surface, modified_surface, result, grid_x, grid_y
+    )
     assert "surface_comparison" in figures
     assert "critical_points" in figures
 
@@ -1023,7 +1045,9 @@ def test_full_counterfactual_workflow():
     report = generate_counterfactual_report(result, "Barrier removal intervention")
     assert "summary" in report
     assert "recommendations" in report
-    assert report["summary"]["intervention_description"] == "Barrier removal intervention"
+    assert (
+        report["summary"]["intervention_description"] == "Barrier removal intervention"
+    )
 
     # Step 7: Validate recommendations generated
     assert len(report["recommendations"]) > 0
@@ -1031,6 +1055,7 @@ def test_full_counterfactual_workflow():
 
     # Clean up figures
     import matplotlib.pyplot as plt
+
     for fig in figures.values():
         plt.close(fig)
 

@@ -90,12 +90,14 @@ class NormalPeriodCalibrator:
         distances = distances[finite_mask]
 
         if len(distances) == 0:
-            raise ValueError("distances array is empty or contains only non-finite values")
+            raise ValueError(
+                "distances array is empty or contains only non-finite values"
+            )
 
         if len(distances) < 10:
             logger.warning(
                 "Only %d samples for calibration, statistics may be unstable",
-                len(distances)
+                len(distances),
             )
 
         # Compute statistics
@@ -118,7 +120,7 @@ class NormalPeriodCalibrator:
         if self.std_ < 1e-10:
             logger.warning(
                 "Standard deviation very small (%.2e), may indicate constant distances",
-                self.std_
+                self.std_,
             )
 
         logger.info(
@@ -204,7 +206,8 @@ class NormalPeriodCalibrator:
 
         Args:
             percentile: Percentile level for threshold. Default 95.
-            confidence_level: Confidence level for interval (0-1). Default 0.95 (95% CI).
+            confidence_level: Confidence level for interval (0-1).
+                Default 0.95 (95% CI).
             n_bootstrap: Number of bootstrap samples. Default 1000.
             random_state: Random seed for reproducibility.
 
@@ -218,7 +221,9 @@ class NormalPeriodCalibrator:
             ValueError: If calibrator not fitted.
 
         Examples:
-            >>> lower, threshold, upper = calibrator.compute_threshold_confidence_interval()
+            >>> lower, threshold, upper = (
+            ...     calibrator.compute_threshold_confidence_interval()
+            ... )
             >>> print(f"Threshold: {threshold:.4f} [{lower:.4f}, {upper:.4f}]")
 
         Notes:
@@ -227,13 +232,17 @@ class NormalPeriodCalibrator:
             - Requires cached distances from fit() call
         """
         if not self.is_fitted_:
-            raise ValueError("Calibrator must be fitted before computing confidence intervals")
+            raise ValueError(
+                "Calibrator must be fitted before computing confidence intervals"
+            )
 
         if self._distances_cache is None:
             raise ValueError("No cached distances available for bootstrap")
 
         if not 0 < confidence_level < 1:
-            raise ValueError(f"confidence_level must be in (0, 1), got {confidence_level}")
+            raise ValueError(
+                f"confidence_level must be in (0, 1), got {confidence_level}"
+            )
 
         # Set random seed for reproducibility
         rng = np.random.default_rng(random_state)
@@ -272,9 +281,7 @@ class NormalPeriodCalibrator:
 
         return (lower_bound, threshold, upper_bound)
 
-    def get_threshold_statistics(
-        self, percentile: float = 95.0
-    ) -> dict[str, float]:
+    def get_threshold_statistics(self, percentile: float = 95.0) -> dict[str, float]:
         """
         Get comprehensive statistics for threshold at specified percentile.
 
@@ -342,7 +349,7 @@ class NormalPeriodCalibrator:
         }
 
         # Write to file
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
         logger.info("Saved calibration to %s", filepath)
@@ -369,7 +376,7 @@ class NormalPeriodCalibrator:
             raise FileNotFoundError(f"Calibration file not found: {filepath}")
 
         # Load from file
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
 
         # Validate required fields
@@ -386,7 +393,9 @@ class NormalPeriodCalibrator:
         self.is_fitted_ = True
         self._distances_cache = None  # Cache not saved
 
-        logger.info("Loaded calibration from %s (n_samples=%d)", filepath, self.n_samples_)
+        logger.info(
+            "Loaded calibration from %s (n_samples=%d)", filepath, self.n_samples_
+        )
 
 
 class ChangePointDetector:
@@ -435,8 +444,7 @@ class ChangePointDetector:
         self.min_consecutive = min_consecutive
 
         logger.info(
-            "Initialized ChangePointDetector with min_consecutive=%d",
-            min_consecutive
+            "Initialized ChangePointDetector with min_consecutive=%d", min_consecutive
         )
 
     def detect(
@@ -485,7 +493,7 @@ class ChangePointDetector:
 
         if len(distances) == 0:
             return pd.DataFrame(
-                columns=['timestamp', 'distance', 'z_score', 'p_value', 'confidence']
+                columns=["timestamp", "distance", "z_score", "p_value", "confidence"]
             )
 
         # Compute z-scores and p-values for all distances
@@ -515,13 +523,15 @@ class ChangePointDetector:
                 run_length = run_end - run_start + 1
                 if run_length >= self.min_consecutive:
                     # Record first detection in run (earliest warning)
-                    change_points.append({
-                        'timestamp': timestamps[run_start],
-                        'distance': distances[run_start],
-                        'z_score': z_scores[run_start],
-                        'p_value': p_values[run_start],
-                        'confidence': confidences[run_start],
-                    })
+                    change_points.append(
+                        {
+                            "timestamp": timestamps[run_start],
+                            "distance": distances[run_start],
+                            "z_score": z_scores[run_start],
+                            "p_value": p_values[run_start],
+                            "confidence": confidences[run_start],
+                        }
+                    )
 
                 # Move past this run
                 i = run_end + 1
@@ -533,7 +543,7 @@ class ChangePointDetector:
         logger.info(
             "Detected %d change points (min_consecutive=%d)",
             len(result_df),
-            self.min_consecutive
+            self.min_consecutive,
         )
 
         return result_df
@@ -582,11 +592,13 @@ class ChangePointDetector:
         confirmed = []
 
         for _, detection in detections.iterrows():
-            detection_time = detection['timestamp']
+            detection_time = detection["timestamp"]
 
             # Find lookahead window
             lookahead_end = detection_time + pd.Timedelta(days=lookahead_days)
-            lookahead_mask = (timestamps >= detection_time) & (timestamps <= lookahead_end)
+            lookahead_mask = (timestamps >= detection_time) & (
+                timestamps <= lookahead_end
+            )
 
             # Check if anomalies persist in lookahead window
             lookahead_distances = distances[lookahead_mask]
@@ -604,7 +616,7 @@ class ChangePointDetector:
             "Detected %d change points with lookahead=%d days (filtered from %d)",
             len(result_df),
             lookahead_days,
-            len(detections)
+            len(detections),
         )
 
         return result_df
@@ -644,31 +656,39 @@ class ChangePointDetector:
             - Useful for synthetic data experiments
             - tolerance parameter accounts for temporal uncertainty
         """
-        timestamps = pd.date_range('2000-01-01', periods=len(distances), freq='D')
+        timestamps = pd.date_range("2000-01-01", periods=len(distances), freq="D")
         detections = self.detect(distances, timestamps)
         detected_indices = [
             np.where(timestamps == det_time)[0][0]
-            for det_time in detections['timestamp']
+            for det_time in detections["timestamp"]
         ]
 
         # Compute true positives: detections near true change points
         true_positives = 0
         for true_idx in true_change_points:
-            if any(abs(det_idx - true_idx) <= tolerance for det_idx in detected_indices):
+            if any(
+                abs(det_idx - true_idx) <= tolerance for det_idx in detected_indices
+            ):
                 true_positives += 1
 
         # Compute false positives: detections not near any true change point
         false_positives = 0
         for det_idx in detected_indices:
-            if not any(abs(det_idx - true_idx) <= tolerance for true_idx in true_change_points):
+            if not any(
+                abs(det_idx - true_idx) <= tolerance for true_idx in true_change_points
+            ):
                 false_positives += 1
 
         # Compute metrics
         n_true_changes = len(true_change_points)
         n_detections = len(detected_indices)
 
-        true_positive_rate = true_positives / n_true_changes if n_true_changes > 0 else 0.0
-        false_positive_rate = false_positives / n_detections if n_detections > 0 else 0.0
+        true_positive_rate = (
+            true_positives / n_true_changes if n_true_changes > 0 else 0.0
+        )
+        false_positive_rate = (
+            false_positives / n_detections if n_detections > 0 else 0.0
+        )
         precision = true_positives / n_detections if n_detections > 0 else 0.0
         recall = true_positive_rate
 
@@ -737,7 +757,7 @@ class ChangePointDetector:
         # Kolmogorov-Smirnov test against normal distribution
         # Standardize data first
         standardized = (distances - np.mean(distances)) / np.std(distances, ddof=1)
-        ks_stat, ks_pval = stats.kstest(standardized, 'norm')
+        ks_stat, ks_pval = stats.kstest(standardized, "norm")
 
         # Compute moments
         skewness = float(stats.skew(distances))
@@ -781,8 +801,8 @@ def validate_on_crisis_dates(
         detector: Fitted ChangePointDetector instance.
         distances: Array of bottleneck distances.
         timestamps: DatetimeIndex corresponding to distances.
-        crisis_dates: Dictionary mapping crisis names to onset dates (YYYY-MM-DD format).
-            If None, uses default crisis dates:
+        crisis_dates: Dictionary mapping crisis names to onset dates
+            (YYYY-MM-DD format). If None, uses default crisis dates:
             - Lehman: 2008-09-15
             - China devaluation: 2015-08-11
             - COVID: 2020-02-20
@@ -821,7 +841,9 @@ def validate_on_crisis_dates(
 
     # Handle case with no detections
     if len(detections) == 0:
-        logger.warning("No detections found - all crises will be marked as not detected")
+        logger.warning(
+            "No detections found - all crises will be marked as not detected"
+        )
         # Return all crises as not detected
         return {
             crisis_name: {
@@ -847,14 +869,14 @@ def validate_on_crisis_dates(
 
         # Find detections within window
         detections_in_window = detections[
-            (detections['timestamp'] >= window_start) &
-            (detections['timestamp'] <= window_end)
+            (detections["timestamp"] >= window_start)
+            & (detections["timestamp"] <= window_end)
         ]
 
         if len(detections_in_window) > 0:
             # Find earliest detection before or near crisis
             earliest_detection = detections_in_window.iloc[0]
-            detection_date = earliest_detection['timestamp']
+            detection_date = earliest_detection["timestamp"]
 
             # Compute lead time (positive = early warning)
             lead_time = (crisis_date - detection_date).days
@@ -869,14 +891,14 @@ def validate_on_crisis_dates(
                 "detection_date": detection_date.strftime("%Y-%m-%d"),
                 "crisis_date": crisis_date.strftime("%Y-%m-%d"),
                 "distance_at_crisis": distance_value,
-                "confidence": float(earliest_detection['confidence']),
+                "confidence": float(earliest_detection["confidence"]),
             }
 
             logger.info(
                 "Crisis '%s' detected %d days before onset (confidence=%.3f)",
                 crisis_name,
                 lead_time,
-                earliest_detection['confidence'],
+                earliest_detection["confidence"],
             )
         else:
             results[crisis_name] = {

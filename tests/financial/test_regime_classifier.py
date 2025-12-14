@@ -367,7 +367,8 @@ class TestRegimeClassifier:
 
             # Training must end before testing starts (no future leakage)
             assert train_end < test_start, (
-                f"Future leakage detected: train_end={train_end} >= test_start={test_start}"
+                f"Future leakage detected: train_end={train_end} "
+                f">= test_start={test_start}"
             )
 
     def test_cross_validate_fold_sizes(self, synthetic_data):
@@ -572,7 +573,9 @@ class TestSaveLoadModel:
 
 
 class TestIntegrationWithWindowedPipeline:
-    """Integration tests using synthetic regime data with windowed feature extraction."""
+    """Integration tests using synthetic regime data with windowed
+    feature extraction.
+    """
 
     @pytest.fixture
     def synthetic_regime_data(self):
@@ -673,6 +676,7 @@ class TestIntegrationWithWindowedPipeline:
         # Use window center for label assignment
         window_labels = []
         for _, row in features_df.iterrows():
+            int((row["window_start"] + row["window_end"]) / 2)
             # Get majority label in window
             window_start = int(row["window_start"])
             window_end = int(row["window_end"])
@@ -681,7 +685,6 @@ class TestIntegrationWithWindowedPipeline:
             window_labels.append(1 if window_regime > 0.5 else 0)
 
         y = np.array(window_labels)
-
 
         # Step 4: Time-series train/test split (80/20)
         split_idx = int(len(X) * 0.8)
@@ -699,9 +702,9 @@ class TestIntegrationWithWindowedPipeline:
         metrics = evaluate_classifier(y_test, y_pred, y_proba)
 
         # Log results for debugging
-        print(f"\nIntegration Test Results:")
-        print(f"  Train samples: {len(y_train)} (crisis: {(y_train==1).sum()})")
-        print(f"  Test samples: {len(y_test)} (crisis: {(y_test==1).sum()})")
+        print("\nIntegration Test Results:")
+        print(f"  Train samples: {len(y_train)} (crisis: {(y_train == 1).sum()})")
+        print(f"  Test samples: {len(y_test)} (crisis: {(y_test == 1).sum()})")
         print(f"  Precision: {metrics['precision']:.3f}")
         print(f"  Recall: {metrics['recall']:.3f}")
         print(f"  F1: {metrics['f1']:.3f}")
@@ -747,10 +750,12 @@ class TestIntegrationWithWindowedPipeline:
         y = np.array(window_labels)
 
         # Create time index for windows
-        time_index = pd.DatetimeIndex([
-            data["dates"][int(row["window_start"])]
-            for _, row in features_df.iterrows()
-        ])
+        time_index = pd.DatetimeIndex(
+            [
+                data["dates"][int(row["window_start"])]
+                for _, row in features_df.iterrows()
+            ]
+        )
 
         # Run cross-validation
         clf = RegimeClassifier(classifier_type="random_forest", random_state=42)
@@ -792,7 +797,7 @@ class TestIntegrationWithWindowedPipeline:
         normal_count = (labels == 0).sum()
         ambiguous_count = labels.isna().sum()
 
-        print(f"\nLabeling Results:")
+        print("\nLabeling Results:")
         print(f"  Crisis: {crisis_count}")
         print(f"  Normal: {normal_count}")
         print(f"  Ambiguous: {ambiguous_count}")
@@ -837,9 +842,9 @@ class TestIntegrationWithWindowedPipeline:
 
         try:
             import xgboost  # noqa: F401
+
             classifier_types.append("xgboost")
         except ImportError:
-            # xgboost is not installed; skip adding it to classifier_types
             pass
 
         results = {}
@@ -850,7 +855,7 @@ class TestIntegrationWithWindowedPipeline:
             metrics = evaluate_classifier(y_test, y_pred)
             results[clf_type] = metrics["f1"]
 
-        print(f"\nClassifier Comparison (F1 scores):")
+        print("\nClassifier Comparison (F1 scores):")
         for clf_type, f1 in results.items():
             print(f"  {clf_type}: {f1:.3f}")
 
