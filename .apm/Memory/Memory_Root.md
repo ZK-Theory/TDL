@@ -140,3 +140,35 @@
 - [Task_2_5_Morse_Smale_TTK_Integration.md](.apm/Memory/Phase_02_Core_Topology/Task_2_5_Morse_Smale_TTK_Integration.md)
 - [Task_2_6_Critical_Point_Extraction_Validation.md](.apm/Memory/Phase_02_Core_Topology/Task_2_6_Critical_Point_Extraction_Validation.md) **[CHECKPOINT]**
 
+---
+
+## Phase 04 – Detection & ML Systems Summary
+
+**Outcome:** Successfully implemented complete detection and ML systems for both Financial and Poverty TDA projects. All 5 tasks completed plus 2 ad-hoc fixes (external API failures, CI linting prevention). Total 212 new tests added.
+
+**Financial TDA ML Systems (Tasks 4.1–4.3):**
+- Regime Classifier: `RegimeClassifier` with 4 ML backends (RF, SVM, XGBoost, GB), time-series CV, balanced class handling
+- Change-Point Detector: `ChangePointDetector` with bottleneck distance calibration, statistical significance (z-scores, p-values), bootstrap CI
+- Backtest Framework: `BacktestEngine` with crisis period definitions (GFC, COVID, Rate Hike), `VolatilityBaseline` comparison, lead time computation
+
+**Poverty TDA ML Systems (Tasks 4.4–4.5):**
+- Intervention Analysis: `InterventionPrioritizer` with 4 intervention types, `ImpactModel`, cost-benefit framework
+- Counterfactual Analysis: `SurfaceModifier` for barrier removal/trap filling, `CounterfactualAnalyzer` for topology recomputation
+
+**Ad-Hoc Fixes:**
+- External API test failures: CoinGecko auth support, Yahoo Finance exception signatures updated
+- CI linting prevention: Pre-commit hooks, VS Code settings, CONTRIBUTING.md workflow documentation
+
+**Dependencies Added:** xgboost, joblib, pre-commit
+
+**Agents Involved:** Agent_Financial_ML, Agent_Poverty_ML, Agent_Debug
+
+**Task Logs:**
+- [Task_4_1_Regime_Classifier_Financial.md](.apm/Memory/Phase_04/Task_4_1_Regime_Classifier_Financial.md)
+- [Task_4_2_Change_Point_Detection.md](.apm/Memory/Phase_04/Task_4_2_Change_Point_Detection.md)
+- [Task_4_3_Backtest_Framework.md](.apm/Memory/Phase_04/Task_4_3_Backtest_Framework.md)
+- [Task_4_4_Intervention_Analysis_Framework.md](.apm/Memory/Phase_04/Task_4_4_Intervention_Analysis_Framework.md)
+- [Task_4_5_Counterfactual_Analysis.md](.apm/Memory/Phase_04/Task_4_5_Counterfactual_Analysis.md)
+- [AdHoc_External_API_Test_Fixes.md](.apm/Memory/Phase_04/AdHoc_External_API_Test_Fixes.md)
+- [AdHoc_CI_Linting_Fixes.md](.apm/Memory/Phase_04/AdHoc_CI_Linting_Fixes.md)
+
