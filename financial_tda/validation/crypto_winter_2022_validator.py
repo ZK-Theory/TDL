@@ -119,51 +119,24 @@ def compute_bottleneck_distances_takens(
 
 def compute_bottleneck_distance_safe(diagram1: np.ndarray, diagram2: np.ndarray) -> float:
     """
-    Compute bottleneck distance between two persistence diagrams.
+    Compute bottleneck distance between two persistence diagrams using persim.
+
+    Uses the persim library which implements the correct bottleneck distance
+    algorithm (minimizing maximum matching cost via bipartite matching).
 
     Args:
-        diagram1: First persistence diagram (n_features, 2).
-        diagram2: Second persistence diagram (m_features, 2).
+        diagram1: First persistence diagram (n_features, 2) with [birth, death].
+        diagram2: Second persistence diagram (m_features, 2) with [birth, death].
 
     Returns:
-        Bottleneck distance.
+        Bottleneck distance between the diagrams.
+
+    Raises:
+        ImportError: If persim is not installed.
     """
-    from scipy.optimize import linear_sum_assignment
+    from persim import bottleneck
 
-    if len(diagram1) == 0 or len(diagram2) == 0:
-        if len(diagram1) == 0 and len(diagram2) == 0:
-            return 0.0
-        elif len(diagram1) == 0:
-            return np.max(diagram2[:, 1] - diagram2[:, 0]) / 2
-        else:
-            return np.max(diagram1[:, 1] - diagram1[:, 0]) / 2
-
-    n, m = len(diagram1), len(diagram2)
-    cost_matrix = np.full((n + m, n + m), np.inf)
-
-    # Point-to-point distances
-    for i in range(n):
-        for j in range(m):
-            b1, d1 = diagram1[i]
-            b2, d2 = diagram2[j]
-            cost_matrix[i, j] = max(abs(b1 - b2), abs(d1 - d2))
-
-    # Diagonal projections
-    for i in range(n):
-        b, d = diagram1[i]
-        cost_matrix[i, m + i] = (d - b) / 2
-
-    for j in range(m):
-        b, d = diagram2[j]
-        cost_matrix[n + j, j] = (d - b) / 2
-
-    # Diagonal-to-diagonal matching (zero cost)
-    # Rows n:n+m are diagram2 diagonal augmentations
-    # Cols m:m+n are diagram1 diagonal augmentations
-    cost_matrix[n : n + m, m : m + n] = 0
-
-    row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    return float(cost_matrix[row_ind, col_ind].max())
+    return float(bottleneck(diagram1, diagram2))
 
 
 def calibrate_threshold(
