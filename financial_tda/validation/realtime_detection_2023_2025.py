@@ -15,9 +15,7 @@ This script:
 """
 
 import os
-import sys
 from datetime import datetime
-from pathlib import Path
 
 import matplotlib
 
@@ -29,7 +27,6 @@ import seaborn as sns
 from scipy.stats import kendalltau, theilslopes
 
 # Add project root to path
-
 from financial_tda.data.fetchers.yahoo import fetch_ticker
 from financial_tda.validation.gidea_katz_replication import (
     compute_persistence_landscape_norms,
@@ -43,26 +40,6 @@ from financial_tda.validation.trend_analysis_validator import (
 # Set style
 sns.set_style("whitegrid")
 plt.rcParams["figure.dpi"] = 300
-
-
-def load_lp_norms_from_csv(filepath: str) -> pd.DataFrame:
-    """
-    Load L^p norms from CSV file.
-
-    Args:
-        filepath: Path to CSV file containing norms
-
-    Returns:
-        DataFrame with Date index and norm columns
-    """
-    df = pd.read_csv(filepath)
-    if "Date" in df.columns:
-        df["Date"] = pd.to_datetime(df["Date"])
-        df.set_index("Date", inplace=True)
-    elif "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"])
-        df.set_index("date", inplace=True)
-    return df
 
 
 def ensure_output_dirs():
