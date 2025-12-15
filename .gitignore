@@ -79,3 +79,7 @@ htmlcov/
 # Documentation builds
 docs/_build/
 site/
+# Large output files
+**/viz/outputs/*.html
+*.exe
+streamlit*.log

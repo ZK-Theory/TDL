@@ -1,0 +1,15 @@
+{
+  "symbol": "^GSPC",
+  "crisis_period": [
+    "2008-08-01",
+    "2008-10-31"
+  ],
+  "normal_period": [
+    "2007-04-01",
+    "2007-06-30"
+  ],
+  "delay": 5,
+  "dimension": 3,
+  "crisis_n_points": 53,
+  "normal_n_points": 52
+}

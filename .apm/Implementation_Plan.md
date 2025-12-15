@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_6 - **PHASE 5 COMPLETE** (6/6 tasks). Financial: 5.1✅ Perslay, 5.2✅ RipsGNN, 5.3✅ Autoencoder. Poverty: 5.4✅ SpatialGNN, 5.5✅ Transformer, 5.6✅ VAE.
+**Last Modification:** Manager_7 - **PHASE 6 COMPLETE** (6/6 tasks). Phase 6.5 TTK Integration in progress (Task 6.5.1 assigned to Agent_Foundation).
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay).
 
 
@@ -500,6 +500,59 @@
 3. Add demographic breakdown per basin (IMD decile distribution, education levels)
 4. Enable cross-region comparison (after single-region implementation validated)
 5. **VISUAL CHECK**: Deploy locally for user review
+
+
+## Phase 6.5: TTK Integration
+
+### Task 6.5.1 – TTK Installation & Environment Setup - Agent_Foundation
+**Objective:** Install Topology ToolKit (TTK) with ParaView integration and resolve VTK version conflicts.
+**Output:** Working TTK installation accessible from both ParaView and Python, environment documentation.
+**Guidance:** TTK requires specific VTK version compatibility. Current project uses VTK 9.5.2, TTK may require different version. Consider conda environment isolation or ParaView-bundled TTK. Verify both pvpython and Python bindings work. Document installation steps for reproducibility.
+
+1. Research TTK installation options: pre-built ParaView+TTK vs building from source vs conda
+2. Resolve VTK version conflict (project VTK 9.5.2 vs TTK requirements)
+3. Install TTK with ParaView plugin and Python bindings
+4. Verify TTK filters available in pvpython: `TTKPersistenceDiagram`, `TTKBottleneckDistance`, `TTKMorseSmaleComplex`
+5. Create `shared/ttk_utils.py` with availability detection and fallback logic
+6. Document installation in `docs/TTK_SETUP.md`
+
+### Task 6.5.2 – Financial TDA TTK Hybrid Implementation - Agent_Financial_Topology
+**Objective:** Create hybrid persistence computation using TTK with GUDHI fallback for financial TDA.
+**Output:** Updated `financial_tda/topology/filtration.py` with TTK integration and bottleneck distance computation.
+**Guidance:** TTK provides 5-10× speedup for large point clouds (>1000 points). Implement graceful fallback to GUDHI when TTK unavailable. Add bottleneck/Wasserstein distance for quantitative regime comparison. **Depends on: Task 6.5.1 Output**
+
+1. Update `financial_tda/topology/filtration.py` with TTK persistence computation option
+2. Implement `compute_persistence_ttk()` using TTKPersistenceDiagram filter
+3. Add `compute_bottleneck_distance()` using TTKBottleneckDistance for regime comparison
+4. Create hybrid `compute_persistence()` that auto-selects backend based on availability and dataset size
+5. Update tests to validate TTK vs GUDHI consistency
+6. Benchmark performance: TTK vs GUDHI on various dataset sizes
+
+### Task 6.5.3 – Poverty TDA TTK Direct Integration - Agent_Poverty_Topology
+**Objective:** Replace TTK subprocess calls with direct Python API integration for poverty TDA.
+**Output:** Updated `poverty_tda/topology/morse_smale.py` with direct TTK integration.
+**Guidance:** Current implementation uses TTK via subprocess due to VTK version isolation. With unified environment, use direct TTK Python API for better performance and error handling. Enhance critical point extraction with persistence-based filtering. **Depends on: Task 6.5.1 Output**
+
+1. Update `poverty_tda/topology/morse_smale.py` to use direct TTK Python API
+2. Replace subprocess calls with `TTKMorseSmaleComplex` filter
+3. Implement `TTKTopologicalSimplification` for noise removal
+4. Add persistence-based critical point filtering (threshold parameter)
+5. Update `poverty_tda/analysis/critical_points.py` to use enhanced TTK output
+6. Benchmark: direct API vs subprocess performance comparison
+
+### Task 6.5.4 – TTK Visualization Utilities - Agent_Financial_Viz
+**Objective:** Create TTK-based interactive visualization utilities for both tracks.
+**Output:** TTK visualization module with interactive ParaView state files and persistence curve generation.
+**Guidance:** TTK provides native ParaView visualization for persistence diagrams, Morse-Smale complexes. Create reusable state files (.pvsm) for interactive exploration. Add persistence curve generation for publication figures. **Depends on: Tasks 6.5.2, 6.5.3 Output**
+
+1. Create `shared/ttk_visualization.py` with TTK-based plotting utilities
+2. Implement `create_persistence_diagram_view()` using TTK native rendering
+3. Implement `create_persistence_curve()` for comparative analysis
+4. Create interactive ParaView state files for:
+   - Financial: regime comparison with bottleneck distance display
+   - Poverty: Morse-Smale complex with basin coloring
+5. Add `export_publication_figures()` for high-quality static exports
+6. Update visualization READMEs with TTK usage instructions
 
 
 ## Phase 7: Validation & Backtesting

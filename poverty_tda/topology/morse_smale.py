@@ -12,15 +12,13 @@ uniform gradient flow, identifying:
 
 Integration:
     - mobility_surface.py: Provides VTK files via export_mobility_vtk()
-    - Uses TTK (Topology ToolKit) via conda environment
+    - shared.ttk_utils: Centralized TTK subprocess utilities and detection
 
 TTK Environment:
-    TTK requires a separate conda environment due to ParaView bundling.
-    Python path: C:/Users/steph/miniconda3/envs/ttk-env/python.exe
+    TTK operations run in isolated conda environment via shared.ttk_utils
+    to avoid VTK version conflicts with the main project environment.
 
-    To use TTK functions, either:
-    1. Run scripts with the TTK Python interpreter
-    2. Use subprocess calls to the TTK environment
+    See docs/TTK_SETUP.md for installation instructions.
 
 License: Open Government Licence v3.0
 """
@@ -28,7 +26,6 @@ License: Open Government Licence v3.0
 from __future__ import annotations
 
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -36,10 +33,9 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-logger = logging.getLogger(__name__)
+from shared.ttk_utils import is_ttk_available, run_ttk_subprocess
 
-# TTK environment configuration
-TTK_PYTHON_PATH = Path("C:/Users/steph/miniconda3/envs/ttk-env/python.exe")
+logger = logging.getLogger(__name__)
 
 # Try to import pyvista for VTK file handling
 try:
@@ -68,7 +64,7 @@ try:
 except ImportError:
     HAS_TTK = False
     logger.debug(
-        f"TTK not available in current environment. Use TTK Python: {TTK_PYTHON_PATH}"
+        "TTK not available in current environment. " "TTK operations will run via subprocess in conda environment."
     )
 
 
@@ -258,9 +254,7 @@ def load_vtk_data(
     supported_formats = {".vti", ".vts", ".vtk", ".vtp"}
 
     if suffix not in supported_formats:
-        raise ValueError(
-            f"Unsupported VTK format: {suffix}. Supported formats: {supported_formats}"
-        )
+        raise ValueError(f"Unsupported VTK format: {suffix}. Supported formats: {supported_formats}")
 
     logger.info(f"Loading VTK file: {vtk_path}")
 
@@ -268,8 +262,7 @@ def load_vtk_data(
         # Use pyvista for convenient loading
         mesh = pv.read(str(vtk_path))
         logger.info(
-            f"Loaded VTK data: {mesh.n_points} points, "
-            f"{mesh.n_cells} cells, arrays: {list(mesh.point_data.keys())}"
+            f"Loaded VTK data: {mesh.n_points} points, " f"{mesh.n_cells} cells, arrays: {list(mesh.point_data.keys())}"
         )
         return mesh
 
@@ -283,9 +276,7 @@ def load_vtk_data(
         return output
 
     else:
-        raise ImportError(
-            "Neither pyvista nor vtk is available. Install with: pip install pyvista"
-        )
+        raise ImportError("Neither pyvista nor vtk is available. Install with: pip install pyvista")
 
 
 def _get_vtk_reader(suffix: str) -> Any:
@@ -333,9 +324,7 @@ def validate_scalar_field(
         # pyvista mesh
         if scalar_name not in vtk_data.point_data:
             available = list(vtk_data.point_data.keys())
-            raise ValueError(
-                f"Scalar field '{scalar_name}' not found. Available fields: {available}"
-            )
+            raise ValueError(f"Scalar field '{scalar_name}' not found. Available fields: {available}")
 
         values = vtk_data.point_data[scalar_name]
         valid_values = values[~np.isnan(values)]
@@ -351,13 +340,8 @@ def validate_scalar_field(
         array = point_data.GetArray(scalar_name)
 
         if array is None:
-            available = [
-                point_data.GetArrayName(i)
-                for i in range(point_data.GetNumberOfArrays())
-            ]
-            raise ValueError(
-                f"Scalar field '{scalar_name}' not found. Available fields: {available}"
-            )
+            available = [point_data.GetArrayName(i) for i in range(point_data.GetNumberOfArrays())]
+            raise ValueError(f"Scalar field '{scalar_name}' not found. Available fields: {available}")
 
         values = vtk_to_numpy(array)
         valid_values = values[~np.isnan(values)]
@@ -436,6 +420,10 @@ def check_ttk_available() -> bool:
 
     Returns:
         True if TTK can be imported, False otherwise.
+
+    Note:
+        This checks the CURRENT environment. For subprocess availability,
+        use is_ttk_available() from shared.ttk_utils.
     """
     return HAS_TTK
 
@@ -445,60 +433,12 @@ def check_ttk_environment() -> bool:
     Check if the TTK conda environment exists and is functional.
 
     Returns:
-        True if TTK environment is available and working.
+        True if TTK environment is available and working via subprocess.
+
+    Note:
+        This uses centralized TTK detection from shared.ttk_utils.
     """
-    if not TTK_PYTHON_PATH.exists():
-        logger.warning(f"TTK Python not found at: {TTK_PYTHON_PATH}")
-        return False
-
-    try:
-        ttk_test_cmd = (
-            "from topologytoolkit.ttkMorseSmaleComplex "
-            "import ttkMorseSmaleComplex; print('ok')"
-        )
-        result = subprocess.run(
-            [
-                str(TTK_PYTHON_PATH),
-                "-c",
-                ttk_test_cmd,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0 and "ok" in result.stdout:
-            logger.info("TTK environment verified successfully")
-            return True
-        else:
-            logger.warning(f"TTK environment check failed: {result.stderr}")
-            return False
-    except subprocess.TimeoutExpired:
-        logger.warning("TTK environment check timed out")
-        return False
-    except Exception as e:
-        logger.warning(f"TTK environment check error: {e}")
-        return False
-
-
-def get_ttk_python_path() -> Path:
-    """
-    Get the path to the TTK Python interpreter.
-
-    Returns:
-        Path to the TTK conda environment Python executable.
-
-    Raises:
-        FileNotFoundError: If TTK environment is not installed.
-    """
-    if not TTK_PYTHON_PATH.exists():
-        raise FileNotFoundError(
-            f"TTK Python interpreter not found at: {TTK_PYTHON_PATH}\n"
-            "Install TTK environment with:\n"
-            "  conda create -n ttk-env python=3.10\n"
-            "  conda activate ttk-env\n"
-            "  conda install -c conda-forge topologytoolkit"
-        )
-    return TTK_PYTHON_PATH
+    return is_ttk_available()
 
 
 # =============================================================================
@@ -720,6 +660,9 @@ def _run_ttk_subprocess(
     """
     Run TTK computation in the TTK conda environment via subprocess.
 
+    Uses centralized subprocess utilities from shared.ttk_utils for
+    consistent error handling and environment management.
+
     Args:
         vtk_path: Path to VTK file.
         scalar_name: Scalar field name.
@@ -732,27 +675,27 @@ def _run_ttk_subprocess(
         Dictionary with computation results.
 
     Raises:
-        RuntimeError: If TTK computation fails.
+        RuntimeError: If TTK computation fails or is unavailable.
     """
     import json
     import tempfile
 
-    ttk_python = get_ttk_python_path()
+    # Check TTK availability using centralized utilities
+    if not is_ttk_available():
+        from shared.ttk_utils import get_ttk_unavailable_message
+
+        raise RuntimeError(get_ttk_unavailable_message())
 
     # Create temporary files for script and output
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False
-    ) as script_file:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as script_file:
         script_file.write(TTK_COMPUTE_SCRIPT)
         script_path = Path(script_file.name)
 
     output_json = Path(tempfile.mktemp(suffix=".json"))
 
     try:
-        # Run TTK computation
-        cmd = [
-            str(ttk_python),
-            str(script_path),
+        # Prepare script arguments
+        args = [
             "--vtk-path",
             str(vtk_path),
             "--scalar-name",
@@ -769,22 +712,22 @@ def _run_ttk_subprocess(
             str(output_json),
         ]
 
-        logger.info(f"Running TTK computation: {' '.join(cmd[:3])}...")
+        logger.info("Running TTK Morse-Smale computation via subprocess...")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
+        # Use centralized TTK subprocess utility
+        returncode, stdout, stderr = run_ttk_subprocess(
+            str(script_path),
+            args=args,
             timeout=300,  # 5 minute timeout
         )
 
-        if result.returncode != 0:
+        if returncode != 0:
             raise RuntimeError(
-                f"TTK computation failed:\n{result.stderr}\n{result.stdout}"
+                f"TTK computation failed (exit code {returncode}):\n" f"stderr: {stderr}\n" f"stdout: {stdout}"
             )
 
         if not output_json.exists():
-            raise RuntimeError("TTK computation produced no output")
+            raise RuntimeError(f"TTK computation produced no output file.\n" f"stdout: {stdout}\n" f"stderr: {stderr}")
 
         with open(output_json) as f:
             return json.load(f)
@@ -844,9 +787,7 @@ def _run_ttk_native(
     ms_filter.SetThresholdIsAbsolute(True)
 
     # Compute
-    logger.info(
-        f"Computing Morse-Smale complex (persistence={persistence_threshold:.2%})..."
-    )
+    logger.info(f"Computing Morse-Smale complex (persistence={persistence_threshold:.2%})...")
     ms_filter.Update()
 
     # Extract results
@@ -1038,16 +979,12 @@ def compute_morse_smale(
 
     # Validate persistence threshold
     if not 0.0 <= persistence_threshold <= 1.0:
-        raise ValueError(
-            f"persistence_threshold must be in [0, 1], got {persistence_threshold}"
-        )
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
 
     # Validate scalar field exists (also loads data for quick check)
     vtk_data = load_vtk_data(vtk_path)
     scalar_min, scalar_max = validate_scalar_field(vtk_data, scalar_name)
-    logger.info(
-        f"Scalar field '{scalar_name}': range [{scalar_min:.4f}, {scalar_max:.4f}]"
-    )
+    logger.info(f"Scalar field '{scalar_name}': range [{scalar_min:.4f}, {scalar_max:.4f}]")
 
     # Choose computation method based on environment
     if HAS_TTK:
@@ -1270,9 +1207,7 @@ def simplify_topology(
         >>> print(f"Removed {len(low_pers)} pairs")
     """
     if not 0.0 <= persistence_threshold <= 1.0:
-        raise ValueError(
-            f"persistence_threshold must be in [0, 1], got {persistence_threshold}"
-        )
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
 
     # If threshold is the same or lower, return original
     if persistence_threshold <= result.persistence_threshold:
@@ -1305,10 +1240,7 @@ def simplify_topology(
             kept_pairs.append(pair)
 
     # Log simplification details
-    logger.info(
-        f"Simplifying topology: threshold={persistence_threshold:.2%} "
-        f"(abs={abs_threshold:.4f})"
-    )
+    logger.info(f"Simplifying topology: threshold={persistence_threshold:.2%} " f"(abs={abs_threshold:.4f})")
     logger.info(f"Removing {len(removed_pairs)} pairs, keeping {len(kept_pairs)} pairs")
 
     if removed_pairs:
@@ -1331,16 +1263,11 @@ def simplify_topology(
             essential_points.add(cp.point_id)
 
     # Filter critical points - keep points that aren't paired with low-persistence
-    simplified_cps = [
-        cp for cp in result.critical_points if cp.point_id not in points_to_remove
-    ]
+    simplified_cps = [cp for cp in result.critical_points if cp.point_id not in points_to_remove]
 
     # Log results
     n_removed = len(result.critical_points) - len(simplified_cps)
-    logger.info(
-        f"Critical points: {len(result.critical_points)} -> {len(simplified_cps)} "
-        f"(removed {n_removed})"
-    )
+    logger.info(f"Critical points: {len(result.critical_points)} -> {len(simplified_cps)} " f"(removed {n_removed})")
 
     # Create simplified result
     simplified = MorseSmaleResult(
