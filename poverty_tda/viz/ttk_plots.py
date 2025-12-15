@@ -438,7 +438,6 @@ def _plot_critical_points_comparison(
     # Add persistence info
     if threshold is not None:
         n_filtered = len(critical_points)
-        _n_total = n_filtered  # Simplified - would need original count  # noqa: F841
         ax.text(
             0.02,
             0.98,
