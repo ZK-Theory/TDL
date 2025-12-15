@@ -350,7 +350,10 @@ def analyze_covid_specifics(
     logger.info(f"\n{'=' * 80}")
     logger.info("KEY FINDINGS:")
     logger.info(f"{'=' * 80}")
-    logger.info(f"1. Trend Strength: GFC has {gfc_tau / covid_tau:.2f}x stronger tau")
+    if covid_tau != 0:
+        logger.info(f"1. Trend Strength: GFC has {gfc_tau / covid_tau:.2f}x stronger tau")
+    else:
+        logger.info(f"1. Trend Strength: GFC tau={gfc_tau:.4f}, COVID tau=0")
     logger.info(f"2. Linearity: GFC more linear (R²={gfc_r2:.3f} vs {covid_r2:.3f})")
     logger.info(f"3. Noise: COVID has {covid_residuals.std() / gfc_residuals.std():.2f}x more noise")
     logger.info("4. Signal Quality: GFC shows clearer monotonic buildup")
