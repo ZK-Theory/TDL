@@ -1,0 +1,1371 @@
+"""
+Streamlit Dashboard for Financial TDA Analysis.
+
+Interactive dashboard for exploring topological data analysis of financial markets,
+including persistence diagrams, regime detection, and anomaly alerts.
+"""
+
+import logging
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+from numpy.typing import NDArray
+
+# Import financial TDA modules
+from financial_tda.analysis.windowed import extract_windowed_features
+from financial_tda.data.fetchers.yahoo import fetch_ticker
+from financial_tda.models.persistence_autoencoder import PersistenceAutoencoder, detect_anomalies
+from financial_tda.models.regime_classifier import RegimeClassifier, create_regime_labels, prepare_features
+from financial_tda.topology.embedding import takens_embedding
+from financial_tda.topology.features import persistence_image
+from financial_tda.topology.filtration import compute_persistence_vr
+
+logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Page Configuration
+# =============================================================================
+
+st.set_page_config(
+    page_title="Financial TDA Dashboard",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Custom CSS for better styling
+st.markdown(
+    """
+    <style>
+    .main > div {
+        padding-top: 2rem;
+    }
+    .stAlert {
+        margin-top: 1rem;
+    }
+    h1, h2, h3 {
+        margin-top: 1.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# =============================================================================
+# Session State Initialization
+# =============================================================================
+
+
+def initialize_session_state():
+    """Initialize session state variables for caching computed results."""
+    if "data_loaded" not in st.session_state:
+        st.session_state.data_loaded = False
+    if "price_data" not in st.session_state:
+        st.session_state.price_data = None
+    if "returns_data" not in st.session_state:
+        st.session_state.returns_data = None
+    if "windowed_features" not in st.session_state:
+        st.session_state.windowed_features = None
+    if "persistence_diagrams" not in st.session_state:
+        st.session_state.persistence_diagrams = None
+    if "window_dates" not in st.session_state:
+        st.session_state.window_dates = None
+    if "regime_predictions" not in st.session_state:
+        st.session_state.regime_predictions = None
+    if "anomaly_scores" not in st.session_state:
+        st.session_state.anomaly_scores = None
+    if "regime_classifier" not in st.session_state:
+        st.session_state.regime_classifier = None
+    if "regime_confidence" not in st.session_state:
+        st.session_state.regime_confidence = None
+    if "vix_data" not in st.session_state:
+        st.session_state.vix_data = None
+    if "autoencoder_model" not in st.session_state:
+        st.session_state.autoencoder_model = None
+    if "anomaly_threshold" not in st.session_state:
+        st.session_state.anomaly_threshold = None
+    if "persistence_images" not in st.session_state:
+        st.session_state.persistence_images = None
+
+
+initialize_session_state()
+
+# =============================================================================
+# Sidebar: Data Source Selection
+# =============================================================================
+
+st.sidebar.header("📊 Data Configuration")
+
+data_source = st.sidebar.radio(
+    "Data Source",
+    options=["Yahoo Finance", "Upload CSV", "Sample Data"],
+    help="Choose data source for TDA analysis",
+)
+
+# Data source specific inputs
+if data_source == "Yahoo Finance":
+    st.sidebar.subheader("Yahoo Finance Settings")
+
+    ticker = st.sidebar.text_input(
+        "Ticker Symbol",
+        value="^GSPC",
+        help="S&P 500: ^GSPC, Dow Jones: ^DJI, NASDAQ: ^IXIC",
+    )
+
+    # Date range picker
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        start_date = st.date_input(
+            "Start Date",
+            value=datetime(2004, 1, 1),
+            min_value=datetime(2000, 1, 1),
+            max_value=datetime.today(),
+        )
+    with col2:
+        end_date = st.date_input(
+            "End Date",
+            value=datetime.today(),
+            min_value=datetime(2000, 1, 1),
+            max_value=datetime.today(),
+        )
+
+    load_button = st.sidebar.button("🔄 Load Data", use_container_width=True)
+
+    if load_button:
+        with st.spinner(f"Fetching {ticker} data from Yahoo Finance..."):
+            try:
+                # Fetch data using Yahoo Finance fetcher
+                price_data = fetch_ticker(
+                    ticker=ticker,
+                    start_date=start_date.strftime("%Y-%m-%d"),
+                    end_date=end_date.strftime("%Y-%m-%d"),
+                )
+
+                if price_data is not None and len(price_data) > 0:
+                    # Normalize column names to lowercase for consistency
+                    price_data.columns = price_data.columns.str.lower()
+                    # Store in session state
+                    st.session_state.price_data = price_data
+                    st.session_state.returns_data = (
+                        price_data["close"].pct_change().dropna()
+                    )
+                    st.session_state.data_loaded = True
+                    st.sidebar.success(f"✓ Loaded {len(price_data)} data points")
+                else:
+                    st.sidebar.error("Failed to fetch data. Check ticker symbol.")
+            except Exception as e:
+                st.sidebar.error(f"Error loading data: {str(e)}")
+                logger.exception("Error in Yahoo Finance data fetch")
+
+elif data_source == "Upload CSV":
+    st.sidebar.subheader("CSV Upload Settings")
+
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload CSV file",
+        type=["csv"],
+        help="CSV must contain 'date' and 'close' columns",
+    )
+
+    if uploaded_file is not None:
+        try:
+            # Read CSV
+            price_data = pd.read_csv(uploaded_file, parse_dates=["date"])
+            price_data = price_data.set_index("date")
+
+            # Validate required columns
+            if "close" not in price_data.columns:
+                st.sidebar.error("CSV must contain 'close' column")
+            else:
+                st.session_state.price_data = price_data
+                st.session_state.returns_data = (
+                    price_data["close"].pct_change().dropna()
+                )
+                st.session_state.data_loaded = True
+                st.sidebar.success(f"✓ Loaded {len(price_data)} data points")
+        except Exception as e:
+            st.sidebar.error(f"Error reading CSV: {str(e)}")
+
+elif data_source == "Sample Data":
+    st.sidebar.subheader("Sample Data Settings")
+
+    sample_period = st.sidebar.selectbox(
+        "Sample Period",
+        options=[
+            "2008 Financial Crisis",
+            "2020 COVID Crash",
+            "2022 Rate Hike Crisis",
+            "Full Dataset (2004-2024)",
+        ],
+        help="Pre-loaded sample data covering major crises",
+    )
+
+    load_sample_button = st.sidebar.button("🔄 Load Sample", use_container_width=True)
+
+    if load_sample_button:
+        with st.spinner(f"Loading sample data: {sample_period}..."):
+            try:
+                # Define date ranges for each sample
+                sample_ranges = {
+                    "2008 Financial Crisis": ("2007-01-01", "2010-12-31"),
+                    "2020 COVID Crash": ("2019-01-01", "2021-12-31"),
+                    "2022 Rate Hike Crisis": ("2021-01-01", "2023-12-31"),
+                    "Full Dataset (2004-2024)": ("2004-01-01", "2024-12-31"),
+                }
+
+                start, end = sample_ranges[sample_period]
+
+                # Fetch S&P 500 data for sample period
+                price_data = fetch_ticker(ticker="^GSPC", start_date=start, end_date=end)
+
+                if price_data is not None and len(price_data) > 0:
+                    # Normalize column names to lowercase for consistency
+                    price_data.columns = price_data.columns.str.lower()
+                    st.session_state.price_data = price_data
+                    st.session_state.returns_data = (
+                        price_data["close"].pct_change().dropna()
+                    )
+                    st.session_state.data_loaded = True
+                    st.sidebar.success(f"✓ Loaded {len(price_data)} sample data points")
+                else:
+                    st.sidebar.error("Failed to load sample data")
+            except Exception as e:
+                st.sidebar.error(f"Error loading sample: {str(e)}")
+                logger.exception("Error loading sample data")
+
+# =============================================================================
+# Sidebar: TDA Analysis Parameters
+# =============================================================================
+
+st.sidebar.header("🔧 TDA Parameters")
+
+with st.sidebar.expander("Embedding Parameters", expanded=False):
+    embedding_dim = st.slider(
+        "Embedding Dimension",
+        min_value=2,
+        max_value=10,
+        value=3,
+        help="Takens embedding dimension (d)",
+    )
+    embedding_delay = st.slider(
+        "Embedding Delay",
+        min_value=1,
+        max_value=20,
+        value=5,
+        help="Takens embedding delay (tau)",
+    )
+
+with st.sidebar.expander("Window Parameters", expanded=False):
+    window_size = st.slider(
+        "Window Size",
+        min_value=20,
+        max_value=100,
+        value=40,
+        help="Sliding window size in days",
+    )
+    window_stride = st.slider(
+        "Window Stride",
+        min_value=1,
+        max_value=20,
+        value=5,
+        help="Stride between windows in days",
+    )
+
+with st.sidebar.expander("Persistence Parameters", expanded=False):
+    max_homology_dim = st.selectbox(
+        "Max Homology Dimension",
+        options=[0, 1, 2],
+        index=2,
+        help="Maximum homology dimension to compute (H0, H1, H2)",
+    )
+
+# =============================================================================
+# Main Dashboard: Title and Data Overview
+# =============================================================================
+
+st.title("📊 Financial TDA Dashboard")
+st.markdown(
+    "Interactive topological data analysis for financial market regime detection and anomaly alerts."
+)
+
+# Show data status
+if not st.session_state.data_loaded:
+    st.info("👈 Select a data source from the sidebar to begin analysis")
+    st.stop()
+
+# Data overview section
+st.header("📈 Data Overview")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Data Points",
+        f"{len(st.session_state.price_data):,}",
+    )
+
+with col2:
+    date_range = (
+        st.session_state.price_data.index.max()
+        - st.session_state.price_data.index.min()
+    ).days
+    st.metric("Date Range", f"{date_range} days")
+
+with col3:
+    start_date_str = st.session_state.price_data.index.min().strftime("%Y-%m-%d")
+    st.metric("Start Date", start_date_str)
+
+with col4:
+    end_date_str = st.session_state.price_data.index.max().strftime("%Y-%m-%d")
+    st.metric("End Date", end_date_str)
+
+# Plot price data
+st.subheader("Price History")
+
+fig = px.line(
+    st.session_state.price_data,
+    x=st.session_state.price_data.index,
+    y="close",
+    labels={"close": "Close Price", "date": "Date"},
+    title="Historical Price Data",
+)
+fig.update_layout(
+    xaxis_title="Date",
+    yaxis_title="Price (USD)",
+    hovermode="x unified",
+    showlegend=False,
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# Returns distribution
+st.subheader("Returns Distribution")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    fig_returns = px.line(
+        st.session_state.returns_data,
+        x=st.session_state.returns_data.index,
+        y=st.session_state.returns_data.values,
+        labels={"y": "Daily Returns", "x": "Date"},
+        title="Daily Returns Time Series",
+    )
+    fig_returns.update_layout(showlegend=False, hovermode="x unified")
+    st.plotly_chart(fig_returns, use_container_width=True)
+
+with col2:
+    fig_hist = px.histogram(
+        st.session_state.returns_data,
+        x=st.session_state.returns_data.values,
+        nbins=100,
+        labels={"x": "Daily Returns"},
+        title="Returns Histogram",
+    )
+    fig_hist.update_layout(showlegend=False)
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+# Summary statistics
+st.subheader("Summary Statistics")
+
+stats_df = pd.DataFrame(
+    {
+        "Metric": [
+            "Mean Return",
+            "Std Deviation",
+            "Min Return",
+            "Max Return",
+            "Skewness",
+            "Kurtosis",
+        ],
+        "Value": [
+            f"{st.session_state.returns_data.mean():.4f}",
+            f"{st.session_state.returns_data.std():.4f}",
+            f"{st.session_state.returns_data.min():.4f}",
+            f"{st.session_state.returns_data.max():.4f}",
+            f"{st.session_state.returns_data.skew():.4f}",
+            f"{st.session_state.returns_data.kurtosis():.4f}",
+        ],
+    }
+)
+
+st.dataframe(stats_df, use_container_width=True, hide_index=True)
+
+# =============================================================================
+# Persistence Diagram Visualization
+# =============================================================================
+
+st.header("🔷 Persistence Diagram Analysis")
+
+st.markdown(
+    """
+    Persistence diagrams reveal topological features in the financial time series at different scales.
+    Points far from the diagonal indicate persistent features (structural patterns), while points near
+    the diagonal represent noise.
+    """
+)
+
+# Button to compute persistence
+compute_persistence_button = st.button("🔬 Compute Persistence Diagrams", use_container_width=True)
+
+if compute_persistence_button:
+    with st.spinner("Computing persistence diagrams... This may take a few minutes."):
+        try:
+            # Extract windowed features with topological analysis
+            returns_array = st.session_state.returns_data.values
+
+            # Compute persistence diagrams for sliding windows
+            from financial_tda.analysis.windowed import sliding_window_generator
+
+            persistence_results = []
+            window_dates = []
+
+            for start_idx, end_idx, window_data in sliding_window_generator(
+                returns_array,
+                window_size=window_size,
+                stride=window_stride,
+            ):
+                try:
+                    # Takens embedding
+                    point_cloud = takens_embedding(
+                        window_data,
+                        delay=embedding_delay,
+                        dimension=embedding_dim,
+                    )
+
+                    # Compute persistence
+                    diagram = compute_persistence_vr(
+                        point_cloud,
+                        homology_dimensions=tuple(range(max_homology_dim + 1)),
+                    )
+
+                    persistence_results.append(diagram)
+                    # Get date for this window
+                    window_date = st.session_state.returns_data.index[end_idx - 1]
+                    window_dates.append(window_date)
+
+                except Exception as e:
+                    logger.warning(f"Failed to compute persistence for window [{start_idx}:{end_idx}]: {e}")
+                    continue
+
+            if len(persistence_results) > 0:
+                st.session_state.persistence_diagrams = persistence_results
+                st.session_state.window_dates = window_dates
+                st.success(f"✓ Computed {len(persistence_results)} persistence diagrams")
+            else:
+                st.error("Failed to compute any persistence diagrams")
+
+        except Exception as e:
+            st.error(f"Error computing persistence: {str(e)}")
+            logger.exception("Persistence computation error")
+
+# Display persistence diagrams if computed
+if st.session_state.persistence_diagrams is not None:
+    st.subheader("Interactive Persistence Diagram")
+
+    # Window selector
+    selected_window_idx = st.slider(
+        "Select Window",
+        min_value=0,
+        max_value=len(st.session_state.persistence_diagrams) - 1,
+        value=0,
+        help="Slide to view persistence diagram for different time windows",
+    )
+
+    selected_diagram = st.session_state.persistence_diagrams[selected_window_idx]
+    selected_date = st.session_state.window_dates[selected_window_idx]
+
+    st.write(f"**Window Date:** {selected_date.strftime('%Y-%m-%d')}")
+
+    # Homology dimension selector
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        # Filter by selected dimensions
+        dimension_filter = st.multiselect(
+            "Homology Dimensions to Display",
+            options=list(range(max_homology_dim + 1)),
+            default=list(range(max_homology_dim + 1)),
+            format_func=lambda x: f"H{x} ({'Components' if x == 0 else 'Loops' if x == 1 else 'Voids'})",
+        )
+
+    # Filter diagram by selected dimensions
+    if len(dimension_filter) > 0:
+        filtered_diagram = selected_diagram[np.isin(selected_diagram[:, 2], dimension_filter)]
+    else:
+        filtered_diagram = selected_diagram
+
+    # Create persistence diagram plot
+    if len(filtered_diagram) > 0:
+        # Prepare data for plotting
+        births = filtered_diagram[:, 0]
+        deaths = filtered_diagram[:, 1]
+        dims = filtered_diagram[:, 2].astype(int)
+
+        # Calculate persistence
+        persistence = deaths - births
+
+        # Create DataFrame for plotly
+        plot_df = pd.DataFrame(
+            {
+                "Birth": births,
+                "Death": deaths,
+                "Dimension": dims,
+                "Persistence": persistence,
+            }
+        )
+
+        # Map dimension to color and label
+        dimension_labels = {0: "H0 (Components)", 1: "H1 (Loops)", 2: "H2 (Voids)"}
+        plot_df["Dimension_Label"] = plot_df["Dimension"].map(dimension_labels)
+
+        # Create scatter plot
+        fig = px.scatter(
+            plot_df,
+            x="Birth",
+            y="Death",
+            color="Dimension_Label",
+            size="Persistence",
+            hover_data={
+                "Birth": ":.4f",
+                "Death": ":.4f",
+                "Persistence": ":.4f",
+                "Dimension_Label": True,
+            },
+            labels={
+                "Birth": "Birth Time",
+                "Death": "Death Time",
+                "Dimension_Label": "Feature Type",
+            },
+            title=f"Persistence Diagram - {selected_date.strftime('%Y-%m-%d')}",
+            color_discrete_map={
+                "H0 (Components)": "#636EFA",
+                "H1 (Loops)": "#EF553B",
+                "H2 (Voids)": "#00CC96",
+            },
+        )
+
+        # Add diagonal line (birth = death)
+        max_val = max(deaths.max(), births.max())
+        fig.add_trace(
+            go.Scatter(
+                x=[0, max_val],
+                y=[0, max_val],
+                mode="lines",
+                line=dict(color="gray", dash="dash", width=1),
+                name="Diagonal",
+                showlegend=True,
+            )
+        )
+
+        fig.update_layout(
+            xaxis_title="Birth Time",
+            yaxis_title="Death Time",
+            hovermode="closest",
+            height=600,
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Persistence statistics
+        st.subheader("Persistence Statistics")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Total Features", len(filtered_diagram))
+
+        with col2:
+            st.metric("Mean Persistence", f"{persistence.mean():.4f}")
+
+        with col3:
+            st.metric("Max Persistence", f"{persistence.max():.4f}")
+
+        with col4:
+            st.metric("Birth Range", f"[{births.min():.3f}, {births.max():.3f}]")
+
+        # Dimension breakdown
+        st.subheader("Feature Breakdown by Dimension")
+
+        dimension_counts = plot_df.groupby("Dimension_Label").agg(
+            {
+                "Persistence": ["count", "mean", "max", "sum"],
+            }
+        )
+        dimension_counts.columns = ["Count", "Mean Persistence", "Max Persistence", "Total Persistence"]
+        st.dataframe(dimension_counts, use_container_width=True)
+
+        # Persistence distribution
+        col1, col2 = st.columns(2)
+
+        with col1:
+            fig_pers_hist = px.histogram(
+                plot_df,
+                x="Persistence",
+                color="Dimension_Label",
+                nbins=30,
+                title="Persistence Distribution",
+                labels={"Persistence": "Persistence (Death - Birth)"},
+                color_discrete_map={
+                    "H0 (Components)": "#636EFA",
+                    "H1 (Loops)": "#EF553B",
+                    "H2 (Voids)": "#00CC96",
+                },
+            )
+            st.plotly_chart(fig_pers_hist, use_container_width=True)
+
+        with col2:
+            fig_birth_hist = px.histogram(
+                plot_df,
+                x="Birth",
+                color="Dimension_Label",
+                nbins=30,
+                title="Birth Time Distribution",
+                labels={"Birth": "Birth Time"},
+                color_discrete_map={
+                    "H0 (Components)": "#636EFA",
+                    "H1 (Loops)": "#EF553B",
+                    "H2 (Voids)": "#00CC96",
+                },
+            )
+            st.plotly_chart(fig_birth_hist, use_container_width=True)
+
+    else:
+        st.warning("No features found for selected dimensions")
+
+else:
+    st.info("👆 Click 'Compute Persistence Diagrams' to begin topological analysis")
+
+# =============================================================================
+# Regime Detection Display
+# =============================================================================
+
+st.header("🚦 Regime Detection & Classification")
+
+st.markdown(
+    """
+    Market regime detection identifies crisis periods (high volatility, drawdowns) vs normal periods.
+    The classifier uses topological features extracted from sliding windows to predict market state.
+    """
+)
+
+# Regime detection controls
+col1, col2 = st.columns(2)
+
+with col1:
+    classifier_type = st.selectbox(
+        "Classifier Type",
+        options=["random_forest", "svm", "xgboost", "gradient_boosting"],
+        format_func=lambda x: {
+            "random_forest": "Random Forest",
+            "svm": "Support Vector Machine",
+            "xgboost": "XGBoost",
+            "gradient_boosting": "Gradient Boosting",
+        }[x],
+        help="ML classifier backend for regime detection",
+    )
+
+with col2:
+    use_pretrained = st.checkbox(
+        "Use Pre-trained Model",
+        value=False,
+        help="Use a pre-trained classifier (if available) or train on current data",
+    )
+
+# Button to compute regime detection
+compute_regime_button = st.button("🔬 Detect Market Regimes", use_container_width=True)
+
+if compute_regime_button:
+    # Check if windowed features exist
+    if st.session_state.persistence_diagrams is None:
+        st.warning("⚠️ Please compute persistence diagrams first (Step 2)")
+    else:
+        with st.spinner("Training regime classifier and detecting market states..."):
+            try:
+                # Extract windowed topological features
+                returns_array = st.session_state.returns_data.values
+                
+                windowed_features_df = extract_windowed_features(
+                    returns_array,
+                    window_size=window_size,
+                    stride=window_stride,
+                    embedding_dim=embedding_dim,
+                    embedding_delay=embedding_delay,
+                )
+                
+                st.session_state.windowed_features = windowed_features_df
+                
+                # Fetch VIX data for labeling and comparison
+                try:
+                    vix_data = fetch_ticker(
+                        ticker="^VIX",
+                        start_date=st.session_state.price_data.index.min().strftime("%Y-%m-%d"),
+                        end_date=st.session_state.price_data.index.max().strftime("%Y-%m-%d"),
+                    )
+                    # Normalize column names to lowercase
+                    if vix_data is not None and len(vix_data) > 0:
+                        vix_data.columns = vix_data.columns.str.lower()
+                    st.session_state.vix_data = vix_data
+                except Exception as e:
+                    st.warning(f"Could not fetch VIX data: {e}. Using volatility proxy instead.")
+                    # Create volatility proxy if VIX unavailable
+                    rolling_vol = st.session_state.returns_data.rolling(window=20).std() * np.sqrt(252) * 100
+                    st.session_state.vix_data = pd.DataFrame(
+                        {"close": rolling_vol},
+                        index=st.session_state.returns_data.index,
+                    )
+                
+                # Create regime labels
+                if st.session_state.vix_data is not None:
+                    regime_labels = create_regime_labels(
+                        prices=st.session_state.price_data["close"],
+                        vix=st.session_state.vix_data["close"],
+                        vix_crisis_threshold=25.0,
+                        vix_crisis_days=5,
+                        vix_normal_threshold=20.0,
+                        vix_normal_days=20,
+                        drawdown_threshold=0.15,
+                    )
+                    
+                    # Align labels with windowed features
+                    feature_dates = windowed_features_df["window_end"]
+                    aligned_labels = []
+                    valid_indices = []
+                    
+                    for i, date in enumerate(feature_dates):
+                        if date in regime_labels.index:
+                            label = regime_labels.loc[date]
+                            if not pd.isna(label):
+                                aligned_labels.append(int(label))
+                                valid_indices.append(i)
+                    
+                    if len(aligned_labels) > 10:  # Need enough samples
+                        # Prepare features for classification
+                        X, scaler = prepare_features(windowed_features_df.iloc[valid_indices])
+                        y = np.array(aligned_labels)
+                        
+                        # Train classifier
+                        if not use_pretrained or st.session_state.regime_classifier is None:
+                            classifier = RegimeClassifier(
+                                classifier_type=classifier_type,
+                                class_weight="balanced",
+                                random_state=42,
+                            )
+                            
+                            # Fit on labeled data
+                            classifier.fit(X, y)
+                            st.session_state.regime_classifier = classifier
+                            st.info(f"✓ Trained {classifier_type} classifier on {len(y)} samples")
+                        else:
+                            classifier = st.session_state.regime_classifier
+                        
+                        # Predict on all windows
+                        X_all, _ = prepare_features(windowed_features_df, scaler=scaler, fit_scaler=False)
+                        predictions = classifier.predict(X_all)
+                        probabilities = classifier.predict_proba(X_all)
+                        
+                        # Store results
+                        st.session_state.regime_predictions = predictions
+                        st.session_state.regime_confidence = probabilities[:, 1]  # Probability of crisis
+                        
+                        st.success(f"✓ Classified {len(predictions)} windows: {(predictions == 1).sum()} crisis, {(predictions == 0).sum()} normal")
+                    else:
+                        st.error("Not enough labeled data for training. Try a longer date range.")
+                else:
+                    st.error("Could not obtain VIX or volatility data for labeling")
+                    
+            except Exception as e:
+                st.error(f"Error in regime detection: {str(e)}")
+                logger.exception("Regime detection error")
+
+# Display regime timeline if computed
+if st.session_state.regime_predictions is not None:
+    st.subheader("Regime Timeline Visualization")
+    
+    # Create timeline dataframe
+    timeline_df = pd.DataFrame({
+        "Date": st.session_state.windowed_features["window_end"],
+        "Regime": st.session_state.regime_predictions,
+        "Crisis_Probability": st.session_state.regime_confidence,
+    })
+    
+    # Create figure with secondary y-axis
+    fig = go.Figure()
+    
+    # Add price data
+    fig.add_trace(
+        go.Scatter(
+            x=st.session_state.price_data.index,
+            y=st.session_state.price_data["close"],
+            name="Price",
+            line=dict(color="lightgray", width=1),
+            yaxis="y2",
+            hovertemplate="Price: $%{y:.2f}<extra></extra>",
+        )
+    )
+    
+    # Add regime predictions as colored background
+    crisis_periods = timeline_df[timeline_df["Regime"] == 1]
+    for _, row in crisis_periods.iterrows():
+        fig.add_vrect(
+            x0=row["Date"] - pd.Timedelta(days=window_size // 2),
+            x1=row["Date"] + pd.Timedelta(days=window_size // 2),
+            fillcolor="red",
+            opacity=0.2,
+            layer="below",
+            line_width=0,
+        )
+    
+    # Add confidence line
+    fig.add_trace(
+        go.Scatter(
+            x=timeline_df["Date"],
+            y=timeline_df["Crisis_Probability"],
+            name="Crisis Probability",
+            line=dict(color="darkred", width=2),
+            yaxis="y",
+            hovertemplate="Crisis Prob: %{y:.2%}<extra></extra>",
+        )
+    )
+    
+    # Add VIX or volatility overlay
+    if st.session_state.vix_data is not None:
+        # Normalize VIX to 0-1 range for comparison
+        vix_normalized = (st.session_state.vix_data["close"] - st.session_state.vix_data["close"].min()) / (
+            st.session_state.vix_data["close"].max() - st.session_state.vix_data["close"].min()
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=st.session_state.vix_data.index,
+                y=vix_normalized,
+                name="VIX (normalized)",
+                line=dict(color="orange", width=1, dash="dot"),
+                yaxis="y",
+                hovertemplate="VIX: %{text:.1f}<extra></extra>",
+                text=st.session_state.vix_data["close"],
+            )
+        )
+    
+    # Update layout
+    fig.update_layout(
+        title="Market Regime Timeline with Crisis Detection",
+        xaxis_title="Date",
+        yaxis=dict(
+            title="Probability / Normalized VIX",
+            range=[0, 1],
+        ),
+        yaxis2=dict(
+            title="Price (USD)",
+            overlaying="y",
+            side="right",
+        ),
+        hovermode="x unified",
+        height=600,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Regime statistics
+    st.subheader("Regime Detection Statistics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        crisis_count = (st.session_state.regime_predictions == 1).sum()
+        st.metric("Crisis Windows", crisis_count)
+    
+    with col2:
+        normal_count = (st.session_state.regime_predictions == 0).sum()
+        st.metric("Normal Windows", normal_count)
+    
+    with col3:
+        crisis_pct = 100 * crisis_count / len(st.session_state.regime_predictions)
+        st.metric("Crisis %", f"{crisis_pct:.1f}%")
+    
+    with col4:
+        mean_confidence = st.session_state.regime_confidence.mean()
+        st.metric("Mean Crisis Prob", f"{mean_confidence:.2%}")
+    
+    # Confidence distribution
+    st.subheader("Confidence Distribution")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Histogram of crisis probability
+        fig_conf_hist = px.histogram(
+            timeline_df,
+            x="Crisis_Probability",
+            color="Regime",
+            nbins=50,
+            title="Crisis Probability Distribution",
+            labels={"Crisis_Probability": "Crisis Probability", "Regime": "True Regime"},
+            color_discrete_map={0: "green", 1: "red"},
+            barmode="overlay",
+        )
+        fig_conf_hist.update_layout(showlegend=True)
+        st.plotly_chart(fig_conf_hist, use_container_width=True)
+    
+    with col2:
+        # Time series of confidence
+        fig_conf_ts = px.line(
+            timeline_df,
+            x="Date",
+            y="Crisis_Probability",
+            color="Regime",
+            title="Crisis Probability Over Time",
+            labels={"Crisis_Probability": "Crisis Probability"},
+            color_discrete_map={0: "green", 1: "red"},
+        )
+        st.plotly_chart(fig_conf_ts, use_container_width=True)
+    
+    # Detailed regime periods table
+    with st.expander("📋 Detailed Regime Periods"):
+        # Group consecutive crisis periods
+        crisis_periods_list = []
+        in_crisis = False
+        crisis_start = None
+        
+        for idx, row in timeline_df.iterrows():
+            if row["Regime"] == 1 and not in_crisis:
+                in_crisis = True
+                crisis_start = row["Date"]
+            elif row["Regime"] == 0 and in_crisis:
+                in_crisis = False
+                crisis_periods_list.append({
+                    "Start": crisis_start.strftime("%Y-%m-%d"),
+                    "End": timeline_df.iloc[idx - 1]["Date"].strftime("%Y-%m-%d"),
+                    "Duration (days)": (timeline_df.iloc[idx - 1]["Date"] - crisis_start).days,
+                })
+        
+        if in_crisis:  # Handle case where crisis extends to end
+            crisis_periods_list.append({
+                "Start": crisis_start.strftime("%Y-%m-%d"),
+                "End": timeline_df.iloc[-1]["Date"].strftime("%Y-%m-%d"),
+                "Duration (days)": (timeline_df.iloc[-1]["Date"] - crisis_start).days,
+            })
+        
+        if len(crisis_periods_list) > 0:
+            crisis_df = pd.DataFrame(crisis_periods_list)
+  Anomaly Detection & Alerts
+# =============================================================================
+
+st.header("⚠️ Anomaly Detection & Early Warning System")
+
+st.markdown(
+    """
+    The Persistence Autoencoder learns the "normal" topology of stable markets and flags
+    anomalous patterns indicating market stress. High reconstruction errors suggest
+    topological changes associated with crisis periods.
+    """
+)
+
+# Anomaly detection controls
+col1, col2 = st.columns(2)
+
+with col1:
+    anomaly_threshold_percentile = st.slider(
+        "Alert Threshold Percentile",
+        min_value=80,
+        max_value=99,
+        value=95,
+        help="Percentile of reconstruction error for anomaly threshold (default: 95th)",
+    )
+
+with col2:
+    use_pretrained_ae = st.checkbox(
+        "Use Pre-trained Autoencoder",
+        value=False,
+        help="Use cached autoencoder model or train new one",
+    )
+
+# Button to compute anomaly detection
+compute_anomaly_button = st.button("🔬 Detect Anomalies", use_container_width=True)
+
+if compute_anomaly_button:
+    if st.session_state.persistence_diagrams is None:
+        st.warning("⚠️ Please compute persistence diagrams first (Step 2)")
+    else:
+        with st.spinner("Computing persistence images and training autoencoder..."):
+            try:
+                import torch
+                from financial_tda.topology.features import persistence_image
+                
+                # Convert persistence diagrams to persistence images
+                persistence_images = []
+                
+                for diagram in st.session_state.persistence_diagrams:
+                    # Filter for H1 features (loops) - most informative for crisis detection
+                    h1_diagram = diagram[diagram[:, 2] == 1][:, :2]  # Get birth-death pairs
+                    
+                    if len(h1_diagram) > 0:
+                        # Create persistence image
+                        img = persistence_image(
+                            h1_diagram,
+                            resolution=(50, 50),
+                            sigma=0.1,
+                        )
+                        persistence_images.append(img)
+                    else:
+                        # Empty image if no H1 features
+                        persistence_images.append(np.zeros((50, 50)))
+                
+                persistence_images = np.array(persistence_images)
+                st.session_state.persistence_images = persistence_images
+                
+                st.info(f"✓ Generated {len(persistence_images)} persistence images (50×50)")
+                
+                # Train or load autoencoder
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                
+                if not use_pretrained_ae or st.session_state.autoencoder_model is None:
+                    # Initialize model
+                    model = PersistenceAutoencoder(
+                        input_size=(50, 50),
+                        latent_dim=32,
+                    ).to(device)
+                    
+                    # For demo purposes, use a simple training approach
+                    # In production, should train only on normal periods
+                    st.info("⚠️ Demo mode: Training on all available data")
+                    st.info("Production: Should train only on 2004-2007, 2013-2019 normal periods")
+                    
+                    # Convert to torch tensors
+                    images_tensor = torch.FloatTensor(persistence_images).unsqueeze(1)  # Add channel dim
+                    
+                    # Simple training loop (abbreviated for demo)
+                    from torch.utils.data import DataLoader, TensorDataset
+                    
+                    dataset = TensorDataset(images_tensor)
+                    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+                    
+                    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+                    criterion = torch.nn.MSELoss()
+                    
+                    model.train()
+                    n_epochs = 50
+                    
+                    progress_bar = st.progress(0)
+                    for epoch in range(n_epochs):
+                        epoch_loss = 0.0
+                        for batch in dataloader:
+                            images_batch = batch[0].to(device)
+                            
+                            optimizer.zero_grad()
+                            reconstructions = model(images_batch)
+                            loss = criterion(reconstructions, images_batch)
+                            loss.backward()
+                            optimizer.step()
+                            
+                            epoch_loss += loss.item()
+                        
+                        if (epoch + 1) % 10 == 0:
+                            st.write(f"Epoch {epoch+1}/{n_epochs}, Loss: {epoch_loss/len(dataloader):.6f}")
+                        
+                        progress_bar.progress((epoch + 1) / n_epochs)
+                    
+                    st.session_state.autoencoder_model = model
+                    st.success("✓ Autoencoder training complete")
+                else:
+                    model = st.session_state.autoencoder_model
+                    st.info("✓ Using cached autoencoder model")
+                
+                # Compute anomaly scores (reconstruction errors)
+                model.eval()
+                with torch.no_grad():
+                    images_tensor = torch.FloatTensor(persistence_images).unsqueeze(1).to(device)
+                    reconstructions = model(images_tensor)
+                    
+                    # Compute MSE per sample
+                    errors = torch.mean((images_tensor - reconstructions) ** 2, dim=[1, 2, 3])
+                    anomaly_scores = errors.cpu().numpy()
+                
+                st.session_state.anomaly_scores = anomaly_scores
+                
+                # Compute threshold
+                threshold = np.percentile(anomaly_scores, anomaly_threshold_percentile)
+                st.session_state.anomaly_threshold = threshold
+                
+                # Count anomalies
+                n_anomalies = (anomaly_scores > threshold).sum()
+                st.success(f"✓ Computed anomaly scores: {n_anomalies}/{len(anomaly_scores)} anomalies detected")
+                
+            except Exception as e:
+                st.error(f"Error in anomaly detection: {str(e)}")
+                logger.exception("Anomaly detection error")
+
+# Display anomaly detection results
+if st.session_state.anomaly_scores is not None:
+    st.subheader("Reconstruction Error Timeline")
+    
+    # Create timeline dataframe
+    anomaly_df = pd.DataFrame({
+        "Date": st.session_state.window_dates,
+        "Reconstruction_Error": st.session_state.anomaly_scores,
+        "Is_Anomaly": st.session_state.anomaly_scores > st.session_state.anomaly_threshold,
+    })
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Add reconstruction error line
+    fig.add_trace(
+        go.Scatter(
+            x=anomaly_df["Date"],
+            y=anomaly_df["Reconstruction_Error"],
+            name="Reconstruction Error",
+            line=dict(color="blue", width=2),
+            mode="lines",
+            hovertemplate="Error: %{y:.6f}<extra></extra>",
+        )
+    )
+    
+    # Add threshold line
+    fig.add_trace(
+        go.Scatter(
+            x=anomaly_df["Date"],
+            y=[st.session_state.anomaly_threshold] * len(anomaly_df),
+            name=f"Threshold ({anomaly_threshold_percentile}th percentile)",
+            line=dict(color="red", width=2, dash="dash"),
+            mode="lines",
+            hovertemplate="Threshold: %{y:.6f}<extra></extra>",
+        )
+    )
+    
+    # Add anomaly markers
+    anomalies = anomaly_df[anomaly_df["Is_Anomaly"]]
+    if len(anomalies) > 0:
+        fig.add_trace(
+            go.Scatter(
+                x=anomalies["Date"],
+                y=anomalies["Reconstruction_Error"],
+                name="Anomaly Alert",
+                mode="markers",
+                marker=dict(
+                    color="red",
+                    size=10,
+                    symbol="x",
+                    line=dict(width=2),
+                ),
+                hovertemplate="⚠️ Anomaly<br>Error: %{y:.6f}<extra></extra>",
+            )
+        )
+    
+    fig.update_layout(
+        title="Autoencoder Reconstruction Error Over Time",
+        xaxis_title="Date",
+        yaxis_title="Reconstruction Error (MSE)",
+        hovermode="x unified",
+        height=500,
+        showlegend=True,
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Anomaly statistics
+    st.subheader("Anomaly Detection Statistics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        n_anomalies = anomaly_df["Is_Anomaly"].sum()
+        st.metric("Anomalies Detected", n_anomalies)
+    
+    with col2:
+        anomaly_pct = 100 * n_anomalies / len(anomaly_df)
+        st.metric("Anomaly Rate", f"{anomaly_pct:.1f}%")
+    
+    with col3:
+        mean_error = anomaly_df["Reconstruction_Error"].mean()
+        st.metric("Mean Error", f"{mean_error:.6f}")
+    
+    with col4:
+        max_error = anomaly_df["Reconstruction_Error"].max()
+        st.metric("Max Error", f"{max_error:.6f}")
+    
+    # Combined regime + anomaly view
+    if st.session_state.regime_predictions is not None:
+        st.subheader("Integrated Regime & Anomaly Timeline")
+        
+        # Create combined figure
+        fig_combined = go.Figure()
+        
+        # Add price with secondary axis
+        fig_combined.add_trace(
+            go.Scatter(
+                x=st.session_state.price_data.index,
+                y=st.session_state.price_data["close"],
+                name="Price",
+                line=dict(color="lightgray", width=1),
+                yaxis="y2",
+                hovertemplate="Price: $%{y:.2f}<extra></extra>",
+            )
+        )
+        
+        # Add regime predictions (normalized crisis probability)
+        regime_timeline = pd.DataFrame({
+            "Date": st.session_state.windowed_features["window_end"],
+            "Crisis_Probability": st.session_state.regime_confidence,
+        })
+        
+        fig_combined.add_trace(
+            go.Scatter(
+                x=regime_timeline["Date"],
+                y=regime_timeline["Crisis_Probability"],
+                name="Crisis Probability",
+                line=dict(color="darkred", width=2),
+                yaxis="y",
+                hovertemplate="Crisis Prob: %{y:.2%}<extra></extra>",
+            )
+        )
+        
+        # Add normalized anomaly scores
+        anomaly_normalized = (anomaly_df["Reconstruction_Error"] - anomaly_df["Reconstruction_Error"].min()) / (
+            anomaly_df["Reconstruction_Error"].max() - anomaly_df["Reconstruction_Error"].min()
+        )
+        
+        fig_combined.add_trace(
+            go.Scatter(
+                x=anomaly_df["Date"],
+                y=anomaly_normalized,
+                name="Anomaly Score (normalized)",
+                line=dict(color="purple", width=2, dash="dot"),
+                yaxis="y",
+                hovertemplate="Anomaly: %{text:.6f}<extra></extra>",
+                text=anomaly_df["Reconstruction_Error"],
+            )
+        )
+        
+        # Add anomaly markers
+        if len(anomalies) > 0:
+            anomaly_norm_markers = (anomalies["Reconstruction_Error"] - anomaly_df["Reconstruction_Error"].min()) / (
+                anomaly_df["Reconstruction_Error"].max() - anomaly_df["Reconstruction_Error"].min()
+            )
+            
+            fig_combined.add_trace(
+                go.Scatter(
+                    x=anomalies["Date"],
+                    y=anomaly_norm_markers,
+                    name="Anomaly Alert",
+                    mode="markers",
+                    marker=dict(
+                        color="red",
+                        size=12,
+                        symbol="diamond",
+                        line=dict(width=2, color="darkred"),
+                    ),
+                    yaxis="y",
+                    hovertemplate="⚠️ Alert<extra></extra>",
+                )
+            )
+        
+        # Shade crisis regions
+        crisis_periods = regime_timeline[regime_timeline["Crisis_Probability"] > 0.5]
+        for _, row in crisis_periods.iterrows():
+            fig_combined.add_vrect(
+                x0=row["Date"] - pd.Timedelta(days=window_size // 2),
+                x1=row["Date"] + pd.Timedelta(days=window_size // 2),
+                fillcolor="red",
+                opacity=0.1,
+                layer="below",
+                line_width=0,
+            )
+        
+        fig_combined.update_layout(
+            title="Combined View: Market Regime + Topological Anomalies",
+            xaxis_title="Date",
+            yaxis=dict(
+                title="Normalized Scores / Probability",
+                range=[0, 1],
+            ),
+            yaxis2=dict(
+                title="Price (USD)",
+                overlaying="y",
+                side="right",
+            ),
+            hovermode="x unified",
+            height=600,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+            ),
+        )
+        
+        st.plotly_chart(fig_combined, use_container_width=True)
+    
+    # Anomaly list
+    with st.expander("📋 Detected Anomaly Events"):
+        if len(anomalies) > 0:
+            anomaly_list = anomalies[["Date", "Reconstruction_Error"]].copy()
+            anomaly_list["Date"] = anomaly_list["Date"].dt.strftime("%Y-%m-%d")
+            anomaly_list = anomaly_list.sort_values("Reconstruction_Error", ascending=False)
+            anomaly_list.columns = ["Date", "Reconstruction Error"]
+            
+            st.dataframe(anomaly_list, use_container_width=True, hide_index=True)
+        else:
+            st.info("No anomalies detected with current threshold")
+    
+    # Error distribution
+    st.subheader("Error Distribution Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        fig_error_hist = px.histogram(
+            anomaly_df,
+            x="Reconstruction_Error",
+            nbins=50,
+            title="Reconstruction Error Distribution",
+            labels={"Reconstruction_Error": "Reconstruction Error (MSE)"},
+        )
+        fig_error_hist.add_vline(
+            x=st.session_state.anomaly_threshold,
+            line_dash="dash",
+            line_color="red",
+            annotation_text="Threshold",
+        )
+        st.plotly_chart(fig_error_hist, use_container_width=True)
+    
+    with col2:
+        # Box plot by month
+        anomaly_df["Month"] = pd.to_datetime(anomaly_df["Date"]).dt.to_period("M").astype(str)
+        fig_box = px.box(
+            anomaly_df,
+            x="Month",
+            y="Reconstruction_Error",
+            title="Error Distribution by Month",
+            labels={"Reconstruction_Error": "Reconstruction Error"},
+        )
+        fig_box.update_xaxis(tickangle=45)
+        st.plotly_chart(fig_box, use_container_width=True)
+
+else:
+    st.info("👆 Click 'Detect Anomalies' to begin autoencoder-based anomaly detection")
+
+# =============================================================================
+# Footer
+# =============================================================================
+
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #666;'>
+    <p>Financial TDA Dashboard v1.0 | Powered by Streamlit & Topological Data Analysis</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

@@ -12,15 +12,13 @@ uniform gradient flow, identifying:
 
 Integration:
     - mobility_surface.py: Provides VTK files via export_mobility_vtk()
-    - Uses TTK (Topology ToolKit) via conda environment
+    - shared.ttk_utils: Centralized TTK subprocess utilities and detection
 
 TTK Environment:
-    TTK requires a separate conda environment due to ParaView bundling.
-    Python path: C:/Users/steph/miniconda3/envs/ttk-env/python.exe
+    TTK operations run in isolated conda environment via shared.ttk_utils
+    to avoid VTK version conflicts with the main project environment.
 
-    To use TTK functions, either:
-    1. Run scripts with the TTK Python interpreter
-    2. Use subprocess calls to the TTK environment
+    See docs/TTK_SETUP.md for installation instructions.
 
 License: Open Government Licence v3.0
 """
@@ -28,7 +26,6 @@ License: Open Government Licence v3.0
 from __future__ import annotations
 
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -36,10 +33,9 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-logger = logging.getLogger(__name__)
+from shared.ttk_utils import is_ttk_available, run_ttk_subprocess
 
-# TTK environment configuration
-TTK_PYTHON_PATH = Path("C:/Users/steph/miniconda3/envs/ttk-env/python.exe")
+logger = logging.getLogger(__name__)
 
 # Try to import pyvista for VTK file handling
 try:
@@ -68,7 +64,7 @@ try:
 except ImportError:
     HAS_TTK = False
     logger.debug(
-        f"TTK not available in current environment. Use TTK Python: {TTK_PYTHON_PATH}"
+        "TTK not available in current environment. " "TTK operations will run via subprocess in conda environment."
     )
 
 
@@ -258,9 +254,7 @@ def load_vtk_data(
     supported_formats = {".vti", ".vts", ".vtk", ".vtp"}
 
     if suffix not in supported_formats:
-        raise ValueError(
-            f"Unsupported VTK format: {suffix}. Supported formats: {supported_formats}"
-        )
+        raise ValueError(f"Unsupported VTK format: {suffix}. Supported formats: {supported_formats}")
 
     logger.info(f"Loading VTK file: {vtk_path}")
 
@@ -268,8 +262,7 @@ def load_vtk_data(
         # Use pyvista for convenient loading
         mesh = pv.read(str(vtk_path))
         logger.info(
-            f"Loaded VTK data: {mesh.n_points} points, "
-            f"{mesh.n_cells} cells, arrays: {list(mesh.point_data.keys())}"
+            f"Loaded VTK data: {mesh.n_points} points, " f"{mesh.n_cells} cells, arrays: {list(mesh.point_data.keys())}"
         )
         return mesh
 
@@ -283,9 +276,7 @@ def load_vtk_data(
         return output
 
     else:
-        raise ImportError(
-            "Neither pyvista nor vtk is available. Install with: pip install pyvista"
-        )
+        raise ImportError("Neither pyvista nor vtk is available. Install with: pip install pyvista")
 
 
 def _get_vtk_reader(suffix: str) -> Any:
@@ -333,9 +324,7 @@ def validate_scalar_field(
         # pyvista mesh
         if scalar_name not in vtk_data.point_data:
             available = list(vtk_data.point_data.keys())
-            raise ValueError(
-                f"Scalar field '{scalar_name}' not found. Available fields: {available}"
-            )
+            raise ValueError(f"Scalar field '{scalar_name}' not found. Available fields: {available}")
 
         values = vtk_data.point_data[scalar_name]
         valid_values = values[~np.isnan(values)]
@@ -351,13 +340,8 @@ def validate_scalar_field(
         array = point_data.GetArray(scalar_name)
 
         if array is None:
-            available = [
-                point_data.GetArrayName(i)
-                for i in range(point_data.GetNumberOfArrays())
-            ]
-            raise ValueError(
-                f"Scalar field '{scalar_name}' not found. Available fields: {available}"
-            )
+            available = [point_data.GetArrayName(i) for i in range(point_data.GetNumberOfArrays())]
+            raise ValueError(f"Scalar field '{scalar_name}' not found. Available fields: {available}")
 
         values = vtk_to_numpy(array)
         valid_values = values[~np.isnan(values)]
@@ -436,6 +420,10 @@ def check_ttk_available() -> bool:
 
     Returns:
         True if TTK can be imported, False otherwise.
+
+    Note:
+        This checks the CURRENT environment. For subprocess availability,
+        use is_ttk_available() from shared.ttk_utils.
     """
     return HAS_TTK
 
@@ -445,60 +433,12 @@ def check_ttk_environment() -> bool:
     Check if the TTK conda environment exists and is functional.
 
     Returns:
-        True if TTK environment is available and working.
+        True if TTK environment is available and working via subprocess.
+
+    Note:
+        This uses centralized TTK detection from shared.ttk_utils.
     """
-    if not TTK_PYTHON_PATH.exists():
-        logger.warning(f"TTK Python not found at: {TTK_PYTHON_PATH}")
-        return False
-
-    try:
-        ttk_test_cmd = (
-            "from topologytoolkit.ttkMorseSmaleComplex "
-            "import ttkMorseSmaleComplex; print('ok')"
-        )
-        result = subprocess.run(
-            [
-                str(TTK_PYTHON_PATH),
-                "-c",
-                ttk_test_cmd,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0 and "ok" in result.stdout:
-            logger.info("TTK environment verified successfully")
-            return True
-        else:
-            logger.warning(f"TTK environment check failed: {result.stderr}")
-            return False
-    except subprocess.TimeoutExpired:
-        logger.warning("TTK environment check timed out")
-        return False
-    except Exception as e:
-        logger.warning(f"TTK environment check error: {e}")
-        return False
-
-
-def get_ttk_python_path() -> Path:
-    """
-    Get the path to the TTK Python interpreter.
-
-    Returns:
-        Path to the TTK conda environment Python executable.
-
-    Raises:
-        FileNotFoundError: If TTK environment is not installed.
-    """
-    if not TTK_PYTHON_PATH.exists():
-        raise FileNotFoundError(
-            f"TTK Python interpreter not found at: {TTK_PYTHON_PATH}\n"
-            "Install TTK environment with:\n"
-            "  conda create -n ttk-env python=3.10\n"
-            "  conda activate ttk-env\n"
-            "  conda install -c conda-forge topologytoolkit"
-        )
-    return TTK_PYTHON_PATH
+    return is_ttk_available()
 
 
 # =============================================================================
@@ -720,6 +660,9 @@ def _run_ttk_subprocess(
     """
     Run TTK computation in the TTK conda environment via subprocess.
 
+    Uses centralized subprocess utilities from shared.ttk_utils for
+    consistent error handling and environment management.
+
     Args:
         vtk_path: Path to VTK file.
         scalar_name: Scalar field name.
@@ -732,27 +675,27 @@ def _run_ttk_subprocess(
         Dictionary with computation results.
 
     Raises:
-        RuntimeError: If TTK computation fails.
+        RuntimeError: If TTK computation fails or is unavailable.
     """
     import json
     import tempfile
 
-    ttk_python = get_ttk_python_path()
+    # Check TTK availability using centralized utilities
+    if not is_ttk_available():
+        from shared.ttk_utils import get_ttk_unavailable_message
+
+        raise RuntimeError(get_ttk_unavailable_message())
 
     # Create temporary files for script and output
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False
-    ) as script_file:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as script_file:
         script_file.write(TTK_COMPUTE_SCRIPT)
         script_path = Path(script_file.name)
 
     output_json = Path(tempfile.mktemp(suffix=".json"))
 
     try:
-        # Run TTK computation
-        cmd = [
-            str(ttk_python),
-            str(script_path),
+        # Prepare script arguments
+        args = [
             "--vtk-path",
             str(vtk_path),
             "--scalar-name",
@@ -769,22 +712,22 @@ def _run_ttk_subprocess(
             str(output_json),
         ]
 
-        logger.info(f"Running TTK computation: {' '.join(cmd[:3])}...")
+        logger.info("Running TTK Morse-Smale computation via subprocess...")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
+        # Use centralized TTK subprocess utility
+        returncode, stdout, stderr = run_ttk_subprocess(
+            str(script_path),
+            args=args,
             timeout=300,  # 5 minute timeout
         )
 
-        if result.returncode != 0:
+        if returncode != 0:
             raise RuntimeError(
-                f"TTK computation failed:\n{result.stderr}\n{result.stdout}"
+                f"TTK computation failed (exit code {returncode}):\n" f"stderr: {stderr}\n" f"stdout: {stdout}"
             )
 
         if not output_json.exists():
-            raise RuntimeError("TTK computation produced no output")
+            raise RuntimeError(f"TTK computation produced no output file.\n" f"stdout: {stdout}\n" f"stderr: {stderr}")
 
         with open(output_json) as f:
             return json.load(f)
@@ -844,9 +787,7 @@ def _run_ttk_native(
     ms_filter.SetThresholdIsAbsolute(True)
 
     # Compute
-    logger.info(
-        f"Computing Morse-Smale complex (persistence={persistence_threshold:.2%})..."
-    )
+    logger.info(f"Computing Morse-Smale complex (persistence={persistence_threshold:.2%})...")
     ms_filter.Update()
 
     # Extract results
@@ -982,6 +923,139 @@ def _parse_ttk_result(
     )
 
 
+# =============================================================================
+# TOPOLOGICAL SIMPLIFICATION
+# =============================================================================
+
+
+def simplify_scalar_field(
+    vtk_path: Path | str,
+    persistence_threshold: float,
+    scalar_name: str = "mobility",
+    output_path: Path | str | None = None,
+) -> Path:
+    """
+    Simplify a scalar field by removing low-persistence topological noise.
+
+    Uses TTK's topological simplification filter to remove critical point pairs
+    with persistence below the threshold, effectively denoising the scalar field
+    while preserving significant topological features.
+
+    Args:
+        vtk_path: Path to input VTK file containing scalar field
+        persistence_threshold: Persistence threshold as fraction of scalar range.
+            Features with persistence below this are removed.
+            Recommended starting value: 0.05 (5% of scalar range).
+            Range: 0.0 to 1.0.
+        scalar_name: Name of scalar field to simplify (default "mobility")
+        output_path: Optional path for simplified VTK file.
+            If None, creates temporary file with "_simplified" suffix.
+
+    Returns:
+        Path to simplified VTK file
+
+    Raises:
+        FileNotFoundError: If input VTK file doesn't exist
+        ValueError: If scalar field doesn't exist or threshold invalid
+        RuntimeError: If TTK simplification fails or TTK unavailable
+
+    Example:
+        >>> # Remove low-persistence noise before Morse-Smale extraction
+        >>> simplified = simplify_scalar_field(
+        ...     "mobility.vti",
+        ...     persistence_threshold=0.05,
+        ...     scalar_name="mobility"
+        ... )
+        >>> result = compute_morse_smale(simplified, persistence_threshold=0.0)
+
+    Notes:
+        Persistence Threshold Recommendations (from Task 6.5.1 findings):
+        - 5% (0.05): Good starting point, removes minor noise
+        - 1% (0.01): Conservative, preserves more features
+        - 10% (0.10): Aggressive, keeps only major features
+
+        The threshold is relative to the scalar range. For a field with
+        range [0.2, 0.8] (range=0.6), threshold=0.05 means absolute
+        threshold of 0.03.
+    """
+    import tempfile
+
+    vtk_path = Path(vtk_path)
+
+    if not vtk_path.exists():
+        raise FileNotFoundError(f"VTK file not found: {vtk_path}")
+
+    # Validate persistence threshold
+    if not 0.0 <= persistence_threshold <= 1.0:
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
+
+    # Check TTK availability
+    if not is_ttk_available():
+        from shared.ttk_utils import get_ttk_unavailable_message
+
+        raise RuntimeError(get_ttk_unavailable_message())
+
+    # Validate scalar field and get range
+    vtk_data = load_vtk_data(vtk_path)
+    scalar_min, scalar_max = validate_scalar_field(vtk_data, scalar_name)
+    scalar_range = scalar_max - scalar_min
+
+    if scalar_range <= 0:
+        raise ValueError(f"Invalid scalar range [{scalar_min}, {scalar_max}]. " "Cannot simplify constant field.")
+
+    # Compute absolute threshold
+    abs_threshold = persistence_threshold * scalar_range
+
+    # Prepare output path
+    if output_path is None:
+        # Create temporary file with same extension
+        suffix = vtk_path.suffix
+        with tempfile.NamedTemporaryFile(mode="w", suffix=f"_simplified{suffix}", delete=False) as tmp:
+            output_path = Path(tmp.name)
+    else:
+        output_path = Path(output_path)
+
+    # Get TTK simplification script path
+    script_path = Path(__file__).parent / "ttk_scripts" / "simplify_scalar_field.py"
+
+    if not script_path.exists():
+        raise FileNotFoundError(
+            f"TTK simplification script not found: {script_path}\n"
+            "Expected location: poverty_tda/topology/ttk_scripts/simplify_scalar_field.py"
+        )
+
+    # Prepare subprocess arguments
+    args = [
+        "--input",
+        str(vtk_path),
+        "--output",
+        str(output_path),
+        "--scalar-name",
+        scalar_name,
+        "--persistence-threshold",
+        str(abs_threshold),
+    ]
+
+    logger.info(
+        f"Simplifying scalar field '{scalar_name}' " f"(threshold={persistence_threshold:.2%} = {abs_threshold:.4f})..."
+    )
+
+    # Run TTK simplification via subprocess
+    returncode, stdout, stderr = run_ttk_subprocess(str(script_path), args=args, timeout=300)
+
+    if returncode != 0:
+        raise RuntimeError(
+            f"TTK simplification failed (exit code {returncode}):\n" f"stderr: {stderr}\n" f"stdout: {stdout}"
+        )
+
+    if not output_path.exists():
+        raise RuntimeError(f"TTK simplification produced no output file.\n" f"stdout: {stdout}\n" f"stderr: {stderr}")
+
+    logger.info(f"Scalar field simplified: {output_path}")
+
+    return output_path
+
+
 def compute_morse_smale(
     vtk_path: Path | str,
     scalar_name: str = "mobility",
@@ -989,6 +1063,8 @@ def compute_morse_smale(
     compute_ascending: bool = True,
     compute_descending: bool = True,
     compute_separatrices: bool = True,
+    simplify_first: bool = False,
+    simplification_threshold: float | None = None,
 ) -> MorseSmaleResult:
     """
     Compute Morse-Smale complex for a mobility surface.
@@ -1005,11 +1081,18 @@ def compute_morse_smale(
             Supports .vti (ImageData), .vts (StructuredGrid), .vtp (PolyData).
         scalar_name: Name of the scalar field to analyze (default "mobility").
         persistence_threshold: Persistence threshold as fraction of scalar range.
-            Features with persistence below this threshold are simplified.
-            Default 0.05 (5% of range). Range: 0.0 to 1.0.
+            Features with persistence below this threshold are simplified during
+            Morse-Smale computation. Default 0.05 (5% of range). Range: 0.0 to 1.0.
         compute_ascending: Whether to compute ascending manifolds.
         compute_descending: Whether to compute descending manifolds.
         compute_separatrices: Whether to compute 1-separatrices.
+        simplify_first: If True, apply topological simplification to the scalar
+            field before computing Morse-Smale complex. This removes low-persistence
+            topological noise, resulting in cleaner critical point extraction.
+        simplification_threshold: Persistence threshold for pre-simplification
+            (as fraction of scalar range). If None and simplify_first=True,
+            uses the same value as persistence_threshold. Typically set higher
+            than persistence_threshold for more aggressive noise removal.
 
     Returns:
         MorseSmaleResult containing:
@@ -1024,9 +1107,19 @@ def compute_morse_smale(
         RuntimeError: If TTK computation fails.
 
     Example:
+        >>> # Standard computation
         >>> result = compute_morse_smale("mobility.vti", persistence_threshold=0.05)
         >>> print(f"Found {result.n_maxima} maxima, {result.n_saddles} saddles")
         Found 12 maxima, 23 saddles
+
+        >>> # With pre-simplification for cleaner results
+        >>> result = compute_morse_smale(
+        ...     "mobility.vti",
+        ...     simplify_first=True,
+        ...     simplification_threshold=0.10,  # Remove more noise
+        ...     persistence_threshold=0.02       # Then finer MS computation
+        ... )
+        >>> print(f"Found {result.n_maxima} maxima (after noise removal)")
 
         >>> for cp in result.get_maxima():
         ...     print(f"Maximum at {cp.position[:2]}, value={cp.value:.3f}")
@@ -1038,16 +1131,34 @@ def compute_morse_smale(
 
     # Validate persistence threshold
     if not 0.0 <= persistence_threshold <= 1.0:
-        raise ValueError(
-            f"persistence_threshold must be in [0, 1], got {persistence_threshold}"
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
+
+    # Apply pre-simplification if requested
+    original_vtk_path = vtk_path
+    if simplify_first:
+        # Use simplification_threshold or fall back to persistence_threshold
+        simp_threshold = simplification_threshold if simplification_threshold is not None else persistence_threshold
+
+        if not 0.0 <= simp_threshold <= 1.0:
+            raise ValueError(f"simplification_threshold must be in [0, 1], got {simp_threshold}")
+
+        logger.info(
+            f"Pre-simplifying scalar field with threshold={simp_threshold:.2%} " f"before Morse-Smale computation"
         )
+
+        # Simplify the scalar field to remove topological noise
+        vtk_path = simplify_scalar_field(
+            vtk_path,
+            persistence_threshold=simp_threshold,
+            scalar_name=scalar_name,
+        )
+
+        logger.info("Using simplified field for Morse-Smale computation")
 
     # Validate scalar field exists (also loads data for quick check)
     vtk_data = load_vtk_data(vtk_path)
     scalar_min, scalar_max = validate_scalar_field(vtk_data, scalar_name)
-    logger.info(
-        f"Scalar field '{scalar_name}': range [{scalar_min:.4f}, {scalar_max:.4f}]"
-    )
+    logger.info(f"Scalar field '{scalar_name}': range [{scalar_min:.4f}, {scalar_max:.4f}]")
 
     # Choose computation method based on environment
     if HAS_TTK:
@@ -1073,6 +1184,21 @@ def compute_morse_smale(
 
     # Parse and return result
     result = _parse_ttk_result(raw_result)
+
+    # Add simplification metadata
+    if simplify_first:
+        result.metadata["simplified"] = True
+        result.metadata["simplification_threshold"] = (
+            simplification_threshold if simplification_threshold is not None else persistence_threshold
+        )
+
+        # Clean up temporary simplified file
+        if vtk_path != original_vtk_path:
+            try:
+                vtk_path.unlink(missing_ok=True)
+                logger.debug(f"Cleaned up temporary simplified file: {vtk_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary file {vtk_path}: {e}")
 
     logger.info(
         f"Morse-Smale complex: {result.n_minima} minima, "
@@ -1270,9 +1396,7 @@ def simplify_topology(
         >>> print(f"Removed {len(low_pers)} pairs")
     """
     if not 0.0 <= persistence_threshold <= 1.0:
-        raise ValueError(
-            f"persistence_threshold must be in [0, 1], got {persistence_threshold}"
-        )
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
 
     # If threshold is the same or lower, return original
     if persistence_threshold <= result.persistence_threshold:
@@ -1305,10 +1429,7 @@ def simplify_topology(
             kept_pairs.append(pair)
 
     # Log simplification details
-    logger.info(
-        f"Simplifying topology: threshold={persistence_threshold:.2%} "
-        f"(abs={abs_threshold:.4f})"
-    )
+    logger.info(f"Simplifying topology: threshold={persistence_threshold:.2%} " f"(abs={abs_threshold:.4f})")
     logger.info(f"Removing {len(removed_pairs)} pairs, keeping {len(kept_pairs)} pairs")
 
     if removed_pairs:
@@ -1331,16 +1452,11 @@ def simplify_topology(
             essential_points.add(cp.point_id)
 
     # Filter critical points - keep points that aren't paired with low-persistence
-    simplified_cps = [
-        cp for cp in result.critical_points if cp.point_id not in points_to_remove
-    ]
+    simplified_cps = [cp for cp in result.critical_points if cp.point_id not in points_to_remove]
 
     # Log results
     n_removed = len(result.critical_points) - len(simplified_cps)
-    logger.info(
-        f"Critical points: {len(result.critical_points)} -> {len(simplified_cps)} "
-        f"(removed {n_removed})"
-    )
+    logger.info(f"Critical points: {len(result.critical_points)} -> {len(simplified_cps)} " f"(removed {n_removed})")
 
     # Create simplified result
     simplified = MorseSmaleResult(
@@ -1361,6 +1477,77 @@ def simplify_topology(
     if return_pairs:
         return simplified, pairs
     return simplified
+
+
+def filter_by_persistence(
+    critical_points: list[CriticalPoint],
+    persistence_threshold: float,
+    scalar_range: tuple[float, float],
+) -> list[CriticalPoint]:
+    """
+    Filter critical points by persistence threshold.
+
+    Removes critical points that have persistence values (if available)
+    below the specified threshold. This is useful for post-processing
+    critical point lists to remove low-significance features.
+
+    Args:
+        critical_points: List of CriticalPoint objects to filter
+        persistence_threshold: Persistence threshold as fraction of scalar range.
+            Points with persistence below this are filtered out.
+        scalar_range: (min, max) tuple of the scalar field range
+
+    Returns:
+        Filtered list of CriticalPoint objects with persistence >= threshold
+
+    Example:
+        >>> result = compute_morse_smale("mobility.vti", persistence_threshold=0.0)
+        >>> # Post-filter critical points by persistence
+        >>> significant_points = filter_by_persistence(
+        ...     result.critical_points,
+        ...     persistence_threshold=0.05,
+        ...     scalar_range=result.scalar_range
+        ... )
+        >>> print(f"Filtered: {len(result.critical_points)} -> {len(significant_points)}")
+
+    Note:
+        This function only filters points that have persistence values set.
+        If a critical point has persistence=None, it is always kept (assumed
+        to be from non-persistence-aware extraction or an essential point).
+    """
+    if not 0.0 <= persistence_threshold <= 1.0:
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
+
+    # Compute absolute threshold
+    scalar_min, scalar_max = scalar_range
+    range_size = scalar_max - scalar_min
+
+    if range_size <= 0:
+        # Invalid range, return all points
+        logger.warning(f"Invalid scalar range {scalar_range}, returning all points")
+        return critical_points
+
+    abs_threshold = persistence_threshold * range_size
+
+    # Filter points
+    filtered = []
+    for cp in critical_points:
+        if cp.persistence is None:
+            # No persistence info, keep the point
+            filtered.append(cp)
+        elif cp.persistence >= abs_threshold:
+            # Persistence above threshold, keep it
+            filtered.append(cp)
+        # else: persistence below threshold, filter it out
+
+    n_removed = len(critical_points) - len(filtered)
+    if n_removed > 0:
+        logger.info(
+            f"Filtered {n_removed} critical points below persistence "
+            f"threshold {persistence_threshold:.2%} (abs={abs_threshold:.4f})"
+        )
+
+    return filtered
 
 
 def get_persistence_diagram(

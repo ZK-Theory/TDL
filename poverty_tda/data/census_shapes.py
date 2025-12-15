@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 # This is the recommended version for analysis - balance of detail and performance
 _LSOA_2021_GEOJSON_URL = (
     "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/"
-    "LSOA_Dec_2021_Boundaries_Generalised_Clipped_EW_BGC_2022/FeatureServer/0/"
-    "query?where=1%3D1&outFields=*&outSR=27700&f=geojson"
+    "LSOA21_RUC21_EW_LU/FeatureServer/0/"
+    "query?where=1%3D1&outFields=*&outSR=4326&f=geojson"
 )
 
 # Alternative: Full resolution boundaries (larger file, more detail)
@@ -47,6 +47,9 @@ EXPECTED_LSOA_COUNT_2021 = 33755
 
 # Default data directory relative to this module
 DEFAULT_DATA_DIR = Path(__file__).parent / "raw" / "boundaries" / "lsoa_2021"
+
+# Default filename for downloaded LSOA boundaries
+DEFAULT_LSOA_FILENAME = "lsoa_2021_boundaries.geojson"
 
 # Coordinate Reference Systems
 CRS_BRITISH_NATIONAL_GRID = "EPSG:27700"
@@ -90,9 +93,7 @@ def download_lsoa_boundaries(
         PosixPath('.../lsoa_2021/lsoa_2021_bgc.geojson')
     """
     if year != 2021:
-        raise ValueError(
-            f"Year {year} not supported. Currently only 2021 boundaries are available."
-        )
+        raise ValueError(f"Year {year} not supported. Currently only 2021 boundaries are available.")
 
     if output_dir is None:
         output_dir = DEFAULT_DATA_DIR
@@ -103,10 +104,10 @@ def download_lsoa_boundaries(
     # Select URL based on resolution
     if resolution == "generalised":
         url = _LSOA_2021_GEOJSON_URL
-        filename = f"lsoa_{year}_bgc.geojson"
+        filename = "lsoa_2021_boundaries.geojson"
     else:
         url = _LSOA_2021_FULL_GEOJSON_URL
-        filename = f"lsoa_{year}_bfc.geojson"
+        filename = "lsoa_2021_boundaries_full.geojson"
 
     output_path = output_dir / filename
 
@@ -143,9 +144,7 @@ def download_lsoa_boundaries(
             if "features" not in data and "type" not in data:
                 raise ValueError("Downloaded file missing required GeoJSON structure")
 
-            logger.info(
-                f"Validated GeoJSON file: {len(data.get('features', []))} features"
-            )
+            logger.info(f"Validated GeoJSON file: {len(data.get('features', []))} features")
 
         except json.JSONDecodeError as json_err:
             logger.error(f"Downloaded file is not valid JSON: {json_err}")
@@ -205,7 +204,7 @@ def load_lsoa_boundaries(
         EPSG:27700
     """
     if filepath is None:
-        default_path = DEFAULT_DATA_DIR / "lsoa_2021_bgc.geojson"
+        default_path = DEFAULT_DATA_DIR / "lsoa_2021_boundaries.geojson"
 
         if not default_path.exists():
             if download_if_missing:
@@ -230,10 +229,7 @@ def load_lsoa_boundaries(
     except Exception as e:
         # If pyogrio fails on GeoJSON, try alternative approaches
         if engine == "pyogrio" and str(filepath).endswith(".geojson"):
-            logger.warning(
-                f"pyogrio failed to read GeoJSON ({e}), "
-                "attempting alternative loading strategies"
-            )
+            logger.warning(f"pyogrio failed to read GeoJSON ({e}), " "attempting alternative loading strategies")
 
             # Try reading as JSON and reconstructing
             try:
@@ -318,8 +314,7 @@ def _validate_lsoa_columns(gdf: gpd.GeoDataFrame) -> None:
             gdf.rename(columns=rename_map, inplace=True)
         else:
             raise ValueError(
-                f"GeoDataFrame missing required LSOA columns. "
-                f"Expected {required_cols}, found {set(gdf.columns)}"
+                f"GeoDataFrame missing required LSOA columns. " f"Expected {required_cols}, found {set(gdf.columns)}"
             )
 
 

@@ -1,0 +1,14 @@
+line-length = 120
+
+[lint.per-file-ignores]
+# Dashboard files - allow imports after try/except blocks
+"**/viz/streamlit_app.py" = ["E402"]
+"**/viz/dashboard.py" = ["E402"]
+"**/viz/test_*.py" = ["E402"]
+"**/viz/paraview_states/*.py" = ["F403", "F405", "F401"]
+"**/viz/paraview_scripts/*.py" = ["E402", "F403", "F405", "F401"]
+"**/models/__init__.py" = ["F401"]  # Module exports
+"**/topology/filtration.py" = ["F841"]  # TTK variables
+"**/ttk_scripts/*.py" = ["F401"]  # TTK imports
+"tests/shared/ttk_*.py" = ["F841"]  # TTK tests
+"docs/notebooks/*.ipynb" = ["E402"]  # Notebooks

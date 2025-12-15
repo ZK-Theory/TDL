@@ -31,13 +31,15 @@ from poverty_tda.topology.morse_smale import (
     compute_persistence_pairs,
     get_persistence_diagram,
     get_scalar_array,
-    get_ttk_python_path,
     load_vtk_data,
     simplify_topology,
     suggest_persistence_threshold,
     validate_scalar_field,
     vtk_to_numpy_points,
 )
+
+# Import centralized TTK utilities
+from shared.ttk_utils import is_ttk_available
 
 # Check if pyvista is available
 try:
@@ -47,7 +49,9 @@ try:
 except ImportError:
     HAS_PYVISTA = False
 
-# Check if TTK environment is available
+# Check if TTK environment is available via centralized utilities
+HAS_TTK = is_ttk_available()
+TTK_AVAILABLE = check_ttk_environment()
 TTK_AVAILABLE = check_ttk_environment()
 
 
@@ -389,16 +393,23 @@ class TestTTKEnvironment:
         assert isinstance(result, bool)
 
     def test_check_ttk_environment(self) -> None:
-        """Test TTK environment check."""
+        """Test TTK environment check (uses centralized utilities)."""
         result = check_ttk_environment()
         assert isinstance(result, bool)
+        # Should match centralized is_ttk_available()
+        from shared.ttk_utils import is_ttk_available
+
+        assert result == is_ttk_available()
 
     @pytest.mark.skipif(not TTK_AVAILABLE, reason="TTK environment not available")
-    def test_get_ttk_python_path(self) -> None:
-        """Test getting TTK Python path."""
-        path = get_ttk_python_path()
-        assert path.exists()
-        assert path.suffix == ".exe" or path.name == "python"
+    def test_ttk_backend_info(self) -> None:
+        """Test getting TTK backend information via centralized utilities."""
+        from shared.ttk_utils import get_ttk_backend
+
+        backend = get_ttk_backend()
+        assert backend["available"] is True
+        assert backend["backend"] == "conda_subprocess"
+        assert backend["python_path"] is not None
 
 
 # =============================================================================
@@ -461,9 +472,7 @@ class TestMorseSmaleComputation:
         assert len(saddles) >= 1
 
         # Find saddle closest to origin
-        center_saddle = min(
-            saddles, key=lambda s: s.position[0] ** 2 + s.position[1] ** 2
-        )
+        center_saddle = min(saddles, key=lambda s: s.position[0] ** 2 + s.position[1] ** 2)
 
         # Saddle should be near origin
         assert abs(center_saddle.position[0]) < 1.0
@@ -472,9 +481,7 @@ class TestMorseSmaleComputation:
         # Saddle value should be near 0
         assert abs(center_saddle.value) < 1.0
 
-    def test_persistence_threshold_reduces_features(
-        self, gaussian_vtk_path: Path
-    ) -> None:
+    def test_persistence_threshold_reduces_features(self, gaussian_vtk_path: Path) -> None:
         """Test that higher persistence threshold reduces critical points."""
         result_low = compute_morse_smale(
             gaussian_vtk_path,
@@ -541,9 +548,7 @@ class TestMorseSmaleComputation:
                 scalar_name="nonexistent",
             )
 
-    def test_invalid_persistence_threshold_raises(
-        self, gaussian_vtk_path: Path
-    ) -> None:
+    def test_invalid_persistence_threshold_raises(self, gaussian_vtk_path: Path) -> None:
         """Test that invalid persistence threshold raises ValueError."""
         with pytest.raises(ValueError, match="must be in"):
             compute_morse_smale(
@@ -567,9 +572,7 @@ class TestMorseSmaleComputation:
 class TestTopologicalSimplification:
     """Tests for topological simplification functions."""
 
-    def test_simplify_reduces_critical_points(
-        self, two_gaussians_vtk_path: Path
-    ) -> None:
+    def test_simplify_reduces_critical_points(self, two_gaussians_vtk_path: Path) -> None:
         """Test that simplification reduces critical points."""
         result = compute_morse_smale(
             two_gaussians_vtk_path,
@@ -584,9 +587,7 @@ class TestTopologicalSimplification:
         # Should have fewer critical points
         assert len(simplified.critical_points) < original_count
 
-    def test_simplify_preserves_main_features(
-        self, two_gaussians_vtk_path: Path
-    ) -> None:
+    def test_simplify_preserves_main_features(self, two_gaussians_vtk_path: Path) -> None:
         """Test that simplification preserves main features."""
         result = compute_morse_smale(
             two_gaussians_vtk_path,
@@ -611,17 +612,13 @@ class TestTopologicalSimplification:
             persistence_threshold=0.0,
         )
 
-        simplified, pairs = simplify_topology(
-            result, persistence_threshold=0.05, return_pairs=True
-        )
+        simplified, pairs = simplify_topology(result, persistence_threshold=0.05, return_pairs=True)
 
         assert isinstance(simplified, MorseSmaleResult)
         assert isinstance(pairs, list)
         assert all(isinstance(p, PersistencePair) for p in pairs)
 
-    def test_simplify_same_threshold_returns_original(
-        self, gaussian_vtk_path: Path
-    ) -> None:
+    def test_simplify_same_threshold_returns_original(self, gaussian_vtk_path: Path) -> None:
         """Test that same/lower threshold returns original."""
         result = compute_morse_smale(
             gaussian_vtk_path,
@@ -634,9 +631,7 @@ class TestTopologicalSimplification:
         # Should return original (same threshold)
         assert len(simplified.critical_points) == len(result.critical_points)
 
-    def test_simplify_updates_persistence_threshold(
-        self, gaussian_vtk_path: Path
-    ) -> None:
+    def test_simplify_updates_persistence_threshold(self, gaussian_vtk_path: Path) -> None:
         """Test that simplified result has updated persistence threshold."""
         result = compute_morse_smale(
             gaussian_vtk_path,
@@ -683,9 +678,7 @@ class TestPersistenceAnalysis:
         assert len(pairs) > 0
         assert all(isinstance(p, PersistencePair) for p in pairs)
 
-    def test_persistence_pairs_sorted_by_persistence(
-        self, gaussian_vtk_path: Path
-    ) -> None:
+    def test_persistence_pairs_sorted_by_persistence(self, gaussian_vtk_path: Path) -> None:
         """Test that pairs are sorted by persistence (ascending)."""
         result = compute_morse_smale(
             gaussian_vtk_path,
@@ -779,9 +772,7 @@ class TestPersistenceAnalysis:
             threshold = suggest_persistence_threshold(result, target_features=2)
             assert threshold > 0.0
 
-    def test_suggest_threshold_invalid_method_raises(
-        self, gaussian_vtk_path: Path
-    ) -> None:
+    def test_suggest_threshold_invalid_method_raises(self, gaussian_vtk_path: Path) -> None:
         """Test that invalid method raises ValueError."""
         result = compute_morse_smale(
             gaussian_vtk_path,

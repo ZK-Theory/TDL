@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_5 - **PHASE 4 COMPLETE** (5/5 tasks). Financial: RegimeClassifier, ChangePointDetector, BacktestEngine. Poverty: InterventionPrioritizer, CounterfactualAnalyzer. 212 new tests.
+**Last Modification:** Manager_7 - **PHASE 6 COMPLETE** (6/6 tasks). Phase 6.5 TTK Integration in progress (Task 6.5.1 assigned to Agent_Foundation).
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay).
 
 
@@ -363,10 +363,11 @@
 
 ## Phase 5: Deep Learning Integration
 
-### Task 5.1 – Perslay/PersFormer Integration - Financial - Agent_Financial_ML
+### Task 5.1 – Perslay/PersFormer Integration - Financial - Agent_Financial_ML ✅
 **Objective:** Integrate Perslay or PersFormer for learning on persistence diagrams.
 **Output:** DL model for persistence diagram sequence prediction.
 **Guidance:** Use PyTorch (consistent with other DL tasks). Reference TopoModelX docs at C:\Projects\TopoModelX\docs. Base implementation on giotto-tda's neural network utilities or PyTorch Geometric TopologyNet. Hyperparameters: start with hidden_dim=64, num_layers=2, learning_rate=1e-3. **CHECKPOINT** for architecture decisions. **Depends on: Tasks 3.1, 3.2, 3.3 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - Perslay (DeepSet) + LSTM/Transformer architecture. persistence_layers.py (496 lines), tda_neural.py (1050+ lines), 24 tests (23 unit + 1 integration). Architecture: Perslay selected over PersFormer for O(n) efficiency. Temporal splitting prevents future leakage. 86-90% code coverage.
 
 1. Ad-Hoc Delegation – Research Perslay/PersFormer architectures in TopoModelX and giotto-tda
 2. Implement persistence diagram vectorization layer (PyTorch)
@@ -374,10 +375,11 @@
 4. Add training loop with proper validation methodology and early stopping
 5. **CHECKPOINT**: Document architecture decisions for user review
 
-### Task 5.2 – GNN on Rips Complex - Financial [CHECKPOINT] - Agent_Financial_ML
+### Task 5.2 – GNN on Rips Complex - Financial [CHECKPOINT] - Agent_Financial_ML ✅
 **Objective:** Implement GNN learning edge weights for regime discrimination.
 **Output:** GNN module with Rips complex input.
 **Guidance:** Use PyTorch Geometric. Graph construction: nodes = points in embedding, edges = Rips complex edges at fixed filtration value (choose 90th percentile of pairwise distances). Architecture options: GCN (simpler), GAT (attention-based), GraphSAGE (sampling-based). **CHECKPOINT** for architecture selection. **Depends on: Task 2.2 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - 3 architectures (GCN, GAT, GraphSAGE). rips_gnn.py (856 lines), 30 tests (91% coverage). GAT: 98%±4% accuracy (primary). GraphSAGE: 7x faster (real-time). RipsGNN +33% over Perslay. Temporal splitting prevents leakage.
 
 1. Create Rips complex to PyTorch Geometric graph conversion (nodes from embedding, edges from filtration)
 2. Implement GNN architecture options (GCN, GAT, GraphSAGE) using PyTorch Geometric
@@ -386,20 +388,22 @@
 5. Create training pipeline with regime labels
 6. Create tests validating graph construction and forward pass
 
-### Task 5.3 – Autoencoder Anomaly Detection - Financial - Agent_Financial_ML
+### Task 5.3 – Autoencoder Anomaly Detection - Financial - Agent_Financial_ML ✅
 **Objective:** Implement autoencoder on persistence images for anomaly detection.
 **Output:** Autoencoder module with anomaly scoring.
 **Guidance:** Train on "normal" periods: 2004-2007 (pre-GFC), 2013-2019 (post-recovery, excluding Aug 2015). Reconstruction error for anomaly: threshold at 95th percentile of training error. CNN architecture: encoder 3 conv layers with pooling, symmetric decoder. **Depends on: Task 3.2 Output by Agent_Financial_Topology**
+**Completed:** Agent_Financial_ML - PersistenceAutoencoder (CNN, 32D latent), persistence_autoencoder.py (1055 lines), 37 tests (94% coverage). TPR 100% on crisis periods (2008 GFC, 2020 COVID, 2022 crypto). Lead time: 14 days early warning. Threshold at 95th percentile.
 
 1. Implement CNN autoencoder for persistence images (3-layer encoder/decoder)
 2. Train on "normal" market period data (2004-2007, 2013-2019 excluding Aug 2015)
 3. Implement reconstruction error anomaly scoring (threshold at 95th percentile)
 4. Validate anomaly detection on crisis periods (2008, 2020, 2022)
 
-### Task 5.4 – GNN for Census Tracts - Poverty - Agent_Poverty_ML
+### Task 5.4 – GNN for Census Tracts - Poverty - Agent_Poverty_ML ✅
 **Objective:** Implement GNN with LSOAs as nodes for mobility prediction.
 **Output:** GNN module for spatial poverty analysis.
 **Guidance:** Use PyTorch Geometric. LSOA adjacency from shared boundaries (queen contiguity). Commuting data source: Census 2021 Origin-Destination data from NOMIS (WU03UK table) if available; fallback to geographic distance as edge weight. **Depends on: Task 1.5 Output by Agent_Poverty_Data**
+**Completed:** Agent_Poverty_ML - SpatialGNN with GraphSAGE layers, spatial_gnn.py (992 lines), 52 tests (94% coverage). Queen/rook contiguity via libpysal. Spatial splitting prevents geographic leakage. Dependencies: torch, torch-geometric, libpysal.
 
 1. Create LSOA adjacency graph from boundary data (queen contiguity)
 2. Add edge features (commuting flows from Census OD data if available, else geographic distance)
@@ -407,20 +411,22 @@
 4. Add message passing layers appropriate for spatial data (GraphSAGE recommended for large graphs)
 5. Create training pipeline with mobility proxy labels
 
-### Task 5.5 – Spatial Transformer Network - Poverty - Agent_Poverty_ML
+### Task 5.5 – Spatial Transformer Network - Poverty - Agent_Poverty_ML ✅
 **Objective:** Implement spatial transformer for attention over regions.
 **Output:** Spatial attention module with visualization.
 **Guidance:** Interpretable attention patterns. **Depends on: Task 2.4 Output by Agent_Poverty_Topology**
+**Completed:** Agent_Poverty_ML - SpatialTransformerSTN + AttentionSpatialTransformer (patch-based), MobilitySurfaceModel, training pipeline with spatial regularization. spatial_transformer.py (1031 lines), 34 tests (32 pass, 2 skipped for dynamic positional encoding), 91% coverage. Visualization utilities for policy interpretation.
 
 1. Implement spatial transformer architecture for gridded mobility surface
 2. Add attention visualization for interpretability
 3. Train on mobility prediction task
 4. Analyze learned attention patterns for insight extraction
 
-### Task 5.6 – VAE for Opportunity Landscapes [CHECKPOINT] - Agent_Poverty_ML
+### Task 5.6 – VAE for Opportunity Landscapes [CHECKPOINT] - Agent_Poverty_ML ✅
 **Objective:** Implement VAE for latent space of opportunity landscapes.
 **Output:** VAE with counterfactual generation capability.
 **Guidance:** **CRITICAL CHECKPOINT** - Latent space interpretability is key for policy insights. Topology-aware loss optional but valuable: reference "Topology-Preserving Deep Image Segmentation" (Hu et al. 2019) for Betti number regularization approach. Latent dim: start with 8-16 dimensions. **Depends on: Task 2.4 Output by Agent_Poverty_Topology**
+**Completed:** Agent_Poverty_ML - OpportunityVAE (12D latent), β-VAE support, latent space analysis. opportunity_vae.py (1166 lines), 31 tests (87% coverage). Key interpretable dimensions: D11 (opportunity gradient r=-0.71 urban), D2 (spatial heterogeneity), D7 (deprivation). Counterfactual generation validated.
 
 1. Implement VAE architecture for mobility surface encoding (latent_dim=8-16)
 2. Train on regional mobility surfaces
@@ -494,6 +500,59 @@
 3. Add demographic breakdown per basin (IMD decile distribution, education levels)
 4. Enable cross-region comparison (after single-region implementation validated)
 5. **VISUAL CHECK**: Deploy locally for user review
+
+
+## Phase 6.5: TTK Integration
+
+### Task 6.5.1 – TTK Installation & Environment Setup - Agent_Foundation
+**Objective:** Install Topology ToolKit (TTK) with ParaView integration and resolve VTK version conflicts.
+**Output:** Working TTK installation accessible from both ParaView and Python, environment documentation.
+**Guidance:** TTK requires specific VTK version compatibility. Current project uses VTK 9.5.2, TTK may require different version. Consider conda environment isolation or ParaView-bundled TTK. Verify both pvpython and Python bindings work. Document installation steps for reproducibility.
+
+1. Research TTK installation options: pre-built ParaView+TTK vs building from source vs conda
+2. Resolve VTK version conflict (project VTK 9.5.2 vs TTK requirements)
+3. Install TTK with ParaView plugin and Python bindings
+4. Verify TTK filters available in pvpython: `TTKPersistenceDiagram`, `TTKBottleneckDistance`, `TTKMorseSmaleComplex`
+5. Create `shared/ttk_utils.py` with availability detection and fallback logic
+6. Document installation in `docs/TTK_SETUP.md`
+
+### Task 6.5.2 – Financial TDA TTK Hybrid Implementation - Agent_Financial_Topology
+**Objective:** Create hybrid persistence computation using TTK with GUDHI fallback for financial TDA.
+**Output:** Updated `financial_tda/topology/filtration.py` with TTK integration and bottleneck distance computation.
+**Guidance:** TTK provides 5-10× speedup for large point clouds (>1000 points). Implement graceful fallback to GUDHI when TTK unavailable. Add bottleneck/Wasserstein distance for quantitative regime comparison. **Depends on: Task 6.5.1 Output**
+
+1. Update `financial_tda/topology/filtration.py` with TTK persistence computation option
+2. Implement `compute_persistence_ttk()` using TTKPersistenceDiagram filter
+3. Add `compute_bottleneck_distance()` using TTKBottleneckDistance for regime comparison
+4. Create hybrid `compute_persistence()` that auto-selects backend based on availability and dataset size
+5. Update tests to validate TTK vs GUDHI consistency
+6. Benchmark performance: TTK vs GUDHI on various dataset sizes
+
+### Task 6.5.3 – Poverty TDA TTK Direct Integration - Agent_Poverty_Topology
+**Objective:** Replace TTK subprocess calls with direct Python API integration for poverty TDA.
+**Output:** Updated `poverty_tda/topology/morse_smale.py` with direct TTK integration.
+**Guidance:** Current implementation uses TTK via subprocess due to VTK version isolation. With unified environment, use direct TTK Python API for better performance and error handling. Enhance critical point extraction with persistence-based filtering. **Depends on: Task 6.5.1 Output**
+
+1. Update `poverty_tda/topology/morse_smale.py` to use direct TTK Python API
+2. Replace subprocess calls with `TTKMorseSmaleComplex` filter
+3. Implement `TTKTopologicalSimplification` for noise removal
+4. Add persistence-based critical point filtering (threshold parameter)
+5. Update `poverty_tda/analysis/critical_points.py` to use enhanced TTK output
+6. Benchmark: direct API vs subprocess performance comparison
+
+### Task 6.5.4 – TTK Visualization Utilities - Agent_Financial_Viz
+**Objective:** Create TTK-based interactive visualization utilities for both tracks.
+**Output:** TTK visualization module with interactive ParaView state files and persistence curve generation.
+**Guidance:** TTK provides native ParaView visualization for persistence diagrams, Morse-Smale complexes. Create reusable state files (.pvsm) for interactive exploration. Add persistence curve generation for publication figures. **Depends on: Tasks 6.5.2, 6.5.3 Output**
+
+1. Create `shared/ttk_visualization.py` with TTK-based plotting utilities
+2. Implement `create_persistence_diagram_view()` using TTK native rendering
+3. Implement `create_persistence_curve()` for comparative analysis
+4. Create interactive ParaView state files for:
+   - Financial: regime comparison with bottleneck distance display
+   - Poverty: Morse-Smale complex with basin coloring
+5. Add `export_publication_figures()` for high-quality static exports
+6. Update visualization READMEs with TTK usage instructions
 
 
 ## Phase 7: Validation & Backtesting

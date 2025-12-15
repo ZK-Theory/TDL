@@ -172,3 +172,69 @@
 - [AdHoc_External_API_Test_Fixes.md](.apm/Memory/Phase_04/AdHoc_External_API_Test_Fixes.md)
 - [AdHoc_CI_Linting_Fixes.md](.apm/Memory/Phase_04/AdHoc_CI_Linting_Fixes.md)
 
+---
+
+## Phase 05 – Deep Learning Integration Summary
+
+**Outcome:** Successfully implemented complete deep learning integration for both Financial and Poverty TDA projects. All 6 tasks completed with 3 architecture checkpoints validated. Total 206 new tests added (91 Financial, 115 Poverty), all passing on `feature/phase-5-deep-learning` branch.
+
+**Financial TDA Deep Learning (Tasks 5.1–5.3):**
+- **Perslay Integration (5.1):** DeepSet architecture with LSTM/Transformer temporal models in `persistence_layers.py` (496 lines) and `tda_neural.py` (1050+ lines). Perslay selected over PersFormer for O(n) efficiency. 24 tests, 86-90% coverage.
+- **RipsGNN (5.2):** 3 GNN architectures (GCN, GAT, GraphSAGE) in `rips_gnn.py` (856 lines). GAT primary: 98%±4% accuracy. GraphSAGE 7x faster for real-time. RipsGNN +33% over Perslay baseline. 30 tests, 91% coverage.
+- **Autoencoder Anomaly Detection (5.3):** CNN autoencoder (32D latent) in `persistence_autoencoder.py` (1055 lines). 100% TPR on crisis periods (2008 GFC, 2020 COVID, 2022 crypto). 14-day early warning lead time. 37 tests, 94% coverage.
+
+**Poverty TDA Deep Learning (Tasks 5.4–5.6):**
+- **SpatialGNN (5.4):** GraphSAGE-based GNN for LSOA mobility prediction in `spatial_gnn.py` (992 lines). Queen/rook contiguity via libpysal. Spatial splitting prevents geographic leakage. 52 tests, 94% coverage.
+- **Spatial Transformer (5.5):** Patch-based attention architecture in `spatial_transformer.py` (1031 lines). Attention visualization utilities for policy interpretation. 32 tests (2 skipped), 91% coverage.
+- **Opportunity VAE (5.6):** β-VAE with 12D interpretable latent space in `opportunity_vae.py` (1166 lines). Key dimensions: D11 (opportunity gradient r=-0.71 urban), D2 (spatial heterogeneity), D7 (deprivation). Counterfactual generation validated. 31 tests, 87% coverage.
+
+**Key Technical Decisions:**
+1. Perslay (DeepSet) over PersFormer for computational efficiency
+2. GAT architecture primary for regime detection; GraphSAGE for real-time applications
+3. 12D VAE latent space interpretable for policy insights
+4. Temporal/spatial splitting prevents data leakage in all models
+
+**Dependencies Added:** torch, torch-geometric, libpysal
+
+**Agents Involved:** Agent_Financial_ML, Agent_Poverty_ML
+
+**Task Logs:**
+- [Task_5_1_Perslay_Integration.md](.apm/Memory/Phase_05_Deep_Learning/Task_5_1_Perslay_Integration.md) **[CHECKPOINT]**
+- [Task_5_2_GNN_Rips_Complex.md](.apm/Memory/Phase_05_Deep_Learning/Task_5_2_GNN_Rips_Complex.md) **[CHECKPOINT]**
+- [Task_5_3_Autoencoder_Anomaly_Detection.md](.apm/Memory/Phase_05_Deep_Learning/Task_5_3_Autoencoder_Anomaly_Detection.md)
+- [Task_5_4_GNN_Census_Tracts.md](.apm/Memory/Phase_05_Deep_Learning/Task_5_4_GNN_Census_Tracts.md)
+- [Task_5_5_Spatial_Transformer.md](.apm/Memory/Phase_05_Deep_Learning/Task_5_5_Spatial_Transformer.md)
+- [Task_5_6_VAE_Opportunity_Landscapes.md](.apm/Memory/Phase_05_Deep_Learning/Task_5_6_VAE_Opportunity_Landscapes.md) **[CHECKPOINT]**
+---
+
+## Phase 06 – Visualization & Dashboards Summary
+
+**Outcome:** Successfully implemented complete visualization and dashboard systems for both Financial and Poverty TDA projects. All 6 tasks completed with production-ready interactive dashboards. Total ~5,000+ lines of visualization code across Streamlit, Folium, ParaView, and PyVista.
+
+**Financial TDA Visualization (Tasks 6.1–6.3):**
+- **Streamlit Dashboard (6.1):** Full 4-step pipeline in `streamlit_app.py` (1,595 lines initial). Data loading, persistence diagrams, regime detection, anomaly detection. **Critical PyTorch DLL fix** documented for Windows compatibility (must import torch before project modules).
+- **ParaView Regime Comparison (6.2):** Dual-backend (PyVista + ParaView) in `regime_compare.py`. Crisis vs normal Rips complex side-by-side, persistence overlay, filtration animation GIF. Key finding: Crisis shows 6× higher H₀ persistence (1.49 vs 0.24).
+- **Real-time Monitoring (6.3):** Added 1,111 lines to streamlit_app.py (total 2,848 lines). Live Betti curves with trend indicators, bottleneck distance monitoring via gudhi, configurable alert thresholds (2-5σ), historical crisis replay (2008 GFC, 2020 COVID, 2022).
+
+**Poverty TDA Visualization (Tasks 6.4–6.6):**
+- **Interactive Map (6.4):** Folium-based `maps.py` (741 lines). LSOA choropleth with 35,672 boundaries, basin overlays, critical point markers (trap/barrier/peak), escape pathway arrows. Layer toggle controls.
+- **ParaView 3D Terrain (6.5):** Dual scripts `terrain_3d.py` (PyVista) + `terrain_3d_paraview.py`. Height=mobility, color=basin, persistence-scaled critical point glyphs. 13 PNG renders + .pvsm state file.
+- **Basin Dashboard (6.6):** Streamlit `dashboard.py` (1,100+ lines). 10 UK regions, basin multi-select, statistics cards (population, mobility, trap score), demographic breakdown (IMD deciles, domain scores), integrated Folium map + 3D terrain preview.
+
+**Key Technical Achievements:**
+1. **PyTorch DLL Fix Pattern**: `os.add_dll_directory()` + early torch import before project modules (Windows Python 3.8+)
+2. **Dual-backend rendering**: PyVista (fallback) + ParaView (GPU-accelerated) for maximum compatibility
+3. **Real-time bottleneck distance**: Using gudhi for proper mathematical computation on variable-length diagrams
+4. **Cross-platform map embedding**: streamlit-folium for Folium maps in Streamlit dashboards
+
+**Dependencies Added:** streamlit, plotly, folium, streamlit-folium, pyvista
+
+**Agents Involved:** Agent_Financial_Viz, Agent_Poverty_Viz
+
+**Task Logs:**
+- [Task_6_1_Streamlit_Dashboard_Financial.md](.apm/Memory/Phase_06_Visualization/Task_6_1_Streamlit_Dashboard_Financial.md)
+- [Task_6_2_ParaView_Regime_Comparison.md](.apm/Memory/Phase_06_Visualization/Task_6_2_ParaView_Regime_Comparison.md)
+- [Task_6_3_Realtime_Monitoring.md](.apm/Memory/Phase_06_Visualization/Task_6_3_Realtime_Monitoring.md)
+- [Task_6_4_Interactive_Map_Poverty.md](.apm/Memory/Phase_06_Visualization/Task_6_4_Interactive_Map_Poverty.md)
+- [Task_6_5_ParaView_3D_Terrain.md](.apm/Memory/Phase_06_Visualization/Task_6_5_ParaView_3D_Terrain.md)
+- [Task_6_6_Basin_Dashboard.md](.apm/Memory/Phase_06_Visualization/Task_6_6_Basin_Dashboard.md)
