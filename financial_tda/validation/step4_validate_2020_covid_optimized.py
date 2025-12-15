@@ -43,16 +43,17 @@ def create_gk_visualization(
     """Create comprehensive G&K visualization."""
     crisis_date = pd.to_datetime(result["crisis_date"])
 
-    # Ensure consistent timezone handling - remove all timezones
-    if hasattr(norms_df.index, "tz") and norms_df.index.tz is not None:
-        norms_df = norms_df.copy()
-        norms_df.index = norms_df.index.tz_localize(None)
-    if crisis_date.tz is not None:
-        crisis_date = crisis_date.tz_localize(None)
+    # Handle timezone (standardized with step2/step3)
+    if norms_df.index.tz is not None and crisis_date.tz is None:
+        crisis_date = crisis_date.tz_localize(norms_df.index.tz)
 
     # Extract pre-crisis window
     window_start = pd.to_datetime(result["window_start"])
     window_end = pd.to_datetime(result["window_end"])
+
+    if norms_df.index.tz is not None:
+        window_start = window_start.tz_localize(norms_df.index.tz)
+        window_end = window_end.tz_localize(norms_df.index.tz)
 
     window_mask = (norms_df.index >= window_start) & (norms_df.index <= window_end)
     norms_window = norms_df[window_mask]
