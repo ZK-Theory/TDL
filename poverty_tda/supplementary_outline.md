@@ -86,7 +86,8 @@ This document outlines the supplementary materials to accompany the main manuscr
    - Runtime breakdown: Interpolation 45s, TTK 520s, post-processing 85s
 
 2. **Reproducibility Checklist**
-   - Software versions: Python 3.10.8, TTK 1.2.0, VTK 9.2.6, SciPy 1.10.1
+   - Software versions: Python 3.11, TTK 1.3.0, VTK 9.3.20240617, SciPy 1.10.1
+     - *Confirmed in: `.apm/Memory/Memory_Root.md` (Phase 06.5 TTK Integration, Task 6.5.1)*
    - Operating system: Ubuntu 22.04 LTS, Windows 11, macOS 13 (all tested)
    - Random seed specifications (none required—deterministic pipeline)
    - Data checksums for IMD 2019 and LSOA boundaries files

@@ -57,7 +57,7 @@ def create_gk_visualization(
 
     window_mask = (norms_df.index >= window_start) & (norms_df.index <= window_end)
     norms_window = norms_df[window_mask]
-    stats_window = stats_df.loc[norms_window.index]
+    stats_window = stats_df.reindex(norms_window.index)
 
     # Create 4-panel figure
     fig, axes = plt.subplots(4, 1, figsize=(16, 14))

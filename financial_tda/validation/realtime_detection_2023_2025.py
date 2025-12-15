@@ -14,6 +14,7 @@ This script:
 6. Generates comprehensive visualizations and report
 """
 
+import logging
 import os
 from datetime import datetime
 
@@ -26,7 +27,6 @@ import pandas as pd
 import seaborn as sns
 from scipy.stats import kendalltau, theilslopes
 
-# Add project root to path
 from financial_tda.data.fetchers.yahoo import fetch_ticker
 from financial_tda.validation.gidea_katz_replication import (
     compute_persistence_landscape_norms,
@@ -36,6 +36,9 @@ from financial_tda.validation.trend_analysis_validator import (
     compute_gk_rolling_statistics,
     load_lp_norms_from_csv,
 )
+
+# Initialize logging
+logger = logging.getLogger(__name__)
 
 # Set style
 sns.set_style("whitegrid")
@@ -129,12 +132,12 @@ def step2_rolling_window_analysis(norms_df):
     print(f"Total iterations: {total_iterations}\n")
 
     for rolling_win in rolling_windows:
+        # Compute rolling statistics once per rolling window
+        stats_df = compute_gk_rolling_statistics(norms_df, rolling_win)
+
         for analysis_win in analysis_windows:
             if analysis_win >= rolling_win:
                 continue  # Skip invalid combinations
-
-            # Compute rolling statistics
-            stats_df = compute_gk_rolling_statistics(norms_df, rolling_win)
 
             # Use most recent analysis_window days
             recent_stats = stats_df.tail(analysis_win)
@@ -190,20 +193,24 @@ def step2_rolling_window_analysis(norms_df):
     print(f"\n[OK] Saved {len(results_df)} results to {output_path}")
 
     # Display top results
-    print("\nTop 10 Results by Kendall-tau:")
-    top_results = results_df.nlargest(10, "tau")
-    print(
-        top_results[
-            [
-                "rolling_window",
-                "analysis_window",
-                "metric",
-                "tau",
-                "p_value",
-                "significant",
+    if results_df.empty:
+        logger.warning("No valid parameter combinations found in grid search")
+        print("\nNo results available to display.")
+    else:
+        print("\nTop 10 Results by Kendall-tau:")
+        top_results = results_df.nlargest(10, "tau")
+        print(
+            top_results[
+                [
+                    "rolling_window",
+                    "analysis_window",
+                    "metric",
+                    "tau",
+                    "p_value",
+                    "significant",
+                ]
             ]
-        ]
-    )
+        )
 
     return results_df
 
@@ -412,7 +419,7 @@ def step4_temporal_analysis(norms_df, best_params):
     print("TEMPORAL PATTERN:")
     print("-" * 80)
 
-    if len(timeline_df) > 0:
+    if len(timeline_df) > 1:
         tau_trend = np.polyfit(timeline_df["lookback_days"], timeline_df["tau"], 1)[0]
 
         if tau_trend > 0:
@@ -424,6 +431,11 @@ def step4_temporal_analysis(norms_df, best_params):
 
         print(f"\n{pattern}")
         print(f"tau slope vs. lookback: {tau_trend:.6f}")
+    else:
+        print("\n[INFO] Insufficient data for temporal trend analysis (need >1 data point)")
+        if len(timeline_df) == 1:
+            tau_val = timeline_df.iloc[0]["tau"]
+            print(f"Single observation: tau = {tau_val:.4f}")
 
     return timeline_df
 
@@ -912,9 +924,12 @@ Tested {len(results_df)} parameter combinations:
         for _, row in timeline_df.iterrows():
             report += f"| {row['lookback_days']} days | {row['tau']:.4f} | {row['start_date'].strftime('%Y-%m-%d')} | {row['end_date'].strftime('%Y-%m-%d')} |\n"
 
-        if tau_at_100 and tau_at_max:
+        if tau_at_100 is not None and tau_at_max is not None and tau_at_100 != 0:
             tau_trend = (tau_at_max - tau_at_100) / tau_at_100 * 100
-            report += f"\n**Trend:** tau changed by {tau_trend:+.1f}% from 100-day to {timeline_df['lookback_days'].max()}-day lookback.\n"
+            report += (
+                f"\n**Trend:** tau changed by {tau_trend:+.1f}% "
+                f"from 100-day to {timeline_df['lookback_days'].max()}-day lookback.\n"
+            )
 
     report += """
 
@@ -923,10 +938,11 @@ Tested {len(results_df)} parameter combinations:
 """
 
     if len(sector_results) > 0:
-        report += "| Index | Name | Kendall-tau | Assessment |\n"
-        report += "|-------|------|-------------|------------|\n"
-        for ticker, data in sector_results.items():
+        report += "| Sector | Tickers | Kendall-tau | Assessment |\n"
+        report += "|--------|---------|-------------|------------|\n"
+        for sector_name, data in sector_results.items():
             tau_val = data["tau"]
+            tickers_str = ", ".join(data.get("tickers", [sector_name]))
             if tau_val > 0.70:
                 assessment = "[RED] High Risk"
             elif tau_val > 0.60:
@@ -936,7 +952,7 @@ Tested {len(results_df)} parameter combinations:
             else:
                 assessment = "[GREEN] Normal"
 
-            report += f"| {ticker} | {data['name']} | {tau_val:.4f} | {assessment} |\n"
+            report += f"| {sector_name} | {tickers_str} | {tau_val:.4f} | {assessment} |\n"
 
         # Analyze for sector-specific vs broad stress
         high_risk_count = sum(1 for d in sector_results.values() if d["tau"] > 0.70)
@@ -1036,12 +1052,14 @@ Tested {len(results_df)} parameter combinations:
 
 """
 
-    if len(results_df) > 0:
+    if not results_df.empty:
         top5 = results_df.nlargest(5, "tau")
         report += "| Rank | Rolling | Analysis | Metric | tau | P-value |\n"
         report += "|------|---------|----------|--------|---|--------|\n"
         for idx, (_, row) in enumerate(top5.iterrows(), 1):
             report += f"| {idx} | {row['rolling_window']} | {row['analysis_window']} | {row['metric']} | {row['tau']:.4f} | {row['p_value']:.4e} |\n"
+    else:
+        report += "No parameter combinations available.\n"
 
     report += """
 
@@ -1106,6 +1124,11 @@ def main():
     results_df = step2_rolling_window_analysis(norms_df)
 
     # Find best parameters
+    if results_df.empty:
+        logger.error("No valid parameter combinations found. Cannot proceed with analysis.")
+        print("\nERROR: No valid results from parameter grid search. Exiting.")
+        return
+
     best_result = results_df.nlargest(1, "tau").iloc[0]
     best_params = {
         "rolling_window": int(best_result["rolling_window"]),

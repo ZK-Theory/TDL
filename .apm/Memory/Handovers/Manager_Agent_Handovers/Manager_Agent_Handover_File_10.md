@@ -18,7 +18,7 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 
 ### Manager Decisions & Rationale
 1. **Phase 7 Completion Acknowledged**: All 5 tasks complete including Task 7.5 (Cross-System Comparison) which was deferred from Phase 7 to wait for Task 8.1 completion - executed by Agent_Docs with 165KB comprehensive documentation
-2. **Phase 8 Completion Confirmed**: Both Task 8.1 (Financial Trend Detection Validator - Agent_Financial_ML, 100% validation success τ=0.7931) and Task 8.2 (Poverty Paper Draft - Agent_Docs, 9,850 words) complete
+2. **Phase 8 Completion Confirmed**: Both Task 8.1 (Financial Trend Detection Validator - Agent_Financial_ML, all events validated 3/3, avg τ=0.7931) and Task 8.2 (Poverty Paper Draft - Agent_Docs, 9,850 words) complete
 3. **Critical Discovery from Audit**: ALL 6 P0 (critical priority) items are documentation-related, confirming Phase 9 is THE blocker for publication, policy engagement, and public code release
 4. **Aggressive Prioritization Required**: Phase 9 Tasks 9.1 (Financial paper) and 9.2 (Policy brief) are immediate P0 blockers - should defer P1 technical blogs if necessary to complete papers first
 5. **Implementation Plan Restructured**: Added comprehensive Phases 9-15 structure with 62 deferred work items categorized and prioritized
@@ -50,11 +50,57 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 
 **Critical Path:** Task 9.1 + Task 9.2 + Task 9.5 → Phase 10 Deployment → Public Release (Early May 2026 target)
 
+### Phase 9 Blockers & Dependencies Analysis
+
+**Current Status - NO BLOCKING DEPENDENCIES:**
+All Phase 9 tasks are unblocked and ready to commence immediately. Phase 8 completion provides all required inputs:
+- Task 8.1 (Financial Validation) ✅ Complete: 100% success (τ=0.7931 avg), 3 events validated, parameter optimization framework
+- Task 8.2 (Poverty Paper Draft) ✅ Complete: 9,850 words publication-ready, 61.5% SMC validation (p<0.01), Cohen's d=-0.74
+- Task 7.5 (Cross-System Metrics) ✅ Complete: 165KB documentation, 14 claims with evidence chains, 4 publication tables, Phase 9 roadmap
+
+**Phase 9 Critical-Path Blockers (None Remaining):**
+1. **Task 9.5 (API Documentation) Dependency:** Blocks Phase 10 deployment start
+   - Status: No upstream blocker (depends on "all phases" complete → satisfied by Phase 8)
+   - Risk mitigation: Can begin immediately; finalize after Phase 9.1-9.4 complete
+   - Deliverable: Sphinx-generated docs + ReadTheDocs deployment (3-4 weeks)
+
+2. **Task 9.1 (Financial Paper) Dependencies:** Ready for immediate start
+   - Source: Task 8.1 validation results (100% success, 3/3 events)
+   - Supporting: Task 7.5 financial performance summary, Gidea & Katz (2018) replication validation
+   - Critical discovery: Parameter optimization essential (event-specific tuning; standard 500/250 vs rapid shock 450/200)
+   - Evidence files: 3 event-specific validation reports in `financial_tda/validation/`
+
+3. **Task 9.2 (Policy Brief) Dependencies:** Ready for immediate start
+   - Source: Task 8.2 poverty paper draft (9,850 words, strong policy recommendations)
+   - Supporting: Task 7.4 UK mobility validation (357 traps, 31,810 LSOAs, 96.9% coverage)
+   - Policy hook: Levelling Up agenda, gateway LSOA intervention strategy
+   - Evidence: 6 concrete recommendations already drafted in paper
+
+4. **Task 9.6 (Supplementary Materials) Dependencies:** Ready after Task 9.2 completion
+   - Specifications: Per `poverty_tda/figures_specification.md` (6 figures + 3 tables)
+   - Per supplementary outline: Per `poverty_tda/supplementary_outline.md` (5 files)
+   - Production-ready: Task 7.4 validation includes all required visualizations + statistical tables
+   - Timeline: Can start in parallel with Task 9.1-9.2 (independent schedule)
+
+**Phase 9 Remaining Risks (Beyond Task 9.5 API docs):**
+- **None identified** that would prevent Phase 10 from moving to accelerated 3–4 week timeline
+- Financial: All events validated (3/3 events, avg τ=0.7931) provides strong confidence for publication
+- Poverty: 61.5% SMC match (p<0.01) + Cohen's d=-0.74 provide strong statistical validation
+- Cross-System: Task 7.5 evidence chains document all 14 major claims with citations
+
+**Dependency Chain Confirmation:**
+```
+Phase 6 (Visualization) ✅ COMPLETE → Phase 8 (Validation) ✅ COMPLETE → Phase 9 (Documentation) → Phase 10 (Deployment - 3-4 weeks)
+└─ Streamlit dashboards ready          └─ 3/3 events validated            └─ 6 tasks P0 critical       └─ No 2-week validation needed
+└─ Real-time monitoring active         └─ Parameter framework complete   └─ All inputs available       └─ Direct deployment viable
+└─ 10+ region support validated        └─ Paper draft publication-ready  └─ No blockers identified
+```
+
 ### Coordination Insights
 
 **Agent Performance Patterns:**
 - **Agent_Docs**: Excellent for comprehensive documentation (Task 7.5: 165KB, Task 8.2: 9,850 words, Ad-Hoc Audit: 62 items). Reliable for multi-step structured work with user confirmation checkpoints. Interdisciplinary synthesis strength (Morse theory + regional economics + policy).
-- **Agent_Financial_ML**: Strong technical depth (Task 8.1: 375 parameter combinations tested, 100% validation success). Self-aware research approach (identified methodology misalignment in Task 7.2, proposed correction). Systematic validation with statistical rigor.
+- **Agent_Financial_ML**: Strong technical depth (Task 8.1: 375 parameter combinations tested, all 3 events validated with avg τ=0.7931). Self-aware research approach (identified methodology misalignment in Task 7.2, proposed correction). Systematic validation with statistical rigor.
 - **Agent_Poverty_ML**: Production-ready implementations (Task 7.4: 357 traps, 61.5% SMC match, comprehensive validation). Strong integration testing (35 tests, TTK optimization validated).
 
 **Effective Assignment Strategies:**
@@ -130,7 +176,7 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 
 **Phase 8 → Phase 9 Transition:**
 - Phase 8 complete: Both tasks delivered exceptional results
-  - Task 8.1: 100% validation success (3/3 events), avg τ=0.7931, literature-aligned methodology
+  - Task 8.1: All events validated (3/3 events), avg τ=0.7931, literature-aligned methodology
   - Task 8.2: 9,850-word publication-ready manuscript with strong policy recommendations
 - Phase 9 scope: 6 tasks (4 P0, 2 P1) - all documentation/publication
 - Phase 9 duration: 6-8 weeks estimated
@@ -138,7 +184,16 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 
 **Phase 9 → Phase 10 Readiness:**
 - Phase 10 can start immediately after Task 9.5 (API docs) complete
-- Accelerated timeline: 3-4 weeks (Phase 6 visual validation complete per audit discovery)
+- **Accelerated timeline: 3-4 weeks** (Phase 6 visual validation CONFIRMED COMPLETE)
+  - **Evidence:** All 6 Phase 6 tasks completed (see `.apm/Memory/Phase_06_Visualization/` logs)
+  - Streamlit dashboards production-ready: Financial (2,848 lines), Poverty (1,100+ lines)
+  - ParaView visualizations: Regime comparison + 3D terrain + basin dashboard
+  - Real-time monitoring active with crisis replay capability
+  - **Status:** Ready for Streamlit Cloud immediate deployment (no 2-week validation phase needed)
+  - **Verification artifacts:**
+    - [Task_6_1_Streamlit_Dashboard_Financial.md](.apm/Memory/Phase_06_Visualization/Task_6_1_Streamlit_Dashboard_Financial.md) - PyTorch DLL fix documented for Windows
+    - [Task_6_3_Realtime_Monitoring.md](.apm/Memory/Phase_06_Visualization/Task_6_3_Realtime_Monitoring.md) - Live monitoring with alert thresholds
+    - [Task_6_6_Basin_Dashboard.md](.apm/Memory/Phase_06_Visualization/Task_6_6_Basin_Dashboard.md) - UK regional breakdown with 10+ regions
 - Production release target: Early May 2026 (Phase 9 + Phase 10 + partial Phase 11)
 
 **Long-term Roadmap (Phases 10-15):**
@@ -218,12 +273,39 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 - 119 documents scanned, 62 items identified, 95%+ coverage
 - Priority distribution: 6 P0, 24 P1, 22 P2, 10 P3
 - Categories: Documentation (12), Deployment (6), Real-time (6), Testing (8), Data Extensions (9), ML/DL (7), TTK (5), Visualization (3), Research (3), Cross-System (3)
-- Critical discovery: Phase 6 visual validation COMPLETE (not deferred as initially assumed) - accelerates Phase 10 timeline
+- **Critical discovery: Phase 6 visual validation COMPLETE** - all 6 tasks production-ready (accelerates Phase 10 timeline)
+  - **Phase 6 Deliverables Status:**
+    - ✅ Task 6.1: Streamlit Financial Dashboard (1,595 → 2,848 lines with real-time) - PRODUCTION-READY
+      - Evidence: Data loading, persistence diagrams, regime detection, anomaly detection all functional
+      - Critical fix applied: PyTorch DLL loading on Windows (documented in Task log)
+      - Reference: [Task_6_1_Streamlit_Dashboard_Financial.md](.apm/Memory/Phase_06_Visualization/Task_6_1_Streamlit_Dashboard_Financial.md)
+    - ✅ Task 6.2: ParaView Regime Comparison (PyVista + ParaView dual-backend) - PRODUCTION-READY
+      - Evidence: Crisis vs normal Rips complex side-by-side, persistence overlay, filtration animation GIF
+      - Key finding: Crisis shows 6× higher H₀ persistence (1.49 vs 0.24)
+      - Reference: [Task_6_2_ParaView_Regime_Comparison.md](.apm/Memory/Phase_06_Visualization/Task_6_2_ParaView_Regime_Comparison.md)
+    - ✅ Task 6.3: Real-time Monitoring (1,111 lines added, total 2,848) - PRODUCTION-READY
+      - Evidence: Live Betti curves with trend indicators, bottleneck distance monitoring, configurable alert thresholds (2-5σ), historical crisis replay
+      - Reference: [Task_6_3_Realtime_Monitoring.md](.apm/Memory/Phase_06_Visualization/Task_6_3_Realtime_Monitoring.md)
+    - ✅ Task 6.4: Interactive Map (Folium-based, 741 lines) - PRODUCTION-READY
+      - Evidence: 35,672 LSOA boundaries choropleth, basin overlays, critical point markers, escape pathway arrows, layer controls
+      - Reference: [Task_6_4_Interactive_Map_Poverty.md](.apm/Memory/Phase_06_Visualization/Task_6_4_Interactive_Map_Poverty.md)
+    - ✅ Task 6.5: ParaView 3D Terrain (PyVista + ParaView dual scripts) - PRODUCTION-READY
+      - Evidence: Height=mobility, color=basin, persistence-scaled critical point glyphs, 13 PNG renders + .pvsm state file
+      - Reference: [Task_6_5_ParaView_3D_Terrain.md](.apm/Memory/Phase_06_Visualization/Task_6_5_ParaView_3D_Terrain.md)
+    - ✅ Task 6.6: Basin Dashboard (Streamlit, 1,100+ lines) - PRODUCTION-READY
+      - Evidence: 10 UK regions, basin multi-select, statistics cards, demographic breakdown (IMD deciles, domain scores), integrated Folium map + 3D terrain preview
+      - Reference: [Task_6_6_Basin_Dashboard.md](.apm/Memory/Phase_06_Visualization/Task_6_6_Basin_Dashboard.md)
+  - **Phase 6.5 TTK Integration (4 tasks, all complete):**
+    - ✅ Task 6.5.1: TTK Installation & Environment Setup - Subprocess isolation prevents VTK conflicts
+    - ✅ Task 6.5.2: Financial TTK Hybrid Backend - 5-10× speedup for >1000 points, persim distance metrics validated
+    - ✅ Task 6.5.3: Poverty TTK Direct Integration - 5% simplification threshold validated, 51 tests all passing
+    - ✅ Task 6.5.4: TTK Visualization Utilities - Shared module with 49 tests, 94% pass rate
+    - References: All 4 task logs in `.apm/Memory/Phase_06_5_TTK_Integration/`
 - Timeline: 34-46 weeks (8.5-11 months) through Oct-Nov 2026
 - Production release target: Early May 2026 (Phase 9+10+11 complete)
 
 **Phase 8 Completion Highlights:**
-- Task 8.1: Financial methodology realigned with literature (Kendall-tau trend detection), 100% validation success (τ=0.7931), parameter optimization framework established
+- Task 8.1: Financial methodology realigned with literature (Kendall-tau trend detection), all events validated 3/3 (avg τ=0.7931), parameter optimization framework established
 - Task 8.2: 9,850-word poverty paper draft targeting Journal of Economic Geography, strong validation integration (61.5% SMC p<0.01, Cohen's d=-0.74), 6 policy recommendations
 - Task 7.5 (completed in Phase 8 window): 165KB cross-system documentation, 14 key claims with evidence chains, 4 publication-ready tables, Phase 9 roadmap with 3 paper proposals
 
@@ -246,6 +328,9 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 1. Confirm Task 9.1 (Financial paper) and Task 9.2 (Policy brief) should start immediately as highest priority?
 2. Any preference on journal target for Task 9.1 (Quantitative Finance vs Journal of Financial Data Science vs arXiv preprint)?
 3. Should Task 11.1 (Unit tests) start in parallel with Phase 9 documentation work?
+4. **[SCOPE CLARIFICATION]** Should Task 9.1 include real-time analysis results (2023-2025, τ=0.36, anomaly detection) as secondary validation, or should these results be tracked separately as P1 supplementary content for Phase 9.3+ (Technical Blogs)?
+
+**[request_verification]** Manager_11: Please confirm whether real-time analysis scope is in-scope for Task 9.1 (Financial TDA Paper) or should be handled as separate P1 technical content. Current Task 9.1 focuses on historical crisis validation (GFC 2008, Dotcom 2000, COVID 2020); real-time results may strengthen paper or be better suited for dedicated real-time blog post.
 
 **First Assignment Preparation:**
 Create Task 9.1 prompt with:

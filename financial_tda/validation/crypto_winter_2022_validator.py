@@ -24,12 +24,10 @@ from financial_tda.models.change_point_detector import NormalPeriodCalibrator
 from financial_tda.topology.embedding import takens_embedding
 from financial_tda.topology.filtration import compute_persistence_vr
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Output directory
+# Output directory (will be created in main())
 FIGURES_DIR = Path(__file__).parent / "figures"
-FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Crypto crisis events
 TERRA_LUNA_COLLAPSE = pd.Timestamp("2022-05-09")  # UST depeg starts
@@ -159,6 +157,11 @@ def calibrate_threshold(
     normal_mask = distances.index < crisis_start
     normal_distances = distances[normal_mask].values
 
+    if len(normal_distances) == 0:
+        raise ValueError(
+            f"No pre-crisis data available before {crisis_start}. " "Check data range and crisis_start parameter."
+        )
+
     calibrator = NormalPeriodCalibrator()
     calibrator.fit(normal_distances)
 
@@ -228,6 +231,7 @@ def plot_crypto_timeline(
     threshold: float,
     output_path: Path,
     title: str,
+    percentile: int = 95,
 ) -> None:
     """
     Plot crypto timeline with prices and bottleneck distances.
@@ -237,6 +241,10 @@ def plot_crypto_timeline(
         distances: Bottleneck distance series.
         detections: Detection series.
         crisis_events: List of (name, date) tuples for crisis events.
+        threshold: Detection threshold value.
+        output_path: Path to save figure.
+        title: Plot title.
+        percentile: Percentile used for threshold (for label annotation).
         threshold: Detection threshold.
         output_path: Output path for figure.
         title: Plot title.
@@ -277,7 +285,7 @@ def plot_crypto_timeline(
         color="red",
         linestyle="--",
         linewidth=1.5,
-        label="Threshold (95th %ile)",
+        label=f"Threshold ({percentile}th %ile)",
     )
 
     # Mark detections
@@ -314,6 +322,7 @@ def generate_crypto_report(
     crisis_date: pd.Timestamp,
     metrics: dict,
     output_path: Path,
+    figure_path: Path | str | None = None,
 ) -> None:
     """
     Generate crypto winter validation report.
@@ -324,9 +333,12 @@ def generate_crypto_report(
         crisis_date: Date of crisis.
         metrics: Detection metrics dictionary.
         output_path: Output path for report.
+        figure_path: Path to the timeline figure (optional; defaults to output_path.stem if not provided).
     """
     logger.info(f"Generating report to {output_path}...")
 
+    # Format lead_time_days for display
+    lead_time_display = f"{metrics['lead_time_days']} days" if metrics["lead_time_days"] is not None else "N/A"
     lead_status = "✓ PASS" if metrics["lead_time_days"] and metrics["lead_time_days"] >= 5 else "✗ FAIL"
     f1_status = "✓ PASS" if metrics["f1_score"] >= 0.70 else "✗ FAIL"
 
@@ -343,7 +355,7 @@ This report validates the TDA crisis detection system on the {crisis_name} using
 - Protocol/exchange failure events (vs market-wide crashes)
 
 **Results**:
-- **Lead Time**: {metrics["lead_time_days"]} days ({lead_status}, target ≥5 days)
+- **Lead Time**: {lead_time_display} ({lead_status}, target ≥5 days)
 - **Precision**: {metrics["precision"]:.3f}
 - **Recall**: {metrics["recall"]:.3f}
 - **F1 Score**: {metrics["f1_score"]:.3f} ({f1_status}, target ≥0.70)
@@ -418,7 +430,7 @@ This report validates the TDA crisis detection system on the {crisis_name} using
 ## Visualizations
 
 See accompanying figures:
-- `{output_path.stem}.png`: Timeline of prices and bottleneck distances with crisis events
+- Timeline of prices and bottleneck distances with crisis events
 
 ---
 
@@ -444,6 +456,10 @@ See accompanying figures:
 
 def main():
     """Run 2022 crypto winter validation."""
+    # Initialize logging and create output directory
+    logging.basicConfig(level=logging.INFO)
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+
     logger.info("=" * 80)
     logger.info("2022 CRYPTO WINTER VALIDATION")
     logger.info("=" * 80)
@@ -482,14 +498,16 @@ def main():
     metrics_ftx = compute_detection_metrics(detections_ftx, FTX_COLLAPSE, ftx_end)
 
     # Generate visualizations
+    timeline_figure = FIGURES_DIR / "crypto_2022_bitcoin_timeline.png"
     plot_crypto_timeline(
         btc_prices,
         btc_distances,
         detections_terra,
         [("Terra/LUNA", TERRA_LUNA_COLLAPSE), ("FTX", FTX_COLLAPSE)],
         threshold_terra,
-        FIGURES_DIR / "crypto_2022_bitcoin_timeline.png",
+        timeline_figure,
         "Bitcoin: 2022 Crypto Winter Detection",
+        percentile=95,
     )
 
     # Generate reports
@@ -499,6 +517,7 @@ def main():
         TERRA_LUNA_COLLAPSE,
         metrics_terra,
         Path(__file__).parent / "2022_crypto_terra_validation.md",
+        figure_path=timeline_figure,
     )
 
     generate_crypto_report(
@@ -507,6 +526,7 @@ def main():
         FTX_COLLAPSE,
         metrics_ftx,
         Path(__file__).parent / "2022_crypto_ftx_validation.md",
+        figure_path=timeline_figure,
     )
 
     logger.info("=" * 80)

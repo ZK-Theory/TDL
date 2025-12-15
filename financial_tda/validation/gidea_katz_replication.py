@@ -30,12 +30,10 @@ from financial_tda.data.fetchers.yahoo import fetch_ticker
 from financial_tda.topology.features import compute_landscape_norms
 from financial_tda.topology.filtration import compute_persistence_vr
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Output directory
+# Output directory (will be created in main())
 FIGURES_DIR = Path(__file__).parent / "figures"
-FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def fetch_historical_data(start_date: str, end_date: str) -> dict[str, pd.Series]:
@@ -110,7 +108,10 @@ def compute_persistence_landscape_norms(
     returns_df = pd.DataFrame()
     for name, series in prices.items():
         aligned = series.loc[common_index]
-        returns_df[name] = np.log(aligned / aligned.shift(1))
+        log_returns = np.log(aligned / aligned.shift(1))
+        if not np.isfinite(log_returns).all():
+            logger.warning(f"Non-finite log-returns detected for {name}; check data for zeros or negative values")
+        returns_df[name] = log_returns
 
     returns_df = returns_df.dropna()
 
@@ -172,6 +173,25 @@ def compute_rolling_statistics(
     """
     logger.info(f"Computing rolling statistics (window={window_size} days)...")
 
+    # Define helper functions once (outside loop)
+    def acf_lag1(x):
+        """Compute autocorrelation at lag 1."""
+        if len(x) < 2:
+            return np.nan
+        return np.corrcoef(x[:-1], x[1:])[0, 1]
+
+    def avg_spectral_density_low_freq(x):
+        """Compute average spectral density at low frequencies."""
+        if len(x) < 10:
+            return np.nan
+        # Compute periodogram
+        freqs, psd = signal.periodogram(x, detrend="constant")
+        # Low frequencies: first 10% of spectrum
+        low_freq_mask = freqs <= freqs.max() * 0.1
+        if low_freq_mask.sum() == 0:
+            return np.nan
+        return psd[low_freq_mask].mean()
+
     results = pd.DataFrame(index=norms_df.index)
 
     for norm_col in ["L1_norm", "L2_norm"]:
@@ -179,25 +199,9 @@ def compute_rolling_statistics(
         results[f"{norm_col}_variance"] = norms_df[norm_col].rolling(window=window_size).var()
 
         # ACF lag-1
-        def acf_lag1(x):
-            if len(x) < 2:
-                return np.nan
-            return np.corrcoef(x[:-1], x[1:])[0, 1]
-
         results[f"{norm_col}_acf_lag1"] = norms_df[norm_col].rolling(window=window_size).apply(acf_lag1, raw=True)
 
         # Average spectral density at low frequencies
-        def avg_spectral_density_low_freq(x):
-            if len(x) < 10:
-                return np.nan
-            # Compute periodogram
-            freqs, psd = signal.periodogram(x, detrend="constant")
-            # Low frequencies: first 10% of spectrum
-            low_freq_mask = freqs <= freqs.max() * 0.1
-            if low_freq_mask.sum() == 0:
-                return np.nan
-            return psd[low_freq_mask].mean()
-
         results[f"{norm_col}_spectral_density_low"] = (
             norms_df[norm_col].rolling(window=window_size).apply(avg_spectral_density_low_freq, raw=True)
         )
@@ -245,9 +249,6 @@ def analyze_pre_crash_trend(
     time_index = np.arange(len(pre_crash_data))
 
     for col in stats_df.columns:
-        if col not in pre_crash_data.columns:
-            continue
-
         series = pre_crash_data[col].dropna()
         if len(series) < 10:
             results[col] = {"tau": np.nan, "p_value": np.nan, "n_samples": len(series)}
@@ -292,6 +293,8 @@ def plot_gk_analysis(
     window_start = crash_date - pd.Timedelta(days=days_before * 2)
     window_mask = (norms_df.index >= window_start) & pre_crash_mask
     plot_data = norms_df[window_mask].tail(days_before)
+    if len(plot_data) < days_before:
+        logger.warning(f"Only {len(plot_data)} days available for plot (requested {days_before})")
     stats_plot_data = stats_df.loc[plot_data.index]
 
     fig, axes = plt.subplots(4, 1, figsize=(14, 12))
@@ -505,9 +508,11 @@ This report replicates the **exact methodology** from Gidea & Katz (2018):
     l2_tau = l2_spectral_tau.get("tau", 0)
     spectral_tau = max(l1_tau, l2_tau)  # Use the stronger result
 
-    if crash_name.lower().find("2000") >= 0 or crash_name.lower().find("dotcom") >= 0:
+    # Determine expected tau based on crash type
+    crash_lower = crash_name.lower()
+    if "2000" in crash_lower or "dotcom" in crash_lower:
         expected_tau = 0.89
-    elif crash_name.lower().find("2008") >= 0 or crash_name.lower().find("lehman") >= 0:
+    elif "2008" in crash_lower or "lehman" in crash_lower:
         expected_tau = 1.00
     else:
         expected_tau = 0.85  # Generic threshold
@@ -571,6 +576,10 @@ This replication validates the **Gidea & Katz (2018) methodology** and confirms 
 
 def main():
     """Run Gidea & Katz replication for 2008 crisis."""
+    # Initialize logging and create output directory
+    logging.basicConfig(level=logging.INFO)
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+
     logger.info("=" * 80)
     logger.info("GIDEA & KATZ (2018) METHODOLOGY REPLICATION")
     logger.info("=" * 80)

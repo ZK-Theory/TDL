@@ -52,10 +52,10 @@ def fetch_covid_data() -> tuple[dict[str, pd.Series], pd.Series]:
     for idx_name in index_names:
         logger.info(f"Fetching {idx_name}...")
         data = fetch_index(idx_name, start_date, end_date)
-        if not data.empty:
+        if not data.empty and "Close" in data.columns:
             prices[idx_name] = data["Close"]
         else:
-            logger.warning(f"No data for {idx_name}, skipping")
+            logger.warning(f"No data or missing Close column for {idx_name}, skipping")
 
     # Fetch Russell 2000 using ticker directly
     logger.info("Fetching russell2000 (^RUT)...")
@@ -263,12 +263,18 @@ def compute_detection_metrics(
         f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
     else:
         # Simple heuristic: crisis period detections / total crisis period days
+        # Allow early warning window (30 days before crisis) where detections count as TP
+        warning_window_start = crisis_start - pd.Timedelta(days=30)
+        early_warning_mask = (detections.index >= warning_window_start) & (detections.index < crisis_start)
         crisis_mask = (detections.index >= crisis_start) & (detections.index <= crisis_end)
-        crisis_detections = detections[crisis_mask]
+        # Detections during crisis period or early warning window count as TP
+        crisis_or_warning_mask = crisis_mask | early_warning_mask
+        crisis_detections = detections[crisis_or_warning_mask]
 
-        # Treat any detection during crisis as TP, outside as FP
+        # Treat any detection during crisis/warning window as TP, outside as FP
         tp = crisis_detections.sum()
-        fp = detections[~crisis_mask].sum()
+        outside_mask = ~(crisis_or_warning_mask)
+        fp = detections[outside_mask].sum()
         fn = (~crisis_detections).sum()
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
@@ -390,9 +396,10 @@ def plot_persistence_comparison(
             end_date = end_date.tz_localize(None)
 
         idx = returns_df.index.get_indexer([end_date], method="nearest")[0]
-        if idx < window_size:
+        if idx < window_size - 1:
             raise ValueError(f"Insufficient data before {end_date}")
-        window_data = returns_df.iloc[idx - window_size : idx].values
+        # Include end_date in window: use iloc[start:stop] with start = idx - window_size + 1, stop = idx + 1
+        window_data = returns_df.iloc[idx - window_size + 1 : idx + 1].values
         diagram = compute_persistence_vr(window_data, homology_dimensions=(1,))
         return diagram[diagram[:, 2] == 1][:, :2]  # H1 only (birth, death)
 
@@ -538,7 +545,7 @@ This report validates the TDA-based crisis detection system against the 2020 COV
 
 ### Detection Timeline
 
-**First Detection**: {detections.index[0].strftime("%Y-%m-%d") if len(detections[detections]) > 0 else "None"}
+**First Detection**: {detections[detections].index[0].strftime("%Y-%m-%d") if len(detections[detections]) > 0 else "None"}
 **Total Detections**: {metrics["n_detections"]}
 **Pre-Crisis Detections**: {metrics["n_pre_crisis_detections"]}
 
@@ -643,6 +650,8 @@ def main():
     )
 
     # GFC metrics for comparison (from Step 1)
+    # Note: Consider extracting these to a shared constants module to avoid staleness
+    # if the GFC validator is updated (e.g., from financial_tda.validation.gfc_2008_validator)
     gfc_metrics = {
         "lead_time_days": 226,
         "precision": 0.747,

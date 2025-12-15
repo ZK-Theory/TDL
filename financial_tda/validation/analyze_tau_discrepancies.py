@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import kendalltau
+from sklearn.linear_model import LinearRegression
 
 from financial_tda.validation.trend_analysis_validator import (
     compute_gk_rolling_statistics,
@@ -56,10 +57,10 @@ def analyze_parameter_sensitivity(
     results = []
 
     for rolling_win in rolling_windows:
-        for precrash_win in precrash_windows:
-            # Compute rolling stats
-            stats_df = compute_gk_rolling_statistics(norms_df, window_size=rolling_win)
+        # Compute rolling stats once per rolling window
+        stats_df = compute_gk_rolling_statistics(norms_df, window_size=rolling_win)
 
+        for precrash_win in precrash_windows:
             # Extract pre-crisis window
             pre_crisis_mask = stats_df.index < crisis_dt
             pre_crisis_data = stats_df[pre_crisis_mask].tail(precrash_win)
@@ -95,6 +96,11 @@ def analyze_parameter_sensitivity(
 
     results_df = pd.DataFrame(results)
 
+    # Handle empty results
+    if results_df.empty:
+        logger.warning("No results available for analysis; results_df is empty")
+        return results_df
+
     # Show results for G&K standard parameters
     gk_params = results_df[(results_df["rolling_window"] == 500) & (results_df["precrash_window"] == 250)]
 
@@ -106,6 +112,15 @@ def analyze_parameter_sensitivity(
     logger.info("\nBest Parameters by Metric:")
     for metric in results_df["metric"].unique():
         metric_data = results_df[results_df["metric"] == metric]
+        if metric_data.empty:
+            logger.debug(f"  Skipping metric {metric}: no data available")
+            continue
+
+        # Check if there are any non-null tau values
+        if metric_data["tau"].isna().all():
+            logger.debug(f"  Skipping metric {metric}: all tau values are NaN")
+            continue
+
         best = metric_data.loc[metric_data["tau"].abs().idxmax()]
         logger.info(
             f"  {metric:40s} τ={best['tau']:.4f} (rolling={int(best['rolling_window'])}, precrash={int(best['precrash_window'])})"
@@ -235,13 +250,17 @@ def analyze_covid_specifics(
     logger.info("  2020 COVID:")
     logger.info(f"    Mean: {covid_series.mean():.6f}")
     logger.info(f"    Std:  {covid_series.std():.6f}")
-    logger.info(f"    CV:   {covid_series.std() / covid_series.mean():.4f}")
+    covid_mean = covid_series.mean()
+    covid_cv = covid_series.std() / covid_mean if not np.isclose(covid_mean, 0, atol=1e-12) else float("nan")
+    logger.info(f"    CV:   {covid_cv:.4f}" if not np.isnan(covid_cv) else "    CV:   N/A (mean is zero)")
     logger.info(f"    Range: [{covid_series.min():.6f}, {covid_series.max():.6f}]")
 
     logger.info("  2008 GFC:")
     logger.info(f"    Mean: {gfc_series.mean():.6f}")
     logger.info(f"    Std:  {gfc_series.std():.6f}")
-    logger.info(f"    CV:   {gfc_series.std() / gfc_series.mean():.4f}")
+    gfc_mean = gfc_series.mean()
+    gfc_cv = gfc_series.std() / gfc_mean if not np.isclose(gfc_mean, 0, atol=1e-12) else float("nan")
+    logger.info(f"    CV:   {gfc_cv:.4f}" if not np.isnan(gfc_cv) else "    CV:   N/A (mean is zero)")
     logger.info(f"    Range: [{gfc_series.min():.6f}, {gfc_series.max():.6f}]")
 
     # Compute tau
@@ -253,16 +272,22 @@ def analyze_covid_specifics(
     logger.info(f"    GFC:   {gfc_tau:.4f}")
     logger.info(f"    Difference: {abs(gfc_tau - covid_tau):.4f}")
 
-    # Analyze trend linearity using R² from linear fit
-    from sklearn.linear_model import LinearRegression
-
     def compute_linearity(series):
+        """Compute R² and slope from linear fit."""
         X = np.arange(len(series)).reshape(-1, 1)
         y = series.values
         model = LinearRegression().fit(X, y)
         r2 = model.score(X, y)
         return r2, model.coef_[0]
 
+    def compute_residuals(series):
+        """Compute residuals from linear fit."""
+        X = np.arange(len(series)).reshape(-1, 1)
+        y = series.values
+        model = LinearRegression().fit(X, y)
+        return y - model.predict(X)
+
+    # Analyze trend linearity using R² from linear fit
     covid_r2, covid_slope = compute_linearity(covid_series)
     gfc_r2, gfc_slope = compute_linearity(gfc_series)
 
@@ -271,18 +296,22 @@ def analyze_covid_specifics(
     logger.info(f"    GFC:   {gfc_r2:.4f} (slope={gfc_slope:.8f})")
 
     # Analyze noise/residuals
-    covid_residuals = covid_series.values - LinearRegression().fit(
-        np.arange(len(covid_series)).reshape(-1, 1), covid_series.values
-    ).predict(np.arange(len(covid_series)).reshape(-1, 1))
-
-    gfc_residuals = gfc_series.values - LinearRegression().fit(
-        np.arange(len(gfc_series)).reshape(-1, 1), gfc_series.values
-    ).predict(np.arange(len(gfc_series)).reshape(-1, 1))
+    covid_residuals = compute_residuals(covid_series)
+    gfc_residuals = compute_residuals(gfc_series)
 
     logger.info("\n  Residual Noise:")
-    logger.info(f"    COVID std: {covid_residuals.std():.8f}")
-    logger.info(f"    GFC std:   {gfc_residuals.std():.8f}")
-    logger.info(f"    Ratio:     {covid_residuals.std() / gfc_residuals.std():.2f}x")
+    covid_std = covid_residuals.std()
+    gfc_std = gfc_residuals.std()
+    logger.info(f"    COVID std: {covid_std:.8f}")
+    logger.info(f"    GFC std:   {gfc_std:.8f}")
+
+    # Guard against division by zero
+    if np.isclose(gfc_std, 0, atol=1e-12):
+        logger.warning("    Ratio:     N/A (GFC residuals have zero std dev)")
+        noise_ratio = float("inf") if covid_std > 0 else 1.0
+    else:
+        noise_ratio = covid_std / gfc_std
+        logger.info(f"    Ratio:     {noise_ratio:.2f}x")
 
     # Visualize
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -355,7 +384,13 @@ def analyze_covid_specifics(
     else:
         logger.info(f"1. Trend Strength: GFC tau={gfc_tau:.4f}, COVID tau=0")
     logger.info(f"2. Linearity: GFC more linear (R²={gfc_r2:.3f} vs {covid_r2:.3f})")
-    logger.info(f"3. Noise: COVID has {covid_residuals.std() / gfc_residuals.std():.2f}x more noise")
+
+    # Guard against division by zero for noise comparison
+    gfc_std = gfc_residuals.std()
+    if np.isclose(gfc_std, 0, atol=1e-12):
+        logger.info("3. Noise: GFC has zero noise (perfect linear fit); COVID has measurable noise")
+    else:
+        logger.info(f"3. Noise: COVID has {covid_residuals.std() / gfc_std:.2f}x more noise")
     logger.info("4. Signal Quality: GFC shows clearer monotonic buildup")
 
 

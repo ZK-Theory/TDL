@@ -186,7 +186,7 @@ def analyze_gk_precrash_trend(
     if stats_df.index.tz is not None and crisis_date.tz is None:
         crisis_date = crisis_date.tz_localize(stats_df.index.tz)
     elif stats_df.index.tz is None and crisis_date.tz is not None:
-        crisis_date = crisis_date.tz_localize(None)
+        crisis_date = crisis_date.tz_convert("UTC").tz_localize(None)
 
     # Extract pre-crash window
     pre_crash_mask = stats_df.index < crisis_date
