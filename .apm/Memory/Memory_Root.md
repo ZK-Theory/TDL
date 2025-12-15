@@ -238,3 +238,64 @@
 - [Task_6_4_Interactive_Map_Poverty.md](.apm/Memory/Phase_06_Visualization/Task_6_4_Interactive_Map_Poverty.md)
 - [Task_6_5_ParaView_3D_Terrain.md](.apm/Memory/Phase_06_Visualization/Task_6_5_ParaView_3D_Terrain.md)
 - [Task_6_6_Basin_Dashboard.md](.apm/Memory/Phase_06_Visualization/Task_6_6_Basin_Dashboard.md)
+
+---
+
+## Phase 06.5 – TTK Integration Summary
+
+**Outcome:** Successfully integrated Topology ToolKit (TTK) for accelerated topological computations and enhanced visualization capabilities. All 4 tasks completed with comprehensive testing and documentation. Total ~7,000+ lines added (implementation + tests + docs). Zero VTK conflicts through subprocess isolation strategy.
+
+**TTK Infrastructure (Task 6.5.1):**
+- **Installation:** TTK 1.3.0 via conda (ttk_env) with Python 3.11, VTK 9.3.20240617
+- **Environment Isolation:** Subprocess pattern prevents VTK version conflicts (project 9.5.2 vs TTK 9.3.x)
+- **Centralized Utilities:** `shared/ttk_utils.py` (102 statements, 82% coverage) with `is_ttk_available()`, `run_ttk_subprocess()`, `get_ttk_backend()`
+- **Filter Verification:** 4 core filters validated (TTKPersistenceDiagram, TTKBottleneckDistance, TTKMorseSmaleComplex, TTKTopologicalSimplification)
+- **150+ Additional Filters:** Available beyond core set for future enhancements
+
+**Financial TTK Integration (Task 6.5.2):**
+- **TTK Rips Persistence:** `compute_persistence_ttk()` using `ttkRipsPersistenceDiagram` filter with distance matrix preprocessing, 5-10× speedup for >1000 points
+- **Distance Metrics:** Bottleneck/Wasserstein distances via persim library (selected for stability over GUDHI/TTK)
+- **Hybrid Backend:** Auto-selection based on TTK availability and dataset size
+- **Tests:** 17 tests total (15 passing, 2 skipped), mathematical properties validated (symmetry, triangle inequality, identity)
+- **Key Finding:** persim library superior to GUDHI (no segfaults) and TTK (simpler API) for distance computation
+
+**Poverty TTK Integration (Task 6.5.3):**
+- **Centralized Migration:** Replaced module-specific subprocess paths with `shared.ttk_utils` for unified TTK access
+- **Topological Simplification:** `simplify_scalar_field()` with TTKTopologicalSimplification filter, persistence-based noise removal
+- **Enhanced Extraction:** `compute_morse_smale()` with `simplify_first` parameter for integrated pre-processing
+- **Persistence Filtering:** `filter_by_persistence()` for post-processing critical point refinement
+- **Tests:** 51 tests total (all passing, 1 skipped), coverage increased from 33% to 58%
+- **Threshold Guidelines:** Validated 5% balanced (20-50 critical points), 10% aggressive (5-15 points), 1% conservative (100-200 points)
+
+**TTK Visualization Utilities (Task 6.5.4):**
+- **Shared Module:** `shared/ttk_visualization/` with persistence curves, TTK-enhanced plots, ParaView helpers
+- **Financial Enhancements:** `financial_tda/viz/ttk_plots.py` - persistence curve comparison, bottleneck distance matrix heatmaps
+- **Poverty Enhancements:** `poverty_tda/viz/ttk_plots.py` - simplification comparison, critical point persistence diagrams
+- **Examples:** Jupyter notebook (5-regime crisis analysis) + Python script (basin threshold analysis)
+- **Documentation:** TTK_DISTANCE_METRICS.md (650 lines) with mathematical foundations and interpretation guidelines
+- **Tests:** 49 tests total (46 passing, 3 optional PyVista skips), 94% pass rate
+- **Key Decision:** Numpy for curves (10ms vs 60ms subprocess), PyVista optional (graceful degradation), ParaView state files deferred (manual export recommended)
+
+**Performance Characteristics:**
+- **TTK Subprocess Overhead:** ~50ms (negligible vs computation time)
+- **Persistence Curves:** <10ms numpy computation (no TTK needed)
+- **Bottleneck Distance:** O(n^2.5 log n), fast for <1K points
+- **Wasserstein Distance:** O(n^3), acceptable for <500 points
+- **Simplification:** ~1-2s for 30×30 surface
+
+**Technical Achievements:**
+1. **Zero VTK Conflicts:** Subprocess isolation maintains separate VTK versions without interference
+2. **Library Ecosystem Optimization:** persim selected over GUDHI/TTK for distance metrics based on stability testing
+3. **Threshold Recommendations:** Evidence-based guidelines from extensive testing (1%, 5%, 10%, 15%)
+4. **Backward Compatibility:** 100% maintained - all existing code works unchanged
+5. **Graceful Degradation:** All TTK features optional with helpful fallback messages
+
+**Dependencies Added:** persim (pip, stable distance metrics)
+
+**Agents Involved:** Agent_Foundation, Agent_Financial_Topology, Agent_Poverty_Topology, Agent_Financial_Viz
+
+**Task Logs:**
+- [Task_6_5_1_TTK_Installation_Environment_Setup.md](.apm/Memory/Phase_06_5_TTK_Integration/Task_6_5_1_TTK_Installation_Environment_Setup.md)
+- [Task_6_5_2_Financial_TDA_TTK_Hybrid_Implementation.md](.apm/Memory/Phase_06_5_TTK_Integration/Task_6_5_2_Financial_TDA_TTK_Hybrid_Implementation.md)
+- [Task_6_5_3_Poverty_TDA_TTK_Direct_Integration.md](.apm/Memory/Phase_06_5_TTK_Integration/Task_6_5_3_Poverty_TDA_TTK_Direct_Integration.md)
+- [Task_6_5_4_TTK_Visualization_Utilities.md](.apm/Memory/Phase_06_5_TTK_Integration/Task_6_5_4_TTK_Visualization_Utilities.md)
