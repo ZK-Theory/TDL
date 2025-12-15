@@ -23,10 +23,15 @@ TTK_CONDA_PYTHON = os.path.expanduser("~/miniconda3/envs/ttk_env/python.exe")
 if sys.platform != "win32":
     TTK_CONDA_PYTHON = os.path.expanduser("~/miniconda3/envs/ttk_env/bin/python")
 
+# Cache TTK availability to avoid repeated subprocess checks
+_TTK_AVAILABLE_CACHE: Optional[bool] = None
+
 
 def is_ttk_available() -> bool:
     """
     Check if TTK Python bindings are available via conda environment.
+
+    Result is cached to avoid repeated subprocess checks.
 
     Returns:
         bool: True if TTK can be imported in conda environment.
@@ -37,8 +42,15 @@ def is_ttk_available() -> bool:
         ... else:
         ...     print("TTK not available, using fallback method")
     """
+    global _TTK_AVAILABLE_CACHE
+
+    # Return cached result if available
+    if _TTK_AVAILABLE_CACHE is not None:
+        return _TTK_AVAILABLE_CACHE
+
     if not Path(TTK_CONDA_PYTHON).exists():
         logger.debug(f"TTK conda python not found at {TTK_CONDA_PYTHON}")
+        _TTK_AVAILABLE_CACHE = False
         return False
 
     try:
@@ -48,9 +60,11 @@ def is_ttk_available() -> bool:
             timeout=5,
             text=True,
         )
-        return result.returncode == 0
+        _TTK_AVAILABLE_CACHE = result.returncode == 0
+        return _TTK_AVAILABLE_CACHE
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         logger.debug(f"TTK availability check failed: {e}")
+        _TTK_AVAILABLE_CACHE = False
         return False
 
 

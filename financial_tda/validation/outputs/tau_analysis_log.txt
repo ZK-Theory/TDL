@@ -1,0 +1,25 @@
+
+================================================================================
+DEEP DIVE: TAU DISCREPANCIES & COVID DIFFERENCES
+================================================================================
+
+Loading event data...
+Loading L^p norms from: C:\Projects\TDL\financial_tda\validation\outputs\2008_gfc_lp_norms.csv
+Loaded 704 observations
+Loading L^p norms from: C:\Projects\TDL\financial_tda\validation\outputs\2000_dotcom_lp_norms.csv
+Loaded 1206 observations
+Loading L^p norms from: C:\Projects\TDL\financial_tda\validation\outputs\2020_covid_lp_norms.csv
+Loaded 1208 observations
+
+================================================================================
+ANALYSIS 1: PARAMETER SENSITIVITY
+================================================================================
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Projects\TDL\financial_tda\validation\analyze_tau_discrepancies.py", line 445, in <module>
+    main()
+  File "C:\Projects\TDL\financial_tda\validation\analyze_tau_discrepancies.py", line 413, in main
+    for event_name, norms_df in event_dfs.items():
+                                ^^^^^^^^^
+NameError: name 'event_dfs' is not defined
