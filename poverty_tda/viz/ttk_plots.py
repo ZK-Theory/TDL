@@ -413,7 +413,6 @@ def _plot_critical_points_comparison(
     # Extract positions and types
     positions = np.array([cp.position for cp in critical_points])
     types = np.array([cp.point_type for cp in critical_points])
-    _persistence_vals = np.array([cp.persistence for cp in critical_points])  # noqa: F841
 
     # Type colors
     type_colors = {0: "blue", 1: "green", 2: "red"}
