@@ -29,8 +29,6 @@ import seaborn as sns
 from scipy.stats import kendalltau, theilslopes
 
 # Add project root to path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from financial_tda.data.fetchers.yahoo import fetch_ticker
 from financial_tda.validation.gidea_katz_replication import (
