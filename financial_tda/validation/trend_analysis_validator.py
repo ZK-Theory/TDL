@@ -121,7 +121,7 @@ def compute_gk_rolling_statistics(
                 if low_freq_mask.sum() == 0:
                     return np.nan
                 return psd[low_freq_mask].mean()
-            except:
+            except Exception:
                 return np.nan
 
         results[f"{norm_col}_spectral_density_low"] = (
