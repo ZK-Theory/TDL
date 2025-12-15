@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 
 OUTPUTS_DIR = Path(__file__).parent / "outputs"
 FIGURES_DIR = Path(__file__).parent / "figures"
-
+OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 def analyze_parameter_sensitivity(
     norms_df: pd.DataFrame,
