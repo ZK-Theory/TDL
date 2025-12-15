@@ -642,8 +642,15 @@ def main():
         logger.error("Insufficient data fetched. Need all 4 indices.")
         return
 
-    # Get crisis metadata
-    covid_crisis = [c for c in KNOWN_CRISES if c.name == "COVID"][0]
+    # Get crisis metadata (safe search with error handling)
+    covid_crisis = next((c for c in KNOWN_CRISES if c.name == "COVID"), None)
+    if covid_crisis is None:
+        logger.error(
+            "COVID crisis not found in KNOWN_CRISES. Available crises: %s",
+            ", ".join(c.name for c in KNOWN_CRISES),
+        )
+        raise ValueError("COVID crisis configuration missing. Check KNOWN_CRISES definition.")
+
     crisis_info = {
         "onset_date": covid_crisis.onset_date,
         "peak_drawdown_date": covid_crisis.peak_drawdown_date,
