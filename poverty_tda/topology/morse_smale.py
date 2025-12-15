@@ -923,6 +923,139 @@ def _parse_ttk_result(
     )
 
 
+# =============================================================================
+# TOPOLOGICAL SIMPLIFICATION
+# =============================================================================
+
+
+def simplify_scalar_field(
+    vtk_path: Path | str,
+    persistence_threshold: float,
+    scalar_name: str = "mobility",
+    output_path: Path | str | None = None,
+) -> Path:
+    """
+    Simplify a scalar field by removing low-persistence topological noise.
+
+    Uses TTK's topological simplification filter to remove critical point pairs
+    with persistence below the threshold, effectively denoising the scalar field
+    while preserving significant topological features.
+
+    Args:
+        vtk_path: Path to input VTK file containing scalar field
+        persistence_threshold: Persistence threshold as fraction of scalar range.
+            Features with persistence below this are removed.
+            Recommended starting value: 0.05 (5% of scalar range).
+            Range: 0.0 to 1.0.
+        scalar_name: Name of scalar field to simplify (default "mobility")
+        output_path: Optional path for simplified VTK file.
+            If None, creates temporary file with "_simplified" suffix.
+
+    Returns:
+        Path to simplified VTK file
+
+    Raises:
+        FileNotFoundError: If input VTK file doesn't exist
+        ValueError: If scalar field doesn't exist or threshold invalid
+        RuntimeError: If TTK simplification fails or TTK unavailable
+
+    Example:
+        >>> # Remove low-persistence noise before Morse-Smale extraction
+        >>> simplified = simplify_scalar_field(
+        ...     "mobility.vti",
+        ...     persistence_threshold=0.05,
+        ...     scalar_name="mobility"
+        ... )
+        >>> result = compute_morse_smale(simplified, persistence_threshold=0.0)
+
+    Notes:
+        Persistence Threshold Recommendations (from Task 6.5.1 findings):
+        - 5% (0.05): Good starting point, removes minor noise
+        - 1% (0.01): Conservative, preserves more features
+        - 10% (0.10): Aggressive, keeps only major features
+
+        The threshold is relative to the scalar range. For a field with
+        range [0.2, 0.8] (range=0.6), threshold=0.05 means absolute
+        threshold of 0.03.
+    """
+    import tempfile
+
+    vtk_path = Path(vtk_path)
+
+    if not vtk_path.exists():
+        raise FileNotFoundError(f"VTK file not found: {vtk_path}")
+
+    # Validate persistence threshold
+    if not 0.0 <= persistence_threshold <= 1.0:
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
+
+    # Check TTK availability
+    if not is_ttk_available():
+        from shared.ttk_utils import get_ttk_unavailable_message
+
+        raise RuntimeError(get_ttk_unavailable_message())
+
+    # Validate scalar field and get range
+    vtk_data = load_vtk_data(vtk_path)
+    scalar_min, scalar_max = validate_scalar_field(vtk_data, scalar_name)
+    scalar_range = scalar_max - scalar_min
+
+    if scalar_range <= 0:
+        raise ValueError(f"Invalid scalar range [{scalar_min}, {scalar_max}]. " "Cannot simplify constant field.")
+
+    # Compute absolute threshold
+    abs_threshold = persistence_threshold * scalar_range
+
+    # Prepare output path
+    if output_path is None:
+        # Create temporary file with same extension
+        suffix = vtk_path.suffix
+        with tempfile.NamedTemporaryFile(mode="w", suffix=f"_simplified{suffix}", delete=False) as tmp:
+            output_path = Path(tmp.name)
+    else:
+        output_path = Path(output_path)
+
+    # Get TTK simplification script path
+    script_path = Path(__file__).parent / "ttk_scripts" / "simplify_scalar_field.py"
+
+    if not script_path.exists():
+        raise FileNotFoundError(
+            f"TTK simplification script not found: {script_path}\n"
+            "Expected location: poverty_tda/topology/ttk_scripts/simplify_scalar_field.py"
+        )
+
+    # Prepare subprocess arguments
+    args = [
+        "--input",
+        str(vtk_path),
+        "--output",
+        str(output_path),
+        "--scalar-name",
+        scalar_name,
+        "--persistence-threshold",
+        str(abs_threshold),
+    ]
+
+    logger.info(
+        f"Simplifying scalar field '{scalar_name}' " f"(threshold={persistence_threshold:.2%} = {abs_threshold:.4f})..."
+    )
+
+    # Run TTK simplification via subprocess
+    returncode, stdout, stderr = run_ttk_subprocess(str(script_path), args=args, timeout=300)
+
+    if returncode != 0:
+        raise RuntimeError(
+            f"TTK simplification failed (exit code {returncode}):\n" f"stderr: {stderr}\n" f"stdout: {stdout}"
+        )
+
+    if not output_path.exists():
+        raise RuntimeError(f"TTK simplification produced no output file.\n" f"stdout: {stdout}\n" f"stderr: {stderr}")
+
+    logger.info(f"Scalar field simplified: {output_path}")
+
+    return output_path
+
+
 def compute_morse_smale(
     vtk_path: Path | str,
     scalar_name: str = "mobility",
