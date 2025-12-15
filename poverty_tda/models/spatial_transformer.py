@@ -507,7 +507,9 @@ class MobilitySurfaceModel(nn.Module):
 
         # Prediction head
         # Updated to match reduced channel count (base * 4 instead of base * 8)
-        fc_input_size = num_feature_channels * 4 * 4 * 4  # After adaptive pooling
+        # After adaptive pooling: feature extractor outputs (num_feature_channels * 4) channels,
+        # spatial size is 4x4, so input to FC is num_feature_channels * 4 * 4 * 4
+        fc_input_size = num_feature_channels * 4 * 4 * 4
         self.prediction_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(fc_input_size, 256),
