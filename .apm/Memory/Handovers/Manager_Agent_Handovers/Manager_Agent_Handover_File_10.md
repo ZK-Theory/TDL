@@ -37,7 +37,7 @@ active_agents: [Agent_Docs, Agent_Financial_ML, Agent_Poverty_ML]
 **Ready for Assignment (No Blockers):**
 - Task 9.1 (Financial TDA Paper Finalization) → Agent_Docs | Depends on: Task 8.1 output ✓ | Priority: P0 Critical
 - Task 9.2 (Policy Brief Creation) → Agent_Docs | Depends on: Task 8.2 output ✓ | Priority: P0 Critical  
-- Task 9.3 (Financial Technical Blogs) → Agent_Docs | Depends on: Task 7.2 output ✓ | Priority: P1 (defer if needed)
+- Task 9.3 (Financial Technical Blogs) → Agent_Docs | Depends on: Task 8.1 output ✓ | Priority: P1 (defer if needed)
 - Task 9.4 (Poverty Technical Blogs) → Agent_Docs | Depends on: Task 7.4 output ✓ | Priority: P1 (defer if needed)
 - Task 9.5 (API Documentation) → Agent_Docs | Depends on: All phases ✓ | Priority: P0 Critical
 - Task 9.6 (Supplementary Materials & Figures) → Agent_Docs | Depends on: Task 8.2 output ✓ | Priority: P0 Critical
