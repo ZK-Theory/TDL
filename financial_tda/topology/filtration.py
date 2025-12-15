@@ -701,3 +701,129 @@ def compute_persistence_statistics(
         "std_persistence": float(np.std(persistence)),
         "total_persistence": float(np.sum(persistence)),
     }
+
+
+def compute_bottleneck_distance(
+    diagram1: PersistenceDiagram,
+    diagram2: PersistenceDiagram,
+    dimension: int | None = None,
+) -> float:
+    """
+    Compute bottleneck distance between two persistence diagrams.
+
+    The bottleneck distance is the infimum over all perfect matchings between
+    features such that the maximum distance between matched pairs is minimized.
+
+    Args:
+        diagram1: First persistence diagram of shape (n_features, 3).
+        diagram2: Second persistence diagram of shape (n_features, 3).
+        dimension: If provided, compute distance only for this homology dimension.
+
+    Returns:
+        Bottleneck distance as a float.
+
+    Examples:
+        >>> diagram_bull = compute_persistence_vr(bull_market_embedding)
+        >>> diagram_bear = compute_persistence_vr(bear_market_embedding)
+        >>> distance = compute_bottleneck_distance(diagram_bull, diagram_bear)
+    """
+    import persim
+
+    # Input validation
+    diagram1 = np.asarray(diagram1, dtype=np.float64)
+    diagram2 = np.asarray(diagram2, dtype=np.float64)
+
+    if diagram1.ndim != 2 or diagram1.shape[1] != 3:
+        raise ValueError(f"diagram1 must have shape (n, 3), got {diagram1.shape}")
+
+    if diagram2.ndim != 2 or diagram2.shape[1] != 3:
+        raise ValueError(f"diagram2 must have shape (n, 3), got {diagram2.shape}")
+
+    # Filter by dimension if specified
+    if dimension is not None:
+        diagram1 = diagram1[diagram1[:, 2] == dimension]
+        diagram2 = diagram2[diagram2[:, 2] == dimension]
+
+    # Handle empty diagrams
+    if len(diagram1) == 0 and len(diagram2) == 0:
+        return 0.0
+
+    # Convert to persim format: (n, 2) arrays with (birth, death)
+    def to_persim(diagram):
+        if len(diagram) == 0:
+            return np.array([]).reshape(0, 2)
+        return diagram[:, :2].astype(np.float64)
+
+    persim_diag1 = to_persim(diagram1)
+    persim_diag2 = to_persim(diagram2)
+
+    # Compute bottleneck distance using persim
+    distance = persim.bottleneck(persim_diag1, persim_diag2)
+
+    return float(distance)
+
+
+def compute_wasserstein_distance(
+    diagram1: PersistenceDiagram,
+    diagram2: PersistenceDiagram,
+    dimension: int | None = None,
+    order: int = 2,
+) -> float:
+    """
+    Compute Wasserstein distance between two persistence diagrams.
+
+    The Wasserstein distance measures the minimum cost of transforming one
+    diagram into another. Faster to compute than bottleneck for large diagrams.
+
+    Args:
+        diagram1: First persistence diagram of shape (n_features, 3).
+        diagram2: Second persistence diagram of shape (n_features, 3).
+        dimension: If provided, compute distance only for this homology dimension.
+        order: Order of the Wasserstein distance (p-norm). Default 2.
+
+    Returns:
+        Wasserstein distance as a float.
+
+    Examples:
+        >>> diagram1 = compute_persistence_vr(data1)
+        >>> diagram2 = compute_persistence_vr(data2)
+        >>> distance = compute_wasserstein_distance(diagram1, diagram2, order=2)
+    """
+
+    # Input validation
+    diagram1 = np.asarray(diagram1, dtype=np.float64)
+    diagram2 = np.asarray(diagram2, dtype=np.float64)
+
+    if diagram1.ndim != 2 or diagram1.shape[1] != 3:
+        raise ValueError(f"diagram1 must have shape (n, 3), got {diagram1.shape}")
+
+    if diagram2.ndim != 2 or diagram2.shape[1] != 3:
+        raise ValueError(f"diagram2 must have shape (n, 3), got {diagram2.shape}")
+
+    if order <= 0:
+        raise ValueError(f"order must be positive, got {order}")
+
+    # Filter by dimension if specified
+    if dimension is not None:
+        diagram1 = diagram1[diagram1[:, 2] == dimension]
+        diagram2 = diagram2[diagram2[:, 2] == dimension]
+
+    # Handle empty diagrams
+    if len(diagram1) == 0 and len(diagram2) == 0:
+        return 0.0
+
+    # Convert to persim format
+    import persim
+
+    def to_persim(diagram):
+        if len(diagram) == 0:
+            return np.array([]).reshape(0, 2)
+        return diagram[:, :2].astype(np.float64)
+
+    persim_diag1 = to_persim(diagram1)
+    persim_diag2 = to_persim(diagram2)
+
+    # Compute Wasserstein distance using persim
+    distance = persim.wasserstein(persim_diag1, persim_diag2, matching=False)
+
+    return float(distance)

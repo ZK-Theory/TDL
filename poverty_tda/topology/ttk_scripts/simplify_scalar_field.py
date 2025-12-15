@@ -43,6 +43,7 @@ def simplify_scalar_field(
     # Import VTK and TTK (only available in TTK conda environment)
     try:
         import vtk
+        from topologytoolkit.ttkPersistenceDiagram import ttkPersistenceDiagram
         from topologytoolkit.ttkTopologicalSimplification import (
             ttkTopologicalSimplification,
         )
@@ -84,10 +85,18 @@ def simplify_scalar_field(
     # Set active scalars
     point_data.SetActiveScalars(scalar_name)
 
+    # First, compute persistence diagram (required for simplification)
+    persistence = ttkPersistenceDiagram()
+    persistence.SetInputData(vtk_data)
+    persistence.SetInputArrayToProcess(0, 0, 0, 0, scalar_name)
+    persistence.Update()
+
     # Create and configure TTK topological simplification filter
     simplification = ttkTopologicalSimplification()
     simplification.SetInputData(vtk_data)
     simplification.SetInputArrayToProcess(0, 0, 0, 0, scalar_name)
+    # Connect persistence diagram to port 1
+    simplification.SetInputConnection(1, persistence.GetOutputPort())
     simplification.SetPersistenceThreshold(persistence_threshold)
 
     # Execute simplification
@@ -121,7 +130,11 @@ def main():
     parser = argparse.ArgumentParser(description="Simplify VTK scalar field using TTK topological simplification")
     parser.add_argument("--input", required=True, help="Input VTK file path")
     parser.add_argument("--output", required=True, help="Output VTK file path")
-    parser.add_argument("--scalar-name", default="mobility", help="Scalar field name (default: mobility)")
+    parser.add_argument(
+        "--scalar-name",
+        default="mobility",
+        help="Scalar field name (default: mobility)",
+    )
     parser.add_argument(
         "--persistence-threshold",
         type=float,

@@ -1,8 +1,8 @@
 """
-TTK subprocess script: Compute persistence diagram from structured scalar field.
+TTK subprocess script: Compute Rips persistence diagram from point cloud.
 
 This script runs in the isolated TTK conda environment to compute
-persistence diagrams using TTK's PersistenceDiagram filter on structured grids.
+persistence diagrams using TTK's RipsPersistenceDiagram filter on point clouds.
 
 Usage:
     python compute_persistence_ttk.py <input_vtk> <output_vtk> <max_dimension>
@@ -14,15 +14,14 @@ from pathlib import Path
 import numpy as np
 import topologytoolkit as ttk
 import vtk
-from vtk.util import numpy_support
 
 
 def compute_persistence_from_vtk(input_path, output_path, max_dimension=2):
     """
-    Compute persistence diagram from VTK structured scalar field.
+    Compute Rips persistence diagram from point cloud.
 
     Args:
-        input_path: Path to input VTK file containing structured grid with scalar field
+        input_path: Path to input VTK file containing point cloud coordinates
         output_path: Path to save output VTK file with persistence diagram
         max_dimension: Maximum homology dimension to compute
 
@@ -30,31 +29,55 @@ def compute_persistence_from_vtk(input_path, output_path, max_dimension=2):
         Exit code: 0 on success, 1 on error
     """
     try:
-        # Read input structured grid
+        # Read input point cloud
         reader = vtk.vtkGenericDataObjectReader()
         reader.SetFileName(str(input_path))
         reader.Update()
-        scalar_field = reader.GetOutput()
+        point_data = reader.GetOutput()
 
-        if scalar_field.GetNumberOfPoints() == 0:
-            print("ERROR: Input scalar field is empty", file=sys.stderr)
+        if point_data.GetNumberOfPoints() == 0:
+            print("ERROR: Input point cloud is empty", file=sys.stderr)
             return 1
 
-        # Check for scalar field
-        scalar_array = scalar_field.GetPointData().GetScalars()
-        if scalar_array is None:
-            print("ERROR: No scalar field found in input", file=sys.stderr)
-            return 1
+        n_points = point_data.GetNumberOfPoints()
+        print("Computing Rips persistence for point cloud:")
+        print(f"  Points: {n_points}")
+        print(f"  Max dimension: {max_dimension}")
 
-        scalar_name = scalar_array.GetName()
-        print(f"Computing persistence for scalar field: {scalar_name}")
-        print(f"  Points: {scalar_field.GetNumberOfPoints()}")
-        print(f"  Data type: {scalar_field.GetClassName()}")
+        # Extract point coordinates
+        points = np.zeros((n_points, 3))
+        for i in range(n_points):
+            points[i] = point_data.GetPoint(i)
 
-        # Create persistence diagram filter
-        persistence = ttk.ttkPersistenceDiagram()
-        persistence.SetInputData(scalar_field)
-        persistence.SetInputArrayToProcess(0, 0, 0, 0, scalar_name)
+        print(f"  Point cloud shape: {points.shape}")
+
+        # Compute pairwise distance matrix (required by ttkRipsPersistenceDiagram)
+        print("Computing distance matrix...")
+        distances = np.zeros((n_points, n_points))
+        for i in range(n_points):
+            for j in range(n_points):
+                distances[i, j] = np.linalg.norm(points[i] - points[j])
+
+        # Create VTK table from distance matrix
+        table = vtk.vtkTable()
+        for i in range(n_points):
+            col = vtk.vtkFloatArray()
+            col.SetName(f"Point_{i}")
+            col.SetNumberOfTuples(n_points)
+            for j in range(n_points):
+                col.SetValue(j, distances[i, j])
+            table.AddColumn(col)
+
+        # Create Rips persistence diagram filter (CORRECT filter for point clouds)
+        persistence = ttk.ttkRipsPersistenceDiagram()
+
+        # TTK requires TrivialProducer for table input
+        producer = vtk.vtkTrivialProducer()
+        producer.SetOutput(table)
+
+        persistence.SetInputConnection(producer.GetOutputPort())
+        persistence.SetInputIsDistanceMatrix(1)  # Flag input as distance matrix
+        persistence.SetSimplexMaximumDimension(max_dimension)
         persistence.Update()
 
         # Get output

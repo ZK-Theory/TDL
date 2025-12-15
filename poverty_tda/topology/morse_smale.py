@@ -1063,6 +1063,8 @@ def compute_morse_smale(
     compute_ascending: bool = True,
     compute_descending: bool = True,
     compute_separatrices: bool = True,
+    simplify_first: bool = False,
+    simplification_threshold: float | None = None,
 ) -> MorseSmaleResult:
     """
     Compute Morse-Smale complex for a mobility surface.
@@ -1079,11 +1081,18 @@ def compute_morse_smale(
             Supports .vti (ImageData), .vts (StructuredGrid), .vtp (PolyData).
         scalar_name: Name of the scalar field to analyze (default "mobility").
         persistence_threshold: Persistence threshold as fraction of scalar range.
-            Features with persistence below this threshold are simplified.
-            Default 0.05 (5% of range). Range: 0.0 to 1.0.
+            Features with persistence below this threshold are simplified during
+            Morse-Smale computation. Default 0.05 (5% of range). Range: 0.0 to 1.0.
         compute_ascending: Whether to compute ascending manifolds.
         compute_descending: Whether to compute descending manifolds.
         compute_separatrices: Whether to compute 1-separatrices.
+        simplify_first: If True, apply topological simplification to the scalar
+            field before computing Morse-Smale complex. This removes low-persistence
+            topological noise, resulting in cleaner critical point extraction.
+        simplification_threshold: Persistence threshold for pre-simplification
+            (as fraction of scalar range). If None and simplify_first=True,
+            uses the same value as persistence_threshold. Typically set higher
+            than persistence_threshold for more aggressive noise removal.
 
     Returns:
         MorseSmaleResult containing:
@@ -1098,9 +1107,19 @@ def compute_morse_smale(
         RuntimeError: If TTK computation fails.
 
     Example:
+        >>> # Standard computation
         >>> result = compute_morse_smale("mobility.vti", persistence_threshold=0.05)
         >>> print(f"Found {result.n_maxima} maxima, {result.n_saddles} saddles")
         Found 12 maxima, 23 saddles
+
+        >>> # With pre-simplification for cleaner results
+        >>> result = compute_morse_smale(
+        ...     "mobility.vti",
+        ...     simplify_first=True,
+        ...     simplification_threshold=0.10,  # Remove more noise
+        ...     persistence_threshold=0.02       # Then finer MS computation
+        ... )
+        >>> print(f"Found {result.n_maxima} maxima (after noise removal)")
 
         >>> for cp in result.get_maxima():
         ...     print(f"Maximum at {cp.position[:2]}, value={cp.value:.3f}")
@@ -1113,6 +1132,28 @@ def compute_morse_smale(
     # Validate persistence threshold
     if not 0.0 <= persistence_threshold <= 1.0:
         raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
+
+    # Apply pre-simplification if requested
+    original_vtk_path = vtk_path
+    if simplify_first:
+        # Use simplification_threshold or fall back to persistence_threshold
+        simp_threshold = simplification_threshold if simplification_threshold is not None else persistence_threshold
+
+        if not 0.0 <= simp_threshold <= 1.0:
+            raise ValueError(f"simplification_threshold must be in [0, 1], got {simp_threshold}")
+
+        logger.info(
+            f"Pre-simplifying scalar field with threshold={simp_threshold:.2%} " f"before Morse-Smale computation"
+        )
+
+        # Simplify the scalar field to remove topological noise
+        vtk_path = simplify_scalar_field(
+            vtk_path,
+            persistence_threshold=simp_threshold,
+            scalar_name=scalar_name,
+        )
+
+        logger.info("Using simplified field for Morse-Smale computation")
 
     # Validate scalar field exists (also loads data for quick check)
     vtk_data = load_vtk_data(vtk_path)
@@ -1143,6 +1184,21 @@ def compute_morse_smale(
 
     # Parse and return result
     result = _parse_ttk_result(raw_result)
+
+    # Add simplification metadata
+    if simplify_first:
+        result.metadata["simplified"] = True
+        result.metadata["simplification_threshold"] = (
+            simplification_threshold if simplification_threshold is not None else persistence_threshold
+        )
+
+        # Clean up temporary simplified file
+        if vtk_path != original_vtk_path:
+            try:
+                vtk_path.unlink(missing_ok=True)
+                logger.debug(f"Cleaned up temporary simplified file: {vtk_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary file {vtk_path}: {e}")
 
     logger.info(
         f"Morse-Smale complex: {result.n_minima} minima, "
@@ -1421,6 +1477,77 @@ def simplify_topology(
     if return_pairs:
         return simplified, pairs
     return simplified
+
+
+def filter_by_persistence(
+    critical_points: list[CriticalPoint],
+    persistence_threshold: float,
+    scalar_range: tuple[float, float],
+) -> list[CriticalPoint]:
+    """
+    Filter critical points by persistence threshold.
+
+    Removes critical points that have persistence values (if available)
+    below the specified threshold. This is useful for post-processing
+    critical point lists to remove low-significance features.
+
+    Args:
+        critical_points: List of CriticalPoint objects to filter
+        persistence_threshold: Persistence threshold as fraction of scalar range.
+            Points with persistence below this are filtered out.
+        scalar_range: (min, max) tuple of the scalar field range
+
+    Returns:
+        Filtered list of CriticalPoint objects with persistence >= threshold
+
+    Example:
+        >>> result = compute_morse_smale("mobility.vti", persistence_threshold=0.0)
+        >>> # Post-filter critical points by persistence
+        >>> significant_points = filter_by_persistence(
+        ...     result.critical_points,
+        ...     persistence_threshold=0.05,
+        ...     scalar_range=result.scalar_range
+        ... )
+        >>> print(f"Filtered: {len(result.critical_points)} -> {len(significant_points)}")
+
+    Note:
+        This function only filters points that have persistence values set.
+        If a critical point has persistence=None, it is always kept (assumed
+        to be from non-persistence-aware extraction or an essential point).
+    """
+    if not 0.0 <= persistence_threshold <= 1.0:
+        raise ValueError(f"persistence_threshold must be in [0, 1], got {persistence_threshold}")
+
+    # Compute absolute threshold
+    scalar_min, scalar_max = scalar_range
+    range_size = scalar_max - scalar_min
+
+    if range_size <= 0:
+        # Invalid range, return all points
+        logger.warning(f"Invalid scalar range {scalar_range}, returning all points")
+        return critical_points
+
+    abs_threshold = persistence_threshold * range_size
+
+    # Filter points
+    filtered = []
+    for cp in critical_points:
+        if cp.persistence is None:
+            # No persistence info, keep the point
+            filtered.append(cp)
+        elif cp.persistence >= abs_threshold:
+            # Persistence above threshold, keep it
+            filtered.append(cp)
+        # else: persistence below threshold, filter it out
+
+    n_removed = len(critical_points) - len(filtered)
+    if n_removed > 0:
+        logger.info(
+            f"Filtered {n_removed} critical points below persistence "
+            f"threshold {persistence_threshold:.2%} (abs={abs_threshold:.4f})"
+        )
+
+    return filtered
 
 
 def get_persistence_diagram(
