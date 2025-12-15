@@ -368,11 +368,16 @@ def main():
 
     # Load all events
     logger.info("\nLoading event data...")
-    gfc_norms = load_lp_norms_from_csv(OUTPUTS_DIR / "2008_gfc_lp_norms.csv")
-    dotcom_norms = load_lp_norms_from_csv(OUTPUTS_DIR / "2000_dotcom_lp_norms.csv")
-    covid_norms = load_lp_norms_from_csv(OUTPUTS_DIR / "2020_covid_lp_norms.csv")
+    gfc_norms_raw = load_lp_norms_from_csv(OUTPUTS_DIR / "2008_gfc_lp_norms.csv")
+    dotcom_norms_raw = load_lp_norms_from_csv(OUTPUTS_DIR / "2000_dotcom_lp_norms.csv")
+    covid_norms_raw = load_lp_norms_from_csv(OUTPUTS_DIR / "2020_covid_lp_norms.csv")
 
-    # Remove timezone to avoid conversion issues (data is already properly ordered)
+    # Create copies and remove timezone to avoid conversion issues (data is already properly ordered)
+    # Operating on copies to avoid mutating original DataFrames
+    gfc_norms = gfc_norms_raw.copy()
+    dotcom_norms = dotcom_norms_raw.copy()
+    covid_norms = covid_norms_raw.copy()
+
     for df in [gfc_norms, dotcom_norms, covid_norms]:
         if hasattr(df.index, "tz") and df.index.tz is not None:
             df.index = df.index.tz_localize(None)
