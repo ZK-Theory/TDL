@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 # Test with ttk_env directly
 ttk_env_python = Path.home() / "miniconda3" / "envs" / "ttk_env" / "python.exe"
 
@@ -14,8 +16,7 @@ if not ttk_env_python.exists():
     ttk_env_python = Path("C:/") / "ProgramData" / "miniconda3" / "envs" / "ttk_env" / "python.exe"
 
 if not ttk_env_python.exists():
-    print("TTK environment not found - skipping test")
-    sys.exit(0)
+    pytest.skip("TTK environment not found - skipping test", allow_module_level=True)
 
 # Create test script to run in TTK environment
 test_script = """
