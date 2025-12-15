@@ -103,7 +103,7 @@ def compute_gk_rolling_statistics(
                 return np.nan
             try:
                 return np.corrcoef(x[:-1], x[1:])[0, 1]
-            except:
+            except Exception:
                 return np.nan
 
         results[f"{norm_col}_acf_lag1"] = norms_df[norm_col].rolling(window=window_size).apply(acf_lag1, raw=True)
