@@ -124,7 +124,6 @@ def plot_simplification_comparison(
         available = ", ".join(mesh.array_names)
         raise ValueError(f"Scalar '{scalar_name}' not found. Available: {available}")
 
-    _scalar_data = mesh[scalar_name]  # Verify scalar exists
 
     # Create figure
     fig = plt.figure(figsize=figsize)
