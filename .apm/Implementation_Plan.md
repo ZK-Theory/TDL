@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Manager_8 - **PHASES 6 & 6.5 COMPLETE** (6/6 Phase 6 tasks, 4/4 Phase 6.5 tasks). All visualization and TTK integration complete. Ready for Phase 7 (Validation & Backtesting).
+**Last Modification:** Manager_9 - Updated Tasks 7.1 and 7.3 guidance to include TTK backend testing and topological simplification from Phase 6.5 integration.
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay) and TTK acceleration.
 
 
@@ -560,12 +560,13 @@
 ### Task 7.1 – Financial System Integration Test - Agent_Financial_ML
 **Objective:** Run end-to-end integration tests for financial TDA pipeline.
 **Output:** Passing integration test suite.
-**Guidance:** Test full pipeline: data → embedding → persistence → features → detection. Multiple asset classes. **Depends on: Phase 4-5 Financial tasks Output**
+**Guidance:** Test full pipeline: data → embedding → persistence → features → detection. Multiple asset classes. Include TTK hybrid backend testing (Rips persistence, bottleneck/Wasserstein distances via persim). **Depends on: Phase 4-5 Financial tasks Output, Phase 6.5 TTK Integration Output**
 
 1. Create integration test suite covering full pipeline: data → embedding → persistence → features → detection
-2. Test on multiple asset classes (equities, crypto)
-3. Verify consistent results across repeated runs
-4. Document any numerical stability issues
+2. Test TTK hybrid backend: verify TTK Rips persistence computation and persim distance metrics
+3. Test on multiple asset classes (equities, crypto) with both giotto-tda and TTK backends
+4. Verify consistent results across repeated runs and backend choices
+5. Document any numerical stability issues or backend-specific behaviors
 
 ### Task 7.2 – Crisis Detection Validation [CHECKPOINT] - Agent_Financial_ML
 **Objective:** Validate crisis detection against historical events.
@@ -581,12 +582,13 @@
 ### Task 7.3 – Poverty System Integration Test - Agent_Poverty_ML
 **Objective:** Run end-to-end integration tests for poverty TDA pipeline.
 **Output:** Passing integration test suite.
-**Guidance:** Test full pipeline: data → surface → Morse-Smale → analysis. Verify Morse inequality. **Depends on: Phase 4-5 Poverty tasks Output**
+**Guidance:** Test full pipeline: data → surface → Morse-Smale → analysis. Verify Morse inequality. Include TTK topological simplification and persistence filtering. **Depends on: Phase 4-5 Poverty tasks Output, Phase 6.5 TTK Integration Output**
 
 1. Create integration test suite: data → surface → Morse-Smale → analysis
-2. Test on sample UK region
-3. Verify topological properties (Morse inequality, correct basin count)
-4. Document any data quality issues
+2. Test TTK topological simplification: verify scalar field noise removal and persistence-based filtering
+3. Test on sample UK region with different simplification thresholds (1%, 5%, 10%)
+4. Verify topological properties (Morse inequality, correct basin count) with and without simplification
+5. Document any data quality issues or simplification threshold recommendations
 
 ### Task 7.4 – UK Mobility Validation [CHECKPOINT] - Agent_Poverty_ML
 **Objective:** Validate poverty trap identification against known UK patterns.
