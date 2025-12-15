@@ -502,6 +502,10 @@ def generate_validation_report(
     # Crisis duration
     crisis_duration = (crisis_info["peak_drawdown_date"] - crisis_info["onset_date"]).days
 
+    # Safely format lead time (can be None)
+    lead_time_str = f"{metrics['lead_time_days']} days" if metrics["lead_time_days"] is not None else "N/A"
+    gfc_lead_time_str = f"{gfc_metrics['lead_time_days']} days" if gfc_metrics["lead_time_days"] is not None else "N/A"
+
     report = f"""# 2020 COVID Crash Validation Report
 
 ## Executive Summary
@@ -509,7 +513,7 @@ def generate_validation_report(
 This report validates the TDA-based crisis detection system against the 2020 COVID market crash, the fastest bear market in history (Feb 20 - Mar 23, 2020).
 
 **Key Findings:**
-- **Lead Time**: {metrics["lead_time_days"]} days before crash start
+- **Lead Time**: {lead_time_str} before crash start
 - **Precision**: {metrics["precision"]:.3f}
 - **Recall**: {metrics["recall"]:.3f}
 - **F1 Score**: {metrics["f1_score"]:.3f}
@@ -518,7 +522,7 @@ This report validates the TDA-based crisis detection system against the 2020 COV
 **Comparison to 2008 GFC:**
 - COVID crash duration: {crisis_duration} days vs GFC: 175 days (6.6x faster)
 - COVID F1: {metrics["f1_score"]:.3f} vs GFC F1: {gfc_metrics["f1_score"]:.3f}
-- COVID lead time: {metrics["lead_time_days"]} days vs GFC: {gfc_metrics["lead_time_days"]} days
+- COVID lead time: {lead_time_str} vs GFC: {gfc_lead_time_str}
 
 ## Methodology
 
@@ -546,7 +550,7 @@ This report validates the TDA-based crisis detection system against the 2020 COV
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Lead Time | {metrics["lead_time_days"]} days | ≥5 days | {"✓ PASS" if metrics["lead_time_days"] and metrics["lead_time_days"] >= 5 else "✗ FAIL"} |
+| Lead Time | {lead_time_str} | ≥5 days | {"✓ PASS" if metrics["lead_time_days"] is not None and metrics["lead_time_days"] >= 5 else "✗ FAIL"} |
 | Precision | {metrics["precision"]:.3f} | - | - |
 | Recall | {metrics["recall"]:.3f} | - | - |
 | F1 Score | {metrics["f1_score"]:.3f} | ≥0.70 | {"✓ PASS" if metrics["f1_score"] >= 0.70 else "✗ FAIL"} |
@@ -565,7 +569,7 @@ This report validates the TDA-based crisis detection system against the 2020 COV
 
 ### Detection Timeline
 
-**First Detection**: {detections[detections].index[0].strftime("%Y-%m-%d") if detections.any() else "None"}
+**First Detection**: {detections.index[0].strftime("%Y-%m-%d") if len(detections[detections]) > 0 else "None"}
 **Total Detections**: {metrics["n_detections"]}
 **Pre-Crisis Detections**: {metrics["n_pre_crisis_detections"]}
 
@@ -585,14 +589,14 @@ See accompanying figures:
 ### Detection Performance
 | Metric | COVID 2020 | GFC 2008 | Difference |
 |--------|-----------|----------|------------|
-| Lead Time | {metrics["lead_time_days"]} days | {gfc_metrics["lead_time_days"]} days | {metrics["lead_time_days"] - gfc_metrics["lead_time_days"]} days |
+| Lead Time | {lead_time_str} | {gfc_lead_time_str} | {f"{metrics['lead_time_days'] - gfc_metrics['lead_time_days']} days" if metrics["lead_time_days"] is not None and gfc_metrics["lead_time_days"] is not None else "N/A"} |
 | Precision | {metrics["precision"]:.3f} | {gfc_metrics["precision"]:.3f} | {metrics["precision"] - gfc_metrics["precision"]:.3f} |
 | Recall | {metrics["recall"]:.3f} | {gfc_metrics["recall"]:.3f} | {metrics["recall"] - gfc_metrics["recall"]:.3f} |
 | F1 Score | {metrics["f1_score"]:.3f} | {gfc_metrics["f1_score"]:.3f} | {metrics["f1_score"] - gfc_metrics["f1_score"]:.3f} |
 
 ### Key Insights
 - **Speed Adaptation**: {"The detection system " + ("successfully adapted" if metrics["f1_score"] > gfc_metrics["f1_score"] else "struggled to adapt") + " to the rapid regime change."}
-- **Lead Time**: {"Similar" if abs(metrics["lead_time_days"] - gfc_metrics["lead_time_days"]) < 30 else "Different"} early warning capability across crisis types.
+- **Lead Time**: {("Similar" if abs(metrics["lead_time_days"] - gfc_metrics["lead_time_days"]) < 30 else "Different") if metrics["lead_time_days"] is not None and gfc_metrics["lead_time_days"] is not None else "N/A"} early warning capability across crisis types.
 - **Precision vs Recall**: {"Higher precision" if metrics["precision"] > gfc_metrics["precision"] else "Lower precision"} for COVID indicates {"fewer false alarms" if metrics["precision"] > gfc_metrics["precision"] else "more false alarms"}.
 
 ## Interpretation
