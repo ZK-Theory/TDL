@@ -338,8 +338,6 @@ def _add_statistical_annotations(fig: Figure, curves) -> None:
     median2 = curve2[len(curve2) // 2, 0]
 
     # Compute 75th percentile (high persistence features)
-    _p75_1 = curve1[int(0.75 * len(curve1)), 0]  # noqa: F841
-    _p75_2 = curve2[int(0.75 * len(curve2)), 0]  # noqa: F841
 
     # Add annotation to persistence subplot (rightmost)
     axes = fig.axes
