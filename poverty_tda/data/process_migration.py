@@ -109,14 +109,24 @@ def compute_lad_migration_metrics(
     outflows = (
         flows_df.groupby("origin_lad")
         .agg({"total_flow": "sum", "working_age_flow": "sum"})
-        .rename(columns={"total_flow": "total_outflow", "working_age_flow": "working_age_outflow"})
+        .rename(
+            columns={
+                "total_flow": "total_outflow",
+                "working_age_flow": "working_age_outflow",
+            }
+        )
     )
 
     # Compute inflows per LAD
     inflows = (
         flows_df.groupby("dest_lad")
         .agg({"total_flow": "sum", "working_age_flow": "sum"})
-        .rename(columns={"total_flow": "total_inflow", "working_age_flow": "working_age_inflow"})
+        .rename(
+            columns={
+                "total_flow": "total_inflow",
+                "working_age_flow": "working_age_inflow",
+            }
+        )
     )
 
     # Combine
@@ -131,7 +141,9 @@ def compute_lad_migration_metrics(
 
     # Normalize by churn (avoids need for population data)
     lad_metrics["net_migration_rate"] = np.where(
-        lad_metrics["migration_churn"] > 0, lad_metrics["net_migration"] / lad_metrics["migration_churn"], 0
+        lad_metrics["migration_churn"] > 0,
+        lad_metrics["net_migration"] / lad_metrics["migration_churn"],
+        0,
     )
 
     # Directional metrics (if mobility data provided)
@@ -161,34 +173,43 @@ def _add_directional_metrics(
 
     mobility_lookup = mobility_by_lad.set_index("lad_code")["mean_mobility"].to_dict()
 
-    # For each origin LAD, compute flows to higher/lower mobility destinations
-    upward_flows = []
-    downward_flows = []
+    # Vectorized approach for computing directional flows
+    flows_copy = flows_df.copy()
+    flows_copy["origin_mobility"] = flows_copy["origin_lad"].map(mobility_lookup)
+    flows_copy["dest_mobility"] = flows_copy["dest_lad"].map(mobility_lookup)
 
-    for origin_lad, group in flows_df.groupby("origin_lad"):
-        origin_mobility = mobility_lookup.get(origin_lad, np.nan)
+    # Only include flows with valid mobility values for both origin and destination
+    valid_flows = flows_copy.dropna(subset=["origin_mobility", "dest_mobility"])
+    valid_flows["is_upward"] = valid_flows["dest_mobility"] > valid_flows["origin_mobility"]
 
-        if np.isnan(origin_mobility):
-            upward_flows.append({"lad_code": origin_lad, "upward_flow": np.nan, "downward_flow": np.nan})
-            continue
+    # Aggregate upward and downward flows by origin LAD
+    upward_agg = (
+        valid_flows[valid_flows["is_upward"]]
+        .groupby("origin_lad")["total_flow"]
+        .sum()
+        .reset_index()
+        .rename(columns={"total_flow": "upward_flow"})
+    )
+    downward_agg = (
+        valid_flows[~valid_flows["is_upward"]]
+        .groupby("origin_lad")["total_flow"]
+        .sum()
+        .reset_index()
+        .rename(columns={"total_flow": "downward_flow"})
+    )
 
-        # Split flows by destination mobility
-        upward = 0
-        downward = 0
+    # Create directional flows dataframe with all origin LADs
+    directional_df = pd.DataFrame({"lad_code": flows_df["origin_lad"].unique()})
+    directional_df = directional_df.merge(
+        upward_agg.rename(columns={"origin_lad": "lad_code"}), on="lad_code", how="left"
+    ).merge(
+        downward_agg.rename(columns={"origin_lad": "lad_code"}),
+        on="lad_code",
+        how="left",
+    )
 
-        for _, row in group.iterrows():
-            dest_mobility = mobility_lookup.get(row["dest_lad"], np.nan)
-            if np.isnan(dest_mobility):
-                continue
-
-            if dest_mobility > origin_mobility:
-                upward += row["total_flow"]
-            else:
-                downward += row["total_flow"]
-
-        upward_flows.append({"lad_code": origin_lad, "upward_flow": upward, "downward_flow": downward})
-
-    directional_df = pd.DataFrame(upward_flows)
+    # Fill NaN with 0 for LADs with no valid flows
+    directional_df[["upward_flow", "downward_flow"]] = directional_df[["upward_flow", "downward_flow"]].fillna(0)
 
     # Compute escape ratio
     directional_df["escape_ratio"] = np.where(

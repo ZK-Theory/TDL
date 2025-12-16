@@ -79,7 +79,7 @@
   "input_files": [],
   "output_files": [],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "Corrected: Mapper from 168 clusters to 15 (consistent with GM)"
   ]

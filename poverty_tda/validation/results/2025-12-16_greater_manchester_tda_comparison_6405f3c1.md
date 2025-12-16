@@ -53,4 +53,3 @@ vs K-means 32.8%. CIs don't overlap - difference statistically significant.
 - `data/raw/outcomes/life_expectancy_processed.csv`
 - `poverty_tda/validation/mobility_surface_greater_manchester.vti`
 
-### Output Files

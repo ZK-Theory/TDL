@@ -1,14 +1,24 @@
 """Run Greater Manchester comparison."""
 
-import geopandas as gpd
-import pandas as pd
-import numpy as np
-import vtk
-from vtk.util import numpy_support
-from scipy.interpolate import griddata
-from pathlib import Path
 import time
 import warnings
+from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import vtk
+from esda.getisord import G_Local
+from esda.moran import Moran_Local
+from libpysal.weights import KNN, Queen
+from scipy.interpolate import griddata
+from sklearn.cluster import DBSCAN, KMeans
+from sklearn.preprocessing import StandardScaler
+from vtk.util import numpy_support
+
+from poverty_tda.topology.mapper import compute_mapper
+from poverty_tda.topology.morse_smale import compute_morse_smale
+from poverty_tda.validation.spatial_comparison import mapper_to_partition
 
 warnings.filterwarnings("ignore")
 
@@ -47,10 +57,15 @@ gdf["mobility"] = -gdf["imd_score"]
 gdf["mobility"] = (gdf["mobility"] - gdf["mobility"].min()) / (gdf["mobility"].max() - gdf["mobility"].min())
 
 le = pd.read_csv(str(Path(__file__).parent.parent.parent / "data/raw/outcomes/life_expectancy_processed.csv"))
-gdf = gdf.merge(le[["area_code", "life_expectancy_male"]], left_on="lad_code", right_on="area_code", how="left")
+gdf = gdf.merge(
+    le[["area_code", "life_expectancy_male"]],
+    left_on="lad_code",
+    right_on="area_code",
+    how="left",
+)
 gdf = gdf.dropna(subset=["life_expectancy_male"])
 gdf = gdf.to_crs("EPSG:27700")
-print(f"   {len(gdf)} LSOAs loaded ({time.time()-t0:.1f}s)", flush=True)
+print(f"   {len(gdf)} LSOAs loaded ({time.time() - t0:.1f}s)", flush=True)
 
 # 2. Create mobility surface
 print("2. Creating 100x100 mobility surface...", flush=True)
@@ -85,12 +100,10 @@ writer = vtk.vtkXMLImageDataWriter()
 writer.SetFileName(str(vtk_path))
 writer.SetInputData(image)
 writer.Write()
-print(f"   Surface saved ({time.time()-t0:.1f}s)", flush=True)
+print(f"   Surface saved ({time.time() - t0:.1f}s)", flush=True)
 
 # 3. Compute Morse-Smale
 print("3. Computing Morse-Smale basins...", flush=True)
-from poverty_tda.topology.morse_smale import compute_morse_smale
-
 ms_result = compute_morse_smale(vtk_path, persistence_threshold=0.05)
 
 reader = vtk.vtkXMLImageDataReader()
@@ -102,15 +115,10 @@ dims, origin, spacing = img.GetDimensions(), img.GetOrigin(), img.GetSpacing()
 x_idx = np.clip(((x - origin[0]) / spacing[0]).astype(int), 0, dims[0] - 1)
 y_idx = np.clip(((y - origin[1]) / spacing[1]).astype(int), 0, dims[1] - 1)
 gdf["ms_basin"] = ms_result.ascending_manifold.reshape(dims[1], dims[0])[y_idx, x_idx]
-print(f'   {gdf["ms_basin"].nunique()} basins ({time.time()-t0:.1f}s)', flush=True)
+print(f"   {gdf['ms_basin'].nunique()} basins ({time.time() - t0:.1f}s)", flush=True)
 
 # 4. All methods
 print("4. Applying all methods...", flush=True)
-from sklearn.cluster import KMeans, DBSCAN
-from sklearn.preprocessing import StandardScaler
-from libpysal.weights import Queen, KNN
-from esda.moran import Moran_Local
-from esda.getisord import G_Local
 
 X = np.column_stack([x, y, gdf["mobility"].values])
 X_scaled = StandardScaler().fit_transform(X)
@@ -138,9 +146,6 @@ gdf.loc[(gi.Zs > 0) & (gi.p_sim < 0.05), "gi"] = "Hot"
 gdf.loc[(gi.Zs < 0) & (gi.p_sim < 0.05), "gi"] = "Cold"
 
 # Mapper
-from poverty_tda.topology.mapper import compute_mapper
-from poverty_tda.validation.spatial_comparison import mapper_to_partition
-
 features_df = pd.DataFrame(X_scaled, columns=["x", "y", "mobility"])
 mapper_graph = compute_mapper(
     features_df,
@@ -152,7 +157,7 @@ mapper_graph = compute_mapper(
 )
 gdf["mapper"] = mapper_to_partition(mapper_graph, features_df, assignment_method="dominant")
 
-print(f"   Methods applied ({time.time()-t0:.1f}s)", flush=True)
+print(f"   Methods applied ({time.time() - t0:.1f}s)", flush=True)
 
 # 5. Bootstrap CIs
 print("5. Bootstrap CIs (1000 iterations)...", flush=True)
@@ -174,8 +179,9 @@ def bootstrap_ci(labels, values, n_boot=1000):
     n = len(labels)
     point = eta_sq(labels, values)
     etas = []
+    rng = np.random.default_rng(42)
     for _ in range(n_boot):
-        idx = np.random.randint(0, n, n)
+        idx = rng.integers(0, n, n)
         etas.append(eta_sq(labels[idx], values[idx]))
     return point, np.percentile(etas, 2.5), np.percentile(etas, 97.5), np.std(etas)
 
@@ -191,7 +197,7 @@ methods = [
 
 print("\n=== GREATER MANCHESTER FULL RESULTS ===")
 print(f"LSOAs: {len(gdf)}")
-print(f'\n{"Method":<20} | {"n":>4} | {"eta2":>7} | {"95% CI":<20} | {"SE":>6}')
+print(f"\n{'Method':<20} | {'n':>4} | {'eta2':>7} | {'95% CI':<20} | {'SE':>6}")
 print("-" * 70)
 
 results = []
@@ -200,4 +206,4 @@ for name, labels, ncl in methods:
     print(f"{name:<20} | {ncl:>4} | {eta2:>7.4f} | [{lo:.4f}, {hi:.4f}] | {se:>6.4f}")
     results.append((name, ncl, eta2, lo, hi, se))
 
-print(f"\nTotal time: {time.time()-t0:.1f}s")
+print(f"\nTotal time: {time.time() - t0:.1f}s")

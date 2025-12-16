@@ -2,9 +2,10 @@
 Quick test to verify the migration validation groupby fix.
 """
 
-import numpy as np
 import geopandas as gpd
+import numpy as np
 from shapely.geometry import Point
+
 from poverty_tda.validation.migration_validation import compute_escape_rate_by_severity
 
 # Create synthetic test data
@@ -24,7 +25,11 @@ gdf = gpd.GeoDataFrame(
 
 try:
     result = compute_escape_rate_by_severity(
-        gdf, basin_column="ms_basin", severity_column="mean_imd", escape_column="escape_ratio", n_quantiles=4
+        gdf,
+        basin_column="ms_basin",
+        severity_column="mean_imd",
+        escape_column="escape_ratio",
+        n_quantiles=4,
     )
 
     print("✅ compute_escape_rate_by_severity() works correctly!")

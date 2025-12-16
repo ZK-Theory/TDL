@@ -44,7 +44,7 @@
   ],
   "output_files": [],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "Bootstrap CIs: n=1000 iterations",
     "MS: 0.8340 [0.8233, 0.8805]",

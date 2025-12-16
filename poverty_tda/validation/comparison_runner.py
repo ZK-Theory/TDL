@@ -32,19 +32,19 @@ import numpy as np
 import pandas as pd
 
 from poverty_tda.validation.spatial_comparison import (
-    # Traditional methods
-    compute_lisa_clusters,
-    compute_getis_ord_hotspots,
-    compute_dbscan_clusters,
-    compute_kmeans_clusters,
-    compute_full_comparison_matrix,
     # Bootstrap CIs
     bootstrap_eta_squared_ci,
-    # TDA-specific
-    compute_barrier_outcome_correlation,
-    compute_stability_analysis,
     # Regression
     compare_regression_models,
+    # TDA-specific
+    compute_barrier_outcome_correlation,
+    compute_dbscan_clusters,
+    compute_full_comparison_matrix,
+    compute_getis_ord_hotspots,
+    compute_kmeans_clusters,
+    # Traditional methods
+    compute_lisa_clusters,
+    compute_stability_analysis,
 )
 
 logger = logging.getLogger(__name__)
@@ -307,7 +307,9 @@ class TDAComparisonRunner:
         logger.info(interpretation)
 
         self.phase2_result = Phase2Result(
-            ari_matrix=ari_matrix, mean_tda_ari=mean_tda_ari, agreement_interpretation=interpretation
+            ari_matrix=ari_matrix,
+            mean_tda_ari=mean_tda_ari,
+            agreement_interpretation=interpretation,
         )
 
         return self.phase2_result
@@ -527,13 +529,6 @@ class TDAComparisonRunner:
         if self.phase3_result:
             tda_wins = sum(1 for v in self.phase3_result.best_method_per_outcome.values() if v == "TDA")
             tda_adds_value = tda_wins > 0
-
-        # Check barrier correlation
-        barriers_meaningful = False
-        if self.phase4_result:
-            barriers_meaningful = (
-                self.phase4_result.barrier_correlation > 0.3 and self.phase4_result.barrier_p_value < 0.05
-            )
 
         if high_agreement and not tda_adds_value:
             return "TDA_REPLICATES"
@@ -756,31 +751,56 @@ def main():
     """Command-line interface for comparison runner."""
     parser = argparse.ArgumentParser(description="Run TDA comparison protocol")
     parser.add_argument("--gdf-path", required=True, help="Path to GeoDataFrame pickle or GeoJSON")
-    parser.add_argument("--value-column", default="mobility", help="Column with mobility/deprivation values")
+    parser.add_argument(
+        "--value-column",
+        default="mobility",
+        help="Column with mobility/deprivation values",
+    )
     parser.add_argument("--basin-column", default="tda_basin", help="Column with TDA basin labels")
     parser.add_argument("--outcome-columns", nargs="+", help="Columns with outcome variables")
     parser.add_argument("--output-dir", default="./comparison_results", help="Output directory")
     parser.add_argument("--n-bootstrap", type=int, default=1000, help="Number of bootstrap iterations")
+    parser.add_argument(
+        "--allow-pickle",
+        action="store_true",
+        default=False,
+        help="Allow loading pickle files (security risk; use GeoJSON or Parquet instead)",
+    )
 
     args = parser.parse_args()
 
     # Set up logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
 
     # Load data
     import geopandas as gpd
 
     gdf_path = Path(args.gdf_path)
     if gdf_path.suffix == ".pkl":
-        logger.warning("Loading pickle files is a security risk. Consider using GeoJSON or Parquet.")
-        gdf = pd.read_pickle(gdf_path)
+        if args.allow_pickle:
+            logger.warning("Loading pickle files is a security risk. Consider using GeoJSON or Parquet.")
+            gdf = pd.read_pickle(gdf_path)
+        else:
+            error_msg = (
+                f"Pickle files are not allowed by default due to security risks. "
+                f"To load '{gdf_path}', pass the --allow-pickle flag. "
+                f"Recommended: convert to GeoJSON or Parquet format."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
     elif gdf_path.suffix == ".parquet":
         gdf = gpd.read_parquet(gdf_path)
     else:
         gdf = gpd.read_file(gdf_path)
     # Run comparison
     runner = TDAComparisonRunner(
-        gdf, value_column=args.value_column, tda_basin_column=args.basin_column, output_dir=args.output_dir
+        gdf,
+        value_column=args.value_column,
+        tda_basin_column=args.basin_column,
+        output_dir=args.output_dir,
     )
 
     report = runner.run_all(outcome_columns=args.outcome_columns, n_bootstrap=args.n_bootstrap)

@@ -8,13 +8,14 @@ These tests validate that the bootstrap ARI implementation:
 4. Detects when fixture/placeholder data produces suspicious results
 """
 
+import geopandas as gpd
 import numpy as np
+from shapely.geometry import Point
+
 from poverty_tda.validation.spatial_comparison import (
     bootstrap_ari_ci,
     compute_full_comparison_matrix,
 )
-import geopandas as gpd
-from shapely.geometry import Point
 
 
 def test_bootstrap_ari_non_identical_clusters():
@@ -124,8 +125,8 @@ def test_full_comparison_matrix_validation():
     }
 
     # Capture logging to verify warning is issued
-    import logging
     import io
+    import logging
 
     log_capture = io.StringIO()
     handler = logging.StreamHandler(log_capture)

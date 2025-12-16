@@ -108,8 +108,12 @@ def load_outcome_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     return le_df, gcse_df
 
 
-def aggregate_to_lad(gdf: gpd.GeoDataFrame) -> pd.DataFrame:
-    """Aggregate LSOA data to LAD level for outcome joining."""
+def aggregate_to_lad(gdf: gpd.GeoDataFrame) -> pd.DataFrame | None:
+    """Aggregate LSOA data to LAD level for outcome joining.
+
+    Returns:
+        Aggregated DataFrame with LAD-level statistics, or None if no LAD column found.
+    """
     # Find LAD column
     lad_col = None
     for col in gdf.columns:
@@ -145,11 +149,11 @@ def run_comparison_protocol(sample_size: int | None = None):
         sample_size: If set, use a random sample of LSOAs for faster testing
     """
     from poverty_tda.validation.spatial_comparison import (
-        compute_lisa_clusters,
-        compute_getis_ord_hotspots,
         compute_dbscan_clusters,
-        compute_kmeans_clusters,
         compute_full_comparison_matrix,
+        compute_getis_ord_hotspots,
+        compute_kmeans_clusters,
+        compute_lisa_clusters,
         compute_stability_analysis,
     )
 

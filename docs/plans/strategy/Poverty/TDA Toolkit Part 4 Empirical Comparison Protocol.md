@@ -257,13 +257,10 @@ Mapper integration: How deeply should Mapper be compared? It produces a graph ra
 Scope: Should we compare on both deprivation surface (available now) and mobility surface (when UKHLS data obtained), or focus on one first?
 What aspects of this protocol would you like to refine before we move to implementation?
 
+## Protocol Refinement Questions
 
-Thought for <1s
-
-Let me summarize the key decision points for refining this protocol:
-
-Protocol Refinement Questions
 1. Outcome Variables
+
 Current proposal:
 
 Life expectancy (LAD, ONS)

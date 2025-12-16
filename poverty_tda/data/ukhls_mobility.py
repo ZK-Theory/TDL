@@ -86,7 +86,20 @@ def load_ukhls_income_panel(
         waves = list(range(1, 12))  # Waves 1-11 (2009-2020)
 
     # Wave letters for file naming
-    wave_letters = {1: "a", 2: "b", 3: "c", 4: "d", 5: "e", 6: "f", 7: "g", 8: "h", 9: "i", 10: "j", 11: "k", 12: "l"}
+    wave_letters = {
+        1: "a",
+        2: "b",
+        3: "c",
+        4: "d",
+        5: "e",
+        6: "f",
+        7: "g",
+        8: "h",
+        9: "i",
+        10: "j",
+        11: "k",
+        12: "l",
+    }
 
     # Survey years (approximate)
     wave_years = {
@@ -185,7 +198,7 @@ def compute_income_quintiles(panel: pd.DataFrame, wave_col: str = "wave") -> pd.
     result = panel.copy()
 
     def assign_quintile(group):
-        group["income_quintile"] = pd.qcut(group["income"], q=5, labels=[1, 2, 3, 4, 5], duplicates="drop").astype(int)
+        group["income_quintile"] = pd.qcut(group["income"], q=5, labels=False, duplicates="drop") + 1
         return group
 
     result = result.groupby(wave_col, group_keys=False).apply(assign_quintile)
@@ -330,7 +343,7 @@ def aggregate_mobility_to_geography(
 
     logger.info(
         f"Geographic aggregation complete: {reliable_count}/{total_count} "
-        f"({100*reliable_count/total_count:.1f}%) areas have reliable estimates"
+        f"({100 * reliable_count / total_count:.1f}%) areas have reliable estimates"
     )
 
     return geo_agg
@@ -438,11 +451,18 @@ def compare_mobility_vs_deprivation_basins(
     """
     # Merge on geographic identifier
     comparison = mobility_basins.merge(
-        deprivation_basins, on="geo_id", suffixes=("_mobility", "_deprivation"), how="inner"
+        deprivation_basins,
+        on="geo_id",
+        suffixes=("_mobility", "_deprivation"),
+        how="inner",
     )
 
     if len(comparison) == 0:
-        return {"error": "No overlapping geographic units found", "ari": np.nan, "correlation": np.nan}
+        return {
+            "error": "No overlapping geographic units found",
+            "ari": np.nan,
+            "correlation": np.nan,
+        }
 
     # Adjusted Rand Index (ARI) for basin assignments
     # ARI is the proper metric for comparing clusterings with arbitrary labels
@@ -450,7 +470,10 @@ def compare_mobility_vs_deprivation_basins(
         # Drop rows with NaN in either basin_id column
         valid_comparison = comparison.dropna(subset=["basin_id_mobility", "basin_id_deprivation"])
         if len(valid_comparison) > 0:
-            ari = adjusted_rand_score(valid_comparison["basin_id_mobility"], valid_comparison["basin_id_deprivation"])
+            ari = adjusted_rand_score(
+                valid_comparison["basin_id_mobility"],
+                valid_comparison["basin_id_deprivation"],
+            )
         else:
             ari = np.nan
     else:
@@ -615,7 +638,9 @@ def run_mobility_analysis_pipeline(
     # Step 1: Load data
     logger.info("Step 1: Loading UKHLS panel data...")
     panel = load_ukhls_income_panel(
-        data_dir, waves=list(range(wave_start, wave_end + 1)), geographic_level=geographic_level
+        data_dir,
+        waves=list(range(wave_start, wave_end + 1)),
+        geographic_level=geographic_level,
     )
 
     # Step 2: Analyze coverage
@@ -630,13 +655,18 @@ def run_mobility_analysis_pipeline(
     # Step 4: Compute individual mobility
     logger.info("Step 4: Computing individual mobility...")
     individual_mobility = compute_individual_mobility(
-        panel_with_quintiles, wave_start=wave_start, wave_end=wave_end, method="quintile_change"
+        panel_with_quintiles,
+        wave_start=wave_start,
+        wave_end=wave_end,
+        method="quintile_change",
     )
 
     # Step 5: Aggregate to geography
     logger.info("Step 5: Aggregating to geographic level...")
     geo_mobility = aggregate_mobility_to_geography(
-        individual_mobility, geographic_level=geographic_level, min_observations=min_observations
+        individual_mobility,
+        geographic_level=geographic_level,
+        min_observations=min_observations,
     )
 
     # Save intermediate results

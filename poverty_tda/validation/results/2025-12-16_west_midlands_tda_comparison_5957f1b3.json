@@ -85,7 +85,7 @@
     "poverty_tda/validation/mobility_surface_west_midlands.vti"
   ],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "National 75x75 surface: only 7 basins in WM (eta2=9%)",
     "Regional 100x100 surface: 206 basins (eta2=83.4%)",

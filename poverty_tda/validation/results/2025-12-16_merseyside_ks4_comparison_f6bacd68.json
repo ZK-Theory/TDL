@@ -11,12 +11,12 @@
     "LE": "ONS 2016-2018"
   },
   "outcome_variable": "attainment8_average and life_expectancy_male",
-  "outcome_description": "",
+  "outcome_description": "KS4 attainment (Attainment 8 score) and life expectancy (male, 2016-2018 average)",
   "methods": [
     {
       "name": "MS (LE)",
       "column": "ms_basin",
-      "n_clusters": 0,
+      "n_clusters": 145,
       "eta_squared": 0.954,
       "eta_squared_ci_lower": null,
       "eta_squared_ci_upper": null,
@@ -26,7 +26,7 @@
     {
       "name": "MS (KS4)",
       "column": "ms_basin",
-      "n_clusters": 0,
+      "n_clusters": 145,
       "eta_squared": 0.86,
       "eta_squared_ci_lower": null,
       "eta_squared_ci_upper": null,
@@ -55,16 +55,28 @@
     }
   ],
   "ari_matrix": {},
-  "best_method": "MS (LE)",
-  "best_eta_squared": 0.954,
-  "input_files": [],
-  "output_files": [],
+  "best_method": "MS (KS4)",
+  "best_eta_squared": 0.86,
+  "input_files": [
+    "poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson",
+    "poverty_tda/validation/data/england_imd_2019.csv",
+    "data/raw/outcomes/attainment8_processed.csv",
+    "data/raw/outcomes/life_expectancy_processed.csv",
+    "poverty_tda/validation/mobility_surface_merseyside_150.vti"
+  ],
+  "output_files": [
+    "poverty_tda/validation/results/2025-12-16_merseyside_ks4_comparison_f6bacd68.json",
+    "poverty_tda/validation/results/2025-12-16_merseyside_ks4_comparison_f6bacd68.md"
+  ],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "MS: LE=95.4%, KS4=86.0%",
     "K-means: LE=64.8%, KS4=51.0%",
     "MS dominates both health and education outcomes",
-    "150x150 regional surface used"
+    "150x150 regional surface used",
+    "145 MS basins at 150x150 resolution",
+    "For KS4-specific prediction, MS (KS4) is optimal; for overall health outcome, MS (LE) is best (95.4%)",
+    "This artifact focuses on KS4 comparison - hence best_method reflects KS4-specific performance"
   ]
 }

@@ -105,11 +105,12 @@
     "poverty_tda/validation/mobility_surface_west_midlands.vti"
   ],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
-    "National 75x75 MS surface yielded only 7 basins in WM region (\u03b7\u00b2=9%)",
-    "Regional 100x100 MS surface yielded 206 basins (\u03b7\u00b2=83.4%)",
+    "National 75x75 MS surface yielded only 7 basins in WM region (η²=9%)",
+    "Regional 100x100 MS surface yielded 206 basins (η²=83.4%)",
     "Resolution is critical for MS basin performance",
-    "TDA adds substantial value when applied at appropriate resolution"
+    "TDA adds substantial value when applied at appropriate resolution",
+    "Bootstrap CIs: Not computed for this TDA-specific comparison. See 2025-12-16_west_midlands_full_comparison_corrected_426693f8.json for η² estimates with full 95% bootstrap CIs (n=1000)"
   ]
 }

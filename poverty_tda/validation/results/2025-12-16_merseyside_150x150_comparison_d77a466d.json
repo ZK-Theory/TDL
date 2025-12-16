@@ -59,7 +59,7 @@
   "input_files": [],
   "output_files": [],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "5 LADs: Liverpool, Knowsley, Sefton, St. Helens, Wirral",
     "MS 95.4%/95.8% (M/F) - highest performance",

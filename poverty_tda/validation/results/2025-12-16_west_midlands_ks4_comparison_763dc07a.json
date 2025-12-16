@@ -60,7 +60,7 @@
   "input_files": [],
   "output_files": [],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "MS: LE=84.9%, KS4=88.9%",
     "K-means: LE=45.5%, KS4=65.0%",

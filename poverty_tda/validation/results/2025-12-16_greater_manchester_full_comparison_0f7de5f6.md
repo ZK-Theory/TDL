@@ -41,7 +41,3 @@ Full 6-method comparison for Greater Manchester with bootstrap CIs.
 - **Random Seed:** 42
 - **Git Commit:** Not recorded
 
-### Input Files
-
-
-### Output Files

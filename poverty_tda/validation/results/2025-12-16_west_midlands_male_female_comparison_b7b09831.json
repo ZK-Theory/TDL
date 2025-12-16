@@ -59,7 +59,7 @@
   "input_files": [],
   "output_files": [],
   "random_seed": 42,
-  "git_commit": null,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "Male LE: MS=83.4%, K-means=45.5%",
     "Female LE: MS=81.8%, K-means=43.0%",

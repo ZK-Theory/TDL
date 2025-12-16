@@ -92,7 +92,11 @@ class MapperGraph:
 
         for node in self.nodes:
             G.add_node(
-                node.node_id, size=node.size, members=node.members, interval=node.interval_index, label=node.label
+                node.node_id,
+                size=node.size,
+                members=node.members,
+                interval=node.interval_index,
+                label=node.label,
             )
 
         for edge in self.edges:
@@ -147,7 +151,9 @@ def filter_by_pca(data: pd.DataFrame, n_components: int = 1, feature_columns: li
 
 
 def filter_by_eccentricity(
-    data: pd.DataFrame, feature_columns: list[str] | None = None, metric: str = "euclidean"
+    data: pd.DataFrame,
+    feature_columns: list[str] | None = None,
+    metric: str = "euclidean",
 ) -> np.ndarray:
     """
     Use eccentricity (distance to most different point) as filter.
@@ -172,7 +178,10 @@ def filter_by_eccentricity(
 
 
 def filter_by_density(
-    data: pd.DataFrame, feature_columns: list[str] | None = None, k: int = 15, metric: str = "euclidean"
+    data: pd.DataFrame,
+    feature_columns: list[str] | None = None,
+    k: int = 15,
+    metric: str = "euclidean",
 ) -> np.ndarray:
     """
     Use local density as filter function.
@@ -240,7 +249,9 @@ def create_1d_cover(filter_values: np.ndarray, n_cubes: int = 10, overlap: float
 
 
 def create_2d_cover(
-    filter_values: np.ndarray, n_cubes: tuple[int, int] = (10, 10), overlap: tuple[float, float] = (0.3, 0.3)
+    filter_values: np.ndarray,
+    n_cubes: tuple[int, int] = (10, 10),
+    overlap: tuple[float, float] = (0.3, 0.3),
 ) -> list[tuple[tuple[float, float], tuple[float, float]]]:
     """
     Create overlapping rectangles covering 2D filter space.
@@ -291,7 +302,9 @@ def cluster_dbscan(X: np.ndarray, eps: float | None = None, min_samples: int = 3
 
 
 def cluster_agglomerative(
-    X: np.ndarray, n_clusters: int | None = None, distance_threshold: float | None = None
+    X: np.ndarray,
+    n_clusters: int | None = None,
+    distance_threshold: float | None = None,
 ) -> np.ndarray:
     """Cluster using agglomerative (hierarchical) clustering."""
     if len(X) < 2:
@@ -302,7 +315,8 @@ def cluster_agglomerative(
         n_clusters = min(3, len(X))
 
     clusterer = AgglomerativeClustering(
-        n_clusters=n_clusters, distance_threshold=distance_threshold if n_clusters is None else None
+        n_clusters=n_clusters,
+        distance_threshold=distance_threshold if n_clusters is None else None,
     )
     return clusterer.fit_predict(X)
 
@@ -388,7 +402,7 @@ def compute_mapper(
     else:
         intervals = create_2d_cover(filter_values, (n_cubes, n_cubes), (overlap, overlap))
 
-    logger.info(f"Created {len(intervals)} intervals with {overlap*100:.0f}% overlap")
+    logger.info(f"Created {len(intervals)} intervals with {overlap * 100:.0f}% overlap")
 
     # Select clustering function
     cluster_funcs = {
@@ -443,7 +457,12 @@ def compute_mapper(
             # Compute cluster centroid
             centroid = X_scaled[members].mean(axis=0)
 
-            node = MapperNode(node_id=node_id, members=members, interval_index=interval_idx, centroid=centroid)
+            node = MapperNode(
+                node_id=node_id,
+                members=members,
+                interval_index=interval_idx,
+                centroid=centroid,
+            )
             nodes.append(node)
 
             # Track which nodes each point belongs to
@@ -612,7 +631,12 @@ def label_nodes_by_feature(
         member_values = data.iloc[node.members][label_column]
 
         if aggregation == "mode":
-            label = member_values.mode().iloc[0] if len(member_values) > 0 else ""
+            mode_result = member_values.mode()
+            label = (
+                mode_result.iloc[0]
+                if len(mode_result) > 0
+                else (str(member_values.iloc[0]) if len(member_values) > 0 else "")
+            )
         elif aggregation == "mean":
             label = f"{label_column}={member_values.mean():.2f}"
         else:
@@ -703,7 +727,13 @@ def export_to_json(graph: MapperGraph, filepath: str) -> None:
 
     data = {
         "nodes": [
-            {"id": n.node_id, "size": n.size, "interval": n.interval_index, "label": n.label} for n in graph.nodes
+            {
+                "id": n.node_id,
+                "size": n.size,
+                "interval": n.interval_index,
+                "label": n.label,
+            }
+            for n in graph.nodes
         ],
         "links": [{"source": e.source, "target": e.target, "weight": e.weight} for e in graph.edges],
         "summary": graph.summary(),
