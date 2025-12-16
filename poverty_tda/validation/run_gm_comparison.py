@@ -46,7 +46,7 @@ gdf = gdf[gdf["lad_name"].isin(gm_lads)].reset_index(drop=True)
 gdf["mobility"] = -gdf["imd_score"]
 gdf["mobility"] = (gdf["mobility"] - gdf["mobility"].min()) / (gdf["mobility"].max() - gdf["mobility"].min())
 
-le = pd.read_csv("data/raw/outcomes/life_expectancy_processed.csv")
+le = pd.read_csv(str(Path(__file__).parent.parent.parent / "data/raw/outcomes/life_expectancy_processed.csv"))
 gdf = gdf.merge(le[["area_code", "life_expectancy_male"]], left_on="lad_code", right_on="area_code", how="left")
 gdf = gdf.dropna(subset=["life_expectancy_male"])
 gdf = gdf.to_crs("EPSG:27700")
