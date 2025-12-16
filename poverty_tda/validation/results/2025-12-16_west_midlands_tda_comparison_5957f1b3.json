@@ -1,0 +1,97 @@
+{
+  "name": "west_midlands_tda_comparison",
+  "description": "Comparison of TDA methods (Morse-Smale, Mapper) against traditional \nspatial statistics (LISA, Gi*) and clustering (K-means, DBSCAN) for predicting \nlife expectancy. Key finding: Morse-Smale at high resolution explains 83.4% of \nvariance, nearly 2x K-means (45.5%).",
+  "timestamp": "2025-12-16T12:33:55.060653",
+  "region": "West Midlands",
+  "n_observations": 1638,
+  "data_sources": {
+    "LSOA Boundaries": "ONS LSOA 2021",
+    "Deprivation": "IMD 2019",
+    "Life Expectancy": "ONS 2016-2018"
+  },
+  "outcome_variable": "life_expectancy_male",
+  "outcome_description": "Male life expectancy at birth (years) by LAD",
+  "methods": [
+    {
+      "name": "Morse-Smale (TDA)",
+      "column": "ms_basin",
+      "n_clusters": 206,
+      "eta_squared": 0.834,
+      "eta_squared_ci_lower": 0.8241,
+      "eta_squared_ci_upper": 0.8806,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means",
+      "column": "kmeans_cluster",
+      "n_clusters": 10,
+      "eta_squared": 0.4549,
+      "eta_squared_ci_lower": 0.3985,
+      "eta_squared_ci_upper": 0.5121,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "Mapper (TDA)",
+      "column": "mapper_cluster",
+      "n_clusters": 15,
+      "eta_squared": 0.174,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "LISA",
+      "column": "lisa_cluster",
+      "n_clusters": 5,
+      "eta_squared": 0.1719,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "Gi*",
+      "column": "gi_cluster",
+      "n_clusters": 3,
+      "eta_squared": 0.1525,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "DBSCAN",
+      "column": "dbscan_cluster",
+      "n_clusters": 10,
+      "eta_squared": 0.1003,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    }
+  ],
+  "ari_matrix": {},
+  "best_method": "Morse-Smale (TDA)",
+  "best_eta_squared": 0.834,
+  "input_files": [
+    "poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson",
+    "poverty_tda/validation/data/england_imd_2019.csv",
+    "data/raw/outcomes/life_expectancy_processed.csv"
+  ],
+  "output_files": [
+    "poverty_tda/validation/mobility_surface_west_midlands.vti"
+  ],
+  "random_seed": 42,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
+  "notes": [
+    "National 75x75 surface: only 7 basins in WM (eta2=9%)",
+    "Regional 100x100 surface: 206 basins (eta2=83.4%)",
+    "Resolution critical for MS performance",
+    "TDA adds substantial value at appropriate resolution",
+    "Bootstrap CIs computed: n=1000 iterations",
+    "Bootstrap CIs computed: n=1000 iterations"
+  ]
+}

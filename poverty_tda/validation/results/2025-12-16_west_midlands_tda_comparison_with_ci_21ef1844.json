@@ -1,0 +1,55 @@
+{
+  "name": "west_midlands_tda_comparison_with_ci",
+  "description": "Comparison of TDA methods against traditional methods for predicting \nlife expectancy in West Midlands. Includes bootstrap 95% confidence intervals (n=1000).\nKey finding: Morse-Smale (83.4%) significantly outperforms K-means (45.5%) - CIs don't overlap.",
+  "timestamp": "2025-12-16T13:11:37.553466",
+  "region": "West Midlands",
+  "n_observations": 1638,
+  "data_sources": {
+    "LSOA Boundaries": "ONS LSOA 2021",
+    "Deprivation": "IMD 2019",
+    "Life Expectancy": "ONS 2016-2018"
+  },
+  "outcome_variable": "life_expectancy_male",
+  "outcome_description": "Male life expectancy at birth (years) by LAD",
+  "methods": [
+    {
+      "name": "Morse-Smale (TDA)",
+      "column": "ms_basin",
+      "n_clusters": 206,
+      "eta_squared": 0.834,
+      "eta_squared_ci_lower": 0.8233,
+      "eta_squared_ci_upper": 0.8805,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means",
+      "column": "kmeans_cluster",
+      "n_clusters": 10,
+      "eta_squared": 0.4549,
+      "eta_squared_ci_lower": 0.4,
+      "eta_squared_ci_upper": 0.5151,
+      "ari_vs_others": {},
+      "parameters": {}
+    }
+  ],
+  "ari_matrix": {},
+  "best_method": "Morse-Smale (TDA)",
+  "best_eta_squared": 0.834,
+  "input_files": [
+    "poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson",
+    "poverty_tda/validation/data/england_imd_2019.csv",
+    "data/raw/outcomes/life_expectancy_processed.csv",
+    "poverty_tda/validation/mobility_surface_west_midlands.vti"
+  ],
+  "output_files": [],
+  "random_seed": 42,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
+  "notes": [
+    "Bootstrap CIs: n=1000 iterations",
+    "MS: 0.8340 [0.8233, 0.8805]",
+    "K-means: 0.4549 [0.4000, 0.5151]",
+    "CIs do not overlap - difference is statistically significant",
+    "100x100 regional surface used for MS"
+  ]
+}
