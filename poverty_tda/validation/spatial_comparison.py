@@ -597,16 +597,25 @@ def compute_kmeans_clusters(
         best_k = 2
         best_silhouette = -1
 
-        for k in range(2, min(15, len(X_scaled) // 10)):
-            km = KMeans(n_clusters=k, random_state=random_state, n_init=10)
-            labels = km.fit_predict(X_scaled)
-            score = silhouette_score(X_scaled, labels)
-            if score > best_silhouette:
-                best_silhouette = score
-                best_k = k
+        # Ensure valid range for small datasets
+        max_k = max(3, len(X_scaled) // 10)
+        k_range_upper = min(15, max_k)
 
-        n_clusters = best_k
-        logger.info(f"Auto-selected k={n_clusters} (silhouette={best_silhouette:.3f})")
+        if len(X_scaled) < 20 or k_range_upper <= 2:
+            # Too few samples for silhouette search, use default
+            n_clusters = 2
+            logger.info(f"Dataset too small (n={len(X_scaled)}) for k-search, using k=2")
+        else:
+            for k in range(2, k_range_upper):
+                km = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+                labels = km.fit_predict(X_scaled)
+                score = silhouette_score(X_scaled, labels)
+                if score > best_silhouette:
+                    best_silhouette = score
+                    best_k = k
+
+            n_clusters = best_k
+            logger.info(f"Auto-selected k={n_clusters} (silhouette={best_silhouette:.3f})")
 
     # Run K-means
     logger.info(f"Running K-means with k={n_clusters}")
