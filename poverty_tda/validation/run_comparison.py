@@ -125,6 +125,13 @@ def aggregate_to_lad(gdf: gpd.GeoDataFrame) -> pd.DataFrame | None:
         logger.warning("No LAD column found - cannot join outcomes")
         return None
 
+    # Check required columns exist
+    required_cols = ["imd_score", "mobility"]
+    missing = [c for c in required_cols if c not in gdf.columns]
+    if missing:
+        logger.warning(f"Cannot aggregate - missing columns: {missing}")
+        return None
+
     # Aggregate
     agg = (
         gdf.groupby(lad_col)
