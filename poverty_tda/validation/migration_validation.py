@@ -285,18 +285,23 @@ def compute_escape_rate_by_severity(
         DataFrame showing escape rate by severity quantile
     """
     # Aggregate to basin level
-    basin_df = (
+    # Compute means for severity and escape columns
+    basin_means = (
         gdf.groupby(basin_column)
         .agg(
             {
                 severity_column: "mean",
                 escape_column: "mean",
-                basin_column: "count",  # LSOA count
             }
         )
-        .rename(columns={basin_column: "n_lsoa"})
         .reset_index()
     )
+
+    # Compute counts (number of LSOAs per basin) separately
+    basin_counts = gdf.groupby(basin_column).size().reset_index(name="n_lsoa")
+
+    # Merge means and counts
+    basin_df = basin_means.merge(basin_counts, on=basin_column)
 
     # Filter valid
     basin_df = basin_df.dropna(subset=[severity_column, escape_column])

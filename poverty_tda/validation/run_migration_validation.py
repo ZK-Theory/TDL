@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -45,7 +46,7 @@ def load_west_midlands_lsoa_data():
 
     if pkl_paths:
         logger.info(f"Loading from {pkl_paths[0]}")
-        return gpd.read_file(pkl_paths[0])
+        return gpd.GeoDataFrame(pd.read_pickle(pkl_paths[0]))
 
     # If no pickle, reconstruct from raw data
     logger.info("Reconstructing West Midlands LSOA data...")

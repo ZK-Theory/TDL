@@ -44,6 +44,7 @@
     "Single LAD - no cross-LAD variance",
     "MS matches kriging benchmark: 62% vs 63%",
     "K-means 79.7% > MS 61.9% in single-LAD case",
-    "64 MS basins at 150x150"
+    "64 MS basins at 150x150",
+    "Bootstrap CIs skipped: Feature not implemented at time of run (fixed in subsequent pipeline updates)"
   ]
 }

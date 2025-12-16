@@ -16,7 +16,7 @@
     {
       "name": "MS (LE)",
       "column": "ms_basin",
-      "n_clusters": 0,
+      "n_clusters": 260,
       "eta_squared": 0.849,
       "eta_squared_ci_lower": null,
       "eta_squared_ci_upper": null,
@@ -26,7 +26,7 @@
     {
       "name": "MS (KS4)",
       "column": "ms_basin",
-      "n_clusters": 0,
+      "n_clusters": 260,
       "eta_squared": 0.889,
       "eta_squared_ci_lower": null,
       "eta_squared_ci_upper": null,

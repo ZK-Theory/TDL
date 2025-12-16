@@ -37,6 +37,7 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import adjusted_rand_score
 
 logger = logging.getLogger(__name__)
 
@@ -430,7 +431,7 @@ def compare_mobility_vs_deprivation_basins(
 
     Returns:
         Dictionary with comparison metrics:
-        - jaccard_similarity: Basin assignment overlap
+        - ari: Adjusted Rand Index for basin assignment agreement
         - correlation: Pearson r between severity rankings
         - discordant_areas: List of areas that differ substantially
         - interpretation: Text summary of findings
@@ -441,15 +442,19 @@ def compare_mobility_vs_deprivation_basins(
     )
 
     if len(comparison) == 0:
-        return {"error": "No overlapping geographic units found", "jaccard_similarity": np.nan, "correlation": np.nan}
+        return {"error": "No overlapping geographic units found", "ari": np.nan, "correlation": np.nan}
 
-    # Jaccard similarity of basin assignments
-    # (assuming basin_id columns exist)
+    # Adjusted Rand Index (ARI) for basin assignments
+    # ARI is the proper metric for comparing clusterings with arbitrary labels
     if "basin_id_mobility" in comparison.columns and "basin_id_deprivation" in comparison.columns:
-        same_basin = (comparison["basin_id_mobility"] == comparison["basin_id_deprivation"]).sum()
-        jaccard = same_basin / len(comparison)
+        # Drop rows with NaN in either basin_id column
+        valid_comparison = comparison.dropna(subset=["basin_id_mobility", "basin_id_deprivation"])
+        if len(valid_comparison) > 0:
+            ari = adjusted_rand_score(valid_comparison["basin_id_mobility"], valid_comparison["basin_id_deprivation"])
+        else:
+            ari = np.nan
     else:
-        jaccard = np.nan
+        ari = np.nan
 
     # Correlation between severity rankings
     if "severity_mobility" in comparison.columns and "severity_deprivation" in comparison.columns:
@@ -466,26 +471,26 @@ def compare_mobility_vs_deprivation_basins(
         discordant_areas = []
 
     # Interpretation
-    if jaccard > 0.8:
+    if ari > 0.8:
         interpretation = (
-            "Strong agreement (Jaccard > 0.8): Deprivation proxy was a reasonable "
+            "Strong agreement (ARI > 0.8): Deprivation proxy was a reasonable "
             "approximation of mobility. Actual mobility measurement confirms prior findings."
         )
-    elif jaccard > 0.5:
+    elif ari > 0.5:
         interpretation = (
-            "Moderate agreement (0.5 < Jaccard < 0.8): Some divergence between mobility "
+            "Moderate agreement (0.5 < ARI < 0.8): Some divergence between mobility "
             "and deprivation basins. Actual mobility measurement adds nuance but core "
             "patterns align."
         )
     else:
         interpretation = (
-            "Weak agreement (Jaccard < 0.5): Substantial divergence between mobility "
+            "Weak agreement (ARI < 0.5): Substantial divergence between mobility "
             "and deprivation basins. This validates the importance of actual mobility "
             "measurement over deprivation proxy."
         )
 
     return {
-        "jaccard_similarity": jaccard,
+        "ari": ari,
         "correlation": correlation,
         "discordant_areas": discordant_areas,
         "n_comparisons": len(comparison),

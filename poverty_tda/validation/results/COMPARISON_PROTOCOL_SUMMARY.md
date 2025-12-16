@@ -23,7 +23,7 @@
 | Mapper (TDA) | 17.4% | 18.2% | 3rd |
 | DBSCAN | 10.0% | 16.9% | 4th |
 
-*All η² values statistically significant (bootstrap 95% CIs do not overlap)*
+*Note: η² values are statistically significant where bootstrap 95% CIs are available (e.g., full West Midlands comparison).*
 
 ---
 

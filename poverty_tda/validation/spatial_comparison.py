@@ -83,8 +83,8 @@ def compute_lisa_clusters(
         >>> print(gdf['lisa_cluster'].value_counts())
     """
     try:
-        from libpysal.weights import Queen, Rook, KNN, DistanceBand
         from esda.moran import Moran_Local
+        from libpysal.weights import KNN, DistanceBand, Queen, Rook
     except ImportError:
         raise ImportError("LISA analysis requires libpysal and esda. " "Install with: pip install libpysal esda")
 
@@ -177,8 +177,8 @@ def compute_getis_ord_hotspots(
         >>> cold = gdf[gdf['gi_classification'] == 'cold']
     """
     try:
-        from libpysal.weights import KNN, DistanceBand
         from esda.getisord import G_Local
+        from libpysal.weights import KNN, DistanceBand
     except ImportError:
         raise ImportError("Getis-Ord analysis requires libpysal and esda. " "Install with: pip install libpysal esda")
 
@@ -337,11 +337,10 @@ def compute_watershed_basins(
         >>> n_basins = len(np.unique(basins[basins >= 0]))
     """
     try:
-        from scipy import ndimage
-        from skimage.segmentation import watershed
         from skimage.feature import peak_local_max
+        from skimage.segmentation import watershed
     except ImportError:
-        raise ImportError("Watershed requires scipy and scikit-image. " "Install with: pip install scipy scikit-image")
+        raise ImportError("Watershed requires scipy and scikit-image. Install with: pip install scipy scikit-image")
 
     # Handle NaN
     mask = ~np.isnan(grid_z)
@@ -352,10 +351,14 @@ def compute_watershed_basins(
     inverted = -grid_filled
 
     # Find local minima as basin seeds
-    value_range = np.nanmax(grid_z) - np.nanmin(grid_z)
     min_distance = max(3, int(grid_z.shape[0] * 0.05))  # Minimum 3 points or 5% of grid dimension, whichever is larger
 
-    local_min = peak_local_max(inverted, min_distance=min_distance, threshold_rel=min_depth, exclude_border=False)
+    local_min = peak_local_max(
+        inverted,
+        min_distance=min_distance,
+        threshold_rel=min_depth,
+        exclude_border=False,
+    )
 
     logger.info(f"Found {len(local_min)} local minima for watershed")
 
@@ -562,8 +565,8 @@ def compute_kmeans_clusters(
     """
     try:
         from sklearn.cluster import KMeans
-        from sklearn.preprocessing import StandardScaler
         from sklearn.metrics import silhouette_score
+        from sklearn.preprocessing import StandardScaler
     except ImportError:
         raise ImportError("K-means requires scikit-learn. Install with: pip install scikit-learn")
 
@@ -1255,7 +1258,14 @@ def compare_regression_models(
     aic = n * np.log(ss_res / n) + 2 * p
     bic = n * np.log(ss_res / n) + p * np.log(n)
 
-    models["Baseline"] = {"r2": r2, "adj_r2": adj_r2, "aic": aic, "bic": bic, "cv_rmse": rmse, "n_features": p}
+    models["Baseline"] = {
+        "r2": r2,
+        "adj_r2": adj_r2,
+        "aic": aic,
+        "bic": bic,
+        "cv_rmse": rmse,
+        "n_features": p,
+    }
     baseline_r2 = r2
 
     # Models with cluster indicators
@@ -1446,7 +1456,7 @@ def compute_full_comparison_matrix(
         ... })
     """
     try:
-        from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+        from sklearn.metrics import normalized_mutual_info_score
     except ImportError:
         raise ImportError("Comparison requires scikit-learn")
 
@@ -1482,4 +1492,20 @@ def compute_full_comparison_matrix(
                 }
             )
 
-    return pd.DataFrame(results)
+    result_df = pd.DataFrame(results)
+
+    # Runtime validation: Check for suspicious perfect agreement
+    if len(result_df) > 0:
+        all_perfect = (result_df["ari"] == 1.0).all()
+        all_zero_se = (result_df["ari_se"] == 0.0).all()
+
+        if all_perfect and all_zero_se:
+            logger.warning(
+                "⚠️  VALIDATION WARNING: All pairwise ARIs are exactly 1.0 with SE=0. "
+                "This indicates either: (1) placeholder/fixture data, (2) all methods "
+                "producing identical clusters, or (3) a bug (e.g., copying cluster label "
+                "references instead of independent computation). Please verify that each "
+                "method is computing its own distinct cluster assignments."
+            )
+
+    return result_df
