@@ -78,7 +78,12 @@ def load_lsoa_data() -> gpd.GeoDataFrame:
     if "imd_score" in gdf.columns and gdf["imd_score"].notna().any():
         # Higher mobility = lower deprivation (IMD score)
         gdf["mobility"] = -gdf["imd_score"].fillna(gdf["imd_score"].median())
-        gdf["mobility"] = (gdf["mobility"] - gdf["mobility"].min()) / (gdf["mobility"].max() - gdf["mobility"].min())
+        mobility_range = gdf["mobility"].max() - gdf["mobility"].min()
+        if mobility_range > 0:
+            gdf["mobility"] = (gdf["mobility"] - gdf["mobility"].min()) / mobility_range
+        else:
+            # All values identical, assign neutral value
+            gdf["mobility"] = 0.5
     else:
         gdf["mobility"] = np.random.rand(len(gdf))
 
