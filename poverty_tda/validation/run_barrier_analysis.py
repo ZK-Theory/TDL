@@ -73,8 +73,10 @@ def load_regional_lsoa_data(region: str = "west_midlands"):
             gdf = gdf[gdf[lad_col].isin(wm_lads)]
 
     # Join LE by LAD
-    if "LAD21CD" in gdf.columns:
+    if "LAD21CD" in gdf.columns and le is not None and "lad_code" in le.columns:
         gdf = gdf.merge(le, left_on="LAD21CD", right_on="lad_code", how="left")
+    elif le is None:
+        logger.warning("Skipping life expectancy merge: data not available")
 
     logger.info(f"Loaded {len(gdf)} LSOAs for {region}")
     return gdf
