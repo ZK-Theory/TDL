@@ -1,0 +1,49 @@
+{
+  "name": "liverpool_150x150_comparison",
+  "description": "Liverpool single-LAD comparison at 150x150 resolution. Matches kriging benchmark (63% vs 62%). K-means outperforms MS in single-LAD case.",
+  "timestamp": "2025-12-16T14:19:53.073946",
+  "region": "Liverpool",
+  "n_observations": 286,
+  "data_sources": {
+    "LSOA": "ONS 2021",
+    "IMD": "2019",
+    "Life Expectancy": "ONS 2016-2018"
+  },
+  "outcome_variable": "life_expectancy_male",
+  "outcome_description": "",
+  "methods": [
+    {
+      "name": "Morse-Smale",
+      "column": "ms_basin",
+      "n_clusters": 64,
+      "eta_squared": 0.619,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means",
+      "column": "kmeans",
+      "n_clusters": 10,
+      "eta_squared": 0.797,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    }
+  ],
+  "ari_matrix": {},
+  "best_method": "K-means",
+  "best_eta_squared": 0.797,
+  "input_files": [],
+  "output_files": [],
+  "random_seed": 42,
+  "git_commit": null,
+  "notes": [
+    "Single LAD - no cross-LAD variance",
+    "MS matches kriging benchmark: 62% vs 63%",
+    "K-means 79.7% > MS 61.9% in single-LAD case",
+    "64 MS basins at 150x150"
+  ]
+}
