@@ -15,8 +15,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from poverty_tda.data.process_migration import (
-    load_migration_flows,
     compute_lad_migration_metrics,
+    load_migration_flows,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -66,11 +66,12 @@ def load_west_midlands_lsoa_data():
             break
 
     if lad_col is None:
-        # Try to infer from LSOA code (E0... → E08... for WM)
-        logger.warning("No LAD column found, filtering by LSOA prefix")
-        lsoa_gdf = lsoa_gdf[lsoa_gdf["LSOA21CD"].str.startswith("E08")]
-    else:
-        lsoa_gdf = lsoa_gdf[lsoa_gdf[lad_col].isin(WEST_MIDLANDS_LADS)]
+        raise ValueError(
+            "No LAD column found in boundaries file. Cannot filter to West Midlands. "
+            f"Available columns: {list(lsoa_gdf.columns)}"
+        )
+
+    lsoa_gdf = lsoa_gdf[lsoa_gdf[lad_col].isin(WEST_MIDLANDS_LADS)]
 
     logger.info(f"Filtered to {len(lsoa_gdf)} West Midlands LSOAs")
 
