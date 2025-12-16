@@ -17,8 +17,8 @@
       "column": "ms_basin",
       "n_clusters": 145,
       "eta_squared": 0.954,
-      "eta_squared_ci_lower": 0.9382,
-      "eta_squared_ci_upper": 0.979,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     },
@@ -27,8 +27,8 @@
       "column": "ms_basin",
       "n_clusters": 145,
       "eta_squared": 0.958,
-      "eta_squared_ci_lower": 0.9412,
-      "eta_squared_ci_upper": 0.9828,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     },
@@ -37,8 +37,8 @@
       "column": "kmeans",
       "n_clusters": 10,
       "eta_squared": 0.648,
-      "eta_squared_ci_lower": 0.5995,
-      "eta_squared_ci_upper": 0.7024,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     },
@@ -47,8 +47,8 @@
       "column": "kmeans",
       "n_clusters": 10,
       "eta_squared": 0.665,
-      "eta_squared_ci_lower": 0.6173,
-      "eta_squared_ci_upper": 0.7184,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     }
@@ -64,7 +64,6 @@
     "5 LADs: Liverpool, Knowsley, Sefton, St. Helens, Wirral",
     "MS 95.4%/95.8% (M/F) - highest performance",
     "Exceeds Liverpool kriging benchmark by 32pp",
-    "145 MS basins at 150x150",
-    "Bootstrap CIs computed: n=1000 iterations"
+    "145 MS basins at 150x150"
   ]
 }

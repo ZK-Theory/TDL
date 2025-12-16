@@ -18,8 +18,8 @@
       "column": "ms_basin",
       "n_clusters": 260,
       "eta_squared": 0.849,
-      "eta_squared_ci_lower": 0.8241,
-      "eta_squared_ci_upper": 0.8806,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     },
@@ -38,8 +38,8 @@
       "column": "kmeans",
       "n_clusters": 10,
       "eta_squared": 0.455,
-      "eta_squared_ci_lower": 0.3985,
-      "eta_squared_ci_upper": 0.5121,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     },
@@ -65,7 +65,6 @@
     "MS: LE=84.9%, KS4=88.9%",
     "K-means: LE=45.5%, KS4=65.0%",
     "MS dominates both health and education outcomes",
-    "150x150 regional surface used",
-    "Bootstrap CIs computed: n=1000 iterations"
+    "150x150 regional surface used"
   ]
 }

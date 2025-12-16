@@ -27,8 +27,8 @@
       "column": "kmeans_cluster",
       "n_clusters": 10,
       "eta_squared": 0.4549,
-      "eta_squared_ci_lower": 0.3985,
-      "eta_squared_ci_upper": 0.5121,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
       "ari_vs_others": {},
       "parameters": {}
     },
@@ -91,7 +91,6 @@
     "Regional 100x100 surface: 206 basins (eta2=83.4%)",
     "Resolution critical for MS performance",
     "TDA adds substantial value at appropriate resolution",
-    "Bootstrap CIs computed: n=1000 iterations",
     "Bootstrap CIs computed: n=1000 iterations"
   ]
 }
