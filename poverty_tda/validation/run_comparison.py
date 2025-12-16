@@ -217,7 +217,9 @@ def run_comparison_protocol(sample_size: int | None = None):
         coords = np.column_stack([gdf.geometry.centroid.x, gdf.geometry.centroid.y])
         mobility_values = gdf["mobility"].values.reshape(-1, 1)
         # Combine spatial + value features (different weighting than DBSCAN)
-        features = np.hstack([coords / coords.std(axis=0), mobility_values * 2])
+        coord_std = coords.std(axis=0)
+        coord_std[coord_std == 0] = 1.0  # Avoid division by zero
+        features = np.hstack([coords / coord_std, mobility_values * 2])
 
         n_clusters = max(3, min(10, len(gdf) // 100))  # Adaptive cluster count
         hierarchical = AgglomerativeClustering(n_clusters=n_clusters, linkage="ward")
