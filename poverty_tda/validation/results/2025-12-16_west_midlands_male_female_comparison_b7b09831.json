@@ -10,7 +10,7 @@
     "Life Expectancy": "ONS 2016-2018"
   },
   "outcome_variable": "life_expectancy (male and female)",
-  "outcome_description": "",
+  "outcome_description": "Life expectancy at birth by sex (male and female, 2016-2018 average)",
   "methods": [
     {
       "name": "Morse-Smale (Male)",
@@ -56,14 +56,23 @@
   "ari_matrix": {},
   "best_method": "Morse-Smale (Male)",
   "best_eta_squared": 0.834,
-  "input_files": [],
-  "output_files": [],
+  "input_files": [
+    "poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson",
+    "poverty_tda/validation/data/england_imd_2019.csv",
+    "data/raw/outcomes/life_expectancy_processed.csv",
+    "poverty_tda/validation/mobility_surface_west_midlands.vti"
+  ],
+  "output_files": [
+    "poverty_tda/validation/results/2025-12-16_west_midlands_male_female_comparison_b7b09831.json",
+    "poverty_tda/validation/results/2025-12-16_west_midlands_male_female_comparison_b7b09831.md"
+  ],
   "random_seed": 42,
   "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
   "notes": [
     "Male LE: MS=83.4%, K-means=45.5%",
     "Female LE: MS=81.8%, K-means=43.0%",
-    "MS closes sex gap seen in Liverpool benchmark (63% male vs 39% female)",
-    "TDA captures factors affecting female health that linear methods miss"
+    "Preliminary: MS shows similar strong performance for both sexes, suggesting method robustness",
+    "⚠️ Statistical claims deferred: Bootstrap CIs required to verify sex gap closure and differential method performance",
+    "See 2025-12-16_west_midlands_full_comparison_corrected_426693f8.json for male LE with 95% bootstrap CIs (n=1000)"
   ]
 }

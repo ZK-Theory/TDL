@@ -2,7 +2,7 @@
 
 **Task**: 9.1 Financial TDA Paper Finalization  
 **Date Completed**: December 16, 2025  
-**Status**: ✅ COMPLETE - All 5 steps finished
+**Status**: ✅ DRAFT COMPLETE - Text & structure finished; Awaiting figures, captions & formatting
 
 ---
 
@@ -213,6 +213,8 @@ All figures specified with:
 - [x] Conclusion (4 subsections with future research)
 - [x] References (48 citations, formatted)
 
+**Summary**: All text drafting (Steps 1-5) complete. Publication-quality figures, captions, table notes, LaTeX compilation, and final proofreading remain outstanding (see "Post-draft deliverables" below).
+
 ### Figures & Tables
 - [x] 5 figures fully specified (panel layouts, data sources, formatting)
 - [x] 6 tables created with detailed data
@@ -228,6 +230,35 @@ All figures specified with:
 - [ ] **TODO**: Compile into single LaTeX or Word document
 - [ ] **TODO**: Final proofreading pass
 - [ ] **TODO**: Export to journal submission format
+
+---
+
+## Post-draft Deliverables (Outstanding)
+
+These items are required before journal submission but are outside the scope of Task 9.1 (text drafting):
+
+### Figure Generation & Finalization
+- [ ] Generate publication-quality figure images using existing code and processed data
+- [ ] Verify all figures meet journal DPI/format requirements (300 DPI EPS)
+- [ ] Write descriptive captions (50-100 words) for each figure
+
+### Table Documentation
+- [ ] Add footnotes to tables explaining statistical notation and data sources
+- [ ] Verify table formatting consistency across all sections
+- [ ] Add legend/notes for any abbreviations used in tables
+
+### Document Compilation & Proofreading
+- [ ] Compile all sections into single LaTeX or Word document
+- [ ] Perform final proofreading pass (spelling, grammar, consistency)
+- [ ] Export to journal submission format (PDF, DOCX, or LaTeX)
+- [ ] Verify hyperlinks, cross-references, and citations in compiled document
+
+### Submission Preparation
+- [ ] Prepare cover letter highlighting novel contributions
+- [ ] Create supplementary materials document (if required by journal)
+- [ ] Verify compliance with Quantitative Finance submission guidelines
+
+---
 
 ### Supplementary Materials (Optional)
 - [ ] Code repository link (GitHub: stephendor/TDL)
@@ -270,19 +301,25 @@ financial_tda/
 
 ## Task Completion Summary
 
-**Task 9.1: Financial TDA Paper Finalization - COMPLETE**
+**Task 9.1: Financial TDA Paper Finalization - TEXT DRAFTING COMPLETE**
 
-**Steps Completed**:
+**Steps Completed (Task Scope)**:
 1. ✅ Paper outline & journal selection (Quantitative Finance chosen)
 2. ✅ Methodology section (2,300 words, 3-stage pipeline detailed)
 3. ✅ Results section (2,600 words, 5 figures, 6 tables)
 4. ✅ Introduction, Discussion, Conclusion (4,200 words)
 5. ✅ Literature review & references (1,650 words + 48 citations)
 
-**Total Time Investment**: 5 steps across multiple sessions  
-**Quality Assessment**: Publication-ready draft, ready for figure generation and final formatting
+**Items Outside Task 9.1 Scope (Post-draft deliverables)**:
+- ⏳ Generate publication-quality figures
+- ⏳ Write figure captions and table notes
+- ⏳ Compile into LaTeX/Word document
+- ⏳ Final proofreading and journal submission
 
-**Next Immediate Actions** (outside current task scope):
+**Total Time Investment**: 5 steps across multiple sessions  
+**Quality Assessment**: Publication-ready text draft with complete methodology, results, and discussion. Structure and content meet Quantitative Finance journal requirements. Figures, captions, table notes, LaTeX compilation, and final proofreading remain outstanding and are required before submission.
+
+**Next Steps** (outside current task):
 1. Generate publication-quality figures using existing code and data
 2. Compile all sections into single LaTeX document
 3. Write detailed figure captions and table notes
@@ -293,4 +330,4 @@ financial_tda/
 
 **Document Created**: December 16, 2025  
 **Last Updated**: December 16, 2025  
-**Status**: ✅ TASK 9.1 COMPLETE - All deliverables finished
+**Status**: ✅ TASK 9.1 COMPLETE - Text drafting done; Post-draft deliverables pending

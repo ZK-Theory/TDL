@@ -258,7 +258,13 @@ def compute_individual_mobility(
     elif method == "absolute_change":
         # Standardized absolute change (z-score)
         merged["income_change"] = merged["income_end"] - merged["income_start"]
-        merged["mobility"] = (merged["income_change"] - merged["income_change"].mean()) / merged["income_change"].std()
+        income_change_std = merged["income_change"].std()
+
+        # Handle zero or near-zero standard deviation
+        if income_change_std < 1e-10:  # Use small epsilon for floating point comparison
+            merged["mobility"] = 0.0
+        else:
+            merged["mobility"] = (merged["income_change"] - merged["income_change"].mean()) / income_change_std
 
     else:
         raise ValueError(f"Unknown method: {method}")

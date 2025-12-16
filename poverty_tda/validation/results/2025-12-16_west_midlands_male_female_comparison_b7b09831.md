@@ -17,7 +17,7 @@ Key finding: Morse-Smale captures similar variance for both sexes, unlike tradit
 
 ## Outcome Variable
 
-**life_expectancy (male and female)**: 
+**life_expectancy (male and female)**: Life expectancy at birth by sex (male and female, 2016-2018 average)
 
 ## Results
 
@@ -38,8 +38,9 @@ Key finding: Morse-Smale captures similar variance for both sexes, unlike tradit
 
 - Male LE: MS=83.4%, K-means=45.5%
 - Female LE: MS=81.8%, K-means=43.0%
-- MS closes sex gap seen in Liverpool benchmark (63% male vs 39% female)
-- TDA captures factors affecting female health that linear methods miss
+- Preliminary: MS shows similar strong performance for both sexes, suggesting method robustness
+- ⚠️ **Statistical claims deferred**: Bootstrap CIs required to verify sex gap closure and differential method performance
+- See full comparison for male LE with 95% bootstrap CIs (n=1000)
 
 ## Reproducibility
 
