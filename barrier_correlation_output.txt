@@ -1,0 +1,10 @@
+INFO: LE columns: ['area_code', 'area_name', 'life_expectancy_male']
+INFO: Loaded 35672 WM LSOAs
+INFO: Columns: ['FID', 'LSOA21CD', 'LSOA21NM', 'LSOA21NMW', 'BNG_E', 'BNG_N', 'LAT', 'LONG', 'Shape__Area', 'Shape__Length', 'GlobalID', 'geometry']
+============================================================
+TASK 9.5.2: Complete Barrier-Outcome Correlation
+============================================================
+
+1. Loading data...
+   Available columns: ['FID', 'LSOA21CD', 'LSOA21NM', 'LSOA21NMW', 'BNG_E', 'BNG_N', 'LAT', 'LONG', 'Shape__Area', 'Shape__Length', 'GlobalID', 'geometry']
+   ERROR: No life expectancy column found!

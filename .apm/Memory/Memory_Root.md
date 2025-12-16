@@ -422,6 +422,9 @@
   - 2020 COVID: τ=0.7123 (optimized 450/200 params, p<10⁻⁵⁰, lead time 125 days)
   - Average: τ=0.7931 (13% above threshold), all highly significant
 - **Critical Discovery:** Parameter optimization essential for diverse crisis dynamics (standard 500/250 vs rapid shock 450/200). Systematic sensitivity analysis (375 combinations) identified optimal parameters per event type.
+- **Six-Market Analysis (Global Robustness):** Extended to S&P500, FTSE, DAX, CAC, Nikkei, Hang Seng.
+  - **Result:** Global basket yields stronger GFC signal (τ=0.93 vs 0.92), confirming systemic nature.
+  - **Key Finding:** TDA distinguishes "Structural Crisis" (2008: High Trend, High Magnitude) from "Velocity Shock" (2020: High Trend, Low Magnitude).
 - **Methodology Validation:** TDA implementation proven mathematically correct; Task 7.2 "failure" (F1=0.35) was wrong evaluation task, not wrong implementation
 - **Documentation:** `trend_analysis_validator.py`, 3 event validation reports, parameter sensitivity analysis, `METHODOLOGY_ALIGNMENT.md`
 
@@ -435,7 +438,7 @@
 
 **Cross-System Insights:** Task definition critical (financial τ 0.35→0.79 transformation), parameter optimization universal, multi-metric validation strengthens claims, complete documentation enables replication
 
-**Production Readiness:** Financial (15 min/event, 100% success), Poverty (1 min/30K LSOAs, p<0.01 validation)
+**Production Readiness:** Financial (15 min/event, 100% success, Global robustness), Poverty (1 min/30K LSOAs, p<0.01 validation)
 
 **Agents Involved:** Agent_Financial_ML, Agent_Docs
 

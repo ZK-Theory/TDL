@@ -1,0 +1,1 @@
+{'type': 'retrospective', 'metrics': {'L1_norm_variance': 0.7807700399747529, 'L2_norm_variance': 0.8859667578371556, 'L1_norm_spectral_density_low': 0.7264885335577531, 'L2_norm_spectral_density_low': 0.849779086892489}}

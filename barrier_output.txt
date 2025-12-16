@@ -1,0 +1,57 @@
+INFO: Loaded 35672 LSOAs for west_midlands
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpamgxeauz.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmp3d559qii.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+Loading West Midlands LSOA data...
+
+Available mobility surfaces:
+  - mobility_surface.vti
+  - mobility_surface_greater_manchester.vti
+  - mobility_surface_liverpool_150.vti
+  - mobility_surface_merseyside_150.vti
+  - mobility_surface_simplified.vti
+  - mobility_surface_west_midlands.vti
+  - mobility_surface_wm_100.vti
+  - mobility_surface_wm_150.vti
+  - mobility_surface_wm_75.vti
+
+============================================================
+TASK 9.5.2: Barrier Analysis - West Midlands (150x150)
+============================================================
+
+1. Computing Morse-Smale complex...
+   Critical points: 1575
+   - Minima: 383
+   - Saddles: 787
+   - Maxima: 405
+   Separatrices: 3094
+   Note: No life expectancy column found - will analyze barrier structure only
+
+2. Computing barrier-outcome correlation...
+   No basin assignments in GDF - analyzing separatrix structure directly...
+
+   Saddle point values (n=787):
+   - Mean: 0.6701
+   - Std:  0.2490
+   - Range: [-0.0596, 1.9180]
+
+   Barrier heights (saddle - avg_minimum):
+   - Mean barrier: 0.2170
+   - Max barrier:  1.4649
+
+============================================================
+TASK 9.5.2 PARTIAL RESULTS (No basin assignments)
+============================================================
+   Morse-Smale complex computed successfully:
+   - 383 poverty traps (minima)
+   - 787 barriers (saddles)
+   - 3094 separatrices
+
+   To complete barrier-outcome correlation:
+   1. Assign LSOAs to basins using descending manifold
+   2. Compute mean LE per basin
+   3. Correlate barrier heights with LE gradients
