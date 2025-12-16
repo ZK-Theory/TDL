@@ -772,10 +772,12 @@ def main():
 
     gdf_path = Path(args.gdf_path)
     if gdf_path.suffix == ".pkl":
+        logger.warning("Loading pickle files is a security risk. Consider using GeoJSON or Parquet.")
         gdf = pd.read_pickle(gdf_path)
+    elif gdf_path.suffix == ".parquet":
+        gdf = gpd.read_parquet(gdf_path)
     else:
         gdf = gpd.read_file(gdf_path)
-
     # Run comparison
     runner = TDAComparisonRunner(
         gdf, value_column=args.value_column, tda_basin_column=args.basin_column, output_dir=args.output_dir
