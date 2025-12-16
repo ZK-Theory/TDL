@@ -1129,6 +1129,8 @@ def compute_stability_analysis(
         raise ValueError(f"Unknown method: {method}")
 
     # Compute stability: Jaccard overlap of top-k clusters with baseline
+    # Clamp baseline_index to valid range
+    baseline_index = min(baseline_index, len(all_labels) - 1)
     baseline_labels = all_labels[baseline_index]
 
     # Identify top-k clusters by size
