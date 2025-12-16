@@ -218,5 +218,5 @@ if __name__ == "__main__":
 
     print("\n✅ All tests passed!")
 
-    # Note: test_full_comparison_matrix_validation is designed to fail with pytest
-    # to demonstrate the detection mechanism
+    # Note: test_full_comparison_matrix_validation verifies detection of suspicious
+    # perfect agreement (all methods identical). Run with pytest for validation.
