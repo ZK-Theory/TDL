@@ -353,7 +353,7 @@ def compute_watershed_basins(
 
     # Find local minima as basin seeds
     value_range = np.nanmax(grid_z) - np.nanmin(grid_z)
-    min_distance = max(3, int(grid_z.shape[0] * 0.05))  # At least 5% of grid
+    min_distance = max(3, int(grid_z.shape[0] * 0.05))  # Minimum 3 points or 5% of grid dimension, whichever is larger
 
     local_min = peak_local_max(inverted, min_distance=min_distance, threshold_rel=min_depth, exclude_border=False)
 
