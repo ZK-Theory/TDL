@@ -67,7 +67,15 @@ def load_regional_lsoa_data(region: str = "west_midlands"):
 
     # Filter to region
     if region == "west_midlands":
-        wm_lads = ["E08000025", "E08000026", "E08000027", "E08000028", "E08000029", "E08000030", "E08000031"]
+        wm_lads = [
+            "E08000025",
+            "E08000026",
+            "E08000027",
+            "E08000028",
+            "E08000029",
+            "E08000030",
+            "E08000031",
+        ]
         lad_col = "LAD21CD" if "LAD21CD" in gdf.columns else None
         if lad_col:
             gdf = gdf[gdf[lad_col].isin(wm_lads)]
@@ -85,9 +93,9 @@ def load_regional_lsoa_data(region: str = "west_midlands"):
 def run_barrier_analysis(surface_path: Path, gdf: gpd.GeoDataFrame, region_name: str):
     """Run barrier-outcome correlation for a region."""
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"TASK 9.5.2: Barrier Analysis - {region_name}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not surface_path.exists():
         print(f"ERROR: Surface not found at {surface_path}")
@@ -108,7 +116,12 @@ def run_barrier_analysis(surface_path: Path, gdf: gpd.GeoDataFrame, region_name:
 
     # 2. Check for required data
     outcome_col = None
-    for col in ["life_expectancy_male", "male_life_expectancy", "life_expectancy", "le_male"]:
+    for col in [
+        "life_expectancy_male",
+        "male_life_expectancy",
+        "life_expectancy",
+        "le_male",
+    ]:
         if col in gdf.columns:
             outcome_col = col
             break
@@ -158,9 +171,9 @@ def run_barrier_analysis(surface_path: Path, gdf: gpd.GeoDataFrame, region_name:
                 print(f"   - Max barrier:  {np.max(barrier_heights):.4f}")
 
         # Summary for paper
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("TASK 9.5.2 PARTIAL RESULTS (No basin assignments)")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print("   Morse-Smale complex computed successfully:")
         print(f"   - {ms_result.n_minima} poverty traps (minima)")
         print(f"   - {ms_result.n_saddles} barriers (saddles)")
@@ -172,14 +185,26 @@ def run_barrier_analysis(surface_path: Path, gdf: gpd.GeoDataFrame, region_name:
 
         return ms_result
 
+    # Skip correlation if no outcome column available
+    if outcome_col is None:
+        print("\n   Skipping barrier-outcome correlation: No outcome column available")
+        print(f"\n{'=' * 60}")
+        print("TASK 9.5.2 PARTIAL RESULTS (No outcome data)")
+        print(f"{'=' * 60}")
+        print("   Morse-Smale complex computed successfully:")
+        print(f"   - {ms_result.n_minima} poverty traps (minima)")
+        print(f"   - {ms_result.n_saddles} barriers (saddles)")
+        print(f"   - {len(ms_result.separatrices_1d)} separatrices")
+        return ms_result
+
     try:
         result = compute_barrier_outcome_correlation(
             ms_result, gdf, outcome_column=outcome_col, basin_column="ms_basin"
         )
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("BARRIER-OUTCOME CORRELATION RESULTS")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"   Pearson r: {result.pearson_r:.4f}")
         print(f"   p-value: {result.p_value:.4f}")
         print(f"   N pairs: {result.n_pairs}")
