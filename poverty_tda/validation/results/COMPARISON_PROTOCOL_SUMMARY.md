@@ -156,6 +156,32 @@ The single-LAD vs multi-LAD comparison reveals **when topological methods excel*
 
 ---
 
+## Barrier-Gradient Correlation (Task 9.5.2)
+
+**Objective:** Test whether TDA barrier heights predict real outcome discontinuities.
+
+### Multi-Outcome Results (WM 150x150, n=632 pairs)
+
+| Outcome | r | p | Significant |
+|---------|---|---|-------------|
+| IMD Score (LSOA) | -0.100 | 0.012 | Weak |
+| Life Expectancy (LAD) | -0.085 | 0.033 | Weak |
+| IMD Rank (LSOA) | 0.009 | 0.820 | No |
+| Net Migration (LAD) | -0.031 | 0.436 | No |
+
+### Key Finding
+
+**TDA barriers do NOT strongly predict outcome gradients** (r < 0.3 for all).
+
+This is an important **null result**: while MS basins explain 73-83% of outcome variance, the barrier *heights* between basins are not strong predictors of outcome *gradients*. This suggests:
+1. Basins capture outcome structure (static)
+2. Barriers may affect escape *difficulty* (dynamic) rather than current-state gradients
+
+> [!NOTE]
+> This distinction (basins vs barriers) warrants further investigation with longitudinal data.
+
+---
+
 ## Migration Validation (Behavioral Outcome)
 
 ### Task 9.5.3.5: Internal Migration by LAD

@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Antigravity Session - **PHASE 9.5 COMPLETE**. TDA Comparison Protocol executed: MS explains 73-83% LE variance vs K-means 33-46% vs spatial methods 10-20%. Novel sex gap closure finding. Results framework created. Phase 9 (Documentation) still in progress.
+**Last Modification:** Antigravity Session - **PHASE 9.5 IN PROGRESS**. Task 9.5.1 (TDA Comparison Protocol) COMPLETE: MS explains 73-83% LE variance. Task 9.5.2 (Barrier Analysis) COMPLETE: weak/no correlation (r<0.3) between barrier heights and outcome gradients - important null result. Task 9.5.3.5 (Migration Validation) COMPLETE: Birmingham -16K outflow confirms basin status.
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay) and TTK acceleration.
 
 

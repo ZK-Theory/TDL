@@ -44,6 +44,11 @@ def assign_lsoas_to_basins(gdf: gpd.GeoDataFrame, ms_result, vti_path: Path) -> 
 
     logger.info(f"Grid: {dims[0]}x{dims[1]}, origin={origin}, spacing={spacing}")
 
+    # Reproject to BNG if needed (grid is in BNG coordinates)
+    if gdf.crs and gdf.crs.to_epsg() != 27700:
+        logger.info(f"Reprojecting from {gdf.crs} to EPSG:27700 (BNG)")
+        gdf = gdf.to_crs(epsg=27700)
+
     # Get LSOA centroids
     centroids = gdf.geometry.centroid
     x_coords = centroids.x.values
@@ -112,40 +117,72 @@ def compute_barrier_gradient_correlation(ms_result, gdf, le_column: str):
     if not saddles or not minima:
         return None
 
-    # Compute average minimum value for reference
+    # Build minimum point_id → index mapping
+    min_id_to_idx = {m.point_id: i for i, m in enumerate(minima)}
+
+    # Average minimum value for reference
     avg_min = np.mean([m.value for m in minima])
 
-    # For each separatrix, get the connected basins and barrier height
+    # Find adjacent basin pairs from separatrices
+    # Each separatrix connects two critical points
+    # For min-saddle-min paths, we look for saddles that connect two minima
+
     barrier_heights = []
     le_gradients = []
 
-    for sep in ms_result.separatrices_1d:
-        if not hasattr(sep, "source_id") or not hasattr(sep, "destination_id"):
-            continue
+    # First, get adjacency from the descending manifold grid
+    # Two basins are adjacent if there are neighboring cells with different basin IDs
+    if ms_result.descending_manifold is not None:
+        desc = ms_result.descending_manifold.reshape(150, 150)  # Reshape to grid
 
-        basin_a = sep.source_id
-        basin_b = sep.destination_id
+        # Load mobility values from VTI
+        grid = pv.read(str(Path("poverty_tda/validation/mobility_surface_wm_150.vti")))
+        mobility = grid.point_data["mobility"].reshape(150, 150)
 
-        # Get LE values for both basins
-        le_a = basin_le.get(basin_a)
-        le_b = basin_le.get(basin_b)
+        adjacent_pairs = {}  # pair -> list of boundary mobility values
 
-        if le_a is None or le_b is None:
-            continue
+        # Look at horizontal neighbors
+        for i in range(150):
+            for j in range(149):
+                b1, b2 = desc[i, j], desc[i, j + 1]
+                if b1 != b2:
+                    pair = tuple(sorted([b1, b2]))
+                    if pair not in adjacent_pairs:
+                        adjacent_pairs[pair] = []
+                    # Barrier = max mobility along boundary
+                    adjacent_pairs[pair].append(max(mobility[i, j], mobility[i, j + 1]))
 
-        # Barrier height from separatrix
-        if hasattr(sep, "values") and sep.values is not None and len(sep.values) > 0:
-            barrier = np.max(sep.values) - avg_min
-        else:
-            continue
+        # Look at vertical neighbors
+        for i in range(149):
+            for j in range(150):
+                b1, b2 = desc[i, j], desc[i + 1, j]
+                if b1 != b2:
+                    pair = tuple(sorted([b1, b2]))
+                    if pair not in adjacent_pairs:
+                        adjacent_pairs[pair] = []
+                    adjacent_pairs[pair].append(max(mobility[i, j], mobility[i + 1, j]))
 
-        gradient = abs(le_a - le_b)
+        logger.info(f"Found {len(adjacent_pairs)} adjacent basin pairs from grid")
 
-        barrier_heights.append(barrier)
-        le_gradients.append(gradient)
+        # For each adjacent pair, compute LE gradient and barrier height
+        for pair, boundary_mobs in adjacent_pairs.items():
+            b1, b2 = pair
+            le1 = basin_le.get(b1)
+            le2 = basin_le.get(b2)
+
+            if le1 is None or le2 is None:
+                continue
+
+            gradient = abs(le1 - le2)
+
+            # Barrier = max mobility along boundary between these basins
+            barrier = max(boundary_mobs) - avg_min
+
+            le_gradients.append(gradient)
+            barrier_heights.append(barrier)
 
     if len(barrier_heights) < 3:
-        logger.warning(f"Only {len(barrier_heights)} adjacent pairs found")
+        logger.warning(f"Only {len(barrier_heights)} pairs with LE data")
         return None
 
     # Compute correlation
@@ -164,27 +201,44 @@ def load_wm_data_with_le():
     """Load West Midlands LSOA data with life expectancy."""
     # Load boundaries
     gdf = gpd.read_file("poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson")
+    logger.info(f"Loaded {len(gdf)} LSOAs")
+
+    # Load IMD with LAD codes (bridge LSOA to LAD)
+    imd = pd.read_csv("poverty_tda/validation/data/england_imd_2019.csv")
+    imd = imd.rename(
+        columns={
+            "LSOA code (2011)": "lsoa_code_2011",
+            "Local Authority District code (2019)": "lad_code",
+            "Index of Multiple Deprivation (IMD) Score": "imd_score",
+        }
+    )
+
+    # LSOA21CD to LSOA11CD mapping (first 9 chars often match)
+    # Try direct merge first, then substring
+    gdf["lsoa_code_2011"] = gdf["LSOA21CD"].str[:9]  # E01XXXXXX pattern
+
+    # Merge IMD to get LAD codes
+    gdf = gdf.merge(imd[["lsoa_code_2011", "lad_code", "imd_score"]], on="lsoa_code_2011", how="left")
+    logger.info(f"After IMD merge: {gdf['lad_code'].notna().sum()} with LAD code")
 
     # Filter to WM
     wm_lads = ["E08000025", "E08000026", "E08000027", "E08000028", "E08000029", "E08000030", "E08000031"]
-    if "LAD21CD" in gdf.columns:
-        gdf = gdf[gdf["LAD21CD"].isin(wm_lads)]
+    gdf = gdf[gdf["lad_code"].isin(wm_lads)]
+    logger.info(f"Filtered to {len(gdf)} WM LSOAs")
 
     # Load LE data
     le_path = Path("data/raw/outcomes/life_expectancy_processed.csv")
     if le_path.exists():
         le = pd.read_csv(le_path)
-        logger.info(f"LE columns: {le.columns.tolist()}")
+        # Rename for merge
+        le = le.rename(columns={"area_code": "lad_code", "life_expectancy_male": "le_male"})
+        logger.info(f"LE LADs: {le['lad_code'].nunique()}")
 
         # Join by LAD
-        if "LAD21CD" in gdf.columns:
-            le_col = "lad_code" if "lad_code" in le.columns else le.columns[0]
-            gdf = gdf.merge(le, left_on="LAD21CD", right_on=le_col, how="left")
+        gdf = gdf.merge(le[["lad_code", "le_male"]], on="lad_code", how="left")
+        logger.info(f"LE range: {gdf['le_male'].min():.1f} - {gdf['le_male'].max():.1f}")
     else:
         logger.warning(f"LE file not found: {le_path}")
-
-    logger.info(f"Loaded {len(gdf)} WM LSOAs")
-    logger.info(f"Columns: {gdf.columns.tolist()}")
 
     return gdf
 
