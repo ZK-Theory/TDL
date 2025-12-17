@@ -41,6 +41,26 @@ def compute_eta_squared(cluster_labels, outcome_values):
     return ss_between / ss_total if ss_total > 0 else 0
 
 
+def bootstrap_eta_squared_ci(cluster_labels, outcome_values, n_bootstrap=500, confidence=0.95):
+    """Bootstrap CI for eta-squared."""
+    np.random.seed(42)
+    n = len(outcome_values)
+    eta_boots = []
+    
+    for _ in range(n_bootstrap):
+        idx = np.random.randint(0, n, size=n)
+        eta = compute_eta_squared(cluster_labels[idx], outcome_values[idx])
+        eta_boots.append(eta)
+    
+    alpha = 1 - confidence
+    ci_lower = np.percentile(eta_boots, 100 * alpha / 2)
+    ci_upper = np.percentile(eta_boots, 100 * (1 - alpha / 2))
+    point = compute_eta_squared(cluster_labels, outcome_values)
+    se = np.std(eta_boots)
+    
+    return {'eta2': point, 'ci_lower': ci_lower, 'ci_upper': ci_upper, 'se': se}
+
+
 def load_wm_data():
     """Load West Midlands LSOA data with LE."""
     gdf = gpd.read_file("poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson")
@@ -118,32 +138,40 @@ def main():
         n_minima = ms.n_minima
         n_basins = gdf['ms_basin'].nunique()
         
-        # Compute eta-squared
+        # Compute eta-squared with bootstrap CIs
         df = gdf[['le_male', 'ms_basin']].dropna()
         if len(df) > 50:
-            eta_sq = compute_eta_squared(df['ms_basin'].values, df['le_male'].values)
+            eta_boot = bootstrap_eta_squared_ci(df['ms_basin'].values, df['le_male'].values)
+            eta_sq = eta_boot['eta2']
+            ci_str = f"[{eta_boot['ci_lower']:.3f}, {eta_boot['ci_upper']:.3f}]"
         else:
             eta_sq = np.nan
+            eta_boot = None
+            ci_str = "N/A"
         
         results.append({
             'persistence': thresh,
             'n_minima': n_minima,
             'n_basins': n_basins,
-            'eta_squared': eta_sq
+            'eta_squared': eta_sq,
+            'ci_lower': eta_boot['ci_lower'] if eta_boot else np.nan,
+            'ci_upper': eta_boot['ci_upper'] if eta_boot else np.nan,
+            'se': eta_boot['se'] if eta_boot else np.nan
         })
         
-        print(f"      Minima: {n_minima}, Basins: {n_basins}, eta^2: {eta_sq:.3f}")
+        print(f"      Minima: {n_minima}, Basins: {n_basins}, eta^2: {eta_sq:.3f} {ci_str}")
     
     # Summary
     results_df = pd.DataFrame(results)
     
-    print("\n" + "=" * 70)
-    print("PERSISTENCE SENSITIVITY RESULTS")
-    print("=" * 70)
-    print(f"\n{'Threshold':>10} {'Minima':>8} {'Basins':>8} {'eta^2':>8}")
-    print("-" * 40)
+    print("\n" + "=" * 75)
+    print("PERSISTENCE SENSITIVITY RESULTS WITH 95% BOOTSTRAP CIs")
+    print("=" * 75)
+    print(f"\n{'Threshold':>10} {'Minima':>8} {'Basins':>8} {'eta^2':>8} {'95% CI':>22}")
+    print("-" * 60)
     for _, r in results_df.iterrows():
-        print(f"{r['persistence']:>10.2f} {r['n_minima']:>8} {r['n_basins']:>8} {r['eta_squared']:>8.3f}")
+        ci = f"[{r['ci_lower']:.3f}, {r['ci_upper']:.3f}]"
+        print(f"{r['persistence']:>10.2f} {r['n_minima']:>8.0f} {r['n_basins']:>8.0f} {r['eta_squared']:>8.3f} {ci:>22}")
     
     # Analysis
     eta_values = results_df['eta_squared'].values

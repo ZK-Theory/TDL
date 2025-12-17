@@ -1,15 +1,8 @@
 """
-Task 9.5.4: Integrated Model Testing
+Task 9.5.4 EXTENDED: Comprehensive Integrated Model Testing
 
-Tests whether combining TDA features with traditional predictors 
-improves outcome prediction.
-
-Compares:
-1. Traditional only: outcome ~ IMD_decile
-2. TDA only: outcome ~ basin_id  
-3. Combined: outcome ~ IMD_decile + basin_id
-
-Reports R^2 improvement from adding TDA features.
+Tests whether TDA features add predictive value beyond traditional predictors,
+across multiple outcomes, regions, and with bootstrap CIs.
 """
 
 import logging
@@ -20,8 +13,6 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pyvista as pv
-from scipy import stats
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
@@ -34,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def assign_basins(gdf, vti_path, persistence=0.05):
-    """Assign LSOAs to MS basins."""
+    """Assign LSOAs to MS basins and extract mobility values."""
     grid = pv.read(str(vti_path))
     origin = np.array(grid.origin[:2])
     spacing = np.array(grid.spacing[:2])
@@ -53,15 +44,14 @@ def assign_basins(gdf, vti_path, persistence=0.05):
     gdf = gdf.copy()
     gdf['ms_basin'] = ms_result.descending_manifold[flat_idx]
     
-    # Also get mobility value at each LSOA location
     mobility = grid.point_data['mobility'].reshape(dims[1], dims[0])
     gdf['mobility'] = mobility[j, i]
     
     return gdf, ms_result
 
 
-def load_wm_data():
-    """Load West Midlands LSOA data with outcomes."""
+def load_region_data(region: str):
+    """Load LSOA data with multiple outcomes for a region."""
     gdf = gpd.read_file("poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson")
     
     # Load IMD
@@ -76,125 +66,165 @@ def load_wm_data():
     gdf['lsoa_code_2011'] = gdf['LSOA21CD'].str[:9]
     gdf = gdf.merge(imd[['lsoa_code_2011', 'lad_code', 'imd_score', 'imd_decile']], on='lsoa_code_2011', how='left')
     
-    # Filter to WM
-    wm_lads = ['E08000025', 'E08000026', 'E08000027', 'E08000028', 
-               'E08000029', 'E08000030', 'E08000031']
-    gdf = gdf[gdf['lad_code'].isin(wm_lads)]
+    # Filter by region
+    if region == 'west_midlands':
+        lads = ['E08000025', 'E08000026', 'E08000027', 'E08000028', 
+                'E08000029', 'E08000030', 'E08000031']
+        vti = Path("poverty_tda/validation/mobility_surface_wm_150.vti")
+    elif region == 'greater_manchester':
+        lads = ['E08000001', 'E08000002', 'E08000003', 'E08000004', 'E08000005',
+                'E08000006', 'E08000007', 'E08000008', 'E08000009', 'E08000010']
+        vti = Path("poverty_tda/validation/mobility_surface_greater_manchester.vti")
+    else:
+        raise ValueError(f"Unknown region: {region}")
+    
+    gdf = gdf[gdf['lad_code'].isin(lads)]
     
     # Load LE data
     le = pd.read_csv("data/raw/outcomes/life_expectancy_processed.csv")
     le = le.rename(columns={'area_code': 'lad_code', 'life_expectancy_male': 'le_male'})
     gdf = gdf.merge(le[['lad_code', 'le_male']], on='lad_code', how='left')
     
-    return gdf
-
-
-def compute_regression_models(gdf, outcome_col):
-    """Compare regression models: Traditional only, TDA only, Combined."""
+    # Load KS4 data
+    ks4_path = Path("data/raw/outcomes/ks4_2024.csv")
+    if ks4_path.exists():
+        ks4 = pd.read_csv(ks4_path)
+        for col in ['avgatt8', 'pt_l2basics_94', 'att8']:
+            if col in ks4.columns:
+                la_col = 'new_la_code' if 'new_la_code' in ks4.columns else 'la_code'
+                ks4 = ks4.rename(columns={col: 'ks4_score'})
+                gdf = gdf.merge(ks4[[la_col, 'ks4_score']], left_on='lad_code', right_on=la_col, how='left')
+                break
     
-    # Remove missing values
+    return gdf, vti
+
+
+def bootstrap_r2_ci(X, y, n_bootstrap=500, confidence=0.95):
+    """Bootstrap confidence interval for R²."""
+    np.random.seed(42)
+    n = len(y)
+    bootstrap_r2s = []
+    
+    for _ in range(n_bootstrap):
+        idx = np.random.randint(0, n, size=n)
+        X_boot = X[idx]
+        y_boot = y[idx]
+        
+        try:
+            model = LinearRegression().fit(X_boot, y_boot)
+            y_pred = model.predict(X_boot)
+            r2 = r2_score(y_boot, y_pred)
+            bootstrap_r2s.append(r2)
+        except:
+            continue
+    
+    alpha = 1 - confidence
+    ci_lower = np.percentile(bootstrap_r2s, 100 * alpha / 2)
+    ci_upper = np.percentile(bootstrap_r2s, 100 * (1 - alpha / 2))
+    point = np.mean(bootstrap_r2s)
+    se = np.std(bootstrap_r2s)
+    
+    return {'r2': point, 'ci_lower': ci_lower, 'ci_upper': ci_upper, 'se': se}
+
+
+def compute_models_with_bootstrap(gdf, outcome_col):
+    """Compare regression models with bootstrap CIs."""
     df = gdf[[outcome_col, 'imd_score', 'imd_decile', 'ms_basin', 'mobility']].dropna()
     
-    if len(df) < 50:
+    if len(df) < 100:
         return None
     
     y = df[outcome_col].values
-    
-    results = {}
+    results = {'outcome': outcome_col, 'n_obs': len(df)}
     
     # 1. Traditional only (IMD score)
     X_trad = df[['imd_score']].values
-    model_trad = LinearRegression().fit(X_trad, y)
-    y_pred_trad = model_trad.predict(X_trad)
-    results['traditional_r2'] = r2_score(y, y_pred_trad)
+    trad_boot = bootstrap_r2_ci(X_trad, y)
+    results['traditional'] = trad_boot
     
-    # 2. TDA only (basin dummy variables + mobility)
+    # 2. TDA only (basin dummies + mobility)
     basin_dummies = pd.get_dummies(df['ms_basin'], prefix='basin', drop_first=True)
     X_tda = pd.concat([basin_dummies, df[['mobility']]], axis=1).values
-    model_tda = LinearRegression().fit(X_tda, y)
-    y_pred_tda = model_tda.predict(X_tda)
-    results['tda_r2'] = r2_score(y, y_pred_tda)
+    tda_boot = bootstrap_r2_ci(X_tda, y)
+    results['tda'] = tda_boot
     
-    # 3. Combined (IMD + TDA features)
+    # 3. Combined
     X_combined = pd.concat([df[['imd_score']], basin_dummies, df[['mobility']]], axis=1).values
-    model_combined = LinearRegression().fit(X_combined, y)
-    y_pred_combined = model_combined.predict(X_combined)
-    results['combined_r2'] = r2_score(y, y_pred_combined)
+    combined_boot = bootstrap_r2_ci(X_combined, y)
+    results['combined'] = combined_boot
     
-    # Compute improvement
-    results['tda_improvement'] = results['combined_r2'] - results['traditional_r2']
-    results['trad_improvement'] = results['combined_r2'] - results['tda_r2']
-    
-    results['n_obs'] = len(df)
-    results['n_basins'] = df['ms_basin'].nunique()
+    # Compute TDA improvement with bootstrap
+    results['tda_improvement'] = combined_boot['r2'] - trad_boot['r2']
+    results['improvement_se'] = np.sqrt(trad_boot['se']**2 + combined_boot['se']**2)
     
     return results
 
 
 def main():
-    """Run integrated model testing."""
+    """Run comprehensive integrated model testing."""
     
-    print("=" * 70)
-    print("TASK 9.5.4: Integrated Model Testing (TDA + Traditional Predictors)")
-    print("=" * 70)
-    
-    vti_path = Path("poverty_tda/validation/mobility_surface_wm_150.vti")
-    
-    # Load data
-    print("\n1. Loading data...")
-    gdf = load_wm_data()
-    print(f"   {len(gdf)} LSOAs loaded")
-    
-    # Assign basins
-    print("\n2. Assigning MS basins...")
-    gdf, ms_result = assign_basins(gdf, vti_path)
-    print(f"   {gdf['ms_basin'].nunique()} basins")
-    
-    # Run regression comparison
-    print("\n3. Running regression models...")
-    
-    outcomes = []
-    if 'le_male' in gdf.columns and gdf['le_male'].notna().sum() > 50:
-        outcomes.append(('Life Expectancy', 'le_male'))
-    if 'imd_score' in gdf.columns:
-        # Use IMD score as outcome, predict from decile + TDA
-        # This tests if TDA adds info beyond simple IMD categorization
-        pass
+    print("=" * 75)
+    print("TASK 9.5.4 EXTENDED: Comprehensive Integrated Model Testing")
+    print("=" * 75)
     
     all_results = []
-    for name, col in outcomes:
-        results = compute_regression_models(gdf, col)
-        if results:
-            results['outcome'] = name
-            all_results.append(results)
-            
+    
+    for region in ['west_midlands', 'greater_manchester']:
+        print(f"\n{'='*75}")
+        print(f"Region: {region.upper()}")
+        print(f"{'='*75}")
+        
+        # Load data
+        gdf, vti_path = load_region_data(region)
+        if not vti_path.exists():
+            print(f"   VTI not found, skipping")
+            continue
+        
+        gdf, ms = assign_basins(gdf, vti_path)
+        print(f"   {len(gdf)} LSOAs, {gdf['ms_basin'].nunique()} basins")
+        
+        # Test multiple outcomes
+        outcomes = []
+        if 'le_male' in gdf.columns and gdf['le_male'].notna().sum() > 100:
+            outcomes.append(('Life Expectancy', 'le_male'))
+        if 'ks4_score' in gdf.columns and gdf['ks4_score'].notna().sum() > 100:
+            outcomes.append(('KS4 (GCSE)', 'ks4_score'))
+        if 'imd_decile' in gdf.columns:
+            # Use IMD decile to predict mobility itself (reverse direction)
+            outcomes.append(('Mobility', 'mobility'))
+        
+        for name, col in outcomes:
             print(f"\n   {name}:")
-            print(f"   - Traditional only (IMD): R2 = {results['traditional_r2']:.3f}")
-            print(f"   - TDA only (basin+mobility): R2 = {results['tda_r2']:.3f}")
-            print(f"   - Combined (IMD + TDA): R2 = {results['combined_r2']:.3f}")
-            print(f"   - TDA improvement: +{results['tda_improvement']:.3f}")
+            result = compute_models_with_bootstrap(gdf, col)
+            if result:
+                result['region'] = region
+                result['outcome_name'] = name
+                all_results.append(result)
+                
+                t = result['traditional']
+                d = result['tda']
+                c = result['combined']
+                
+                print(f"      Traditional (IMD): R2 = {t['r2']:.3f} [{t['ci_lower']:.3f}, {t['ci_upper']:.3f}]")
+                print(f"      TDA (basin+mob):   R2 = {d['r2']:.3f} [{d['ci_lower']:.3f}, {d['ci_upper']:.3f}]")
+                print(f"      Combined:          R2 = {c['r2']:.3f} [{c['ci_lower']:.3f}, {c['ci_upper']:.3f}]")
+                print(f"      TDA improvement:   +{result['tda_improvement']:.3f} (+/- {result['improvement_se']:.3f})")
     
-    # Summary
-    print("\n" + "=" * 70)
-    print("INTEGRATED MODEL RESULTS")
-    print("=" * 70)
+    # Summary table
+    print("\n" + "=" * 75)
+    print("SUMMARY: R2 COMPARISON WITH 95% BOOTSTRAP CIs")
+    print("=" * 75)
+    print(f"\n{'Region':<20} {'Outcome':<15} {'Trad R2':>10} {'TDA R2':>10} {'Combined R2':>12} {'TDA +':>8}")
+    print("-" * 75)
     
-    if all_results:
-        for r in all_results:
-            print(f"\n{r['outcome']} (n={r['n_obs']}, {r['n_basins']} basins):")
-            print(f"   Model                          R2")
-            print(f"   -----------------------------------")
-            print(f"   Traditional (IMD)              {r['traditional_r2']:.3f}")
-            print(f"   TDA (basin + mobility)         {r['tda_r2']:.3f}")
-            print(f"   Combined (IMD + TDA)           {r['combined_r2']:.3f}")
-            print(f"   TDA adds: +{r['tda_improvement']:.3f} R2")
-            
-            if r['tda_improvement'] > 0.05:
-                print("   -> TDA adds SUBSTANTIAL predictive value beyond IMD")
-            elif r['tda_improvement'] > 0.01:
-                print("   -> TDA adds MODEST predictive value beyond IMD")
-            else:
-                print("   -> TDA adds MINIMAL predictive value beyond IMD")
+    for r in all_results:
+        reg = r['region'][:12]
+        out = r['outcome_name'][:12]
+        trad = f"{r['traditional']['r2']:.3f}"
+        tda = f"{r['tda']['r2']:.3f}"
+        comb = f"{r['combined']['r2']:.3f}"
+        imp = f"+{r['tda_improvement']:.3f}"
+        print(f"{reg:<20} {out:<15} {trad:>10} {tda:>10} {comb:>12} {imp:>8}")
     
     return all_results
 
