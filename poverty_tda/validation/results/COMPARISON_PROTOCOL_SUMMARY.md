@@ -353,11 +353,35 @@ This is an important **null result**: while MS basins explain 73-83% of outcome 
 
 ### Evidence from This Protocol
 
-1. **Basin membership >> IMD decile**: TDA adds +0.63-0.75 R² (8x improvement)
+1. **Basin membership >> IMD decile**: TDA adds +0.63-0.91 R² (8x improvement)
 2. **Different structure, better predictions**: ARI = 0.12 but η² 2x higher
-3. **Robust**: η² = 0.828 at all persistence thresholds (0.01-0.20)
-4. **Typology discovery**: 5 distinct poverty types identified via Mapper
-5. **Behavioral validation**: Migration patterns confirm basin severity
+3. **Multi-outcome validation**: Works for health (LE), education (KS4), behavior (migration)
+4. **Robust**: η² perfectly stable across all persistence thresholds
+5. **Typology discovery**: 5 distinct poverty types identified via Mapper
+6. **Behavioral validation**: Migration patterns confirm basin severity
+
+### Policy Relevance Assessment
+
+| TDA Output | Policy Application | Traditional Alternative | Added Value |
+|------------|-------------------|------------------------|-------------|
+| **Basin membership** | Target interventions by basin, not decile | IMD quintiles | 2x better outcome prediction |
+| **Barrier heights** | Prioritize removing barriers (not just reducing deprivation) | None | Unique capability |
+| **Typology (Mapper)** | Tailor interventions to poverty "type" | One-size-fits-all | 5 distinct types identified |
+| **Persistence** | Focus on robust features, ignore noise | Trial-and-error | Mathematical justification |
+| **Separatrices** | Define precise boundaries for spatial targeting | Administrative boundaries | Data-driven |
+| **Cycle detection** | Identify feedback loops requiring systemic intervention | None | Critical for policy design |
+
+### Policy Recommendations
+
+Based on TDA findings:
+
+1. **Birmingham** (28 traps, -16K net migration): Highest priority - multiple persistent poverty traps requiring coordinated intervention
+
+2. **Post-Industrial Decline typology** (74% of WM LSOAs): Dominant pattern requiring targeted employment/education investment
+
+3. **Barrier-based targeting**: While barriers don't predict current outcome gradients (null result), they may indicate transition difficulty - longitudinal validation needed
+
+4. **Robust structure**: 97% of topological features stable - policy can rely on identified basins without worrying about threshold sensitivity
 
 ### Conclusion
 

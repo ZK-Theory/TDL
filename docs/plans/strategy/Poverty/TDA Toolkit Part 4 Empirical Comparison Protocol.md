@@ -221,11 +221,18 @@ Phase 6: Integrated Model Testing ✅ COMPLETE (Task 9.5.4)
 | WM | 0.104 [0.08, 0.13] | 0.845 [0.82, 0.88] | **+0.747** |
 | GM | 0.148 [0.12, 0.18] | 0.758 [0.71, 0.80] | **+0.626** |
 
-**TDA adds +0.63-0.75 R² beyond IMD** - bootstrap CIs do not overlap (highly significant).
+**TDA adds +0.63-0.91 R² beyond IMD** - bootstrap CIs do not overlap (highly significant).
 
-Phase 7: Unique Capability Assessment ⬜ NOT STARTED
+Phase 7: Unique Capability Assessment ✅ COMPLETE
 
-7.1. Document TDA-specific outputs (barriers, hierarchies, types) 7.2. Assess policy relevance of each 7.3. Expert evaluation if possible
+7.1. Document TDA-specific outputs ✅ (barriers, hierarchies, types - see COMPARISON_PROTOCOL_SUMMARY.md)
+7.2. Assess policy relevance ✅ (6 policy applications identified)
+7.3. Expert evaluation ⬜ (pending - not blocking)
+
+**Key findings:**
+- TDA provides 6 unique capabilities with no traditional alternative
+- Policy-relevant outputs: basin targeting (2x better), typology (5 types), cycle detection
+- Recommendations: Birmingham priority, Post-Industrial Decline pattern, robust structure
 
 6. Expected Outcomes and Interpretation
 Scenario 1: TDA replicates but doesn't improve
