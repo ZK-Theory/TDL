@@ -1,0 +1,65 @@
+INFO: Created 15 intervals with 50% overlap
+INFO: Created 19 nodes
+INFO: Created 19 edges
+===========================================================================
+PHASE 2: MAPPER TYPOLOGY DISCOVERY
+===========================================================================
+
+1. Loading data with 7 IMD domains...
+   1638 LSOAs in West Midlands
+   Available domains: ['Income', 'Employment', 'Education', 'Health', 'Crime', 'Housing', 'Environment']
+   1638 LSOAs with complete domain data
+
+2. Running Mapper algorithm...
+   Parameters: n_cubes=15, overlap=0.5, clustering=single_linkage
+   Created 19 nodes, 19 edges
+   Connected components: 2
+   Has cycles: True
+
+3. Characterizing Mapper nodes by domain profile...
+
+===========================================================================
+MAPPER TYPOLOGY RESULTS
+===========================================================================
+
+  Node   Size Label                     Dominant Domains
+---------------------------------------------------------------------------
+     4    320 Moderate Deprivation      
+     3    299 Moderate Deprivation      
+     6    296 Mixed/Average             
+     2    280 Affluent                  
+     8    270 Mixed/Average             Health(0.4)
+     9    269 Post-Industrial Decline   Income(0.6), Education(0.5)
+     7    267 Mixed/Average             
+    10    255 Post-Industrial Decline   Income(0.8), Education(0.8)
+    11    233 Post-Industrial Decline   Income(1.1), Education(1.0)
+     0    230 Affluent                  
+    12    193 Post-Industrial Decline   Income(1.3), Employment(1.3)
+    13    132 Post-Industrial Decline   Employment(1.5), Income(1.5)
+    14     82 Post-Industrial Decline   Employment(1.8), Income(1.7)
+    15     38 Post-Industrial Decline   Employment(2.1), Income(2.0)
+    17     11 Post-Industrial Decline   Employment(2.5), Income(2.5)
+     1      1 Moderate Deprivation      Housing(1.6), Environment(0.4)
+     5      1 Urban Concentrated        Housing(3.2), Crime(2.7)
+    16      1 Post-Industrial Decline   Housing(3.7), Income(2.4)
+    18      1 Post-Industrial Decline   Employment(4.7), Income(3.4)
+
+
+TYPOLOGY DISTRIBUTION:
+----------------------------------------
+  Moderate Deprivation     :   3 nodes,   620 LSOAs
+  Mixed/Average            :   3 nodes,   833 LSOAs
+  Affluent                 :   2 nodes,   510 LSOAs
+  Post-Industrial Decline  :  10 nodes,  1215 LSOAs
+  Urban Concentrated       :   1 nodes,     1 LSOAs
+
+
+GRAPH STRUCTURE ANALYSIS:
+----------------------------------------
+  Endpoints (branch tips): 5
+  Hubs (degree >= 3): 7
+    Node 2: degree=3, Affluent
+    Node 6: degree=3, Mixed/Average
+    Node 7: degree=3, Mixed/Average
+    Node 9: degree=3, Post-Industrial Decline
+    Node 11: degree=3, Post-Industrial Decline
