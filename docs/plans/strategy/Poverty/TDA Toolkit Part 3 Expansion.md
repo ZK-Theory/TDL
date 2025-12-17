@@ -46,14 +46,26 @@ Key insight: "We identify N basins (M statistically significant)"
 
 **STATUS**: Applied to WM, GM, Merseyside. ARI = 0.12 (weak agreement - TDA captures different structure).
 
-PHASE 2: TYPOLOGY (What kinds of deprivation exist?) ⬜ NOT STARTED
+PHASE 2: TYPOLOGY (What kinds of deprivation exist?) ✅ COMPLETE
 ─────────────────────────────────────────────────────────────────
-Method: MAPPER with filter = overall IMD, clustering by all domains
+Method: MAPPER with filter = overall IMD, clustering by all 7 domains
 Output:
-- Mapper graph with branches
-- Branch characteristics (which domains dominate)
-- Labels: "Post-industrial", "Coastal decline", "Urban concentrated"
-Key insight: "Deprivation is not monolithic; we identify K typologies"
+- Mapper graph with branches ✅
+- Branch characteristics (which domains dominate) ✅
+- Labels: "Post-industrial", "Urban Concentrated", "Mixed/Average" ✅
+Key insight: "Deprivation is not monolithic; we identify 5 typologies"
+
+**STATUS**: Mapper applied to WM with 7 IMD domains:
+
+| Typology | Nodes | LSOAs | Dominant Domains |
+|----------|-------|-------|------------------|
+| Post-Industrial Decline | 10 | 1,215 | Income, Employment, Education |
+| Mixed/Average | 3 | 833 | - |
+| Moderate Deprivation | 3 | 620 | - |
+| Affluent | 2 | 510 | (all low) |
+| Urban Concentrated | 1 | 1 | Crime, Housing |
+
+**Graph structure**: 19 nodes, 19 edges, 2 components, cycles present, 7 hubs
 
 PHASE 3: STRUCTURE (How is deprivation connected?) ⬜ NOT STARTED
 ─────────────────────────────────────────────────────────────────
