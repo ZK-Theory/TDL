@@ -85,16 +85,37 @@ def load_region_data(region: str):
     le = le.rename(columns={'area_code': 'lad_code', 'life_expectancy_male': 'le_male'})
     gdf = gdf.merge(le[['lad_code', 'le_male']], on='lad_code', how='left')
     
-    # Load KS4 data
-    ks4_path = Path("data/raw/outcomes/ks4_2024.csv")
+    # Load KS4 data (processed file)
+    ks4_path = Path("data/raw/outcomes/gcse_attainment_processed.csv")
     if ks4_path.exists():
-        ks4 = pd.read_csv(ks4_path)
-        for col in ['avgatt8', 'pt_l2basics_94', 'att8']:
-            if col in ks4.columns:
-                la_col = 'new_la_code' if 'new_la_code' in ks4.columns else 'la_code'
-                ks4 = ks4.rename(columns={col: 'ks4_score'})
-                gdf = gdf.merge(ks4[[la_col, 'ks4_score']], left_on='lad_code', right_on=la_col, how='left')
+        try:
+            ks4 = pd.read_csv(ks4_path)
+            # Find the score and LA code columns
+            for score_col in ['attainment_8', 'avgatt8', 'att8']:
+                for la_col in ['lad_code', 'area_code', 'la_code']:
+                    if score_col in ks4.columns and la_col in ks4.columns:
+                        ks4 = ks4.rename(columns={score_col: 'ks4_score'})
+                        gdf = gdf.merge(ks4[[la_col, 'ks4_score']].drop_duplicates(), 
+                                       left_on='lad_code', right_on=la_col, how='left')
+                        logger.info(f"Loaded KS4 data: {gdf['ks4_score'].notna().sum()} LSOAs")
+                        break
+                else:
+                    continue
                 break
+        except Exception as e:
+            logger.warning(f"Could not load KS4: {e}")
+    
+    # Load Migration data using dedicated module
+    migration_path = Path("data/raw/outcomes/internal_migration_by_lad.xlsx")
+    if migration_path.exists():
+        try:
+            from poverty_tda.data.process_migration import load_migration_flows, compute_lad_migration_metrics
+            flows = load_migration_flows(migration_path)
+            migration = compute_lad_migration_metrics(flows)
+            gdf = gdf.merge(migration[['lad_code', 'net_migration_rate']], on='lad_code', how='left')
+            logger.info(f"Loaded Migration data: {gdf['net_migration_rate'].notna().sum()} LSOAs")
+        except Exception as e:
+            logger.warning(f"Could not load migration: {e}")
     
     return gdf, vti
 
@@ -189,6 +210,8 @@ def main():
             outcomes.append(('Life Expectancy', 'le_male'))
         if 'ks4_score' in gdf.columns and gdf['ks4_score'].notna().sum() > 100:
             outcomes.append(('KS4 (GCSE)', 'ks4_score'))
+        if 'net_migration_rate' in gdf.columns and gdf['net_migration_rate'].notna().sum() > 50:
+            outcomes.append(('Net Migration', 'net_migration_rate'))
         if 'imd_decile' in gdf.columns:
             # Use IMD decile to predict mobility itself (reverse direction)
             outcomes.append(('Mobility', 'mobility'))
