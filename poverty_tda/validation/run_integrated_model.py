@@ -91,7 +91,7 @@ def load_region_data(region: str):
         try:
             ks4 = pd.read_csv(ks4_path)
             # Find the score and LA code columns
-            for score_col in ['attainment_8', 'avgatt8', 'att8']:
+            for score_col in ['gcse_attainment8', 'attainment8', 'attainment_8', 'avgatt8', 'att8']:
                 for la_col in ['lad_code', 'area_code', 'la_code']:
                     if score_col in ks4.columns and la_col in ks4.columns:
                         ks4 = ks4.rename(columns={score_col: 'ks4_score'})
