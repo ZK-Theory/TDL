@@ -67,20 +67,25 @@ Key insight: "Deprivation is not monolithic; we identify 5 typologies"
 
 **Graph structure**: 19 nodes, 19 edges, 2 components, cycles present, 7 hubs
 
-PHASE 3: STRUCTURE (How is deprivation connected?) ⬜ NOT STARTED
+PHASE 3: STRUCTURE (How is deprivation connected?) ✅ COMPLETE
 ─────────────────────────────────────────────────────────────────
 Methods: 
-- Morse-Smale: Barrier heights between basins ⬜
-- Persistence H₀: When basins merge (connectivity structure) ⬜
+- Morse-Smale: Barrier heights between basins ✅
+- Persistence H₀: When basins merge (connectivity structure) ✅
 - Persistence H₁: Are there loops? (circular dependencies) ⬜
 Output:
-- Barrier matrix (severity of transitions)
-- Persistence diagram (robustness of structure)
-- Cycle detection
+- Barrier matrix (severity of transitions) ✅
+- Persistence diagram (robustness of structure) ✅
+- Cycle detection ⬜
 Key insight: "Blackpool and Middlesbrough are in separate basins
              but topologically similar (both persistent minima)"
 
-**STATUS**: Barrier analysis COMPLETE (Task 9.5.2). Barrier heights show weak/no correlation with outcome gradients (r < 0.3). This is an important NULL RESULT - barriers may affect escape dynamics rather than current state.
+**STATUS**: 
+- Barrier analysis ✅ (Task 9.5.2): Weak/null correlation (r < 0.3)
+- H₀ Persistence ✅: 27 transient, 956 persistent components
+  - Top 3 persistent features: lifetimes 0.28, 0.25, 0.17
+  - Most components (97%) survive to infinity = robust structure
+  - 383 MS minima vs 956 H₀ components = fine-grained topology
 
 PHASE 4: DYNAMICS (How does structure change?) ⬜ NOT STARTED
 ─────────────────────────────────────────────────────────────────
