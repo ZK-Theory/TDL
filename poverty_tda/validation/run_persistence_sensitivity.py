@@ -62,7 +62,7 @@ def bootstrap_eta_squared_ci(cluster_labels, outcome_values, n_bootstrap=500, co
 
 
 def load_wm_data():
-    """Load West Midlands LSOA data with LE."""
+    """Load West Midlands LSOA data with LE, KS4, and Migration."""
     gdf = gpd.read_file("poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson")
     
     imd = pd.read_csv("poverty_tda/validation/data/england_imd_2019.csv")
@@ -78,9 +78,31 @@ def load_wm_data():
                'E08000029', 'E08000030', 'E08000031']
     gdf = gdf[gdf['lad_code'].isin(wm_lads)]
     
+    # Load LE data
     le = pd.read_csv("data/raw/outcomes/life_expectancy_processed.csv")
     le = le.rename(columns={'area_code': 'lad_code', 'life_expectancy_male': 'le_male'})
     gdf = gdf.merge(le[['lad_code', 'le_male']], on='lad_code', how='left')
+    
+    # Load KS4 data
+    ks4_path = Path("data/raw/outcomes/gcse_attainment_processed.csv")
+    if ks4_path.exists():
+        ks4 = pd.read_csv(ks4_path)
+        if 'gcse_attainment8' in ks4.columns and 'lad_code' in ks4.columns:
+            ks4 = ks4.rename(columns={'gcse_attainment8': 'ks4_score'})
+            gdf = gdf.merge(ks4[['lad_code', 'ks4_score']].drop_duplicates(), on='lad_code', how='left')
+            logger.info(f"Loaded KS4: {gdf['ks4_score'].notna().sum()} LSOAs")
+    
+    # Load Migration data
+    migration_path = Path("data/raw/outcomes/internal_migration_by_lad.xlsx")
+    if migration_path.exists():
+        try:
+            from poverty_tda.data.process_migration import load_migration_flows, compute_lad_migration_metrics
+            flows = load_migration_flows(migration_path)
+            migration = compute_lad_migration_metrics(flows)
+            gdf = gdf.merge(migration[['lad_code', 'net_migration_rate']], on='lad_code', how='left')
+            logger.info(f"Loaded Migration: {gdf['net_migration_rate'].notna().sum()} LSOAs")
+        except Exception as e:
+            logger.warning(f"Could not load migration: {e}")
     
     return gdf
 
@@ -128,7 +150,14 @@ def main():
     print("\n2. Testing persistence thresholds...")
     print(f"   Thresholds: {thresholds}")
     
-    results = []
+    # Define outcomes to test
+    outcomes = [
+        ('LE', 'le_male'),
+        ('KS4', 'ks4_score'),
+        ('Migration', 'net_migration_rate')
+    ]
+    
+    all_results = []
     
     for thresh in thresholds:
         print(f"\n   Persistence = {thresh}...")
@@ -138,56 +167,55 @@ def main():
         n_minima = ms.n_minima
         n_basins = gdf['ms_basin'].nunique()
         
-        # Compute eta-squared with bootstrap CIs
-        df = gdf[['le_male', 'ms_basin']].dropna()
-        if len(df) > 50:
-            eta_boot = bootstrap_eta_squared_ci(df['ms_basin'].values, df['le_male'].values)
-            eta_sq = eta_boot['eta2']
-            ci_str = f"[{eta_boot['ci_lower']:.3f}, {eta_boot['ci_upper']:.3f}]"
-        else:
-            eta_sq = np.nan
-            eta_boot = None
-            ci_str = "N/A"
+        row = {'persistence': thresh, 'n_minima': n_minima, 'n_basins': n_basins}
         
-        results.append({
-            'persistence': thresh,
-            'n_minima': n_minima,
-            'n_basins': n_basins,
-            'eta_squared': eta_sq,
-            'ci_lower': eta_boot['ci_lower'] if eta_boot else np.nan,
-            'ci_upper': eta_boot['ci_upper'] if eta_boot else np.nan,
-            'se': eta_boot['se'] if eta_boot else np.nan
-        })
+        # Compute eta-squared for each outcome
+        for name, col in outcomes:
+            if col in gdf.columns:
+                df = gdf[[col, 'ms_basin']].dropna()
+                if len(df) > 50:
+                    eta_boot = bootstrap_eta_squared_ci(df['ms_basin'].values, df[col].values)
+                    row[f'eta_{name}'] = eta_boot['eta2']
+                    row[f'ci_lower_{name}'] = eta_boot['ci_lower']
+                    row[f'ci_upper_{name}'] = eta_boot['ci_upper']
+                else:
+                    row[f'eta_{name}'] = np.nan
         
-        print(f"      Minima: {n_minima}, Basins: {n_basins}, eta^2: {eta_sq:.3f} {ci_str}")
+        all_results.append(row)
+        
+        # Print summary
+        eta_strs = []
+        for name, col in outcomes:
+            if f'eta_{name}' in row and not np.isnan(row.get(f'eta_{name}', np.nan)):
+                eta_strs.append(f"{name}={row[f'eta_{name}']:.3f}")
+        print(f"      Minima: {n_minima}, Basins: {n_basins}, " + ", ".join(eta_strs))
     
-    # Summary
-    results_df = pd.DataFrame(results)
+    # Summary table
+    results_df = pd.DataFrame(all_results)
     
-    print("\n" + "=" * 75)
-    print("PERSISTENCE SENSITIVITY RESULTS WITH 95% BOOTSTRAP CIs")
-    print("=" * 75)
-    print(f"\n{'Threshold':>10} {'Minima':>8} {'Basins':>8} {'eta^2':>8} {'95% CI':>22}")
-    print("-" * 60)
+    print("\n" + "=" * 90)
+    print("PERSISTENCE SENSITIVITY RESULTS - ALL OUTCOMES WITH 95% BOOTSTRAP CIs")
+    print("=" * 90)
+    print(f"\n{'Thresh':>8} {'Minima':>8} {'Basins':>8} {'LE eta2':>10} {'KS4 eta2':>10} {'Mig eta2':>10}")
+    print("-" * 70)
+    
     for _, r in results_df.iterrows():
-        ci = f"[{r['ci_lower']:.3f}, {r['ci_upper']:.3f}]"
-        print(f"{r['persistence']:>10.2f} {r['n_minima']:>8.0f} {r['n_basins']:>8.0f} {r['eta_squared']:>8.3f} {ci:>22}")
+        le = f"{r.get('eta_LE', np.nan):.3f}" if not np.isnan(r.get('eta_LE', np.nan)) else "N/A"
+        ks4 = f"{r.get('eta_KS4', np.nan):.3f}" if not np.isnan(r.get('eta_KS4', np.nan)) else "N/A"
+        mig = f"{r.get('eta_Migration', np.nan):.3f}" if not np.isnan(r.get('eta_Migration', np.nan)) else "N/A"
+        print(f"{r['persistence']:>8.2f} {r['n_minima']:>8.0f} {r['n_basins']:>8.0f} {le:>10} {ks4:>10} {mig:>10}")
     
-    # Analysis
-    eta_values = results_df['eta_squared'].values
-    eta_range = eta_values.max() - eta_values.min()
-    eta_mean = eta_values.mean()
-    
-    print(f"\n   eta^2 range: {eta_values.min():.3f} - {eta_values.max():.3f}")
-    print(f"   eta^2 mean: {eta_mean:.3f}")
-    print(f"   eta^2 variation: {eta_range:.3f}")
-    
-    if eta_range < 0.10:
-        print("\n   -> eta^2 is ROBUST to persistence threshold (variation < 0.10)")
-    elif eta_range < 0.20:
-        print("\n   -> eta^2 is MODERATELY SENSITIVE to persistence threshold")
-    else:
-        print("\n   -> eta^2 is HIGHLY SENSITIVE to persistence threshold")
+    # Analysis for each outcome
+    print("\n" + "-" * 70)
+    print("ROBUSTNESS ANALYSIS:")
+    for name, col in outcomes:
+        eta_col = f'eta_{name}'
+        if eta_col in results_df.columns:
+            vals = results_df[eta_col].dropna().values
+            if len(vals) > 0:
+                variation = vals.max() - vals.min()
+                status = "ROBUST" if variation < 0.10 else "MODERATE" if variation < 0.20 else "SENSITIVE"
+                print(f"   {name:12}: mean={vals.mean():.3f}, variation={variation:.3f} -> {status}")
     
     return results_df
 
