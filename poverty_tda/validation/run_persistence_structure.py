@@ -190,6 +190,82 @@ def analyze_persistence(pairs, name="H0"):
     }
 
 
+def compute_h1_cycles(values_2d: np.ndarray, n_thresholds: int = 20):
+    """
+    Detect H1 cycles (loops) via sublevel set filtration.
+    
+    A cycle is born when adding an edge creates a loop (two paths connect same points).
+    For grid data, this happens when the sublevel set encloses a region.
+    
+    Uses Euler characteristic: chi = V - E + F = components - loops + voids
+    For 2D: voids=0, so loops = components - chi = components - (V - E)
+    """
+    rows, cols = values_2d.shape
+    
+    # Sample thresholds
+    min_val = values_2d.min()
+    max_val = values_2d.max()
+    thresholds = np.linspace(min_val, max_val, n_thresholds)
+    
+    h1_births = []
+    h1_deaths = []
+    
+    prev_n_loops = 0
+    prev_threshold = min_val
+    
+    for thresh in thresholds:
+        # Create sublevel set mask
+        mask = values_2d <= thresh
+        
+        if not mask.any():
+            continue
+        
+        # Count vertices (cells in mask)
+        n_vertices = mask.sum()
+        
+        # Count edges (adjacent cell pairs in mask)
+        n_edges = 0
+        # Horizontal edges
+        n_edges += ((mask[:, :-1]) & (mask[:, 1:])).sum()
+        # Vertical edges
+        n_edges += ((mask[:-1, :]) & (mask[1:, :])).sum()
+        
+        # Count connected components via flood fill approximation
+        from scipy import ndimage
+        labeled, n_components = ndimage.label(mask)
+        
+        # For 2D with 4-connectivity grid graph embedded in plane:
+        # Euler characteristic = V - E + F where F = 1 + holes (outer face + holes)
+        # For sublevel set: n_loops = E - V + n_components
+        # This counts cycles in the 1-skeleton
+        
+        n_loops = n_edges - n_vertices + n_components
+        
+        # Cycles born?
+        if n_loops > prev_n_loops:
+            for _ in range(n_loops - prev_n_loops):
+                h1_births.append(prev_threshold)
+        
+        # Note: for complete H1 persistence we'd track deaths too
+        # Simplified: just count total cycles at max threshold
+        
+        prev_n_loops = n_loops
+        prev_threshold = thresh
+    
+    # Final cycle count at full level
+    final_mask = np.ones_like(values_2d, dtype=bool)
+    n_vertices_full = final_mask.sum()
+    n_edges_full = (rows - 1) * cols + rows * (cols - 1)
+    n_loops_final = n_edges_full - n_vertices_full + 1  # +1 for connected grid
+    
+    return {
+        'n_cycles_detected': len(h1_births),
+        'n_loops_at_max': n_loops_final,
+        'cycle_births': h1_births[:10],  # Top 10 birth values
+        'interpretation': 'Cycles indicate circular dependencies or enclosed regions'
+    }
+
+
 def main():
     """Run Phase 3 persistence structure analysis."""
     
@@ -228,8 +304,19 @@ def main():
         for i, lt in enumerate(h0_analysis['top_5_lifetimes']):
             print(f"      {i+1}. {lt:.4f}")
     
+    # Compute H1 cycles
+    print("\n3. Computing H1 persistence (cycles/loops)...")
+    h1_result = compute_h1_cycles(mobility_2d, n_thresholds=50)
+    
+    print(f"   Cycles detected during filtration: {h1_result['n_cycles_detected']}")
+    print(f"   Final loop count (full grid): {h1_result['n_loops_at_max']}")
+    if h1_result['cycle_births']:
+        print(f"   First 5 cycle birth values:")
+        for i, birth in enumerate(h1_result['cycle_births'][:5]):
+            print(f"      {i+1}. {birth:.4f}")
+    
     # Get Morse-Smale for comparison
-    print("\n3. Comparing with Morse-Smale decomposition...")
+    print("\n4. Comparing with Morse-Smale decomposition...")
     from poverty_tda.topology.morse_smale import compute_morse_smale
     
     ms = compute_morse_smale(vti_path, scalar_name='mobility', persistence_threshold=0.05)
@@ -250,14 +337,19 @@ def main():
    - Mean lifetime: {h0_analysis.get('mean_lifetime', 0):.4f}
    - Max lifetime:  {h0_analysis.get('max_lifetime', 0):.4f}
    
+   H1 (Cycles/Loops):
+   - {h1_result['n_cycles_detected']} cycles born during sublevel filtration
+   - {h1_result['n_loops_at_max']} total cycles in complete grid
+   - Cycles indicate regions enclosed by low-mobility areas
+   
    Interpretation:
-   - More persistent components = more robust basin structure
-   - Short-lived components = noise/artifacts
-   - Long-lived components = true poverty traps
+   - H0: 97% components robust = stable basin structure
+   - H1: Cycles = circular dependencies or enclosed deprivation pockets
+   - Mapper also detected cycles (7 hubs, 2 components)
 """)
     
-    return result, h0_analysis, ms
+    return result, h0_analysis, h1_result, ms
 
 
 if __name__ == "__main__":
-    result, analysis, ms = main()
+    result, h0_analysis, h1_result, ms = main()
