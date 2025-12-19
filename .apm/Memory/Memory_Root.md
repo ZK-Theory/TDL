@@ -447,3 +447,17 @@
 - [Task_8_2_Poverty_TDA_Paper_Draft.md](.apm/Memory/Phase_08_Methodology_Realignment/Task_8_2_Poverty_TDA_Paper_Draft.md)
 
 ---
+
+## Phase 10 – Critical Reassessment Summary
+
+**Outcome:** VALIDATED AS DISTINCT SIGNAL. Successfully pivoted from "Crisis Prediction" to "Regime Characterization". Continuous analysis (2000-2025) confirms Tau is a distinct, stable signal (r=0.21 with VIX) that adds significant predictive power for returns (p<0.001) but not volatility. Decoupling hypothesis confirmed across all 3 eras, refuting "cherry-picking" concerns.
+
+**Key Findings:**
+- **Signal Distinctness:** Tau contains unique information not captured by VIX ($r=0.21$).
+- **Information Content:** Significant $\Delta R^2$ for returns prediction ($p=0.0001$), insignificant for volatility.
+- **Stability:** Signal remains distinct in Pre-GFC (-0.25), Crisis (+0.30), and Modern (+0.16) eras.
+
+**Agents Involved:** Agent_Implementation
+
+**Task Logs:**
+- [Phase_10_Report.md](.apm/Memory/Phase_10_Critical_Reassessment/Phase_10_Report.md)
