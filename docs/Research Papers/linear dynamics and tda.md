@@ -256,7 +256,265 @@ Below, we analyze 1 min frequency data from the Shanghai Composite Index (SSE) o
 Firstly, we compute the ATCC and ACF of the return series for that day, as shown in Table 5. Only one ACF value is significant, while six ATCC values are significant. This indicates the presence of nonlinear serial dependence in the series. Secondly, we calculate the ATCC_1 values using a rolling window approach, with the window length set to 30 min. The resulting ATCC series is shown in Fig. 3, which exhibits a distinct peak around midday and displays a rising pattern towards the market close. Here, we focus on the variation in ATCC values during the midday period.
 
 Corresponding to Figs. 3, 4 displays the series of p-values. There exists a sub-period exhibiting significant serial dependence around midday. During this midday period, the first window with a significant ATCC_1 value spans 11:03:00-13:02:00. Given the lunch break in the Chinese stock market, this window precisely covers a segment before the trading halt and extends two minutes after the afternoon reopening. Subsequently, the ATCC values increase rapidly, reaching a maximum of 0.487 in the window 11:19:00-13:18:00. These results indicate that market serial dependence intensified during the midday period, coinciding with the information shock from the Russia–Ukraine conflict.
-
 #### 5.2.2. Example based on daily data
 
-Below, we separately analyze the return series of the Shanghai Composite Index and the S&P 500 Index. We set the rolling window length to 40, which approximately corresponds to two months of trading days. We then calculate the ATCC_1 values using this rolling window, as shown in Fig.
+Below, we separately analyze the return series of the Shanghai Composite Index and the S&P 500 Index. We set the rolling window length to 40, which approximately corresponds to two months of trading days. We then calculate the ATCC_1 values using this rolling window, as shown in Fig. 5, which reveals two local peaks. The series of p-values for the ATCC_1 values is presented in Fig. 6, showing two distinct periods with significant ATCC_1 values corresponding to these peaks. To clearly delineate the periods exhibiting significant serial dependence, we denote the first window and last window within each period where the ATCC_1 p-value is less than 0.05 as w_f and w_e, respectively. Additionally, we use w_m to represent the window containing the maximum ATCC_1 value within the period.
+
+**Table 6: Statistics of significant ATCC values for Chinese market (SSE)**
+
+| – | The first period | The second period |
+|---|------------------|-------------------|
+| w_f | 2024/08/01 – 2024/09/27 | 2025/02/28 – 2025/04/25 |
+| w_e | 2024/09/03 – 2024/11/06 | 2025/04/08 – 2025/06/06 |
+| w_m | 2024/08/12 – 2024/10/15 | 2025/03/11 – 2025/05/09 |
+
+The analysis results for the SSE are summarized in Table 6. The first period spans approximately from early August to mid-October. During this period, specifically in September, the market experienced a substantial rally driven by a series of favorable policies. For instance, on September 24, the People's Bank of China (PBOC), the National Financial Regulatory Administration (NFRA), and the China Securities Regulatory Commission (CSRC) jointly introduced new market rescue measures, including expectations of a reserve requirement ratio (RRR) cut and reforms to the capital market system. On September 27, the PBOC announced an RRR cut, releasing approximately 1 trillion yuan in liquidity, which directly bolstered market confidence. On the first trading day following the National Day holiday (October 8), the market continued its upward trend but subsequently entered a phase of heightened volatility. In summary, this period witnessed significant policy interventions that substantially impacted market returns.
+
+During the second significant period, the market was primarily impacted by Trump administration tariff policies. For example, on March 4, 2025, the United States imposed a 25% across-the-board tariff on all imported steel and aluminum products, alongside an additional 10% tariff on Chinese goods. This resulted in a cumulative tariff rate of 20% when combined with pre-existing duties. Subsequently, on April 9, 2025, the U.S. announced further substantial tariff increases targeting Chinese imports. Notably, within this period, the window corresponding to the maximum ATCC_1 value spanned 2025/03/11 to 2025/05/09, encompassing both the March and April tariff policy implementation phases.
+
+Below we analyze the serial dependence of the S&P 500 Index return series. Fig. 7 displays the ATCC series, exhibiting three distinct local peaks, while the p-value series shown in Fig. 8 confirms three significant periods. The corresponding time windows for these periods are detailed in Table 7.
+
+**Table 7: Statistics of significant ATCC values for US market (S&P 500)**
+
+| – | The first period | The second period | The third period |
+|---|------------------|-------------------|------------------|
+| w_f | 2024/06/05 – 2024/08/01 | 2024/09/04 – 2024/10/29 | 2025/03/21 – 2025/05/16 |
+| w_e | 2024/07/01 – 2024/08/26 | 2024/10/04 – 2024/11/28 | 2025/04/22 – 2025/06/17 |
+| w_m | 2024/06/12 – 2024/08/08 | 2024/09/12 – 2024/11/06 | 2025/04/08 – 2025/06/04 |
+
+During the first period (late June to late July), the market experienced heightened volatility driven by movements in major technology companies such as NVIDIA. Notably, August 5 saw extreme market turbulence, culminating in a Black Monday event. We observe that the window with the maximum ATCC value within this period precisely encompasses these events. The second period continued to exhibit elevated market volatility, influenced by critical economic developments including the August U.S. Manufacturing PMI plunging to 47.2. Of particular significance is the third period, which nearly coincides with the second significant period in the Chinese market analysis. This temporal alignment suggests that the Trump administration's tariff policies substantially impacted nonlinear serial dependence in both markets.
+
+One key advantage of ATCC is its ability to effectively capture serial dependence in small samples, thereby enabling the analysis of nonlinear serial dependence dynamics through the implementation of a rolling window. Here, we find that for both indices, no significant serial dependence is detected during most periods. However, periods exhibiting significant serial dependence consistently coincide with major events impacting the markets. Notably, our analysis reveals significant serial dependence in both markets during the March-April 2025 tariff shock period. This suggests that tariff policies profoundly shaped the dynamics of market returns.
+
+### 5.3. Case studies in identifying nonlinear serial dependence
+
+Below, we analyze the constituent stocks of the SSE 50 Index. First, for each return series, we employ the LM test to examine the presence of ARCH effects. For series exhibiting ARCH effects, we estimate an adequately specified ARMA+GARCH model and extract the standardized residual series. For series without ARCH effects, we attempt to fit an ARMA model. If no linear model can be adequately characterized, we compute the ATCC values directly from the original series. Model estimation results are detailed in the Appendix, revealing that 13 stock return series cannot be adequately characterized by linear models. However, we find significant ATCC_1 values for 2 out of these 13 stocks, such as 600690.SH. Additionally, certain return series without ARCH effects (e.g., 600028.SH) are successfully modeled by ARMA specifications.
+
+A total of 34 stocks exhibit significant ATCC values. Among these, 7 stocks show significant ATCC_1 values, comprising cases from both the residual series and the 13 unfiltered original return series. This indicates that most series display linear serial correlation that can be adequately characterized by linear models. However, a subset of stocks exhibits nonlinear serial dependence that cannot be captured by linear specifications. Here, we select two representative stocks to demonstrate the analytical results.
+
+For the return series of stock 600048.SH, the dependence structure can be adequately estimated using an GARCH(1,1) model (Eq. (12)). The ATCC values for both the original return series and the residual series are presented in Table 8, alongside ACF values for comparative purposes. In this case, the return series exhibits only one significant ACF value, while displaying five significant ATCC values. After filtering through the GARCH model, both the ACF values and ATCC values of the standardized residual series become statistically insignificant. This demonstrates that the model adequately characterizes all serial dependence present in the return series.
+
+```
+r_t = a_t
+a_t = σ_t ε_t,  ε_t ∼ sstd
+σ²_t = 2.521 × 10⁻⁵ + 2.093 × 10⁻¹ a²_{t−1} + 7.899 × 10⁻¹ σ²_{t−1}     (12)
+```
+
+**Table 8: Serial dependence analysis for stock 600048.SH**
+
+| τ | ACF_τ | ATCC_τ | ACF^res_τ | ATCC^res_τ |
+|---|-------|--------|-----------|------------|
+| 1 | 0.096 | 0.403*** | 0.057 | 0.392 |
+| 2 | −0.020 | 0.396*** | 0.014 | 0.384 |
+| 3 | −0.056 | 0.393* | −0.010 | 0.382 |
+| 4 | 0.000 | 0.399*** | 0.047 | 0.388 |
+| 5 | −0.012 | 0.396*** | −0.034 | 0.386 |
+| 6 | 0.121* | 0.400 | 0.027 | 0.391 |
+
+*\*\*\*: p < 0.001. \*\*: p < 0.01. \*: p < 0.05.*
+
+Below, we analyze the return series of stock 601766.SH, which exhibits ARCH effects and can be characterized by a GARCH model (see Eq. (13)). The ACF values and ATCC values for both the original series and the standardized residual series are presented in Table 9. While the ACF values are statistically insignificant for both the raw returns and residual series, we observe significant ATCC values at quantiles τ = 1 and τ = 5 for both series. Given that we have estimated an appropriately specified GARCH model, the two significant ATCC values in the residual series indicate the presence of nonlinear serial dependence not captured by the model.
+
+```
+r_t = a_t
+a_t = σ_t ε_t,  ε_t ∼ snorm
+σ²_t = 1.187 × 10⁻⁴ + 1.408 × 10⁻¹ a²_{t−1} + 5.024 × 10⁻¹ σ²_{t−1}     (13)
+```
+
+**Table 9: Serial dependence analysis for stock 601766.SH**
+
+| τ | ACF_τ | ATCC_τ | ACF^res_τ | ATCC^res_τ |
+|---|-------|--------|-----------|------------|
+| 1 | −0.077 | 0.407*** | −0.019 | 0.396* |
+| 2 | 0.034 | 0.390 | −0.009 | 0.384 |
+| 3 | 0.044 | 0.393 | 0.062 | 0.387 |
+| 4 | 0.034 | 0.394 | 0.042 | 0.390 |
+| 5 | −0.068 | 0.397*** | −0.051 | 0.395** |
+| 6 | −0.023 | 0.390 | −0.024 | 0.388 |
+
+*\*\*\*: p < 0.001. \*\*: p < 0.01. \*: p < 0.05.*
+
+---
+
+## 6. Discussion and conclusions
+
+### 6.1. Discussion
+
+A key advantage of ATCC is its robust capacity to capture serial dependence in small-sample data, thus enabling the characterization of dependence dynamics through rolling-window computations. The empirical cases presented in this study demonstrate that major geopolitical events and economic policy shifts can significantly alter return series dependence, exhibiting non-trivial dynamics. ATCC-based high-resolution dynamic analysis provides quantitative evidence of event-driven disruptions in market dependence structures. Given that the presence of serial dependence relates directly to tests of weak-form market efficiency, our findings indicate: first, markets exhibit time-varying efficiency, supporting the Adaptive Market Hypothesis (AMH); second, market efficiency is strongly associated with major external shocks.
+
+### 6.2. Conclusions
+
+We first validated ATCC's capacity to capture both linear serial correlation and nonlinear serial dependence using multiple synthetic datasets. The results confirm its effectiveness in detecting dependence structures generated by AR+GARCH models within small samples. Applying ATCC to minute-level and daily data, we demonstrate that major events, specifically the Russia–Ukraine conflict and Trump tariff policies, significantly altered dependence patterns in the SSE Composite Index. Notably, tariff policies also substantially impacted dependence in the S&P 500 Index.
+
+Crucially, by integrating linear modeling with ATCC diagnostics, we enable precise identification of nonlinear serial dependence, providing granular characterization of dependence structures. In our analysis of SSE 50 constituent stocks, we find that while most return series exhibit only linear correlation (adequately captured by linear models), a minority display nonlinear dependence resistant to linear specifications. These findings facilitate deeper analysis of market dependence dynamics and enhance event impact assessment.
+
+---
+
+## Funding
+
+Supported by the project of Economic Forecasting and Policy Simulation Laboratory, Zhejiang Gongshang University, China (No. 2024SYS018)
+
+---
+
+## Declaration of competing interest
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+---
+
+## Appendix
+
+We computed the return series for all constituent stocks of the SSE 50 Index and analyzed ARCH effects in each series using the LM test, with the lag order set to 10. For series exhibiting ARCH effects, we estimated an ARMA+GARCH model; otherwise, an ARMA model was estimated. Notably, several return series could not be adequately characterized by any suitable linear model. Additionally, we calculated ATCC_1 values for both the original return series and the residual/standardized residual series filtered through linear models. The parentheses include the p-values. The comprehensive results are presented in Table 10. If no model is estimated for a series, we mark it with the symbol 'N' in the table.
+
+**Table 10: LM Test and ARMA+GARCH analysis results for SSE 50 index constituent stocks**
+
+| Stock | LM (p-value) | ATCC_1 | Model | ATCC^res_1 |
+|-------|--------------|--------|-------|------------|
+| 600028.SH | 0.094 | 0.395 (0.04) | AR(1) | 0.39 (0.323) |
+| 600030.SH | 0 | 0.406 (0) | AR(1)+GARCH(1,1) | 0.39 (0.36) |
+| 600031.SH | 0.02 | 0.391 (0.247) | GARCH(1,1) | 0.385 (0.77) |
+| 600036.SH | 0 | 0.394 (0.043) | ARCH(1) | 0.385 (0.82) |
+| 600048.SH | 0 | 0.404 (0) | GARCH(1,1) | 0.393 (0.113) |
+| 600050.SH | 0 | 0.403 (0) | GARCH(1,1) | 0.388 (0.603) |
+| 600150.SH | 0.849 | 0.4 (0) | MA(1) | 0.396 (0.037) |
+| 600276.SH | 0 | 0.388 (0.463) | GARCH(1,1) | 0.382 (0.967) |
+| 600309.SH | 0.003 | 0.396 (0.027) | GARCH(1,1) | 0.39 (0.303) |
+| 600406.SH | 0.335 | 0.394 (0.057) | N | – |
+| 600519.SH | 0 | 0.403 (0) | GARCH(1,1) | 0.392 (0.143) |
+| 600690.SH | 0.151 | 0.394 (0.04) | N | – |
+| 600760.SH | 0 | 0.403 (0) | GARCH(1,1) | 0.387 (0.593) |
+| 600809.SH | 0 | 0.396 (0.013) | GARCH(1,1) | 0.387 (0.587) |
+| 600887.SH | 0 | 0.395 (0.033) | GARCH(1,1) | 0.388 (0.547) |
+| 600900.SH | 0.909 | 0.389 (0.377) | ARMA(2,2) | 0.389 (0.357) |
+| 600941.SH | 0.278 | 0.393 (0.083) | N | – |
+| 601012.SH | 0 | 0.399 (0) | GARCH(1,1) | 0.388 (0.51) |
+| 601088.SH | 0.692 | 0.394 (0.04) | N | – |
+| 601127.SH | 0.009 | 0.401 (0.003) | GARCH(1,1) | 0.392 (0.163) |
+| 601166.SH | 0 | 0.398 (0) | GARCH(1,1) | 0.388 (0.527) |
+| 601211.SH | 0 | 0.416 (0) | ARCH(1) | 0.399 (0) |
+| 601225.SH | 0.706 | 0.384 (0.883) | N | – |
+| 601288.SH | 0 | 0.396 (0) | GARCH(1,1) | 0.391 (0.13) |
+| 601318.SH | 0 | 0.397 (0.013) | GARCH(1,1) | 0.386 (0.77) |
+| 601328.SH | 0.001 | 0.398 (0) | GARCH(1,1) | 0.388 (0.523) |
+| 601398.SH | 0.002 | 0.396 (0.017) | GARCH(1,1) | 0.387 (0.683) |
+| 601600.SH | 0.004 | 0.393 (0.077) | GARCH(1,1) | 0.384 (0.927) |
+| 601601.SH | 0.043 | 0.395 (0.017) | GARCH(1,1) | 0.388 (0.453) |
+| 601628.SH | 0 | 0.395 (0.033) | GARCH(1,1) | 0.387 (0.61) |
+| 601658.SH | 0 | 0.393 (0.1) | ARCH(1) | 0.385 (0.86) |
+| 601668.SH | 0 | 0.409 (0) | GARCH(1,1) | 0.391 (0.247) |
+| 601728.SH | 0 | 0.399 (0) | GARCH(1,1) | 0.388 (0.56) |
+| 601766.SH | 0 | 0.407 (0) | GARCH(1,1) | 0.396 (0.017) |
+| 601816.SH | 0.013 | 0.402 (0) | GARCH(1,1) | 0.392 (0.11) |
+| 601857.SH | 0.091 | 0.395 (0.03) | N | – |
+| 601888.SH | 0 | 0.402 (0) | GARCH(1,1) | 0.392 (0.157) |
+| 601899.SH | 0.44 | 0.39 (0.307) | N | – |
+| 601919.SH | 0.283 | 0.394 (0.083) | N | – |
+| 601985.SH | 0.352 | 0.4 (0) | AR(1) | 0.397 (0.003) |
+| 601988.SH | 0.016 | 0.39 (0.327) | GARCH(1,1) | 0.385 (0.813) |
+| 603259.SH | 0 | 0.402 (0.003) | GARCH(1,1) | 0.389 (0.4) |
+| 603501.SH | 0.001 | 0.398 (0.003) | ARCH(1) | 0.383 (0.953) |
+| 603993.SH | 0.009 | 0.392 (0.123) | GARCH(1,1) | 0.384 (0.953) |
+| 688008.SH | 0 | 0.399 (0) | GARCH(1,1) | 0.388 (0.483) |
+| 688012.SH | 0 | 0.392 (0.15) | GARCH(1,1) | 0.386 (0.717) |
+| 688041.SH | 0 | 0.393 (0.09) | GARCH(1,1) | 0.387 (0.657) |
+| 688111.SH | 0 | 0.393 (0.08) | GARCH(1,1) | 0.383 (0.957) |
+| 688256.SH | 0.127 | 0.391 (0.247) | N | – |
+| 688981.SH | 0 | 0.404 (0) | GARCH(1,1) | 0.389 (0.45) |
+
+---
+
+## Data availability
+
+Data will be made available on request.
+
+---
+
+## References
+
+[1] K.-P. Lim, R. Brooks, The evolution of stock market efficiency over time: A survey of the empirical literature, J. Econ. Surv. 25 (1) (2011) 69–108.
+
+[2] R. Cont, Empirical properties of asset returns: stylized facts and statistical issues, Quant. Finance 1 (2) (2001) 223.
+
+[3] A. Chakraborti, I.M. Toke, M. Patriarca, F. Abergel, Econophysics review: I. Empirical facts, Quant. Finance 11 (7) (2011) 991–1012.
+
+[4] M. Ito, S. Sugiyama, Measuring the degree of time varying market inefficiency, Econom. Lett. 103 (1) (2009) 62–64.
+
+[5] G.E. Box, D.A. Pierce, Distribution of residual autocorrelations in autoregressive-integrated moving average time series models, J. Amer. Statist. Assoc. 65 (332) (1970) 1509–1526.
+
+[6] I. Choi, Testing the random walk hypothesis for real exchange rates, J. Appl. Econometrics 14 (3) (1999) 293–308.
+
+[7] R.S. Tsay, Nonlinearity tests for time series, Biometrika 73 (2) (1986) 461–466.
+
+[8] W.A. Broock, J.A. Scheinkman, W.D. Dechert, B. LeBaron, A test for independence based on the correlation dimension, Econometric Rev. 15 (3) (1996) 197–235.
+
+[9] C.-X. Nie, Nonlinear correlation analysis of time series based on complex network similarity, Int. J. Bifurc. Chaos 30 (15) (2020) 2050225.
+
+[10] C.-X. Nie, Persistence of return distribution sequence in financial markets, Commun. Nonlinear Sci. Numer. Simul. 131 (2024) 107856.
+
+[11] S. Salcedo-Sanz, D. Casillas-Pérez, J. Del Ser, C. Casanova-Mateo, L. Cuadra, M. Piles, G. Camps-Valls, Persistence in complex systems, Phys. Rep. 957 (2022) 1–73.
+
+[12] A. Urquhart, The euro and European stock market efficiency, Appl. Financ. Econ. 24 (19) (2014) 1235–1248.
+
+[13] X. Dong, S. Feng, L. Ling, P. Song, Dynamic autocorrelation of intraday stock returns, Financ. Res. Lett. 20 (2017) 274–280.
+
+[14] M.D. McKenzie, R.W. Faff, Modeling conditional return autocorrelation, Int. Rev. Financ. Anal. 14 (1) (2005) 23–42.
+
+[15] R.W. Faff, M.D. McKenzie, The relationship between implied volatility and autocorrelation, Int. J. Manag. Financ. 3 (2) (2007) 191–196.
+
+[16] M.D. McKenzie, S.-J. Kim, Evidence of an asymmetry in the relationship between volatility and autocorrelation, Int. Rev. Financ. Anal. 16 (1) (2007) 22–40.
+
+[17] M.J. Hinich, D.M. Patterson, Evidence of nonlinearity in daily stock returns, J. Bus. Econom. Statist. 3 (1) (1985) 69–77.
+
+[18] K.-P. Lim, W. Luo, J.H. Kim, Are US stock index returns predictable? Evidence from automatic autocorrelation-based tests, Appl. Econ. 45 (8) (2013) 953–962.
+
+[19] K.-P. Lim, C.-W. Hooy, Non-linear predictability in G7 stock index returns, Manch. Sch. 81 (4) (2013) 620–637.
+
+[20] A. Urquhart, F. McGroarty, Are stock markets really efficient? Evidence of the adaptive market hypothesis, Int. Rev. Financ. Anal. 47 (2016) 39–49.
+
+[21] C.A. Bonilla, R. Romero-Meza, M.J. Hinich, Episodic nonlinearity in latin American stock market indices, Appl. Econ. Lett. 13 (3) (2006) 195–199.
+
+[22] R. Romero-Meza, C.A. Bonilla, M.J. Hinich, Nonlinear event detection in the Chilean stock market, Appl. Econ. Lett. 14 (13) (2007) 987–991.
+
+[23] N. Otter, M.A. Porter, U. Tillmann, P. Grindrod, H.A. Harrington, A roadmap for the computation of persistent homology, EPJ Data Sci. 6 (2017) 1–38.
+
+[24] E. Munch, A user's guide to topological data analysis, J. Learn. Anal. 4 (2) (2017) 47–61.
+
+[25] N. Ravishanker, R. Chen, An introduction to persistent homology for time series, Wiley Interdiscip. Rev.: Comput. Stat. 13 (3) (2021) e1548.
+
+[26] L.M. Seversky, S. Davis, M. Berger, On time-series topological data analysis: New data and opportunities, in: Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition Workshops, 2016, pp. 59–67.
+
+[27] M. Gidea, Y. Katz, Topological data analysis of financial time series: Landscapes of crashes, Phys. A 491 (2018) 820–834.
+
+[28] S. Majumdar, A.K. Laha, Clustering and classification of time series using topological data analysis with applications to finance, Expert Syst. Appl. 162 (2020) 113868.
+
+[29] Y.A. Katz, A. Biem, Time-resolved topological data analysis of market instabilities, Phys. A 571 (2021) 125816.
+
+[30] M.Q. Le, D. Taylor, Persistent homology with k-nearest-neighbor filtrations reveals topological convergence of pagerank, 2022, arXiv preprint arXiv:2206.04725.
+
+[31] C.-X. Nie, Differentiate data by higher-order structures, Inform. Sci. 655 (2024) 119882.
+
+[32] C.-X. Nie, Topological similarity of time-dependent objects, Nonlinear Dynam. 111 (2023) 481–492.
+
+[33] R.S. Tsay, Analysis of Financial Time Series, third ed., John Wiley & Sons, Hoboken, New Jersey, 2010, p. 132.
+
+[34] C. Donnat, S. Holmes, Tracking network dynamics: A survey using graph distances, Ann. Appl. Stat. 12 (2) (2018) 971–1012.
+
+[35] A. Rawashdeh, A.L. Ralescu, Similarity measure for social networks - a brief survey, in: M. Glass, J.H. Kim (Eds.), Proceedings of the 26th Modern AI and Cognitive Science Conference, CEUR-WS.org, 2015, pp. 153–159.
+
+[36] G. Lancaster, D. Iatsenko, A. Pidde, V. Ticcinelli, A. Stefanovska, Surrogate data for hypothesis testing of physical systems, Phys. Rep. 748 (2018) 1–60.
+
+[37] A. Charles, O. Darné, J.H. Kim, Small sample properties of alternative tests for martingale difference hypothesis, Econom. Lett. 110 (2) (2011) 151–154.
+
+---
+
+*Correspondence to: School of Statistics and Mathematics, Zhejiang Gongshang University, Hangzhou 310018, China.*
+
+*E-mail addresses: niechunxiao@zjgsu.edu.cn, niechunxiao2009@163.com*
+
+*Received 27 April 2025; Received in revised form 28 July 2025*
+
+*Available online 9 October 2025*
+
+*Physica A 680 (2025) 131025*
+
+*© 2025 Elsevier B.V. All rights are reserved, including those for text and data mining, AI training, and similar technologies.*

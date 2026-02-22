@@ -1,0 +1,193 @@
+{
+  "region": "greater_manchester",
+  "timestamp": "2026-02-22T12:44:47.721230",
+  "resolution_check": {
+    "check": "resolution_alignment",
+    "n_observations": 1636,
+    "n_unique_outcomes": 1613,
+    "ratio": 0.9859413202933985,
+    "passed": true,
+    "severity": "OK"
+  },
+  "random_partition": {
+    "check": "random_partition_baseline",
+    "k": 283,
+    "n_observations": 1636,
+    "n_trials": 200,
+    "mean_eta2": 0.1718896919998977,
+    "std_eta2": 0.01382019148847901,
+    "p95_eta2": 0.19656828393551426,
+    "p99_eta2": 0.20482107163131702,
+    "theoretical_expectation": 0.1724770642201835,
+    "ms_k": 283,
+    "ms_eta2": 0.4790001032076574,
+    "ms_omega2": 0.3702677452235572,
+    "ms_excess_over_random_mean": 0.3071104112077597,
+    "ms_exceeds_p95": "True"
+  },
+  "matched_k": {
+    "check": "matched_k_kmeans",
+    "ms_k": 283,
+    "ms_eta2": 0.4790001032076574,
+    "kmeans_matched_k_eta2": 0.8996687231703246,
+    "kmeans_matched_k_omega2": 0.878691945379646,
+    "ms_advantage_at_matched_k": -0.42066861996266725,
+    "auto_k_results": {
+      "5": {
+        "eta2": 0.574016208737946,
+        "omega2": 0.5728218813303586
+      },
+      "10": {
+        "eta2": 0.6824926574231264,
+        "omega2": 0.6806023361916947
+      },
+      "15": {
+        "eta2": 0.7145608581536046,
+        "omega2": 0.7119702522537447
+      },
+      "20": {
+        "eta2": 0.720603256945795,
+        "omega2": 0.7171942718828427
+      },
+      "50": {
+        "eta2": 0.8198047672803248,
+        "omega2": 0.8141450753102256
+      },
+      "100": {
+        "eta2": 0.8591798249809596,
+        "omega2": 0.8500255944602125
+      }
+    }
+  },
+  "interpolation": {
+    "check": "interpolation_sensitivity",
+    "linear": {
+      "basins": 263,
+      "eta2": 0.44991623547572607,
+      "omega2": 0.3448094471406304
+    },
+    "cubic": {
+      "basins": 283,
+      "eta2": 0.4790001032076574,
+      "omega2": 0.3702677452235572
+    },
+    "basin_ratio": 1.0760456273764258,
+    "eta2_difference": 0.029083867731931334
+  },
+  "lad_collapse": {
+    "check": "lad_collapse",
+    "n_lsoas": 1636,
+    "n_unique_outcomes": 1613,
+    "n_lads": 10,
+    "outcome_is_lad_level": false,
+    "lad_eta2": 0.11070491397736923,
+    "lad_omega2": 0.10572479324347879,
+    "resolution_check": {
+      "check": "resolution_alignment",
+      "n_observations": 1636,
+      "n_unique_outcomes": 1613,
+      "ratio": 0.9859413202933985,
+      "passed": true,
+      "severity": "OK"
+    },
+    "ms_comparison": {
+      "ms_eta2": 0.4790001032076574,
+      "lad_eta2": 0.11070491397736923,
+      "difference": 0.36829518923028814,
+      "ms_captures_within_lad_variance": "True"
+    }
+  },
+  "cv_r2": {
+    "check": "cv_r2",
+    "methods": {
+      "MS_basins": {
+        "n_features": 282,
+        "r2_insample": 0.4790001032076572,
+        "r2_cv_random_5fold": -0.27084766686226025,
+        "r2_cv_random_fold_scores": [
+          -0.22553189645647742,
+          0.0167060362910737,
+          -0.5147935601422504,
+          -0.4303003075320264,
+          -0.2003186064716207
+        ],
+        "r2_loo_lad": -0.688781607712752,
+        "r2_loo_lad_fold_scores": [
+          -0.571204682935204,
+          -0.1553076953628285,
+          -0.6424545637845258,
+          -0.688885015185311,
+          -1.0045284811833706,
+          -0.5877008546549345,
+          0.0335360740326478,
+          -1.1355727019675244,
+          -1.7171996003083918,
+          -0.41849855577807626
+        ],
+        "overfitting_gap": 0.7498477700699174
+      },
+      "KMeans_matched_k": {
+        "n_features": 282,
+        "r2_insample": 0.8996687231703255,
+        "r2_cv_random_5fold": 0.17534424879838986,
+        "r2_cv_random_fold_scores": [
+          0.1975660826569392,
+          0.23258461334113323,
+          -0.04339973779410711,
+          0.3229677366761886,
+          0.16700254911179535
+        ],
+        "r2_loo_lad": -0.16809069467600848,
+        "r2_loo_lad_fold_scores": [
+          -0.043962531421770645,
+          0.23386170586248867,
+          -0.18381893898094281,
+          -0.26002162139408114,
+          -0.12310591652170721,
+          -0.4735722114546739,
+          0.0583896790380245,
+          -0.36726975806965756,
+          -0.35905447081956265,
+          -0.16235288299820216
+        ],
+        "overfitting_gap": 0.7243244743719357
+      },
+      "IMD_only": {
+        "n_features": 1,
+        "r2_insample": 0.8254824430347383,
+        "r2_cv_random_5fold": 0.8191425099741444,
+        "r2_cv_random_fold_scores": [
+          0.8496515912941225,
+          0.729447125942811,
+          0.8346402766517377,
+          0.8663996963038872,
+          0.8155738596781638
+        ],
+        "r2_loo_lad": 0.8008918845056316,
+        "r2_loo_lad_fold_scores": [
+          0.8754045698695837,
+          0.8525453195074799,
+          0.54269999823147,
+          0.7866429355188249,
+          0.8527051124288705,
+          0.8037747209080061,
+          0.8499051068521373,
+          0.8130565065763756,
+          0.8263652322481819,
+          0.8058193429153861
+        ],
+        "overfitting_gap": 0.006339933060593883
+      }
+    }
+  },
+  "summary": {
+    "outcome_col": "education_score",
+    "total_issues": 3,
+    "issues": [
+      "NO MS ADVANTAGE AT MATCHED K: diff = -0.421",
+      "OVERFITTING (MS_basins): gap = 0.750",
+      "OVERFITTING (KMeans_matched_k): gap = 0.724"
+    ],
+    "elapsed_seconds": 15.00058388710022
+  }
+}

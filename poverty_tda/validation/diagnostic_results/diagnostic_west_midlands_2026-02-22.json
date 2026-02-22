@@ -1,0 +1,132 @@
+{
+  "region": "west_midlands",
+  "timestamp": "2026-02-22T11:15:16.895323",
+  "resolution_check": {
+    "check": "resolution_alignment",
+    "n_observations": 1638,
+    "n_unique_outcomes": 7,
+    "ratio": 0.004273504273504274,
+    "passed": false,
+    "severity": "CRITICAL"
+  },
+  "random_partition": {
+    "check": "random_partition_baseline",
+    "k": 200,
+    "n_observations": 1638,
+    "n_trials": 200,
+    "mean_eta2": 0.12210750289474595,
+    "std_eta2": 0.011880849483568448,
+    "p95_eta2": 0.14217370323426573,
+    "p99_eta2": 0.14871396303568898,
+    "theoretical_expectation": 0.12156383628588882,
+    "ms_k": 200,
+    "ms_eta2": null,
+    "ms_omega2": null,
+    "ms_excess_over_random_mean": null,
+    "ms_exceeds_p95": null
+  },
+  "matched_k": {
+    "check": "matched_k_kmeans",
+    "ms_k": 200,
+    "ms_eta2": null,
+    "kmeans_matched_k_eta2": 0.8121790813630669,
+    "kmeans_matched_k_omega2": 0.7860845014451688,
+    "ms_advantage_at_matched_k": null,
+    "auto_k_results": {
+      "5": {
+        "eta2": 0.24729537936315876,
+        "omega2": 0.2453385600426983
+      },
+      "10": {
+        "eta2": 0.4549247099462145,
+        "omega2": 0.451760139369135
+      },
+      "15": {
+        "eta2": 0.4821609402537453,
+        "omega2": 0.4775416940564025
+      },
+      "20": {
+        "eta2": 0.5053228322703657,
+        "omega2": 0.4993612199212879
+      },
+      "50": {
+        "eta2": 0.6306869578725771,
+        "omega2": 0.6191472864417682
+      },
+      "100": {
+        "eta2": 0.7115093542050632,
+        "omega2": 0.6928094562979378
+      }
+    }
+  },
+  "interpolation": {
+    "check": "interpolation_sensitivity",
+    "linear": {
+      "basins": null,
+      "eta2": null,
+      "omega2": null,
+      "error": "No module named 'vtk'"
+    },
+    "cubic": {
+      "basins": null,
+      "eta2": null,
+      "omega2": null,
+      "error": "No module named 'vtk'"
+    }
+  },
+  "lad_collapse": {
+    "check": "lad_collapse",
+    "n_lsoas": 1638,
+    "n_unique_outcomes": 7,
+    "n_lads": 7,
+    "outcome_is_lad_level": true,
+    "lad_eta2": 1.00000000000001,
+    "lad_omega2": 1.00000000000001,
+    "resolution_check": {
+      "check": "resolution_alignment",
+      "n_observations": 1638,
+      "n_unique_outcomes": 7,
+      "ratio": 0.004273504273504274,
+      "passed": false,
+      "severity": "CRITICAL"
+    },
+    "ms_comparison": null
+  },
+  "cv_r2": {
+    "check": "cv_r2",
+    "methods": {
+      "IMD_only": {
+        "n_features": 1,
+        "r2_insample": 0.10294649475401263,
+        "r2_cv_random_5fold": -3.498627453992653e+25,
+        "r2_cv_random_fold_scores": [
+          -1.7493137269963267e+26,
+          -0.8291813546384623,
+          -1.8102633949783997,
+          0.022884391587239428,
+          -3.564604484941886
+        ],
+        "r2_loo_lad": -4.5576089532057305e+27,
+        "r2_loo_lad_fold_scores": [
+          -1.158355870786491e+27,
+          -1.5554186685993476e+27,
+          0.0,
+          0.0,
+          -2.720629067411059e+28,
+          -1.9831974589436876e+27,
+          0.0
+        ],
+        "overfitting_gap": 3.498627453992653e+25
+      }
+    }
+  },
+  "summary": {
+    "total_issues": 3,
+    "issues": [
+      "RESOLUTION MISMATCH: Outcome data is at LAD level, not LSOA",
+      "LAD-LEVEL OUTCOME: Only 7 unique values for 1638 LSOAs",
+      "OVERFITTING (IMD_only): gap = 34986274539926532135059456.000"
+    ],
+    "elapsed_seconds": 16.324614763259888
+  }
+}
