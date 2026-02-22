@@ -1,0 +1,97 @@
+{
+  "england": {
+    "label": "all_england",
+    "n_areas": 2000,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 2000,
+        "n_finite": 1999,
+        "n_infinite": 1,
+        "total_persistence": 666.3719635605812,
+        "max_persistence": 1.1033917665481567,
+        "persistence_entropy": 7.5240647262292555
+      },
+      "H1": {
+        "n_features": 1485,
+        "n_finite": 1485,
+        "n_infinite": 0,
+        "total_persistence": 81.96604438126087,
+        "max_persistence": 0.3539503812789917,
+        "persistence_entropy": 6.946611450664424
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.1033917665481567,
+        "null_mean": 1.052301095724106,
+        "null_std": 0.055561783534139327,
+        "null_p95": 1.1691632866859436,
+        "p_value": 0.16,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.3539503812789917,
+        "null_mean": 0.4404728353023529,
+        "null_std": 0.034946632259499615,
+        "null_p95": 0.5090993255376816,
+        "p_value": 1.0,
+        "significant_at_005": false
+      }
+    }
+  },
+  "scotland": {
+    "label": "all_scotland",
+    "n_areas": 2000,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 2000,
+        "n_finite": 1999,
+        "n_infinite": 1,
+        "total_persistence": 581.2231541126966,
+        "max_persistence": 1.0377066135406494,
+        "persistence_entropy": 7.525445056501868
+      },
+      "H1": {
+        "n_features": 1452,
+        "n_finite": 1452,
+        "n_infinite": 0,
+        "total_persistence": 67.54918567836285,
+        "max_persistence": 0.32363361120224,
+        "persistence_entropy": 6.921267621442263
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.0377066135406494,
+        "null_mean": 1.0622780442237854,
+        "null_std": 0.07447949855313296,
+        "null_p95": 1.1902295231819153,
+        "p_value": 0.58,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.32363361120224,
+        "null_mean": 0.440083669424057,
+        "null_std": 0.03031757991914082,
+        "null_p95": 0.4950442254543304,
+        "p_value": 1.0,
+        "significant_at_005": false
+      }
+    }
+  },
+  "comparison": {
+    "wasserstein_distance": {
+      "H0": 83.47586302915569,
+      "H1": 33.20772450982446
+    },
+    "domains_used": [
+      "income",
+      "employment",
+      "education",
+      "health",
+      "crime"
+    ],
+    "method": "z-scored domain ranks, 5 shared domains"
+  },
+  "elapsed_seconds": 399.9841775894165
+}

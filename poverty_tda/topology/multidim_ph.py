@@ -224,6 +224,17 @@ def compute_rips_ph(
 
     t0 = time.time()
 
+    if thresh is None:
+        n_sample = min(500, n)
+        rng = np.random.RandomState(42)
+        idx = rng.choice(n, n_sample, replace=False)
+        from scipy.spatial.distance import pdist
+
+        dists = pdist(X[idx])
+        # 75th percentile captures structure without full combinatorial explosion
+        thresh = float(np.percentile(dists, 75))
+        logger.info(f"  Auto thresh = {thresh:.3f} (75th percentile)")
+
     # Run ripser — do_cocycles=True enables representative cycle extraction
     rips_kwargs = {"X": X, "maxdim": max_dim, "do_cocycles": True}
     if thresh is not None:

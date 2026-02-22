@@ -226,7 +226,8 @@ def run_region(region: str, do_permutation: int = 0) -> dict:
     X, lsoa_codes, domain_names = load_deprivation_cloud(region=region)
 
     # Compute PH
-    ph = compute_rips_ph(X, max_dim=2)
+    # Use max_dim=1 (H0+H1) to avoid exponential combinatorial explosion of 3-simplices (H2)
+    ph = compute_rips_ph(X, max_dim=1)
     ph.lsoa_codes = lsoa_codes
     ph.domain_names = domain_names
     ph.point_cloud = X
@@ -291,6 +292,7 @@ def run_region(region: str, do_permutation: int = 0) -> dict:
             X,
             n_permutations=do_permutation,
             max_dim=1,  # Test H0 and H1
+            statistic="max_persistence",
         )
 
     elapsed = time.time() - t0

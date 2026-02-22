@@ -1,0 +1,97 @@
+{
+  "england": {
+    "label": "birmingham",
+    "n_areas": 639,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 639,
+        "n_finite": 638,
+        "n_infinite": 1,
+        "total_persistence": 251.621638558805,
+        "max_persistence": 1.482004165649414,
+        "persistence_entropy": 6.315436596294195
+      },
+      "H1": {
+        "n_features": 355,
+        "n_finite": 355,
+        "n_infinite": 0,
+        "total_persistence": 21.82408508658409,
+        "max_persistence": 0.4753124713897705,
+        "persistence_entropy": 5.413629754559288
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.482004165649414,
+        "null_mean": 2.029472336769104,
+        "null_std": 0.2382370277341746,
+        "null_p95": 2.2774685502052305,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.4753124713897705,
+        "null_mean": 0.5906447744369507,
+        "null_std": 0.09511561533614038,
+        "null_p95": 0.7946070671081541,
+        "p_value": 0.96,
+        "significant_at_005": false
+      }
+    }
+  },
+  "scotland": {
+    "label": "Glasgow City",
+    "n_areas": 746,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 746,
+        "n_finite": 745,
+        "n_infinite": 1,
+        "total_persistence": 240.0009922273457,
+        "max_persistence": 1.2710469961166382,
+        "persistence_entropy": 6.458499776077068
+      },
+      "H1": {
+        "n_features": 389,
+        "n_finite": 389,
+        "n_infinite": 0,
+        "total_persistence": 20.027610912919044,
+        "max_persistence": 0.3295552432537079,
+        "persistence_entropy": 5.508298209501356
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.2710469961166382,
+        "null_mean": 1.6650253176689147,
+        "null_std": 0.17285724749643736,
+        "null_p95": 1.9057896256446838,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.3295552432537079,
+        "null_mean": 0.5592666602134705,
+        "null_std": 0.05792003098293977,
+        "null_p95": 0.6558084785938263,
+        "p_value": 1.0,
+        "significant_at_005": false
+      }
+    }
+  },
+  "comparison": {
+    "wasserstein_distance": {
+      "H0": 35.685599120426346,
+      "H1": 11.047065316867034
+    },
+    "domains_used": [
+      "income",
+      "employment",
+      "education",
+      "health",
+      "crime"
+    ],
+    "method": "z-scored domain ranks, 5 shared domains"
+  },
+  "elapsed_seconds": 26.326546669006348
+}
