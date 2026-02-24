@@ -44,6 +44,8 @@ financial_tda/data/raw/
 financial_tda/data/processed/
 poverty_tda/data/raw/
 poverty_tda/data/processed/
+trajectory_tda/data/UKDA-5151-tab/
+trajectory_tda/data/UKDA-6614-tab/
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
