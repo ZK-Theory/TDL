@@ -146,7 +146,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         embeddings,
         max_dim=1,
         n_landmarks=args.landmarks,
-        method="both",
+        method="maxmin_vr",
         validate=True,
     )
 
@@ -161,6 +161,13 @@ def run_pipeline(args: argparse.Namespace) -> dict:
 
     if checkpoint_dir:
         _save_checkpoint(results["ph"], checkpoint_dir, "03_ph")
+        # Save raw persistence diagrams for plotting
+        raw_diagrams = {}
+        for method_key in ["witness", "maxmin_vr"]:
+            if method_key in ph_result:
+                ph_obj = ph_result[method_key]
+                raw_diagrams[method_key] = {str(dim): dgm.tolist() for dim, dgm in ph_obj.dgms.items()}
+        _save_checkpoint(raw_diagrams, checkpoint_dir, "03_ph_diagrams")
 
     # ─── Step 5: Permutation tests ───
     logger.info("=" * 60)
@@ -188,6 +195,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
                 max_dim=1,
                 n_landmarks=args.landmarks,
                 statistic="total_persistence",
+                markov_order=args.markov_order,
                 embed_kwargs=embed_kwargs,
             )
             null_results[null_type] = nr
@@ -215,6 +223,22 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         },
     }
 
+    # Extract regime exemplars (5 closest to centroid per regime)
+    regime_exemplars = {}
+    gmm_labels = regimes["gmm_labels"]
+    for label in np.unique(gmm_labels):
+        mask = gmm_labels == label
+        cluster_embeddings = embeddings[mask]
+        cluster_indices = np.where(mask)[0]
+        centroid = cluster_embeddings.mean(axis=0)
+        dists = np.linalg.norm(cluster_embeddings - centroid, axis=1)
+        top5 = np.argsort(dists)[:5]
+        exemplar_indices = cluster_indices[top5].tolist()
+        regime_exemplars[str(label)] = {
+            "indices": exemplar_indices,
+            "trajectories": [trajectories[i] for i in exemplar_indices],
+        }
+
     # Cycle detection
     cycles = detect_cycles(ph_result, embeddings, trajectories)
     results["cycles"] = {
@@ -224,7 +248,12 @@ def run_pipeline(args: argparse.Namespace) -> dict:
 
     if checkpoint_dir:
         _save_checkpoint(
-            {"regimes": results["regimes"], "cycles": results["cycles"]},
+            {
+                "regimes": results["regimes"],
+                "cycles": results["cycles"],
+                "regime_exemplars": regime_exemplars,
+                "gmm_labels": gmm_labels.tolist(),
+            },
             checkpoint_dir,
             "05_analysis",
         )
@@ -309,6 +338,13 @@ def main():
             "markov",
         ],
         help="Null model(s) to run (default: all)",
+    )
+    parser.add_argument(
+        "--markov-order",
+        type=int,
+        default=1,
+        choices=[1, 2],
+        help="Markov null model order (default: 1)",
     )
     parser.add_argument(
         "--checkpoint",

@@ -1,0 +1,253 @@
+{
+  "args": {
+    "data_dir": "trajectory_tda/data",
+    "min_years": 10,
+    "max_gap": 2,
+    "income_threshold": 0.6,
+    "embed": "pca20",
+    "tfidf": false,
+    "landmarks": 2500,
+    "n_perms": 10,
+    "nulls": "all",
+    "checkpoint": "results/trajectory_tda_integration/",
+    "verbose": false
+  },
+  "n_trajectories": 27280,
+  "trajectory_lengths": {
+    "mean": 12.934457478005864,
+    "min": 10,
+    "max": 14
+  },
+  "embedding": {
+    "state_to_idx": {
+      "EL": 0,
+      "EM": 1,
+      "EH": 2,
+      "UL": 3,
+      "UM": 4,
+      "UH": 5,
+      "IL": 6,
+      "IM": 7,
+      "IH": 8
+    },
+    "n_unigram_dims": 9,
+    "n_bigram_dims": 81,
+    "raw_dims": 90,
+    "final_dims": 20,
+    "method": "pca",
+    "explained_variance": 0.48963724715080603,
+    "tfidf": false,
+    "n_trajectories": 27280
+  },
+  "ph": {
+    "n_landmarks": 2500,
+    "elapsed": 74.55919170379639,
+    "summaries": {
+      "maxmin_vr": {
+        "H0": {
+          "n_features": 2500,
+          "n_finite": 2499,
+          "n_infinite": 1,
+          "total_persistence": 14227.775175571442,
+          "max_persistence": 15.808710098266602,
+          "persistence_entropy": 7.7966229554996715
+        },
+        "H1": {
+          "n_features": 3249,
+          "n_finite": 3249,
+          "n_infinite": 0,
+          "total_persistence": 1520.3209104537964,
+          "max_persistence": 3.2130813598632812,
+          "persistence_entropy": 7.770654000808567
+        }
+      }
+    }
+  },
+  "null_tests": {
+    "label_shuffle": {
+      "H0": {
+        "observed": 14227.775175571442,
+        "null_mean": 14228.26916165352,
+        "null_std": 8.195277302617141,
+        "null_p95": 14239.200945067405,
+        "p_value": 0.6,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 1520.3209104537964,
+        "null_mean": 1520.2345949649812,
+        "null_std": 15.545197063087635,
+        "null_p95": 1541.3404353380204,
+        "p_value": 0.6,
+        "significant_at_005": false
+      },
+      "null_type": "label_shuffle",
+      "n_permutations": 10,
+      "statistic": "total_persistence"
+    },
+    "cohort_shuffle": {
+      "H0": {
+        "observed": 14227.775175571442,
+        "null_mean": 14228.26916165352,
+        "null_std": 8.195277302617141,
+        "null_p95": 14239.200945067405,
+        "p_value": 0.6,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 1520.3209104537964,
+        "null_mean": 1520.2345949649812,
+        "null_std": 15.545197063087635,
+        "null_p95": 1541.3404353380204,
+        "p_value": 0.6,
+        "significant_at_005": false
+      },
+      "null_type": "cohort_shuffle",
+      "n_permutations": 10,
+      "statistic": "total_persistence"
+    },
+    "order_shuffle": {
+      "H0": {
+        "observed": 14227.775175571442,
+        "null_mean": 13624.566150498391,
+        "null_std": 51.38879965737739,
+        "null_p95": 13689.596468496322,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "H1": {
+        "observed": 1520.3209104537964,
+        "null_mean": 1504.4846900463103,
+        "null_std": 32.095835963080965,
+        "null_p95": 1538.7319063186646,
+        "p_value": 0.4,
+        "significant_at_005": false
+      },
+      "null_type": "order_shuffle",
+      "n_permutations": 10,
+      "statistic": "total_persistence"
+    },
+    "markov": {
+      "H0": {
+        "observed": 14227.775175571442,
+        "null_mean": 14122.617070055008,
+        "null_std": 124.73947238750304,
+        "null_p95": 14270.517375659943,
+        "p_value": 0.1,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 1520.3209104537964,
+        "null_mean": 1535.975882577896,
+        "null_std": 35.06506546523112,
+        "null_p95": 1580.5659833192826,
+        "p_value": 0.5,
+        "significant_at_005": false
+      },
+      "null_type": "markov",
+      "n_permutations": 10,
+      "statistic": "total_persistence"
+    }
+  },
+  "regimes": {
+    "k_optimal": 7,
+    "profiles": {
+      "0": {
+        "n_members": 3787,
+        "dominant_state": "EH",
+        "stability": 0.2341123326664054,
+        "employment_rate": 0.41558548709803844,
+        "unemployment_rate": 0.2032342567191271,
+        "inactivity_rate": 0.3811802561828345,
+        "low_income_rate": 0.2370619417916297,
+        "mid_income_rate": 0.3414120995854046,
+        "high_income_rate": 0.4215259586229657,
+        "mean_transition_rate": 0.4906123246234152
+      },
+      "1": {
+        "n_members": 7358,
+        "dominant_state": "EH",
+        "stability": 0.779455088694344,
+        "employment_rate": 0.9232360376924844,
+        "unemployment_rate": 0.002663964396899354,
+        "inactivity_rate": 0.07409999791061615,
+        "low_income_rate": 0.0,
+        "mid_income_rate": 0.14462714945362612,
+        "high_income_rate": 0.8553728505463738,
+        "mean_transition_rate": 0.15296610384270073
+      },
+      "2": {
+        "n_members": 5415,
+        "dominant_state": "IL",
+        "stability": 0.38651610180590523,
+        "employment_rate": 0.0,
+        "unemployment_rate": 0.0,
+        "inactivity_rate": 1.0,
+        "low_income_rate": 0.38651610180590523,
+        "mid_income_rate": 0.33146582458999696,
+        "high_income_rate": 0.28201807360409786,
+        "mean_transition_rate": 0.2496765294826237
+      },
+      "3": {
+        "n_members": 3333,
+        "dominant_state": "EH",
+        "stability": 0.27966356263142084,
+        "employment_rate": 0.588210827922453,
+        "unemployment_rate": 0.0,
+        "inactivity_rate": 0.41178917207754695,
+        "low_income_rate": 0.1996441527832336,
+        "mid_income_rate": 0.39612265175497374,
+        "high_income_rate": 0.4042331954617926,
+        "mean_transition_rate": 0.4523034937526387
+      },
+      "4": {
+        "n_members": 3510,
+        "dominant_state": "EH",
+        "stability": 0.4074591667394532,
+        "employment_rate": 0.9851952135557691,
+        "unemployment_rate": 0.0,
+        "inactivity_rate": 0.014804786444230937,
+        "low_income_rate": 0.2600227094069351,
+        "mid_income_rate": 0.31771333740938074,
+        "high_income_rate": 0.42226395318368415,
+        "mean_transition_rate": 0.37304833343294885
+      },
+      "5": {
+        "n_members": 1813,
+        "dominant_state": "EH",
+        "stability": 0.40031080683775044,
+        "employment_rate": 0.4134150951320929,
+        "unemployment_rate": 0.003570078541727918,
+        "inactivity_rate": 0.5830148263261792,
+        "low_income_rate": 0.08429585450879919,
+        "mid_income_rate": 0.24368936116594567,
+        "high_income_rate": 0.6720147843252552,
+        "mean_transition_rate": 0.3217827646399075
+      },
+      "6": {
+        "n_members": 2064,
+        "dominant_state": "IL",
+        "stability": 0.2891156462585034,
+        "employment_rate": 0.5908385093167702,
+        "unemployment_rate": 0.09845459923099675,
+        "inactivity_rate": 0.31070689145223307,
+        "low_income_rate": 0.611357586512866,
+        "mid_income_rate": 0.24286453711919548,
+        "high_income_rate": 0.14577787636793849,
+        "mean_transition_rate": 0.35211529426645705
+      }
+    }
+  },
+  "cycles": {
+    "n_persistent_loops": 1840,
+    "h1_summary": {
+      "n_features": 3249,
+      "n_finite": 3249,
+      "n_infinite": 0,
+      "total_persistence": 1520.3209104537964,
+      "max_persistence": 3.2130813598632812,
+      "persistence_entropy": 7.770654000808567
+    }
+  },
+  "elapsed_total": 713.6630480289459
+}

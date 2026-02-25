@@ -45,8 +45,8 @@ def _load_bhps_income_wave(
     questionnaire. We link to individuals via household ID.
     """
     # Try indresp first (has both pid and income for some waves)
-    for prefix in [f"b{wave_letter}", wave_letter]:
-        pattern = f"{prefix}_indresp.tab"
+    for prefix in [f"b{wave_letter}_", f"{wave_letter}_", f"{wave_letter}"]:
+        pattern = f"{prefix}indresp.tab"
         candidates = list(data_dir.rglob(pattern))
         if candidates:
             break
@@ -107,43 +107,53 @@ def _load_usoc_income_wave(
     USoc uses fihhmnnet1_dv (derived monthly net HH income, equivalised BHC)
     from the individual response file or household response file.
     """
-    pattern = f"{wave_letter}_indresp.tab"
-    candidates = list(data_dir.rglob(pattern))
+    pattern_ind = f"{wave_letter}_indresp.tab"
+    candidates_ind = list(data_dir.rglob(pattern_ind))
+    pattern_hh = f"{wave_letter}_hhresp.tab"
+    candidates_hh = list(data_dir.rglob(pattern_hh))
 
-    if not candidates:
-        logger.debug(f"USoc income wave {wave_letter}: no file found")
+    if not candidates_ind or not candidates_hh:
+        logger.debug(f"USoc income wave {wave_letter}: missing indresp or hhresp")
         return None
 
-    fpath = candidates[0]
     try:
-        df = pd.read_csv(fpath, sep="\t", low_memory=False)
+        df_ind = pd.read_csv(candidates_ind[0], sep="\t", low_memory=False)
+        df_hh = pd.read_csv(candidates_hh[0], sep="\t", low_memory=False)
     except Exception:
-        logger.warning(f"Could not read {fpath}")
+        logger.warning(f"Could not read USoc wave {wave_letter} files")
         return None
 
-    cols_lower = {c.lower(): c for c in df.columns}
+    cols_ind = {c.lower(): c for c in df_ind.columns}
+    cols_hh = {c.lower(): c for c in df_hh.columns}
 
-    pidp_col = cols_lower.get("pidp")
+    pidp_col = cols_ind.get("pidp")
+    hidp_col_ind = cols_ind.get(f"{wave_letter}_hidp")
+    hidp_col_hh = cols_hh.get(f"{wave_letter}_hidp")
 
     # Income: fihhmnnet1_dv (primary) or fihhmngrs_dv (gross)
-    income_col = None
+    inc_col = None
     for candidate in [
         f"{wave_letter}_fihhmnnet1_dv",
         "fihhmnnet1_dv",
         f"{wave_letter}_fihhmngrs_dv",
     ]:
-        if candidate in cols_lower:
-            income_col = cols_lower[candidate]
+        if candidate in cols_hh:
+            inc_col = cols_hh[candidate]
             break
 
-    if pidp_col is None or income_col is None:
-        logger.debug(f"USoc wave {wave_letter}: missing pidp or income column")
+    if pidp_col is None or hidp_col_ind is None or hidp_col_hh is None or inc_col is None:
+        logger.debug(f"USoc wave {wave_letter}: missing pidp, hidp or income column")
         return None
+
+    # Merge individual to household on hidp
+    df_merged = df_ind[[pidp_col, hidp_col_ind]].merge(
+        df_hh[[hidp_col_hh, inc_col]], left_on=hidp_col_ind, right_on=hidp_col_hh, how="inner"
+    )
 
     result = pd.DataFrame(
         {
-            "pidp": df[pidp_col],
-            "income_raw": pd.to_numeric(df[income_col], errors="coerce"),
+            "pidp": df_merged[pidp_col],
+            "income_raw": pd.to_numeric(df_merged[inc_col], errors="coerce"),
             "year": USOC_WAVE_YEAR[wave_letter],
             "source": "usoc",
         }
@@ -173,8 +183,8 @@ def _classify_income_band(
 
 def extract_income_bands(
     data_dir: str | Path,
-    bhps_subdir: str = "UKDA-5151",
-    usoc_subdir: str = "UKDA-6614",
+    bhps_subdir: str = "UKDA-5151-tab",
+    usoc_subdir: str = "UKDA-6614-tab",
     bhps_waves: list[str] | None = None,
     usoc_waves: list[str] | None = None,
     threshold: float = DEFAULT_THRESHOLD,

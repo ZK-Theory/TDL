@@ -159,6 +159,18 @@ def _compute_witness(
         landmarks=landmarks.tolist(),
     )
 
+    # Automatically set a sensible max_alpha_square if 10.0 is too large
+    # Estimate the maximum distance a point needs to attach to a landmark
+    from sklearn.metrics import pairwise_distances_argmin_min
+
+    _, min_dists = pairwise_distances_argmin_min(X, landmarks)
+
+    # 95th percentile of squared distance to nearest landmark
+    auto_alpha_sq = float(np.percentile(min_dists, 95) ** 2)
+    max_alpha_square = min(max_alpha_square, auto_alpha_sq)
+
+    logger.info(f"Witness complex alpha^2 limited to {max_alpha_square:.4f}")
+
     simplex_tree = witness_complex.create_simplex_tree(
         max_alpha_square=max_alpha_square,
         limit_dimension=max_dim + 1,

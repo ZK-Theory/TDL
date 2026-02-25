@@ -117,8 +117,8 @@ def build_trajectories(
     data_dir: str | Path | None = None,
     min_years: int = 10,
     max_gap: int = 2,
-    bhps_subdir: str = "UKDA-5151",
-    usoc_subdir: str = "UKDA-6614",
+    bhps_subdir: str = "UKDA-5151-tab",
+    usoc_subdir: str = "UKDA-6614-tab",
     income_threshold: float = 0.6,
 ) -> tuple[list[list[str]], pd.DataFrame]:
     """Build per-person state trajectories from employment + income data.

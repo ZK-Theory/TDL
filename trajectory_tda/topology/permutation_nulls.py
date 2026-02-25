@@ -363,6 +363,7 @@ def permutation_test_trajectories(
             "null_p95": float(np.percentile(null_vals, 95)),
             "p_value": p_value,
             "significant_at_005": p_value < 0.05,
+            "null_distribution": null_vals.tolist(),
         }
         logger.info(
             f"  {key}: observed={obs_val:.4f}, null={null_vals.mean():.4f}±{null_vals.std():.4f}, p={p_value:.4f}"

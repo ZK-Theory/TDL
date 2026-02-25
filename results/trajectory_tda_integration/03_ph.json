@@ -1,0 +1,24 @@
+{
+  "n_landmarks": 2500,
+  "elapsed": 74.55919170379639,
+  "summaries": {
+    "maxmin_vr": {
+      "H0": {
+        "n_features": 2500,
+        "n_finite": 2499,
+        "n_infinite": 1,
+        "total_persistence": 14227.775175571442,
+        "max_persistence": 15.808710098266602,
+        "persistence_entropy": 7.7966229554996715
+      },
+      "H1": {
+        "n_features": 3249,
+        "n_finite": 3249,
+        "n_infinite": 0,
+        "total_persistence": 1520.3209104537964,
+        "max_persistence": 3.2130813598632812,
+        "persistence_entropy": 7.770654000808567
+      }
+    }
+  }
+}

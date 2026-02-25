@@ -74,9 +74,9 @@ def _load_bhps_wave(
     pattern = f"b{wave_letter}_indresp.tab"
     candidates = list(data_dir.rglob(pattern))
     if not candidates:
-        # Also try the SN5151 directory structure
-        alt_pattern = f"{wave_letter}_indresp.tab"
-        candidates = list(data_dir.rglob(alt_pattern))
+        alt_pattern1 = f"{wave_letter}_indresp.tab"
+        alt_pattern2 = f"{wave_letter}indresp.tab"
+        candidates = list(data_dir.rglob(alt_pattern1)) + list(data_dir.rglob(alt_pattern2))
 
     if not candidates:
         logger.debug(f"BHPS wave {wave_letter}: no file found matching {pattern}")
@@ -201,8 +201,8 @@ def _assign_annual_status(group: pd.DataFrame) -> pd.Series:
 
 def extract_employment_status(
     data_dir: str | Path,
-    bhps_subdir: str = "UKDA-5151",
-    usoc_subdir: str = "UKDA-6614",
+    bhps_subdir: str = "UKDA-5151-tab",
+    usoc_subdir: str = "UKDA-6614-tab",
     bhps_waves: list[str] | None = None,
     usoc_waves: list[str] | None = None,
 ) -> pd.DataFrame:
