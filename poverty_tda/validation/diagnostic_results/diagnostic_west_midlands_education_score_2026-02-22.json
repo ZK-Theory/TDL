@@ -94,7 +94,7 @@
       "ms_eta2": 0.4938578193043011,
       "lad_eta2": 0.05906798306904035,
       "difference": 0.4347898362352608,
-      "ms_captures_within_lad_variance": "True"
+      "ms_captures_within_lad_variance": true
     }
   },
   "cv_r2": {
