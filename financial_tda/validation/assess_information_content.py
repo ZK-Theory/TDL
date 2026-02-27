@@ -140,7 +140,7 @@ def run_regression_analysis():
         if model_aug.pvalues[2] < 0.05:
             results_txt.append(">> RESULT: Tau is SIGNIFICANT.")
         else:
-            results_txt.append(">> RESULT: Tau is NOT signficant.")
+            results_txt.append(">> RESULT: Tau is NOT significant.")
 
     # 6. Save Report
     with open(REPORT_FILE, "w") as f:
