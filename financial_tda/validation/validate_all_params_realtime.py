@@ -108,8 +108,11 @@ def run_validation():
                     tau, _ = kendalltau(x[valid_mask], y[valid_mask])
                     if not np.isnan(tau):
                         max_tau = max(max_tau, tau)
-                except:
-                    pass
+                except Exception as e:
+                    print(
+                        f"Error computing Kendall tau for metric '{metric}' on date "
+                        f"{stats_df.index[i]}: {e}"
+                    )
 
             if max_tau > -1.0:
                 results.append(max_tau)
