@@ -13,9 +13,6 @@ Generates statistics for Table 6 update.
 import os
 import pandas as pd
 import numpy as np
-import matplotlib
-
-matplotlib.use("Agg")
 from scipy.stats import kendalltau
 from financial_tda.validation.gidea_katz_replication import fetch_historical_data, compute_persistence_landscape_norms
 from financial_tda.validation.trend_analysis_validator import compute_gk_rolling_statistics
