@@ -115,7 +115,6 @@ def run_analysis(prices, label, crash_date=None, pre_crisis_window=250):
 
         # Iterate daily (simulating real-time)
         # Start after enough data
-        start_idx = 0  # compute_rolling_statistics already handles NaNs at start
 
         # We need to compute Kendall Tau on a rolling basis
         # This is computationally expensive for every day, so we'll do it for the existing stats_df
