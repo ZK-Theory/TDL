@@ -79,13 +79,16 @@ def compute_residualised_ph(
     n_components_to_remove: int = 1,
     max_dim: int = 1,
     do_permutation: int = 0,
-) -> dict:
+) -> tuple[dict, object, object]:
     """
     Full C1 pipeline: load data, residualise, compute PH, compare with raw.
 
     Returns:
-        Dict with raw and residual PH results, PCA info, and optional
-        permutation test results.
+        A 3-tuple of:
+            results: Dict with raw and residual PH results, PCA info, and optional
+                permutation test results.
+            ph_raw: Persistent homology object computed on the raw point cloud.
+            ph_resid: Persistent homology object computed on the residualised point cloud.
     """
     t0 = time.time()
 
