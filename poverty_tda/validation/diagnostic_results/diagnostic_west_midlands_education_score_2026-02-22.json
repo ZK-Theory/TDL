@@ -23,7 +23,7 @@
     "ms_eta2": 0.4938578193043011,
     "ms_omega2": 0.4212514225471451,
     "ms_excess_over_random_mean": 0.36940886384007016,
-    "ms_exceeds_p95": "True"
+    "ms_exceeds_p95": true
   },
   "matched_k": {
     "check": "matched_k_kmeans",
