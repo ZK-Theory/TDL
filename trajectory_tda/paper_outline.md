@@ -4,7 +4,7 @@
 **Target Journal:** Journal of Economic Geography  
 **Format:** Research Article  
 **Target Word Count:** 9,000–10,000 words  
-**Figures:** 11 main + 1 supplementary
+**Figures:** 14 main + 1 supplementary
 
 ---
 
@@ -15,9 +15,9 @@
 - Gap (1 sentence): No framework for detecting regime formation and cyclical traps in high-dimensional trajectory space
 - Method (3 sentences): 27,280 employment×income state trajectories (BHPS/USoc 1991–2023), n-gram embedding + PCA-20D, Vietoris–Rips persistent homology (maxmin 2,500 landmarks), 5-null Markov memory ladder
 - Results (3 sentences): 7 mobility regimes (GMM-BIC), order-shuffle H₀ strongly significant (p<0.001, n=500) confirming topology exceeds random relabelling, Markov(1) H₀ p=0.148 indicating regime structure consistent with first-order dynamics, 3,249 H₁ persistent cycles identifying recurrent churn traps
-- Implications (2 sentences): TDA detects structural features invisible to sequence analysis; Markov memory ladder pins down generating-process complexity
+- Implications (2 sentences): TDA detects structural features invisible to sequence analysis; Markov memory ladder pins down generating-process complexity; overlapping-window analysis confirms regime stickiness (5.6% escape rate) and shows phase-ordering adds no additional topological signal
 
-**Key numbers:** 27,280 trajectories, 32 years, 9 states, 7 regimes, n=500 permutations, 5 null models
+**Key numbers:** 27,280 trajectories, 32 years, 9 states, 7 regimes, n=500 permutations, 5 null models, 54,560 overlapping windows, 5.6% escape rate
 
 ---
 
@@ -155,6 +155,9 @@
   - [remaining 3 from actual data]
 - **Figure 5:** Regime profile heatmap (7 × [employment rate, unemployment rate, inactivity rate, low/mid/high income, stability, transition rate])
 - **Figure 6:** Stability–income correlation scatter
+- **Regime persistence over the life course:** To assess regime persistence, we constructed overlapping 10‑year windows (5‑year step) for all individuals and assigned each window to one of the seven regimes using the PCA–GMM model. The resulting 7×7 transition matrix is strongly diagonal‑dominant, with most individuals remaining in the same regime between consecutive windows. Among the 7,453 individuals whose first window lies in Low‑Income Churn or Inactive Low, only 416 (5.6%) ever reach Employed Mid or Secure EH in the subsequent window, and virtually no multi‑window "ladder" of regimes is observed. These window‑based results reinforce the picture of regime stickiness already visible in the single‑trajectory stability indices in Figure 6.
+- **Figure 12:** Regime transition heatmap (window-to-window transition matrix)
+- **Figure 13:** Escape probability from disadvantaged regimes
 
 ### 4.5 Cycle and Trap Analysis (300 words)
 - 3,249 H₁ features — but non-significant vs order shuffle (p=0.25), Markov-1 (p=0.65), Markov-2 (p=0.43)
@@ -162,6 +165,8 @@
 - However: characteristic cycle lengths and dominant loop states provide descriptive value
 - Top persistent loops involve Low-Income ↔ Unemployment cycling
 - **Figure 7:** Cycle analysis (top loops + length distribution)
+- **Phase‑ordering null test:** We also asked whether the ordering of career *phases* adds additional topological structure beyond the trajectory‑level results. Using the PCA embedding of overlapping 10‑year windows, we computed persistent homology on the resulting "career phase" cloud and compared it to a within‑person phase‑order shuffle null that preserves each individual's multiset of windows but randomises their temporal order. In contrast to the significant trajectory‑level order‑shuffle result, phase‑ordering has no detectable effect on topology: the observed phase H₀ and H₁ total persistence values lie well inside the null distributions (p(H₀)=0.95, p(H₁)=0.75). This suggests that the main topological signal arises from the shape of full 10‑year trajectories rather than from higher‑order ordering of overlapping phases.
+- **Figure 14:** Phase PH persistence diagram + phase‑order null violin plots
 
 ### 4.6 Stratified Comparisons (200 words)
 - Gender: Wasserstein distance + permutation p-values
@@ -186,6 +191,7 @@
 - Does NOT mean "there is no interesting topology" — it means topology is efficiently described by one-step transitions
 - Implication for policy: interventions targeting single transitions (e.g., employment entry programs) can reshape the regime landscape
 - Comparison to higher-order Markov literature (Singer & Spilerman 1976)
+- The overlapping‑window analysis complements this conclusion. When we embed 10‑year career phases and test a phase‑order shuffle null, we find no significant difference in either H₀ or H₁ persistence (p(H₀)=0.95, p(H₁)=0.75), indicating that reordering phases does not create or destroy detectable topological structure. Taken together with the Markov memory ladder, this implies that the regime landscape is well captured by first‑ or second‑order transition dynamics within 10‑year trajectories, while the sequencing of a small number of overlapping phases adds little additional structure.
 
 ### 5.3 Honest Assessment of H₁ (300 words)
 - H₁ cycles non-significant vs all nulls — cycles arise from state composition
@@ -200,6 +206,7 @@
 - No family dimension (27-state space deferred)
 - Imputation assumptions for gap-filling
 - Cross-wave harmonisation between BHPS and USoc
+- **Window resolution and escape paths:** Our overlapping‑window design reveals only very short escape paths from disadvantaged regimes. With 10‑year windows stepped every five years, most individuals contribute at most two usable windows, and the 416 observed "escapers" from Low‑Income Churn or Inactive Low to Employed Mid or Secure EH do so in a single window‑to‑window transition. This confirms that such escapes are rare (5.6% of those starting in disadvantaged regimes) and appear as one‑step events in our data, but it also means we cannot distinguish between different multi‑step topological escape routes; longer panels or narrower windows would be needed to study those dynamics in detail.
 
 ---
 
