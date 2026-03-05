@@ -85,3 +85,16 @@ site/
 **/viz/outputs/*.html
 *.exe
 streamlit*.log
+
+# Binary data files (embeddings, models, distance matrices)
+*.npy
+*.joblib
+
+# Large regenerable result data files
+results/trajectory_tda_phase6/01_windows.json
+results/trajectory_tda_phase6/02_window_regimes.json
+results/trajectory_tda_phase6/03_regime_sequences.json
+results/trajectory_tda_integration/01_trajectories_sequences.json
+
+# Windows null device artifact
+nul

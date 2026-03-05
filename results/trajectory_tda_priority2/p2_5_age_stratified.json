@@ -1,0 +1,74 @@
+{
+  "escape_rates": {
+    "overall": {
+      "n_starting_disadvantaged": 7453,
+      "n_ever_escape": 416,
+      "ever_escape_rate": 0.05581644975177781,
+      "escape_by_horizon": {
+        "1": 0.05581644975177781,
+        "2": 0.05581644975177781,
+        "3": 0.05581644975177781,
+        "4": 0.05581644975177781,
+        "5": 0.05581644975177781
+      },
+      "mean_path_length": 1.0,
+      "median_path_length": 1.0
+    },
+    "working_age": {
+      "n_starting_disadvantaged": 2163,
+      "n_ever_escape": 386,
+      "ever_escape_rate": 0.178455848358761,
+      "escape_by_horizon": {
+        "1": 0.178455848358761,
+        "2": 0.178455848358761,
+        "3": 0.178455848358761,
+        "4": 0.178455848358761,
+        "5": 0.178455848358761
+      },
+      "mean_path_length": 1.0,
+      "median_path_length": 1.0
+    },
+    "retirement_age": {
+      "n_starting_disadvantaged": 5978,
+      "n_ever_escape": 6,
+      "ever_escape_rate": 0.0010036801605888257,
+      "escape_by_horizon": {
+        "1": 0.0010036801605888257,
+        "2": 0.0010036801605888257,
+        "3": 0.0010036801605888257,
+        "4": 0.0010036801605888257,
+        "5": 0.0010036801605888257
+      },
+      "mean_path_length": 1.0,
+      "median_path_length": 1.0
+    },
+    "regime_2_composition": {
+      "under_60": 1851,
+      "over_60": 11431,
+      "retirement_fraction": 0.8606384580635447
+    },
+    "retirement_age_threshold": 60
+  },
+  "logistic_regression": {
+    "n_obs": 7280,
+    "n_escaped": 380,
+    "coefficients": {
+      "const": 2.878390233834617,
+      "age_first_window": -0.10756340858653153,
+      "female": -0.8264288150395157
+    },
+    "odds_ratios": {
+      "const": 17.785619434489124,
+      "age_first_window": 0.8980195784933038,
+      "female": 0.43760928283498757
+    },
+    "p_values": {
+      "const": 5.582082268295983e-48,
+      "age_first_window": 1.6825623468655687e-150,
+      "female": 2.052659187140379e-11
+    },
+    "pseudo_r2": 0.3273371393662339,
+    "aic": 2013.1410415004502,
+    "bic": 2033.8196999240224
+  }
+}
