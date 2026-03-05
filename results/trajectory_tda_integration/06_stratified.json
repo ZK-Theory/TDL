@@ -3961,5 +3961,1271 @@
       "1980s": 3103,
       "1990s": 1364
     }
+  },
+  "gor": {
+    "per_group": {
+      "East Midlands": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 994,
+          "n_infinite": 6,
+          "total_persistence": 3114.1827652454376,
+          "max_persistence": 12.249098777770996,
+          "persistence_entropy": 6.727140868191335
+        },
+        "H1": {
+          "n_features": 656,
+          "n_finite": 653,
+          "n_infinite": 3,
+          "total_persistence": 219.64175713062286,
+          "max_persistence": 2.0629334449768066,
+          "persistence_entropy": 6.127601827932829
+        }
+      },
+      "East of England": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 991,
+          "n_infinite": 9,
+          "total_persistence": 3108.9130778312683,
+          "max_persistence": 11.741181373596191,
+          "persistence_entropy": 6.7552568249077245
+        },
+        "H1": {
+          "n_features": 658,
+          "n_finite": 657,
+          "n_infinite": 1,
+          "total_persistence": 228.4449201822281,
+          "max_persistence": 2.0434045791625977,
+          "persistence_entropy": 6.156207457002298
+        }
+      },
+      "London": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 996,
+          "n_infinite": 4,
+          "total_persistence": 4864.9621794223785,
+          "max_persistence": 15.350140571594238,
+          "persistence_entropy": 6.829027967804765
+        },
+        "H1": {
+          "n_features": 835,
+          "n_finite": 834,
+          "n_infinite": 1,
+          "total_persistence": 364.3160161972046,
+          "max_persistence": 2.559258460998535,
+          "persistence_entropy": 6.397682691155079
+        }
+      },
+      "North East": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 988,
+          "n_infinite": 12,
+          "total_persistence": 1867.4397738051782,
+          "max_persistence": 10.54233455657959,
+          "persistence_entropy": 6.340943879434946
+        },
+        "H1": {
+          "n_features": 372,
+          "n_finite": 371,
+          "n_infinite": 1,
+          "total_persistence": 109.26947286725044,
+          "max_persistence": 1.412968635559082,
+          "persistence_entropy": 5.494300867699595
+        }
+      },
+      "North West": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 996,
+          "n_infinite": 4,
+          "total_persistence": 3846.2343451976776,
+          "max_persistence": 13.496646881103516,
+          "persistence_entropy": 6.781294317597187
+        },
+        "H1": {
+          "n_features": 729,
+          "n_finite": 726,
+          "n_infinite": 3,
+          "total_persistence": 267.64682936668396,
+          "max_persistence": 1.9938101768493652,
+          "persistence_entropy": 6.239421546044287
+        }
+      },
+      "Northern Ireland": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 989,
+          "n_infinite": 11,
+          "total_persistence": 2851.6372606158257,
+          "max_persistence": 12.261554718017578,
+          "persistence_entropy": 6.70314637275371
+        },
+        "H1": {
+          "n_features": 587,
+          "n_finite": 587,
+          "n_infinite": 0,
+          "total_persistence": 199.43104922771454,
+          "max_persistence": 2.7435688972473145,
+          "persistence_entropy": 5.986116102266224
+        }
+      },
+      "Scotland": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 993,
+          "n_infinite": 7,
+          "total_persistence": 3132.7091648578644,
+          "max_persistence": 12.026091575622559,
+          "persistence_entropy": 6.760443888583577
+        },
+        "H1": {
+          "n_features": 709,
+          "n_finite": 707,
+          "n_infinite": 2,
+          "total_persistence": 243.30832397937775,
+          "max_persistence": 1.9772310256958008,
+          "persistence_entropy": 6.185247048816966
+        }
+      },
+      "South East": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 999,
+          "n_infinite": 1,
+          "total_persistence": 3851.3994846343994,
+          "max_persistence": 13.000325202941895,
+          "persistence_entropy": 6.801459531026509
+        },
+        "H1": {
+          "n_features": 784,
+          "n_finite": 782,
+          "n_infinite": 2,
+          "total_persistence": 282.9645445346832,
+          "max_persistence": 1.857130527496338,
+          "persistence_entropy": 6.315663222797249
+        }
+      },
+      "South West": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 996,
+          "n_infinite": 4,
+          "total_persistence": 2885.116817831993,
+          "max_persistence": 11.153231620788574,
+          "persistence_entropy": 6.740223199619311
+        },
+        "H1": {
+          "n_features": 698,
+          "n_finite": 696,
+          "n_infinite": 2,
+          "total_persistence": 214.13679158687592,
+          "max_persistence": 1.7641072273254395,
+          "persistence_entropy": 6.211194030641645
+        }
+      },
+      "Wales": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 997,
+          "n_infinite": 3,
+          "total_persistence": 3039.271359682083,
+          "max_persistence": 11.927886962890625,
+          "persistence_entropy": 6.72544850943467
+        },
+        "H1": {
+          "n_features": 648,
+          "n_finite": 646,
+          "n_infinite": 2,
+          "total_persistence": 221.13583397865295,
+          "max_persistence": 2.0964198112487793,
+          "persistence_entropy": 6.121997953432153
+        }
+      },
+      "West Midlands": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 995,
+          "n_infinite": 5,
+          "total_persistence": 3737.930054664612,
+          "max_persistence": 13.28117561340332,
+          "persistence_entropy": 6.75344250010553
+        },
+        "H1": {
+          "n_features": 700,
+          "n_finite": 695,
+          "n_infinite": 5,
+          "total_persistence": 262.28774559497833,
+          "max_persistence": 2.3297386169433594,
+          "persistence_entropy": 6.203096373422337
+        }
+      },
+      "Yorkshire & Humber": {
+        "H0": {
+          "n_features": 1000,
+          "n_finite": 997,
+          "n_infinite": 3,
+          "total_persistence": 3600.168446302414,
+          "max_persistence": 12.613154411315918,
+          "persistence_entropy": 6.767570265617386
+        },
+        "H1": {
+          "n_features": 723,
+          "n_finite": 722,
+          "n_infinite": 1,
+          "total_persistence": 269.3787907361984,
+          "max_persistence": 2.3125252723693848,
+          "persistence_entropy": 6.22981212376212
+        }
+      }
+    },
+    "pairwise_wasserstein": {
+      "('East Midlands', 'East of England', 'H0')": 7.496147767273234,
+      "('East Midlands', 'East of England', 'H1')": 97.69701593463641,
+      "('East Midlands', 'London', 'H0')": 55.51505627754247,
+      "('East Midlands', 'London', 'H1')": 124.02556696328925,
+      "('East Midlands', 'North East', 'H0')": 39.74893742278032,
+      "('East Midlands', 'North East', 'H1')": 77.71888203276761,
+      "('East Midlands', 'North West', 'H0')": 23.386420336760665,
+      "('East Midlands', 'North West', 'H1')": 102.7172271269471,
+      "('East Midlands', 'Northern Ireland', 'H0')": 9.169751070109939,
+      "('East Midlands', 'Northern Ireland', 'H1')": 90.9881103744705,
+      "('East Midlands', 'Scotland', 'H0')": 6.806575725077907,
+      "('East Midlands', 'Scotland', 'H1')": 89.5018279558394,
+      "('East Midlands', 'South East', 'H0')": 23.871525624145097,
+      "('East Midlands', 'South East', 'H1')": 95.5411288998906,
+      "('East Midlands', 'South West', 'H0')": 10.32793077337947,
+      "('East Midlands', 'South West', 'H1')": 94.87881184144193,
+      "('East Midlands', 'Wales', 'H0')": 4.051909423094129,
+      "('East Midlands', 'Wales', 'H1')": 95.71918507374855,
+      "('East Midlands', 'West Midlands', 'H0')": 21.4379388129131,
+      "('East Midlands', 'West Midlands', 'H1')": 112.58303498283814,
+      "('East Midlands', 'Yorkshire & Humber', 'H0')": 15.83493285590667,
+      "('East Midlands', 'Yorkshire & Humber', 'H1')": 100.34506429068075,
+      "('East of England', 'London', 'H0')": 55.9816236441792,
+      "('East of England', 'London', 'H1')": 126.99990336998208,
+      "('East of England', 'North East', 'H0')": 40.35453044943052,
+      "('East of England', 'North East', 'H1')": 72.69869406919504,
+      "('East of England', 'North West', 'H0')": 24.819069612181487,
+      "('East of England', 'North West', 'H1')": 106.79030268927232,
+      "('East of England', 'Northern Ireland', 'H0')": 9.994957465372451,
+      "('East of England', 'Northern Ireland', 'H1')": 95.51677909313815,
+      "('East of England', 'Scotland', 'H0')": 4.078319365717857,
+      "('East of England', 'Scotland', 'H1')": 92.54455391079806,
+      "('East of England', 'South East', 'H0')": 23.9519456463561,
+      "('East of England', 'South East', 'H1')": 100.30041848249452,
+      "('East of England', 'South West', 'H0')": 8.42526092932451,
+      "('East of England', 'South West', 'H1')": 95.18651653197861,
+      "('East of England', 'Wales', 'H0')": 6.744012018111793,
+      "('East of England', 'Wales', 'H1')": 98.93323686918346,
+      "('East of England', 'West Midlands', 'H0')": 23.602999832610323,
+      "('East of England', 'West Midlands', 'H1')": 110.3665862016714,
+      "('East of England', 'Yorkshire & Humber', 'H0')": 17.66490331633327,
+      "('East of England', 'Yorkshire & Humber', 'H1')": 102.70585723394078,
+      "('London', 'North East', 'H0')": 94.92037208309634,
+      "('London', 'North East', 'H1')": 108.70240353837967,
+      "('London', 'North West', 'H0')": 32.48524025689822,
+      "('London', 'North West', 'H1')": 126.66129032115059,
+      "('London', 'Northern Ireland', 'H0')": 63.70165638984419,
+      "('London', 'Northern Ireland', 'H1')": 127.67128592907467,
+      "('London', 'Scotland', 'H0')": 55.23437679307798,
+      "('London', 'Scotland', 'H1')": 128.18245282382705,
+      "('London', 'South East', 'H0')": 32.99027958813907,
+      "('London', 'South East', 'H1')": 124.19662347446658,
+      "('London', 'South West', 'H0')": 63.19459787567588,
+      "('London', 'South West', 'H1')": 136.6152918010278,
+      "('London', 'Wales', 'H0')": 57.95249073561444,
+      "('London', 'Wales', 'H1')": 123.26029639721675,
+      "('London', 'West Midlands', 'H0')": 36.618475990204274,
+      "('London', 'West Midlands', 'H1')": 128.22782186618065,
+      "('London', 'Yorkshire & Humber', 'H0')": 40.367718014778255,
+      "('London', 'Yorkshire & Humber', 'H1')": 127.70068842968956,
+      "('North East', 'North West', 'H0')": 62.68742046543393,
+      "('North East', 'North West', 'H1')": 84.82351369619441,
+      "('North East', 'Northern Ireland', 'H0')": 31.839925648327803,
+      "('North East', 'Northern Ireland', 'H1')": 74.47127248858045,
+      "('North East', 'Scotland', 'H0')": 41.09637318104882,
+      "('North East', 'Scotland', 'H1')": 70.74163333013864,
+      "('North East', 'South East', 'H0')": 62.98749157721821,
+      "('North East', 'South East', 'H1')": 79.01391739814576,
+      "('North East', 'South West', 'H0')": 33.5370719380895,
+      "('North East', 'South West', 'H1')": 73.6382956927813,
+      "('North East', 'Wales', 'H0')": 37.349076517197396,
+      "('North East', 'Wales', 'H1')": 75.32088662105599,
+      "('North East', 'West Midlands', 'H0')": 59.506384132292276,
+      "('North East', 'West Midlands', 'H1')": 94.56117352710673,
+      "('North East', 'Yorkshire & Humber', 'H0')": 54.91925163982179,
+      "('North East', 'Yorkshire & Humber', 'H1')": 85.41285942856551,
+      "('North West', 'Northern Ireland', 'H0')": 31.832944169175992,
+      "('North West', 'Northern Ireland', 'H1')": 104.99663632479958,
+      "('North West', 'Scotland', 'H0')": 24.032764604517244,
+      "('North West', 'Scotland', 'H1')": 104.54190421874786,
+      "('North West', 'South East', 'H0')": 6.577682810290342,
+      "('North West', 'South East', 'H1')": 105.14692124154544,
+      "('North West', 'South West', 'H0')": 31.698963965931977,
+      "('North West', 'South West', 'H1')": 103.22628208685603,
+      "('North West', 'Wales', 'H0')": 25.94219630057962,
+      "('North West', 'Wales', 'H1')": 106.19997340609636,
+      "('North West', 'West Midlands', 'H0')": 7.361203479193527,
+      "('North West', 'West Midlands', 'H1')": 109.79018933198913,
+      "('North West', 'Yorkshire & Humber', 'H0')": 8.389664535489088,
+      "('North West', 'Yorkshire & Humber', 'H1')": 106.444670535694,
+      "('Northern Ireland', 'Scotland', 'H0')": 10.320905866220489,
+      "('Northern Ireland', 'Scotland', 'H1')": 84.23624918357667,
+      "('Northern Ireland', 'South East', 'H0')": 32.021568894680044,
+      "('Northern Ireland', 'South East', 'H1')": 94.97203043871184,
+      "('Northern Ireland', 'South West', 'H0')": 6.767628548403397,
+      "('Northern Ireland', 'South West', 'H1')": 91.87724581814437,
+      "('Northern Ireland', 'Wales', 'H0')": 6.610296084782812,
+      "('Northern Ireland', 'Wales', 'H1')": 91.97242910329061,
+      "('Northern Ireland', 'West Midlands', 'H0')": 29.88323732985461,
+      "('Northern Ireland', 'West Midlands', 'H1')": 107.82060062605807,
+      "('Northern Ireland', 'Yorkshire & Humber', 'H0')": 24.114416466374855,
+      "('Northern Ireland', 'Yorkshire & Humber', 'H1')": 99.94843557090053,
+      "('Scotland', 'South East', 'H0')": 23.244989179200513,
+      "('Scotland', 'South East', 'H1')": 96.63701884185365,
+      "('Scotland', 'South West', 'H0')": 8.577377901447885,
+      "('Scotland', 'South West', 'H1')": 87.11632252881985,
+      "('Scotland', 'Wales', 'H0')": 6.739085333132476,
+      "('Scotland', 'Wales', 'H1')": 90.94011886272202,
+      "('Scotland', 'West Midlands', 'H0')": 23.451185669616045,
+      "('Scotland', 'West Midlands', 'H1')": 109.68064462976906,
+      "('Scotland', 'Yorkshire & Humber', 'H0')": 16.82196828701763,
+      "('Scotland', 'Yorkshire & Humber', 'H1')": 97.90891798633136,
+      "('South East', 'South West', 'H0')": 30.84139682964177,
+      "('South East', 'South West', 'H1')": 98.78915372486748,
+      "('South East', 'Wales', 'H0')": 26.2611708072197,
+      "('South East', 'Wales', 'H1')": 97.65536630477023,
+      "('South East', 'West Midlands', 'H0')": 11.28428698763244,
+      "('South East', 'West Midlands', 'H1')": 109.96449164334994,
+      "('South East', 'Yorkshire & Humber', 'H0')": 10.435409113078126,
+      "('South East', 'Yorkshire & Humber', 'H1')": 104.89918279579638,
+      "('South West', 'Wales', 'H0')": 8.128016965178722,
+      "('South West', 'Wales', 'H1')": 96.67579094141979,
+      "('South West', 'West Midlands', 'H0')": 30.296967170016156,
+      "('South West', 'West Midlands', 'H1')": 111.04365007034572,
+      "('South West', 'Yorkshire & Humber', 'H0')": 24.29613605463228,
+      "('South West', 'Yorkshire & Humber', 'H1')": 102.90413099423624,
+      "('Wales', 'West Midlands', 'H0')": 23.985879868980355,
+      "('Wales', 'West Midlands', 'H1')": 112.15845194022953,
+      "('Wales', 'Yorkshire & Humber', 'H0')": 18.368194350684643,
+      "('Wales', 'Yorkshire & Humber', 'H1')": 100.97360670540101,
+      "('West Midlands', 'Yorkshire & Humber', 'H0')": 8.944071214744124,
+      "('West Midlands', 'Yorkshire & Humber', 'H1')": 110.52897900051752
+    },
+    "pairwise_p_values": {
+      "('East Midlands', 'East of England', 'H0')": {
+        "observed": 7.496147767273234,
+        "null_mean": 8.550393632771543,
+        "p_value": 0.66,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'East of England', 'H1')": {
+        "observed": 97.69701593463641,
+        "null_mean": 103.5477003104919,
+        "p_value": 0.92,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'London', 'H0')": {
+        "observed": 55.51505627754247,
+        "null_mean": 25.830031636170943,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East Midlands', 'London', 'H1')": {
+        "observed": 124.02556696328925,
+        "null_mean": 105.19710813245997,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East Midlands', 'North East', 'H0')": {
+        "observed": 39.74893742278032,
+        "null_mean": 37.92201186749952,
+        "p_value": 0.32,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'North East', 'H1')": {
+        "observed": 77.71888203276761,
+        "null_mean": 83.63185338862742,
+        "p_value": 0.96,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'North West', 'H0')": {
+        "observed": 23.386420336760665,
+        "null_mean": 18.672120560675985,
+        "p_value": 0.06,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'North West', 'H1')": {
+        "observed": 102.7172271269471,
+        "null_mean": 104.2056310279039,
+        "p_value": 0.56,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Northern Ireland', 'H0')": {
+        "observed": 9.169751070109939,
+        "null_mean": 9.75392599247668,
+        "p_value": 0.5,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Northern Ireland', 'H1')": {
+        "observed": 90.9881103744705,
+        "null_mean": 100.3878118414294,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Scotland', 'H0')": {
+        "observed": 6.806575725077907,
+        "null_mean": 14.131415454180587,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Scotland', 'H1')": {
+        "observed": 89.5018279558394,
+        "null_mean": 102.7554698158722,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'South East', 'H0')": {
+        "observed": 23.871525624145097,
+        "null_mean": 34.37243618678687,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'South East', 'H1')": {
+        "observed": 95.5411288998906,
+        "null_mean": 107.02021886637208,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'South West', 'H0')": {
+        "observed": 10.32793077337947,
+        "null_mean": 7.955382864482188,
+        "p_value": 0.14,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'South West', 'H1')": {
+        "observed": 94.87881184144193,
+        "null_mean": 102.56022335232038,
+        "p_value": 0.94,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Wales', 'H0')": {
+        "observed": 4.051909423094129,
+        "null_mean": 8.04316804054043,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Wales', 'H1')": {
+        "observed": 95.71918507374855,
+        "null_mean": 101.37408869118715,
+        "p_value": 0.94,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'West Midlands', 'H0')": {
+        "observed": 21.4379388129131,
+        "null_mean": 8.316239199688509,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East Midlands', 'West Midlands', 'H1')": {
+        "observed": 112.58303498283814,
+        "null_mean": 103.07349236255405,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East Midlands', 'Yorkshire & Humber', 'H0')": {
+        "observed": 15.83493285590667,
+        "null_mean": 10.97828127130393,
+        "p_value": 0.12,
+        "significant_at_005": false
+      },
+      "('East Midlands', 'Yorkshire & Humber', 'H1')": {
+        "observed": 100.34506429068075,
+        "null_mean": 103.32415796753101,
+        "p_value": 0.72,
+        "significant_at_005": false
+      },
+      "('East of England', 'London', 'H0')": {
+        "observed": 55.9816236441792,
+        "null_mean": 19.537762548222283,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East of England', 'London', 'H1')": {
+        "observed": 126.99990336998208,
+        "null_mean": 105.14964732228205,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East of England', 'North East', 'H0')": {
+        "observed": 40.35453044943052,
+        "null_mean": 43.99471812876765,
+        "p_value": 0.84,
+        "significant_at_005": false
+      },
+      "('East of England', 'North East', 'H1')": {
+        "observed": 72.69869406919504,
+        "null_mean": 83.34687601648974,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East of England', 'North West', 'H0')": {
+        "observed": 24.819069612181487,
+        "null_mean": 12.920207994873254,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East of England', 'North West', 'H1')": {
+        "observed": 106.79030268927232,
+        "null_mean": 104.43200764710048,
+        "p_value": 0.26,
+        "significant_at_005": false
+      },
+      "('East of England', 'Northern Ireland', 'H0')": {
+        "observed": 9.994957465372451,
+        "null_mean": 15.209683856661208,
+        "p_value": 0.96,
+        "significant_at_005": false
+      },
+      "('East of England', 'Northern Ireland', 'H1')": {
+        "observed": 95.51677909313815,
+        "null_mean": 100.81693698309827,
+        "p_value": 0.94,
+        "significant_at_005": false
+      },
+      "('East of England', 'Scotland', 'H0')": {
+        "observed": 4.078319365717857,
+        "null_mean": 8.932000508188716,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East of England', 'Scotland', 'H1')": {
+        "observed": 92.54455391079806,
+        "null_mean": 103.13428368035191,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('East of England', 'South East', 'H0')": {
+        "observed": 23.9519456463561,
+        "null_mean": 28.08755831607543,
+        "p_value": 0.92,
+        "significant_at_005": false
+      },
+      "('East of England', 'South East', 'H1')": {
+        "observed": 100.30041848249452,
+        "null_mean": 106.67252781628078,
+        "p_value": 0.92,
+        "significant_at_005": false
+      },
+      "('East of England', 'South West', 'H0')": {
+        "observed": 8.42526092932451,
+        "null_mean": 5.723226038343004,
+        "p_value": 0.1,
+        "significant_at_005": false
+      },
+      "('East of England', 'South West', 'H1')": {
+        "observed": 95.18651653197861,
+        "null_mean": 103.20276589120185,
+        "p_value": 0.98,
+        "significant_at_005": false
+      },
+      "('East of England', 'Wales', 'H0')": {
+        "observed": 6.744012018111793,
+        "null_mean": 13.080284742980496,
+        "p_value": 0.98,
+        "significant_at_005": false
+      },
+      "('East of England', 'Wales', 'H1')": {
+        "observed": 98.93323686918346,
+        "null_mean": 101.20155298020309,
+        "p_value": 0.66,
+        "significant_at_005": false
+      },
+      "('East of England', 'West Midlands', 'H0')": {
+        "observed": 23.602999832610323,
+        "null_mean": 6.659746881136957,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East of England', 'West Midlands', 'H1')": {
+        "observed": 110.3665862016714,
+        "null_mean": 103.71437168313818,
+        "p_value": 0.06,
+        "significant_at_005": false
+      },
+      "('East of England', 'Yorkshire & Humber', 'H0')": {
+        "observed": 17.66490331633327,
+        "null_mean": 6.9580205062907945,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('East of England', 'Yorkshire & Humber', 'H1')": {
+        "observed": 102.70585723394078,
+        "null_mean": 104.44238213844919,
+        "p_value": 0.66,
+        "significant_at_005": false
+      },
+      "('London', 'North East', 'H0')": {
+        "observed": 94.92037208309634,
+        "null_mean": 62.10421489334979,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'North East', 'H1')": {
+        "observed": 108.70240353837967,
+        "null_mean": 88.20440242799168,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'North West', 'H0')": {
+        "observed": 32.48524025689822,
+        "null_mean": 9.623352948057658,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'North West', 'H1')": {
+        "observed": 126.66129032115059,
+        "null_mean": 106.39926881703389,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Northern Ireland', 'H0')": {
+        "observed": 63.70165638984419,
+        "null_mean": 33.40977636167654,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Northern Ireland', 'H1')": {
+        "observed": 127.67128592907467,
+        "null_mean": 104.08697478353577,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Scotland', 'H0')": {
+        "observed": 55.23437679307798,
+        "null_mean": 13.47686066749526,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Scotland', 'H1')": {
+        "observed": 128.18245282382705,
+        "null_mean": 104.75358591210787,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'South East', 'H0')": {
+        "observed": 32.99027958813907,
+        "null_mean": 10.954565612409429,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'South East', 'H1')": {
+        "observed": 124.19662347446658,
+        "null_mean": 107.39024767294826,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'South West', 'H0')": {
+        "observed": 63.19459787567588,
+        "null_mean": 20.481736516253147,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'South West', 'H1')": {
+        "observed": 136.6152918010278,
+        "null_mean": 104.90808869809749,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Wales', 'H0')": {
+        "observed": 57.95249073561444,
+        "null_mean": 31.188453475793136,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Wales', 'H1')": {
+        "observed": 123.26029639721675,
+        "null_mean": 104.04120042423776,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'West Midlands', 'H0')": {
+        "observed": 36.618475990204274,
+        "null_mean": 20.545070543001028,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'West Midlands', 'H1')": {
+        "observed": 128.22782186618065,
+        "null_mean": 104.52267885740903,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Yorkshire & Humber', 'H0')": {
+        "observed": 40.367718014778255,
+        "null_mean": 17.200410452923695,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('London', 'Yorkshire & Humber', 'H1')": {
+        "observed": 127.70068842968956,
+        "null_mean": 105.70784960029336,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('North East', 'North West', 'H0')": {
+        "observed": 62.68742046543393,
+        "null_mean": 55.144369954577606,
+        "p_value": 0.02,
+        "significant_at_005": true
+      },
+      "('North East', 'North West', 'H1')": {
+        "observed": 84.82351369619441,
+        "null_mean": 86.38330923468915,
+        "p_value": 0.56,
+        "significant_at_005": false
+      },
+      "('North East', 'Northern Ireland', 'H0')": {
+        "observed": 31.839925648327803,
+        "null_mean": 30.591792632942212,
+        "p_value": 0.38,
+        "significant_at_005": false
+      },
+      "('North East', 'Northern Ireland', 'H1')": {
+        "observed": 74.47127248858045,
+        "null_mean": 81.47723480115982,
+        "p_value": 0.92,
+        "significant_at_005": false
+      },
+      "('North East', 'Scotland', 'H0')": {
+        "observed": 41.09637318104882,
+        "null_mean": 50.51695960019003,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('North East', 'Scotland', 'H1')": {
+        "observed": 70.74163333013864,
+        "null_mean": 83.45090876433542,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('North East', 'South East', 'H0')": {
+        "observed": 62.98749157721821,
+        "null_mean": 70.58474708178949,
+        "p_value": 0.94,
+        "significant_at_005": false
+      },
+      "('North East', 'South East', 'H1')": {
+        "observed": 79.01391739814576,
+        "null_mean": 90.22175827059469,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('North East', 'South West', 'H0')": {
+        "observed": 33.5370719380895,
+        "null_mean": 43.16247761670134,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('North East', 'South West', 'H1')": {
+        "observed": 73.6382956927813,
+        "null_mean": 82.49068780443258,
+        "p_value": 0.96,
+        "significant_at_005": false
+      },
+      "('North East', 'Wales', 'H0')": {
+        "observed": 37.349076517197396,
+        "null_mean": 32.59947455441348,
+        "p_value": 0.06,
+        "significant_at_005": false
+      },
+      "('North East', 'Wales', 'H1')": {
+        "observed": 75.32088662105599,
+        "null_mean": 82.31352123479734,
+        "p_value": 0.96,
+        "significant_at_005": false
+      },
+      "('North East', 'West Midlands', 'H0')": {
+        "observed": 59.506384132292276,
+        "null_mean": 43.11816844964996,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('North East', 'West Midlands', 'H1')": {
+        "observed": 94.56117352710673,
+        "null_mean": 83.51351274767764,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('North East', 'Yorkshire & Humber', 'H0')": {
+        "observed": 54.91925163982179,
+        "null_mean": 46.77383525080304,
+        "p_value": 0.04,
+        "significant_at_005": true
+      },
+      "('North East', 'Yorkshire & Humber', 'H1')": {
+        "observed": 85.41285942856551,
+        "null_mean": 83.7010412278839,
+        "p_value": 0.32,
+        "significant_at_005": false
+      },
+      "('North West', 'Northern Ireland', 'H0')": {
+        "observed": 31.832944169175992,
+        "null_mean": 26.24114009027892,
+        "p_value": 0.06,
+        "significant_at_005": false
+      },
+      "('North West', 'Northern Ireland', 'H1')": {
+        "observed": 104.99663632479958,
+        "null_mean": 101.76612136902598,
+        "p_value": 0.22,
+        "significant_at_005": false
+      },
+      "('North West', 'Scotland', 'H0')": {
+        "observed": 24.032764604517244,
+        "null_mean": 7.973995980587943,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('North West', 'Scotland', 'H1')": {
+        "observed": 104.54190421874786,
+        "null_mean": 104.47511382048168,
+        "p_value": 0.5,
+        "significant_at_005": false
+      },
+      "('North West', 'South East', 'H0')": {
+        "observed": 6.577682810290342,
+        "null_mean": 17.22407108680435,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('North West', 'South East', 'H1')": {
+        "observed": 105.14692124154544,
+        "null_mean": 107.1504744238452,
+        "p_value": 0.74,
+        "significant_at_005": false
+      },
+      "('North West', 'South West', 'H0')": {
+        "observed": 31.698963965931977,
+        "null_mean": 13.640064036175177,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('North West', 'South West', 'H1')": {
+        "observed": 103.22628208685603,
+        "null_mean": 104.4852245631309,
+        "p_value": 0.62,
+        "significant_at_005": false
+      },
+      "('North West', 'Wales', 'H0')": {
+        "observed": 25.94219630057962,
+        "null_mean": 24.048879778054587,
+        "p_value": 0.32,
+        "significant_at_005": false
+      },
+      "('North West', 'Wales', 'H1')": {
+        "observed": 106.19997340609636,
+        "null_mean": 102.85415507540868,
+        "p_value": 0.18,
+        "significant_at_005": false
+      },
+      "('North West', 'West Midlands', 'H0')": {
+        "observed": 7.361203479193527,
+        "null_mean": 13.752680411375108,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('North West', 'West Midlands', 'H1')": {
+        "observed": 109.79018933198913,
+        "null_mean": 104.21299189446195,
+        "p_value": 0.06,
+        "significant_at_005": false
+      },
+      "('North West', 'Yorkshire & Humber', 'H0')": {
+        "observed": 8.389664535489088,
+        "null_mean": 10.794799479504135,
+        "p_value": 0.76,
+        "significant_at_005": false
+      },
+      "('North West', 'Yorkshire & Humber', 'H1')": {
+        "observed": 106.444670535694,
+        "null_mean": 104.85310655061568,
+        "p_value": 0.34,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'Scotland', 'H0')": {
+        "observed": 10.320905866220489,
+        "null_mean": 21.63730566621194,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'Scotland', 'H1')": {
+        "observed": 84.23624918357667,
+        "null_mean": 100.06285370533513,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'South East', 'H0')": {
+        "observed": 32.021568894680044,
+        "null_mean": 42.018556434359986,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'South East', 'H1')": {
+        "observed": 94.97203043871184,
+        "null_mean": 106.19996228641196,
+        "p_value": 0.98,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'South West', 'H0')": {
+        "observed": 6.767628548403397,
+        "null_mean": 14.481941531831453,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'South West', 'H1')": {
+        "observed": 91.87724581814437,
+        "null_mean": 100.28478816984625,
+        "p_value": 0.94,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'Wales', 'H0')": {
+        "observed": 6.610296084782812,
+        "null_mean": 7.38402272999576,
+        "p_value": 0.5,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'Wales', 'H1')": {
+        "observed": 91.97242910329061,
+        "null_mean": 100.00910813698445,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'West Midlands', 'H0')": {
+        "observed": 29.88323732985461,
+        "null_mean": 14.402002885217648,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('Northern Ireland', 'West Midlands', 'H1')": {
+        "observed": 107.82060062605807,
+        "null_mean": 100.39851322935857,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('Northern Ireland', 'Yorkshire & Humber', 'H0')": {
+        "observed": 24.114416466374855,
+        "null_mean": 18.02463019868554,
+        "p_value": 0.1,
+        "significant_at_005": false
+      },
+      "('Northern Ireland', 'Yorkshire & Humber', 'H1')": {
+        "observed": 99.94843557090053,
+        "null_mean": 100.62747973883076,
+        "p_value": 0.54,
+        "significant_at_005": false
+      },
+      "('Scotland', 'South East', 'H0')": {
+        "observed": 23.244989179200513,
+        "null_mean": 21.567924363943654,
+        "p_value": 0.34,
+        "significant_at_005": false
+      },
+      "('Scotland', 'South East', 'H1')": {
+        "observed": 96.63701884185365,
+        "null_mean": 105.91327922332025,
+        "p_value": 0.98,
+        "significant_at_005": false
+      },
+      "('Scotland', 'South West', 'H0')": {
+        "observed": 8.577377901447885,
+        "null_mean": 9.43774266222848,
+        "p_value": 0.52,
+        "significant_at_005": false
+      },
+      "('Scotland', 'South West', 'H1')": {
+        "observed": 87.11632252881985,
+        "null_mean": 102.77228854504237,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Scotland', 'Wales', 'H0')": {
+        "observed": 6.739085333132476,
+        "null_mean": 19.305699493640194,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Scotland', 'Wales', 'H1')": {
+        "observed": 90.94011886272202,
+        "null_mean": 100.55916490655602,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('Scotland', 'West Midlands', 'H0')": {
+        "observed": 23.451185669616045,
+        "null_mean": 9.848311031091825,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('Scotland', 'West Midlands', 'H1')": {
+        "observed": 109.68064462976906,
+        "null_mean": 102.96210028031034,
+        "p_value": 0.08,
+        "significant_at_005": false
+      },
+      "('Scotland', 'Yorkshire & Humber', 'H0')": {
+        "observed": 16.82196828701763,
+        "null_mean": 7.740913994443918,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('Scotland', 'Yorkshire & Humber', 'H1')": {
+        "observed": 97.90891798633136,
+        "null_mean": 103.38463863496419,
+        "p_value": 0.88,
+        "significant_at_005": false
+      },
+      "('South East', 'South West', 'H0')": {
+        "observed": 30.84139682964177,
+        "null_mean": 29.023045121714354,
+        "p_value": 0.32,
+        "significant_at_005": false
+      },
+      "('South East', 'South West', 'H1')": {
+        "observed": 98.78915372486748,
+        "null_mean": 105.59309466321845,
+        "p_value": 0.88,
+        "significant_at_005": false
+      },
+      "('South East', 'Wales', 'H0')": {
+        "observed": 26.2611708072197,
+        "null_mean": 39.78937672954503,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('South East', 'Wales', 'H1')": {
+        "observed": 97.65536630477023,
+        "null_mean": 105.87965939932687,
+        "p_value": 0.98,
+        "significant_at_005": false
+      },
+      "('South East', 'West Midlands', 'H0')": {
+        "observed": 11.28428698763244,
+        "null_mean": 29.136914041467495,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('South East', 'West Midlands', 'H1')": {
+        "observed": 109.96449164334994,
+        "null_mean": 106.67869082855735,
+        "p_value": 0.22,
+        "significant_at_005": false
+      },
+      "('South East', 'Yorkshire & Humber', 'H0')": {
+        "observed": 10.435409113078126,
+        "null_mean": 25.47398140028987,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "('South East', 'Yorkshire & Humber', 'H1')": {
+        "observed": 104.89918279579638,
+        "null_mean": 106.39904804183186,
+        "p_value": 0.68,
+        "significant_at_005": false
+      },
+      "('South West', 'Wales', 'H0')": {
+        "observed": 8.128016965178722,
+        "null_mean": 12.312417591040537,
+        "p_value": 0.92,
+        "significant_at_005": false
+      },
+      "('South West', 'Wales', 'H1')": {
+        "observed": 96.67579094141979,
+        "null_mean": 100.34937018187229,
+        "p_value": 0.8,
+        "significant_at_005": false
+      },
+      "('South West', 'West Midlands', 'H0')": {
+        "observed": 30.296967170016156,
+        "null_mean": 6.1942701561905595,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('South West', 'West Midlands', 'H1')": {
+        "observed": 111.04365007034572,
+        "null_mean": 102.8213781827394,
+        "p_value": 0.02,
+        "significant_at_005": true
+      },
+      "('South West', 'Yorkshire & Humber', 'H0')": {
+        "observed": 24.29613605463228,
+        "null_mean": 7.456088481698453,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('South West', 'Yorkshire & Humber', 'H1')": {
+        "observed": 102.90413099423624,
+        "null_mean": 103.22589673041394,
+        "p_value": 0.56,
+        "significant_at_005": false
+      },
+      "('Wales', 'West Midlands', 'H0')": {
+        "observed": 23.985879868980355,
+        "null_mean": 12.331133881003684,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('Wales', 'West Midlands', 'H1')": {
+        "observed": 112.15845194022953,
+        "null_mean": 101.33054264781315,
+        "p_value": 0.0,
+        "significant_at_005": true
+      },
+      "('Wales', 'Yorkshire & Humber', 'H0')": {
+        "observed": 18.368194350684643,
+        "null_mean": 15.74760998508993,
+        "p_value": 0.22,
+        "significant_at_005": false
+      },
+      "('Wales', 'Yorkshire & Humber', 'H1')": {
+        "observed": 100.97360670540101,
+        "null_mean": 101.17857047323564,
+        "p_value": 0.58,
+        "significant_at_005": false
+      },
+      "('West Midlands', 'Yorkshire & Humber', 'H0')": {
+        "observed": 8.944071214744124,
+        "null_mean": 7.225848022564219,
+        "p_value": 0.22,
+        "significant_at_005": false
+      },
+      "('West Midlands', 'Yorkshire & Humber', 'H1')": {
+        "observed": 110.52897900051752,
+        "null_mean": 103.75881820684454,
+        "p_value": 0.1,
+        "significant_at_005": false
+      }
+    },
+    "landscape_stats": {
+      "('East Midlands', 'H0')": {
+        "l1_integral": 303.1342626822115,
+        "l1_max": 6.062685253644231
+      },
+      "('East Midlands', 'H1')": {
+        "l1_integral": 47.53800573493495,
+        "l1_max": 1.0233585280601432
+      },
+      "('East of England', 'H0')": {
+        "l1_integral": 290.5645895485926,
+        "l1_max": 5.811291790971852
+      },
+      "('East of England', 'H1')": {
+        "l1_integral": 46.9333613773789,
+        "l1_max": 0.9952171788071134
+      },
+      "('London', 'H0')": {
+        "l1_integral": 379.877216165716,
+        "l1_max": 7.59754432331432
+      },
+      "('London', 'H1')": {
+        "l1_integral": 57.33005566548819,
+        "l1_max": 1.2680000536369551
+      },
+      "('North East', 'H0')": {
+        "l1_integral": 260.8961582183838,
+        "l1_max": 5.217923164367676
+      },
+      "('North East', 'H1')": {
+        "l1_integral": 35.59237965550084,
+        "l1_max": 0.661652226941754
+      },
+      "('North West', 'H0')": {
+        "l1_integral": 334.0079278656931,
+        "l1_max": 6.680158557313861
+      },
+      "('North West', 'H1')": {
+        "l1_integral": 51.931458090290874,
+        "l1_max": 0.9588758150736485
+      },
+      "('Northern Ireland', 'H0')": {
+        "l1_integral": 303.44251574891985,
+        "l1_max": 6.068850314978397
+      },
+      "('Northern Ireland', 'H1')": {
+        "l1_integral": 48.97414327992334,
+        "l1_max": 1.3693034516440497
+      },
+      "('Scotland', 'H0')": {
+        "l1_integral": 297.61539757853797,
+        "l1_max": 5.952307951570762
+      },
+      "('Scotland', 'H1')": {
+        "l1_integral": 55.058784192258656,
+        "l1_max": 0.9548653147437349
+      },
+      "('South East', 'H0')": {
+        "l1_integral": 321.7252196687641,
+        "l1_max": 6.434504393375281
+      },
+      "('South East', 'H1')": {
+        "l1_integral": 46.92426517274644,
+        "l1_max": 0.9216009414557256
+      },
+      "('South West', 'H0')": {
+        "l1_integral": 276.014317888202,
+        "l1_max": 5.520286357764042
+      },
+      "('South West', 'H1')": {
+        "l1_integral": 39.18348076247206,
+        "l1_max": 0.8395487334993152
+      },
+      "('Wales', 'H0')": {
+        "l1_integral": 295.185081404869,
+        "l1_max": 5.90370162809738
+      },
+      "('Wales', 'H1')": {
+        "l1_integral": 48.43942650520439,
+        "l1_max": 1.019405133796461
+      },
+      "('West Midlands', 'H0')": {
+        "l1_integral": 328.6755581094761,
+        "l1_max": 6.573511162189523
+      },
+      "('West Midlands', 'H1')": {
+        "l1_integral": 52.878632865770896,
+        "l1_max": 1.1246613312249245
+      },
+      "('Yorkshire & Humber', 'H0')": {
+        "l1_integral": 312.14372028004044,
+        "l1_max": 6.2428744056008085
+      },
+      "('Yorkshire & Humber', 'H1')": {
+        "l1_integral": 50.08030836871177,
+        "l1_max": 1.1329247120654955
+      }
+    },
+    "n_groups": 12,
+    "group_sizes": {
+      "East Midlands": 2024,
+      "East of England": 2237,
+      "London": 2967,
+      "North East": 1099,
+      "North West": 2650,
+      "Northern Ireland": 1798,
+      "Scotland": 2449,
+      "South East": 3434,
+      "South West": 2215,
+      "Wales": 1865,
+      "West Midlands": 2205,
+      "Yorkshire & Humber": 2337
+    },
+    "settings": {
+      "gor_landmarks": 1000,
+      "n_perms": 50,
+      "method": "global_shuffle"
+    }
   }
 }

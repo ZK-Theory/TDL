@@ -287,3 +287,60 @@ def build_trajectories_from_raw(
         max_gap=max_gap,
         income_threshold=income_threshold,
     )
+
+
+def build_windows(
+    trajectories: list[list[str]],
+    metadata: pd.DataFrame,
+    window_years: int = 10,
+    window_step: int = 5,
+    min_valid: int = 5,
+) -> list[dict]:
+    """Slide overlapping windows over each trajectory to produce sub-sequences.
+
+    Args:
+        trajectories: List of state sequences (aligned with metadata rows).
+        metadata: DataFrame with columns [pidp, n_years, start_year, ...].
+        window_years: Width of each window in years/states.
+        window_step: Step size between consecutive windows.
+        min_valid: Minimum window length to keep (handles trajectories
+                   shorter than window_years at the tail).
+
+    Returns:
+        List of window records, each a dict with keys:
+            pidp, window_id, traj_idx, start_year, end_year, states
+    """
+    windows: list[dict] = []
+    window_id = 0
+
+    for idx, traj in enumerate(trajectories):
+        row = metadata.iloc[idx]
+        pidp = row["pidp"]
+        start_year = int(row["start_year"])
+        n = len(traj)
+
+        pos = 0
+        while pos < n:
+            end_pos = min(pos + window_years, n)
+            length = end_pos - pos
+            if length < min_valid:
+                break
+
+            windows.append(
+                {
+                    "pidp": pidp,
+                    "window_id": window_id,
+                    "traj_idx": idx,
+                    "start_year": start_year + pos,
+                    "end_year": start_year + end_pos - 1,
+                    "states": traj[pos:end_pos],
+                }
+            )
+            window_id += 1
+            pos += window_step
+
+    logger.info(
+        f"Built {len(windows)} windows from {len(trajectories)} trajectories "
+        f"(window={window_years}yr, step={window_step}yr, min_valid={min_valid})"
+    )
+    return windows

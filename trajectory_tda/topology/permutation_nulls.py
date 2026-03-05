@@ -223,6 +223,113 @@ def _markov_shuffle(
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Phase-order shuffle (for Phase 6 career-phase analysis)
+# ─────────────────────────────────────────────────────────────────────
+
+
+def phase_order_shuffle_test(
+    window_embeddings: np.ndarray,
+    windows: list[dict],
+    n_permutations: int = 200,
+    max_dim: int = 1,
+    n_landmarks: int = 3000,
+    statistic: str = "total_persistence",
+    n_jobs: int = -1,
+    seed: int = 42,
+) -> dict:
+    """Permutation test shuffling temporal order of windows within individuals.
+
+    For each permutation, randomly reorder the windows belonging to each
+    individual while preserving the overall set of embeddings. Then
+    re-assemble the embedding array and compute PH.
+
+    This tests whether the temporal ordering of career phases carries
+    topological signal beyond the marginal distribution of phase embeddings.
+
+    Args:
+        window_embeddings: (N_windows, K) point cloud.
+        windows: Window records with 'pidp' and 'traj_idx' fields.
+        n_permutations: Number of permutations (default: 200).
+        max_dim: Maximum homology dimension.
+        n_landmarks: Landmarks for PH subsampling.
+        statistic: 'total_persistence' or 'max_persistence'.
+        n_jobs: Parallelism (-1 = all cores).
+        seed: Random seed.
+
+    Returns:
+        Dict with observed stats, null distributions, and p-values.
+    """
+    from collections import defaultdict
+
+    # Build pidp → list of indices mapping
+    pidp_to_indices: dict = defaultdict(list)
+    for i, w in enumerate(windows):
+        pidp_to_indices[w["pidp"]].append(i)
+
+    # Observed PH
+    n = window_embeddings.shape[0]
+    actual_lm = min(n_landmarks, n)
+    if actual_lm < n:
+        _, landmarks = maxmin_landmarks(window_embeddings, actual_lm, seed=seed)
+    else:
+        landmarks = window_embeddings
+    ph_obs = compute_rips_ph(landmarks, max_dim=max_dim)
+    obs_summary = persistence_summary(ph_obs)
+    observed = {}
+    for dim in range(max_dim + 1):
+        key = f"H{dim}"
+        observed[key] = obs_summary.get(key, {}).get(statistic, 0.0)
+
+    logger.info(f"Phase-order shuffle: observed {observed}")
+
+    # Single permutation function
+    def _run_one(perm_seed: int) -> dict[str, float]:
+        rng = np.random.RandomState(perm_seed)
+        perm_embeddings = window_embeddings.copy()
+
+        # Shuffle indices within each individual
+        for indices in pidp_to_indices.values():
+            if len(indices) > 1:
+                shuffled = rng.permutation(indices)
+                perm_embeddings[indices] = window_embeddings[shuffled]
+
+        lm_count = min(n_landmarks, perm_embeddings.shape[0])
+        if lm_count < perm_embeddings.shape[0]:
+            _, lm = maxmin_landmarks(perm_embeddings, lm_count, seed=perm_seed)
+        else:
+            lm = perm_embeddings
+
+        ph = compute_rips_ph(lm, max_dim=max_dim)
+        s = persistence_summary(ph)
+        return {f"H{d}": s.get(f"H{d}", {}).get(statistic, 0.0) for d in range(max_dim + 1)}
+
+    # Run permutations
+    seeds = [seed + i + 1 for i in range(n_permutations)]
+    null_stats = Parallel(n_jobs=n_jobs, verbose=0)(delayed(_run_one)(s) for s in seeds)
+
+    # Assemble results
+    null_distributions: dict[str, list[float]] = {f"H{d}": [] for d in range(max_dim + 1)}
+    for ns in null_stats:
+        for key, val in ns.items():
+            null_distributions[key].append(val)
+
+    p_values = {}
+    for key in observed:
+        null_arr = np.array(null_distributions[key])
+        # One-sided p-value: fraction of nulls >= observed
+        p_values[key] = float(np.mean(null_arr >= observed[key]))
+
+    logger.info(f"Phase-order shuffle p-values: {p_values}")
+
+    return {
+        "observed": observed,
+        "null_distributions": {k: v for k, v in null_distributions.items()},
+        "p_values": p_values,
+        "n_permutations": n_permutations,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Core permutation test
 # ─────────────────────────────────────────────────────────────────────
 

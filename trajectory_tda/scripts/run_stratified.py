@@ -24,7 +24,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-VALID_STRATS = ("gender", "cohort", "nssec", "all")
+VALID_STRATS = ("gender", "cohort", "nssec", "gor", "all")
 
 
 def _save_json(data: dict, path: Path) -> None:
@@ -260,10 +260,181 @@ def run_nssec(args: argparse.Namespace) -> dict:
 # Orchestrator (runs selected or all)
 # ─────────────────────────────────────────────────────────────
 
+
+def run_gor(args: argparse.Namespace) -> dict:
+    """Run Government Office Region stratification (12 regions).
+
+    Uses a global-shuffle approach for efficiency: instead of running
+    independent permutation tests for each of 66 pairs (which requires
+    ~26,400 PH computations at 100 perms), we shuffle region labels once
+    per permutation and recompute all 12 group PH diagrams, yielding all
+    66 pairwise Wasserstein distances in one pass. This reduces the cost
+    from O(n_pairs * n_perms * 2) to O(n_groups * n_perms) PH computations.
+    """
+    from itertools import combinations
+
+    from poverty_tda.topology.multidim_ph import persistence_summary
+    from trajectory_tda.analysis.group_comparison import _compute_stratum_ph
+    from trajectory_tda.data.covariate_extractor import extract_gor
+    from trajectory_tda.topology.vectorisation import (
+        persistence_landscape,
+        wasserstein_distance,
+    )
+
+    t0 = time.time()
+    embeddings, pidp_array, _, n = _load_shared_data(args)
+    output_dir = Path(args.results_dir)
+    all_results = _load_results(output_dir)
+
+    gor_df = extract_gor(data_dir=args.data_dir, pidps=pidp_array)
+    gor_lookup = gor_df.set_index("pidp")["gor_label"]
+
+    gor_labels = np.array(
+        [gor_lookup.get(p) for p in pidp_array],
+        dtype=object,
+    )
+
+    valid_gor = np.array([x is not None for x in gor_labels])
+    gor_valid = int(valid_gor.sum())
+    logger.info(f"GOR coverage: {gor_valid}/{n}")
+
+    if gor_valid <= 100:
+        logger.warning(f"Insufficient GOR coverage ({gor_valid}) — skipping")
+        return all_results
+
+    # Filter to regions with >= 200 trajectories
+    unique_regions = np.unique(gor_labels[valid_gor])
+    region_counts = {r: int(np.sum(gor_labels == r)) for r in unique_regions}
+    logger.info(f"GOR region counts: {region_counts}")
+
+    keep_regions = {r for r, c in region_counts.items() if c >= 200}
+    if len(keep_regions) < 2:
+        logger.warning(f"Only {len(keep_regions)} regions with >=200 trajectories")
+        return all_results
+
+    logger.info("=" * 60)
+    logger.info(f"Stratification: GOR ({len(keep_regions)} regions)")
+    logger.info("=" * 60)
+
+    region_mask = np.array([g in keep_regions for g in gor_labels])
+    combined_mask = valid_gor & region_mask
+    emb_valid = embeddings[combined_mask]
+    labels_valid = gor_labels[combined_mask]
+    valid_groups = sorted(set(labels_valid))
+    n_valid = len(emb_valid)
+
+    # Cap landmarks at 1000 for GOR (12 groups × 66 pairs makes 2000 infeasible;
+    # benchmarking shows L=1000 captures 78% of H1 features vs L=2000)
+    gor_landmarks = min(args.landmarks, 1000)
+    n_perms = min(args.n_perms, 50)
+    logger.info(
+        f"GOR: {n_valid} trajectories, {len(valid_groups)} groups, " f"landmarks={gor_landmarks}, n_perms={n_perms}"
+    )
+
+    # ─── Step 1: Observed PH per group ───
+    group_ph = {}
+    group_summaries = {}
+    group_indices = {}
+    for g in valid_groups:
+        mask = labels_valid == g
+        g_emb = emb_valid[mask]
+        group_indices[g] = np.where(mask)[0]
+        ph = _compute_stratum_ph(g_emb, max_dim=1, n_landmarks=gor_landmarks)
+        group_ph[g] = ph
+        s = persistence_summary(ph)
+        group_summaries[g] = {k: {kk: vv for kk, vv in v.items() if kk != "features"} for k, v in s.items()}
+        logger.info(
+            f"  Group '{g}': n={len(g_emb)}, "
+            f"H0={s.get('H0', {}).get('n_finite', 0)}, "
+            f"H1={s.get('H1', {}).get('n_finite', 0)}"
+        )
+
+    # ─── Step 2: Observed pairwise Wasserstein ───
+    pairwise_wass = {}
+    for g1, g2 in combinations(valid_groups, 2):
+        for dim in range(2):
+            key = f"H{dim}"
+            dist = wasserstein_distance(group_ph[g1], group_ph[g2], dim=dim)
+            pairwise_wass[(str(g1), str(g2), key)] = float(dist)
+        logger.info(
+            f"  W({g1}, {g2}): "
+            f"H0={pairwise_wass[(str(g1), str(g2), 'H0')]:.4f}, "
+            f"H1={pairwise_wass[(str(g1), str(g2), 'H1')]:.4f}"
+        )
+
+    # ─── Step 3: Global permutation test ───
+    # Shuffle region labels, recompute all group PH, then all pair distances
+    # This is O(n_groups * n_perms) PH computations instead of
+    # O(n_pairs * n_perms * 2)
+    null_wass = {k: [] for k in pairwise_wass}
+    rng = np.random.RandomState(42)
+
+    for perm_i in range(n_perms):
+        perm_labels = rng.permutation(labels_valid)
+        perm_ph = {}
+        for g in valid_groups:
+            mask = perm_labels == g
+            perm_ph[g] = _compute_stratum_ph(emb_valid[mask], max_dim=1, n_landmarks=gor_landmarks)
+
+        for g1, g2 in combinations(valid_groups, 2):
+            for dim in range(2):
+                key = f"H{dim}"
+                d = wasserstein_distance(perm_ph[g1], perm_ph[g2], dim=dim)
+                null_wass[(str(g1), str(g2), key)].append(float(d))
+
+        logger.info(f"  Permutation {perm_i + 1}/{n_perms} complete")
+
+    # ─── Step 4: Compute p-values ───
+    pairwise_pvals = {}
+    for k, obs in pairwise_wass.items():
+        null_arr = np.array(null_wass[k])
+        p_val = float(np.mean(null_arr >= obs))
+        pairwise_pvals[k] = {
+            "observed": obs,
+            "null_mean": float(null_arr.mean()),
+            "p_value": p_val,
+            "significant_at_005": p_val < 0.05,
+        }
+    for (g1, g2, key), res in pairwise_pvals.items():
+        logger.info(f"  Perm test ({g1} vs {g2}) {key}: p={res['p_value']:.4f}")
+
+    # ─── Step 5: Landscape statistics ───
+    landscape_stats = {}
+    for g in valid_groups:
+        for dim in range(2):
+            _, landscapes = persistence_landscape(group_ph[g], dim=dim, k_max=3, n_points=100)
+            l1_integral = float(np.trapz(landscapes[0]))
+            landscape_stats[(str(g), f"H{dim}")] = {
+                "l1_integral": l1_integral,
+                "l1_max": float(landscapes[0].max()),
+            }
+
+    gor_results = {
+        "per_group": group_summaries,
+        "pairwise_wasserstein": pairwise_wass,
+        "pairwise_p_values": pairwise_pvals,
+        "landscape_stats": landscape_stats,
+        "n_groups": len(valid_groups),
+        "group_sizes": {str(g): len(idx) for g, idx in group_indices.items()},
+        "settings": {
+            "gor_landmarks": gor_landmarks,
+            "n_perms": n_perms,
+            "method": "global_shuffle",
+        },
+    }
+    all_results["gor"] = gor_results
+
+    elapsed = time.time() - t0
+    logger.info(f"GOR analysis complete in {elapsed:.1f}s")
+    _save_json(all_results, output_dir / "06_stratified.json")
+    return all_results
+
+
 STRAT_RUNNERS = {
     "gender": run_gender,
     "cohort": run_cohort,
     "nssec": run_nssec,
+    "gor": run_gor,
 }
 
 
@@ -282,7 +453,7 @@ def run_stratified(args: argparse.Namespace) -> dict:
     all_results = _load_results(output_dir)
     logger.info("=" * 60)
     logger.info("Summary of all stratified results:")
-    for strat_name in ["gender", "cohort", "parental_nssec"]:
+    for strat_name in ["gender", "cohort", "parental_nssec", "gor"]:
         if strat_name in all_results:
             r = all_results[strat_name]
             n_sig = sum(

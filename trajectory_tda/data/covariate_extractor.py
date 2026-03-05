@@ -228,3 +228,158 @@ def _load_usoc_later_waves(usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
         return result
 
     return pd.DataFrame(columns=["pidp", "sex", "birth_year", "parental_nssec8"])
+
+
+# ─── GOR (Government Office Region) extraction ───
+
+GOR_LABELS = {
+    1: "North East",
+    2: "North West",
+    3: "Yorkshire & Humber",
+    4: "East Midlands",
+    5: "West Midlands",
+    6: "East of England",
+    7: "London",
+    8: "South East",
+    9: "South West",
+    10: "Wales",
+    11: "Scotland",
+    12: "Northern Ireland",
+}
+
+# BHPS 18-region → USoc 12-region GOR mapping
+_BHPS_REGION_TO_GOR = {
+    1: 7,  # Inner London → London
+    2: 7,  # Outer London → London
+    3: 8,  # Rest of South East → South East
+    4: 9,  # South West → South West
+    5: 6,  # East Anglia → East of England
+    6: 4,  # East Midlands → East Midlands
+    7: 5,  # West Midlands Conurbation → West Midlands
+    8: 5,  # Rest of West Midlands → West Midlands
+    9: 2,  # Greater Manchester → North West
+    10: 2,  # Merseyside → North West
+    11: 2,  # Rest of North West → North West
+    12: 3,  # South Yorkshire → Yorkshire & Humber
+    13: 3,  # West Yorkshire → Yorkshire & Humber
+    14: 3,  # Rest of Yorkshire & Humber → Yorkshire & Humber
+    15: 1,  # Tyne & Wear → North East
+    16: 1,  # Rest of North → North East
+    17: 10,  # Wales → Wales
+    18: 11,  # Scotland → Scotland
+}
+
+
+def extract_gor(
+    data_dir: str | Path,
+    pidps: np.ndarray | list[int],
+    bhps_subdir: str = "UKDA-5151-tab",
+    usoc_subdir: str = "UKDA-6614-tab",
+) -> pd.DataFrame:
+    """Extract Government Office Region for trajectory respondents.
+
+    Reads GOR from USoc wave a (primary), falls back to BHPS wave 1
+    via the xwavedat cross-walk, then tries later USoc waves.
+
+    Returns:
+        DataFrame with columns: pidp, gor_code (int 1-12), gor_label (str)
+    """
+    data_dir = Path(data_dir)
+    pidp_set = set(int(p) for p in pidps)
+    matched = pd.DataFrame(columns=["pidp", "gor_code"])
+
+    # ─── USoc wave a (primary) ───
+    usoc_dir = data_dir / usoc_subdir
+    usoc_a = _load_usoc_gor(usoc_dir, "a", pidp_set)
+    if len(usoc_a) > 0:
+        matched = pd.concat([matched, usoc_a], ignore_index=True)
+        logger.info(f"USoc wave a GOR: matched {len(usoc_a)} of {len(pidp_set)}")
+
+    # ─── BHPS wave 1 fallback via cross-walk ───
+    remaining = pidp_set - set(matched["pidp"])
+    if remaining:
+        bhps_gor = _load_bhps_gor(data_dir / bhps_subdir, usoc_dir, remaining)
+        if len(bhps_gor) > 0:
+            matched = pd.concat([matched, bhps_gor], ignore_index=True)
+            logger.info(f"BHPS wave 1 GOR fallback: matched {len(bhps_gor)} more")
+
+    # ─── Later USoc waves fallback ───
+    remaining = pidp_set - set(matched["pidp"])
+    if remaining:
+        for wl in "bcdefghijklmn":
+            extra = _load_usoc_gor(usoc_dir, wl, remaining)
+            if len(extra) > 0:
+                matched = pd.concat([matched, extra], ignore_index=True)
+                remaining -= set(extra["pidp"])
+                logger.info(f"USoc wave {wl} GOR fallback: matched {len(extra)} more")
+            if not remaining:
+                break
+
+    # ─── Add labels ───
+    matched["gor_code"] = matched["gor_code"].astype(int)
+    matched["gor_label"] = matched["gor_code"].map(GOR_LABELS)
+    matched = matched.drop_duplicates(subset="pidp", keep="first")
+
+    total = matched["pidp"].isin(pidp_set).sum()
+    logger.info(f"GOR extracted: {total}/{len(pidp_set)} pidps matched")
+    return matched
+
+
+def _load_usoc_gor(usoc_dir: Path, wave: str, pidp_set: set[int]) -> pd.DataFrame:
+    """Load GOR from a single USoc wave."""
+    col = f"{wave}_gor_dv"
+    candidates = list(usoc_dir.rglob(f"{wave}_indresp.tab"))
+    if not candidates:
+        return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    try:
+        df = pd.read_csv(candidates[0], sep="\t", usecols=["pidp", col], low_memory=False)
+    except (ValueError, KeyError):
+        return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    df = df[df["pidp"].isin(pidp_set)]
+    df = df[df[col] > 0]  # filter out missing/inapplicable codes
+    result = pd.DataFrame({"pidp": df["pidp"], "gor_code": df[col]})
+    return result
+
+
+def _load_bhps_gor(bhps_dir: Path, usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
+    """Load region from BHPS wave 1 and map to GOR via cross-walk."""
+    # Load cross-walk to map pidp → pid
+    xwave_candidates = list(usoc_dir.rglob("xwavedat.tab"))
+    if not xwave_candidates:
+        return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    try:
+        xwave = pd.read_csv(xwave_candidates[0], sep="\t", usecols=["pidp", "pid"], low_memory=False)
+    except (ValueError, KeyError):
+        return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    xwave = xwave[xwave["pidp"].isin(pidp_set)]
+    xwave = xwave[xwave["pid"] > 0]
+    if len(xwave) == 0:
+        return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    # Load BHPS wave 1 region
+    bhps_w1 = list(bhps_dir.rglob("aindresp.tab"))
+    if not bhps_w1:
+        return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    try:
+        bhps_df = pd.read_csv(bhps_w1[0], sep="\t", usecols=["pid", "aregion"], low_memory=False)
+    except (ValueError, KeyError):
+        # Try with pidp column instead
+        try:
+            bhps_df = pd.read_csv(bhps_w1[0], sep="\t", usecols=["pidp", "aregion"], low_memory=False)
+            bhps_df = bhps_df.rename(columns={"pidp": "pid"})
+        except (ValueError, KeyError):
+            return pd.DataFrame(columns=["pidp", "gor_code"])
+
+    bhps_df = bhps_df[bhps_df["aregion"] > 0]
+    bhps_df["gor_code"] = bhps_df["aregion"].map(_BHPS_REGION_TO_GOR)
+    bhps_df = bhps_df.dropna(subset=["gor_code"])
+
+    # Merge via cross-walk: pidp → pid → region → gor_code
+    merged = xwave.merge(bhps_df[["pid", "gor_code"]], on="pid", how="inner")
+    result = pd.DataFrame({"pidp": merged["pidp"], "gor_code": merged["gor_code"].astype(int)})
+    return result

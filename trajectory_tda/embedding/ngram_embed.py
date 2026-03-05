@@ -146,13 +146,16 @@ def ngram_embed(
 
     # Standardise (center for PCA; scale variance only if not using TF-IDF,
     # since variance scaling would exactly cancel out the TF-IDF column weights)
+    fitted_scaler = None
     if standardize:
         scaler = StandardScaler(with_std=not tfidf)
         embeddings = scaler.fit_transform(embeddings)
+        fitted_scaler = scaler
 
     # Dimensionality reduction
     method = "raw"
     explained_var = None
+    fitted_reducer = None
 
     if umap_dim is not None:
         try:
@@ -165,6 +168,7 @@ def ngram_embed(
                 min_dist=0.1,
             )
             embeddings = reducer.fit_transform(embeddings)
+            fitted_reducer = reducer
             method = "umap"
             logger.info(f"  UMAP reduction: {embeddings.shape}")
         except ImportError:
@@ -177,6 +181,7 @@ def ngram_embed(
         pca = PCA(n_components=n_components, random_state=random_state)
         embeddings = pca.fit_transform(embeddings)
         explained_var = float(np.sum(pca.explained_variance_ratio_))
+        fitted_reducer = pca
         method = "pca"
         logger.info(f"  PCA reduction: {embeddings.shape} (explained variance: {explained_var:.3f})")
 
@@ -190,6 +195,10 @@ def ngram_embed(
         "explained_variance": explained_var,
         "tfidf": tfidf,
         "n_trajectories": n,
+        "fitted_models": {
+            "scaler": fitted_scaler,
+            "reducer": fitted_reducer,
+        },
     }
 
     logger.info(f"  Final: {embeddings.shape[0]} points × {embeddings.shape[1]} dims (method={method})")

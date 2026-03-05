@@ -103,12 +103,15 @@ def _compute_maxmin_vr(
 
     if n_lm < n:
         logger.info(f"Maxmin VR: selecting {n_lm} landmarks from {n} points")
-        _, landmarks = maxmin_landmarks(X, n_lm, seed=seed)
+        indices, landmarks = maxmin_landmarks(X, n_lm, seed=seed)
     else:
+        indices = np.arange(n)
         landmarks = X
         logger.info(f"Maxmin VR: using all {n} points (no subsampling needed)")
 
-    return compute_rips_ph(landmarks, max_dim=max_dim)
+    ph = compute_rips_ph(landmarks, max_dim=max_dim)
+    ph.landmark_indices = indices
+    return ph
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -153,6 +156,9 @@ def _compute_witness(
     # Select landmarks
     lm_indices, landmarks = maxmin_landmarks(X, n_lm, seed=seed)
 
+    # Store for downstream persistence
+    landmark_indices_ref = lm_indices
+
     # Build witness complex
     witness_complex = gudhi.EuclideanStrongWitnessComplex(
         witnesses=X.tolist(),
@@ -193,6 +199,7 @@ def _compute_witness(
         n_points=n_lm,
         n_dimensions=X.shape[1],
     )
+    ph.landmark_indices = landmark_indices_ref
 
     return ph
 

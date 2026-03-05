@@ -1,31 +1,28 @@
-## vexp context tools <!-- vexp v1.2.12 -->
+## vexp context tools <!-- vexp v1.2.17 -->
 
-**MANDATORY: use vexp MCP tools for ALL file analysis.**
-Do NOT use grep, glob, search, or file reads to explore the codebase.
-Use vexp MCP tools instead — they return pre-indexed, relevant context.
+**MANDATORY: use `run_pipeline` — do NOT grep, glob, or read files manually.**
+vexp returns pre-indexed, graph-ranked context in a single call.
 
 ### Workflow
-1. `get_context_capsule` — ALWAYS FIRST for every task or question
-2. Review the provided pivot files and skeletons
-3. Make targeted changes based on the context
-4. `get_impact_graph` before refactoring exported symbols
+1. `run_pipeline` with your task description — ALWAYS FIRST (replaces all other tools)
+2. Make targeted changes based on the context returned
+3. `run_pipeline` again only if you need more context
 
 ### Available MCP tools
-- `get_context_capsule` — most relevant code (ALWAYS FIRST). Auto-detects intent from your query
-- `get_impact_graph` — shows which symbols depend on a given function/class
-- `search_logic_flow` — traces execution paths between functions
-- `get_skeleton` — token-efficient structural overview of a file
+- `run_pipeline` — **PRIMARY TOOL**. Runs capsule + impact + memory in 1 call.
+  Auto-detects intent. Includes file content. Example: `run_pipeline({ "task": "fix auth bug" })`
+- `get_context_capsule` — lightweight, for simple questions only
+- `get_impact_graph` — impact analysis of a specific symbol
+- `search_logic_flow` — execution paths between functions
+- `get_skeleton` — compact file structure
 - `index_status` — indexing status
-- `workspace_setup` — bootstrap vexp config for a new project
-- `get_session_context` — recall observations from current/previous sessions
-- `search_memory` — cross-session search for past decisions and insights
-- `save_observation` — persist important insights with optional code symbol linking
+- `get_session_context` — recall observations from sessions
+- `search_memory` — cross-session search
+- `save_observation` — persist insights (prefer run_pipeline's observation param)
 
 ### Smart Features
-vexp auto-detects query intent (debug/refactor/modify/read) and uses hybrid ranking
-(keyword + semantic + graph centrality). Session memory auto-captures observations.
-Repeated queries auto-expand result budget.
+Intent auto-detection, hybrid ranking, session memory, auto-expanding budget.
 
 ### Multi-Repo
-`get_context_capsule` auto-queries all indexed repos. Use `repos: ["alias"]` to scope, `cross_repo: true` on `get_impact_graph`/`search_logic_flow` to trace across repos. Run `index_status` to see available aliases.
+`run_pipeline` auto-queries all indexed repos. Use `repos: ["alias"]` to scope. Run `index_status` to see aliases.
 <!-- /vexp -->

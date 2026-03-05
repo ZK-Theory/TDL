@@ -164,6 +164,7 @@ def discover_regimes(
         "k_optimal": gmm_info["k_optimal"],
         "regime_profiles": profiles,
         "gmm_info": gmm_info,
+        "gmm_object": gmm,
     }
 
     # Compare with PH H₀ if available
