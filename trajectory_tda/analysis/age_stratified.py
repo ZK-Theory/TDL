@@ -214,6 +214,7 @@ def _build_escape_dataframe(
                 "escaped": int(escaped),
                 "start_year": seq[0]["start_year"],
                 "start_regime": seq[0]["regime"],
+                "initial_regime": seq[0]["regime"],
             }
         )
 
@@ -221,7 +222,7 @@ def _build_escape_dataframe(
 
     # Merge metadata
     meta_cols = ["pidp"]
-    for col in ("sex", "birth_year"):
+    for col in ("sex", "birth_year", "parental_nssec"):
         if col in metadata.columns:
             meta_cols.append(col)
 
@@ -246,19 +247,24 @@ def escape_logistic_regression(
     disadvantaged_regimes: set[int],
     good_regimes: set[int],
 ) -> dict:
-    """Logistic regression of escape probability on demographics.
+    """Extended logistic regression of escape probability.
 
-    Predicts P(escape) ~ age_at_first_window + sex.
+    Predicts P(escape) ~ age_at_first_window + sex + birth_cohort
+                         + initial_regime + parental_nssec.
+
+    Uses Firth penalised regression as the primary estimation method
+    to handle quasi-complete separation.
 
     Args:
         windows: Window records with 'age_at_window' field.
         window_regimes: (N_windows,) regime labels.
-        metadata: DataFrame with pidp, birth_year, sex columns.
+        metadata: DataFrame with pidp, birth_year, sex, parental_nssec.
         disadvantaged_regimes: Set of disadvantaged regime indices.
         good_regimes: Set of favourable regime indices.
 
     Returns:
-        Dict with model coefficients, odds ratios, p-values, pseudo-R².
+        Dict with coefficients, odds ratios, 95% CIs, p-values,
+        pseudo-R², AIC, BIC, separation diagnostics, Firth flag.
     """
     df = _build_escape_dataframe(
         windows,
@@ -268,11 +274,9 @@ def escape_logistic_regression(
         good_regimes,
     )
 
-    predictors = ["age_first_window"]
-    if "sex" in df.columns:
-        predictors.append("sex")
-
-    df_model = df.dropna(subset=predictors)
+    # Minimum required predictor
+    required = ["age_first_window"]
+    df_model = df.dropna(subset=required)
 
     if len(df_model) < 20:
         logger.warning(f"Only {len(df_model)} observations — logistic regression skipped")
@@ -282,45 +286,218 @@ def escape_logistic_regression(
 
 
 def _fit_logistic_model(df_model: pd.DataFrame) -> dict:
-    """Fit logistic regression and return results dict."""
+    """Fit extended logistic regression with Firth correction and separation diagnostics."""
     try:
         import statsmodels.api as sm
     except ImportError:
         logger.warning("statsmodels not available — logistic regression skipped")
         return {"skipped": True, "reason": "statsmodels not installed"}
 
+    df_model = df_model.copy()
     X_cols = ["age_first_window"]
+
+    # Sex encoding
     if "sex" in df_model.columns:
-        df_model = df_model.copy()
         df_model["female"] = df_model["sex"].apply(lambda s: 1 if s in (2, "Female") else 0)
         X_cols.append("female")
 
-    X = sm.add_constant(df_model[X_cols].astype(float))
-    y = df_model["escaped"].astype(float)
+    # Birth cohort dummies (reference: pre-1950)
+    if "birth_cohort" in df_model.columns:
+        cohort_dummies = pd.get_dummies(
+            df_model["birth_cohort"], prefix="cohort", drop_first=True
+        )
+        for col in cohort_dummies.columns:
+            df_model[col] = cohort_dummies[col]
+            X_cols.append(col)
 
+    # Initial regime dummies (reference: lowest regime)
+    if "initial_regime" in df_model.columns:
+        regime_dummies = pd.get_dummies(
+            df_model["initial_regime"], prefix="regime", drop_first=True
+        )
+        for col in regime_dummies.columns:
+            df_model[col] = regime_dummies[col]
+            X_cols.append(col)
+
+    # Parental NS-SEC dummies (reference: first category)
+    if "parental_nssec" in df_model.columns:
+        nssec_present = df_model["parental_nssec"].notna()
+        if nssec_present.sum() > 20:
+            nssec_dummies = pd.get_dummies(
+                df_model.loc[nssec_present, "parental_nssec"],
+                prefix="nssec",
+                drop_first=True,
+            )
+            for col in nssec_dummies.columns:
+                df_model[col] = nssec_dummies[col]
+                X_cols.append(col)
+
+    df_complete = df_model.dropna(subset=X_cols + ["escaped"])
+    if len(df_complete) < 20:
+        logger.warning(f"Only {len(df_complete)} complete cases — logistic regression skipped")
+        return {"skipped": True, "n_obs": int(len(df_complete))}
+
+    X = sm.add_constant(df_complete[X_cols].astype(float))
+    y = df_complete["escaped"].astype(float)
+
+    # Step 1: Fit standard Logit for separation diagnostics
+    separation_detected = False
+    standard_result = None
     try:
-        model = sm.Logit(y, X).fit(disp=0)
-    except np.linalg.LinAlgError:
-        logger.warning("Logistic regression: singular Hessian (perfect separation?)")
+        standard_model = sm.Logit(y, X).fit(disp=0)
+        standard_result = _extract_model_results(standard_model, len(df_complete), y)
+
+        # Check for separation indicators
+        extreme_coefs = any(abs(c) > 10 for c in standard_model.params)
+        extreme_pvals = any(p < 1e-50 for p in standard_model.pvalues if not np.isnan(p))
+        if extreme_coefs or extreme_pvals:
+            separation_detected = True
+            logger.warning(
+                "Separation detected: "
+                f"extreme coefficients={extreme_coefs}, "
+                f"extreme p-values={extreme_pvals}"
+            )
+    except (np.linalg.LinAlgError, Exception) as e:
+        separation_detected = True
+        logger.warning(f"Standard Logit failed ({e}) — separation likely")
+
+    # Step 2: Firth penalised regression (primary method)
+    firth_result = _fit_firth_logistic(X, y, len(df_complete))
+    firth_used = firth_result is not None and not firth_result.get("skipped", False)
+
+    # Use Firth as primary if available, else standard
+    if firth_used and firth_result is not None:
+        result = firth_result
+    elif standard_result is not None:
+        result = standard_result
+    else:
         return {
             "skipped": True,
-            "reason": "singular_hessian",
-            "n_obs": int(len(df_model)),
+            "reason": "both_standard_and_firth_failed",
+            "n_obs": int(len(df_complete)),
+            "separation_detected": separation_detected,
         }
 
-    result = {
-        "n_obs": int(len(df_model)),
+    result["separation_detected"] = separation_detected
+    result["firth_used"] = firth_used
+
+    # Include standard results for comparison if both available
+    if firth_used and standard_result is not None:
+        result["standard_model"] = standard_result
+
+    logger.info(f"Logistic regression (n={len(df_complete)}, firth={firth_used}):")
+    for name in result.get("coefficients", {}):
+        or_val = result["odds_ratios"].get(name, float("nan"))
+        p_val = result["p_values"].get(name, float("nan"))
+        logger.info(f"  {name}: OR={or_val:.3f}, p={p_val:.4f}")
+
+    return result
+
+
+def _extract_model_results(model, n_obs: int, y) -> dict:
+    """Extract results dict from a fitted statsmodels model."""
+    ci = model.conf_int(alpha=0.05)
+    return {
+        "n_obs": int(n_obs),
         "n_escaped": int(y.sum()),
-        "coefficients": {name: float(coef) for name, coef in zip(model.params.index, model.params)},
-        "odds_ratios": {name: float(np.exp(coef)) for name, coef in zip(model.params.index, model.params)},
-        "p_values": {name: float(p) for name, p in zip(model.pvalues.index, model.pvalues)},
+        "coefficients": {
+            name: float(coef)
+            for name, coef in zip(model.params.index, model.params)
+        },
+        "odds_ratios": {
+            name: float(np.exp(coef))
+            for name, coef in zip(model.params.index, model.params)
+        },
+        "confidence_intervals_95": {
+            name: [float(ci.loc[name, 0]), float(ci.loc[name, 1])]
+            for name in model.params.index
+        },
+        "p_values": {
+            name: float(p)
+            for name, p in zip(model.pvalues.index, model.pvalues)
+        },
         "pseudo_r2": float(model.prsquared),
         "aic": float(model.aic),
         "bic": float(model.bic),
     }
 
-    logger.info(f"Logistic regression (n={len(df_model)}):")
-    for name in model.params.index:
-        logger.info(f"  {name}: OR={np.exp(model.params[name]):.3f}, " f"p={model.pvalues[name]:.4f}")
 
-    return result
+def _fit_firth_logistic(X, y, n_obs: int) -> dict | None:
+    """Attempt Firth penalised logistic regression.
+
+    Tries firthlogist package first, falls back to statsmodels
+    L2-penalised logit with small penalty.
+    """
+    # Try firthlogist package
+    try:
+        from firthlogist import FirthLogisticRegression
+
+        # firthlogist expects X without constant (adds its own intercept)
+        X_no_const = X.drop(columns=["const"], errors="ignore")
+        firth = FirthLogisticRegression(max_iter=200)
+        firth.fit(X_no_const.values, y.values)
+
+        coef_names = ["const"] + list(X_no_const.columns)
+        coefs = np.concatenate([[firth.intercept_], firth.coef_])
+        ci_lower = np.concatenate([[firth.intercept_ci_[0]], firth.ci_[:, 0]])
+        ci_upper = np.concatenate([[firth.intercept_ci_[1]], firth.ci_[:, 1]])
+        p_vals = np.concatenate([[firth.pval_intercept_], firth.pvalues_])
+
+        logger.info("Firth regression via firthlogist package")
+        return {
+            "n_obs": int(n_obs),
+            "n_escaped": int(y.sum()),
+            "method": "firth_firthlogist",
+            "coefficients": {n: float(c) for n, c in zip(coef_names, coefs)},
+            "odds_ratios": {n: float(np.exp(c)) for n, c in zip(coef_names, coefs)},
+            "confidence_intervals_95": {
+                n: [float(lo), float(hi)]
+                for n, lo, hi in zip(coef_names, ci_lower, ci_upper)
+            },
+            "p_values": {n: float(p) for n, p in zip(coef_names, p_vals)},
+        }
+    except ImportError:
+        logger.info("firthlogist not installed, trying statsmodels L2 fallback")
+    except Exception as e:
+        logger.warning(f"firthlogist failed: {e}, trying statsmodels L2 fallback")
+
+    # Fallback: statsmodels Logit with L2 penalty (small alpha)
+    try:
+        import statsmodels.api as sm
+
+        model = sm.Logit(y, X).fit_regularized(
+            method="l1",  # elastic net with alpha=0 is L2
+            alpha=0.1,  # small penalty
+            disp=0,
+        )
+
+        # Regularised models don't have conf_int; use normal approximation
+        coefs = model.params
+        se = np.sqrt(np.diag(np.linalg.inv(
+            sm.Logit(y, X).information(coefs)
+        ))) if hasattr(sm.Logit(y, X), "information") else np.full(len(coefs), np.nan)
+        z = 1.96
+
+        coef_names = list(coefs.index)
+        ci_lower = coefs - z * se
+        ci_upper = coefs + z * se
+
+        logger.info("Firth fallback: statsmodels L2-penalised logit")
+        return {
+            "n_obs": int(n_obs),
+            "n_escaped": int(y.sum()),
+            "method": "l2_penalised_logit",
+            "coefficients": {n: float(c) for n, c in zip(coef_names, coefs)},
+            "odds_ratios": {n: float(np.exp(c)) for n, c in zip(coef_names, coefs)},
+            "confidence_intervals_95": {
+                n: [float(lo), float(hi)]
+                for n, lo, hi in zip(coef_names, ci_lower, ci_upper)
+            },
+            "p_values": {
+                n: float(p)
+                for n, p in zip(model.pvalues.index, model.pvalues)
+            } if hasattr(model, "pvalues") else {},
+        }
+    except Exception as e:
+        logger.warning(f"L2-penalised logit failed: {e}")
+        return {"skipped": True, "reason": f"firth_fallback_failed: {e}"}

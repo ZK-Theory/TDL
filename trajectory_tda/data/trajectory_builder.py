@@ -235,6 +235,11 @@ def build_trajectories(
                 "n_imputed": n_imputed,
                 "pct_imputed": (n_imputed / len(final_states) * 100 if len(final_states) > 0 else 0),
                 "dominant_state": dominant,
+                "survey_era": (
+                    "bhps_only" if max(final_years) <= 2008
+                    else "usoc_only" if min(final_years) >= 2009
+                    else "spanning"
+                ),
             }
         )
 
@@ -260,6 +265,12 @@ def build_trajectories(
         logger.info("State distribution:")
         for state in STATES:
             logger.info(f"  {state}: {state_dist.get(state, 0):.1%}")
+
+        # Survey era distribution
+        era_dist = metadata["survey_era"].value_counts()
+        logger.info("Survey era distribution:")
+        for era, count in era_dist.items():
+            logger.info(f"  {era}: {count}")
 
     return trajectories, metadata
 

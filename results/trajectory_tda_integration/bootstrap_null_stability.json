@@ -1,0 +1,336 @@
+{
+  "bootstrap_draws": [
+    {
+      "bootstrap_draw": 0,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.04,
+          "observed": 4838.651291847229,
+          "null_mean": 4749.981344146729
+        },
+        "H1": {
+          "p_value": 0.68,
+          "observed": 485.87457180023193,
+          "null_mean": 491.4979532432556
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4832.018062591553,
+          "null_mean": 4667.69781074524
+        },
+        "H1": {
+          "p_value": 0.46,
+          "observed": 439.2436685562134,
+          "null_mean": 436.4740543937683
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 1,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4837.417253494263,
+          "null_mean": 4753.339317531586
+        },
+        "H1": {
+          "p_value": 0.4,
+          "observed": 499.4748363494873,
+          "null_mean": 492.28484582901
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4817.658693313599,
+          "null_mean": 4670.966780509949
+        },
+        "H1": {
+          "p_value": 0.0,
+          "observed": 499.51658630371094,
+          "null_mean": 436.69788242340087
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 2,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.02,
+          "observed": 4829.5132665634155,
+          "null_mean": 4743.656941184998
+        },
+        "H1": {
+          "p_value": 0.86,
+          "observed": 479.6296672821045,
+          "null_mean": 493.9157293128967
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4813.729263305664,
+          "null_mean": 4655.57624118805
+        },
+        "H1": {
+          "p_value": 0.04,
+          "observed": 471.38715076446533,
+          "null_mean": 429.9392535018921
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 3,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4834.831783294678,
+          "null_mean": 4749.61572977066
+        },
+        "H1": {
+          "p_value": 0.54,
+          "observed": 487.5918025970459,
+          "null_mean": 485.7723405456543
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4816.566617012024,
+          "null_mean": 4664.730855083466
+        },
+        "H1": {
+          "p_value": 0.08,
+          "observed": 468.56456661224365,
+          "null_mean": 433.07142555236817
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 4,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4850.0266761779785,
+          "null_mean": 4755.328212375641
+        },
+        "H1": {
+          "p_value": 0.58,
+          "observed": 488.5362548828125,
+          "null_mean": 492.1054880142212
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4838.799074172974,
+          "null_mean": 4666.60840637207
+        },
+        "H1": {
+          "p_value": 0.0,
+          "observed": 484.87695026397705,
+          "null_mean": 430.77497110366824
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 5,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.04,
+          "observed": 4836.510796546936,
+          "null_mean": 4748.999169769287
+        },
+        "H1": {
+          "p_value": 0.94,
+          "observed": 459.32616233825684,
+          "null_mean": 490.7013161087036
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4826.061738014221,
+          "null_mean": 4674.527511463165
+        },
+        "H1": {
+          "p_value": 0.04,
+          "observed": 483.4570245742798,
+          "null_mean": 437.3028533935547
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 6,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.02,
+          "observed": 4838.886035919189,
+          "null_mean": 4746.410983142853
+        },
+        "H1": {
+          "p_value": 0.88,
+          "observed": 470.71595668792725,
+          "null_mean": 491.0001037406921
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4832.87334728241,
+          "null_mean": 4664.611337394715
+        },
+        "H1": {
+          "p_value": 0.0,
+          "observed": 529.9663286209106,
+          "null_mean": 431.2670119857788
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 7,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.02,
+          "observed": 4837.208903312683,
+          "null_mean": 4752.6020074081425
+        },
+        "H1": {
+          "p_value": 0.48,
+          "observed": 494.3606243133545,
+          "null_mean": 490.4238370132446
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4836.625047683716,
+          "null_mean": 4670.965977840424
+        },
+        "H1": {
+          "p_value": 0.0,
+          "observed": 496.64264488220215,
+          "null_mean": 430.7713052558899
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 8,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.02,
+          "observed": 4835.278846740723,
+          "null_mean": 4751.459022064209
+        },
+        "H1": {
+          "p_value": 0.84,
+          "observed": 476.33981800079346,
+          "null_mean": 495.12831220626833
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4836.039833068848,
+          "null_mean": 4660.0864402198795
+        },
+        "H1": {
+          "p_value": 0.0,
+          "observed": 477.2529230117798,
+          "null_mean": 430.6211134529114
+        }
+      }
+    },
+    {
+      "bootstrap_draw": 9,
+      "order_shuffle": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4836.597179412842,
+          "null_mean": 4750.677839660644
+        },
+        "H1": {
+          "p_value": 0.94,
+          "observed": 456.2272415161133,
+          "null_mean": 488.6593792152405
+        }
+      },
+      "markov_1": {
+        "H0": {
+          "p_value": 0.0,
+          "observed": 4832.280406951904,
+          "null_mean": 4666.99513666153
+        },
+        "H1": {
+          "p_value": 0.02,
+          "observed": 486.1666383743286,
+          "null_mean": 429.57718643188474
+        }
+      }
+    }
+  ],
+  "summary": {
+    "order_shuffle_H0": {
+      "p_mean": 0.016,
+      "p_std": 0.014966629547095767,
+      "p_min": 0.0,
+      "p_max": 0.04,
+      "p_median": 0.02,
+      "n_significant": 10,
+      "n_nonsignificant": 0,
+      "n_draws": 10,
+      "all_significant": true,
+      "all_nonsignificant": false,
+      "any_conclusion_flip": false
+    },
+    "order_shuffle_H1": {
+      "p_mean": 0.7139999999999999,
+      "p_std": 0.19226024029944408,
+      "p_min": 0.4,
+      "p_max": 0.94,
+      "p_median": 0.76,
+      "n_significant": 0,
+      "n_nonsignificant": 10,
+      "n_draws": 10,
+      "all_significant": false,
+      "all_nonsignificant": true,
+      "any_conclusion_flip": false
+    },
+    "markov_1_H0": {
+      "p_mean": 0.0,
+      "p_std": 0.0,
+      "p_min": 0.0,
+      "p_max": 0.0,
+      "p_median": 0.0,
+      "n_significant": 10,
+      "n_nonsignificant": 0,
+      "n_draws": 10,
+      "all_significant": true,
+      "all_nonsignificant": false,
+      "any_conclusion_flip": false
+    },
+    "markov_1_H1": {
+      "p_mean": 0.06400000000000002,
+      "p_std": 0.13440238093129153,
+      "p_min": 0.0,
+      "p_max": 0.46,
+      "p_median": 0.01,
+      "n_significant": 8,
+      "n_nonsignificant": 2,
+      "n_draws": 10,
+      "all_significant": false,
+      "all_nonsignificant": false,
+      "any_conclusion_flip": true
+    },
+    "overall": {
+      "stable": true,
+      "flags": [],
+      "assessment": "Null-model results are robust to regime assignment instability"
+    }
+  },
+  "n_bootstrap": 10,
+  "n_perms_per_draw": 50,
+  "k": 7
+}

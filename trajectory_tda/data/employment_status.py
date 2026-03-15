@@ -76,7 +76,9 @@ def _load_bhps_wave(
     if not candidates:
         alt_pattern1 = f"{wave_letter}_indresp.tab"
         alt_pattern2 = f"{wave_letter}indresp.tab"
-        candidates = list(data_dir.rglob(alt_pattern1)) + list(data_dir.rglob(alt_pattern2))
+        candidates = list(data_dir.rglob(alt_pattern1)) + list(
+            data_dir.rglob(alt_pattern2)
+        )
 
     if not candidates:
         logger.debug(f"BHPS wave {wave_letter}: no file found matching {pattern}")
@@ -95,8 +97,12 @@ def _load_bhps_wave(
     cols_lower = {c.lower(): c for c in df.columns}
 
     # Person ID: {wave}pid (BHPS) — we'll need xwaveid for pidp later
-    pid_col = cols_lower.get(f"b{wave_letter}_pid") or cols_lower.get(f"{wave_letter}pid")
-    jbstat_col = cols_lower.get(f"b{wave_letter}_jbstat") or cols_lower.get(f"{wave_letter}jbstat")
+    pid_col = cols_lower.get(f"b{wave_letter}_pid") or cols_lower.get(
+        f"{wave_letter}pid"
+    )
+    jbstat_col = cols_lower.get(f"b{wave_letter}_jbstat") or cols_lower.get(
+        f"{wave_letter}jbstat"
+    )
 
     # Try pidp directly (some BHPS files have it)
     pidp_col = cols_lower.get("pidp")
@@ -224,8 +230,8 @@ def extract_employment_status(
     bhps_dir = data_dir / bhps_subdir
     usoc_dir = data_dir / usoc_subdir
 
-    waves_bhps = bhps_waves or BHPS_WAVES
-    waves_usoc = usoc_waves or USOC_WAVES
+    waves_bhps = bhps_waves if bhps_waves is not None else BHPS_WAVES
+    waves_usoc = usoc_waves if usoc_waves is not None else USOC_WAVES
 
     all_dfs = []
 
@@ -262,7 +268,11 @@ def extract_employment_status(
     # Resolve multiple observations per person-year (modal status)
     if combined.duplicated(subset=["pidp", "year"]).any():
         logger.info("Resolving multiple obs per person-year (modal status)")
-        resolved = combined.groupby(["pidp", "year"]).apply(_assign_annual_status, include_groups=False).reset_index()
+        resolved = (
+            combined.groupby(["pidp", "year"])
+            .apply(_assign_annual_status, include_groups=False)
+            .reset_index()
+        )
         # Merge back source info (take first)
         source_info = combined.groupby(["pidp", "year"])["source"].first().reset_index()
         result = resolved.merge(source_info, on=["pidp", "year"], how="left")
@@ -271,6 +281,8 @@ def extract_employment_status(
         result["fflag"] = None
 
     result = result[["pidp", "year", "emp_status", "fflag", "source"]]
-    logger.info(f"Final: {len(result)} person-year records, {result['pidp'].nunique()} unique persons")
+    logger.info(
+        f"Final: {len(result)} person-year records, {result['pidp'].nunique()} unique persons"
+    )
 
     return result

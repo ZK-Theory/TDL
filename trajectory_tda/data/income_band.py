@@ -39,12 +39,13 @@ def _load_bhps_income_wave(
     data_dir: Path,
     wave_letter: str,
 ) -> pd.DataFrame | None:
-    """Load household income from a single BHPS wave.
+    """Load equivalised household income from a single BHPS wave.
 
-    BHPS uses fihhmn (monthly net household income) from the household
-    questionnaire. We link to individuals via household ID.
+    BHPS uses fihhmn (raw monthly net household income). We equivalise
+    using the modified OECD scale (eq_moecd) from hhresp, matching the
+    approach used for USoc's fihhmnnet1_dv (which is already equivalised).
     """
-    # Try indresp first (has both pid and income for some waves)
+    # Find indresp file
     for prefix in [f"b{wave_letter}_", f"{wave_letter}_", f"{wave_letter}"]:
         pattern = f"{prefix}indresp.tab"
         candidates = list(data_dir.rglob(pattern))
@@ -54,42 +55,125 @@ def _load_bhps_income_wave(
         logger.debug(f"BHPS income wave {wave_letter}: no indresp file found")
         return None
 
-    fpath = candidates[0]
+    fpath_ind = candidates[0]
     try:
-        df = pd.read_csv(fpath, sep="\t", low_memory=False)
+        df_ind = pd.read_csv(fpath_ind, sep="\t", low_memory=False)
     except Exception:
-        logger.warning(f"Could not read {fpath}")
+        logger.warning(f"Could not read {fpath_ind}")
         return None
 
-    cols_lower = {c.lower(): c for c in df.columns}
+    cols_ind = {c.lower(): c for c in df_ind.columns}
 
     # Person ID
-    pidp_col = cols_lower.get("pidp") or cols_lower.get(f"b{wave_letter}_pid")
+    pidp_col = (
+        cols_ind.get("pidp")
+        or cols_ind.get(f"b{wave_letter}_pid")
+        or cols_ind.get("pid")
+    )
     if pidp_col is None:
         return None
 
-    # Income: try fihhmnnet1_dv (derived), fihhmn (raw), or wave-prefixed
+    # Household ID for hhresp merge
+    hid_col_ind = (
+        cols_ind.get(f"b{wave_letter}_hidp")
+        or cols_ind.get(f"{wave_letter}hid")
+        or cols_ind.get(f"b{wave_letter}_hid")
+    )
+
+    # Income: try equivalised first, then raw (BHPS SN5151 format: {wave}fihhmn)
     income_col = None
     for candidate in [
         f"b{wave_letter}_fihhmnnet1_dv",
         f"{wave_letter}_fihhmnnet1_dv",
         f"b{wave_letter}_fihhmn",
         f"{wave_letter}_fihhmn",
+        f"{wave_letter}fihhmn",
         "fihhmnnet1_dv",
         "fihhmn",
     ]:
-        if candidate in cols_lower:
-            income_col = cols_lower[candidate]
+        if candidate in cols_ind:
+            income_col = cols_ind[candidate]
             break
 
     if income_col is None:
         logger.debug(f"BHPS wave {wave_letter}: no income column found")
         return None
 
+    income_values = pd.to_numeric(df_ind[income_col], errors="coerce")
+
+    # Equivalise raw BHPS income using modified OECD scale from hhresp
+    is_equivalised = "fihhmnnet1_dv" in income_col.lower()
+    if not is_equivalised and hid_col_ind is not None:
+        # Find hhresp file
+        for prefix in [f"b{wave_letter}_", f"{wave_letter}_", f"{wave_letter}"]:
+            hh_pattern = f"{prefix}hhresp.tab"
+            hh_candidates = list(data_dir.rglob(hh_pattern))
+            if hh_candidates:
+                break
+        else:
+            hh_candidates = []
+
+        if hh_candidates:
+            try:
+                df_hh = pd.read_csv(hh_candidates[0], sep="\t", low_memory=False)
+                cols_hh = {c.lower(): c for c in df_hh.columns}
+
+                # Find equivalence scale column
+                eq_col = None
+                for eq_candidate in [
+                    f"b{wave_letter}_eq_moecd",
+                    f"{wave_letter}eq_moecd",
+                    f"{wave_letter}_eq_moecd",
+                    "eq_moecd",
+                ]:
+                    if eq_candidate in cols_hh:
+                        eq_col = cols_hh[eq_candidate]
+                        break
+
+                # Find household ID in hhresp
+                hid_col_hh = (
+                    cols_hh.get(f"b{wave_letter}_hidp")
+                    or cols_hh.get(f"{wave_letter}hid")
+                    or cols_hh.get(f"b{wave_letter}_hid")
+                )
+
+                if eq_col is not None and hid_col_hh is not None:
+                    eq_scale = pd.to_numeric(df_hh[eq_col], errors="coerce")
+                    hh_lookup = pd.DataFrame(
+                        {
+                            "hid": df_hh[hid_col_hh],
+                            "eq_moecd": eq_scale,
+                        }
+                    ).dropna(subset=["eq_moecd"])
+                    hh_lookup = hh_lookup[hh_lookup["eq_moecd"] > 0]
+
+                    ind_hid = df_ind[hid_col_ind]
+                    merged = pd.DataFrame(
+                        {
+                            "idx": range(len(df_ind)),
+                            "hid": ind_hid,
+                        }
+                    ).merge(hh_lookup, on="hid", how="left")
+
+                    eq_values = merged.set_index("idx")["eq_moecd"]
+                    valid_eq = eq_values.reindex(range(len(df_ind)))
+                    income_values = income_values / valid_eq
+                    logger.debug(
+                        f"BHPS wave {wave_letter}: equivalised income using eq_moecd"
+                    )
+                else:
+                    logger.warning(
+                        f"BHPS wave {wave_letter}: eq_moecd not found, using raw income"
+                    )
+            except Exception:
+                logger.warning(
+                    f"BHPS wave {wave_letter}: could not load hhresp for equivalisation"
+                )
+
     result = pd.DataFrame(
         {
-            "pidp": df[pidp_col],
-            "income_raw": pd.to_numeric(df[income_col], errors="coerce"),
+            "pidp": df_ind[pidp_col],
+            "income_raw": income_values,
             "year": BHPS_WAVE_YEAR[wave_letter],
             "source": "bhps",
         }
@@ -141,13 +225,21 @@ def _load_usoc_income_wave(
             inc_col = cols_hh[candidate]
             break
 
-    if pidp_col is None or hidp_col_ind is None or hidp_col_hh is None or inc_col is None:
+    if (
+        pidp_col is None
+        or hidp_col_ind is None
+        or hidp_col_hh is None
+        or inc_col is None
+    ):
         logger.debug(f"USoc wave {wave_letter}: missing pidp, hidp or income column")
         return None
 
     # Merge individual to household on hidp
     df_merged = df_ind[[pidp_col, hidp_col_ind]].merge(
-        df_hh[[hidp_col_hh, inc_col]], left_on=hidp_col_ind, right_on=hidp_col_hh, how="inner"
+        df_hh[[hidp_col_hh, inc_col]],
+        left_on=hidp_col_ind,
+        right_on=hidp_col_hh,
+        how="inner",
     )
 
     result = pd.DataFrame(
@@ -208,8 +300,8 @@ def extract_income_bands(
     bhps_dir = data_dir / bhps_subdir
     usoc_dir = data_dir / usoc_subdir
 
-    waves_bhps = bhps_waves or BHPS_WAVES
-    waves_usoc = usoc_waves or USOC_WAVES
+    waves_bhps = bhps_waves if bhps_waves is not None else BHPS_WAVES
+    waves_usoc = usoc_waves if usoc_waves is not None else USOC_WAVES
 
     all_dfs = []
 
@@ -248,7 +340,9 @@ def extract_income_bands(
 
     # Classify income bands
     combined["income_band"] = combined.apply(
-        lambda row: _classify_income_band(row["income_raw"], medians[row["year"]], threshold),
+        lambda row: _classify_income_band(
+            row["income_raw"], medians[row["year"]], threshold
+        ),
         axis=1,
     )
 
@@ -258,7 +352,9 @@ def extract_income_bands(
         combined = combined.drop_duplicates(subset=["pidp", "year"], keep="first")
 
     result = combined[["pidp", "year", "income_band", "source"]]
-    logger.info(f"Final: {len(result)} person-year records, {result['pidp'].nunique()} unique persons")
+    logger.info(
+        f"Final: {len(result)} person-year records, {result['pidp'].nunique()} unique persons"
+    )
 
     # Report band distribution
     dist = result["income_band"].value_counts(normalize=True)

@@ -168,12 +168,25 @@ def run_age_stratified(args: argparse.Namespace, out_dir: Path) -> dict:
     pidps = metadata["pidp"].values
     covs = extract_covariates(data_dir=args.data_dir, pidps=pidps)
 
-    # Merge birth_year into metadata
+    # Merge birth_year, sex, and parental NS-SEC into metadata
     if "birth_year" not in metadata.columns:
         cov_cols = ["pidp", "birth_year"]
         if "sex" in covs.columns:
             cov_cols.append("sex")
-        metadata = metadata.merge(covs[cov_cols], on="pidp", how="left")
+        if "parental_nssec3" in covs.columns:
+            cov_cols.append("parental_nssec3")
+        cov_dedup = covs[cov_cols].drop_duplicates(subset="pidp", keep="first")
+        metadata = metadata.merge(cov_dedup, on="pidp", how="left")
+        if "parental_nssec3" in metadata.columns:
+            metadata.rename(columns={"parental_nssec3": "parental_nssec"}, inplace=True)
+
+    # Add birth_cohort for logistic regression
+    if "birth_year" in metadata.columns and "birth_cohort" not in metadata.columns:
+        metadata["birth_cohort"] = pd.cut(
+            metadata["birth_year"],
+            bins=[0, 1950, 1960, 1970, 1980, 2010],
+            labels=["pre-1950", "1950s", "1960s", "1970s", "post-1980"],
+        )
 
     # Build windows
     windows = build_windows(trajectories, metadata, window_years=10, window_step=5)
@@ -238,8 +251,12 @@ def _load_or_compute_umap(args, cp_dir: Path):
             trajectories = json.load(f)
     else:
         logger.info("Computing UMAP-16D embedding from scratch...")
-        trajectories, _ = build_trajectories_from_raw(data_dir=args.data_dir, min_years=10, max_gap=2)
-        umap_embeddings, _ = ngram_embed(trajectories, include_bigrams=True, pca_dim=None, umap_dim=16)
+        trajectories, _ = build_trajectories_from_raw(
+            data_dir=args.data_dir, min_years=10, max_gap=2
+        )
+        umap_embeddings, _ = ngram_embed(
+            trajectories, include_bigrams=True, pca_dim=None, umap_dim=16
+        )
         np.save(umap_path, umap_embeddings)
 
     return umap_embeddings, trajectories
@@ -336,7 +353,9 @@ def run_umap_robustness(args: argparse.Namespace, out_dir: Path) -> dict:
 
     # Fit GMM k=7 on UMAP
     logger.info("Fitting GMM k=7 on UMAP-16D...")
-    _, umap_labels, gmm_info = fit_gmm(umap_embeddings, k_range=range(7, 8), random_state=42)
+    _, umap_labels, gmm_info = fit_gmm(
+        umap_embeddings, k_range=range(7, 8), random_state=42
+    )
 
     ari_pca_umap = float(adjusted_rand_score(pca_labels, umap_labels))
     logger.info(f"ARI(PCA regimes, UMAP regimes) = {ari_pca_umap:.4f}")
@@ -398,7 +417,8 @@ def run_priority2(args: argparse.Namespace) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Priority 2: GMM bootstrap, H₀–GMM overlap, " "age-stratified escape, UMAP robustness"
+        description="Priority 2: GMM bootstrap, H₀–GMM overlap, "
+        "age-stratified escape, UMAP robustness"
     )
     parser.add_argument(
         "--checkpoint-dir",

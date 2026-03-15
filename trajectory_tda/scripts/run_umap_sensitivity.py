@@ -39,7 +39,9 @@ def run_umap_sensitivity(args: argparse.Namespace) -> dict:
     with open(results_dir / "05_analysis.json") as f:
         analysis = json.load(f)
     pca_labels = np.array(analysis["gmm_labels"])
-    logger.info(f"PCA-20D: {pca_embeddings.shape}, {len(np.unique(pca_labels))} regimes")
+    logger.info(
+        f"PCA-20D: {pca_embeddings.shape}, {len(np.unique(pca_labels))} regimes"
+    )
 
     # ─── Rebuild trajectories ───
     logger.info("Rebuilding trajectories for UMAP re-embedding...")

@@ -1,4 +1,4 @@
-## vexp context tools <!-- vexp v1.2.17 -->
+## vexp context tools <!-- vexp v1.2.28 -->
 
 **MANDATORY: use `run_pipeline` — do NOT grep, glob, or read files manually.**
 vexp returns pre-indexed, graph-ranked context in a single call.
@@ -19,6 +19,11 @@ vexp returns pre-indexed, graph-ranked context in a single call.
 - `get_session_context` — recall observations from sessions
 - `search_memory` — cross-session search
 - `save_observation` — persist insights (prefer run_pipeline's observation param)
+
+### Agentic search
+- Do NOT use built-in file search, grep, or codebase indexing — always call `run_pipeline` first
+- If you spawn sub-agents or background tasks, pass them the context from `run_pipeline`
+  rather than letting them search the codebase independently
 
 ### Smart Features
 Intent auto-detection, hybrid ranking, session memory, auto-expanding budget.

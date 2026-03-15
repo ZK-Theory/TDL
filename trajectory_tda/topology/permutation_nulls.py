@@ -223,6 +223,128 @@ def _markov_shuffle(
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Stratified Markov null (per-regime transition matrices)
+# ─────────────────────────────────────────────────────────────────────
+
+
+def _stratified_markov_shuffle(
+    trajectories: list[list[str]],
+    regime_labels: np.ndarray,
+    rng: np.random.RandomState,
+    markov_order: int = 1,
+    embed_kwargs: dict | None = None,
+    min_regime_n: int = 30,
+) -> np.ndarray:
+    """Generate synthetic trajectories using per-regime Markov chains.
+
+    For each regime k:
+      1. Select trajectories assigned to regime k
+      2. Estimate Markov-order transition matrix from those trajectories only
+      3. Generate synthetic trajectories of same lengths using regime-specific chain
+
+    Concatenate all regime-specific synthetic trajectories (preserving original order).
+    Return re-embedded synthetic point cloud.
+
+    Args:
+        trajectories: Raw state sequences.
+        regime_labels: (N,) array of integer regime assignments (one per trajectory).
+        rng: Random state for reproducibility.
+        markov_order: Markov chain order (only 1 supported for stratified).
+        embed_kwargs: Kwargs passed to ngram_embed.
+        min_regime_n: Minimum trajectories per regime for reliable estimation.
+                      Regimes below this threshold use the global transition matrix.
+    """
+    if markov_order != 1:
+        raise ValueError("Stratified Markov null only supports order 1")
+
+    state_to_idx = {s: i for i, s in enumerate(STATES)}
+    n_states = len(STATES)
+    n_traj = len(trajectories)
+
+    # Global transition matrix (fallback for small regimes)
+    global_tm = np.zeros((n_states, n_states), dtype=np.float64)
+    global_init = np.zeros(n_states, dtype=np.float64)
+    for traj in trajectories:
+        if len(traj) == 0:
+            continue
+        s0 = state_to_idx.get(traj[0])
+        if s0 is not None:
+            global_init[s0] += 1
+        for t in range(len(traj) - 1):
+            i = state_to_idx.get(traj[t])
+            j = state_to_idx.get(traj[t + 1])
+            if i is not None and j is not None:
+                global_tm[i, j] += 1
+    row_sums = global_tm.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1
+    global_tm /= row_sums
+    init_sum = global_init.sum()
+    global_init_probs = global_init / init_sum if init_sum > 0 else np.ones(n_states) / n_states
+
+    # Per-regime transition matrices
+    unique_regimes = np.unique(regime_labels)
+    regime_tm: dict[int, np.ndarray] = {}
+    regime_init: dict[int, np.ndarray] = {}
+
+    for k in unique_regimes:
+        mask = regime_labels == k
+        regime_trajs = [trajectories[i] for i in range(n_traj) if mask[i]]
+        n_regime = len(regime_trajs)
+
+        if n_regime < min_regime_n:
+            logger.warning(
+                f"Regime {k}: only {n_regime} trajectories (< {min_regime_n}), "
+                "using global transition matrix"
+            )
+            regime_tm[int(k)] = global_tm.copy()
+            regime_init[int(k)] = global_init_probs.copy()
+            continue
+
+        tm = np.zeros((n_states, n_states), dtype=np.float64)
+        init_counts = np.zeros(n_states, dtype=np.float64)
+        for traj in regime_trajs:
+            if len(traj) == 0:
+                continue
+            s0 = state_to_idx.get(traj[0])
+            if s0 is not None:
+                init_counts[s0] += 1
+            for t in range(len(traj) - 1):
+                i = state_to_idx.get(traj[t])
+                j = state_to_idx.get(traj[t + 1])
+                if i is not None and j is not None:
+                    tm[i, j] += 1
+
+        rs = tm.sum(axis=1, keepdims=True)
+        rs[rs == 0] = 1
+        tm /= rs
+        isum = init_counts.sum()
+        init_p = init_counts / isum if isum > 0 else np.ones(n_states) / n_states
+
+        regime_tm[int(k)] = tm
+        regime_init[int(k)] = init_p
+
+    # Generate synthetic trajectories per regime, preserving original order
+    synthetic = [None] * n_traj
+    for i, traj in enumerate(trajectories):
+        k = int(regime_labels[i])
+        tm = regime_tm[k]
+        init_p = regime_init[k]
+        length = len(traj)
+
+        synth = []
+        current = rng.choice(n_states, p=init_p)
+        synth.append(STATES[current])
+        for _ in range(length - 1):
+            current = rng.choice(n_states, p=tm[current])
+            synth.append(STATES[current])
+        synthetic[i] = synth
+
+    kwargs = embed_kwargs or {}
+    embeddings, _ = ngram_embed(synthetic, **kwargs)
+    return embeddings
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Phase-order shuffle (for Phase 6 career-phase analysis)
 # ─────────────────────────────────────────────────────────────────────
 
@@ -357,6 +479,14 @@ def _single_permutation(
         X_perm = _order_shuffle(trajectories or [], rng, embed_kwargs)
     elif null_type == "markov":
         X_perm = _markov_shuffle(trajectories or [], rng, markov_order, embed_kwargs)
+    elif null_type == "stratified_markov1":
+        regime_labels = (metadata or {}).get("regime_labels")
+        if regime_labels is None:
+            raise ValueError("null_type='stratified_markov1' requires metadata['regime_labels']")
+        X_perm = _stratified_markov_shuffle(
+            trajectories or [], np.asarray(regime_labels), rng,
+            markov_order=1, embed_kwargs=embed_kwargs,
+        )
     else:
         raise ValueError(f"Unknown null_type: {null_type}")
 
@@ -383,7 +513,10 @@ def permutation_test_trajectories(
     embeddings: np.ndarray,
     trajectories: list[list[str]] | None = None,
     metadata: dict | None = None,
-    null_type: Literal["label_shuffle", "cohort_shuffle", "order_shuffle", "markov"] = "label_shuffle",
+    null_type: Literal[
+        "label_shuffle", "cohort_shuffle", "order_shuffle",
+        "markov", "stratified_markov1",
+    ] = "label_shuffle",
     n_permutations: int = 1000,
     max_dim: int = 1,
     n_landmarks: int = 5000,
@@ -415,7 +548,7 @@ def permutation_test_trajectories(
                          significant_at_005}}
     """
     # Validate inputs
-    if null_type in ("order_shuffle", "markov") and trajectories is None:
+    if null_type in ("order_shuffle", "markov", "stratified_markov1") and trajectories is None:
         raise ValueError(f"null_type='{null_type}' requires trajectories argument")
 
     logger.info(f"Permutation test: {null_type}, {n_permutations} perms, H0-H{max_dim}, statistic={statistic}")

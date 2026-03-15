@@ -5,6 +5,7 @@ Each trajectory is represented as a point in R^K where K depends on
 the n-gram configuration:
   - Unigrams only: 9D (frequency of each state)
   - Unigrams + bigrams: 90D (9 + 81 transition pairs)
+  - Unigrams + bigrams + trigrams: 819D (9 + 81 + 729 ordered triples)
 
 Optional dimensionality reduction via PCA or UMAP.
 Optional TF-IDF weighting to handle rare transition dominance.
@@ -68,6 +69,31 @@ def _compute_bigrams(trajectory: list[str]) -> np.ndarray:
     return vec
 
 
+def _compute_trigrams(trajectory: list[str]) -> np.ndarray:
+    """Compute trigram (three-state transition) frequency vector.
+
+    Returns:
+        (N_STATES^3,) = (729,) array of normalised trigram frequencies.
+        trigram[i * N_STATES^2 + j * N_STATES + k] = freq(state_i → state_j → state_k).
+    """
+    n_triples = len(trajectory) - 2
+    if n_triples <= 0:
+        return np.zeros(N_STATES ** 3, dtype=np.float64)
+
+    counts = Counter(
+        (trajectory[t], trajectory[t + 1], trajectory[t + 2])
+        for t in range(n_triples)
+    )
+    vec = np.zeros(N_STATES ** 3, dtype=np.float64)
+    for (s1, s2, s3), count in counts.items():
+        i = STATE_TO_IDX.get(s1)
+        j = STATE_TO_IDX.get(s2)
+        k = STATE_TO_IDX.get(s3)
+        if i is not None and j is not None and k is not None:
+            vec[i * N_STATES * N_STATES + j * N_STATES + k] = count / n_triples
+    return vec
+
+
 def _apply_tfidf(
     embeddings: np.ndarray,
 ) -> np.ndarray:
@@ -90,6 +116,7 @@ def _apply_tfidf(
 def ngram_embed(
     trajectories: list[list[str]],
     include_bigrams: bool = True,
+    include_trigrams: bool = False,
     tfidf: bool = False,
     pca_dim: int | None = 20,
     umap_dim: int | None = None,
@@ -101,6 +128,8 @@ def ngram_embed(
     Args:
         trajectories: List of state sequences (each a list of state labels)
         include_bigrams: Whether to include bigram (transition) features
+        include_trigrams: Whether to include trigram (three-state) features.
+                         Adds 729 dimensions (9^3) pre-reduction.
         tfidf: Apply TF-IDF weighting to handle rare transition dominance
         pca_dim: Reduce to this many PCA dimensions (None = no PCA)
         umap_dim: Reduce to this many UMAP dimensions (None = no UMAP).
@@ -114,6 +143,7 @@ def ngram_embed(
             - state_to_idx: mapping from state labels to indices
             - n_unigram_dims: number of unigram dimensions (9)
             - n_bigram_dims: number of bigram dimensions (81 or 0)
+            - n_trigram_dims: number of trigram dimensions (729 or 0)
             - raw_dims: raw embedding dimensionality before reduction
             - final_dims: final embedding dimensionality
             - method: 'raw', 'pca', or 'umap'
@@ -135,6 +165,11 @@ def ngram_embed(
         logger.info(f"  Bigrams: {bigrams.shape}")
     else:
         embeddings = unigrams
+
+    if include_trigrams:
+        trigrams = np.array([_compute_trigrams(t) for t in trajectories])
+        embeddings = np.hstack([embeddings, trigrams])
+        logger.info(f"  Trigrams: {trigrams.shape}")
 
     raw_dims = embeddings.shape[1]
     logger.info(f"  Raw embedding: {embeddings.shape}")
@@ -189,6 +224,7 @@ def ngram_embed(
         "state_to_idx": STATE_TO_IDX.copy(),
         "n_unigram_dims": N_STATES,
         "n_bigram_dims": N_STATES * N_STATES if include_bigrams else 0,
+        "n_trigram_dims": N_STATES ** 3 if include_trigrams else 0,
         "raw_dims": raw_dims,
         "final_dims": embeddings.shape[1],
         "method": method,
