@@ -89,7 +89,10 @@ class GaussianPersLayer(nn.Module):
         grid = torch.rand(n_centres, 2)
         self.centres = nn.Parameter(grid)
         log_sigma = torch.tensor(math.log(sigma))
-        self.log_sigma = nn.Parameter(log_sigma) if learn_sigma else log_sigma
+        if learn_sigma:
+            self.log_sigma = nn.Parameter(log_sigma)
+        else:
+            self.register_buffer("log_sigma", log_sigma)
 
     def forward(self, diagram: Tensor) -> Tensor:
         """Embed a batch of persistence diagrams.
