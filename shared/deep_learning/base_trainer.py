@@ -199,7 +199,12 @@ class BaseTrainer(ABC):
             all_metrics = {**train_metrics, **val_metrics}
             self._record(all_metrics)
 
-            val_value = val_metrics.get(val_metric, 0.0)
+            if val_metric not in val_metrics:
+                raise KeyError(
+                    f"Validation metric '{val_metric}' not found in validate() output for "
+                    f"{self.__class__.__name__}. Available metrics: {list(val_metrics.keys())}"
+                )
+            val_value = val_metrics[val_metric]
             self.scheduler.step(val_value)
 
             if self.early_stopping is not None:
