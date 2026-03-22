@@ -27,11 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_diagram(diagram: Tensor) -> None:
-    """Check diagram has shape (..., 2) with birth < death."""
+    """Check diagram has shape (..., 2) with birth < death and finite values."""
     if diagram.ndim < 2 or diagram.shape[-1] != 2:  # noqa: PLR2004
         raise ValueError(f"Diagram must have shape (..., 2); got {diagram.shape}")
 
+    # Enforce finite entries; infinite deaths should be clipped beforehand.
+    if not torch.isfinite(diagram).all():
+        raise ValueError("Diagram entries must be finite; clip infinite death values before calling.")
 
+    # Enforce birth < death for all points.
+    birth = diagram[..., 0]
+    death = diagram[..., 1]
+    if not (birth < death).all():
+        raise ValueError("All persistence points must satisfy birth < death.")
 class PersLayWeight(nn.Module):
     """Learnable weight function for Perslay aggregation.
 
