@@ -302,22 +302,37 @@ def stratified_wasserstein_test(
         shuffled = rng.permutation(group_memberships)
         perm_dists = np.zeros((n_groups, n_groups))
 
+        # Precompute permuted group points and diagrams once per permutation
+        group_points = []
+        group_valid = []
+        for i in range(n_groups):
+            mask_i = shuffled == i
+            pts_i = all_points[mask_i]
+            group_points.append(pts_i)
+            group_valid.append(len(pts_i) >= 5)  # noqa: PLR2004
+
+        group_diagrams: list[NDArray[np.float64] | None] = [None] * n_groups
+        if _has_ripser:
+            for i in range(n_groups):
+                if not group_valid[i]:
+                    continue
+                dgms_i = ripser.ripser(group_points[i], maxdim=1)["dgms"][1]
+                group_diagrams[i] = np.array([[b, d] for b, d in dgms_i if np.isfinite(d)])
+
         for i, label_i in enumerate(labels):
             for j, label_j in enumerate(labels):
                 if i >= j:
                     continue
-                # Compute diagrams for permuted group assignments
-                mask_i = shuffled == label_i
-                mask_j = shuffled == label_j
-                pts_i = all_points[mask_i]
-                pts_j = all_points[mask_j]
 
-                if len(pts_i) < 5 or len(pts_j) < 5:  # noqa: PLR2004
+                # Skip pairs where either group has too few points
+                if not (group_valid[i] and group_valid[j]):
                     continue
 
                 if _has_ripser:
-                    diag_i = np.array([[b, d] for b, d in ripser.ripser(pts_i, maxdim=1)["dgms"][1] if np.isfinite(d)])
-                    diag_j = np.array([[b, d] for b, d in ripser.ripser(pts_j, maxdim=1)["dgms"][1] if np.isfinite(d)])
+                    diag_i = group_diagrams[i]
+                    diag_j = group_diagrams[j]
+                    if diag_i is None or diag_j is None:
+                        continue
                     perm_d = _compute_wasserstein_distance(diag_i, diag_j, wasserstein_order)
                 else:
                     perm_d = 0.0
