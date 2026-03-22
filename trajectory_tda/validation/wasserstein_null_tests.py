@@ -307,8 +307,8 @@ def stratified_wasserstein_test(
                 if i >= j:
                     continue
                 # Compute diagrams for permuted group assignments
-                mask_i = shuffled == i
-                mask_j = shuffled == j
+                mask_i = shuffled == label_i
+                mask_j = shuffled == label_j
                 pts_i = all_points[mask_i]
                 pts_j = all_points[mask_j]
 
