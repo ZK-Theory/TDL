@@ -205,8 +205,23 @@ def complex_to_topomodelx(
 
     if complex.la_features is not None and complex.neighbourhood_to_la is not None:
         result["x_3"] = torch.tensor(complex.la_features, dtype=torch.float32)
-        n_neigh = len(complex.neighbourhood_features) if complex.neighbourhood_features is not None else 0
+
+        if complex.neighbourhood_features is None:
+            raise ValueError(
+                "Cannot construct B_3: 'neighbourhood_features' must be provided when "
+                "'neighbourhood_to_la' is set."
+            )
+
+        n_neigh = len(complex.neighbourhood_features)
         n_la = len(complex.la_features)
+
+        # Optional consistency check between features and mapping
+        if len(complex.neighbourhood_to_la) != n_neigh:
+            raise ValueError(
+                "Length mismatch between 'neighbourhood_features' "
+                f"({n_neigh}) and 'neighbourhood_to_la' "
+                f"({len(complex.neighbourhood_to_la)})."
+            )
         B3 = build_incidence_matrix(complex.neighbourhood_to_la, n_neigh, n_la)
         result["B_3"] = torch.tensor(B3, dtype=torch.float32)
 
