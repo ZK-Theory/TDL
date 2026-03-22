@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(jq -e '.hooks.PostToolUse[] | select\\(.matcher == \"\"Write|Edit\"\"\\) | .hooks[] | select\\(.type == \"\"command\"\"\\) | .command' \"C:/Projects/TDL/.claude/worktrees/clever-albattani/.claude/settings.json\")",
+      "Bash(python3 -c \"import json; d = json.load\\(open\\(''C:/Projects/TDL/.claude/worktrees/clever-albattani/.claude/settings.json''\\)\\); hook = d[''hooks''][''PostToolUse''][0]; print\\(''matcher:'', hook[''matcher'']\\); print\\(''command:'', hook[''hooks''][0][''command'']\\); print\\(''JSON valid: OK''\\)\")",
+      "Bash(python -c \"import json; d = json.load\\(open\\(''C:/Projects/TDL/.claude/worktrees/clever-albattani/.claude/settings.json''\\)\\); hook = d[''hooks''][''PostToolUse''][0]; print\\(''matcher:'', hook[''matcher'']\\); print\\(''command:'', hook[''hooks''][0][''command'']\\); print\\(''JSON valid: OK''\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''tool_input'''',{}\\).get\\(''''file_path'''',''''''''\\)\\)\")",
+      "Bash(grep -E \"\\\\.py$\")",
+      "mcp__mcp-registry__search_mcp_registry",
+      "Bash(find C:/Projects/TDL/.claude/worktrees/clever-albattani -name settings*.json -o -name mcp*.json)",
+      "Read(//c/Users/steph/.claude/**)",
+      "Read(//c/Users/steph/AppData/Local/**)",
+      "Read(//c/Program Files/**)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(\"/c/Program Files/Git/cmd/git.exe\" --version)",
+      "Bash(\"/c/Program Files/Git/cmd/git.exe\" -C \"C:/Projects/TDL/.claude/worktrees/clever-albattani\" log --oneline -2)",
+      "Bash(cmd /c \"gh --version\")",
+      "Bash(cmd /c \"where gh\")",
+      "Bash(powershell -Command \"gh --version\")"
+    ]
+  }
+}

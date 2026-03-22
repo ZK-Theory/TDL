@@ -1,1 +1,1 @@
-"""Data extraction from BHPS/USoc panel surveys."""
+"""Data loading and preprocessing for BHPS/USoc panel data."""
