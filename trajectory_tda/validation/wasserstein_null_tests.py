@@ -294,9 +294,15 @@ def stratified_wasserstein_test(
         import ripser
 
         _has_ripser = True
-    except ImportError:
-        _has_ripser = False
-        logger.warning("ripser not available; stratified test cannot compute null diagrams")
+    except ImportError as exc:
+        logger.error(
+            "ripser not available; stratified Wasserstein test cannot compute null "
+            "diagrams. Install ripser to run this test."
+        )
+        raise ImportError(
+            "ripser is required to compute null diagrams for the stratified "
+            "Wasserstein test."
+        ) from exc
 
     for perm_idx in range(n_permutations):
         shuffled = rng.permutation(group_memberships)
