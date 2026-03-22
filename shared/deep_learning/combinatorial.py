@@ -192,7 +192,12 @@ def complex_to_topomodelx(
             n_hh = complex.n_households
             n_neigh = len(complex.neighbourhood_features)
             hh_to_neigh = np.full(n_hh, -1, dtype=np.int64)
-            for ind, hh in enumerate(complex.individual_to_household or []):
+            individual_to_household = (
+                complex.individual_to_household
+                if complex.individual_to_household is not None
+                else []
+            )
+            for ind, hh in enumerate(individual_to_household):
                 neigh = complex.individual_to_neighbourhood[ind]
                 hh_to_neigh[hh] = neigh
             B2 = build_incidence_matrix(hh_to_neigh, n_hh, n_neigh)
