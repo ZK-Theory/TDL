@@ -94,9 +94,37 @@ def build_knn_graph(
     import torch
     from scipy.spatial import cKDTree
 
+    n_points = points.shape[0]
+    if n_points == 0:
+        raise ValueError("build_knn_graph requires at least one point.")
+
+    # Handle trivial single-point case without querying the KD-tree
+    if n_points == 1:
+        if loop:
+            edge_index = torch.tensor([[0], [0]], dtype=torch.long)
+        else:
+            edge_index = torch.empty((2, 0), dtype=torch.long)
+        x = torch.tensor(points, dtype=torch.float32)
+        return Data(x=x, edge_index=edge_index)
+
+    # Clamp k so that cKDTree.query never requests more neighbours than exist.
+    effective_k = min(k, n_points - 1)
+
+    # If effective_k < 1, no neighbours other than optional self-loops.
+    if effective_k < 1:
+        src_list: list[int] = []
+        dst_list: list[int] = []
+        if loop:
+            for i in range(n_points):
+                src_list.append(i)
+                dst_list.append(i)
+        edge_index = torch.tensor([src_list, dst_list], dtype=torch.long) if src_list else torch.empty((2, 0), dtype=torch.long)
+        x = torch.tensor(points, dtype=torch.float32)
+        return Data(x=x, edge_index=edge_index)
+
     tree = cKDTree(points)
-    # k+1 to exclude self; distances unused (unweighted graph)
-    _, indices = tree.query(points, k=k + 1)
+    # effective_k+1 to include self; distances unused (unweighted graph)
+    _, indices = tree.query(points, k=effective_k + 1)
 
     src_list = []
     dst_list = []
