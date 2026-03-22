@@ -155,7 +155,8 @@ class TopologicalFairnessLoss(nn.Module):
             group_vars.append(g_res.var())
 
         if len(group_means) < 2:  # noqa: PLR2004
-            return torch.zeros(1, device=residuals.device)
+            # Return a scalar zero to avoid shape (1,) broadcasting issues
+            return residuals.new_zeros(())
 
         means = torch.stack(group_means)
         variances = torch.stack(group_vars)
