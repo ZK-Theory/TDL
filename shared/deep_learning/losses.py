@@ -106,7 +106,7 @@ class PersistenceLoss(nn.Module):
         """
         finite_mask = torch.isfinite(death)
         if not finite_mask.any():
-            return torch.tensor(0.0, requires_grad=True)
+            return death.new_zeros(())
 
         persistence = (death - birth)[finite_mask]
         # Penalise features below threshold: ReLU(threshold - persistence)
