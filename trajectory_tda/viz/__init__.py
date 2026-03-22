@@ -1,1 +1,1 @@
-"""Visualisation for trajectory topology results."""
+"""Visualization module for trajectory TDA publication figures."""

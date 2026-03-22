@@ -1,0 +1,69 @@
+{
+  "name": "merseyside_150x150_comparison",
+  "description": "Merseyside 5-LAD comparison at 150x150 resolution. MS achieves 95.4% - highest yet. Exceeds kriging benchmark by 32pp.",
+  "timestamp": "2025-12-16T14:19:53.074946",
+  "region": "Merseyside",
+  "n_observations": 889,
+  "data_sources": {
+    "LSOA": "ONS 2021",
+    "IMD": "2019",
+    "Life Expectancy": "ONS 2016-2018"
+  },
+  "outcome_variable": "life_expectancy (male and female)",
+  "outcome_description": "",
+  "methods": [
+    {
+      "name": "Morse-Smale (Male)",
+      "column": "ms_basin",
+      "n_clusters": 145,
+      "eta_squared": 0.954,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "Morse-Smale (Female)",
+      "column": "ms_basin",
+      "n_clusters": 145,
+      "eta_squared": 0.958,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means (Male)",
+      "column": "kmeans",
+      "n_clusters": 10,
+      "eta_squared": 0.648,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means (Female)",
+      "column": "kmeans",
+      "n_clusters": 10,
+      "eta_squared": 0.665,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    }
+  ],
+  "ari_matrix": {},
+  "best_method": "Morse-Smale (Female)",
+  "best_eta_squared": 0.958,
+  "input_files": [],
+  "output_files": [],
+  "random_seed": 42,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
+  "notes": [
+    "5 LADs: Liverpool, Knowsley, Sefton, St. Helens, Wirral",
+    "MS 95.4%/95.8% (M/F) - highest performance",
+    "Exceeds Liverpool kriging benchmark by 32pp",
+    "145 MS basins at 150x150"
+  ]
+}

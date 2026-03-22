@@ -1,0 +1,45 @@
+INFO: Loaded 35672 LSOAs
+INFO: After IMD merge: 31810 with LAD code
+INFO: Filtered to 1638 WM LSOAs
+INFO: LE LADs: 384
+INFO: LE range: 76.9 - 80.3
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmp78lep8hb.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmpupcx36xc.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Grid: 150x150, origin=[385846.24666017 272183.72258442], spacing=[360.7330269  239.45554433]
+INFO: Reprojecting from EPSG:4326 to EPSG:27700 (BNG)
+INFO: Descending manifold: (22500,), range [0, 382]
+INFO: LSOAs in grid: 1638/1638
+INFO: Assigned to 245 unique basins
+INFO: Found 1080 adjacent basin pairs from grid
+============================================================
+TASK 9.5.2: Complete Barrier-Outcome Correlation
+============================================================
+
+1. Loading data...
+   Using LE column: le_male
+   LE range: 76.9 - 80.3
+
+2. Computing Morse-Smale complex...
+   383 minima, 787 saddles
+
+3. Assigning LSOAs to basins...
+   1638 LSOAs assigned to 245 basins
+
+4. Computing basin LE statistics...
+   Basins with LE data: 245
+
+5. Computing barrier-gradient correlation...
+
+============================================================
+BARRIER-OUTCOME CORRELATION RESULTS
+============================================================
+   Pearson r: -0.0850
+   p-value:   0.0326
+   N pairs:   632
+
+   Weak correlation: r=-0.085

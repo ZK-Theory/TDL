@@ -1,0 +1,44 @@
+2026-03-14 16:21:49,922 [__main__] INFO: Loaded 27280 trajectories, 27280 regime labels
+2026-03-14 16:21:49,922 [__main__] INFO: Intra-regime compactness test: 27280 trajectories, 500 permutations, PCA-20D
+2026-03-14 16:21:49,922 [trajectory_tda.embedding.ngram_embed] INFO: Embedding 27280 trajectories...
+2026-03-14 16:21:49,986 [trajectory_tda.embedding.ngram_embed] INFO:   Unigrams: (27280, 9)
+2026-03-14 16:21:50,124 [trajectory_tda.embedding.ngram_embed] INFO:   Bigrams: (27280, 81)
+2026-03-14 16:21:50,124 [trajectory_tda.embedding.ngram_embed] INFO:   Raw embedding: (27280, 90)
+2026-03-14 16:21:50,196 [trajectory_tda.embedding.ngram_embed] INFO:   PCA reduction: (27280, 20) (explained variance: 0.490)
+2026-03-14 16:21:50,196 [trajectory_tda.embedding.ngram_embed] INFO:   Final: 27280 points × 20 dims (method=pca)
+2026-03-14 16:21:50,197 [__main__] INFO:   Observed embedding: (27280, 20), explained variance: 0.48963724715080603
+2026-03-14 16:21:50,314 [__main__] INFO:   Observed compactness: {0: 14.679537124783113, 1: 3.7921387271025564, 2: 5.733828061093339, 3: 7.270608039810964, 4: 5.213743736429177, 5: 5.7351808426239845, 6: 9.51469339191018}
+2026-03-14 16:24:44,552 [__main__] INFO:   Permutation 50/500
+2026-03-14 16:25:44,666 [__main__] INFO:   Permutation 100/500
+2026-03-14 16:29:01,574 [__main__] INFO:   Permutation 150/500
+2026-03-14 16:31:48,784 [__main__] INFO:   Permutation 200/500
+2026-03-14 16:33:06,891 [__main__] INFO:   Permutation 250/500
+2026-03-14 16:34:05,693 [__main__] INFO:   Permutation 300/500
+2026-03-14 16:34:55,390 [__main__] INFO:   Permutation 350/500
+2026-03-14 16:36:17,421 [__main__] INFO:   Permutation 400/500
+2026-03-14 16:38:28,942 [__main__] INFO:   Permutation 450/500
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Projects\TDL\trajectory_tda\analysis\intra_regime_compactness.py", line 332, in <module>
+    run_compactness_test(
+    ~~~~~~~~~~~~~~~~~~~~^
+        results_dir=args.results_dir,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        or f"{args.results_dir}/intra_regime_compactness.json",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Projects\TDL\trajectory_tda\analysis\intra_regime_compactness.py", line 293, in run_compactness_test
+    result = intra_regime_compactness_test(
+        trajectories=trajectories,
+        regime_labels=regime_labels,
+        n_permutations=n_permutations,
+    )
+  File "C:\Projects\TDL\trajectory_tda\analysis\intra_regime_compactness.py", line 186, in intra_regime_compactness_test
+    shuffled_raw = np.hstack([obs_unigrams, shuffled_bigrams])
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python313\Lib\site-packages\numpy\_core\shape_base.py", line 367, in hstack
+    return _nx.concatenate(arrs, 1, dtype=dtype, casting=casting)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 18.7 MiB for an array with shape (27280, 90) and data type float64

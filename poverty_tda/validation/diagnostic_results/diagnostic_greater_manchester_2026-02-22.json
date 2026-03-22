@@ -1,0 +1,135 @@
+{
+  "region": "greater_manchester",
+  "timestamp": "2026-02-22T11:16:04.949695",
+  "resolution_check": {
+    "check": "resolution_alignment",
+    "n_observations": 1636,
+    "n_unique_outcomes": 10,
+    "ratio": 0.006112469437652812,
+    "passed": false,
+    "severity": "CRITICAL"
+  },
+  "random_partition": {
+    "check": "random_partition_baseline",
+    "k": 200,
+    "n_observations": 1636,
+    "n_trials": 200,
+    "mean_eta2": 0.12121263147731859,
+    "std_eta2": 0.010204048311858166,
+    "p95_eta2": 0.13817705751467696,
+    "p99_eta2": 0.14658384978673378,
+    "theoretical_expectation": 0.1217125382262997,
+    "ms_k": 200,
+    "ms_eta2": null,
+    "ms_omega2": null,
+    "ms_excess_over_random_mean": null,
+    "ms_exceeds_p95": null
+  },
+  "matched_k": {
+    "check": "matched_k_kmeans",
+    "ms_k": 200,
+    "ms_eta2": null,
+    "kmeans_matched_k_eta2": 0.7556789147107228,
+    "kmeans_matched_k_omega2": 0.721698258670071,
+    "ms_advantage_at_matched_k": null,
+    "auto_k_results": {
+      "5": {
+        "eta2": 0.20842781292844803,
+        "omega2": 0.20638633014057725
+      },
+      "10": {
+        "eta2": 0.3275581144111113,
+        "omega2": 0.32370224238372025
+      },
+      "15": {
+        "eta2": 0.4271377436989969,
+        "omega2": 0.42204098679575114
+      },
+      "20": {
+        "eta2": 0.40438850481996214,
+        "omega2": 0.39723923584494575
+      },
+      "50": {
+        "eta2": 0.5798266023678788,
+        "omega2": 0.5666950723061347
+      },
+      "100": {
+        "eta2": 0.6633651076098145,
+        "omega2": 0.6415273375363345
+      }
+    }
+  },
+  "interpolation": {
+    "check": "interpolation_sensitivity",
+    "linear": {
+      "basins": null,
+      "eta2": null,
+      "omega2": null,
+      "error": "No module named 'vtk'"
+    },
+    "cubic": {
+      "basins": null,
+      "eta2": null,
+      "omega2": null,
+      "error": "No module named 'vtk'"
+    }
+  },
+  "lad_collapse": {
+    "check": "lad_collapse",
+    "n_lsoas": 1636,
+    "n_unique_outcomes": 10,
+    "n_lads": 10,
+    "outcome_is_lad_level": true,
+    "lad_eta2": 1.0000000000000013,
+    "lad_omega2": 1.0000000000000013,
+    "resolution_check": {
+      "check": "resolution_alignment",
+      "n_observations": 1636,
+      "n_unique_outcomes": 10,
+      "ratio": 0.006112469437652812,
+      "passed": false,
+      "severity": "CRITICAL"
+    },
+    "ms_comparison": null
+  },
+  "cv_r2": {
+    "check": "cv_r2",
+    "methods": {
+      "IMD_only": {
+        "n_features": 1,
+        "r2_insample": 0.1478141578921237,
+        "r2_cv_random_5fold": -1.1473008639696312,
+        "r2_cv_random_fold_scores": [
+          -0.001252794854695427,
+          -4.964230147527245,
+          -0.049473492955407705,
+          -0.7886980213989574,
+          0.06715013688815052
+        ],
+        "r2_loo_lad": -1.1398480737611378e+27,
+        "r2_loo_lad_fold_scores": [
+          0.0,
+          0.0,
+          0.0,
+          -2.585308557579881e+27,
+          -3.794330247245018e+27,
+          -3.569006325661069e+27,
+          0.0,
+          -1.4498356071254126e+27,
+          0.0,
+          0.0
+        ],
+        "overfitting_gap": 1.2951150218617549
+      }
+    }
+  },
+  "summary": {
+    "total_issues": 3,
+    "issues": [
+      "RESOLUTION MISMATCH: Outcome data is at LAD level, not LSOA",
+      "LAD-LEVEL OUTCOME: Only 10 unique values for 1636 LSOAs",
+      "OVERFITTING (IMD_only): gap = 1.295"
+    ],
+    "elapsed_seconds": 8.924513578414917
+  }
+}

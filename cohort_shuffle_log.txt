@@ -1,0 +1,1019 @@
+17:57:06 [__main__] INFO: Embeddings: (27280, 20)
+17:57:06 [__main__] INFO: Loading saved trajectories from results\trajectory_tda_integration\01_trajectories_sequences.json
+17:57:06 [__main__] INFO: Loaded 27280 trajectories, metadata keys: ['pidp', 'n_years', 'start_year', 'end_year', 'n_imputed', 'pct_imputed', 'dominant_state']
+17:57:09 [__main__] INFO: Cohort array: 27280 entries, 5 unique cohorts
+17:57:09 [__main__] INFO: === cohort_shuffle at n=200 ===
+17:57:09 [trajectory_tda.topology.permutation_nulls] INFO: Permutation test: cohort_shuffle, 200 perms, H0-H1, statistic=total_persistence
+17:57:42 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+17:57:42 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.996 (75th percentile)
+17:58:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 32.8s
+17:58:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+17:58:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 5961 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+17:58:15 [trajectory_tda.topology.permutation_nulls] INFO:   Observed total_persistence: {'H0': 20411.12756752968, 'H1': 2224.6842234134674}
+17:58:37 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+17:58:37 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.190 (75th percentile)
+17:58:51 [poverty_tda.topology.multidim_ph] INFO:   Completed in 14.1s
+17:58:51 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+17:58:51 [poverty_tda.topology.multidim_ph] INFO:   H1: 5936 finite + 1 infinite, top lifetimes: [3.213, 2.771, 2.322, 2.223, 2.214]
+17:59:06 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+17:59:06 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.371 (75th percentile)
+17:59:28 [poverty_tda.topology.multidim_ph] INFO:   Completed in 22.4s
+17:59:28 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+17:59:28 [poverty_tda.topology.multidim_ph] INFO:   H1: 5915 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:00:00 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:00:00 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.059 (75th percentile)
+18:00:19 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:00:19 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:00:19 [poverty_tda.topology.multidim_ph] INFO:   H1: 5945 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:00:34 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:00:34 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.902 (75th percentile)
+18:00:53 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+18:00:53 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:00:53 [poverty_tda.topology.multidim_ph] INFO:   H1: 5880 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:01:09 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:01:09 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.783 (75th percentile)
+18:01:28 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+18:01:28 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:01:28 [poverty_tda.topology.multidim_ph] INFO:   H1: 5916 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:01:43 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:01:43 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.203 (75th percentile)
+18:02:03 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+18:02:03 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:02:03 [poverty_tda.topology.multidim_ph] INFO:   H1: 5929 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:02:18 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:02:18 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.815 (75th percentile)
+18:02:37 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+18:02:37 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:02:37 [poverty_tda.topology.multidim_ph] INFO:   H1: 5909 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+18:02:52 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:02:52 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.791 (75th percentile)
+18:03:11 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.0s
+18:03:11 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:03:11 [poverty_tda.topology.multidim_ph] INFO:   H1: 5892 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:03:26 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:03:26 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.605 (75th percentile)
+18:03:45 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+18:03:45 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:03:45 [poverty_tda.topology.multidim_ph] INFO:   H1: 5909 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:04:00 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:04:00 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.027 (75th percentile)
+18:04:20 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.0s
+18:04:20 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:04:20 [poverty_tda.topology.multidim_ph] INFO:   H1: 5932 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:04:36 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:04:36 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.987 (75th percentile)
+18:04:55 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:04:55 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:04:55 [poverty_tda.topology.multidim_ph] INFO:   H1: 5864 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:05:10 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:05:10 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.807 (75th percentile)
+18:05:32 [poverty_tda.topology.multidim_ph] INFO:   Completed in 21.4s
+18:05:32 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:05:32 [poverty_tda.topology.multidim_ph] INFO:   H1: 5914 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:05:47 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:05:47 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.221 (75th percentile)
+18:06:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:06:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:06:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 5946 finite + 1 infinite, top lifetimes: [3.213, 2.341, 2.322, 2.223, 2.214]
+18:06:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:06:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+18:06:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:06:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:06:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:06:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:06:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.797 (75th percentile)
+18:07:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:07:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:07:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5964 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:07:32 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:07:32 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.876 (75th percentile)
+18:07:51 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+18:07:51 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:07:51 [poverty_tda.topology.multidim_ph] INFO:   H1: 5959 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.223, 2.214, 2.203]
+18:08:06 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:08:06 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.344 (75th percentile)
+18:08:26 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:08:26 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:08:26 [poverty_tda.topology.multidim_ph] INFO:   H1: 5980 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:08:41 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:08:41 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.079 (75th percentile)
+18:09:00 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+18:09:00 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:09:00 [poverty_tda.topology.multidim_ph] INFO:   H1: 5914 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:09:15 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:09:15 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.296 (75th percentile)
+18:09:35 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.1s
+18:09:35 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:09:35 [poverty_tda.topology.multidim_ph] INFO:   H1: 5956 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:09:50 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:09:50 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.742 (75th percentile)
+18:10:08 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+18:10:08 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:10:08 [poverty_tda.topology.multidim_ph] INFO:   H1: 5914 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:10:23 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:10:23 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+18:10:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:10:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:10:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:10:58 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:10:58 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.675 (75th percentile)
+18:11:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+18:11:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:11:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5923 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:11:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:11:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+18:11:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+18:11:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:11:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:12:06 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:12:06 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.268 (75th percentile)
+18:12:25 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.6s
+18:12:25 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:12:25 [poverty_tda.topology.multidim_ph] INFO:   H1: 5938 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:12:40 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:12:40 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.182 (75th percentile)
+18:13:01 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.6s
+18:13:01 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:13:01 [poverty_tda.topology.multidim_ph] INFO:   H1: 5943 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.223, 2.214, 2.203]
+18:13:16 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:13:16 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.397 (75th percentile)
+18:13:34 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.7s
+18:13:34 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:13:34 [poverty_tda.topology.multidim_ph] INFO:   H1: 5942 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:13:49 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:13:49 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.162 (75th percentile)
+18:14:09 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.4s
+18:14:09 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:14:09 [poverty_tda.topology.multidim_ph] INFO:   H1: 5972 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:14:25 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:14:25 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.902 (75th percentile)
+18:14:44 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:14:44 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:14:44 [poverty_tda.topology.multidim_ph] INFO:   H1: 5880 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:14:59 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:14:59 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+18:15:19 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:15:19 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:15:19 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:15:34 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:15:34 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.164 (75th percentile)
+18:15:53 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+18:15:53 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:15:53 [poverty_tda.topology.multidim_ph] INFO:   H1: 5964 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:16:09 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:16:09 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.961 (75th percentile)
+18:16:29 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+18:16:29 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:16:29 [poverty_tda.topology.multidim_ph] INFO:   H1: 5939 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:16:45 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:16:45 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.245 (75th percentile)
+18:17:04 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+18:17:04 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:17:04 [poverty_tda.topology.multidim_ph] INFO:   H1: 5858 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:17:19 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:17:19 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.820 (75th percentile)
+18:17:38 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+18:17:38 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:17:38 [poverty_tda.topology.multidim_ph] INFO:   H1: 5943 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:17:53 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:17:53 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.159 (75th percentile)
+18:18:14 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+18:18:14 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:18:14 [poverty_tda.topology.multidim_ph] INFO:   H1: 5951 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:18:29 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:18:29 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.219 (75th percentile)
+18:18:49 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+18:18:49 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:18:49 [poverty_tda.topology.multidim_ph] INFO:   H1: 5920 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:19:04 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:19:04 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.816 (75th percentile)
+18:19:24 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.0s
+18:19:24 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:19:24 [poverty_tda.topology.multidim_ph] INFO:   H1: 5953 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:19:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:19:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.196 (75th percentile)
+18:19:59 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.2s
+18:19:59 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:19:59 [poverty_tda.topology.multidim_ph] INFO:   H1: 5910 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.316, 2.286, 2.223]
+18:20:14 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:20:14 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.109 (75th percentile)
+18:20:34 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:20:34 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:20:34 [poverty_tda.topology.multidim_ph] INFO:   H1: 5907 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:20:49 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:20:49 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.668 (75th percentile)
+18:21:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 23.3s
+18:21:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:21:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5969 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:21:28 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:21:28 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.497 (75th percentile)
+18:21:48 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+18:21:48 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:21:48 [poverty_tda.topology.multidim_ph] INFO:   H1: 5968 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:22:03 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:22:03 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.166 (75th percentile)
+18:22:22 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+18:22:22 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:22:22 [poverty_tda.topology.multidim_ph] INFO:   H1: 5952 finite + 1 infinite, top lifetimes: [3.213, 2.376, 2.322, 2.286, 2.223]
+18:22:38 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:22:38 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.718 (75th percentile)
+18:22:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+18:22:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:22:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 5902 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:23:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:23:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+18:23:31 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:23:31 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:23:31 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:23:46 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:23:46 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.810 (75th percentile)
+18:24:04 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+18:24:04 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:24:04 [poverty_tda.topology.multidim_ph] INFO:   H1: 5929 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:24:19 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:24:19 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.072 (75th percentile)
+18:24:38 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+18:24:38 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:24:38 [poverty_tda.topology.multidim_ph] INFO:   H1: 5932 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:24:53 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:24:53 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.633 (75th percentile)
+18:25:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.4s
+18:25:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:25:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5914 finite + 1 infinite, top lifetimes: [3.213, 2.367, 2.322, 2.223, 2.214]
+18:25:26 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:25:26 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.821 (75th percentile)
+18:25:45 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+18:25:45 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:25:45 [poverty_tda.topology.multidim_ph] INFO:   H1: 5926 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:26:01 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:26:01 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.352 (75th percentile)
+18:26:22 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.7s
+18:26:22 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:26:22 [poverty_tda.topology.multidim_ph] INFO:   H1: 5939 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+18:26:37 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:26:37 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.054 (75th percentile)
+18:26:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.6s
+18:26:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:26:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 5953 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:27:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:27:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.352 (75th percentile)
+18:27:32 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:27:32 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:27:32 [poverty_tda.topology.multidim_ph] INFO:   H1: 5912 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:27:47 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:27:47 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.648 (75th percentile)
+18:28:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+18:28:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:28:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 5938 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:28:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:28:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+18:28:40 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+18:28:40 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:28:40 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:28:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:28:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.755 (75th percentile)
+18:29:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+18:29:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:29:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5909 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:29:32 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:29:32 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+18:29:52 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.4s
+18:29:52 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:29:52 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:30:08 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:30:08 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+18:30:27 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:30:27 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:30:27 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:30:42 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:30:42 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.938 (75th percentile)
+18:31:01 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:31:01 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:31:01 [poverty_tda.topology.multidim_ph] INFO:   H1: 5935 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:31:17 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:31:17 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.322 (75th percentile)
+18:31:37 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+18:31:37 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:31:37 [poverty_tda.topology.multidim_ph] INFO:   H1: 5930 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:31:52 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:31:52 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.029 (75th percentile)
+18:32:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+18:32:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:32:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5957 finite + 1 infinite, top lifetimes: [3.213, 2.341, 2.322, 2.223, 2.214]
+18:32:27 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:32:27 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.899 (75th percentile)
+18:32:46 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+18:32:46 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:32:46 [poverty_tda.topology.multidim_ph] INFO:   H1: 5878 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:33:01 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:33:01 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.125 (75th percentile)
+18:33:23 [poverty_tda.topology.multidim_ph] INFO:   Completed in 21.7s
+18:33:23 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:33:23 [poverty_tda.topology.multidim_ph] INFO:   H1: 5932 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:33:38 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:33:38 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.710 (75th percentile)
+18:33:56 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.1s
+18:33:56 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:33:56 [poverty_tda.topology.multidim_ph] INFO:   H1: 5927 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:34:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:34:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.909 (75th percentile)
+18:34:34 [poverty_tda.topology.multidim_ph] INFO:   Completed in 22.2s
+18:34:34 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:34:34 [poverty_tda.topology.multidim_ph] INFO:   H1: 5917 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:34:49 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:34:49 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.433 (75th percentile)
+18:35:08 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+18:35:08 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:35:08 [poverty_tda.topology.multidim_ph] INFO:   H1: 5944 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:35:24 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:35:24 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.397 (75th percentile)
+18:35:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.7s
+18:35:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:35:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5942 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:35:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:35:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.091 (75th percentile)
+18:36:18 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.6s
+18:36:18 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:36:18 [poverty_tda.topology.multidim_ph] INFO:   H1: 5998 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+18:36:33 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:36:33 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.821 (75th percentile)
+18:36:52 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+18:36:52 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:36:52 [poverty_tda.topology.multidim_ph] INFO:   H1: 5926 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:37:07 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:37:07 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.818 (75th percentile)
+18:37:26 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+18:37:26 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:37:26 [poverty_tda.topology.multidim_ph] INFO:   H1: 5896 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:37:41 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:37:41 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.534 (75th percentile)
+18:38:01 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:38:01 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:38:01 [poverty_tda.topology.multidim_ph] INFO:   H1: 5898 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:38:16 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:38:16 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.721 (75th percentile)
+18:38:37 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.0s
+18:38:37 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:38:37 [poverty_tda.topology.multidim_ph] INFO:   H1: 5888 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:38:52 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:38:52 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.860 (75th percentile)
+18:39:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.5s
+18:39:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:39:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5886 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:39:28 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:39:28 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.902 (75th percentile)
+18:39:47 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+18:39:47 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:39:47 [poverty_tda.topology.multidim_ph] INFO:   H1: 5905 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:40:02 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:40:02 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.238 (75th percentile)
+18:40:22 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.9s
+18:40:22 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:40:22 [poverty_tda.topology.multidim_ph] INFO:   H1: 5925 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:40:38 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:40:38 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.724 (75th percentile)
+18:40:56 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+18:40:56 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:40:56 [poverty_tda.topology.multidim_ph] INFO:   H1: 5942 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:41:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:41:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.692 (75th percentile)
+18:41:37 [poverty_tda.topology.multidim_ph] INFO:   Completed in 24.2s
+18:41:37 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:41:37 [poverty_tda.topology.multidim_ph] INFO:   H1: 5972 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:41:54 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:41:54 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.585 (75th percentile)
+18:42:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+18:42:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:42:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5916 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:42:29 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:42:29 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.512 (75th percentile)
+18:42:47 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+18:42:47 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:42:47 [poverty_tda.topology.multidim_ph] INFO:   H1: 5922 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:43:04 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:43:04 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.130 (75th percentile)
+18:43:25 [poverty_tda.topology.multidim_ph] INFO:   Completed in 21.4s
+18:43:25 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:43:25 [poverty_tda.topology.multidim_ph] INFO:   H1: 5958 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:43:41 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:43:41 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.242 (75th percentile)
+18:44:01 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.0s
+18:44:01 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:44:01 [poverty_tda.topology.multidim_ph] INFO:   H1: 5992 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.223, 2.214, 2.203]
+18:44:16 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:44:16 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.872 (75th percentile)
+18:44:34 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+18:44:34 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:44:34 [poverty_tda.topology.multidim_ph] INFO:   H1: 5950 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:44:50 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:44:50 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+18:45:09 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+18:45:09 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:45:09 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:45:24 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:45:24 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.397 (75th percentile)
+18:45:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.5s
+18:45:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:45:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5942 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:45:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:45:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.307 (75th percentile)
+18:46:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+18:46:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:46:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5955 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:46:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:46:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.959 (75th percentile)
+18:46:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:46:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:46:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5963 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:47:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:47:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.583 (75th percentile)
+18:47:23 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+18:47:23 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:47:23 [poverty_tda.topology.multidim_ph] INFO:   H1: 5986 finite + 1 infinite, top lifetimes: [3.213, 2.306, 2.294, 2.286, 2.223]
+18:47:38 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:47:38 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.026 (75th percentile)
+18:47:58 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.6s
+18:47:58 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:47:58 [poverty_tda.topology.multidim_ph] INFO:   H1: 5939 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:48:13 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:48:13 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.608 (75th percentile)
+18:48:32 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+18:48:32 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:48:32 [poverty_tda.topology.multidim_ph] INFO:   H1: 5983 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:48:47 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:48:47 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.834 (75th percentile)
+18:49:06 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.2s
+18:49:06 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:49:06 [poverty_tda.topology.multidim_ph] INFO:   H1: 5938 finite + 1 infinite, top lifetimes: [3.213, 2.341, 2.322, 2.286, 2.223]
+18:49:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:49:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.372 (75th percentile)
+18:49:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+18:49:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:49:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5934 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:49:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:49:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.940 (75th percentile)
+18:50:17 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:50:17 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:50:17 [poverty_tda.topology.multidim_ph] INFO:   H1: 5946 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:50:32 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:50:32 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.908 (75th percentile)
+18:50:51 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+18:50:51 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:50:51 [poverty_tda.topology.multidim_ph] INFO:   H1: 5973 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.223, 2.214, 2.203]
+18:51:07 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:51:07 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.109 (75th percentile)
+18:51:26 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:51:26 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:51:26 [poverty_tda.topology.multidim_ph] INFO:   H1: 5913 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:51:41 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:51:41 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.083 (75th percentile)
+18:51:59 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.4s
+18:51:59 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:51:59 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:52:14 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:52:14 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.975 (75th percentile)
+18:52:33 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+18:52:33 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:52:33 [poverty_tda.topology.multidim_ph] INFO:   H1: 5948 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:52:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:52:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.319 (75th percentile)
+18:53:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:53:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:53:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 5925 finite + 1 infinite, top lifetimes: [3.213, 2.401, 2.322, 2.223, 2.214]
+18:53:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:53:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.310 (75th percentile)
+18:53:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:53:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:53:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5898 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.265, 2.223]
+18:53:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:53:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.872 (75th percentile)
+18:54:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+18:54:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:54:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 5950 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:54:30 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:54:30 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.809 (75th percentile)
+18:54:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+18:54:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:54:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5895 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:55:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:55:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.208 (75th percentile)
+18:55:24 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:55:24 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:55:24 [poverty_tda.topology.multidim_ph] INFO:   H1: 5922 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:55:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:55:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+18:55:59 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+18:55:59 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:55:59 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:56:14 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:56:14 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.757 (75th percentile)
+18:56:33 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+18:56:33 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:56:33 [poverty_tda.topology.multidim_ph] INFO:   H1: 5928 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:56:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:56:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.376 (75th percentile)
+18:57:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:57:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:57:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 5937 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:57:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:57:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.210 (75th percentile)
+18:57:41 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:57:41 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:57:41 [poverty_tda.topology.multidim_ph] INFO:   H1: 5941 finite + 1 infinite, top lifetimes: [3.213, 2.687, 2.322, 2.223, 2.214]
+18:57:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:57:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.111 (75th percentile)
+18:58:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.2s
+18:58:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:58:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5924 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:58:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:58:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.881 (75th percentile)
+18:58:49 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+18:58:49 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:58:49 [poverty_tda.topology.multidim_ph] INFO:   H1: 5900 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+18:59:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:59:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.192 (75th percentile)
+18:59:24 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+18:59:24 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:59:24 [poverty_tda.topology.multidim_ph] INFO:   H1: 5964 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+18:59:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:59:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.388 (75th percentile)
+18:59:59 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.6s
+18:59:59 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+18:59:59 [poverty_tda.topology.multidim_ph] INFO:   H1: 5930 finite + 0 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:00:14 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:00:14 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.783 (75th percentile)
+19:00:33 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+19:00:33 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:00:33 [poverty_tda.topology.multidim_ph] INFO:   H1: 5932 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:00:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:00:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.764 (75th percentile)
+19:01:09 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.4s
+19:01:09 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:01:09 [poverty_tda.topology.multidim_ph] INFO:   H1: 5880 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:01:24 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:01:24 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.888 (75th percentile)
+19:01:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+19:01:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:01:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5910 finite + 1 infinite, top lifetimes: [3.213, 2.376, 2.322, 2.223, 2.214]
+19:01:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:01:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.058 (75th percentile)
+19:02:17 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.9s
+19:02:17 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:02:17 [poverty_tda.topology.multidim_ph] INFO:   H1: 5941 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:02:32 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:02:32 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.397 (75th percentile)
+19:02:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.5s
+19:02:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:02:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5942 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:03:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:03:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.703 (75th percentile)
+19:03:25 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.1s
+19:03:25 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:03:25 [poverty_tda.topology.multidim_ph] INFO:   H1: 5909 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:03:40 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:03:40 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.551 (75th percentile)
+19:03:58 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.1s
+19:03:58 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:03:58 [poverty_tda.topology.multidim_ph] INFO:   H1: 5903 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:04:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:04:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+19:04:31 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.0s
+19:04:31 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:04:32 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:04:46 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:04:46 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.836 (75th percentile)
+19:05:06 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.2s
+19:05:06 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:05:06 [poverty_tda.topology.multidim_ph] INFO:   H1: 5920 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:05:21 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:05:21 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:05:40 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:05:40 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:05:40 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:05:55 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:05:55 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.636 (75th percentile)
+19:06:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+19:06:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:06:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 5894 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:06:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:06:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.797 (75th percentile)
+19:06:49 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.7s
+19:06:49 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:06:49 [poverty_tda.topology.multidim_ph] INFO:   H1: 5947 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:07:04 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:07:04 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.511 (75th percentile)
+19:07:22 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+19:07:22 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:07:22 [poverty_tda.topology.multidim_ph] INFO:   H1: 5903 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:07:37 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:07:37 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.869 (75th percentile)
+19:07:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+19:07:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:07:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 5943 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:08:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:08:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:08:31 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:08:31 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:08:31 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:08:47 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:08:47 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.006 (75th percentile)
+19:09:05 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+19:09:05 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:09:05 [poverty_tda.topology.multidim_ph] INFO:   H1: 5951 finite + 1 infinite, top lifetimes: [3.213, 2.341, 2.322, 2.286, 2.223]
+19:09:20 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:09:20 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+19:09:39 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+19:09:39 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:09:39 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:09:54 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:09:54 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:10:13 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:10:13 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:10:13 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:10:28 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:10:28 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.974 (75th percentile)
+19:10:47 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+19:10:47 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:10:47 [poverty_tda.topology.multidim_ph] INFO:   H1: 5919 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:11:02 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:11:02 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.928 (75th percentile)
+19:11:23 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.8s
+19:11:23 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:11:23 [poverty_tda.topology.multidim_ph] INFO:   H1: 5957 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:11:38 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:11:38 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.992 (75th percentile)
+19:11:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+19:11:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:11:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 5909 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+19:12:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:12:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:12:31 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:12:31 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:12:31 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:12:46 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:12:46 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:13:06 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+19:13:06 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:13:06 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:13:21 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:13:21 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.307 (75th percentile)
+19:13:41 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.5s
+19:13:41 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:13:41 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:13:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:13:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.929 (75th percentile)
+19:14:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:14:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:14:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5990 finite + 1 infinite, top lifetimes: [3.213, 2.723, 2.322, 2.286, 2.223]
+19:14:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:14:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.062 (75th percentile)
+19:14:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+19:14:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:14:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5881 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:15:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:15:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.118 (75th percentile)
+19:15:25 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.2s
+19:15:25 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:15:25 [poverty_tda.topology.multidim_ph] INFO:   H1: 5895 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:15:40 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:15:40 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.936 (75th percentile)
+19:15:58 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+19:15:58 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:15:58 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:16:14 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:16:14 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.791 (75th percentile)
+19:16:33 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.0s
+19:16:33 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:16:33 [poverty_tda.topology.multidim_ph] INFO:   H1: 5892 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:16:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:16:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.932 (75th percentile)
+19:17:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+19:17:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:17:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 5965 finite + 1 infinite, top lifetimes: [3.213, 2.367, 2.322, 2.223, 2.214]
+19:17:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:17:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:17:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:17:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:17:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:17:56 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:17:56 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.756 (75th percentile)
+19:18:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+19:18:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:18:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 5907 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:18:30 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:18:30 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.299 (75th percentile)
+19:18:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+19:18:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:18:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5944 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:19:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:19:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.908 (75th percentile)
+19:19:24 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+19:19:24 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:19:24 [poverty_tda.topology.multidim_ph] INFO:   H1: 5973 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.223, 2.214, 2.203]
+19:19:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:19:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.990 (75th percentile)
+19:19:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+19:19:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:19:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 5916 finite + 1 infinite, top lifetimes: [3.213, 2.341, 2.322, 2.286, 2.223]
+19:20:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:20:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.924 (75th percentile)
+19:20:33 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.6s
+19:20:33 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:20:33 [poverty_tda.topology.multidim_ph] INFO:   H1: 5960 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:20:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:20:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.123 (75th percentile)
+19:21:08 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.4s
+19:21:08 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:21:08 [poverty_tda.topology.multidim_ph] INFO:   H1: 5907 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:21:23 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:21:23 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.161 (75th percentile)
+19:21:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+19:21:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:21:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 5926 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:21:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:21:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:22:16 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:22:16 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:22:16 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:22:32 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:22:32 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.806 (75th percentile)
+19:22:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+19:22:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:22:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 5929 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:23:05 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:23:05 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.142 (75th percentile)
+19:23:26 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.9s
+19:23:26 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:23:26 [poverty_tda.topology.multidim_ph] INFO:   H1: 5907 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:23:42 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:23:42 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.940 (75th percentile)
+19:24:01 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+19:24:01 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:24:01 [poverty_tda.topology.multidim_ph] INFO:   H1: 5930 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.265, 2.223, 2.214]
+19:24:16 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:24:16 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.869 (75th percentile)
+19:24:36 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+19:24:36 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:24:36 [poverty_tda.topology.multidim_ph] INFO:   H1: 5940 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:24:51 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:24:51 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.054 (75th percentile)
+19:25:11 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.7s
+19:25:11 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:25:11 [poverty_tda.topology.multidim_ph] INFO:   H1: 5930 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:25:26 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:25:26 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:25:45 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+19:25:45 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:25:45 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:26:01 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:26:01 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.089 (75th percentile)
+19:26:20 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+19:26:20 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:26:20 [poverty_tda.topology.multidim_ph] INFO:   H1: 5878 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:26:35 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:26:35 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.608 (75th percentile)
+19:26:54 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:26:54 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:26:54 [poverty_tda.topology.multidim_ph] INFO:   H1: 5983 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:27:09 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:27:09 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.292 (75th percentile)
+19:27:29 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.4s
+19:27:29 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:27:29 [poverty_tda.topology.multidim_ph] INFO:   H1: 5925 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:27:44 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:27:44 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.259 (75th percentile)
+19:28:03 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.4s
+19:28:03 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:28:03 [poverty_tda.topology.multidim_ph] INFO:   H1: 5976 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:28:18 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:28:18 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.849 (75th percentile)
+19:28:36 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.6s
+19:28:36 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:28:36 [poverty_tda.topology.multidim_ph] INFO:   H1: 6032 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:28:51 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:28:51 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.125 (75th percentile)
+19:29:10 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:29:10 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:29:11 [poverty_tda.topology.multidim_ph] INFO:   H1: 5936 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:29:25 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:29:25 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.366 (75th percentile)
+19:29:45 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.8s
+19:29:45 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:29:45 [poverty_tda.topology.multidim_ph] INFO:   H1: 5959 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:30:00 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:30:00 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.455 (75th percentile)
+19:30:18 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.9s
+19:30:18 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:30:18 [poverty_tda.topology.multidim_ph] INFO:   H1: 5953 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:30:33 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:30:33 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.009 (75th percentile)
+19:30:53 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:30:53 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:30:53 [poverty_tda.topology.multidim_ph] INFO:   H1: 5899 finite + 1 infinite, top lifetimes: [3.213, 2.367, 2.294, 2.223, 2.214]
+19:31:09 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:31:09 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.727 (75th percentile)
+19:31:29 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.1s
+19:31:29 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:31:29 [poverty_tda.topology.multidim_ph] INFO:   H1: 5947 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:31:44 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:31:44 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.640 (75th percentile)
+19:32:02 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+19:32:02 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:32:02 [poverty_tda.topology.multidim_ph] INFO:   H1: 5913 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:32:17 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:32:17 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.731 (75th percentile)
+19:32:37 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.9s
+19:32:37 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:32:37 [poverty_tda.topology.multidim_ph] INFO:   H1: 5932 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:32:52 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:32:52 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.990 (75th percentile)
+19:33:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.6s
+19:33:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:33:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5934 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:33:27 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:33:27 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.687 (75th percentile)
+19:33:46 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+19:33:46 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:33:46 [poverty_tda.topology.multidim_ph] INFO:   H1: 5902 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:34:01 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:34:01 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:34:21 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.6s
+19:34:21 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:34:21 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:34:36 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:34:36 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.971 (75th percentile)
+19:34:54 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.3s
+19:34:54 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:34:54 [poverty_tda.topology.multidim_ph] INFO:   H1: 5920 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+19:35:09 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:35:09 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.604 (75th percentile)
+19:35:27 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+19:35:27 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:35:27 [poverty_tda.topology.multidim_ph] INFO:   H1: 5952 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:35:42 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:35:42 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.315 (75th percentile)
+19:36:01 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.5s
+19:36:01 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:36:01 [poverty_tda.topology.multidim_ph] INFO:   H1: 5899 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+19:36:16 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:36:16 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.504 (75th percentile)
+19:36:39 [poverty_tda.topology.multidim_ph] INFO:   Completed in 23.0s
+19:36:39 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:36:39 [poverty_tda.topology.multidim_ph] INFO:   H1: 5930 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:36:54 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:36:54 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:37:13 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+19:37:13 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:37:13 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:37:28 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:37:28 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.181 (75th percentile)
+19:37:48 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+19:37:48 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:37:48 [poverty_tda.topology.multidim_ph] INFO:   H1: 5989 finite + 1 infinite, top lifetimes: [3.213, 2.294, 2.286, 2.223, 2.214]
+19:38:03 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:38:03 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.277 (75th percentile)
+19:38:24 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.3s
+19:38:24 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:38:24 [poverty_tda.topology.multidim_ph] INFO:   H1: 5957 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:38:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:38:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.122 (75th percentile)
+19:38:56 [poverty_tda.topology.multidim_ph] INFO:   Completed in 16.8s
+19:38:56 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:38:56 [poverty_tda.topology.multidim_ph] INFO:   H1: 5960 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:39:11 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:39:11 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.024 (75th percentile)
+19:39:29 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.4s
+19:39:29 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:39:29 [poverty_tda.topology.multidim_ph] INFO:   H1: 5900 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.265, 2.223]
+19:39:45 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:39:45 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.156 (75th percentile)
+19:40:04 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:40:04 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:40:04 [poverty_tda.topology.multidim_ph] INFO:   H1: 5955 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:40:19 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:40:19 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.995 (75th percentile)
+19:40:39 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.2s
+19:40:39 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:40:39 [poverty_tda.topology.multidim_ph] INFO:   H1: 5873 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:40:54 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:40:54 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.606 (75th percentile)
+19:41:12 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.1s
+19:41:12 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:41:12 [poverty_tda.topology.multidim_ph] INFO:   H1: 5926 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:41:27 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:41:27 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.883 (75th percentile)
+19:41:47 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:41:47 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:41:47 [poverty_tda.topology.multidim_ph] INFO:   H1: 5915 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:42:02 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:42:02 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.655 (75th percentile)
+19:42:20 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.2s
+19:42:20 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:42:20 [poverty_tda.topology.multidim_ph] INFO:   H1: 5883 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:42:34 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:42:34 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.050 (75th percentile)
+19:42:53 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.2s
+19:42:53 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:42:53 [poverty_tda.topology.multidim_ph] INFO:   H1: 5925 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:43:09 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:43:09 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.287 (75th percentile)
+19:43:28 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:43:28 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:43:28 [poverty_tda.topology.multidim_ph] INFO:   H1: 5885 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:43:43 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:43:43 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.237 (75th percentile)
+19:44:02 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+19:44:02 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:44:02 [poverty_tda.topology.multidim_ph] INFO:   H1: 5943 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:44:17 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:44:17 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.187 (75th percentile)
+19:44:38 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.6s
+19:44:38 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:44:38 [poverty_tda.topology.multidim_ph] INFO:   H1: 5951 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:44:53 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:44:53 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.577 (75th percentile)
+19:45:11 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.3s
+19:45:11 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:45:11 [poverty_tda.topology.multidim_ph] INFO:   H1: 5912 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:45:26 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:45:26 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.359 (75th percentile)
+19:45:46 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.9s
+19:45:46 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:45:46 [poverty_tda.topology.multidim_ph] INFO:   H1: 5902 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:46:01 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:46:01 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.902 (75th percentile)
+19:46:20 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:46:20 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:46:21 [poverty_tda.topology.multidim_ph] INFO:   H1: 5880 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:46:36 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:46:36 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.577 (75th percentile)
+19:46:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 21.4s
+19:46:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:46:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 5925 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:47:12 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:47:12 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.835 (75th percentile)
+19:47:31 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.8s
+19:47:31 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:47:31 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:47:46 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:47:46 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 18.000 (75th percentile)
+19:48:08 [poverty_tda.topology.multidim_ph] INFO:   Completed in 21.7s
+19:48:08 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:48:08 [poverty_tda.topology.multidim_ph] INFO:   H1: 5959 finite + 0 infinite, top lifetimes: [3.213, 2.386, 2.322, 2.286, 2.223]
+19:48:23 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:48:23 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.964 (75th percentile)
+19:48:41 [poverty_tda.topology.multidim_ph] INFO:   Completed in 17.8s
+19:48:41 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:48:41 [poverty_tda.topology.multidim_ph] INFO:   H1: 5900 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:48:56 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:48:56 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.067 (75th percentile)
+19:49:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.9s
+19:49:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:49:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 5984 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:49:30 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:49:30 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.692 (75th percentile)
+19:49:49 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.1s
+19:49:49 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:49:49 [poverty_tda.topology.multidim_ph] INFO:   H1: 5852 finite + 0 infinite, top lifetimes: [3.213, 2.386, 2.322, 2.286, 2.223]
+19:50:04 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:50:04 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.231 (75th percentile)
+19:50:23 [poverty_tda.topology.multidim_ph] INFO:   Completed in 18.7s
+19:50:23 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:50:23 [poverty_tda.topology.multidim_ph] INFO:   H1: 5947 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.316, 2.286, 2.223]
+19:50:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:50:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.742 (75th percentile)
+19:50:58 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.5s
+19:50:58 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:50:58 [poverty_tda.topology.multidim_ph] INFO:   H1: 5987 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:51:14 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:51:14 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.958 (75th percentile)
+19:51:33 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.3s
+19:51:33 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:51:33 [poverty_tda.topology.multidim_ph] INFO:   H1: 5892 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:51:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:51:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.011 (75th percentile)
+19:52:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 19.4s
+19:52:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:52:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 5949 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:52:22 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:52:22 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.151 (75th percentile)
+19:52:43 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.6s
+19:52:43 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:52:43 [poverty_tda.topology.multidim_ph] INFO:   H1: 5946 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+19:52:58 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:52:58 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 16.502 (75th percentile)
+19:53:18 [poverty_tda.topology.multidim_ph] INFO:   Completed in 20.0s
+19:53:18 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:53:18 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:53:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:53:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 17.143 (75th percentile)
+19:53:44 [poverty_tda.topology.multidim_ph] INFO:   Completed in 13.0s
+19:53:44 [poverty_tda.topology.multidim_ph] INFO:   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+19:53:44 [poverty_tda.topology.multidim_ph] INFO:   H1: 5971 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.223, 2.214, 2.203]
+19:53:44 [trajectory_tda.topology.permutation_nulls] INFO:   H0: observed=20411.1276, null=20407.7697±9.6034, p=0.4050
+19:53:44 [trajectory_tda.topology.permutation_nulls] INFO:   H1: observed=2224.6842, null=2234.5460±12.7322, p=0.7250
+19:53:44 [__main__] INFO: Saved: results\trajectory_tda_robustness\landmark_sensitivity\nulls_cohort_shuffle_L5000.json
+19:53:44 [__main__] INFO: ============================================================
+19:53:44 [__main__] INFO: cohort_shuffle: H0 obs=20411.1 null=20407.8±9.6 p=0.4050 | H1 obs=2224.7 null=2234.5±12.7 p=0.7250
+19:53:44 [__main__] INFO: Completed in 6998.0s (116.6 min)
+19:53:44 [__main__] INFO: ============================================================

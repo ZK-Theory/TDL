@@ -1,0 +1,21 @@
+{
+  "n_trajectories": 8509,
+  "embedding_shape": [
+    8509,
+    20
+  ],
+  "k_optimal": 8,
+  "n_persistent_loops": 1114,
+  "null_p_values": {
+    "label_shuffle_H0": 0.272,
+    "label_shuffle_H1": 0.396,
+    "cohort_shuffle_H0": 0.272,
+    "cohort_shuffle_H1": 0.396,
+    "order_shuffle_H0": 0.0,
+    "order_shuffle_H1": 0.52,
+    "markov_H0": 1.0,
+    "markov_H1": 1.0
+  },
+  "elapsed_total": 4741.364466905594,
+  "n_permutations": 500
+}

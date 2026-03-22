@@ -1,0 +1,24 @@
+{
+  "landmark_values": [
+    8000
+  ],
+  "n_null_perms": 50,
+  "rows": [
+    {
+      "L": 8000,
+      "H0_total_persistence": 24313.790011405945,
+      "H0_max_persistence": 15.496363639831543,
+      "H0_n_finite": 7998,
+      "H0_persistence_entropy": 8.846143512557955,
+      "H1_total_persistence": 2619.253637313843,
+      "H1_max_persistence": 3.2130813598632812,
+      "H1_n_finite": 8357,
+      "H1_persistence_entropy": 8.6629893135599,
+      "order_shuffle_H0_p": 0.0,
+      "order_shuffle_H1_p": 0.14,
+      "markov1_H0_p": 1.0,
+      "markov1_H1_p": 1.0
+    }
+  ],
+  "elapsed_total_seconds": 8099.11067199707
+}

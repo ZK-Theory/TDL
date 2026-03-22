@@ -1,0 +1,74 @@
+{
+  "council": "all_scotland",
+  "n_zones": 6976,
+  "static_2020": {
+    "description": "Static 2020 ranks (7D)",
+    "dimensions": 7,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 6976,
+        "n_finite": 6975,
+        "n_infinite": 1,
+        "total_persistence": 3200.4459986016154,
+        "max_persistence": 1.5247732400894165,
+        "persistence_entropy": 8.799327647741535
+      },
+      "H1": {
+        "n_features": 7751,
+        "n_finite": 7751,
+        "n_infinite": 0,
+        "total_persistence": 464.8806724399328,
+        "max_persistence": 0.3957475423812866,
+        "persistence_entropy": 8.628325364686445
+      }
+    },
+    "permutation_test": null
+  },
+  "displacement": {
+    "description": "Displacement \u0394(2016\u21922020) (7D)",
+    "dimensions": 7,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 6976,
+        "n_finite": 6970,
+        "n_infinite": 6,
+        "total_persistence": 5107.385913826525,
+        "max_persistence": 3.8067214488983154,
+        "persistence_entropy": 8.725107654705553
+      },
+      "H1": {
+        "n_features": 8241,
+        "n_finite": 8241,
+        "n_infinite": 0,
+        "total_persistence": 687.499102473259,
+        "max_persistence": 0.6303949356079102,
+        "persistence_entropy": 8.675852017447381
+      }
+    },
+    "permutation_test": null
+  },
+  "concatenated": {
+    "description": "Concatenated [2016, 2020] (14D)",
+    "dimensions": 14,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 6976,
+        "n_finite": 6975,
+        "n_infinite": 1,
+        "total_persistence": 6067.578914254904,
+        "max_persistence": 3.004662036895752,
+        "persistence_entropy": 8.812246831875552
+      },
+      "H1": {
+        "n_features": 9011,
+        "n_finite": 9011,
+        "n_infinite": 0,
+        "total_persistence": 708.6157332062721,
+        "max_persistence": 0.6224277019500732,
+        "persistence_entropy": 8.774405730004279
+      }
+    },
+    "permutation_test": null
+  },
+  "elapsed_seconds": 114.97150588035583
+}

@@ -1,0 +1,47 @@
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: <TTK_ENV_PYTHON> <TEMP>/tmpawqzr3c4.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json <TEMP>/tmpbgspvl7c.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+===========================================================================
+PHASE 3: STRUCTURE ANALYSIS - PERSISTENCE H0 AND H1
+===========================================================================
+
+1. Loading mobility surface...
+   Shape: (150, 150)
+   Value range: [-1.068, 2.388]
+
+2. Computing H0 persistence (connected components)...
+   Total H0 pairs: 983
+   Finite pairs:   27
+   Infinite pairs: 956 (essential components)
+
+   Top 5 persistent features (lifetimes):
+      1. 0.2787
+      2. 0.2510
+      3. 0.1728
+      4. 0.0342
+      5. 0.0210
+
+3. Comparing with Morse-Smale decomposition...
+   MS minima: 383
+   MS saddles: 787
+   MS maxima: 405
+
+===========================================================================
+PERSISTENCE STRUCTURE SUMMARY
+===========================================================================
+
+   H0 (Connected Components):
+   - 27 transient components (merge as threshold increases)
+   - 956 persistent components (survive to infinity)
+   - Mean lifetime: 0.0317
+   - Max lifetime:  0.2787
+   
+   Interpretation:
+   - More persistent components = more robust basin structure
+   - Short-lived components = noise/artifacts
+   - Long-lived components = true poverty traps
+

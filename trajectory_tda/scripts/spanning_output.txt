@@ -1,0 +1,1211 @@
+nohup: ignoring input
+18:55:01 INFO: Step 1/5: Loading employment status (BHPS + USoc)...
+18:55:05 INFO: BHPS wave a (1991): 10264 obs
+18:55:06 INFO: BHPS wave b (1992): 9845 obs
+18:55:07 INFO: BHPS wave c (1993): 9600 obs
+18:55:08 INFO: BHPS wave d (1994): 9481 obs
+18:55:09 INFO: BHPS wave e (1995): 9249 obs
+18:55:10 INFO: BHPS wave f (1996): 9438 obs
+18:55:12 INFO: BHPS wave g (1997): 11193 obs
+18:55:14 INFO: BHPS wave h (1998): 10906 obs
+18:55:17 INFO: BHPS wave i (1999): 15623 obs
+18:55:21 INFO: BHPS wave j (2000): 15603 obs
+18:55:26 INFO: BHPS wave k (2001): 18867 obs
+18:55:29 INFO: BHPS wave l (2002): 16597 obs
+18:55:34 INFO: BHPS wave m (2003): 16238 obs
+18:55:37 INFO: BHPS wave n (2004): 15791 obs
+18:55:41 INFO: BHPS wave o (2005): 15617 obs
+18:55:46 INFO: BHPS wave p (2006): 15392 obs
+18:55:49 INFO: BHPS wave q (2007): 14873 obs
+18:55:52 INFO: BHPS wave r (2008): 14419 obs
+18:56:06 INFO: USoc wave a (2009): 50994 obs
+18:56:24 INFO: USoc wave b (2010): 54568 obs
+18:56:42 INFO: USoc wave c (2011): 49692 obs
+18:56:49 INFO: USoc wave d (2012): 47074 obs
+18:56:59 INFO: USoc wave e (2013): 44837 obs
+18:57:07 INFO: USoc wave f (2014): 45192 obs
+18:57:20 INFO: USoc wave g (2015): 42170 obs
+18:57:30 INFO: USoc wave h (2016): 39294 obs
+18:57:46 INFO: USoc wave i (2017): 36058 obs
+18:57:54 INFO: USoc wave j (2018): 34319 obs
+18:58:14 INFO: USoc wave k (2019): 32008 obs
+18:58:25 INFO: USoc wave l (2020): 29271 obs
+18:58:39 INFO: USoc wave m (2021): 27998 obs
+18:59:07 INFO: USoc wave n (2022): 35471 obs
+18:59:07 INFO: Combined: 807942 person-year observations
+18:59:08 INFO: Dropped 2770 observations with unmappable jbstat codes
+18:59:08 INFO: Final: 805172 person-year records, 118153 unique persons
+18:59:08 INFO:   Employment: 805172 obs, 118153 persons
+18:59:08 INFO: Step 2/5: Loading income bands (BHPS + USoc)...
+18:59:08 INFO: BHPS income wave a (1991): 8948 obs
+18:59:09 INFO: BHPS income wave b (1992): 8497 obs
+18:59:10 INFO: BHPS income wave c (1993): 8108 obs
+18:59:10 INFO: BHPS income wave d (1994): 8125 obs
+18:59:11 INFO: BHPS income wave e (1995): 7858 obs
+18:59:11 INFO: BHPS income wave f (1996): 8199 obs
+18:59:12 INFO: BHPS income wave g (1997): 9806 obs
+18:59:13 INFO: BHPS income wave h (1998): 9563 obs
+18:59:16 INFO: BHPS income wave i (1999): 13456 obs
+18:59:19 INFO: BHPS income wave j (2000): 13428 obs
+18:59:25 INFO: BHPS income wave k (2001): 15738 obs
+18:59:29 INFO: BHPS income wave l (2002): 13575 obs
+18:59:33 INFO: BHPS income wave m (2003): 13451 obs
+18:59:36 INFO: BHPS income wave n (2004): 12886 obs
+18:59:40 INFO: BHPS income wave o (2005): 12841 obs
+18:59:45 INFO: BHPS income wave p (2006): 12554 obs
+18:59:48 INFO: BHPS income wave q (2007): 12134 obs
+18:59:51 INFO: BHPS income wave r (2008): 11649 obs
+19:00:05 INFO: USoc income wave a (2009): 50994 obs
+19:00:18 INFO: USoc income wave b (2010): 54558 obs
+19:00:30 INFO: USoc income wave c (2011): 49692 obs
+19:00:46 INFO: USoc income wave d (2012): 47074 obs
+19:01:03 INFO: USoc income wave e (2013): 44837 obs
+19:01:11 INFO: USoc income wave f (2014): 44400 obs
+19:01:20 INFO: USoc income wave g (2015): 41857 obs
+19:01:26 INFO: USoc income wave h (2016): 38783 obs
+19:01:35 INFO: USoc income wave i (2017): 35174 obs
+19:01:40 INFO: USoc income wave j (2018): 33588 obs
+19:01:47 INFO: USoc income wave k (2019): 31311 obs
+19:01:52 INFO: USoc income wave l (2020): 28531 obs
+19:01:58 INFO: USoc income wave m (2021): 27207 obs
+19:02:09 INFO: USoc income wave n (2022): 34110 obs
+19:02:09 INFO: Combined income: 762932 person-year obs
+19:02:09 INFO: Clipping 216 negative incomes to zero
+19:02:09 INFO: National medians per wave:
+19:02:09 INFO:   1991: £771.54/month
+19:02:09 INFO:   1992: £796.89/month
+19:02:09 INFO:   1993: £836.92/month
+19:02:09 INFO:   1994: £860.56/month
+19:02:09 INFO:   1995: £921.71/month
+19:02:09 INFO:   1996: £974.04/month
+19:02:09 INFO:   1997: £951.83/month
+19:02:09 INFO:   1998: £1010.74/month
+19:02:09 INFO:   1999: £999.63/month
+19:02:09 INFO:   2000: £1068.55/month
+19:02:09 INFO:   2001: £1092.76/month
+19:02:09 INFO:   2002: £1174.99/month
+19:02:09 INFO:   2003: £1222.94/month
+19:02:09 INFO:   2004: £1277.85/month
+19:02:09 INFO:   2005: £1307.38/month
+19:02:09 INFO:   2006: £1381.49/month
+19:02:09 INFO:   2007: £1457.64/month
+19:02:09 INFO:   2008: £1482.87/month
+19:02:09 INFO:   2009: £2216.34/month
+19:02:09 INFO:   2010: £2427.43/month
+19:02:09 INFO:   2011: £2545.11/month
+19:02:09 INFO:   2012: £2627.67/month
+19:02:09 INFO:   2013: £2725.17/month
+19:02:09 INFO:   2014: £2867.61/month
+19:02:09 INFO:   2015: £2896.31/month
+19:02:09 INFO:   2016: £2941.96/month
+19:02:09 INFO:   2017: £3034.02/month
+19:02:09 INFO:   2018: £3096.64/month
+19:02:09 INFO:   2019: £3205.95/month
+19:02:09 INFO:   2020: £3309.23/month
+19:02:09 INFO:   2021: £3352.01/month
+19:02:09 INFO:   2022: £3532.90/month
+19:02:13 INFO: Final: 762932 person-year records, 114959 unique persons
+19:02:13 INFO:   L: 22.6%
+19:02:13 INFO:   M: 27.4%
+19:02:13 INFO:   H: 50.0%
+19:02:13 INFO:   Income: 762932 obs, 114959 persons
+19:02:13 INFO: Step 3/5: Building all trajectories...
+19:02:13 INFO: Merged employment + income: 760749 person-year obs, 114807 unique persons
+19:02:16 INFO: Built 32763 trajectories (dropped: 76565 too short, 5479 broken gaps)
+19:02:16 INFO: Trajectory lengths: mean=15.4, min=10, max=32
+19:02:16 INFO: Total imputed person-years: 30197 (6.0%)
+19:02:17 INFO: State distribution:
+19:02:17 INFO:   EL: 6.2%
+19:02:17 INFO:   EM: 13.6%
+19:02:17 INFO:   EH: 37.9%
+19:02:17 INFO:   UL: 1.7%
+19:02:17 INFO:   UM: 0.9%
+19:02:17 INFO:   UH: 0.8%
+19:02:17 INFO:   IL: 14.0%
+19:02:17 INFO:   IM: 12.8%
+19:02:17 INFO:   IH: 11.9%
+19:02:17 INFO: Survey era distribution:
+19:02:17 INFO:   usoc_only: 21551
+19:02:17 INFO:   spanning: 8459
+19:02:17 INFO:   bhps_only: 2753
+19:02:17 INFO:   Total: 32763 trajectories
+19:02:17 INFO:     usoc_only: n=21551, mean_len=13.0, range=2009-2022
+19:02:17 INFO:     spanning: n=8459, mean_len=22.0, range=1991-2022
+19:02:17 INFO:     bhps_only: n=2753, mean_len=13.9, range=1991-2008
+19:02:17 INFO: 
+Spanning trajectories: 8459
+19:02:17 INFO:   Spanning: n=8459, mean_len=22.0, range=1991-2022
+19:02:17 INFO: Step 5/5: Running TDA pipeline on spanning trajectories...
+19:02:34 INFO:   Embedding...
+19:02:34 INFO: Embedding 8459 trajectories...
+19:02:34 INFO:   Unigrams: (8459, 9)
+19:02:34 INFO:   Bigrams: (8459, 81)
+19:02:34 INFO:   Raw embedding: (8459, 90)
+19:02:34 INFO:   PCA reduction: (8459, 20) (explained variance: 0.513)
+19:02:34 INFO:   Final: 8459 points × 20 dims (method=pca)
+19:02:34 INFO:     Shape: (8459, 20)
+19:02:34 INFO:   Computing PH (landmarks=5000)...
+19:02:34 INFO: Computing trajectory PH: 8459 points × 20 dims, 5000 landmarks, method=maxmin_vr
+19:02:34 INFO: \u2500\u2500\u2500 Maxmin VR \u2500\u2500\u2500
+19:02:34 INFO: Maxmin VR: selecting 5000 landmarks from 8459 points
+19:02:40 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:02:40 INFO:   Auto thresh = 12.009 (75th percentile)
+19:02:56 INFO:   Completed in 15.7s
+19:02:56 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+19:02:56 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+19:02:56 INFO:   H0: 4952 features, max=12.0087
+19:02:56 INFO:   H1: 4358 features, max=3.5166
+19:02:56 INFO: \u2500\u2500\u2500 Multi-subsample Betti validation \u2500\u2500\u2500
+19:02:56 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:02:56 INFO:   Auto thresh = 9.870 (75th percentile)
+19:02:57 INFO:   Completed in 1.3s
+19:02:57 INFO:   H0: 1827 finite + 31 infinite, top lifetimes: [9.73, 9.527, 9.523, 9.493, 9.436]
+19:02:57 INFO:   H1: 931 finite + 4 infinite, top lifetimes: [1.566, 1.238, 1.141, 1.129, 1.049]
+19:02:58 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:02:58 INFO:   Auto thresh = 9.560 (75th percentile)
+19:02:59 INFO:   Completed in 1.2s
+19:02:59 INFO:   H0: 1834 finite + 42 infinite, top lifetimes: [9.532, 9.518, 9.49, 9.488, 9.376]
+19:02:59 INFO:   H1: 930 finite + 6 infinite, top lifetimes: [1.467, 1.368, 1.306, 1.285, 1.181]
+19:02:59 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:02:59 INFO:   Auto thresh = 9.927 (75th percentile)
+19:03:00 INFO:   Completed in 1.4s
+19:03:00 INFO:   H0: 1833 finite + 37 infinite, top lifetimes: [9.918, 9.875, 9.782, 9.573, 9.482]
+19:03:00 INFO:   H1: 957 finite + 6 infinite, top lifetimes: [1.82, 1.532, 1.473, 1.458, 1.392]
+19:03:00 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:00 INFO:   Auto thresh = 10.105 (75th percentile)
+19:03:02 INFO:   Completed in 1.4s
+19:03:02 INFO:   H0: 1839 finite + 34 infinite, top lifetimes: [10.063, 10.051, 9.873, 9.621, 9.569]
+19:03:02 INFO:   H1: 960 finite + 1 infinite, top lifetimes: [1.449, 1.446, 1.368, 1.34, 1.325]
+19:03:02 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:02 INFO:   Auto thresh = 10.139 (75th percentile)
+19:03:03 INFO:   Completed in 1.4s
+19:03:03 INFO:   H0: 1845 finite + 40 infinite, top lifetimes: [10.116, 10.097, 9.959, 9.957, 9.894]
+19:03:03 INFO:   H1: 953 finite + 2 infinite, top lifetimes: [2.073, 1.723, 1.55, 1.538, 1.327]
+19:03:03 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:03 INFO:   Auto thresh = 9.724 (75th percentile)
+19:03:04 INFO:   Completed in 1.2s
+19:03:04 INFO:   H0: 1836 finite + 37 infinite, top lifetimes: [9.585, 9.569, 9.475, 9.427, 9.358]
+19:03:04 INFO:   H1: 915 finite + 4 infinite, top lifetimes: [1.507, 1.257, 1.234, 1.185, 1.146]
+19:03:04 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:04 INFO:   Auto thresh = 9.580 (75th percentile)
+19:03:06 INFO:   Completed in 1.5s
+19:03:06 INFO:   H0: 1844 finite + 32 infinite, top lifetimes: [9.451, 9.357, 9.302, 9.288, 9.288]
+19:03:06 INFO:   H1: 971 finite + 3 infinite, top lifetimes: [1.289, 1.208, 1.173, 1.133, 1.024]
+19:03:06 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:06 INFO:   Auto thresh = 10.033 (75th percentile)
+19:03:07 INFO:   Completed in 1.4s
+19:03:07 INFO:   H0: 1831 finite + 36 infinite, top lifetimes: [10.007, 9.965, 9.741, 9.715, 9.663]
+19:03:07 INFO:   H1: 922 finite + 1 infinite, top lifetimes: [1.615, 1.171, 1.116, 1.086, 1.052]
+19:03:07 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:07 INFO:   Auto thresh = 9.704 (75th percentile)
+19:03:08 INFO:   Completed in 1.3s
+19:03:08 INFO:   H0: 1809 finite + 37 infinite, top lifetimes: [9.563, 9.493, 9.475, 9.467, 9.372]
+19:03:08 INFO:   H1: 894 finite + 6 infinite, top lifetimes: [1.327, 1.323, 1.22, 1.068, 1.023]
+19:03:08 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:08 INFO:   Auto thresh = 9.928 (75th percentile)
+19:03:10 INFO:   Completed in 1.2s
+19:03:10 INFO:   H0: 1831 finite + 39 infinite, top lifetimes: [9.851, 9.803, 9.718, 9.641, 9.505]
+19:03:10 INFO:   H1: 997 finite + 3 infinite, top lifetimes: [1.351, 1.163, 1.105, 1.005, 0.996]
+19:03:10 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:10 INFO:   Auto thresh = 10.497 (75th percentile)
+19:03:11 INFO:   Completed in 1.5s
+19:03:11 INFO:   H0: 1842 finite + 28 infinite, top lifetimes: [10.398, 10.367, 10.327, 10.323, 10.296]
+19:03:11 INFO:   H1: 952 finite + 7 infinite, top lifetimes: [1.812, 1.609, 1.387, 1.228, 1.226]
+19:03:11 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:11 INFO:   Auto thresh = 10.449 (75th percentile)
+19:03:12 INFO:   Completed in 1.4s
+19:03:12 INFO:   H0: 1839 finite + 37 infinite, top lifetimes: [10.449, 10.343, 10.327, 10.324, 10.296]
+19:03:12 INFO:   H1: 906 finite + 1 infinite, top lifetimes: [1.305, 1.09, 1.051, 0.998, 0.858]
+19:03:12 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:12 INFO:   Auto thresh = 9.652 (75th percentile)
+19:03:14 INFO:   Completed in 1.2s
+19:03:14 INFO:   H0: 1814 finite + 43 infinite, top lifetimes: [9.626, 9.505, 9.481, 9.378, 9.358]
+19:03:14 INFO:   H1: 940 finite + 4 infinite, top lifetimes: [1.559, 1.451, 1.366, 1.23, 1.13]
+19:03:14 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:14 INFO:   Auto thresh = 9.796 (75th percentile)
+19:03:15 INFO:   Completed in 1.3s
+19:03:15 INFO:   H0: 1839 finite + 37 infinite, top lifetimes: [9.791, 9.663, 9.597, 9.482, 9.481]
+19:03:15 INFO:   H1: 932 finite + 4 infinite, top lifetimes: [1.409, 1.366, 1.357, 1.265, 1.247]
+19:03:15 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:15 INFO:   Auto thresh = 9.655 (75th percentile)
+19:03:16 INFO:   Completed in 1.2s
+19:03:16 INFO:   H0: 1845 finite + 30 infinite, top lifetimes: [9.57, 9.405, 9.335, 9.185, 9.133]
+19:03:16 INFO:   H1: 979 finite + 3 infinite, top lifetimes: [1.408, 1.273, 1.193, 1.127, 1.125]
+19:03:16 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:16 INFO:   Auto thresh = 9.795 (75th percentile)
+19:03:18 INFO:   Completed in 1.3s
+19:03:18 INFO:   H0: 1847 finite + 37 infinite, top lifetimes: [9.723, 9.457, 9.428, 9.412, 9.331]
+19:03:18 INFO:   H1: 971 finite + 6 infinite, top lifetimes: [1.313, 1.268, 1.233, 1.16, 1.106]
+19:03:18 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:18 INFO:   Auto thresh = 9.769 (75th percentile)
+19:03:19 INFO:   Completed in 1.2s
+19:03:19 INFO:   H0: 1838 finite + 34 infinite, top lifetimes: [9.735, 9.672, 9.472, 9.383, 9.197]
+19:03:19 INFO:   H1: 974 finite + 3 infinite, top lifetimes: [1.348, 1.217, 1.19, 1.183, 1.177]
+19:03:19 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:19 INFO:   Auto thresh = 9.331 (75th percentile)
+19:03:20 INFO:   Completed in 1.2s
+19:03:20 INFO:   H0: 1842 finite + 43 infinite, top lifetimes: [9.27, 9.089, 9.074, 8.987, 8.971]
+19:03:20 INFO:   H1: 969 finite + 1 infinite, top lifetimes: [1.647, 1.624, 1.398, 1.279, 1.237]
+19:03:20 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:20 INFO:   Auto thresh = 9.876 (75th percentile)
+19:03:21 INFO:   Completed in 1.3s
+19:03:21 INFO:   H0: 1839 finite + 38 infinite, top lifetimes: [9.806, 9.73, 9.663, 9.573, 9.57]
+19:03:21 INFO:   H1: 974 finite + 0 infinite, top lifetimes: [1.235, 1.21, 1.002, 0.991, 0.975]
+19:03:21 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+19:03:21 INFO:   Auto thresh = 10.084 (75th percentile)
+19:03:23 INFO:   Completed in 1.4s
+19:03:23 INFO:   H0: 1841 finite + 40 infinite, top lifetimes: [10.051, 9.952, 9.934, 9.83, 9.803]
+19:03:23 INFO:   H1: 994 finite + 4 infinite, top lifetimes: [1.411, 1.252, 1.241, 1.066, 1.051]
+19:03:23 INFO: PH computation complete in 48.9s
+19:03:23 INFO:     PH in 48.9s
+19:03:23 INFO:   Permutation tests (50 perms)...
+19:03:23 INFO: Permutation test: label_shuffle, 50 perms, H0-H1, statistic=total_persistence
+19:03:27 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:03:27 INFO:   Auto thresh = 12.009 (75th percentile)
+19:03:37 INFO:   Completed in 10.3s
+19:03:37 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+19:03:37 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+19:03:37 INFO:   Observed total_persistence: {'H0': 12853.380196332932, 'H1': 983.213033080101}
+19:06:16 WARNING:     label_shuffle failed: [WinError 1450] Insufficient system resources exist to complete the requested service
+19:06:16 INFO: Permutation test: order_shuffle, 50 perms, H0-H1, statistic=total_persistence
+19:06:25 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:06:25 INFO:   Auto thresh = 12.009 (75th percentile)
+19:06:45 INFO:   Completed in 19.8s
+19:06:45 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+19:06:45 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+19:06:45 INFO:   Observed total_persistence: {'H0': 12853.380196332932, 'H1': 983.213033080101}
+19:10:29 INFO:   H0: observed=12853.3802, null=11951.2672±116.2161, p=0.0000
+19:10:29 INFO:   H1: observed=983.2130, null=979.9622±19.5176, p=0.5600
+19:10:29 INFO:     order_shuffle: done
+19:10:29 INFO: Permutation test: markov, 50 perms, H0-H1, statistic=total_persistence
+19:10:33 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:10:33 INFO:   Auto thresh = 12.009 (75th percentile)
+19:10:45 INFO:   Completed in 11.2s
+19:10:45 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+19:10:45 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+19:10:45 INFO:   Observed total_persistence: {'H0': 12853.380196332932, 'H1': 983.213033080101}
+19:14:24 INFO:   H0: observed=12853.3802, null=15569.7983±181.0773, p=1.0000
+19:14:24 INFO:   H1: observed=983.2130, null=1346.8493±30.2720, p=1.0000
+19:14:24 INFO:     markov: done
+19:14:24 INFO:   Regime discovery + cycle detection...
+19:14:24 INFO: Regime discovery: 8459 trajectories, 20 dims
+19:14:45 INFO: GMM: K*=8, BIC=-187855.6, silhouette=0.037
+19:14:45 INFO:   PH comparison: {'maxmin_vr': {'n_finite_h0': 4952, 'max_persistence_h0': 12.008732795715332}}
+19:14:45 INFO:   Regime 0: n=546, dominant=EH, emp=74.0%, low_inc=1.1%, stability=0.56
+19:14:45 INFO:   Regime 1: n=922, dominant=EH, emp=53.0%, low_inc=41.4%, stability=0.25
+19:14:45 INFO:   Regime 2: n=467, dominant=EH, emp=63.7%, low_inc=6.6%, stability=0.50
+19:14:45 INFO:   Regime 3: n=687, dominant=EH, emp=64.1%, low_inc=36.1%, stability=0.29
+19:14:45 INFO:   Regime 4: n=1974, dominant=IM, emp=17.9%, low_inc=28.1%, stability=0.30
+19:14:45 INFO:   Regime 5: n=2265, dominant=EH, emp=95.5%, low_inc=6.1%, stability=0.71
+19:14:45 INFO:   Regime 6: n=577, dominant=EH, emp=43.1%, low_inc=31.3%, stability=0.22
+19:14:45 INFO:   Regime 7: n=1021, dominant=EH, emp=57.7%, low_inc=25.3%, stability=0.33
+19:14:45 INFO: Cycle detection (maxmin_vr): max H\u2081 persistence = 3.5166, threshold = 0.3517
+19:14:45 INFO:   900 persistent H\u2081 features above threshold
+19:14:45 INFO:   Loop 0: persistence=0.4073, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 1: persistence=0.7697, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 2: persistence=0.6356, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 3: persistence=0.5397, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 4: persistence=1.0755, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 5: persistence=0.3735, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 6: persistence=0.8380, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 7: persistence=0.4531, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 8: persistence=0.5149, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 9: persistence=0.3715, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 10: persistence=0.3873, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 11: persistence=1.3811, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 12: persistence=0.8801, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 13: persistence=0.4042, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 14: persistence=0.8259, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 15: persistence=0.7441, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 16: persistence=1.6644, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 17: persistence=0.3970, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 18: persistence=1.0494, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 19: persistence=0.6590, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 20: persistence=0.8975, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 21: persistence=1.4158, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 22: persistence=0.7784, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 23: persistence=0.3655, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 24: persistence=1.2942, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 25: persistence=1.0002, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 26: persistence=0.6619, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 27: persistence=0.3869, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 28: persistence=0.6883, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 29: persistence=1.1956, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 30: persistence=1.4114, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 31: persistence=0.5689, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 32: persistence=0.7203, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 33: persistence=0.9450, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 34: persistence=0.6214, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 35: persistence=0.6743, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 36: persistence=1.2291, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 37: persistence=0.9363, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 38: persistence=0.6264, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 39: persistence=1.0737, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 40: persistence=1.0131, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 41: persistence=0.4526, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 42: persistence=0.4999, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 43: persistence=1.2948, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 44: persistence=0.4508, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 45: persistence=1.1255, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 46: persistence=0.7999, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 47: persistence=1.6478, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 48: persistence=1.0519, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 49: persistence=0.5046, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 50: persistence=0.6156, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 51: persistence=1.6935, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 52: persistence=0.7270, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 53: persistence=0.4629, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 54: persistence=1.2028, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 55: persistence=0.4239, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 56: persistence=1.4611, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 57: persistence=0.4543, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 58: persistence=0.4596, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 59: persistence=0.5695, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 60: persistence=0.3519, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 61: persistence=0.5111, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 62: persistence=0.3704, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 63: persistence=0.8988, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 64: persistence=0.4962, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 65: persistence=1.0718, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 66: persistence=0.4144, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 67: persistence=0.4107, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 68: persistence=0.6936, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 69: persistence=1.3632, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 70: persistence=0.6391, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 71: persistence=0.3855, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 72: persistence=0.4636, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 73: persistence=0.6774, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 74: persistence=0.3749, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 75: persistence=0.8979, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 76: persistence=3.5166, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 77: persistence=1.1946, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 78: persistence=0.5729, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 79: persistence=0.7183, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 80: persistence=1.0470, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 81: persistence=0.3532, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 82: persistence=0.6221, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 83: persistence=1.0031, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 84: persistence=0.5651, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 85: persistence=1.3431, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 86: persistence=0.9115, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 87: persistence=0.6581, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 88: persistence=0.4032, mean_cycle_len=3.9, n_cycles=16
+19:14:45 INFO:   Loop 89: persistence=0.8862, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 90: persistence=0.7087, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 91: persistence=0.5740, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 92: persistence=0.4053, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 93: persistence=0.3571, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 94: persistence=1.0980, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 95: persistence=0.7279, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 96: persistence=0.3993, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 97: persistence=1.4111, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 98: persistence=0.3924, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 99: persistence=0.6687, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 100: persistence=0.7830, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 101: persistence=0.7295, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 102: persistence=0.7486, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 103: persistence=0.4019, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 104: persistence=0.9069, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 105: persistence=0.6110, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 106: persistence=0.3698, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 107: persistence=0.5143, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 108: persistence=0.3574, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 109: persistence=0.5500, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 110: persistence=0.5586, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 111: persistence=0.7461, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 112: persistence=0.3709, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 113: persistence=0.3641, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 114: persistence=0.6003, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 115: persistence=0.5351, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 116: persistence=0.3952, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 117: persistence=0.5088, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 118: persistence=0.6715, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 119: persistence=1.0206, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 120: persistence=0.7159, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 121: persistence=0.7097, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 122: persistence=0.3640, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 123: persistence=0.6264, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 124: persistence=0.5209, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 125: persistence=0.6076, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 126: persistence=0.4185, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 127: persistence=0.5331, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 128: persistence=0.9454, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 129: persistence=0.5601, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 130: persistence=1.3644, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 131: persistence=0.8157, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 132: persistence=0.3827, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 133: persistence=0.6688, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 134: persistence=0.5539, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 135: persistence=0.3700, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 136: persistence=0.5534, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 137: persistence=0.4750, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 138: persistence=0.7378, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 139: persistence=0.6548, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 140: persistence=1.1315, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 141: persistence=0.3772, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 142: persistence=0.4254, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 143: persistence=1.2772, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 144: persistence=0.6007, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 145: persistence=0.6826, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 146: persistence=0.9057, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 147: persistence=0.3547, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 148: persistence=0.8551, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 149: persistence=1.8120, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 150: persistence=0.3649, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 151: persistence=0.5191, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 152: persistence=0.3713, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 153: persistence=0.5826, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 154: persistence=0.4834, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 155: persistence=0.6228, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 156: persistence=0.6549, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 157: persistence=0.5611, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 158: persistence=0.4782, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 159: persistence=0.3731, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 160: persistence=0.4234, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 161: persistence=0.4343, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 162: persistence=0.6159, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 163: persistence=0.3778, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 164: persistence=0.4902, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 165: persistence=2.1247, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 166: persistence=0.7435, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 167: persistence=0.4408, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 168: persistence=0.5427, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 169: persistence=0.4465, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 170: persistence=0.4467, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 171: persistence=0.3725, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 172: persistence=0.4034, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 173: persistence=0.4556, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 174: persistence=0.3782, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 175: persistence=0.4881, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 176: persistence=0.4856, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 177: persistence=0.5497, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 178: persistence=0.5160, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 179: persistence=0.3924, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 180: persistence=0.8643, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 181: persistence=0.4900, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 182: persistence=0.4291, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 183: persistence=0.6433, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 184: persistence=0.5857, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 185: persistence=0.3741, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 186: persistence=0.7062, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 187: persistence=0.6887, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 188: persistence=0.3834, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 189: persistence=0.8355, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 190: persistence=0.6825, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 191: persistence=0.5828, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 192: persistence=0.3651, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 193: persistence=0.6861, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 194: persistence=0.5602, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 195: persistence=1.2176, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 196: persistence=0.4956, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 197: persistence=0.4078, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 198: persistence=0.5125, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 199: persistence=0.5048, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 200: persistence=0.6688, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 201: persistence=0.4561, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 202: persistence=0.3920, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 203: persistence=0.5137, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 204: persistence=0.4343, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 205: persistence=0.7883, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 206: persistence=0.6922, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 207: persistence=0.4848, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 208: persistence=1.9431, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 209: persistence=1.0556, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 210: persistence=0.4192, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 211: persistence=0.5190, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 212: persistence=0.5388, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 213: persistence=0.9632, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 214: persistence=0.4642, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 215: persistence=0.3630, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 216: persistence=0.7868, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 217: persistence=0.3884, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 218: persistence=0.4665, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 219: persistence=0.6311, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 220: persistence=0.7955, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 221: persistence=1.1796, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 222: persistence=0.7023, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 223: persistence=0.3831, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 224: persistence=0.7697, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 225: persistence=0.3749, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 226: persistence=0.4460, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 227: persistence=0.9011, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 228: persistence=1.3234, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 229: persistence=0.3940, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 230: persistence=0.7535, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 231: persistence=0.4231, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 232: persistence=0.3985, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 233: persistence=0.5486, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 234: persistence=0.5352, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 235: persistence=0.4697, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 236: persistence=0.3872, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 237: persistence=0.4397, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 238: persistence=0.3869, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 239: persistence=0.8803, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 240: persistence=0.7874, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 241: persistence=0.6040, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 242: persistence=0.4541, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 243: persistence=1.1303, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 244: persistence=0.6784, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 245: persistence=0.3963, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 246: persistence=0.9246, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 247: persistence=0.3657, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 248: persistence=0.7700, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 249: persistence=0.4095, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 250: persistence=0.4875, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 251: persistence=0.5130, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 252: persistence=0.5980, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 253: persistence=0.4975, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 254: persistence=0.6098, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 255: persistence=1.1479, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 256: persistence=0.8489, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 257: persistence=0.4233, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 258: persistence=0.3847, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 259: persistence=0.3811, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 260: persistence=0.4636, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 261: persistence=0.8542, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 262: persistence=0.3573, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 263: persistence=0.5851, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 264: persistence=0.6932, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 265: persistence=1.2132, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 266: persistence=0.4924, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 267: persistence=0.4668, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 268: persistence=0.5171, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 269: persistence=0.4150, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 270: persistence=0.4209, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 271: persistence=0.6289, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 272: persistence=0.7963, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 273: persistence=0.5529, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 274: persistence=0.3667, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 275: persistence=0.4226, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 276: persistence=0.4496, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 277: persistence=0.6077, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 278: persistence=0.4585, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 279: persistence=0.5359, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 280: persistence=0.5597, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 281: persistence=0.4320, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 282: persistence=0.3784, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 283: persistence=0.3735, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 284: persistence=0.5315, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 285: persistence=0.5858, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 286: persistence=0.5625, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 287: persistence=0.4512, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 288: persistence=0.4464, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 289: persistence=0.9761, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 290: persistence=0.3682, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 291: persistence=0.6592, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 292: persistence=0.5105, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 293: persistence=0.3590, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 294: persistence=0.3970, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 295: persistence=0.4116, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 296: persistence=0.3932, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 297: persistence=0.4081, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 298: persistence=0.8507, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 299: persistence=0.5768, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 300: persistence=0.6009, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 301: persistence=0.4436, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 302: persistence=0.5209, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 303: persistence=0.5020, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 304: persistence=0.4152, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 305: persistence=0.4816, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 306: persistence=0.5603, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 307: persistence=0.5830, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 308: persistence=0.4171, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 309: persistence=0.4425, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 310: persistence=0.5453, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 311: persistence=0.4600, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 312: persistence=0.3822, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 313: persistence=0.6593, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 314: persistence=0.4577, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 315: persistence=0.4114, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 316: persistence=0.4346, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 317: persistence=0.3527, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 318: persistence=0.5556, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 319: persistence=0.4494, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 320: persistence=0.8044, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 321: persistence=0.6233, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 322: persistence=0.4882, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 323: persistence=0.3993, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 324: persistence=0.6310, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 325: persistence=0.9650, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 326: persistence=0.4868, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 327: persistence=0.3517, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 328: persistence=0.6690, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 329: persistence=0.5030, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 330: persistence=0.6018, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 331: persistence=0.4650, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 332: persistence=0.8796, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 333: persistence=0.3573, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 334: persistence=0.4650, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 335: persistence=0.4345, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 336: persistence=0.4592, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 337: persistence=0.5371, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 338: persistence=0.4962, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 339: persistence=0.4357, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 340: persistence=0.3744, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 341: persistence=0.9398, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 342: persistence=1.0197, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 343: persistence=0.4191, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 344: persistence=0.7097, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 345: persistence=0.4992, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 346: persistence=0.4054, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 347: persistence=0.4227, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 348: persistence=0.5488, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 349: persistence=0.7701, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 350: persistence=0.5119, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 351: persistence=0.7136, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 352: persistence=0.5198, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 353: persistence=0.3728, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 354: persistence=0.6846, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 355: persistence=0.3804, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 356: persistence=0.4239, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 357: persistence=0.9102, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 358: persistence=0.6270, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 359: persistence=0.7277, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 360: persistence=0.6531, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 361: persistence=0.4583, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 362: persistence=0.4659, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 363: persistence=0.4432, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 364: persistence=0.3861, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 365: persistence=0.4879, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 366: persistence=0.8518, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 367: persistence=0.6024, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 368: persistence=0.3634, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 369: persistence=0.5620, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 370: persistence=0.3612, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 371: persistence=0.5240, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 372: persistence=0.6606, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 373: persistence=0.6189, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 374: persistence=0.3861, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 375: persistence=0.5812, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 376: persistence=0.5955, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 377: persistence=0.3598, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 378: persistence=0.3736, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 379: persistence=0.4435, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 380: persistence=0.5207, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 381: persistence=1.1170, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 382: persistence=0.4412, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 383: persistence=0.6319, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 384: persistence=0.3575, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 385: persistence=0.7379, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 386: persistence=0.3834, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 387: persistence=0.3945, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 388: persistence=0.3901, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 389: persistence=0.4631, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 390: persistence=0.7226, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 391: persistence=0.9161, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 392: persistence=0.4122, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 393: persistence=0.4582, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 394: persistence=0.7816, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 395: persistence=0.4258, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 396: persistence=0.3987, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 397: persistence=0.4774, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 398: persistence=0.4339, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 399: persistence=0.3756, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 400: persistence=0.5685, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 401: persistence=0.5268, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 402: persistence=0.5223, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 403: persistence=0.7700, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 404: persistence=0.6545, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 405: persistence=0.3862, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 406: persistence=0.4035, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 407: persistence=0.4609, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 408: persistence=0.7864, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 409: persistence=0.3542, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 410: persistence=0.3892, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 411: persistence=0.4603, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 412: persistence=0.4272, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 413: persistence=0.4932, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 414: persistence=0.7501, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 415: persistence=0.6485, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 416: persistence=0.4859, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 417: persistence=0.5083, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 418: persistence=0.4788, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 419: persistence=0.4015, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 420: persistence=0.5393, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 421: persistence=0.3833, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 422: persistence=0.7068, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 423: persistence=0.6616, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 424: persistence=1.0497, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 425: persistence=0.4302, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 426: persistence=0.6423, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 427: persistence=0.5274, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 428: persistence=0.3767, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 429: persistence=0.3836, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 430: persistence=0.3753, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 431: persistence=0.9793, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 432: persistence=0.4280, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 433: persistence=0.4410, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 434: persistence=0.3603, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 435: persistence=0.6630, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 436: persistence=0.3819, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 437: persistence=0.3806, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 438: persistence=0.3720, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 439: persistence=0.6855, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 440: persistence=0.8039, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 441: persistence=0.4465, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 442: persistence=0.6220, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 443: persistence=0.7972, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 444: persistence=0.6951, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 445: persistence=0.4742, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 446: persistence=0.5218, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 447: persistence=0.5941, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 448: persistence=0.4553, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 449: persistence=0.4262, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 450: persistence=0.5322, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 451: persistence=0.3805, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 452: persistence=1.0065, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 453: persistence=0.6165, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 454: persistence=0.3998, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 455: persistence=0.3544, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 456: persistence=0.4001, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 457: persistence=0.6239, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 458: persistence=0.3830, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 459: persistence=0.5786, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 460: persistence=0.3967, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 461: persistence=0.3832, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 462: persistence=0.3833, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 463: persistence=0.4615, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 464: persistence=0.5923, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 465: persistence=0.5149, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 466: persistence=0.6987, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 467: persistence=0.4516, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 468: persistence=0.4431, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 469: persistence=0.6319, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 470: persistence=0.4524, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 471: persistence=0.6440, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 472: persistence=0.4978, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 473: persistence=0.4991, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 474: persistence=0.4118, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 475: persistence=0.4352, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 476: persistence=0.5145, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 477: persistence=0.7274, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 478: persistence=0.6255, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 479: persistence=0.3943, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 480: persistence=0.5940, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 481: persistence=0.3811, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 482: persistence=0.3868, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 483: persistence=0.6850, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 484: persistence=0.3610, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 485: persistence=0.8139, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 486: persistence=0.5751, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 487: persistence=0.5682, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 488: persistence=0.7969, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 489: persistence=0.4951, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 490: persistence=0.3545, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 491: persistence=0.4576, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 492: persistence=0.5808, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 493: persistence=0.5735, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 494: persistence=0.3525, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 495: persistence=0.5669, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 496: persistence=1.0464, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 497: persistence=0.7309, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 498: persistence=1.0816, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 499: persistence=0.7783, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 500: persistence=0.6148, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 501: persistence=0.8750, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 502: persistence=0.3990, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 503: persistence=0.4763, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 504: persistence=0.4609, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 505: persistence=0.4676, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 506: persistence=0.5300, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 507: persistence=0.5802, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 508: persistence=0.3787, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 509: persistence=0.4425, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 510: persistence=0.5238, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 511: persistence=0.3643, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 512: persistence=0.4433, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 513: persistence=0.6790, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 514: persistence=0.5797, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 515: persistence=0.4409, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 516: persistence=0.5147, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 517: persistence=0.5535, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 518: persistence=0.5112, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 519: persistence=0.8320, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 520: persistence=0.4037, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 521: persistence=0.4132, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 522: persistence=0.3544, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 523: persistence=0.6858, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 524: persistence=0.4729, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 525: persistence=0.4725, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 526: persistence=0.3814, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 527: persistence=0.6263, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 528: persistence=0.3627, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 529: persistence=0.6118, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 530: persistence=0.5246, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 531: persistence=0.3569, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 532: persistence=0.3936, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 533: persistence=0.4035, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 534: persistence=0.3750, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 535: persistence=0.4874, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 536: persistence=0.6230, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 537: persistence=0.4571, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 538: persistence=0.4258, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 539: persistence=0.5117, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 540: persistence=0.5618, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 541: persistence=0.3629, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 542: persistence=0.4983, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 543: persistence=0.3964, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 544: persistence=0.4112, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 545: persistence=0.6372, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 546: persistence=0.6509, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 547: persistence=0.4600, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 548: persistence=0.7529, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 549: persistence=0.3687, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 550: persistence=0.5123, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 551: persistence=0.7364, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 552: persistence=0.4299, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 553: persistence=0.5397, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 554: persistence=0.6430, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 555: persistence=0.3733, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 556: persistence=0.4594, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 557: persistence=0.4728, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 558: persistence=0.4620, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 559: persistence=0.4048, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 560: persistence=0.6308, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 561: persistence=0.4616, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 562: persistence=0.6920, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 563: persistence=0.4357, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 564: persistence=0.6898, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 565: persistence=0.4417, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 566: persistence=0.4650, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 567: persistence=0.4132, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 568: persistence=0.4417, mean_cycle_len=3.9, n_cycles=16
+19:14:46 INFO:   Loop 569: persistence=0.5772, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 570: persistence=0.4370, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 571: persistence=0.4637, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 572: persistence=0.4000, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 573: persistence=0.6579, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 574: persistence=0.3813, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 575: persistence=0.5132, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 576: persistence=0.3573, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 577: persistence=0.3985, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 578: persistence=0.3601, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 579: persistence=0.4753, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 580: persistence=0.4013, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 581: persistence=0.4566, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 582: persistence=0.5712, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 583: persistence=0.4269, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 584: persistence=0.4366, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 585: persistence=0.5178, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 586: persistence=0.6060, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 587: persistence=0.4317, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 588: persistence=0.4657, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 589: persistence=0.3614, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 590: persistence=0.3796, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 591: persistence=0.4727, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 592: persistence=0.3662, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 593: persistence=0.4485, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 594: persistence=0.5651, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 595: persistence=0.5177, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 596: persistence=0.5273, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 597: persistence=0.4145, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 598: persistence=0.3685, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 599: persistence=0.3730, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 600: persistence=0.3721, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 601: persistence=0.4525, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 602: persistence=0.8251, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 603: persistence=0.4744, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 604: persistence=0.5684, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 605: persistence=0.5170, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 606: persistence=0.5399, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 607: persistence=0.4398, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 608: persistence=0.5259, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 609: persistence=0.3527, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 610: persistence=0.5814, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 611: persistence=0.3712, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 612: persistence=0.3948, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 613: persistence=0.7247, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 614: persistence=0.4012, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 615: persistence=0.4200, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 616: persistence=0.5063, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 617: persistence=0.4478, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 618: persistence=0.4454, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 619: persistence=0.3563, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 620: persistence=0.5629, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 621: persistence=0.5852, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 622: persistence=0.3822, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 623: persistence=0.6379, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 624: persistence=0.4961, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 625: persistence=0.6093, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 626: persistence=0.5273, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 627: persistence=0.4193, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 628: persistence=0.5332, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 629: persistence=0.4447, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 630: persistence=0.7379, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 631: persistence=0.4950, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 632: persistence=0.3544, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 633: persistence=0.3951, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 634: persistence=0.5436, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 635: persistence=0.4581, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 636: persistence=0.3984, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 637: persistence=0.3917, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 638: persistence=0.4360, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 639: persistence=0.4256, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 640: persistence=0.5511, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 641: persistence=0.5202, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 642: persistence=0.3961, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 643: persistence=0.7925, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 644: persistence=0.3820, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 645: persistence=0.3573, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 646: persistence=0.3639, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 647: persistence=0.4735, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 648: persistence=0.3968, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 649: persistence=0.4290, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 650: persistence=0.3992, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 651: persistence=0.3882, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 652: persistence=0.4336, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 653: persistence=0.6569, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 654: persistence=0.4820, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 655: persistence=0.4416, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 656: persistence=0.3545, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 657: persistence=0.3535, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 658: persistence=0.5056, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 659: persistence=0.4493, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 660: persistence=0.5821, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 661: persistence=0.3979, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 662: persistence=0.5261, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 663: persistence=0.4512, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 664: persistence=0.4819, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 665: persistence=0.4267, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 666: persistence=0.5821, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 667: persistence=0.3951, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 668: persistence=0.4091, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 669: persistence=0.4636, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 670: persistence=0.4886, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 671: persistence=0.5089, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 672: persistence=0.4065, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 673: persistence=0.4018, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 674: persistence=0.4305, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 675: persistence=0.7472, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 676: persistence=0.5512, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 677: persistence=0.7552, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 678: persistence=0.7071, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 679: persistence=0.4708, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 680: persistence=0.6239, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 681: persistence=0.4311, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 682: persistence=0.4779, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 683: persistence=0.3817, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 684: persistence=0.3529, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 685: persistence=0.3917, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 686: persistence=0.4237, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 687: persistence=0.4060, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 688: persistence=0.6196, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 689: persistence=0.3719, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 690: persistence=0.3823, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 691: persistence=0.3682, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 692: persistence=0.4653, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 693: persistence=0.5870, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 694: persistence=0.8066, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 695: persistence=0.4401, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 696: persistence=0.3593, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 697: persistence=0.4739, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 698: persistence=0.3700, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 699: persistence=0.6843, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 700: persistence=0.4890, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 701: persistence=0.3760, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 702: persistence=0.4134, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 703: persistence=0.3742, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 704: persistence=0.5272, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 705: persistence=0.5128, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 706: persistence=0.4155, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 707: persistence=0.5560, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 708: persistence=0.5509, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 709: persistence=0.5086, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 710: persistence=0.4366, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 711: persistence=0.5103, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 712: persistence=0.4900, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 713: persistence=0.4366, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 714: persistence=0.3537, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 715: persistence=0.4241, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 716: persistence=0.3548, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 717: persistence=0.6416, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 718: persistence=0.4978, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 719: persistence=0.3949, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 720: persistence=0.3990, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 721: persistence=0.4856, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 722: persistence=0.4680, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 723: persistence=0.5721, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 724: persistence=0.3594, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 725: persistence=0.3798, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 726: persistence=0.4151, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 727: persistence=0.5818, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 728: persistence=0.4326, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 729: persistence=0.4801, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 730: persistence=0.4683, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 731: persistence=0.4531, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 732: persistence=0.3559, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 733: persistence=0.6182, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 734: persistence=0.3679, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 735: persistence=0.4579, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 736: persistence=0.3544, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 737: persistence=0.3964, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 738: persistence=0.4592, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 739: persistence=0.4440, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 740: persistence=0.4563, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 741: persistence=0.5685, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 742: persistence=0.5081, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 743: persistence=0.5152, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 744: persistence=0.4253, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 745: persistence=0.3862, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 746: persistence=0.4275, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 747: persistence=0.4819, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 748: persistence=0.4246, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 749: persistence=0.4053, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 750: persistence=0.4640, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 751: persistence=0.4714, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 752: persistence=0.4551, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 753: persistence=0.4914, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 754: persistence=0.3973, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 755: persistence=0.4313, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 756: persistence=0.6610, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 757: persistence=0.3806, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 758: persistence=0.3889, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 759: persistence=0.4897, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 760: persistence=0.4168, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 761: persistence=0.3805, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 762: persistence=0.4827, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 763: persistence=0.3729, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 764: persistence=0.6437, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 765: persistence=0.3889, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 766: persistence=0.4571, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 767: persistence=0.5222, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 768: persistence=0.4230, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 769: persistence=0.4180, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 770: persistence=0.3926, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 771: persistence=0.4026, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 772: persistence=0.3706, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 773: persistence=0.4756, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 774: persistence=0.6249, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 775: persistence=0.4301, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 776: persistence=0.3893, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 777: persistence=0.5801, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 778: persistence=0.4092, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 779: persistence=0.4378, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 780: persistence=0.7342, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 781: persistence=0.4766, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 782: persistence=0.4939, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 783: persistence=0.5082, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 784: persistence=0.4424, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 785: persistence=0.5123, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 786: persistence=0.5069, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 787: persistence=0.4048, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 788: persistence=0.5197, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 789: persistence=0.4494, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 790: persistence=0.4625, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 791: persistence=0.4744, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 792: persistence=0.3760, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 793: persistence=0.4074, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 794: persistence=0.5629, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 795: persistence=0.3639, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 796: persistence=0.4590, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 797: persistence=0.8479, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 798: persistence=0.3809, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 799: persistence=0.4152, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 800: persistence=0.5654, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 801: persistence=0.4116, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 802: persistence=0.4193, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 803: persistence=0.4015, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 804: persistence=0.4887, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 805: persistence=0.4288, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 806: persistence=0.4482, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 807: persistence=0.6904, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 808: persistence=0.4590, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 809: persistence=0.4350, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 810: persistence=0.3899, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 811: persistence=0.6455, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 812: persistence=0.4128, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 813: persistence=0.5395, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 814: persistence=0.3591, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 815: persistence=0.4156, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 816: persistence=0.3562, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 817: persistence=0.4577, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 818: persistence=0.7388, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 819: persistence=0.4553, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 820: persistence=0.6086, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 821: persistence=0.5552, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 822: persistence=0.5041, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 823: persistence=0.4774, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 824: persistence=0.3766, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 825: persistence=0.4298, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 826: persistence=0.4277, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 827: persistence=0.5543, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 828: persistence=0.3656, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 829: persistence=0.3548, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 830: persistence=0.3744, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 831: persistence=0.4788, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 832: persistence=0.3648, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 833: persistence=0.5953, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 834: persistence=0.5006, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 835: persistence=0.4232, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 836: persistence=0.3950, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 837: persistence=0.3673, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 838: persistence=0.4185, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 839: persistence=0.4837, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 840: persistence=0.3804, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 841: persistence=0.4892, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 842: persistence=0.3524, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 843: persistence=0.4526, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 844: persistence=0.4265, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 845: persistence=0.3945, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 846: persistence=0.4551, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 847: persistence=0.4889, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 848: persistence=0.4693, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 849: persistence=0.4750, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 850: persistence=0.3707, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 851: persistence=0.3721, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 852: persistence=0.4396, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 853: persistence=0.3586, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 854: persistence=0.4133, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 855: persistence=0.4260, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 856: persistence=0.4286, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 857: persistence=0.3754, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 858: persistence=0.4061, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 859: persistence=0.3699, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 860: persistence=0.3825, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 861: persistence=0.7609, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 862: persistence=0.3879, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 863: persistence=0.4374, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 864: persistence=0.4644, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 865: persistence=0.4106, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 866: persistence=0.3579, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 867: persistence=0.3918, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 868: persistence=0.4038, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 869: persistence=0.4298, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 870: persistence=0.4469, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 871: persistence=0.4168, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 872: persistence=0.4410, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 873: persistence=0.4354, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 874: persistence=0.5042, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 875: persistence=0.4202, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 876: persistence=0.4422, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 877: persistence=0.5013, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 878: persistence=0.3683, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 879: persistence=0.4967, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 880: persistence=0.5960, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 881: persistence=0.3980, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 882: persistence=0.4482, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 883: persistence=0.4430, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 884: persistence=0.5285, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 885: persistence=0.4040, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 886: persistence=0.3928, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 887: persistence=0.5327, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 888: persistence=0.3851, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 889: persistence=0.4973, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 890: persistence=0.4268, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 891: persistence=0.4414, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 892: persistence=0.3970, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 893: persistence=0.5183, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 894: persistence=0.4447, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 895: persistence=0.4848, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 896: persistence=0.3848, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 897: persistence=0.5241, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 898: persistence=0.4941, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO:   Loop 899: persistence=0.3890, mean_cycle_len=3.9, n_cycles=16
+19:14:47 INFO: ============================================================
+19:14:47 INFO: Spanning Pipeline complete in 1186.2s
+19:14:47 INFO:   Total trajectories: 32763
+19:14:47 INFO:   Spanning: 8459
+19:14:47 INFO:   Regimes (k): 8
+19:14:47 INFO:   H1 loops: 900
+19:14:47 INFO:   Results: results\trajectory_tda_spanning
+19:14:47 INFO: ============================================================

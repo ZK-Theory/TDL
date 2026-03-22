@@ -1,1 +1,1 @@
-"""Analysis modules: regime classification, escape probability, subgroup comparisons."""
+"""Analysis modules: regime discovery, cycle detection, group comparison."""

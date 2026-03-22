@@ -1,0 +1,243 @@
+{
+  "region": "greater_manchester",
+  "n_lsoas": 1673,
+  "n_dimensions": 7,
+  "domain_names": [
+    "income",
+    "employment",
+    "education",
+    "health",
+    "crime",
+    "housing_barriers",
+    "living_environment"
+  ],
+  "elapsed_seconds": 1.995180606842041,
+  "ripser_time_seconds": 1.0011017322540283,
+  "persistence_summary": {
+    "H0": {
+      "n_features": 1673,
+      "n_finite": 1672,
+      "n_infinite": 1,
+      "total_persistence": 1058.4211991727352,
+      "max_persistence": 1.927778959274292,
+      "persistence_entropy": 7.365150017479273
+    },
+    "H1": {
+      "n_features": 1439,
+      "n_finite": 1439,
+      "n_infinite": 0,
+      "total_persistence": 112.98906111717224,
+      "max_persistence": 0.38670504093170166,
+      "persistence_entropy": 6.942334040708884
+    }
+  },
+  "top_features": {
+    "H0": [
+      {
+        "birth": 0.0,
+        "death": 1.927778959274292,
+        "lifetime": 1.927778959274292
+      },
+      {
+        "birth": 0.0,
+        "death": 1.868848443031311,
+        "lifetime": 1.868848443031311
+      },
+      {
+        "birth": 0.0,
+        "death": 1.8296716213226318,
+        "lifetime": 1.8296716213226318
+      },
+      {
+        "birth": 0.0,
+        "death": 1.7550058364868164,
+        "lifetime": 1.7550058364868164
+      },
+      {
+        "birth": 0.0,
+        "death": 1.6859476566314697,
+        "lifetime": 1.6859476566314697
+      },
+      {
+        "birth": 0.0,
+        "death": 1.648637294769287,
+        "lifetime": 1.648637294769287
+      },
+      {
+        "birth": 0.0,
+        "death": 1.4683446884155273,
+        "lifetime": 1.4683446884155273
+      },
+      {
+        "birth": 0.0,
+        "death": 1.4532276391983032,
+        "lifetime": 1.4532276391983032
+      },
+      {
+        "birth": 0.0,
+        "death": 1.442703366279602,
+        "lifetime": 1.442703366279602
+      }
+    ],
+    "H1": [
+      {
+        "birth": 0.7266408205032349,
+        "death": 1.1133458614349365,
+        "lifetime": 0.38670504093170166
+      },
+      {
+        "birth": 0.7521693110466003,
+        "death": 1.12528657913208,
+        "lifetime": 0.37311726808547974
+      },
+      {
+        "birth": 0.8290526270866394,
+        "death": 1.1906436681747437,
+        "lifetime": 0.36159104108810425
+      },
+      {
+        "birth": 0.7393682599067688,
+        "death": 1.071640133857727,
+        "lifetime": 0.33227187395095825
+      },
+      {
+        "birth": 1.3699356317520142,
+        "death": 1.6977585554122925,
+        "lifetime": 0.3278229236602783
+      },
+      {
+        "birth": 1.0453554391860962,
+        "death": 1.3716596364974976,
+        "lifetime": 0.32630419731140137
+      },
+      {
+        "birth": 0.711622953414917,
+        "death": 1.0171228647232056,
+        "lifetime": 0.3054999113082886
+      },
+      {
+        "birth": 0.8929435610771179,
+        "death": 1.1955283880233765,
+        "lifetime": 0.30258482694625854
+      },
+      {
+        "birth": 0.9689607620239258,
+        "death": 1.2672703266143799,
+        "lifetime": 0.2983095645904541
+      },
+      {
+        "birth": 1.026748538017273,
+        "death": 1.3153653144836426,
+        "lifetime": 0.28861677646636963
+      }
+    ]
+  },
+  "h1_domain_analysis": [
+    {
+      "rank": 1,
+      "birth": 0.7266408205032349,
+      "death": 1.1133458614349365,
+      "lifetime": 0.38670504093170166,
+      "n_cycle_points": 423,
+      "domain_variances": {
+        "income": 0.1369,
+        "employment": 0.1489,
+        "education": 0.1664,
+        "health": 0.2922,
+        "crime": 0.366,
+        "housing_barriers": 0.2912,
+        "living_environment": 0.3347
+      },
+      "top_varying_domains": [
+        "crime",
+        "living_environment",
+        "health"
+      ]
+    },
+    {
+      "rank": 2,
+      "birth": 0.7521693110466003,
+      "death": 1.12528657913208,
+      "lifetime": 0.37311726808547974,
+      "n_cycle_points": 433,
+      "domain_variances": {
+        "income": 0.141,
+        "employment": 0.1504,
+        "education": 0.1675,
+        "health": 0.2915,
+        "crime": 0.3675,
+        "housing_barriers": 0.297,
+        "living_environment": 0.3419
+      },
+      "top_varying_domains": [
+        "crime",
+        "living_environment",
+        "housing_barriers"
+      ]
+    },
+    {
+      "rank": 3,
+      "birth": 0.8290526270866394,
+      "death": 1.1906436681747437,
+      "lifetime": 0.36159104108810425,
+      "n_cycle_points": 421,
+      "domain_variances": {
+        "income": 0.1342,
+        "employment": 0.1418,
+        "education": 0.1605,
+        "health": 0.2875,
+        "crime": 0.3559,
+        "housing_barriers": 0.2935,
+        "living_environment": 0.3351
+      },
+      "top_varying_domains": [
+        "crime",
+        "living_environment",
+        "housing_barriers"
+      ]
+    },
+    {
+      "rank": 4,
+      "birth": 0.7393682599067688,
+      "death": 1.071640133857727,
+      "lifetime": 0.33227187395095825,
+      "n_cycle_points": 425,
+      "domain_variances": {
+        "income": 0.139,
+        "employment": 0.1481,
+        "education": 0.1608,
+        "health": 0.2927,
+        "crime": 0.3787,
+        "housing_barriers": 0.301,
+        "living_environment": 0.3402
+      },
+      "top_varying_domains": [
+        "crime",
+        "living_environment",
+        "housing_barriers"
+      ]
+    },
+    {
+      "rank": 5,
+      "birth": 1.3699356317520142,
+      "death": 1.6977585554122925,
+      "lifetime": 0.3278229236602783,
+      "n_cycle_points": 423,
+      "domain_variances": {
+        "income": 0.1378,
+        "employment": 0.1426,
+        "education": 0.1693,
+        "health": 0.2534,
+        "crime": 0.3257,
+        "housing_barriers": 0.2654,
+        "living_environment": 0.301
+      },
+      "top_varying_domains": [
+        "crime",
+        "living_environment",
+        "housing_barriers"
+      ]
+    }
+  ],
+  "permutation_test": null
+}

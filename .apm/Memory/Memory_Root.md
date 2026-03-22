@@ -422,6 +422,9 @@
   - 2020 COVID: τ=0.7123 (optimized 450/200 params, p<10⁻⁵⁰, lead time 125 days)
   - Average: τ=0.7931 (13% above threshold), all highly significant
 - **Critical Discovery:** Parameter optimization essential for diverse crisis dynamics (standard 500/250 vs rapid shock 450/200). Systematic sensitivity analysis (375 combinations) identified optimal parameters per event type.
+- **Six-Market Analysis (Global Robustness):** Extended to S&P500, FTSE, DAX, CAC, Nikkei, Hang Seng.
+  - **Result:** Global basket yields stronger GFC signal (τ=0.93 vs 0.92), confirming systemic nature.
+  - **Key Finding:** TDA distinguishes "Structural Crisis" (2008: High Trend, High Magnitude) from "Velocity Shock" (2020: High Trend, Low Magnitude).
 - **Methodology Validation:** TDA implementation proven mathematically correct; Task 7.2 "failure" (F1=0.35) was wrong evaluation task, not wrong implementation
 - **Documentation:** `trend_analysis_validator.py`, 3 event validation reports, parameter sensitivity analysis, `METHODOLOGY_ALIGNMENT.md`
 
@@ -435,7 +438,7 @@
 
 **Cross-System Insights:** Task definition critical (financial τ 0.35→0.79 transformation), parameter optimization universal, multi-metric validation strengthens claims, complete documentation enables replication
 
-**Production Readiness:** Financial (15 min/event, 100% success), Poverty (1 min/30K LSOAs, p<0.01 validation)
+**Production Readiness:** Financial (15 min/event, 100% success, Global robustness), Poverty (1 min/30K LSOAs, p<0.01 validation)
 
 **Agents Involved:** Agent_Financial_ML, Agent_Docs
 
@@ -444,3 +447,17 @@
 - [Task_8_2_Poverty_TDA_Paper_Draft.md](.apm/Memory/Phase_08_Methodology_Realignment/Task_8_2_Poverty_TDA_Paper_Draft.md)
 
 ---
+
+## Phase 10 – Critical Reassessment Summary
+
+**Outcome:** VALIDATED AS DISTINCT SIGNAL. Successfully pivoted from "Crisis Prediction" to "Regime Characterization". Continuous analysis (2000-2025) confirms Tau is a distinct, stable signal (r=0.21 with VIX) that adds significant predictive power for returns (p<0.001) but not volatility. Decoupling hypothesis confirmed across all 3 eras, refuting "cherry-picking" concerns.
+
+**Key Findings:**
+- **Signal Distinctness:** Tau contains unique information not captured by VIX ($r=0.21$).
+- **Information Content:** Significant $\Delta R^2$ for returns prediction ($p=0.0001$), insignificant for volatility.
+- **Stability:** Signal remains distinct in Pre-GFC (-0.25), Crisis (+0.30), and Modern (+0.16) eras.
+
+**Agents Involved:** Agent_Implementation
+
+**Task Logs:**
+- [Phase_10_Report.md](.apm/Memory/Phase_10_Critical_Reassessment/Phase_10_Report.md)

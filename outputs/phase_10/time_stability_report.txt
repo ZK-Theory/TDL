@@ -1,0 +1,26 @@
+TIME-STABILITY ANALYSIS REPORT
+==============================
+
+Era 1: Pre-GFC (2000-01-01 to 2008-01-01)
+----------------------------------------
+Observations: 1489
+Correlation (Tau vs VIX): -0.2484 (p=2.2089e-22)
+Mean Tau: -0.6622
+Mean VIX: 17.9278
+>> STATUS: Decoupled / Independent
+
+Era 2: Crisis & Post (2008-01-01 to 2016-01-01)
+----------------------------------------
+Observations: 2015
+Correlation (Tau vs VIX): 0.2951 (p=9.1410e-42)
+Mean Tau: 0.0865
+Mean VIX: 21.7343
+>> STATUS: Decoupled / Independent
+
+Era 3: Modern/COVID (2016-01-01 to 2024-12-31)
+----------------------------------------
+Observations: 2264
+Correlation (Tau vs VIX): 0.1631 (p=5.8808e-15)
+Mean Tau: -0.0150
+Mean VIX: 18.4462
+>> STATUS: Decoupled / Independent
