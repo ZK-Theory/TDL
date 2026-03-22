@@ -1,0 +1,67 @@
+{
+  "per_regime": {
+    "0": {
+      "observed_compactness": 14.679537124783113,
+      "null_mean": 19.11526711788942,
+      "null_std": 0.08061007940104632,
+      "z_score": -55.026989503855155,
+      "p_value": 0.0,
+      "n_members": 3787
+    },
+    "1": {
+      "observed_compactness": 3.7921387271025564,
+      "null_mean": 4.994526460004461,
+      "null_std": 0.03213462157470486,
+      "z_score": -37.417205306328476,
+      "p_value": 0.0,
+      "n_members": 7358
+    },
+    "2": {
+      "observed_compactness": 5.733828061093339,
+      "null_mean": 6.640748844465992,
+      "null_std": 0.02969542201752128,
+      "z_score": -30.540760890265823,
+      "p_value": 0.0,
+      "n_members": 5415
+    },
+    "3": {
+      "observed_compactness": 7.270608039810964,
+      "null_mean": 11.34434860247062,
+      "null_std": 0.06051336153211385,
+      "z_score": -67.31968708262491,
+      "p_value": 0.0,
+      "n_members": 3333
+    },
+    "4": {
+      "observed_compactness": 5.213743736429177,
+      "null_mean": 6.379984525218472,
+      "null_std": 0.03200954107700563,
+      "z_score": -36.43416148902788,
+      "p_value": 0.0,
+      "n_members": 3510
+    },
+    "5": {
+      "observed_compactness": 5.7351808426239845,
+      "null_mean": 9.644097181472187,
+      "null_std": 0.06378462823346669,
+      "z_score": -61.28304651303528,
+      "p_value": 0.0,
+      "n_members": 1813
+    },
+    "6": {
+      "observed_compactness": 9.51469339191018,
+      "null_mean": 14.580104235044468,
+      "null_std": 0.07458896754103568,
+      "z_score": -67.91099287367818,
+      "p_value": 0.0,
+      "n_members": 2064
+    }
+  },
+  "n_regimes": 7,
+  "n_permutations": 500,
+  "pca_dim": 20,
+  "observed_explained_variance": 0.48963724715080603,
+  "any_regime_order_dependent": true,
+  "n_significant_regimes": 7,
+  "conclusion": "Regime structure is partially order-dependent"
+}

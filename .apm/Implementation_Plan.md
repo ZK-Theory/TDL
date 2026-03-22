@@ -1,6 +1,6 @@
 # TDL (Topological Data Analysis Lab) – APM Implementation Plan
 **Memory Strategy:** Dynamic-MD
-**Last Modification:** Antigravity Session - **PHASE 9.5 COMPLETE**. TDA Comparison Protocol executed: MS explains 73-83% LE variance vs K-means 33-46% vs spatial methods 10-20%. Novel sex gap closure finding. Results framework created. Phase 9 (Documentation) still in progress.
+**Last Modification:** Antigravity Session - **PHASE 9.5 COMPLETE**. Task 9.5.1 (TDA Comparison) η²=73-83%. Task 9.5.2 (Barriers) null result. Task 9.5.3 (ARI) weak agreement. Task 9.5.4 (Integrated) TDA adds +0.73 R². Task 9.5.5 (Persistence) perfectly robust. Full empirical validation complete.
 **Project Overview:** Dual parallel TDA portfolio projects: (1) Financial Market Regime Detection via persistent homology on time series, and (2) Poverty Trap Detection via Morse-Smale analysis on UK economic mobility data. Monorepo with shared utilities. Deliverables include working dashboards, academic papers, and policy briefs targeting finance, NGO, and government audiences. Full ambition including deep learning integration (GNNs, VAEs, Perslay) and TTK acceleration.
 
 
@@ -596,6 +596,7 @@
 **Objective:** Validate poverty trap identification against known UK patterns.
 **Output:** Validation report with geographic findings.
 **Guidance:** **CRITICAL CHECKPOINT** - Compare with Social Mobility Commission, levelling up areas. **Depends on: Task 7.3 Output**
+**Completed:** Agent_Poverty_ML - 357 poverty traps identified (31,810 LSOAs, 96.9% coverage). SMC validation: 61.5% match in bottom quartile (2.5x random, p<0.01). Effect size Cohen's d=-0.74. Regional patterns validated (post-industrial North, coastal).
 
 1. Compare identified traps with Social Mobility Commission reports
 2. Validate against known deprived areas (post-industrial North, coastal towns)
@@ -606,8 +607,8 @@
 ### Task 7.5 – Cross-System Comparison & Metrics - Agent_Docs ✅ COMPLETE
 **Objective:** Compile overall system performance metrics.
 **Output:** Comprehensive metrics report for both systems.
-**Guidance:** Compare against baselines. Document key claims with evidence. **Depends on: Task 8.1 Output by Agent_Financial_ML (financial methodology must be realigned before cross-system comparison)**
-**Completed:** Agent_Docs - 165KB documentation across 4 comprehensive documents. Cross-system framework with 14 key claims, 4 publication-ready tables (Markdown + LaTeX). Financial: 100% success (avg τ=0.79). Poverty: 96.9% coverage, 61.5% SMC match (d=-0.74). Phase 9 roadmap created with 3 paper proposals.
+**Guidance:** Compare against baselines. Document key claims with evidence. **Depends on: Task 8.1 Output by Agent_Financial_ML**
+**Completed:** Agent_Docs - Comprehensive metrics framework across 4 documents. 14 key claims supported. Financial: 100% success (avg tau=0.7931). Poverty: 96.9% coverage, 61.5% SMC match. Phase 9 roadmap created.
 
 - Compile comprehensive metrics for both systems
 - Compare against baseline methods where applicable
@@ -621,15 +622,20 @@
 **Objective:** Implement literature-aligned trend detection using L^p norms and Kendall-tau correlation (Gidea & Katz 2018 methodology).
 **Output:** `financial_tda/validation/trend_analysis_validator.py` with trend detection achieving τ ≥ 0.70.
 **Guidance:** Leverage existing G&K replication code from Task 7.2 (L^p norm computation already working). Implement Kendall-tau trend correlation on 250-day pre-crisis windows. Target events: 2008 GFC (already τ=0.814), 2000 dotcom, 2020 COVID. Update validation reports and methodology documentation. **Depends on: Task 7.2 Output (G&K replication code)**
-**Completed:** Agent_Financial_ML - 100% validation success across 3 events (avg τ=0.7931). 2008 GFC: τ=0.9165 (L² variance, 282-day lead), 2000 Dotcom: τ=0.7504 (L¹ variance, 180-day lead), 2020 COVID: τ=0.7123 (optimized params 450/200, 125-day lead). Parameter optimization framework with 375 combinations tested. Critical discovery: event-specific tuning required for diverse crisis dynamics. Comprehensive validation reports with statistical rigor (all p<10⁻⁵⁰).
+**Completed:** Agent_Financial_ML - 100% validation success across 3 events + **Six Market Global Validation**.
+- US Only: 2008 GFC (τ=0.9165), 2000 Dotcom (τ=0.7504), 2020 COVID (τ=0.7123).
+- **Global 6-Market**: 2008 GFC (τ=0.9294 - stronger signal), 2023 Validation (τ=0.8270 trend but low magnitude <0.20 ratio).
+- **Critical Outcome**: Established "Trend vs Magnitude" taxonomy distinguishing Structural Crises (2008) from Velocity Shocks (2020) and Stable Volatility (2023).
+- Parameter optimization framework validated.
 
 1. Create `financial_tda/validation/trend_analysis_validator.py` with Kendall-tau trend detection
 2. Implement `compute_trend_indicator()` function: compute kendall-tau correlation between time indices and L^p norms for 250-day pre-crisis windows
 3. Validate on 2008 GFC (verify τ≥0.70, already achieved 0.814 in G&K replication)
 4. Validate on 2000 dotcom crash (new event, target τ≥0.70)
 5. Validate on 2020 COVID crash (target τ≥0.70)
-6. Update `financial_tda/validation/CHECKPOINT_REPORT.md` with revised validation criteria (trend detection vs per-day classification)
-7. Create `docs/METHODOLOGY_ALIGNMENT.md` explaining task difference (trend detection is correct task per literature)
+6. **[NEW] Six-Market Validation**: Confirm robustness on global basket (S&P, FTSE, DAX, CAC, Nikkei, Hang Seng)
+7. Update `financial_tda/validation/CHECKPOINT_REPORT.md` with revised validation criteria (trend detection)
+8. Create `docs/METHODOLOGY_ALIGNMENT.md` explaining task difference
 
 ### Task 8.2 – Poverty TDA Paper Draft - Agent_Docs ✅ COMPLETE
 **Objective:** Draft academic paper for poverty TDA results targeting economics/policy journals.
@@ -797,455 +803,123 @@
 5. Compare parameter sensitivity: MS vs DBSCAN ε variation
 
 
-## Phase 10: Deployment & Enhancement
 
+## Phase 10: Critical Reassessment & Methodology Pivot [COMPLETE]
 
-### Task 10.1 – User Acceptance Testing (Optional) - Agent_QA
-**Objective:** Optional external UAT with 3-5 testers before public deployment.
-**Output:** UAT feedback report.
-**Guidance:** Optional task - can skip if internal validation sufficient. Recruit from target audience (finance professionals, policy analysts). **Depends on: Phase 6 Output (dashboards validated)**
+**Context:** While Phase 8.1 reported success with average τ=0.79, subsequent rigorous testing in Project A (Sector TDA) and Project B (Multi-Asset TDA) revealed that the 2020 COVID detection was heavily dependent on parameter tuning, raising concerns of p-hacking. The methodology works well for endogenous crises (2008) but fails for rapid exogenous shocks (COVID, Rate Shock). This phase pivots the research from "validation" to "fundamental assessment."
 
-1. Recruit 3-5 external testers (finance, policy backgrounds)
-2. Conduct UAT sessions (dashboard testing, feedback collection)
-3. Compile feedback and prioritize fixes
-4. Implement high-priority improvements
+### Task 10.1 – Continuous Signal Analysis - Agent_Financial_ML ✅ COMPLETE
+**Objective:** Assess whether τ provides meaningful signal across all market regimes, not just pre-selected crises.
+**Output:** Correlation analysis of τ vs VIX/Volatility/Credit Spreads (2000-2025).
+**Result:** τ is distinct from VIX (r = 0.21). Contains unique information.
 
-### Task 10.2 – Streamlit Cloud Deployment - Agent_DevOps
-**Objective:** Deploy financial and poverty dashboards to Streamlit Cloud.
-**Output:** Production URLs with monitoring.
-**Guidance:** Phase 6 visual validation complete - ready to deploy. Configure secrets management for API keys. **Depends on: Phase 6 Output, Phase 9 API docs complete**
+### Task 10.2 – Information Content Assessment - Agent_Financial_ML ✅ COMPLETE
+**Objective:** Determine if τ adds incremental predictive power beyond standard financial metrics.
+**Output:** Regression analysis (Returns ~ VIX + τ).
+**Result:** τ adds ΔR² = 0.3% for return prediction (p < 0.001). Does NOT improve volatility prediction.
 
-1. Create Streamlit Cloud account and configure deployment settings
-2. Deploy financial TDA dashboard (`financial_tda/viz/streamlit_app.py`)
-3. Deploy poverty TDA dashboard (`poverty_tda/viz/dashboard.py`)
-4. Deploy interactive maps application (`poverty_tda/viz/maps.py`)
-5. Configure secrets management (FRED_API_KEY, data sources)
-6. Test production deployments and document URLs
+### Task 10.3 – Time-Stability Analysis - Agent_Financial_ML ✅ COMPLETE
+**Objective:** Test if TDA efficacy is consistent across decades or specific to the 2000-2008 period.
+**Output:** Stability report comparing 2000-2008, 2008-2016, 2016-2024.
+**Result:** Decoupling from VIX is stable across all eras. Not cherry-picked.
 
-### Task 10.3 – Monitoring & Analytics Integration - Agent_DevOps
-**Objective:** Add error tracking and usage analytics to deployed applications.
-**Output:** Sentry error tracking + usage metrics dashboard.
-**Guidance:** Track errors, performance, user behavior for continuous improvement. **Depends on: Task 10.2 Output**
-
-1. Integrate Sentry for error tracking and performance monitoring
-2. Add usage analytics (page views, feature usage, session duration)
-3. Create monitoring dashboard for application health
-4. Configure alert thresholds (error rates, response times)
-
-### Task 10.4 – Real-time Enhancements - Agent_Financial_Viz
-**Objective:** Add email/SMS alerts and WebSocket integration for real-time updates.
-**Output:** Alert system + live data streaming.
-**Guidance:** Enhance real-time monitoring with notification system. **Depends on: Task 10.2 Output**
-
-1. Implement email alert system (SendGrid/AWS SES) for crisis detection
-2. Add SMS alerts (Twilio) for critical threshold crossings (optional)
-3. Integrate WebSocket for live data streaming (reduce polling overhead)
-4. Test alert delivery and notification timing
-
-### Task 10.5 – Dashboard Refinement Post-Deployment - Agent_Financial_Viz + Agent_Poverty_Viz
-**Objective:** Post-deployment improvements based on user feedback.
-**Output:** Enhanced dashboard features.
-**Guidance:** Address user feedback from production usage. **Depends on: Task 10.2-10.4 Output**
-
-1. Collect user feedback from production deployment (2 weeks)
-2. Prioritize enhancement requests
-3. Implement high-priority improvements
-4. Deploy updates to production
-
-
-## Phase 11: Testing & Quality Assurance
-
-### Task 11.1 – Unit Test Completion - Agent_Financial_ML
-**Objective:** Add unit tests for trend_analysis_validator.py and realtime detection scripts.
-**Output:** Unit test suite with 90%+ coverage.
-**Guidance:** Deferred from Task 8.1 - close testing gap. **Depends on: Task 8.1 Output**
-
-1. Add unit tests for `financial_tda/validation/trend_analysis_validator.py`
-2. Add unit tests for realtime detection scripts (`step2_validate_2008_gfc.py`, etc.)
-3. Add unit tests for `analyze_tau_discrepancies.py`
-4. Achieve 90%+ code coverage for validation module
-5. Add tests to CI/CD pipeline
-
-### Task 11.2 – Cross-Browser & Performance Testing - Agent_QA
-**Objective:** Cross-browser testing and TDA performance benchmarking.
-**Output:** Browser compatibility matrix + performance benchmarks.
-**Guidance:** Test Chrome, Firefox, Safari, Edge. Benchmark VR persistence, Morse-Smale computation. **Depends on: Task 10.2 Output**
-
-1. Test dashboards on browser matrix (Chrome, Firefox, Safari, Edge)
-2. Document compatibility issues and implement fixes
-3. Benchmark TDA computations (VR persistence, Morse-Smale) on various dataset sizes
-4. Profile memory usage and optimize bottlenecks
-5. Document performance characteristics
-
-### Task 11.3 – False Positive Analysis - Agent_Financial_ML
-**Objective:** Test financial detection system on 5+ non-crisis periods.
-**Output:** False positive rate report with recommendations.
-**Guidance:** Critical for production credibility. Test periods: 2004-2007, 2013-2014, 2017-2019, 2021, 2023-early 2024. **Depends on: Task 8.1 Output**
-
-1. Define 5+ non-crisis test periods (sustained normal markets)
-2. Run detection system on each period with standard parameters
-3. Analyze false positive rate (false alarm rate vs lead time tradeoff)
-4. Recommend threshold adjustments if FPR > 10%
-5. Document validation results
-
-### Task 11.4 – Data Provider Robustness Testing - Agent_Financial_Data
-**Objective:** Test alternative data providers for data source redundancy.
-**Output:** Data provider comparison report.
-**Guidance:** Test Alpha Vantage, IEX Cloud, Polygon.io as Yahoo Finance backups. **Depends on: Phase 1 Output**
-
-1. Test alternative data providers (Alpha Vantage, IEX Cloud, Polygon.io)
-2. Compare data quality, coverage, rate limits, costs
-3. Implement fallback logic for Yahoo Finance failures
-4. Add tests for multi-provider data fetching
-5. Document provider selection recommendations
-
-### Task 11.5 – Docker Containerization - Agent_DevOps
-**Objective:** Create Docker containers for reproducibility and CI/CD.
-**Output:** Dockerfiles + docker-compose + CI/CD integration.
-**Guidance:** Reproducible environments for development, testing, production. **Depends on: Phase 0 Output**
-
-1. Create Dockerfiles for financial TDA, poverty TDA, shared utilities
-2. Add docker-compose for multi-container orchestration
-3. Integrate Docker builds into CI/CD pipeline
-4. Add Docker deployment documentation
-5. Test container builds on clean environments
-
-
-## Phase 12: Extended Financial Validation
-
-### Task 12.1 – Historical Crisis Extension - Agent_Financial_ML
-**Objective:** Validate on 4 additional historical crises (1987, 1998, 2011, 2015).
-**Output:** Extended validation report with 7 total crises.
-**Guidance:** Strengthen financial paper validation. Target: τ ≥ 0.70 for at least 5/7 events. **Depends on: Task 8.1 Output**
-
-1. Validate 1998 LTCM collapse (August-September 1998) - P1
-2. Validate 2011 EU debt crisis (July-August 2011) - P1
-3. Validate 2015 China devaluation (August 2015) - P1
-4. Validate 1987 Black Monday (October 1987) - P2
-5. Compile extended validation report (7 crises total)
-6. Update financial paper with extended validation results
-
-### Task 12.2 – Crypto Crisis Multi-Asset Analysis - Agent_Financial_ML
-**Objective:** Full validation of 2022 crypto crashes using multi-asset approach.
-**Output:** Crypto crisis validation report.
-**Guidance:** Single-asset (BTC) approach failed in Task 7.2. Try multi-crypto portfolio (BTC, ETH, SOL, ADA). **Depends on: Task 8.1 Output**
-
-1. Fetch multi-crypto data (BTC, ETH, SOL, ADA) for 2022
-2. Apply multi-asset G&K methodology (4D point cloud from 4 cryptos)
-3. Validate Terra/LUNA collapse (May 2022) and FTX collapse (November 2022)
-4. Compare multi-asset vs single-asset detection performance
-5. Document crypto-specific parameter requirements
-
-### Task 12.3 – Multi-Asset Expansion - Agent_Financial_ML
-**Objective:** Extend to bonds, commodities, FX for cross-asset crisis detection.
-**Output:** Multi-asset TDA framework.
-**Guidance:** Test if topological signals strengthen with cross-asset correlations. **Depends on: Task 8.1 Output**
-
-1. Fetch bond data (10Y Treasury, corporate bonds via FRED)
-2. Fetch commodity data (gold, oil via Yahoo Finance)
-3. Fetch FX data (major currency pairs)
-4. Construct multi-asset point clouds (equities + bonds + commodities + FX)
-5. Validate on 2008 GFC with multi-asset approach
-6. Compare multi-asset vs equity-only detection quality
-
-### Task 12.4 – Sector-Specific Models - Agent_Financial_ML
-**Objective:** Develop sector-specific crisis detection models (tech, finance, energy).
-**Output:** Sector-specific parameter sets.
-**Guidance:** Different sectors may require different parameters (e.g., tech more volatile, requires longer windows). **Depends on: Task 8.1 Output**
-
-1. Identify sector-specific indices (tech: XLK, finance: XLF, energy: XLE)
-2. Run parameter sensitivity analysis per sector
-3. Identify optimal parameters for each sector (rolling window, precrash window)
-4. Validate sector models on historical sector-specific crises
-5. Document sector-specific guidance
-
-### Task 12.5 – International Markets Validation - Agent_Financial_ML
-**Objective:** Validate on European and Asian indices.
-**Output:** International validation report.
-**Guidance:** Test generalization beyond US markets. May require paid data providers (Bloomberg, Refinitiv). **Depends on: Task 8.1 Output**
-
-1. Fetch European indices (STOXX 50, DAX, FTSE) for 2008, 2011, 2020
-2. Fetch Asian indices (Nikkei, Hang Seng, Shanghai) for 1997, 2008, 2020
-3. Apply G&K methodology to international multi-index portfolios
-4. Validate on region-specific crises (1997 Asian financial crisis, 2011 EU debt)
-5. Document cross-market generalization results
-
-### Task 12.6 – Ensemble Detection System - Agent_Financial_ML
-**Objective:** Combine L¹/L² variance + spectral density for robust ensemble detection.
-**Output:** Ensemble detector with voting/weighted averaging.
-**Guidance:** G&K paper suggests variance AND spectral density together. Current implementation uses variance only. **Depends on: Task 8.1 Output**
-
-1. Implement spectral density computation from persistence landscapes
-2. Apply Kendall-tau trend detection to spectral density time series
-3. Create ensemble voting system (L¹ variance, L² variance, L¹ spectral, L² spectral)
-4. Test ensemble on 3 validated crises (2008, 2000, 2020)
-5. Compare ensemble vs single-metric detection performance
-
-
-## Phase 13: Real-time Production Systems
-
-### Task 13.1 – Production Monitoring Deployment - Agent_DevOps
-**Objective:** Deploy real-time monitoring system to AWS/Azure.
-**Output:** Production monitoring infrastructure.
-**Guidance:** Automated daily/hourly detection runs with alert system. **Depends on: Phase 10 Output, Task 11.3 Output**
-
-1. Design production monitoring architecture (AWS Lambda + S3 or Azure Functions + Blob Storage)
-2. Implement automated data fetching and TDA computation pipeline
-3. Deploy detection system with configurable schedule (daily/hourly)
-4. Integrate with alert system (email/SMS/Slack)
-5. Add monitoring dashboard for system health
-
-### Task 13.2 – 2023-2025 Real-time Validation - Agent_Financial_ML ⚠️ PARTIAL COMPLETE (Ad-Hoc)
-**Objective:** Validate detection system on recent 2023-2025 period.
-**Output:** Real-time validation report.
-**Guidance:** `realtime_detection_2023_2025.py` script exists - complete validation. Test on 2023 banking crisis (March), 2024 events. **Depends on: Task 8.1 Output**
-**Status:** Preliminary analysis complete (991 days 2022-2025, τ=0.36 no crisis signal, ZERO false positives). Formal validation with 2023 banking crisis focus pending.
-
-1. Complete `realtime_detection_2023_2025.py` script execution
-2. Validate on 2023 banking crisis (Silicon Valley Bank, March 2023)
-3. Analyze 2024 market events (if any volatility spikes)
-4. Compare real-time detection vs historical backtest performance
-5. Document findings in `2023_2025_realtime_analysis.md`
-
-### Task 13.3 – Automated Parameter Optimization Pipeline - Agent_Financial_ML
-**Objective:** Automate grid search parameter optimization for new events.
-**Output:** Parameter optimization automation framework.
-**Guidance:** Current manual process (Task 8.1 bonus work). Automate for production use. **Depends on: Task 8.1 Output**
-
-1. Extract parameter optimization code from `analyze_tau_discrepancies.py`
-2. Create automated grid search framework (rolling window, precrash window combinations)
-3. Add early stopping for computational efficiency
-4. Implement caching for repeated computations
-5. Create CLI tool for parameter optimization on new datasets
-
-### Task 13.4 – Alert System Implementation - Agent_DevOps
-**Objective:** Implement production alert system (email/SMS/Slack).
-**Output:** Multi-channel alert delivery system.
-**Guidance:** Configurable thresholds, alert fatigue management. **Depends on: Task 13.1 Output**
-
-1. Implement email alerts (SendGrid/AWS SES) with HTML templates
-2. Add SMS alerts (Twilio) for critical thresholds
-3. Integrate Slack webhooks for team notifications
-4. Add alert fatigue management (cooldown periods, escalation rules)
-5. Create alert configuration dashboard
-
-### Task 13.5 – Crisis Severity Prediction - Agent_Financial_ML
-**Objective:** Predict crisis severity (drawdown magnitude) from Kendall-tau magnitude.
-**Output:** Severity prediction model.
-**Guidance:** Research extension - can τ magnitude predict peak drawdown? Train on historical crises. **Depends on: Task 12.1 Output**
-
-1. Extract τ magnitude and peak drawdown from 7 historical crises
-2. Train regression model (τ → peak drawdown prediction)
-3. Validate on out-of-sample crisis events
-4. Add severity prediction to monitoring dashboard
-5. Document prediction accuracy and limitations
-
-### Task 13.6 – Intraday Detection Research - Agent_Financial_ML
-**Objective:** Feasibility study for hourly/minute-level crisis detection.
-**Output:** Intraday detection research report.
-**Guidance:** Research extension - high computational cost. Test on Flash Crash (2010) if feasible. **Depends on: Task 8.1 Output**
-
-1. Fetch intraday data (hourly/minute) for test period (e.g., 2010 Flash Crash)
-2. Apply G&K methodology with adjusted window sizes (hours instead of days)
-3. Analyze computational cost vs detection quality tradeoff
-4. Document feasibility findings and recommendations
-5. Prototype intraday detection if feasible
-
-
-## Phase 14: International & Cross-Asset Extensions
-
-### Task 14.1 – US Opportunity Atlas Application - Agent_Poverty_ML
-**Objective:** Apply Morse-Smale analysis to US Opportunity Atlas (73,000 census tracts).
-**Output:** US poverty trap identification report.
-**Guidance:** High-value extension for US policy engagement. Prototype on single state (e.g., California) before full-scale. **Depends on: Phase 7 Poverty Output**
-
-1. Download US Opportunity Atlas data (census tract level)
-2. Prototype on single state (California ~8,000 tracts) for workflow validation
-3. Scale to full US (73,000 tracts) with chunked processing
-4. Apply Morse-Smale decomposition and trap identification
-5. Validate against known disadvantaged regions (Appalachia, Deep South, Rust Belt)
-6. Compare UK vs US trap characteristics
-
-### Task 14.2 – Temporal Poverty Analysis - Agent_Poverty_ML
-**Objective:** Analyze IMD 2015 vs IMD 2019 evolution to identify trap dynamics.
-**Output:** Temporal trap evolution report.
-**Guidance:** Longitudinal analysis - which traps persist, strengthen, weaken, or disappear? **Depends on: Phase 7 Poverty Output**
-
-1. Download IMD 2015 data
-2. Construct 2015 mobility surface and trap identification
-3. Compare 2015 vs 2019 trap structures (persistent, emerged, disappeared)
-4. Analyze trap strengthening/weakening patterns
-5. Correlate with policy interventions (if data available)
-
-### Task 14.3 – Wales & UK-Wide Coverage - Agent_Poverty_ML
-**Objective:** Complete UK analysis by including Wales (currently England-only).
-**Output:** Complete UK trap identification.
-**Guidance:** Simple extension - Wales adds ~2,000 LSOAs. **Depends on: Phase 7 Poverty Output**
-
-1. Include Wales LSOAs in dataset (~2,000 additional)
-2. Recompute mobility surface and Morse-Smale complex
-3. Validate trap identification in Welsh deprived areas (Valleys)
-4. Update poverty paper with complete UK coverage
-
-### Task 14.4 – Adaptive Mesh Refinement - Agent_Poverty_Topology
-**Objective:** Implement variable grid resolution (fine in urban, coarse in rural).
-**Output:** Adaptive mesh refinement module.
-**Guidance:** Current 75×75 uniform grid masks urban heterogeneity. Use 1-2 km urban, 10+ km rural. **Depends on: Task 2.4 Output**
-
-1. Implement adaptive mesh refinement algorithm (quadtree-based)
-2. Configure resolution rules (1-2 km urban areas, 10+ km rural areas)
-3. Recompute mobility surface with adaptive mesh
-4. Compare trap identification accuracy vs uniform grid
-5. Document computational cost vs precision tradeoff
-
-### Task 14.5 – Basin-to-LAD Precise Mapping - Agent_Poverty_Topology
-**Objective:** Compute precise basin-to-LAD spatial overlap using polygon intersection.
-**Output:** Basin-LAD mapping with percentage overlap.
-**Guidance:** Current approach uses LSOA-to-LAD lookup. Compute actual spatial overlap for precise basin population. **Depends on: Phase 7 Poverty Output**
-
-1. Implement polygon intersection (basin boundaries ∩ LAD boundaries)
-2. Compute percentage overlap for each basin-LAD pair
-3. Calculate weighted basin population by LAD
-4. Update validation reports with precise overlap statistics
-5. Add visualization of basin-LAD boundaries
-
-### Task 14.6 – Cross-Country Comparison - Agent_Poverty_ML
-**Objective:** Compare UK vs US vs EU poverty trap characteristics.
-**Output:** Cross-country comparison paper.
-**Guidance:** Research extension - requires international datasets. Compare trap density, severity, regional patterns. **Depends on: Task 14.1 Output, Task 14.3 Output**
-
-1. Apply Morse-Smale analysis to EU regional data (if available)
-2. Compare trap characteristics across UK, US, EU
-3. Analyze cultural/policy differences correlating with trap patterns
-4. Document cross-country findings
-5. Write comparative analysis paper
-
-### Task 14.7 – Gateway Intervention Transfer - Agent_Docs
-**Objective:** Transfer gateway intervention concept from poverty to financial TDA.
-**Output:** Gateway intervention framework paper.
-**Guidance:** Conceptual transfer - "gateway stocks" before crisis, "gateway LSOAs" before poverty. **Depends on: Phase 7 Output (both tracks)**
-
-1. Conceptualize "gateway stocks" analogy (periphery of crisis basin)
-2. Identify gateway stocks in historical crises (stocks at separatrices)
-3. Analyze if targeting gateway stocks provides early warning
-4. Write methodology paper on cross-domain gateway concept
-5. Submit to interdisciplinary journal
-
-
-## Phase 15: Advanced Research Extensions
-
-### Task 15.1 – Crisis-Type Classifier - Agent_Financial_ML
-**Objective:** ML classifier to predict optimal metric (L¹ vs L² variance vs spectral density) per crisis type.
-**Output:** Crisis-type classifier model.
-**Guidance:** Task 8.1 found L² works for GFC/COVID, L¹ for dotcom. Can ML predict best metric? **Depends on: Task 12.1 Output**
-
-1. Extract features from historical crises (volatility regime, sector leadership, etc.)
-2. Train classifier (crisis features → optimal metric selection)
-3. Validate on out-of-sample crises
-4. Integrate classifier into ensemble detection system
-5. Document metric selection automation
-
-### Task 15.2 – Principled Threshold Selection - Agent_Poverty_Topology
-**Objective:** Develop information-theoretic or bootstrap-based threshold selection method.
-**Output:** Principled threshold selection framework.
-**Guidance:** Current 5% persistence threshold is data-driven but lacks theoretical foundation. **Depends on: Phase 7 Poverty Output**
-
-1. Research information-theoretic threshold selection methods
-2. Implement bootstrap-based confidence regions for persistence
-3. Test threshold selection on synthetic data with known structure
-4. Compare principled methods vs empirical 5% threshold
-5. Document theoretical foundation and recommendations
-
-### Task 15.3 – Alternative Homology Exploration - Agent_Financial_Topology
-**Objective:** Explore H₀ (connected components) and H₂ (voids) for additional crisis signals.
-**Output:** Alternative homology research report.
-**Guidance:** Current focus on H₁ (loops). Test if H₀/H₂ provide complementary information. **Depends on: Phase 2 Financial Output**
-
-1. Compute H₀ and H₂ persistence diagrams for historical crises
-2. Analyze H₀/H₂ landscape trends with Kendall-tau
-3. Compare H₀/H₂ detection performance vs H₁
-4. Test ensemble combining H₀, H₁, H₂
-5. Document findings and recommendations
-
-### Task 15.4 – Topology-Aware VAE Loss - Agent_Poverty_ML
-**Objective:** Implement Betti number regularization for topology-preserving VAE.
-**Output:** Topology-aware VAE implementation.
-**Guidance:** Research from Hu et al. (2019). Preserve topological features in latent space. **Depends on: Task 5.6 Output**
-
-1. Research Betti number regularization methods (Hu et al. 2019)
-2. Implement topological loss component (Betti matching between input and reconstruction)
-3. Train topology-aware VAE on mobility surfaces
-4. Evaluate topological preservation vs standard VAE
-5. Document research findings
-
-### Task 15.5 – ML Integration Research - Agent_Financial_ML
-**Objective:** Integrate topological features as inputs to LSTM/Transformer for hybrid detection.
-**Output:** Hybrid TDA+ML detection system.
-**Guidance:** Research extension - combine topological features with deep learning. **Depends on: Task 5.1 Output**
-
-1. Extract topological features as time series (landscape norms, entropy, Betti curves)
-2. Train LSTM on topological features + raw returns
-3. Train Transformer on topological features + raw returns
-4. Compare hybrid TDA+ML vs pure TDA detection
-5. Document hybrid approach performance and complexity
-
-### Task 15.6 – Agent-Based Modeling - Agent_Poverty_ML
-**Objective:** Simulate mobility dynamics with agent-based modeling for counterfactual validation.
-**Output:** Agent-based mobility simulation framework.
-**Guidance:** Research extension - simulate intervention effects (e.g., remove barrier → mobility improves?). **Depends on: Phase 4 Poverty Output**
-
-1. Design agent-based model of mobility dynamics on surface
-2. Implement mobility rules (agents move up gradient, barriers slow movement)
-3. Simulate baseline dynamics (no intervention)
-4. Simulate counterfactual (barrier removal, gateway strengthening)
-5. Compare simulated outcomes vs actual intervention data (if available)
-
-### Task 15.7 – Methods Comparison Paper - Agent_Docs
-**Objective:** Write comparative methods paper on temporal vs spatial TDA validation.
-**Output:** Methods paper draft.
-**Guidance:** Use Task 7.5 cross-system framework. Target: Journal of Computational Science. **Depends on: Task 7.5 Output**
-
-1. Extract content from Task 7.5 cross-system comparison
-2. Write methods comparison paper (temporal Kendall-tau vs spatial statistical tests)
-3. Document when each approach is appropriate
-4. Add case studies (financial, poverty, hypothetical domains)
-5. Submit to Journal of Computational Science
-
-### Task 15.8 – Unified TDA Methodology Template - Agent_Docs
-**Objective:** Create reusable TDA methodology template for future applications.
-**Output:** Methodology template document + codebase.
-**Guidance:** Generalize financial and poverty pipelines into domain-agnostic template. **Depends on: Phase 7 Output (both tracks)**
-
-1. Extract common patterns from financial and poverty TDA pipelines
-2. Create domain-agnostic template (data → embedding/surface → filtration → features → validation)
-3. Document template with decision tree (when to use Takens vs surface, VR vs Morse-Smale, etc.)
-4. Add example applications (hypothetical use cases)
-5. Publish template as methodological contribution
-
+### Task 10.4 – Pivot Documentation & Honest Reporting - Agent_Docs ⚠️ PENDING
+**Objective:** Update project documentation to reflect the methodology pivot and negative findings.
+**Output:** Revised Memory_Root.md, new research artifact.
+**Guidance:** Deferred until Phase 10B results available.
 
 ---
 
-## Phases 0-8, 9.5 Status: ✅ COMPLETE
+## Phase 10B: Deep Dive Signal Characterization [ACTIVE]
 
-**For detailed task breakdowns of Phases 0-8 and 9.5, see above sections.**
+**Context:** Phase 10 established that τ is distinct from VIX but did not explain *why* τ spikes to +0.88 pre-GFC but -0.80 pre-COVID. This phase investigates the conditional behavior of τ around crises.
+
+### Track A: Event-Conditional Analysis
+
+#### Task 10B.A1 – τ Spike Identification - Agent_Financial_ML
+**Objective:** Identify all dates where |τ| > 0.5 and record forward returns/drawdowns.
+**Script:** `validation/analyze_tau_spikes.py`
+**Output:** `outputs/phase_10b/tau_spikes_events.csv`
+
+#### Task 10B.A2 – Conditional Return Analysis - Agent_Financial_ML
+**Objective:** Compare return distributions for positive vs negative τ spikes vs control.
+**Script:** `validation/analyze_conditional_returns.py`
+**Output:** `outputs/phase_10b/conditional_returns_report.md`
+**Success:** If positive spikes → higher P(drawdown), endogenous crisis signal confirmed.
+
+### Track B: Regime-Switching Model (HMM)
+
+#### Task 10B.B1 – HMM Feature Preparation - Agent_Financial_ML
+**Objective:** Prepare feature matrix (returns, VIX, τ) for HMM fitting.
+**Script:** `validation/prepare_hmm_features.py`
+**Output:** `outputs/phase_10b/hmm_features.csv`
+
+#### Task 10B.B2 – HMM Baseline (No τ) - Agent_Financial_ML
+**Objective:** Fit 3-state HMM using returns + VIX only.
+**Script:** `validation/fit_hmm_baseline.py`
+**Output:** `outputs/phase_10b/hmm_baseline_states.csv`
+
+#### Task 10B.B3 – HMM Augmented (With τ) - Agent_Financial_ML
+**Objective:** Fit 3-state HMM with τ as additional feature.
+**Script:** `validation/fit_hmm_with_tau.py`
+**Output:** `outputs/phase_10b/hmm_tau_states.csv`
+**Success:** If AIC/BIC improves, τ adds informational value.
+
+#### Task 10B.B4 – HMM Model Comparison - Agent_Financial_ML
+**Objective:** Compare baseline vs augmented HMM performance.
+**Script:** `validation/compare_hmm_models.py`
+**Output:** `outputs/phase_10b/hmm_comparison_report.md`
+
+### Track C: Micro-Structure Deep Dive
+
+#### Task 10B.C1 – Extract Persistence Diagrams - Agent_Financial_ML
+**Objective:** Compute daily H0/H1 persistence diagrams for GFC and COVID periods.
+**Script:** `validation/extract_persistence_diagrams.py`
+**Output:** `outputs/phase_10b/persistence_diagrams/`
+
+#### Task 10B.C2 – Visualize Persistence Evolution - Agent_Financial_Viz
+**Objective:** Create animated visualizations of diagram evolution.
+**Script:** `validation/visualize_persistence_evolution.py`
+**Output:** `outputs/phase_10b/visualizations/gfc_evolution.gif`, `covid_evolution.gif`
+
+#### Task 10B.C3 – Quantitative Diagram Comparison - Agent_Financial_ML
+**Objective:** Compute statistics (total persistence, feature count, lifetimes) for both periods.
+**Script:** `validation/compare_diagram_statistics.py`
+**Output:** `outputs/phase_10b/diagram_comparison_report.md`
+**Success:** Clear evidence of *how* topology differs between crisis types.
+
+#### Task 10B.C4 – Interpretation Document - Agent_Docs
+**Objective:** Write narrative explaining why H1 variance increases pre-GFC but decreases pre-COVID.
+**Deliverable:** `outputs/phase_10b/topology_interpretation.md`
 
 ---
 
-## Timeline Summary
+## Phase 11: Revised Publication Strategy [PENDING - Awaits Phase 10B]
 
-**Phase 9:** 6-8 weeks (Documentation & Publication) - **IN PROGRESS**  
-**Phase 10:** 3-4 weeks (Deployment & Enhancement)  
-**Phase 11:** 3-4 weeks (Testing & QA) - *Can run parallel to Phase 12*  
-**Phase 12:** 4-6 weeks (Extended Financial Validation) - *Can run parallel to Phase 11*  
-**Phase 13:** 5-6 weeks (Real-time Production Systems)  
-**Phase 14:** 6-8 weeks (International & Cross-Asset Extensions)  
-**Phase 15:** 8-10 weeks (Advanced Research Extensions)
+### Task 11.1 – "Negative Result" Paper - Agent_Docs
+**Objective:** Publish findings on TDA limitations for rapid shocks.
+**Output:** Paper draft: "Topological Signatures of Financial Crises: Characterization, Not Prediction".
+**Guidance:** Position the 2008 vs COVID discrepancy as the main finding.
 
-**Total Duration:** 35-46 weeks (8.5-11 months)  
-**Target Completion:** October-November 2026
+### Task 11.2 – Poverty TDA Publication - Agent_Docs
+**Objective:** Proceed with Poverty TDA paper (unaffected by financial TDA issues).
+**Output:** Final submission for Journal of Economic Geography.
+**Guidance:** This track is robust (Phase 7.4 validation). Decouple from financial track timelines.
 
-**Production Release Timeline:**
-- Documentation complete: ~8 weeks (mid-March 2026)
-- Deployment + QA: ~7 weeks (early May 2026)
-- Public production release: **Early May 2026**
-- Enhanced production (Phase 12+13): **July 2026**
+## Phase 12: Production Deployment (Poverty Track Only)
+
+### Task 12.1 – Poverty Dashboard Deployment - Agent_DevOps
+**Objective:** Deploy validated Poverty TDA dashboard.
+**Guidance:** Proceed with deployment of the poverty track tools, which have passed rigorous validation.
+
+---
+
+## Timeline Revision
+
+**Phase 10B:** 2 weeks (Deep Dive) - **IMMEDIATE PRIORITY**
+**Phase 11:** 4-6 weeks (Revised Papers) - Pending Phase 10B
+**Phase 12:** 2-3 weeks (Poverty Deployment) - Can proceed in parallel
+
+**Status:** Financial track in deep-dive phase. Poverty track proceeding independently.
+
+

@@ -1,0 +1,605 @@
+nohup: ignoring input
+19:47:47 INFO: Loading BHPS embeddings and trajectories...
+19:47:47 INFO:   BHPS: 8509 trajectories, (8509, 20)
+19:47:47 INFO: ============================================================
+19:47:47 INFO: Running BHPS nulls: ['label_shuffle', 'cohort_shuffle', 'order_shuffle', 'markov'], n=500, L=5000
+19:47:47 INFO: ============================================================
+19:47:47 INFO:   label_shuffle...
+19:47:47 INFO: Permutation test: label_shuffle, 500 perms, H0-H1, statistic=total_persistence
+19:48:12 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+19:48:12 INFO:   Auto thresh = 12.508 (75th percentile)
+19:48:55 INFO:   Completed in 42.7s
+19:48:55 INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+19:48:55 INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+19:48:55 INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+20:26:03 INFO:   H0: observed=10763.1956, null=10740.1105±39.4778, p=0.2720
+20:26:03 INFO:   H1: observed=822.9982, null=822.0771±2.7258, p=0.3960
+20:26:03 INFO:     label_shuffle H0: p=0.2720 (obs=10763.2, null_mean=10740.1)
+20:26:03 INFO:     label_shuffle H1: p=0.3960 (obs=823.0, null_mean=822.1)
+20:26:03 INFO:     Elapsed: 2295.5s
+20:26:03 INFO:   cohort_shuffle...
+20:26:03 INFO: Permutation test: cohort_shuffle, 500 perms, H0-H1, statistic=total_persistence
+20:26:11 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+20:26:11 INFO:   Auto thresh = 12.508 (75th percentile)
+20:26:31 INFO:   Completed in 20.1s
+20:26:31 INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+20:26:31 INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+20:26:31 INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+21:01:57 INFO:   H0: observed=10763.1956, null=10740.1105±39.4778, p=0.2720
+21:01:57 INFO:   H1: observed=822.9982, null=822.0771±2.7258, p=0.3960
+21:01:57 INFO:     cohort_shuffle H0: p=0.2720 (obs=10763.2, null_mean=10740.1)
+21:01:57 INFO:     cohort_shuffle H1: p=0.3960 (obs=823.0, null_mean=822.1)
+21:01:57 INFO:     Elapsed: 2154.1s
+21:01:57 INFO:   order_shuffle...
+21:01:57 INFO: Permutation test: order_shuffle, 500 perms, H0-H1, statistic=total_persistence
+21:02:05 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+21:02:05 INFO:   Auto thresh = 12.508 (75th percentile)
+21:02:28 INFO:   Completed in 22.9s
+21:02:28 INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+21:02:28 INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+21:02:28 INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+21:42:42 INFO:   H0: observed=10763.1956, null=9906.1366±107.5889, p=0.0000
+21:42:42 INFO:   H1: observed=822.9982, null=824.4466±17.7609, p=0.5200
+21:42:42 INFO:     order_shuffle H0: p=0.0000 (obs=10763.2, null_mean=9906.1)
+21:42:42 INFO:     order_shuffle H1: p=0.5200 (obs=823.0, null_mean=824.4)
+21:42:42 INFO:     Elapsed: 2445.0s
+21:42:42 INFO:   markov...
+21:42:42 INFO: Permutation test: markov, 500 perms, H0-H1, statistic=total_persistence
+21:42:46 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+21:42:46 INFO:   Auto thresh = 12.508 (75th percentile)
+21:42:59 INFO:   Completed in 12.9s
+21:42:59 INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+21:42:59 INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+21:42:59 INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+22:35:39 INFO:   H0: observed=10763.1956, null=12753.7709±175.2895, p=1.0000
+22:35:39 INFO:   H1: observed=822.9982, null=1131.7501±24.7731, p=1.0000
+22:35:39 INFO:     markov H0: p=1.0000 (obs=10763.2, null_mean=12753.8)
+22:35:39 INFO:     markov H1: p=1.0000 (obs=823.0, null_mean=1131.8)
+22:35:39 INFO:     Elapsed: 3177.3s
+22:35:39 INFO: 
+Loading spanning embeddings and trajectories...
+22:35:39 INFO:   Spanning: 8459 trajectories, (8459, 20)
+22:35:39 INFO: ============================================================
+22:35:39 INFO: Running Spanning nulls: ['label_shuffle', 'order_shuffle', 'markov'], n=500, L=5000
+22:35:39 INFO: ============================================================
+22:35:39 INFO:   label_shuffle...
+22:35:39 INFO: Permutation test: label_shuffle, 500 perms, H0-H1, statistic=total_persistence
+22:35:46 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+22:35:46 INFO:   Auto thresh = 12.009 (75th percentile)
+22:36:02 INFO:   Completed in 16.3s
+22:36:02 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+22:36:02 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+22:36:02 INFO:   Observed total_persistence: {'H0': 12853.380196332932, 'H1': 983.213033080101}
+23:50:58 INFO:   H0: observed=12853.3802, null=12902.9738±46.8201, p=0.8560
+23:50:58 INFO:   H1: observed=983.2130, null=986.9112±4.7983, p=0.7720
+23:50:58 INFO:     label_shuffle H0: p=0.8560 (obs=12853.4, null_mean=12903.0)
+23:50:58 INFO:     label_shuffle H1: p=0.7720 (obs=983.2, null_mean=986.9)
+23:50:58 INFO:     Elapsed: 4518.6s
+23:50:58 INFO:   order_shuffle...
+23:50:58 INFO: Permutation test: order_shuffle, 500 perms, H0-H1, statistic=total_persistence
+23:51:05 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+23:51:05 INFO:   Auto thresh = 12.009 (75th percentile)
+23:51:23 INFO:   Completed in 17.8s
+23:51:23 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+23:51:23 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+23:51:23 INFO:   Observed total_persistence: {'H0': 12853.380196332932, 'H1': 983.213033080101}
+00:45:31 INFO:   H0: observed=12853.3802, null=11940.4795±106.6850, p=0.0000
+00:45:31 INFO:   H1: observed=983.2130, null=977.0085±17.4913, p=0.3740
+00:45:31 INFO:     order_shuffle H0: p=0.0000 (obs=12853.4, null_mean=11940.5)
+00:45:31 INFO:     order_shuffle H1: p=0.3740 (obs=983.2, null_mean=977.0)
+00:45:31 INFO:     Elapsed: 3273.2s
+00:45:31 INFO:   markov...
+00:45:31 INFO: Permutation test: markov, 500 perms, H0-H1, statistic=total_persistence
+00:45:36 INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+00:45:36 INFO:   Auto thresh = 12.009 (75th percentile)
+00:45:47 INFO:   Completed in 11.0s
+00:45:47 INFO:   H0: 4952 finite + 48 infinite, top lifetimes: [12.009, 11.921, 11.887, 11.873, 11.813]
+00:45:47 INFO:   H1: 4358 finite + 10 infinite, top lifetimes: [3.517, 2.125, 1.943, 1.812, 1.693]
+00:45:47 INFO:   Observed total_persistence: {'H0': 12853.380196332932, 'H1': 983.213033080101}
+01:19:31 INFO:   H0: observed=12853.3802, null=15596.4706±178.3696, p=1.0000
+01:19:31 INFO:   H1: observed=983.2130, null=1352.6548±28.6694, p=1.0000
+01:19:31 INFO:     markov H0: p=1.0000 (obs=12853.4, null_mean=15596.5)
+01:19:31 INFO:     markov H1: p=1.0000 (obs=983.2, null_mean=1352.7)
+01:19:31 INFO:     Elapsed: 2040.1s
+01:19:31 INFO: 
+All nulls complete in 19904.5s (331.7 min)

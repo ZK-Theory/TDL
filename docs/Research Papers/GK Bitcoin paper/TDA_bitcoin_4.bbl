@@ -1,0 +1,341 @@
+\newcommand{\etalchar}[1]{$^{#1}$}
+\begin{thebibliography}{YRdSTT20}
+
+\bibitem[ABST93]{abarbanel1993analysis}
+Henry~DI Abarbanel, Reggie Brown, John~J Sidorowich, and Lev~Sh Tsimring.
+\newblock The analysis of observed chaotic data in physical systems.
+\newblock {\em Reviews of modern physics}, 65(4):1331, 1993.
+
+\bibitem[ADGK18]{akcora2018bitcoin}
+Cuneyt~Gurcan Akcora, Matthew~F Dixon, Yulia~R Gel, and Murat Kantarcioglu.
+\newblock Bitcoin risk modeling with blockchain graphs.
+\newblock {\em Economics Letters}, 173:138--142, 2018.
+
+\bibitem[AKV21]{aromi2021topological}
+Lloyd~L Aromi, Yuri~A Katz, and Josep Vives.
+\newblock Topological features of multivariate distributions: Dependency on the
+  covariance matrix.
+\newblock {\em Communications in Nonlinear Science and Numerical Simulation},
+  103:105996, 2021.
+
+\bibitem[ALGK20]{akcora2020bitcoinheist}
+Cuneyt~G Akcora, Yitao Li, Yulia~R Gel, and Murat Kantarcioglu.
+\newblock Bitcoinheist: Topological data analysis for ransomware prediction on
+  the bitcoin blockchain.
+\newblock In {\em Proceedings of the Twenty-Ninth International Joint
+  Conference on Artificial Intelligence}, 2020.
+
+\bibitem[B{\etalchar{+}}15]{bubenik2015statistical}
+Peter Bubenik et~al.
+\newblock Statistical topological data analysis using persistence landscapes.
+\newblock {\em J. Mach. Learn. Res.}, 16(1):77--102, 2015.
+
+\bibitem[BCP13]{bree2013prediction}
+David~S Br{\'e}e, Damien Challet, and Pier~Paolo Peirano.
+\newblock Prediction accuracy and sloppiness of log-periodic functions.
+\newblock {\em Quantitative Finance}, 13(2):275--280, 2013.
+
+\bibitem[BD17]{bubenik2017persistence}
+Peter Bubenik and Pawe{\l} D{\l}otko.
+\newblock A persistence landscapes toolbox for topological statistics.
+\newblock {\em Journal of Symbolic Computation}, 78:91--114, 2017.
+
+\bibitem[BG14]{berwald2014critical}
+Jesse Berwald and Marian Gidea.
+\newblock Critical transitions in a model of a genetic regulatory system.
+\newblock {\em Mathematical Biosciences and Engineering}, 11(4):723--740, 2014.
+
+\bibitem[BGVJ14]{berwald2014automatic}
+JJ~Berwald, M~Gidea, and Mikael Vejdemo-Johansson.
+\newblock Automatic recognition and tagging of topologically different regimes
+  in dynamical systems.
+\newblock {\em Discontinuity, Nonlinearity, and Complexity}, 3(4):413--426,
+  2014.
+
+\bibitem[Bla79]{blanchard1979speculative}
+Olivier~Jean Blanchard.
+\newblock Speculative bubbles, crashes and rational expectations.
+\newblock {\em Economics letters}, 3(4):387--389, 1979.
+
+\bibitem[Bou]{Boulder-Investment-Technologies}
+{Boulder-Investment-Technologies}, howpublished =
+  {\url{https://github.com/boulder-investment-technologies/lppls}}, note =
+  {Accessed: 2023-03-15}.
+
+\bibitem[BSP{\etalchar{+}}21]{bury2021deep}
+Thomas~M Bury, RI~Sujith, Induja Pavithran, Marten Scheffer, Timothy~M Lenton,
+  Madhur Anand, and Chris~T Bauch.
+\newblock Deep learning for early warning signals of tipping points.
+\newblock {\em Proceedings of the National Academy of Sciences},
+  118(39):e2106140118, 2021.
+
+\bibitem[BW82]{blanchard1982bubbles}
+Olivier~J Blanchard and Mark~W Watson.
+\newblock Bubbles, rational expectations and financial markets, 1982.
+
+\bibitem[CDSO14]{chazal2014persistence}
+Fr{\'e}d{\'e}ric Chazal, Vin De~Silva, and Steve Oudot.
+\newblock Persistence stability for geometric complexes.
+\newblock {\em Geometriae Dedicata}, 173(1):193--214, 2014.
+
+\bibitem[DCB{\etalchar{+}}12]{dakos2012methods}
+Vasilis Dakos, Stephen~R Carpenter, William~A Brock, Aaron~M Ellison, Vishwesha
+  Guttal, Anthony~R Ives, Sonia K{\'e}fi, Valerie Livina, David~A Seekell,
+  Egbert~H van Nes, et~al.
+\newblock Methods for detecting early warnings of critical transitions in time
+  series illustrated using simulated ecological data.
+\newblock {\em PloS one}, 7(7):e41010, 2012.
+
+\bibitem[DQR19]{dlotko2019cyclicality}
+Pawe{\l} D{\l}otko, Wanling Qiu, and Simon Rudkin.
+\newblock Cyclicality, periodicity and the topology of time series.
+\newblock {\em arXiv preprint arXiv:1905.12118}, 2019.
+
+\bibitem[DR21]{dlotko2021financial}
+P~D{\l}otko and ST~Rudkin.
+\newblock Financial ratios and stock returns reappraised through a topological
+  data analysis lens.
+\newblock {\em The European Journal of Finance}, pages 1--25, 2021.
+
+\bibitem[DUC20]{dindin2020topological}
+Meryll Dindin, Yuhei Umeda, and Frederic Chazal.
+\newblock Topological data analysis for arrhythmia detection through modular
+  neural networks.
+\newblock In {\em Advances in Artificial Intelligence: 33rd Canadian Conference
+  on Artificial Intelligence, Canadian AI 2020, Ottawa, ON, Canada, May 13--15,
+  2020, Proceedings 33}, pages 177--188. Springer, 2020.
+
+\bibitem[EH22]{edelsbrunner2022computational}
+Herbert Edelsbrunner and John~L Harer.
+\newblock {\em Computational topology: an introduction}.
+\newblock American Mathematical Society, 2022.
+
+\bibitem[FC16]{fry2016negative}
+John Fry and Eng-Tuck Cheah.
+\newblock Negative bubbles and shocks in cryptocurrency markets.
+\newblock {\em International Review of Financial Analysis}, 47:343--352, 2016.
+
+\bibitem[FF96]{feigenbaum1996discrete}
+James~A. Feigenbaum and Peter~G.O. Freund.
+\newblock Discrete scale invariance in stock markets before crashes.
+\newblock {\em International Journal of Modern Physics B}, 10(27):3737--3745,
+  1996.
+
+\bibitem[GDS18]{gerlach2018dissection}
+Jan-Christian Gerlach, Guilherme Demos, and Didier Sornette.
+\newblock Dissection of {B}itcoin's multiscale bubble history.
+\newblock {\em Swiss Finance Institute Research Paper}, (18-30), 2018.
+
+\bibitem[GGK{\etalchar{+}}20]{gidea2020topological}
+Marian Gidea, Daniel Goldsmith, Yuri Katz, Pablo Roldan, and Yonah Shmalo.
+\newblock Topological recognition of critical transitions in time series of
+  cryptocurrencies.
+\newblock {\em Physica A: Statistical Mechanics and its Applications},
+  548:123843, 2020.
+
+\bibitem[Gid17]{gidea2017topological}
+Marian Gidea.
+\newblock Topological data analysis of critical transitions in financial
+  networks.
+\newblock In {\em International conference and school on network science},
+  pages 47--59. Springer, 2017.
+
+\bibitem[GK18]{gidea2018topological}
+Marian Gidea and Yuri Katz.
+\newblock Topological data analysis of financial time series: Landscapes of
+  crashes.
+\newblock {\em Physica A: Statistical Mechanics and its Applications},
+  491:820--834, 2018.
+
+\bibitem[GK23]{katz2022topological}
+Victor~E Gluzberg and Yuri~A Katz.
+\newblock Topological data analysis of noise: Uniform unimodal distributions.
+\newblock {\em Communications in Nonlinear Science and Numerical Simulation},
+  page 107216, 2023.
+
+\bibitem[IYG20]{islambekov2020harnessing}
+Umar Islambekov, Monisha Yuvaraj, and Yulia~R Gel.
+\newblock Harnessing the power of topological data analysis to detect change
+  points.
+\newblock {\em Environmetrics}, 31(1):e2612, 2020.
+
+\bibitem[JLS00]{johansen2000crashes}
+Anders Johansen, Olivier Ledoit, and Didier Sornette.
+\newblock Crashes as critical points.
+\newblock {\em International Journal of Theoretical and Applied Finance},
+  3(02):219--255, 2000.
+
+\bibitem[JSW{\etalchar{+}}96]{johansen1996discrete}
+Anders Johansen, Didier Sornette, Hiroshi Wakita, Urumu Tsunogai, William~I
+  Newman, and Hubert Saleur.
+\newblock Discrete scaling in earthquake precursory phenomena: evidence in the
+  {K}obe earthquake, {J}apan.
+\newblock {\em Journal de Physique I}, 6(10):1391--1402, 1996.
+
+\bibitem[KB21]{katz2021time}
+Yuri~A Katz and Alain Biem.
+\newblock Time-resolved topological data analysis of market instabilities.
+\newblock {\em Physica A: Statistical Mechanics and its Applications},
+  571:125816, 2021.
+
+\bibitem[KM18]{khasawneh2018topological}
+Firas~A Khasawneh and Elizabeth Munch.
+\newblock Topological data analysis for true step detection in periodic
+  piecewise constant signals.
+\newblock {\em Proceedings of the Royal Society A: Mathematical, Physical and
+  Engineering Sciences}, 474(2218):20180027, 2018.
+
+\bibitem[Len11]{lenton2011early}
+Timothy~M Lenton.
+\newblock Early warning of climate tipping points.
+\newblock {\em Nature climate change}, 1(4):201--209, 2011.
+
+\bibitem[LS13]{lin2013diagnostics}
+Li~Lin and Didier Sornette.
+\newblock Diagnostics of rational expectation financial bubbles with stochastic
+  mean-reverting termination times.
+\newblock {\em The European Journal of Finance}, 19(5):344--365, 2013.
+
+\bibitem[Per16]{perea2016persistent}
+Jose~A Perea.
+\newblock Persistent homology of toroidal sliding window embeddings.
+\newblock In {\em 2016 IEEE International Conference on Acoustics, Speech and
+  Signal Processing (ICASSP)}, pages 6435--6439. IEEE, 2016.
+
+\bibitem[PH15]{perea2015sliding}
+Jose~A Perea and John Harer.
+\newblock Sliding windows and persistence: An application of topological
+  methods to signal analysis.
+\newblock {\em Foundations of Computational Mathematics}, 15(3):799--838, 2015.
+
+\bibitem[PY11]{phillips2011dating}
+Peter~CB Phillips and Jun Yu.
+\newblock Dating the timeline of financial bubbles during the subprime crisis.
+\newblock {\em Quantitative Economics}, 2(3):455--491, 2011.
+
+\bibitem[RCPB19]{rivera2019topological}
+Rodrigo Rivera-Castro, Polina Pilyugina, and Evgeny Burnaev.
+\newblock Topological data analysis for portfolio management of
+  cryptocurrencies.
+\newblock In {\em 2019 International Conference on Data Mining Workshops
+  (ICDMW)}, pages 238--243. IEEE, 2019.
+
+\bibitem[RQD21]{rudkin2021uncertainty}
+Simon Rudkin, Wanling Qiu, and Pawel Dlotko.
+\newblock Uncertainty, volatility and the persistence norms of financial time
+  series.
+\newblock {\em arXiv preprint arXiv:2110.00098}, 2021.
+
+\bibitem[SBB{\etalchar{+}}09]{scheffer2009early}
+Marten Scheffer, Jordi Bascompte, William~A Brock, Victor Brovkin, Stephen~R
+  Carpenter, Vasilis Dakos, Hermann Held, Egbert~H Van~Nes, Max Rietkerk, and
+  George Sugihara.
+\newblock Early-warning signals for critical transitions.
+\newblock {\em Nature}, 461(7260):53--59, 2009.
+
+\bibitem[SH05]{suchecki2005log}
+K~Suchecki and JA~Holyst.
+\newblock Log-periodic oscillations in degree distributions of hierarchical
+  scale-free networks.
+\newblock {\em Acta Physica Polonica. Series B}, 35, 2005.
+
+\bibitem[SNC20]{9309855}
+P.~Saengduean, S.~Noisagool, and F.~Chamchod.
+\newblock Topological data analysis for identifying critical transitions in
+  cryptocurrency time series.
+\newblock In {\em 2020 IEEE International Conference on Industrial Engineering
+  and Engineering Management (IEEM)}, pages 933--938, 2020.
+
+\bibitem[Sor17]{sornette2017stock}
+Didier Sornette.
+\newblock Why stock markets crash.
+\newblock In {\em Why Stock Markets Crash}. Princeton university press, 2017.
+
+\bibitem[SP97]{storn1997differential}
+Rainer Storn and Kenneth Price.
+\newblock Differential evolution-a simple and efficient heuristic for global
+  optimization over continuous spaces.
+\newblock {\em Journal of global optimization}, 11(4):341, 1997.
+
+\bibitem[SS16]{seyrich2016micro}
+Maximilian Seyrich and Didier Sornette.
+\newblock Micro-foundation using percolation theory of the finite time singular
+  behavior of the crash hazard rate in a class of rational expectation bubbles.
+\newblock {\em International Journal of Modern Physics C}, 27(10):1650113,
+  2016.
+
+\bibitem[SS17]{sohn2017bubbles}
+H~Sohn and Didier Sornette.
+\newblock Bubbles as violations of efficient time-scales.
+\newblock {\em Institute for New Economic Thinking Working Paper Series}, (65),
+  2017.
+
+\bibitem[SSGC{\etalchar{+}}18]{saggar2018towards}
+Manish Saggar, Olaf Sporns, Javier Gonzalez-Castillo, Peter~A Bandettini,
+  Gunnar Carlsson, Gary Glover, and Allan~L Reiss.
+\newblock Towards a new approach to reveal dynamical organization of the brain
+  using topological data analysis.
+\newblock {\em Nature communications}, 9(1):1399, 2018.
+
+\bibitem[SSZ21]{shu2021covid}
+Min Shu, Ruiqiang Song, and Wei Zhu.
+\newblock The ‘covid’crash of the 2020 us stock market.
+\newblock {\em The North American Journal of Economics and Finance}, 58:101497,
+  2021.
+
+\bibitem[SSZ22]{song20222020}
+Ruiqiang Song, Min Shu, and Wei Zhu.
+\newblock The 2020 global stock market crash: Endogenous or exogenous?
+\newblock {\em Physica A: Statistical Mechanics and Its Applications},
+  585:126425, 2022.
+
+\bibitem[SZ20a]{shu2020detection}
+Min Shu and Wei Zhu.
+\newblock Detection of {C}hinese stock market bubbles with {LPPLS} confidence
+  indicator.
+\newblock {\em Physica A: Statistical Mechanics and Its Applications},
+  557:124892, 2020.
+
+\bibitem[SZ20b]{shu2020real}
+Min Shu and Wei Zhu.
+\newblock Real-time prediction of {B}itcoin bubble crashes.
+\newblock {\em Physica A: Statistical Mechanics and its Applications},
+  548:124477, 2020.
+
+\bibitem[Tak81]{takens1981detecting}
+Floris Takens.
+\newblock Detecting strange attractors in turbulence.
+\newblock In David Rand and Lai-Sang Young, editors, {\em Dynamical Systems and
+  Turbulence, Warwick 1980}, pages 366--381, Berlin, Heidelberg, 1981. Springer
+  Berlin Heidelberg.
+
+\bibitem[TJM91]{tim1991embedology}
+Sauer Tim, A~Yorke James, and Casdagli Martin.
+\newblock Embedology.
+\newblock {\em Journal of Statistical Physics}, 65(3-4):579--616, 1991.
+
+\bibitem[TS11]{thompson2011climate}
+J~Michael~T Thompson and Jan Sieber.
+\newblock Climate tipping as a noisy bifurcation: a predictive technique.
+\newblock {\em IMA Journal of Applied Mathematics}, 76(1):27--46, 2011.
+
+\bibitem[YRdSTT20]{yamashita2020segmentation}
+Arthur~Matsuo Yamashita Rios~de Sousa, Hideki Takayasu, and Misako Takayasu.
+\newblock Segmentation of time series in up-and down-trends using the
+  epsilon-tau procedure with application to {USD/JPY} foreign exchange market
+  data.
+\newblock {\em PloS one}, 15(9):e0239494, 2020.
+
+\bibitem[YRWS12]{yan2012detection}
+Wanfeng Yan, Reda Rebib, Ryan Woodard, and Didier Sornette.
+\newblock Detection of crashes and rebounds in major equity markets.
+\newblock {\em International Journal of Portfolio Analysis and Management},
+  1(1):59--79, 2012.
+
+\bibitem[YWS12]{yan2012diagnosis}
+Wanfeng Yan, Ryan Woodard, and Didier Sornette.
+\newblock Diagnosis and prediction of rebounds in financial markets.
+\newblock {\em Physica A: Statistical Mechanics and its Applications},
+  391(4):1361--1380, 2012.
+
+\end{thebibliography}

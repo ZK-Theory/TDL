@@ -1,0 +1,1417 @@
+16:59:09 [__main__] INFO: Loading BHPS trajectories...
+16:59:09 [__main__] INFO: Loaded 8509 BHPS-era trajectories
+16:59:09 [__main__] INFO: ============================================================
+16:59:09 [__main__] INFO: Step 3: Embedding BHPS trajectories (n-grams + PCA-20D)
+16:59:09 [__main__] INFO: ============================================================
+16:59:11 [trajectory_tda.embedding.ngram_embed] INFO: Embedding 8509 trajectories...
+16:59:11 [trajectory_tda.embedding.ngram_embed] INFO:   Unigrams: (8509, 9)
+16:59:11 [trajectory_tda.embedding.ngram_embed] INFO:   Bigrams: (8509, 81)
+16:59:11 [trajectory_tda.embedding.ngram_embed] INFO:   Raw embedding: (8509, 90)
+16:59:12 [trajectory_tda.embedding.ngram_embed] INFO:   PCA reduction: (8509, 20) (explained variance: 0.490)
+16:59:12 [trajectory_tda.embedding.ngram_embed] INFO:   Final: 8509 points × 20 dims (method=pca)
+16:59:12 [__main__] INFO: Embeddings shape: (8509, 20)
+16:59:12 [trajectory_tda.utils.model_io] INFO: Model saved: results\trajectory_tda_bhps\02_scaler.joblib
+16:59:12 [trajectory_tda.utils.model_io] INFO: Model saved: results\trajectory_tda_bhps\02_pca.joblib
+16:59:12 [__main__] INFO: ============================================================
+16:59:12 [__main__] INFO: Step 4: Computing persistent homology (maxmin VR, L=5000)
+16:59:12 [__main__] INFO: ============================================================
+16:59:15 [trajectory_tda.topology.trajectory_ph] INFO: Computing trajectory PH: 8509 points × 20 dims, 5000 landmarks, method=maxmin_vr
+16:59:15 [trajectory_tda.topology.trajectory_ph] INFO: \u2500\u2500\u2500 Maxmin VR \u2500\u2500\u2500
+16:59:15 [trajectory_tda.topology.trajectory_ph] INFO: Maxmin VR: selecting 5000 landmarks from 8509 points
+16:59:29 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+16:59:29 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 12.508 (75th percentile)
+17:00:23 [poverty_tda.topology.multidim_ph] INFO:   Completed in 54.9s
+17:00:23 [poverty_tda.topology.multidim_ph] INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+17:00:23 [poverty_tda.topology.multidim_ph] INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+17:00:24 [trajectory_tda.topology.trajectory_ph] INFO:   H0: 4970 features, max=12.4851
+17:00:24 [trajectory_tda.topology.trajectory_ph] INFO:   H1: 3426 features, max=2.6969
+17:00:24 [trajectory_tda.topology.trajectory_ph] INFO: \u2500\u2500\u2500 Multi-subsample Betti validation \u2500\u2500\u2500
+17:00:24 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:00:24 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.878 (75th percentile)
+17:00:28 [poverty_tda.topology.multidim_ph] INFO:   Completed in 4.8s
+17:00:28 [poverty_tda.topology.multidim_ph] INFO:   H0: 1604 finite + 32 infinite, top lifetimes: [9.859, 9.82, 9.622, 9.55, 9.51]
+17:00:28 [poverty_tda.topology.multidim_ph] INFO:   H1: 732 finite + 3 infinite, top lifetimes: [1.814, 1.432, 1.369, 1.327, 1.281]
+17:00:28 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:00:28 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 10.428 (75th percentile)
+17:00:34 [poverty_tda.topology.multidim_ph] INFO:   Completed in 5.4s
+17:00:34 [poverty_tda.topology.multidim_ph] INFO:   H0: 1591 finite + 28 infinite, top lifetimes: [10.344, 10.337, 10.305, 10.025, 9.898]
+17:00:34 [poverty_tda.topology.multidim_ph] INFO:   H1: 721 finite + 4 infinite, top lifetimes: [2.167, 1.504, 1.267, 1.241, 1.233]
+17:00:34 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:00:34 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 10.073 (75th percentile)
+17:00:48 [poverty_tda.topology.multidim_ph] INFO:   Completed in 13.8s
+17:00:48 [poverty_tda.topology.multidim_ph] INFO:   H0: 1606 finite + 26 infinite, top lifetimes: [9.952, 9.905, 9.858, 9.83, 9.828]
+17:00:48 [poverty_tda.topology.multidim_ph] INFO:   H1: 747 finite + 2 infinite, top lifetimes: [1.829, 1.319, 1.299, 1.262, 1.254]
+17:00:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:00:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.294 (75th percentile)
+17:00:55 [poverty_tda.topology.multidim_ph] INFO:   Completed in 7.6s
+17:00:55 [poverty_tda.topology.multidim_ph] INFO:   H0: 1554 finite + 40 infinite, top lifetimes: [9.279, 9.255, 9.223, 9.193, 9.139]
+17:00:55 [poverty_tda.topology.multidim_ph] INFO:   H1: 668 finite + 2 infinite, top lifetimes: [1.587, 1.505, 1.416, 1.219, 1.207]
+17:00:55 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:00:55 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.922 (75th percentile)
+17:01:03 [poverty_tda.topology.multidim_ph] INFO:   Completed in 7.5s
+17:01:03 [poverty_tda.topology.multidim_ph] INFO:   H0: 1598 finite + 35 infinite, top lifetimes: [9.823, 9.809, 9.713, 9.69, 9.456]
+17:01:03 [poverty_tda.topology.multidim_ph] INFO:   H1: 679 finite + 2 infinite, top lifetimes: [1.301, 1.261, 1.241, 1.188, 1.103]
+17:01:03 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:03 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 10.421 (75th percentile)
+17:01:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 12.4s
+17:01:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 1592 finite + 24 infinite, top lifetimes: [10.384, 10.016, 10.015, 9.945, 9.943]
+17:01:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 742 finite + 1 infinite, top lifetimes: [1.448, 1.299, 1.239, 1.218, 1.101]
+17:01:15 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:15 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.838 (75th percentile)
+17:01:20 [poverty_tda.topology.multidim_ph] INFO:   Completed in 4.8s
+17:01:20 [poverty_tda.topology.multidim_ph] INFO:   H0: 1610 finite + 38 infinite, top lifetimes: [9.54, 9.428, 9.007, 8.963, 8.957]
+17:01:20 [poverty_tda.topology.multidim_ph] INFO:   H1: 703 finite + 5 infinite, top lifetimes: [1.668, 1.33, 1.296, 1.216, 1.183]
+17:01:20 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:20 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.414 (75th percentile)
+17:01:26 [poverty_tda.topology.multidim_ph] INFO:   Completed in 5.2s
+17:01:26 [poverty_tda.topology.multidim_ph] INFO:   H0: 1608 finite + 42 infinite, top lifetimes: [9.355, 9.317, 9.282, 9.009, 8.772]
+17:01:26 [poverty_tda.topology.multidim_ph] INFO:   H1: 737 finite + 2 infinite, top lifetimes: [1.219, 1.215, 1.208, 1.207, 1.172]
+17:01:26 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:26 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.583 (75th percentile)
+17:01:31 [poverty_tda.topology.multidim_ph] INFO:   Completed in 5.4s
+17:01:31 [poverty_tda.topology.multidim_ph] INFO:   H0: 1582 finite + 33 infinite, top lifetimes: [9.565, 9.546, 9.491, 9.487, 9.34]
+17:01:31 [poverty_tda.topology.multidim_ph] INFO:   H1: 655 finite + 6 infinite, top lifetimes: [1.595, 1.356, 1.269, 1.131, 1.129]
+17:01:31 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:31 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.155 (75th percentile)
+17:01:36 [poverty_tda.topology.multidim_ph] INFO:   Completed in 4.6s
+17:01:36 [poverty_tda.topology.multidim_ph] INFO:   H0: 1583 finite + 42 infinite, top lifetimes: [9.059, 8.951, 8.86, 8.851, 8.678]
+17:01:36 [poverty_tda.topology.multidim_ph] INFO:   H1: 715 finite + 10 infinite, top lifetimes: [1.779, 1.366, 1.343, 1.34, 1.26]
+17:01:36 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:36 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.749 (75th percentile)
+17:01:39 [poverty_tda.topology.multidim_ph] INFO:   Completed in 3.6s
+17:01:39 [poverty_tda.topology.multidim_ph] INFO:   H0: 1578 finite + 32 infinite, top lifetimes: [9.713, 9.686, 9.627, 9.496, 9.412]
+17:01:39 [poverty_tda.topology.multidim_ph] INFO:   H1: 700 finite + 4 infinite, top lifetimes: [1.413, 1.227, 1.204, 1.153, 1.127]
+17:01:39 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:39 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.546 (75th percentile)
+17:01:42 [poverty_tda.topology.multidim_ph] INFO:   Completed in 3.2s
+17:01:42 [poverty_tda.topology.multidim_ph] INFO:   H0: 1610 finite + 31 infinite, top lifetimes: [9.479, 9.393, 9.282, 9.224, 9.182]
+17:01:42 [poverty_tda.topology.multidim_ph] INFO:   H1: 701 finite + 9 infinite, top lifetimes: [1.315, 1.298, 1.285, 1.275, 1.118]
+17:01:43 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:43 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 10.209 (75th percentile)
+17:01:45 [poverty_tda.topology.multidim_ph] INFO:   Completed in 2.8s
+17:01:45 [poverty_tda.topology.multidim_ph] INFO:   H0: 1613 finite + 31 infinite, top lifetimes: [10.097, 9.945, 9.786, 9.773, 9.677]
+17:01:45 [poverty_tda.topology.multidim_ph] INFO:   H1: 765 finite + 1 infinite, top lifetimes: [1.868, 1.692, 1.674, 1.507, 1.263]
+17:01:45 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:45 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.221 (75th percentile)
+17:01:48 [poverty_tda.topology.multidim_ph] INFO:   Completed in 2.5s
+17:01:48 [poverty_tda.topology.multidim_ph] INFO:   H0: 1591 finite + 37 infinite, top lifetimes: [9.187, 9.151, 9.034, 9.018, 8.949]
+17:01:48 [poverty_tda.topology.multidim_ph] INFO:   H1: 701 finite + 5 infinite, top lifetimes: [1.586, 1.531, 1.344, 1.298, 1.283]
+17:01:48 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:48 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.871 (75th percentile)
+17:01:50 [poverty_tda.topology.multidim_ph] INFO:   Completed in 2.5s
+17:01:50 [poverty_tda.topology.multidim_ph] INFO:   H0: 1607 finite + 31 infinite, top lifetimes: [9.827, 9.765, 9.652, 9.496, 9.449]
+17:01:50 [poverty_tda.topology.multidim_ph] INFO:   H1: 716 finite + 6 infinite, top lifetimes: [1.613, 1.472, 1.356, 1.266, 1.257]
+17:01:50 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:50 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.771 (75th percentile)
+17:01:54 [poverty_tda.topology.multidim_ph] INFO:   Completed in 3.1s
+17:01:54 [poverty_tda.topology.multidim_ph] INFO:   H0: 1575 finite + 28 infinite, top lifetimes: [9.677, 9.562, 9.5, 9.496, 9.491]
+17:01:54 [poverty_tda.topology.multidim_ph] INFO:   H1: 722 finite + 4 infinite, top lifetimes: [1.829, 1.653, 1.607, 1.582, 1.302]
+17:01:54 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:54 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 10.050 (75th percentile)
+17:01:57 [poverty_tda.topology.multidim_ph] INFO:   Completed in 3.1s
+17:01:57 [poverty_tda.topology.multidim_ph] INFO:   H0: 1608 finite + 32 infinite, top lifetimes: [9.988, 9.97, 9.755, 9.68, 9.619]
+17:01:57 [poverty_tda.topology.multidim_ph] INFO:   H1: 733 finite + 3 infinite, top lifetimes: [1.758, 1.756, 1.6, 1.409, 1.195]
+17:01:57 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:57 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 10.101 (75th percentile)
+17:01:59 [poverty_tda.topology.multidim_ph] INFO:   Completed in 2.7s
+17:01:59 [poverty_tda.topology.multidim_ph] INFO:   H0: 1626 finite + 35 infinite, top lifetimes: [9.992, 9.977, 9.681, 9.668, 9.627]
+17:01:59 [poverty_tda.topology.multidim_ph] INFO:   H1: 723 finite + 5 infinite, top lifetimes: [1.859, 1.44, 1.399, 1.282, 1.169]
+17:01:59 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:01:59 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.983 (75th percentile)
+17:02:03 [poverty_tda.topology.multidim_ph] INFO:   Completed in 3.8s
+17:02:03 [poverty_tda.topology.multidim_ph] INFO:   H0: 1595 finite + 33 infinite, top lifetimes: [9.829, 9.828, 9.815, 9.802, 9.71]
+17:02:03 [poverty_tda.topology.multidim_ph] INFO:   H1: 717 finite + 4 infinite, top lifetimes: [2.378, 1.591, 1.508, 1.406, 1.376]
+17:02:03 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+17:02:03 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 9.589 (75th percentile)
+17:02:08 [poverty_tda.topology.multidim_ph] INFO:   Completed in 4.7s
+17:02:08 [poverty_tda.topology.multidim_ph] INFO:   H0: 1603 finite + 33 infinite, top lifetimes: [9.587, 9.546, 9.381, 9.209, 9.006]
+17:02:08 [poverty_tda.topology.multidim_ph] INFO:   H1: 728 finite + 5 infinite, top lifetimes: [1.996, 1.235, 1.223, 1.131, 1.122]
+17:02:08 [trajectory_tda.topology.trajectory_ph] INFO: PH computation complete in 173.0s
+17:02:08 [__main__] INFO: PH computed in 173.0s
+17:02:08 [__main__] INFO: ============================================================
+17:02:08 [__main__] INFO: Step 5: Permutation tests (all 4 null models, 100 perms)
+17:02:08 [__main__] INFO: ============================================================
+17:02:08 [__main__] INFO:   Running label_shuffle null...
+17:02:08 [trajectory_tda.topology.permutation_nulls] INFO: Permutation test: label_shuffle, 100 perms, H0-H1, statistic=total_persistence
+17:02:36 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+17:02:36 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 12.508 (75th percentile)
+17:03:38 [poverty_tda.topology.multidim_ph] INFO:   Completed in 61.9s
+17:03:38 [poverty_tda.topology.multidim_ph] INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+17:03:38 [poverty_tda.topology.multidim_ph] INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+17:03:38 [trajectory_tda.topology.permutation_nulls] INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+17:14:37 [trajectory_tda.topology.permutation_nulls] INFO:   H0: observed=10763.1956, null=10740.7210±35.5469, p=0.2800
+17:14:37 [trajectory_tda.topology.permutation_nulls] INFO:   H1: observed=822.9982, null=821.9513±2.6258, p=0.3800
+17:14:37 [__main__] INFO:     label_shuffle: p=N/A
+17:14:37 [__main__] INFO:   Running cohort_shuffle null...
+17:14:37 [trajectory_tda.topology.permutation_nulls] INFO: Permutation test: cohort_shuffle, 100 perms, H0-H1, statistic=total_persistence
+17:15:11 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+17:15:11 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 12.508 (75th percentile)
+17:16:05 [poverty_tda.topology.multidim_ph] INFO:   Completed in 53.9s
+17:16:05 [poverty_tda.topology.multidim_ph] INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+17:16:05 [poverty_tda.topology.multidim_ph] INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+17:16:05 [trajectory_tda.topology.permutation_nulls] INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+No cohort info, falling back to label_shuffle
+17:40:59 [trajectory_tda.topology.permutation_nulls] INFO:   H0: observed=10763.1956, null=10740.7210±35.5469, p=0.2800
+17:40:59 [trajectory_tda.topology.permutation_nulls] INFO:   H1: observed=822.9982, null=821.9513±2.6258, p=0.3800
+17:40:59 [__main__] INFO:     cohort_shuffle: p=N/A
+17:40:59 [__main__] INFO:   Running order_shuffle null...
+17:40:59 [trajectory_tda.topology.permutation_nulls] INFO: Permutation test: order_shuffle, 100 perms, H0-H1, statistic=total_persistence
+17:41:19 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+17:41:19 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 12.508 (75th percentile)
+17:42:07 [poverty_tda.topology.multidim_ph] INFO:   Completed in 47.2s
+17:42:07 [poverty_tda.topology.multidim_ph] INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+17:42:07 [poverty_tda.topology.multidim_ph] INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+17:42:07 [trajectory_tda.topology.permutation_nulls] INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+18:05:13 [trajectory_tda.topology.permutation_nulls] INFO:   H0: observed=10763.1956, null=9912.2035±101.2598, p=0.0000
+18:05:13 [trajectory_tda.topology.permutation_nulls] INFO:   H1: observed=822.9982, null=825.0050±17.7547, p=0.4800
+18:05:13 [__main__] INFO:     order_shuffle: p=N/A
+18:05:13 [__main__] INFO:   Running markov null...
+18:05:13 [trajectory_tda.topology.permutation_nulls] INFO: Permutation test: markov, 100 perms, H0-H1, statistic=total_persistence
+18:05:28 [poverty_tda.topology.multidim_ph] INFO: Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+18:05:28 [poverty_tda.topology.multidim_ph] INFO:   Auto thresh = 12.508 (75th percentile)
+18:06:15 [poverty_tda.topology.multidim_ph] INFO:   Completed in 47.6s
+18:06:15 [poverty_tda.topology.multidim_ph] INFO:   H0: 4970 finite + 30 infinite, top lifetimes: [12.485, 12.395, 12.241, 12.195, 12.091]
+18:06:15 [poverty_tda.topology.multidim_ph] INFO:   H1: 3426 finite + 6 infinite, top lifetimes: [2.697, 2.54, 2.017, 1.963, 1.79]
+18:06:16 [trajectory_tda.topology.permutation_nulls] INFO:   Observed total_persistence: {'H0': 10763.195626050234, 'H1': 822.9982141852379}
+18:16:15 [trajectory_tda.topology.permutation_nulls] INFO:   H0: observed=10763.1956, null=12740.3633±160.0788, p=1.0000
+18:16:15 [trajectory_tda.topology.permutation_nulls] INFO:   H1: observed=822.9982, null=1131.6010±23.2856, p=1.0000
+18:16:15 [__main__] INFO:     markov: p=N/A
+18:16:15 [__main__] INFO: ============================================================
+18:16:15 [__main__] INFO: Step 6: Analysis (regimes, cycles)
+18:16:15 [__main__] INFO: ============================================================
+18:16:16 [trajectory_tda.analysis.regime_discovery] INFO: Regime discovery: 8509 trajectories, 20 dims
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO: GMM: K*=8, BIC=-410509.8, silhouette=0.098
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   PH comparison: {'maxmin_vr': {'n_finite_h0': 4970, 'max_persistence_h0': 12.48512077331543}}
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 0: n=780, dominant=IL, emp=49.3%, low_inc=37.1%, stability=0.22
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 1: n=2491, dominant=EH, emp=94.4%, low_inc=0.2%, stability=0.83
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 2: n=662, dominant=EH, emp=56.5%, low_inc=11.8%, stability=0.46
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 3: n=375, dominant=EM, emp=51.2%, low_inc=44.4%, stability=0.20
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 4: n=776, dominant=EH, emp=47.3%, low_inc=10.4%, stability=0.46
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 5: n=1626, dominant=IL, emp=0.0%, low_inc=43.8%, stability=0.44
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 6: n=868, dominant=EH, emp=62.0%, low_inc=24.4%, stability=0.31
+18:18:07 [trajectory_tda.analysis.regime_discovery] INFO:   Regime 7: n=931, dominant=EH, emp=91.4%, low_inc=28.8%, stability=0.40
+18:18:07 [__main__] INFO: Optimal k=8
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO: Cycle detection (maxmin_vr): max H\u2081 persistence = 2.6969, threshold = 0.2697
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   1114 persistent H\u2081 features above threshold
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 0: persistence=0.4863, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1: persistence=0.5707, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 2: persistence=0.3696, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 3: persistence=0.4121, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 4: persistence=0.2713, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 5: persistence=0.2757, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 6: persistence=0.7328, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 7: persistence=0.4576, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 8: persistence=0.6341, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 9: persistence=0.6525, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 10: persistence=0.6857, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 11: persistence=0.9135, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 12: persistence=1.1385, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 13: persistence=0.9209, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 14: persistence=0.4202, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 15: persistence=0.4684, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 16: persistence=0.5465, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 17: persistence=0.7748, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 18: persistence=0.4279, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 19: persistence=1.0527, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 20: persistence=0.4271, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 21: persistence=2.5397, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 22: persistence=1.6697, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 23: persistence=0.9585, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 24: persistence=0.8883, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 25: persistence=0.8382, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 26: persistence=0.9017, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 27: persistence=0.6211, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 28: persistence=0.6222, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 29: persistence=0.6546, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 30: persistence=0.3084, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 31: persistence=0.6915, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 32: persistence=0.3680, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 33: persistence=0.3674, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 34: persistence=1.0643, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 35: persistence=0.7933, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 36: persistence=0.4035, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 37: persistence=1.2336, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 38: persistence=1.4835, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 39: persistence=0.5665, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 40: persistence=0.6359, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 41: persistence=0.3851, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 42: persistence=0.3976, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 43: persistence=0.8324, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 44: persistence=0.5898, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 45: persistence=0.8518, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 46: persistence=0.4034, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 47: persistence=0.3239, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 48: persistence=0.6540, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 49: persistence=0.2976, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 50: persistence=0.2915, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 51: persistence=0.7938, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 52: persistence=0.2922, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 53: persistence=0.4177, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 54: persistence=1.3069, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 55: persistence=0.4449, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 56: persistence=0.7842, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 57: persistence=0.4582, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 58: persistence=0.3779, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 59: persistence=0.6364, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 60: persistence=0.9888, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 61: persistence=0.4889, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 62: persistence=0.3750, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 63: persistence=0.9629, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 64: persistence=0.4335, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 65: persistence=1.2479, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 66: persistence=1.0656, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 67: persistence=0.3161, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 68: persistence=0.3873, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 69: persistence=1.3694, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 70: persistence=0.7908, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 71: persistence=0.2714, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 72: persistence=0.2886, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 73: persistence=0.3104, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 74: persistence=0.8481, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 75: persistence=0.4740, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 76: persistence=0.4613, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 77: persistence=0.2719, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 78: persistence=0.5094, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 79: persistence=0.4121, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 80: persistence=0.4154, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 81: persistence=1.1189, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 82: persistence=0.3780, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 83: persistence=0.5759, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 84: persistence=0.4922, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 85: persistence=0.3154, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 86: persistence=1.3646, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 87: persistence=0.8796, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 88: persistence=0.9710, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 89: persistence=0.9194, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 90: persistence=0.4954, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 91: persistence=0.6981, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 92: persistence=0.3045, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 93: persistence=0.5558, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 94: persistence=0.2771, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 95: persistence=1.9632, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 96: persistence=1.7703, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 97: persistence=0.9708, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 98: persistence=0.3209, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 99: persistence=0.4989, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 100: persistence=0.2858, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 101: persistence=0.4235, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 102: persistence=0.2815, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 103: persistence=0.5281, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 104: persistence=0.2935, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 105: persistence=0.3655, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 106: persistence=0.7385, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 107: persistence=0.7304, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 108: persistence=0.5506, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 109: persistence=0.5824, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 110: persistence=0.4030, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 111: persistence=0.4974, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 112: persistence=0.3947, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 113: persistence=0.8352, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 114: persistence=0.6580, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 115: persistence=0.3568, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 116: persistence=0.6429, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 117: persistence=0.8705, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 118: persistence=0.3095, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 119: persistence=0.2817, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 120: persistence=0.4394, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 121: persistence=2.6969, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 122: persistence=0.3587, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 123: persistence=0.6153, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 124: persistence=0.2927, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 125: persistence=0.9821, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 126: persistence=0.5751, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 127: persistence=0.2724, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 128: persistence=0.4045, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 129: persistence=0.3880, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 130: persistence=0.4618, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 131: persistence=0.3906, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 132: persistence=0.3153, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 133: persistence=0.3734, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 134: persistence=0.4295, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 135: persistence=0.6968, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 136: persistence=0.2987, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 137: persistence=1.0893, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 138: persistence=0.4855, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 139: persistence=0.6024, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 140: persistence=0.4828, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 141: persistence=0.6044, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 142: persistence=0.5242, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 143: persistence=1.4283, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 144: persistence=0.4934, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 145: persistence=0.5175, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 146: persistence=0.3074, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 147: persistence=0.6108, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 148: persistence=0.6134, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 149: persistence=0.2735, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 150: persistence=1.2356, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 151: persistence=0.4265, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 152: persistence=0.3767, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 153: persistence=0.4718, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 154: persistence=0.4880, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 155: persistence=0.7322, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 156: persistence=0.4899, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 157: persistence=0.2859, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 158: persistence=1.0008, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 159: persistence=0.8675, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 160: persistence=0.7937, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 161: persistence=0.6354, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 162: persistence=0.9326, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 163: persistence=0.6872, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 164: persistence=0.5606, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 165: persistence=0.5261, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 166: persistence=0.6866, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 167: persistence=0.4095, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 168: persistence=0.5972, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 169: persistence=0.4336, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 170: persistence=0.5785, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 171: persistence=0.3717, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 172: persistence=0.4818, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 173: persistence=0.4434, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 174: persistence=0.6559, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 175: persistence=0.2705, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 176: persistence=0.4026, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 177: persistence=0.5459, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 178: persistence=1.4117, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 179: persistence=0.8760, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 180: persistence=1.3950, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 181: persistence=0.8697, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 182: persistence=0.6936, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 183: persistence=0.9474, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 184: persistence=0.4731, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 185: persistence=0.2817, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 186: persistence=0.4000, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 187: persistence=0.2932, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 188: persistence=0.3936, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 189: persistence=0.5968, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 190: persistence=0.4894, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 191: persistence=0.8200, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 192: persistence=0.4122, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 193: persistence=2.0166, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 194: persistence=0.4675, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 195: persistence=0.3550, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 196: persistence=0.6592, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 197: persistence=0.3181, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 198: persistence=0.4846, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 199: persistence=0.4609, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 200: persistence=1.1374, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 201: persistence=0.8587, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 202: persistence=0.4443, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 203: persistence=0.6940, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 204: persistence=0.5219, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 205: persistence=0.7418, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 206: persistence=0.5281, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 207: persistence=0.6586, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 208: persistence=0.8147, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 209: persistence=0.3162, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 210: persistence=0.5081, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 211: persistence=0.6685, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 212: persistence=0.2819, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 213: persistence=0.3005, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 214: persistence=0.5250, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 215: persistence=0.5484, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 216: persistence=0.3226, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 217: persistence=0.3076, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 218: persistence=0.7115, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 219: persistence=0.4793, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 220: persistence=0.3688, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 221: persistence=0.3042, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 222: persistence=0.3529, mean_cycle_len=3.7, n_cycles=10
+18:18:07 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 223: persistence=0.5226, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 224: persistence=0.3792, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 225: persistence=0.4881, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 226: persistence=0.3106, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 227: persistence=0.3280, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 228: persistence=0.4421, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 229: persistence=0.7783, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 230: persistence=1.1706, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 231: persistence=0.3303, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 232: persistence=0.2797, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 233: persistence=0.9476, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 234: persistence=0.3334, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 235: persistence=0.5871, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 236: persistence=0.3602, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 237: persistence=0.4683, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 238: persistence=0.6006, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 239: persistence=0.9657, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 240: persistence=0.5181, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 241: persistence=0.4601, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 242: persistence=0.3128, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 243: persistence=0.4738, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 244: persistence=0.7645, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 245: persistence=0.3539, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 246: persistence=0.6679, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 247: persistence=0.3486, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 248: persistence=0.7588, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 249: persistence=0.4251, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 250: persistence=0.4449, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 251: persistence=0.3211, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 252: persistence=0.3124, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 253: persistence=1.6683, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 254: persistence=1.4023, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 255: persistence=0.8453, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 256: persistence=0.5877, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 257: persistence=1.1098, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 258: persistence=0.4461, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 259: persistence=0.2774, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 260: persistence=0.3989, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 261: persistence=0.7172, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 262: persistence=0.8141, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 263: persistence=0.3801, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 264: persistence=0.4337, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 265: persistence=0.3544, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 266: persistence=0.4086, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 267: persistence=0.6518, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 268: persistence=0.3462, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 269: persistence=0.5198, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 270: persistence=0.3831, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 271: persistence=0.4326, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 272: persistence=0.4800, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 273: persistence=0.7201, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 274: persistence=0.3751, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 275: persistence=0.4435, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 276: persistence=1.0642, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 277: persistence=0.2755, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 278: persistence=0.7354, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 279: persistence=0.3839, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 280: persistence=0.5236, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 281: persistence=0.5901, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 282: persistence=0.2870, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 283: persistence=1.4504, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 284: persistence=0.4490, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 285: persistence=0.5659, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 286: persistence=0.5009, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 287: persistence=0.3426, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 288: persistence=0.8306, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 289: persistence=0.5208, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 290: persistence=0.4098, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 291: persistence=0.4054, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 292: persistence=0.4974, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 293: persistence=0.3819, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 294: persistence=0.4531, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 295: persistence=0.3583, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 296: persistence=0.2956, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 297: persistence=0.3239, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 298: persistence=0.5006, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 299: persistence=0.4520, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 300: persistence=0.8254, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 301: persistence=0.3116, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 302: persistence=0.7478, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 303: persistence=0.3675, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 304: persistence=0.4871, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 305: persistence=0.6401, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 306: persistence=0.5591, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 307: persistence=0.3332, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 308: persistence=0.6075, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 309: persistence=0.6444, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 310: persistence=0.2726, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 311: persistence=0.7740, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 312: persistence=0.3265, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 313: persistence=0.6309, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 314: persistence=0.8396, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 315: persistence=1.7896, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 316: persistence=0.7842, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 317: persistence=0.3088, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 318: persistence=0.8440, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 319: persistence=0.6508, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 320: persistence=0.5580, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 321: persistence=0.7437, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 322: persistence=0.9802, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 323: persistence=0.3163, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 324: persistence=0.3784, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 325: persistence=0.6995, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 326: persistence=0.7439, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 327: persistence=0.3303, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 328: persistence=0.6452, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 329: persistence=0.2699, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 330: persistence=0.3011, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 331: persistence=0.2772, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 332: persistence=0.4864, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 333: persistence=0.2890, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 334: persistence=0.3404, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 335: persistence=0.3140, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 336: persistence=0.3683, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 337: persistence=0.5743, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 338: persistence=0.5537, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 339: persistence=0.3118, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 340: persistence=0.7798, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 341: persistence=0.4714, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 342: persistence=0.5756, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 343: persistence=0.5114, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 344: persistence=0.7169, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 345: persistence=1.0856, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 346: persistence=0.8793, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 347: persistence=0.4638, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 348: persistence=0.3628, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 349: persistence=0.8274, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 350: persistence=0.3676, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 351: persistence=0.5882, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 352: persistence=0.4510, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 353: persistence=0.3705, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 354: persistence=0.3035, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 355: persistence=0.3313, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 356: persistence=0.4821, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 357: persistence=0.6684, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 358: persistence=0.4919, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 359: persistence=0.2891, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 360: persistence=0.2792, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 361: persistence=1.0402, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 362: persistence=0.3510, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 363: persistence=0.6673, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 364: persistence=0.6371, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 365: persistence=0.4004, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 366: persistence=0.4186, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 367: persistence=0.3886, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 368: persistence=0.4295, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 369: persistence=0.4466, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 370: persistence=0.5615, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 371: persistence=0.7527, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 372: persistence=0.4709, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 373: persistence=0.5624, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 374: persistence=0.3426, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 375: persistence=0.5316, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 376: persistence=0.4043, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 377: persistence=0.6215, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 378: persistence=0.4194, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 379: persistence=0.3990, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 380: persistence=0.3521, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 381: persistence=0.3121, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 382: persistence=0.4575, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 383: persistence=0.5516, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 384: persistence=0.7761, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 385: persistence=0.3621, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 386: persistence=0.2893, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 387: persistence=0.3589, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 388: persistence=0.5797, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 389: persistence=1.0626, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 390: persistence=0.4699, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 391: persistence=0.3153, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 392: persistence=0.3435, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 393: persistence=0.3907, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 394: persistence=0.3569, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 395: persistence=0.2809, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 396: persistence=0.9467, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 397: persistence=0.5327, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 398: persistence=0.3688, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 399: persistence=0.4123, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 400: persistence=0.4772, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 401: persistence=0.5459, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 402: persistence=0.7212, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 403: persistence=0.3609, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 404: persistence=0.4108, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 405: persistence=0.2742, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 406: persistence=0.9545, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 407: persistence=0.4279, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 408: persistence=0.3516, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 409: persistence=0.3582, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 410: persistence=0.3225, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 411: persistence=0.7632, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 412: persistence=0.8739, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 413: persistence=1.4433, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 414: persistence=0.7906, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 415: persistence=0.3243, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 416: persistence=0.2786, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 417: persistence=0.4509, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 418: persistence=0.7857, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 419: persistence=0.3794, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 420: persistence=0.5694, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 421: persistence=0.6086, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 422: persistence=0.9801, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 423: persistence=0.4491, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 424: persistence=0.9569, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 425: persistence=0.9981, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 426: persistence=0.3555, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 427: persistence=0.5392, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 428: persistence=0.4346, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 429: persistence=0.2875, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 430: persistence=0.3963, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 431: persistence=0.4842, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 432: persistence=0.4510, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 433: persistence=0.3587, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 434: persistence=0.3467, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 435: persistence=0.6137, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 436: persistence=0.4589, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 437: persistence=0.3759, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 438: persistence=0.6880, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 439: persistence=0.4165, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 440: persistence=0.5224, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 441: persistence=0.3100, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 442: persistence=1.1368, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 443: persistence=0.3182, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 444: persistence=0.2794, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 445: persistence=0.4523, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 446: persistence=0.3812, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 447: persistence=0.2865, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 448: persistence=0.3098, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 449: persistence=0.3069, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 450: persistence=0.5598, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 451: persistence=0.6741, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 452: persistence=0.9493, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 453: persistence=0.2710, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 454: persistence=0.5655, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 455: persistence=0.4632, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 456: persistence=0.2735, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 457: persistence=0.3725, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 458: persistence=0.4680, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 459: persistence=0.3678, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 460: persistence=0.4237, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 461: persistence=0.4839, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 462: persistence=0.5618, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 463: persistence=0.2936, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 464: persistence=0.3013, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 465: persistence=0.4899, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 466: persistence=0.5762, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 467: persistence=0.8462, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 468: persistence=0.2705, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 469: persistence=0.3162, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 470: persistence=0.3342, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 471: persistence=0.2842, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 472: persistence=0.4739, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 473: persistence=0.3081, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 474: persistence=0.4466, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 475: persistence=0.6989, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 476: persistence=0.8179, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 477: persistence=0.2905, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 478: persistence=0.9804, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 479: persistence=0.6695, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 480: persistence=0.8368, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 481: persistence=0.4153, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 482: persistence=0.5877, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 483: persistence=0.5270, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 484: persistence=0.3349, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 485: persistence=0.6115, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 486: persistence=0.7605, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 487: persistence=0.4927, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 488: persistence=0.4074, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 489: persistence=0.8172, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 490: persistence=0.6533, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 491: persistence=0.3456, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 492: persistence=0.3175, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 493: persistence=0.2745, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 494: persistence=0.3060, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 495: persistence=0.3466, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 496: persistence=0.3571, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 497: persistence=0.2904, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 498: persistence=0.3928, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 499: persistence=0.6450, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 500: persistence=0.3280, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 501: persistence=0.6046, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 502: persistence=0.3935, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 503: persistence=0.8212, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 504: persistence=0.3564, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 505: persistence=0.4855, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 506: persistence=0.3765, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 507: persistence=0.5750, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 508: persistence=0.7299, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 509: persistence=0.8207, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 510: persistence=0.2986, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 511: persistence=0.5171, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 512: persistence=0.4219, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 513: persistence=0.2726, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 514: persistence=0.4089, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 515: persistence=0.8642, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 516: persistence=0.3504, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 517: persistence=0.3468, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 518: persistence=0.9435, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 519: persistence=0.3047, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 520: persistence=0.3057, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 521: persistence=0.4312, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 522: persistence=0.4447, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 523: persistence=0.3199, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 524: persistence=0.2750, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 525: persistence=0.9431, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 526: persistence=0.3564, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 527: persistence=0.7247, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 528: persistence=0.4740, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 529: persistence=0.5601, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 530: persistence=0.3972, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 531: persistence=0.6055, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 532: persistence=0.3597, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 533: persistence=0.5670, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 534: persistence=0.4828, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 535: persistence=0.7302, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 536: persistence=0.4932, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 537: persistence=0.3734, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 538: persistence=0.3788, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 539: persistence=0.4988, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 540: persistence=0.3740, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 541: persistence=0.8043, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 542: persistence=0.4718, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 543: persistence=0.2837, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 544: persistence=0.7176, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 545: persistence=0.3005, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 546: persistence=0.3277, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 547: persistence=0.3284, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 548: persistence=0.7010, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 549: persistence=0.9404, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 550: persistence=0.6754, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 551: persistence=0.6079, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 552: persistence=0.3756, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 553: persistence=0.4457, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 554: persistence=0.5283, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 555: persistence=0.7638, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 556: persistence=0.3285, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 557: persistence=0.3013, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 558: persistence=0.5512, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 559: persistence=0.3156, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 560: persistence=0.4738, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 561: persistence=0.4302, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 562: persistence=0.6717, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 563: persistence=0.4208, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 564: persistence=0.4627, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 565: persistence=0.5405, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 566: persistence=0.5920, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 567: persistence=0.6346, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 568: persistence=1.0759, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 569: persistence=0.3223, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 570: persistence=0.6702, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 571: persistence=0.3701, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 572: persistence=0.8117, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 573: persistence=0.6992, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 574: persistence=0.4853, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 575: persistence=0.3506, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 576: persistence=0.9411, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 577: persistence=0.4018, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 578: persistence=0.5528, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 579: persistence=0.4676, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 580: persistence=0.6577, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 581: persistence=0.4931, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 582: persistence=0.3785, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 583: persistence=0.3228, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 584: persistence=0.4362, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 585: persistence=0.4469, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 586: persistence=0.3725, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 587: persistence=0.6442, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 588: persistence=0.3610, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 589: persistence=0.4026, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 590: persistence=0.4141, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 591: persistence=0.5196, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 592: persistence=0.5404, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 593: persistence=0.5771, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 594: persistence=0.4026, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 595: persistence=1.0073, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 596: persistence=0.7306, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 597: persistence=0.4862, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 598: persistence=0.7199, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 599: persistence=0.3272, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 600: persistence=0.7318, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 601: persistence=0.3664, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 602: persistence=0.2748, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 603: persistence=0.3974, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 604: persistence=0.4591, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 605: persistence=0.2878, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 606: persistence=0.5324, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 607: persistence=0.8152, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 608: persistence=0.4888, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 609: persistence=1.3852, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 610: persistence=0.2784, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 611: persistence=1.0108, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 612: persistence=0.2810, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 613: persistence=0.4015, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 614: persistence=0.6216, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 615: persistence=0.4582, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 616: persistence=0.3519, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 617: persistence=0.4047, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 618: persistence=0.7335, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 619: persistence=0.2857, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 620: persistence=0.5094, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 621: persistence=0.6353, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 622: persistence=0.2835, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 623: persistence=0.6553, mean_cycle_len=3.7, n_cycles=10
+18:18:08 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 624: persistence=0.3583, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 625: persistence=0.6630, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 626: persistence=0.8811, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 627: persistence=0.6496, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 628: persistence=0.3804, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 629: persistence=0.3128, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 630: persistence=0.4863, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 631: persistence=0.3494, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 632: persistence=0.6063, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 633: persistence=0.3228, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 634: persistence=0.4209, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 635: persistence=0.2841, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 636: persistence=0.3058, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 637: persistence=0.3734, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 638: persistence=0.4398, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 639: persistence=0.6547, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 640: persistence=1.0763, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 641: persistence=0.4219, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 642: persistence=0.3077, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 643: persistence=0.5628, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 644: persistence=0.3435, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 645: persistence=0.5696, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 646: persistence=0.6655, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 647: persistence=0.2939, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 648: persistence=0.5470, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 649: persistence=0.3941, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 650: persistence=0.3361, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 651: persistence=0.5544, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 652: persistence=0.5409, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 653: persistence=0.3718, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 654: persistence=0.4499, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 655: persistence=0.5118, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 656: persistence=0.5147, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 657: persistence=0.2922, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 658: persistence=0.3918, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 659: persistence=0.7767, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 660: persistence=0.6305, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 661: persistence=1.3435, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 662: persistence=0.2697, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 663: persistence=0.7491, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 664: persistence=1.3618, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 665: persistence=0.7856, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 666: persistence=0.6528, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 667: persistence=0.6302, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 668: persistence=0.4123, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 669: persistence=0.5196, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 670: persistence=0.6138, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 671: persistence=0.3871, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 672: persistence=0.3014, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 673: persistence=0.7748, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 674: persistence=1.1248, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 675: persistence=0.5276, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 676: persistence=0.3250, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 677: persistence=0.5697, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 678: persistence=0.3829, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 679: persistence=0.4027, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 680: persistence=0.3878, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 681: persistence=0.3296, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 682: persistence=0.3497, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 683: persistence=0.6397, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 684: persistence=0.3485, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 685: persistence=0.3522, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 686: persistence=0.6779, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 687: persistence=0.4400, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 688: persistence=0.5056, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 689: persistence=0.3095, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 690: persistence=0.4317, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 691: persistence=0.4060, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 692: persistence=0.2944, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 693: persistence=0.2722, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 694: persistence=0.3351, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 695: persistence=0.2997, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 696: persistence=0.5517, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 697: persistence=0.2828, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 698: persistence=0.3364, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 699: persistence=0.3242, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 700: persistence=0.6342, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 701: persistence=0.4059, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 702: persistence=0.3658, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 703: persistence=0.5871, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 704: persistence=0.8286, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 705: persistence=0.4191, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 706: persistence=0.5182, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 707: persistence=0.2901, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 708: persistence=0.5363, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 709: persistence=0.5007, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 710: persistence=0.6742, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 711: persistence=0.6673, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 712: persistence=0.4962, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 713: persistence=0.3798, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 714: persistence=0.2832, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 715: persistence=0.6647, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 716: persistence=0.5304, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 717: persistence=0.4014, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 718: persistence=0.4627, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 719: persistence=0.3977, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 720: persistence=0.7072, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 721: persistence=0.3468, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 722: persistence=0.3002, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 723: persistence=0.3428, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 724: persistence=0.4330, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 725: persistence=0.2762, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 726: persistence=0.3750, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 727: persistence=0.2986, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 728: persistence=0.5045, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 729: persistence=0.6878, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 730: persistence=0.3188, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 731: persistence=0.8965, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 732: persistence=0.6893, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 733: persistence=0.4276, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 734: persistence=0.4127, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 735: persistence=0.2807, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 736: persistence=0.3697, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 737: persistence=0.3405, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 738: persistence=0.4483, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 739: persistence=0.4023, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 740: persistence=0.7611, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 741: persistence=0.2720, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 742: persistence=0.6043, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 743: persistence=0.3222, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 744: persistence=0.5135, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 745: persistence=0.4739, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 746: persistence=0.3935, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 747: persistence=0.3839, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 748: persistence=0.9115, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 749: persistence=0.5511, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 750: persistence=0.9084, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 751: persistence=0.4615, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 752: persistence=0.2887, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 753: persistence=0.3593, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 754: persistence=0.3385, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 755: persistence=0.6584, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 756: persistence=0.5907, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 757: persistence=0.7369, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 758: persistence=0.6015, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 759: persistence=0.7912, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 760: persistence=0.4755, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 761: persistence=0.5921, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 762: persistence=0.3477, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 763: persistence=0.3373, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 764: persistence=0.3245, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 765: persistence=0.2714, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 766: persistence=0.2833, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 767: persistence=0.2848, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 768: persistence=0.3671, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 769: persistence=0.3759, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 770: persistence=0.3661, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 771: persistence=0.2801, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 772: persistence=0.5394, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 773: persistence=0.6370, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 774: persistence=0.5712, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 775: persistence=0.3975, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 776: persistence=0.4457, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 777: persistence=0.2954, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 778: persistence=0.6137, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 779: persistence=0.4944, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 780: persistence=0.3718, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 781: persistence=0.4490, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 782: persistence=0.7737, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 783: persistence=0.3957, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 784: persistence=0.4357, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 785: persistence=0.3116, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 786: persistence=0.3611, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 787: persistence=0.3732, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 788: persistence=0.3138, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 789: persistence=0.4253, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 790: persistence=0.3097, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 791: persistence=0.7109, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 792: persistence=0.3358, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 793: persistence=0.2830, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 794: persistence=0.6745, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 795: persistence=0.6790, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 796: persistence=0.5628, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 797: persistence=0.4229, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 798: persistence=0.6769, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 799: persistence=0.3302, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 800: persistence=0.9889, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 801: persistence=0.4808, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 802: persistence=0.3120, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 803: persistence=0.3322, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 804: persistence=0.5878, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 805: persistence=0.5342, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 806: persistence=0.3491, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 807: persistence=0.6359, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 808: persistence=0.2838, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 809: persistence=0.3271, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 810: persistence=0.4958, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 811: persistence=0.3675, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 812: persistence=0.3373, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 813: persistence=0.2781, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 814: persistence=0.6725, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 815: persistence=0.3447, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 816: persistence=0.7557, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 817: persistence=0.4970, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 818: persistence=0.3285, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 819: persistence=0.3404, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 820: persistence=0.3182, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 821: persistence=0.3736, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 822: persistence=0.3430, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 823: persistence=0.4405, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 824: persistence=0.6565, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 825: persistence=0.3067, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 826: persistence=0.9117, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 827: persistence=0.2814, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 828: persistence=0.8491, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 829: persistence=0.4527, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 830: persistence=0.5124, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 831: persistence=0.4008, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 832: persistence=0.4355, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 833: persistence=0.8673, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 834: persistence=0.3839, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 835: persistence=0.2726, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 836: persistence=0.3227, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 837: persistence=0.4446, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 838: persistence=0.2855, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 839: persistence=0.5921, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 840: persistence=0.5993, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 841: persistence=0.7179, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 842: persistence=0.3662, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 843: persistence=0.3705, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 844: persistence=0.5517, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 845: persistence=0.5225, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 846: persistence=0.3413, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 847: persistence=0.6425, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 848: persistence=0.7104, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 849: persistence=0.2735, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 850: persistence=0.3446, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 851: persistence=0.3589, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 852: persistence=0.4832, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 853: persistence=0.2754, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 854: persistence=0.3299, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 855: persistence=0.2959, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 856: persistence=0.3837, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 857: persistence=0.3696, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 858: persistence=0.5938, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 859: persistence=0.6041, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 860: persistence=0.5416, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 861: persistence=0.3132, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 862: persistence=0.3993, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 863: persistence=0.2897, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 864: persistence=0.3833, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 865: persistence=0.2897, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 866: persistence=0.3870, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 867: persistence=0.3507, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 868: persistence=0.5877, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 869: persistence=0.3019, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 870: persistence=0.2931, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 871: persistence=0.4083, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 872: persistence=0.3609, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 873: persistence=0.5800, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 874: persistence=0.4079, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 875: persistence=0.2919, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 876: persistence=0.6727, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 877: persistence=0.5991, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 878: persistence=0.3682, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 879: persistence=0.2804, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 880: persistence=0.2768, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 881: persistence=0.3836, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 882: persistence=0.2750, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 883: persistence=0.5567, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 884: persistence=0.3032, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 885: persistence=0.4699, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 886: persistence=0.2961, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 887: persistence=0.5807, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 888: persistence=0.3074, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 889: persistence=0.3833, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 890: persistence=0.2909, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 891: persistence=0.3374, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 892: persistence=0.3452, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 893: persistence=0.4807, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 894: persistence=0.3536, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 895: persistence=0.3566, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 896: persistence=0.3584, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 897: persistence=0.4680, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 898: persistence=0.3446, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 899: persistence=0.2854, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 900: persistence=0.2734, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 901: persistence=0.5178, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 902: persistence=0.2825, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 903: persistence=0.5501, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 904: persistence=0.3867, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 905: persistence=0.2892, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 906: persistence=0.2909, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 907: persistence=0.5816, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 908: persistence=0.5134, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 909: persistence=0.3154, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 910: persistence=0.4406, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 911: persistence=0.2767, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 912: persistence=0.3086, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 913: persistence=0.8211, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 914: persistence=0.3441, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 915: persistence=0.3447, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 916: persistence=0.4590, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 917: persistence=0.3676, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 918: persistence=0.3821, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 919: persistence=0.3704, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 920: persistence=0.3910, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 921: persistence=0.2858, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 922: persistence=0.3421, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 923: persistence=0.3519, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 924: persistence=0.3717, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 925: persistence=0.5131, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 926: persistence=0.2972, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 927: persistence=0.5925, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 928: persistence=0.3493, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 929: persistence=0.3118, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 930: persistence=0.3349, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 931: persistence=0.5300, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 932: persistence=0.2814, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 933: persistence=0.3876, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 934: persistence=0.5623, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 935: persistence=0.3523, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 936: persistence=0.4203, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 937: persistence=0.3688, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 938: persistence=0.5329, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 939: persistence=0.3972, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 940: persistence=0.3842, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 941: persistence=0.3535, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 942: persistence=0.3108, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 943: persistence=0.3069, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 944: persistence=0.3589, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 945: persistence=0.3578, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 946: persistence=0.3756, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 947: persistence=0.7176, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 948: persistence=0.3410, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 949: persistence=0.5150, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 950: persistence=0.8203, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 951: persistence=0.3733, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 952: persistence=0.2955, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 953: persistence=0.4615, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 954: persistence=0.3609, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 955: persistence=0.7661, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 956: persistence=0.2980, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 957: persistence=0.2929, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 958: persistence=0.6615, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 959: persistence=0.8041, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 960: persistence=0.2887, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 961: persistence=0.3440, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 962: persistence=0.2776, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 963: persistence=0.6478, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 964: persistence=0.7098, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 965: persistence=0.3589, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 966: persistence=0.3490, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 967: persistence=0.3576, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 968: persistence=0.4260, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 969: persistence=0.3255, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 970: persistence=0.2814, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 971: persistence=0.5195, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 972: persistence=0.5323, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 973: persistence=0.3137, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 974: persistence=0.3215, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 975: persistence=0.9219, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 976: persistence=0.3481, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 977: persistence=0.4079, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 978: persistence=0.3112, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 979: persistence=1.0527, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 980: persistence=0.4303, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 981: persistence=0.3717, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 982: persistence=0.3804, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 983: persistence=0.3164, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 984: persistence=0.8553, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 985: persistence=0.4254, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 986: persistence=0.4339, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 987: persistence=0.5565, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 988: persistence=0.3567, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 989: persistence=0.4394, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 990: persistence=0.3574, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 991: persistence=0.3676, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 992: persistence=0.6579, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 993: persistence=0.2846, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 994: persistence=0.4157, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 995: persistence=0.2929, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 996: persistence=0.4602, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 997: persistence=0.4342, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 998: persistence=0.2862, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 999: persistence=0.2732, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1000: persistence=0.7350, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1001: persistence=0.2741, mean_cycle_len=3.7, n_cycles=10
+18:18:09 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1002: persistence=0.5471, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1003: persistence=0.3207, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1004: persistence=0.4023, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1005: persistence=0.3831, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1006: persistence=0.3964, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1007: persistence=0.7472, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1008: persistence=0.6046, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1009: persistence=0.3101, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1010: persistence=0.4213, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1011: persistence=0.4337, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1012: persistence=0.2936, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1013: persistence=0.2946, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1014: persistence=0.3404, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1015: persistence=0.5043, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1016: persistence=0.2845, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1017: persistence=0.3098, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1018: persistence=0.3903, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1019: persistence=0.3124, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1020: persistence=0.5426, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1021: persistence=0.3065, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1022: persistence=0.4117, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1023: persistence=0.3185, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1024: persistence=0.2804, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1025: persistence=0.4251, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1026: persistence=0.3521, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1027: persistence=0.6391, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1028: persistence=0.3311, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1029: persistence=0.4607, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1030: persistence=0.4000, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1031: persistence=0.4624, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1032: persistence=0.3148, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1033: persistence=0.3037, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1034: persistence=0.3909, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1035: persistence=0.4490, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1036: persistence=0.2708, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1037: persistence=0.2991, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1038: persistence=0.3241, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1039: persistence=0.4308, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1040: persistence=0.3024, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1041: persistence=0.2904, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1042: persistence=0.3027, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1043: persistence=0.4784, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1044: persistence=0.4635, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1045: persistence=0.4046, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1046: persistence=0.2922, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1047: persistence=0.2791, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1048: persistence=0.3348, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1049: persistence=0.3247, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1050: persistence=0.3624, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1051: persistence=0.3029, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1052: persistence=0.3522, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1053: persistence=0.2960, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1054: persistence=0.2820, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1055: persistence=0.4271, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1056: persistence=0.4037, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1057: persistence=0.4322, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1058: persistence=0.6860, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1059: persistence=0.3250, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1060: persistence=0.4231, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1061: persistence=0.3160, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1062: persistence=0.4122, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1063: persistence=0.2727, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1064: persistence=0.3766, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1065: persistence=0.4059, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1066: persistence=0.5222, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1067: persistence=0.4125, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1068: persistence=0.6045, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1069: persistence=0.5303, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1070: persistence=0.3716, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1071: persistence=0.5084, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1072: persistence=0.3910, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1073: persistence=0.3227, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1074: persistence=0.3049, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1075: persistence=0.2935, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1076: persistence=0.5041, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1077: persistence=0.4210, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1078: persistence=0.3355, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1079: persistence=0.2840, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1080: persistence=0.4637, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1081: persistence=0.5712, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1082: persistence=0.3224, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1083: persistence=0.3514, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1084: persistence=0.5969, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1085: persistence=0.7565, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1086: persistence=0.3741, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1087: persistence=0.3214, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1088: persistence=0.3273, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1089: persistence=0.3556, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1090: persistence=0.3060, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1091: persistence=0.3348, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1092: persistence=0.3272, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1093: persistence=0.4735, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1094: persistence=0.3931, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1095: persistence=0.2811, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1096: persistence=0.2954, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1097: persistence=0.3324, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1098: persistence=0.4590, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1099: persistence=0.4377, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1100: persistence=0.3544, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1101: persistence=0.4211, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1102: persistence=0.3902, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1103: persistence=0.3510, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1104: persistence=0.2765, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1105: persistence=0.3752, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1106: persistence=0.4207, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1107: persistence=0.3534, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1108: persistence=0.2868, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1109: persistence=0.3861, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1110: persistence=0.3263, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1111: persistence=0.3950, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1112: persistence=0.3333, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.analysis.cycle_detection] INFO:   Loop 1113: persistence=0.2804, mean_cycle_len=3.7, n_cycles=10
+18:18:10 [trajectory_tda.utils.model_io] INFO: Model saved: results\trajectory_tda_bhps\05_gmm.joblib
+18:18:10 [__main__] INFO: ============================================================
+18:18:10 [__main__] INFO: BHPS Pipeline complete in 4741.4s
+18:18:10 [__main__] INFO:   Trajectories: 8509
+18:18:10 [__main__] INFO:   Regimes (k): 8
+18:18:10 [__main__] INFO:   H1 loops: 1114
+18:18:10 [__main__] INFO:   Null p-values: {'label_shuffle': 'error', 'cohort_shuffle': 'error', 'order_shuffle': 'error', 'markov': 'error'}
+18:18:10 [__main__] INFO:   Results saved to: results\trajectory_tda_bhps
+18:18:10 [__main__] INFO: ============================================================

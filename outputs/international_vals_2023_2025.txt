@@ -1,0 +1,1 @@
+{'type': 'prospective', 'false_positives': 0, 'elevated_risk': 0, 'max_tau_observed': 0.3118072289156627, 'days_analyzed': 627}

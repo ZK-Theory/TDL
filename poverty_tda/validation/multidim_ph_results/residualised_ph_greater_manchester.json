@@ -1,0 +1,114 @@
+{
+  "region": "greater_manchester",
+  "n_lsoas": 1673,
+  "n_dimensions": 7,
+  "domain_names": [
+    "income",
+    "employment",
+    "education",
+    "health",
+    "crime",
+    "housing_barriers",
+    "living_environment"
+  ],
+  "elapsed_seconds": 505.1515555381775,
+  "pca_info": {
+    "n_components_removed": 1,
+    "variance_explained_removed": 0.6215419195880485,
+    "variance_explained_retained": 0.3784580804119515,
+    "explained_variance_ratio": [
+      0.6215419195880485,
+      0.1578841105636578,
+      0.11997398647948242,
+      0.05020188311621121,
+      0.027403669123278882,
+      0.01841495347300221,
+      0.004579477656318965
+    ],
+    "pc1_loadings": {
+      "income": 0.4597454946671356,
+      "employment": 0.4500209150455561,
+      "education": 0.4337976757498329,
+      "health": 0.442644840124829,
+      "crime": 0.378317652604847,
+      "housing_barriers": 0.2224787566483672,
+      "living_environment": 0.09684696560808397
+    }
+  },
+  "raw": {
+    "persistence_summary": {
+      "H0": {
+        "n_features": 1673,
+        "n_finite": 1672,
+        "n_infinite": 1,
+        "total_persistence": 1058.4211991727352,
+        "max_persistence": 1.927778959274292,
+        "persistence_entropy": 7.365150017479273
+      },
+      "H1": {
+        "n_features": 1439,
+        "n_finite": 1439,
+        "n_infinite": 0,
+        "total_persistence": 112.98906111717224,
+        "max_persistence": 0.38670504093170166,
+        "persistence_entropy": 6.942334040708884
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.927778959274292,
+        "null_mean": 2.6247553169727325,
+        "null_std": 0.2189989092424037,
+        "null_p95": 3.051617610454559,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.38670504093170166,
+        "null_mean": 0.5813748449087143,
+        "null_std": 0.059089273189014184,
+        "null_p95": 0.6695339798927307,
+        "p_value": 1.0,
+        "significant_at_005": false
+      }
+    }
+  },
+  "residualised": {
+    "persistence_summary": {
+      "H0": {
+        "n_features": 1673,
+        "n_finite": 1672,
+        "n_infinite": 1,
+        "total_persistence": 724.6011937260628,
+        "max_persistence": 1.631649374961853,
+        "persistence_entropy": 7.349378864095089
+      },
+      "H1": {
+        "n_features": 1436,
+        "n_finite": 1436,
+        "n_infinite": 0,
+        "total_persistence": 77.8578751385212,
+        "max_persistence": 0.37041234970092773,
+        "persistence_entropy": 6.926072741822239
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.631649374961853,
+        "null_mean": 1.6535727155208588,
+        "null_std": 0.1942454841261972,
+        "null_p95": 1.9963431835174559,
+        "p_value": 0.465,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.37041234970092773,
+        "null_mean": 0.3120850020647049,
+        "null_std": 0.03466768817675852,
+        "null_p95": 0.38008395433425896,
+        "p_value": 0.07,
+        "significant_at_005": false
+      }
+    }
+  }
+}

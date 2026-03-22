@@ -1,0 +1,88 @@
+INFO: Loading migration data from data\raw\outcomes\internal_migration_by_lad.xlsx
+INFO: Filtered to year 2024: 165673 rows
+INFO: Aggregated by sex: 91264 unique LAD pairs
+INFO: Computing LAD-level migration metrics
+INFO: Computed metrics for 320 LADs
+INFO: Loaded Migration data: 1638 LSOAs
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmplbpvl9b9.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmplf4vxmse.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Loading migration data from data\raw\outcomes\internal_migration_by_lad.xlsx
+INFO: Filtered to year 2024: 165673 rows
+INFO: Aggregated by sex: 91264 unique LAD pairs
+INFO: Computing LAD-level migration metrics
+INFO: Computed metrics for 320 LADs
+INFO: Loaded Migration data: 1636 LSOAs
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_greater_manchester.vti
+INFO: Loaded VTK data: 10000 points, 9801 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-0.0611, 1.9136]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpdydbyklf.py --vtk-path poverty_tda\validation\mobility_surface_greater_manchester.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmph2c2b8sc.json
+INFO: Morse-Smale complex: 314 minima, 665 saddles, 352 maxima, 2612 separatrices
+===========================================================================
+TASK 9.5.4 EXTENDED: Comprehensive Integrated Model Testing
+===========================================================================
+
+===========================================================================
+Region: WEST_MIDLANDS
+===========================================================================
+   1638 LSOAs, 245 basins
+
+   Life Expectancy:
+      Traditional (IMD): R2 = 0.104 [0.076, 0.130]
+      TDA (basin+mob):   R2 = 0.845 [0.816, 0.876]
+      Combined:          R2 = 0.851 [0.823, 0.879]
+      TDA improvement:   +0.747 (+/- 0.022)
+
+   Net Migration:
+      Traditional (IMD): R2 = 0.078 [0.053, 0.103]
+      TDA (basin+mob):   R2 = 0.840 [0.816, 0.865]
+      Combined:          R2 = 0.846 [0.823, 0.869]
+      TDA improvement:   +0.768 (+/- 0.023)
+
+   Mobility:
+      Traditional (IMD): R2 = 0.005 [0.000, 0.015]
+      TDA (basin+mob):   R2 = 1.000 [1.000, 1.000]
+      Combined:          R2 = 1.000 [1.000, 1.000]
+      TDA improvement:   +0.995 (+/- 0.004)
+
+===========================================================================
+Region: GREATER_MANCHESTER
+===========================================================================
+   1636 LSOAs, 235 basins
+
+   Life Expectancy:
+      Traditional (IMD): R2 = 0.148 [0.118, 0.179]
+      TDA (basin+mob):   R2 = 0.758 [0.706, 0.804]
+      Combined:          R2 = 0.775 [0.735, 0.815]
+      TDA improvement:   +0.626 (+/- 0.026)
+
+   Net Migration:
+      Traditional (IMD): R2 = 0.050 [0.030, 0.074]
+      TDA (basin+mob):   R2 = 0.879 [0.853, 0.902]
+      Combined:          R2 = 0.885 [0.863, 0.904]
+      TDA improvement:   +0.834 (+/- 0.015)
+
+   Mobility:
+      Traditional (IMD): R2 = 0.008 [0.002, 0.019]
+      TDA (basin+mob):   R2 = 1.000 [1.000, 1.000]
+      Combined:          R2 = 1.000 [1.000, 1.000]
+      TDA improvement:   +0.992 (+/- 0.004)
+
+===========================================================================
+SUMMARY: R2 COMPARISON WITH 95% BOOTSTRAP CIs
+===========================================================================
+
+Region               Outcome            Trad R2     TDA R2  Combined R2    TDA +
+---------------------------------------------------------------------------
+west_midland         Life Expecta         0.104      0.845        0.851   +0.747
+west_midland         Net Migratio         0.078      0.840        0.846   +0.768
+west_midland         Mobility             0.005      1.000        1.000   +0.995
+greater_manc         Life Expecta         0.148      0.758        0.775   +0.626
+greater_manc         Net Migratio         0.050      0.879        0.885   +0.834
+greater_manc         Mobility             0.008      1.000        1.000   +0.992

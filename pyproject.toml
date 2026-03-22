@@ -28,6 +28,8 @@ dependencies = [
     # "torch-scatter>=2.1.0",
     # "torch-sparse>=0.6.0",
     "libpysal>=4.9.0",
+    "ripser>=0.6.0",
+    "umap-learn>=0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -46,7 +48,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["financial_tda*", "poverty_tda*", "shared*"]
+include = ["financial_tda*", "poverty_tda*", "shared*", "trajectory_tda*"]
 
 [tool.ruff]
 line-length = 88
@@ -62,14 +64,14 @@ ignore = []
 "*.ipynb" = ["E501", "E402", "I001", "F401", "F841"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["financial_tda", "poverty_tda", "shared"]
+known-first-party = ["financial_tda", "poverty_tda", "shared", "trajectory_tda"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short --strict-markers --cov=financial_tda --cov=poverty_tda --cov=shared"
+addopts = "-v --tb=short --strict-markers --cov=financial_tda --cov=poverty_tda --cov=shared --cov=trajectory_tda"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",

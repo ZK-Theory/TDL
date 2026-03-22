@@ -35,40 +35,57 @@ QUESTION: How does poverty structure change over time?
 Recommended Multi-Method Pipeline
 Based on your goals, here's how I'd structure the analysis:
 
-PHASE 1: DETECTION (Which areas are deprived?) ✅ PARTIAL
+PHASE 1: DETECTION (Which areas are deprived?) ✅ COMPLETE
 ─────────────────────────────────────────────────────────────────
 Methods: Morse-Smale + LISA (for statistical significance)
 Output:
 - Basin assignments (from Morse-Smale) ✅
 - Cluster significance (from LISA) ✅
-- Agreement metric (ARI between methods) ⬜
+- Agreement metric (ARI between methods) ✅
 Key insight: "We identify N basins (M statistically significant)"
 
-**STATUS**: Applied to WM, GM, Merseyside. ARI matrix not yet computed.
+**STATUS**: Applied to WM, GM, Merseyside. ARI = 0.12 (weak agreement - TDA captures different structure).
 
-PHASE 2: TYPOLOGY (What kinds of deprivation exist?) ⬜ NOT STARTED
+PHASE 2: TYPOLOGY (What kinds of deprivation exist?) ✅ COMPLETE
 ─────────────────────────────────────────────────────────────────
-Method: MAPPER with filter = overall IMD, clustering by all domains
+Method: MAPPER with filter = overall IMD, clustering by all 7 domains
 Output:
-- Mapper graph with branches
-- Branch characteristics (which domains dominate)
-- Labels: "Post-industrial", "Coastal decline", "Urban concentrated"
-Key insight: "Deprivation is not monolithic; we identify K typologies"
+- Mapper graph with branches ✅
+- Branch characteristics (which domains dominate) ✅
+- Labels: "Post-industrial", "Urban Concentrated", "Mixed/Average" ✅
+Key insight: "Deprivation is not monolithic; we identify 5 typologies"
 
-PHASE 3: STRUCTURE (How is deprivation connected?) ⬜ NOT STARTED
+**STATUS**: Mapper applied to WM with 7 IMD domains:
+
+| Typology | Nodes | LSOAs | Dominant Domains |
+|----------|-------|-------|------------------|
+| Post-Industrial Decline | 10 | 1,215 | Income, Employment, Education |
+| Mixed/Average | 3 | 833 | - |
+| Moderate Deprivation | 3 | 620 | - |
+| Affluent | 2 | 510 | (all low) |
+| Urban Concentrated | 1 | 1 | Crime, Housing |
+
+**Graph structure**: 19 nodes, 19 edges, 2 components, cycles present, 7 hubs
+
+PHASE 3: STRUCTURE (How is deprivation connected?) ✅ COMPLETE
 ─────────────────────────────────────────────────────────────────
 Methods: 
-- Morse-Smale: Barrier heights between basins ⬜
-- Persistence H₀: When basins merge (connectivity structure) ⬜
-- Persistence H₁: Are there loops? (circular dependencies) ⬜
+- Morse-Smale: Barrier heights between basins ✅
+- Persistence H₀: When basins merge (connectivity structure) ✅
+- Persistence H₁: Are there loops? (circular dependencies) ✅
 Output:
-- Barrier matrix (severity of transitions)
-- Persistence diagram (robustness of structure)
-- Cycle detection
+- Barrier matrix (severity of transitions) ✅
+- Persistence diagram (robustness of structure) ✅
+- Cycle detection ✅
 Key insight: "Blackpool and Middlesbrough are in separate basins
              but topologically similar (both persistent minima)"
 
-**NOTE**: Barrier analysis is Task 9.5.2 - HIGH PRIORITY
+**STATUS**: 
+- Barrier analysis ✅ (Task 9.5.2): Weak/null correlation (r < 0.3)
+- H₀ Persistence ✅: 27 transient, 956 persistent components (97% robust)
+- H₁ Cycles ✅: 22,201 cycles detected (full grid structure)
+  - Early cycles born at low mobility (-0.998) = deprivation pockets
+  - Confirms Mapper finding (cycles present in typology graph)
 
 PHASE 4: DYNAMICS (How does structure change?) ⬜ NOT STARTED
 ─────────────────────────────────────────────────────────────────
@@ -95,12 +112,16 @@ Features from TDA:
 - Distance to basin boundary ⬜
 - Barrier height to nearest better region ⬜
 Outcome prediction:
-- Life expectancy ~ basin_id ✅ (η² = 0.73-0.95)
+- Life expectancy ~ basin_id ✅ (η² = 0.73-0.85 with 95% CIs)
 - GCSE attainment ~ basin_id ✅ (η² = 0.82-0.89)
-Key insight: "MS basins explain 73-95% of LE variance, 82-89% of KS4 variance - 
-             dramatically exceeding traditional methods"
+- **Integrated models (Task 9.5.4)**: TDA adds +0.63-0.75 R² beyond IMD (8x improvement)
+Key insight: "MS basins explain 73-85% of LE variance with bootstrap CIs [0.71-0.88].
+             TDA features dominate; IMD is largely redundant."
 
-**STATUS**: Basic η² comparison complete. Regression with persistence features pending (Task 9.5.4).
+**STATUS**: ✅ COMPLETE. η² comparison, integrated models, persistence sensitivity all done.
+
+**PHASE 5 ROBUSTNESS (Task 9.5.5)**: Results PERFECTLY ROBUST to persistence threshold (0.01-0.20).
+η² = 0.828 [0.818, 0.877] at all 6 thresholds tested.
 
 Comparison with Gidea & Katz
 Your existing financial TDA implementation (Gidea & Katz replication) provides the template:
