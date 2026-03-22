@@ -159,7 +159,8 @@ class TestComputeWassersteinDistance:
         assert np.isfinite(d) and d >= 0.0
 
     @pytest.mark.skipif(
-        "gudhi.wasserstein" not in sys.modules and True, reason="test always runs; skip if want to isolate"
+        "gudhi.wasserstein" not in sys.modules and True,
+        reason="test always runs; skip if want to isolate",
     )
     def test_order_parameter_forwarded(self):
         """Different order values should give different (non-negative) results."""
@@ -235,10 +236,10 @@ class TestDiagramWassersteinPvalue:
         assert result.method in ("gudhi", "scipy")
 
     def test_identical_observed_and_null_p_value(self):
-        """When observed == null diagram, all distances are identical.
+        """When observed matches all null diagrams, all distances are zero.
 
-        p_value = fraction of null_distances >= mean(null_distances).
-        For a constant array the mean equals every element, so fraction = 1.0.
+        p_value = fraction of null_test_stats (null-vs-null) >= observed_distance.
+        All distances are 0 (identical diagrams), so fraction(0 >= 0) = 1.0.
         """
         single_diag = DIAG_SIMPLE.copy()
         null = [single_diag.copy() for _ in range(20)]
@@ -247,26 +248,24 @@ class TestDiagramWassersteinPvalue:
         assert result.p_value == pytest.approx(1.0, abs=1e-9)
 
     def test_p_value_direction_distinct_observed(self):
-        """An observed diagram very far from the null should have low p-value.
+        """An observed diagram far from the null should yield low p-value.
 
-        We construct a null that is constant (tiny diagrams near diagonal)
-        and an observed that is far away. The observed-vs-null distances
-        are all large, so fraction(null_dists >= mean(null_dists)) ~ 0.5.
-
-        This documents the current implementation: p_value reflects the
-        fraction of pairwise observed-null distances >= their mean, which
-        is ~0.5 for any symmetric distribution. The meaningful signal is
-        carried in z_score, not p_value, for distinct observed diagrams.
+        Construct a constant null (identical tiny diagrams near the diagonal)
+        and an observed diagram with large persistent features. Under the
+        corrected Robinson-Turner framework, all null-vs-null distances are
+        zero (identical nulls), so the observed's large distance yields
+        p_value = 0.0 and z_score >> 0.
         """
-        # Null: tiny features near diagonal
+        # Null: identical tiny features near diagonal
         tiny = _make_diagram([(0.0, 0.01), (0.01, 0.02)])
         null = [tiny.copy() for _ in range(20)]
         # Observed: large persistent features far from diagonal
         large = _make_diagram([(0.0, 10.0), (0.5, 9.5)])
         result = diagram_wasserstein_pvalue(large, null)
-        # p-value is in [0, 1]; observed_distance is large
-        assert 0.0 <= result.p_value <= 1.0
+        # null_test_stats = [0, ..., 0], observed_distance >> 0 → p_value = 0
+        assert result.p_value == pytest.approx(0.0)
         assert result.observed_distance > 0.0
+        assert result.z_score > 0.0
 
     def test_z_score_zero_for_identical_null(self):
         """When observed == null, observed_distance == null_mean so z_score = 0."""

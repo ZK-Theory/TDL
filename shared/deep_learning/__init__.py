@@ -8,14 +8,18 @@ Modules:
     base_trainer: BaseTrainer with common optimizer/scheduler/early-stopping logic.
     losses: Reusable loss functions (VAELoss, PersistenceLoss).
     persistence_layers: Differentiable layers for learning on persistence diagrams.
-    simplicial: Utilities for simplicial complex neural networks (TopoModelX hooks).
+    combinatorial: Utilities for combinatorial complex neural networks (TopoModelX hooks).
     graph_utils: Shared graph construction helpers for torch-geometric.
 """
 
 from __future__ import annotations
 
 from shared.deep_learning.base_trainer import BaseTrainer, EarlyStopping
-from shared.deep_learning.losses import PersistenceLoss, TopologicalFairnessLoss, VAELoss
+from shared.deep_learning.losses import (
+    PersistenceLoss,
+    TopologicalFairnessLoss,
+    VAELoss,
+)
 from shared.deep_learning.persistence_layers import (
     GaussianPersLayer,
     LifetimeWeightedSum,

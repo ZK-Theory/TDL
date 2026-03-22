@@ -206,7 +206,6 @@ class TrajectoryMapper:
     def to_html(
         self,
         graph: MapperGraph,
-        embedding: NDArray[np.float64],
         colour_by: str = "escape_probability",
         output_path: str = "mapper_graph.html",
     ) -> str:
@@ -214,7 +213,6 @@ class TrajectoryMapper:
 
         Args:
             graph: MapperGraph from run().
-            embedding: Original embedding (passed to visualiser for tooltips).
             colour_by: Key from graph.node_outcome_means to use for colouring.
             output_path: Path to write the HTML file.
 

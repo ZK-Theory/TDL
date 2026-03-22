@@ -170,35 +170,38 @@ def diagram_wasserstein_pvalue(
     Returns:
         WassersteinNullResult with p-value and z-score.
     """
-    null_distances = []
-    method = "scipy"
+    try:
+        import gudhi.wasserstein  # noqa: F401
 
-    for i, null_diag in enumerate(null_diagrams):
-        dist = _compute_wasserstein_distance(observed_diagram, null_diag, order=wasserstein_order)
-        null_distances.append(dist)
-        if i == 0:
-            # Check which method was used (heuristic: gudhi is much faster)
-            try:
-                import gudhi.wasserstein  # noqa: F401
+        method = "gudhi"
+    except ImportError:
+        method = "scipy"
 
-                method = "gudhi"
-            except ImportError:
-                method = "scipy"
-
-    null_arr = np.array(null_distances)
-    # The observed diagram is "more complex" if its distance from a random
-    # null is large — so we test against the lower tail
-    p_value = float((null_arr <= null_arr.mean()).mean())
-
-    # Re-run observed vs. each null for the actual test statistic
-    obs_vs_null = np.array(
+    # Observed test statistic: mean Wasserstein distance from the observed
+    # diagram to each null diagram.
+    obs_to_null = np.array(
         [_compute_wasserstein_distance(observed_diagram, nd, order=wasserstein_order) for nd in null_diagrams]
     )
-    observed_distance = obs_vs_null.mean()
-    null_mean = null_arr.mean()
-    null_std = null_arr.std()
+    observed_distance = float(obs_to_null.mean())
+
+    # Null reference distribution: for each null diagram, compute its mean
+    # pairwise distance to all other null diagrams (leave-one-out estimator).
+    # This measures how far a typical null is from the null cloud, providing
+    # the correct reference for comparison (Robinson-Turner 2017, §3.1).
+    n_null = len(null_diagrams)
+    null_test_stats = np.zeros(n_null)
+    for i in range(n_null):
+        dists_i = [
+            _compute_wasserstein_distance(null_diagrams[i], null_diagrams[j], order=wasserstein_order)
+            for j in range(n_null)
+            if j != i
+        ]
+        null_test_stats[i] = float(np.mean(dists_i)) if dists_i else 0.0
+
+    null_mean = float(null_test_stats.mean())
+    null_std = float(null_test_stats.std())
     z_score = (observed_distance - null_mean) / (null_std + 1e-10)
-    p_value = float((null_arr >= obs_vs_null.mean()).mean())
+    p_value = float((null_test_stats >= observed_distance).mean())
 
     logger.info(
         "Wasserstein null test: observed distance=%.4f, null mean=%.4f, " "z=%.3f, p=%.4f (%s)",
@@ -211,7 +214,7 @@ def diagram_wasserstein_pvalue(
 
     return WassersteinNullResult(
         observed_distance=observed_distance,
-        null_distances=null_arr,
+        null_distances=obs_to_null,
         p_value=p_value,
         z_score=z_score,
         wasserstein_order=wasserstein_order,
@@ -300,8 +303,7 @@ def stratified_wasserstein_test(
             "diagrams. Install ripser to run this test."
         )
         raise ImportError(
-            "ripser is required to compute null diagrams for the stratified "
-            "Wasserstein test."
+            "ripser is required to compute null diagrams for the stratified " "Wasserstein test."
         ) from exc
 
     for perm_idx in range(n_permutations):

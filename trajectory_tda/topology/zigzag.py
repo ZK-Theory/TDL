@@ -66,6 +66,7 @@ class AnnualSnapshot:
     diagram_h1: NDArray[np.float64]
     n_individuals: int
     n_landmarks: int | None = None
+    betti_threshold: float = 0.05
     economic_event: str | None = None
 
     def __post_init__(self) -> None:
@@ -91,13 +92,12 @@ class AnnualSnapshot:
     def betti_0_estimate(self) -> int:
         """Approximate β₀ (number of connected components) from H₀ diagram.
 
-        Counts H₀ pairs with lifetime exceeding a small threshold to
+        Counts H₀ pairs with lifetime exceeding ``betti_threshold`` to
         exclude trivial components from noise.
         """
-        threshold = 0.05
         finite = self.diagram_h0[np.isfinite(self.diagram_h0[:, 1])]
         lifetimes = finite[:, 1] - finite[:, 0]
-        return int((lifetimes > threshold).sum()) + 1  # +1 for infinite component
+        return int((lifetimes > self.betti_threshold).sum()) + 1  # +1 for infinite component
 
 
 @dataclass
@@ -185,7 +185,7 @@ def create_annual_snapshots(
             diagram_h0=diag_h0,
             diagram_h1=diag_h1,
             n_individuals=n_original,
-            n_landmarks=n_landmarks if n_landmarks is not None else n_original,
+            n_landmarks=len(points),
         )
         snapshots.append(snap)
         logger.info(
