@@ -107,7 +107,7 @@ Shared utilities are in `shared/` (persistence I/O, plotting helpers, TTK integr
 - `torch-geometric` unconditional imports (it's an optional dep; guard with try/except)
 
 
-## vexp context tools <!-- vexp v1.2.28 -->
+## vexp context tools <!-- vexp v1.2.30 -->
 
 **MANDATORY: use `run_pipeline` — do NOT grep, glob, or read files manually.**
 vexp returns pre-indexed, graph-ranked context in a single call.

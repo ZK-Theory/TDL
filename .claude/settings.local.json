@@ -10,7 +10,15 @@
       "Bash(grep -E \"\\\\.py$\")",
       "mcp__mcp-registry__search_mcp_registry",
       "Bash(find C:/Projects/TDL/.claude/worktrees/clever-albattani -name settings*.json -o -name mcp*.json)",
-      "Read(//c/Users/steph/.claude/**)"
+      "Read(//c/Users/steph/.claude/**)",
+      "Read(//c/Users/steph/AppData/Local/**)",
+      "Read(//c/Program Files/**)",
+      "Bash(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(\"/c/Program Files/Git/cmd/git.exe\" --version)",
+      "Bash(\"/c/Program Files/Git/cmd/git.exe\" -C \"C:/Projects/TDL/.claude/worktrees/clever-albattani\" log --oneline -2)",
+      "Bash(cmd /c \"gh --version\")",
+      "Bash(cmd /c \"where gh\")",
+      "Bash(powershell -Command \"gh --version\")"
     ]
   }
 }
