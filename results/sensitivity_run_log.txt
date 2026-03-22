@@ -1,0 +1,976 @@
+01:15:58 INFO: Loaded baseline labels (n=27280)
+01:15:59 DEBUG: TTK not available in current environment. TTK operations will run via subprocess in conda environment.
+01:16:00 INFO:   Config: min10_tf_thresh75
+01:16:00 DEBUG: Loading BHPS wave a from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w1\aindresp.tab
+01:16:01 INFO: BHPS wave a (1991): 10264 obs
+01:16:01 DEBUG: Loading BHPS wave b from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w2\bindresp.tab
+01:16:02 INFO: BHPS wave b (1992): 9845 obs
+01:16:02 DEBUG: Loading BHPS wave c from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w3\cindresp.tab
+01:16:03 INFO: BHPS wave c (1993): 9600 obs
+01:16:03 DEBUG: Loading BHPS wave d from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w4\dindresp.tab
+01:16:04 INFO: BHPS wave d (1994): 9481 obs
+01:16:04 DEBUG: Loading BHPS wave e from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w5\eindresp.tab
+01:16:05 INFO: BHPS wave e (1995): 9249 obs
+01:16:05 DEBUG: Loading BHPS wave f from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w6\findresp.tab
+01:16:06 INFO: BHPS wave f (1996): 9438 obs
+01:16:06 DEBUG: Loading BHPS wave g from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w7\gindresp.tab
+01:16:07 INFO: BHPS wave g (1997): 11193 obs
+01:16:07 DEBUG: Loading BHPS wave h from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w8\hindresp.tab
+01:16:09 INFO: BHPS wave h (1998): 10906 obs
+01:16:09 DEBUG: Loading BHPS wave i from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w9\iindresp.tab
+01:16:12 INFO: BHPS wave i (1999): 15623 obs
+01:16:12 DEBUG: Loading BHPS wave j from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w10\jindresp.tab
+01:16:14 INFO: BHPS wave j (2000): 15603 obs
+01:16:14 DEBUG: Loading BHPS wave k from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w11\kindresp.tab
+01:16:18 INFO: BHPS wave k (2001): 18867 obs
+01:16:18 DEBUG: Loading BHPS wave l from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w12\lindresp.tab
+01:16:22 INFO: BHPS wave l (2002): 16597 obs
+01:16:22 DEBUG: Loading BHPS wave m from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w13\mindresp.tab
+01:16:24 INFO: BHPS wave m (2003): 16238 obs
+01:16:24 DEBUG: Loading BHPS wave n from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w14\nindresp.tab
+01:16:26 INFO: BHPS wave n (2004): 15791 obs
+01:16:26 DEBUG: Loading BHPS wave o from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w15\oindresp.tab
+01:16:28 INFO: BHPS wave o (2005): 15617 obs
+01:16:28 DEBUG: Loading BHPS wave p from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w16\pindresp.tab
+01:16:30 INFO: BHPS wave p (2006): 15392 obs
+01:16:30 DEBUG: Loading BHPS wave q from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w17\qindresp.tab
+01:16:32 INFO: BHPS wave q (2007): 14873 obs
+01:16:32 DEBUG: Loading BHPS wave r from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w18\rindresp.tab
+01:16:34 INFO: BHPS wave r (2008): 14419 obs
+01:16:34 DEBUG: Loading USoc wave a from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\a_indresp.tab
+01:16:44 INFO: USoc wave a (2009): 50994 obs
+01:16:44 DEBUG: Loading USoc wave b from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\b_indresp.tab
+01:16:57 INFO: USoc wave b (2010): 54568 obs
+01:16:57 DEBUG: Loading USoc wave c from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\c_indresp.tab
+01:17:30 INFO: USoc wave c (2011): 49692 obs
+01:17:30 DEBUG: Loading USoc wave d from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\d_indresp.tab
+01:17:46 INFO: USoc wave d (2012): 47074 obs
+01:17:46 DEBUG: Loading USoc wave e from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\e_indresp.tab
+01:18:07 INFO: USoc wave e (2013): 44837 obs
+01:18:07 DEBUG: Loading USoc wave f from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\f_indresp.tab
+01:18:22 INFO: USoc wave f (2014): 45192 obs
+01:18:22 DEBUG: Loading USoc wave g from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\g_indresp.tab
+01:18:42 INFO: USoc wave g (2015): 42170 obs
+01:18:42 DEBUG: Loading USoc wave h from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\h_indresp.tab
+01:18:55 INFO: USoc wave h (2016): 39294 obs
+01:18:55 DEBUG: Loading USoc wave i from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\i_indresp.tab
+01:19:13 INFO: USoc wave i (2017): 36058 obs
+01:19:13 DEBUG: Loading USoc wave j from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\j_indresp.tab
+01:19:25 INFO: USoc wave j (2018): 34319 obs
+01:19:25 DEBUG: Loading USoc wave k from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\k_indresp.tab
+01:19:43 INFO: USoc wave k (2019): 32008 obs
+01:19:43 DEBUG: Loading USoc wave l from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\l_indresp.tab
+01:19:54 INFO: USoc wave l (2020): 29271 obs
+01:19:54 DEBUG: Loading USoc wave m from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\m_indresp.tab
+01:20:07 INFO: USoc wave m (2021): 27998 obs
+01:20:07 DEBUG: Loading USoc wave n from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\n_indresp.tab
+01:20:23 INFO: USoc wave n (2022): 35471 obs
+01:20:23 INFO: Combined: 807942 person-year observations
+01:20:23 INFO: Dropped 2770 observations with unmappable jbstat codes
+01:20:23 INFO: Final: 805172 person-year records, 118153 unique persons
+01:20:23 DEBUG: BHPS wave a: no income column found
+01:20:24 DEBUG: BHPS wave b: no income column found
+01:20:24 DEBUG: BHPS wave c: no income column found
+01:20:25 DEBUG: BHPS wave d: no income column found
+01:20:26 DEBUG: BHPS wave e: no income column found
+01:20:26 DEBUG: BHPS wave f: no income column found
+01:20:27 DEBUG: BHPS wave g: no income column found
+01:20:27 DEBUG: BHPS wave h: no income column found
+01:20:29 DEBUG: BHPS wave i: no income column found
+01:20:30 DEBUG: BHPS wave j: no income column found
+01:20:31 DEBUG: BHPS wave k: no income column found
+01:20:33 DEBUG: BHPS wave l: no income column found
+01:20:34 DEBUG: BHPS wave m: no income column found
+01:20:35 DEBUG: BHPS wave n: no income column found
+01:20:36 DEBUG: BHPS wave o: no income column found
+01:20:38 DEBUG: BHPS wave p: no income column found
+01:20:39 DEBUG: BHPS wave q: no income column found
+01:20:40 DEBUG: BHPS wave r: no income column found
+01:20:48 INFO: USoc income wave a (2009): 50994 obs
+01:21:02 INFO: USoc income wave b (2010): 54558 obs
+01:21:28 INFO: USoc income wave c (2011): 49692 obs
+01:21:44 INFO: USoc income wave d (2012): 47074 obs
+01:22:05 INFO: USoc income wave e (2013): 44837 obs
+01:22:31 INFO: USoc income wave f (2014): 44400 obs
+01:22:52 INFO: USoc income wave g (2015): 41857 obs
+01:23:07 INFO: USoc income wave h (2016): 38783 obs
+01:23:27 INFO: USoc income wave i (2017): 35174 obs
+01:23:41 INFO: USoc income wave j (2018): 33588 obs
+01:23:59 INFO: USoc income wave k (2019): 31311 obs
+01:24:12 INFO: USoc income wave l (2020): 28531 obs
+01:24:26 INFO: USoc income wave m (2021): 27207 obs
+01:24:51 INFO: USoc income wave n (2022): 34110 obs
+01:24:51 INFO: Combined income: 562116 person-year obs
+01:24:51 INFO: Clipping 216 negative incomes to zero
+01:24:51 INFO: National medians per wave:
+01:24:51 INFO:   2009: £2216.34/month
+01:24:51 INFO:   2010: £2427.43/month
+01:24:51 INFO:   2011: £2545.11/month
+01:24:51 INFO:   2012: £2627.67/month
+01:24:51 INFO:   2013: £2725.17/month
+01:24:51 INFO:   2014: £2867.61/month
+01:24:51 INFO:   2015: £2896.31/month
+01:24:51 INFO:   2016: £2941.96/month
+01:24:51 INFO:   2017: £3034.02/month
+01:24:51 INFO:   2018: £3096.64/month
+01:24:51 INFO:   2019: £3205.95/month
+01:24:51 INFO:   2020: £3309.23/month
+01:24:51 INFO:   2021: £3352.01/month
+01:24:51 INFO:   2022: £3532.90/month
+01:24:59 INFO: Final: 562116 person-year records, 97422 unique persons
+01:24:59 INFO:   L: 22.4%
+01:24:59 INFO:   M: 27.6%
+01:24:59 INFO:   H: 50.0%
+01:24:59 INFO: Merged employment + income: 559970 person-year obs, 97269 unique persons
+01:25:10 INFO: Built 27280 trajectories (dropped: 66904 too short, 3085 broken gaps)
+01:25:10 INFO: Trajectory lengths: mean=12.9, min=10, max=14
+01:25:10 INFO: Total imputed person-years: 17073 (4.8%)
+01:25:10 INFO: State distribution:
+01:25:10 INFO:   EL: 7.1%
+01:25:10 INFO:   EM: 14.1%
+01:25:10 INFO:   EH: 36.9%
+01:25:10 INFO:   UL: 1.7%
+01:25:10 INFO:   UM: 1.0%
+01:25:10 INFO:   UH: 0.9%
+01:25:10 INFO:   IL: 13.1%
+01:25:10 INFO:   IM: 12.4%
+01:25:10 INFO:   IH: 12.8%
+01:25:10 INFO:     Trajectories: 27280
+01:25:10 INFO: Embedding 27280 trajectories...
+01:25:10 INFO:   Unigrams: (27280, 9)
+01:25:10 INFO:   Bigrams: (27280, 81)
+01:25:10 INFO:   Raw embedding: (27280, 90)
+01:25:10 INFO:   PCA reduction: (27280, 20) (explained variance: 0.485)
+01:25:10 INFO:   Final: 27280 points × 20 dims (method=pca)
+01:25:10 INFO:     Embedding: (27280, 20), var=0.0000
+01:25:19 INFO:     Threshold: 19.508 (75th pct)
+01:25:19 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+01:25:22 INFO:   Completed in 2.8s
+01:25:22 INFO:   H0: 1999 finite + 1 infinite, top lifetimes: [15.094, 15.037, 14.764, 14.717, 14.584]
+01:25:22 INFO:   H1: 2605 finite + 0 infinite, top lifetimes: [2.476, 2.445, 2.435, 2.403, 2.402]
+01:25:22 INFO: Regime discovery: 27280 trajectories, 20 dims
+01:26:29 INFO: GMM: K*=7, BIC=-1468415.2, silhouette=0.084
+01:26:29 INFO:   Regime 0: n=7336, dominant=EH, emp=92.4%, low_inc=0.0%, stability=0.78
+01:26:29 INFO:   Regime 1: n=3357, dominant=EH, emp=99.3%, low_inc=26.6%, stability=0.40
+01:26:29 INFO:   Regime 2: n=2090, dominant=IL, emp=58.8%, low_inc=61.0%, stability=0.29
+01:26:29 INFO:   Regime 3: n=5415, dominant=IL, emp=0.0%, low_inc=38.7%, stability=0.39
+01:26:29 INFO:   Regime 4: n=3717, dominant=EH, emp=58.9%, low_inc=19.9%, stability=0.30
+01:26:29 INFO:   Regime 5: n=1560, dominant=EH, emp=40.9%, low_inc=5.5%, stability=0.40
+01:26:29 INFO:   Regime 6: n=3805, dominant=EH, emp=41.8%, low_inc=23.5%, stability=0.24
+01:26:29 INFO:     GMM k_optimal: 7
+01:26:29 INFO:     ARI vs baseline: 0.9696
+01:26:29 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+01:26:29 INFO:   Config: min8_tf_thresh75
+01:26:29 DEBUG: Loading BHPS wave a from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w1\aindresp.tab
+01:26:30 INFO: BHPS wave a (1991): 10264 obs
+01:26:30 DEBUG: Loading BHPS wave b from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w2\bindresp.tab
+01:26:31 INFO: BHPS wave b (1992): 9845 obs
+01:26:31 DEBUG: Loading BHPS wave c from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w3\cindresp.tab
+01:26:32 INFO: BHPS wave c (1993): 9600 obs
+01:26:32 DEBUG: Loading BHPS wave d from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w4\dindresp.tab
+01:26:33 INFO: BHPS wave d (1994): 9481 obs
+01:26:33 DEBUG: Loading BHPS wave e from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w5\eindresp.tab
+01:26:34 INFO: BHPS wave e (1995): 9249 obs
+01:26:34 DEBUG: Loading BHPS wave f from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w6\findresp.tab
+01:26:34 INFO: BHPS wave f (1996): 9438 obs
+01:26:34 DEBUG: Loading BHPS wave g from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w7\gindresp.tab
+01:26:36 INFO: BHPS wave g (1997): 11193 obs
+01:26:36 DEBUG: Loading BHPS wave h from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w8\hindresp.tab
+01:26:37 INFO: BHPS wave h (1998): 10906 obs
+01:26:37 DEBUG: Loading BHPS wave i from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w9\iindresp.tab
+01:26:39 INFO: BHPS wave i (1999): 15623 obs
+01:26:39 DEBUG: Loading BHPS wave j from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w10\jindresp.tab
+01:26:41 INFO: BHPS wave j (2000): 15603 obs
+01:26:41 DEBUG: Loading BHPS wave k from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w11\kindresp.tab
+01:26:44 INFO: BHPS wave k (2001): 18867 obs
+01:26:44 DEBUG: Loading BHPS wave l from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w12\lindresp.tab
+01:26:47 INFO: BHPS wave l (2002): 16597 obs
+01:26:47 DEBUG: Loading BHPS wave m from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w13\mindresp.tab
+01:26:50 INFO: BHPS wave m (2003): 16238 obs
+01:26:50 DEBUG: Loading BHPS wave n from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w14\nindresp.tab
+01:26:52 INFO: BHPS wave n (2004): 15791 obs
+01:26:52 DEBUG: Loading BHPS wave o from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w15\oindresp.tab
+01:26:54 INFO: BHPS wave o (2005): 15617 obs
+01:26:54 DEBUG: Loading BHPS wave p from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w16\pindresp.tab
+01:26:57 INFO: BHPS wave p (2006): 15392 obs
+01:26:57 DEBUG: Loading BHPS wave q from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w17\qindresp.tab
+01:26:59 INFO: BHPS wave q (2007): 14873 obs
+01:26:59 DEBUG: Loading BHPS wave r from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w18\rindresp.tab
+01:27:02 INFO: BHPS wave r (2008): 14419 obs
+01:27:02 DEBUG: Loading USoc wave a from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\a_indresp.tab
+01:27:13 INFO: USoc wave a (2009): 50994 obs
+01:27:13 DEBUG: Loading USoc wave b from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\b_indresp.tab
+01:27:35 INFO: USoc wave b (2010): 54568 obs
+01:27:36 DEBUG: Loading USoc wave c from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\c_indresp.tab
+01:28:14 INFO: USoc wave c (2011): 49692 obs
+01:28:14 DEBUG: Loading USoc wave d from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\d_indresp.tab
+01:28:29 INFO: USoc wave d (2012): 47074 obs
+01:28:29 DEBUG: Loading USoc wave e from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\e_indresp.tab
+01:28:44 INFO: USoc wave e (2013): 44837 obs
+01:28:44 DEBUG: Loading USoc wave f from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\f_indresp.tab
+01:29:00 INFO: USoc wave f (2014): 45192 obs
+01:29:00 DEBUG: Loading USoc wave g from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\g_indresp.tab
+01:29:20 INFO: USoc wave g (2015): 42170 obs
+01:29:20 DEBUG: Loading USoc wave h from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\h_indresp.tab
+01:29:33 INFO: USoc wave h (2016): 39294 obs
+01:29:34 DEBUG: Loading USoc wave i from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\i_indresp.tab
+01:29:51 INFO: USoc wave i (2017): 36058 obs
+01:29:51 DEBUG: Loading USoc wave j from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\j_indresp.tab
+01:30:04 INFO: USoc wave j (2018): 34319 obs
+01:30:04 DEBUG: Loading USoc wave k from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\k_indresp.tab
+01:30:23 INFO: USoc wave k (2019): 32008 obs
+01:30:23 DEBUG: Loading USoc wave l from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\l_indresp.tab
+01:30:36 INFO: USoc wave l (2020): 29271 obs
+01:30:36 DEBUG: Loading USoc wave m from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\m_indresp.tab
+01:31:05 INFO: USoc wave m (2021): 27998 obs
+01:31:05 DEBUG: Loading USoc wave n from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\n_indresp.tab
+01:31:29 INFO: USoc wave n (2022): 35471 obs
+01:31:29 INFO: Combined: 807942 person-year observations
+01:31:30 INFO: Dropped 2770 observations with unmappable jbstat codes
+01:31:30 INFO: Final: 805172 person-year records, 118153 unique persons
+01:31:31 DEBUG: BHPS wave a: no income column found
+01:31:32 DEBUG: BHPS wave b: no income column found
+01:31:32 DEBUG: BHPS wave c: no income column found
+01:31:33 DEBUG: BHPS wave d: no income column found
+01:31:34 DEBUG: BHPS wave e: no income column found
+01:31:35 DEBUG: BHPS wave f: no income column found
+01:31:36 DEBUG: BHPS wave g: no income column found
+01:31:37 DEBUG: BHPS wave h: no income column found
+01:31:39 DEBUG: BHPS wave i: no income column found
+01:31:41 DEBUG: BHPS wave j: no income column found
+01:31:44 DEBUG: BHPS wave k: no income column found
+01:31:47 DEBUG: BHPS wave l: no income column found
+01:31:49 DEBUG: BHPS wave m: no income column found
+01:31:51 DEBUG: BHPS wave n: no income column found
+01:31:53 DEBUG: BHPS wave o: no income column found
+01:31:57 DEBUG: BHPS wave p: no income column found
+01:32:00 DEBUG: BHPS wave q: no income column found
+01:32:02 DEBUG: BHPS wave r: no income column found
+01:32:13 INFO: USoc income wave a (2009): 50994 obs
+01:32:27 INFO: USoc income wave b (2010): 54558 obs
+01:32:53 INFO: USoc income wave c (2011): 49692 obs
+01:33:03 INFO: USoc income wave d (2012): 47074 obs
+01:33:15 INFO: USoc income wave e (2013): 44837 obs
+01:33:23 INFO: USoc income wave f (2014): 44400 obs
+01:33:33 INFO: USoc income wave g (2015): 41857 obs
+01:33:40 INFO: USoc income wave h (2016): 38783 obs
+01:33:49 INFO: USoc income wave i (2017): 35174 obs
+01:34:03 INFO: USoc income wave j (2018): 33588 obs
+01:34:28 INFO: USoc income wave k (2019): 31311 obs
+01:34:40 INFO: USoc income wave l (2020): 28531 obs
+01:34:54 INFO: USoc income wave m (2021): 27207 obs
+01:35:21 INFO: USoc income wave n (2022): 34110 obs
+01:35:21 INFO: Combined income: 562116 person-year obs
+01:35:21 INFO: Clipping 216 negative incomes to zero
+01:35:21 INFO: National medians per wave:
+01:35:21 INFO:   2009: £2216.34/month
+01:35:21 INFO:   2010: £2427.43/month
+01:35:21 INFO:   2011: £2545.11/month
+01:35:21 INFO:   2012: £2627.67/month
+01:35:21 INFO:   2013: £2725.17/month
+01:35:21 INFO:   2014: £2867.61/month
+01:35:21 INFO:   2015: £2896.31/month
+01:35:21 INFO:   2016: £2941.96/month
+01:35:21 INFO:   2017: £3034.02/month
+01:35:21 INFO:   2018: £3096.64/month
+01:35:21 INFO:   2019: £3205.95/month
+01:35:21 INFO:   2020: £3309.23/month
+01:35:21 INFO:   2021: £3352.01/month
+01:35:21 INFO:   2022: £3532.90/month
+01:35:29 INFO: Final: 562116 person-year records, 97422 unique persons
+01:35:29 INFO:   L: 22.4%
+01:35:29 INFO:   M: 27.6%
+01:35:29 INFO:   H: 50.0%
+01:35:29 INFO: Merged employment + income: 559970 person-year obs, 97269 unique persons
+01:35:37 INFO: Built 33802 trajectories (dropped: 60382 too short, 3085 broken gaps)
+01:35:37 INFO: Trajectory lengths: mean=12.1, min=8, max=14
+01:35:37 INFO: Total imputed person-years: 21285 (5.2%)
+01:35:38 INFO: State distribution:
+01:35:38 INFO:   EL: 6.9%
+01:35:38 INFO:   EM: 14.0%
+01:35:38 INFO:   EH: 36.2%
+01:35:38 INFO:   UL: 1.8%
+01:35:38 INFO:   UM: 1.1%
+01:35:38 INFO:   UH: 1.0%
+01:35:38 INFO:   IL: 13.4%
+01:35:38 INFO:   IM: 12.5%
+01:35:38 INFO:   IH: 13.0%
+01:35:38 INFO:     Trajectories: 33802
+01:35:38 INFO: Embedding 33802 trajectories...
+01:35:38 INFO:   Unigrams: (33802, 9)
+01:35:38 INFO:   Bigrams: (33802, 81)
+01:35:38 INFO:   Raw embedding: (33802, 90)
+01:35:38 INFO:   PCA reduction: (33802, 20) (explained variance: 0.479)
+01:35:38 INFO:   Final: 33802 points × 20 dims (method=pca)
+01:35:38 INFO:     Embedding: (33802, 20), var=0.0000
+01:35:48 INFO:     Threshold: 19.345 (75th pct)
+01:35:48 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+01:35:51 INFO:   Completed in 3.2s
+01:35:51 INFO:   H0: 1999 finite + 1 infinite, top lifetimes: [14.267, 13.625, 13.098, 13.038, 12.983]
+01:35:51 INFO:   H1: 2840 finite + 0 infinite, top lifetimes: [2.726, 2.47, 2.443, 2.241, 2.092]
+01:35:51 INFO: Regime discovery: 33802 trajectories, 20 dims
+01:37:32 INFO: GMM: K*=8, BIC=-2118518.2, silhouette=0.079
+01:37:32 INFO:   Regime 0: n=3065, dominant=EH, emp=62.5%, low_inc=0.0%, stability=0.57
+01:37:32 INFO:   Regime 1: n=4566, dominant=EH, emp=39.3%, low_inc=26.3%, stability=0.20
+01:37:32 INFO:   Regime 2: n=10424, dominant=EH, emp=100.0%, low_inc=10.2%, stability=0.66
+01:37:32 INFO:   Regime 3: n=2527, dominant=EH, emp=49.6%, low_inc=10.0%, stability=0.37
+01:37:32 INFO:   Regime 4: n=6927, dominant=IL, emp=0.0%, low_inc=39.7%, stability=0.40
+01:37:32 INFO:   Regime 5: n=1459, dominant=EH, emp=65.1%, low_inc=8.2%, stability=0.49
+01:37:32 INFO:   Regime 6: n=3013, dominant=EM, emp=59.6%, low_inc=31.2%, stability=0.24
+01:37:32 INFO:   Regime 7: n=1821, dominant=IL, emp=57.8%, low_inc=66.0%, stability=0.27
+01:37:32 INFO:     GMM k_optimal: 8
+01:37:32 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+01:37:32 INFO:   Config: min12_tf_thresh75
+01:37:32 DEBUG: Loading BHPS wave a from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w1\aindresp.tab
+01:37:33 INFO: BHPS wave a (1991): 10264 obs
+01:37:33 DEBUG: Loading BHPS wave b from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w2\bindresp.tab
+01:37:33 INFO: BHPS wave b (1992): 9845 obs
+01:37:34 DEBUG: Loading BHPS wave c from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w3\cindresp.tab
+01:37:34 INFO: BHPS wave c (1993): 9600 obs
+01:37:34 DEBUG: Loading BHPS wave d from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w4\dindresp.tab
+01:37:35 INFO: BHPS wave d (1994): 9481 obs
+01:37:35 DEBUG: Loading BHPS wave e from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w5\eindresp.tab
+01:37:36 INFO: BHPS wave e (1995): 9249 obs
+01:37:36 DEBUG: Loading BHPS wave f from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w6\findresp.tab
+01:37:37 INFO: BHPS wave f (1996): 9438 obs
+01:37:37 DEBUG: Loading BHPS wave g from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w7\gindresp.tab
+01:37:38 INFO: BHPS wave g (1997): 11193 obs
+01:37:38 DEBUG: Loading BHPS wave h from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w8\hindresp.tab
+01:37:39 INFO: BHPS wave h (1998): 10906 obs
+01:37:39 DEBUG: Loading BHPS wave i from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w9\iindresp.tab
+01:37:41 INFO: BHPS wave i (1999): 15623 obs
+01:37:41 DEBUG: Loading BHPS wave j from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w10\jindresp.tab
+01:37:43 INFO: BHPS wave j (2000): 15603 obs
+01:37:43 DEBUG: Loading BHPS wave k from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w11\kindresp.tab
+01:37:46 INFO: BHPS wave k (2001): 18867 obs
+01:37:46 DEBUG: Loading BHPS wave l from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w12\lindresp.tab
+01:37:49 INFO: BHPS wave l (2002): 16597 obs
+01:37:49 DEBUG: Loading BHPS wave m from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w13\mindresp.tab
+01:37:51 INFO: BHPS wave m (2003): 16238 obs
+01:37:51 DEBUG: Loading BHPS wave n from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w14\nindresp.tab
+01:37:53 INFO: BHPS wave n (2004): 15791 obs
+01:37:53 DEBUG: Loading BHPS wave o from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w15\oindresp.tab
+01:37:55 INFO: BHPS wave o (2005): 15617 obs
+01:37:55 DEBUG: Loading BHPS wave p from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w16\pindresp.tab
+01:37:57 INFO: BHPS wave p (2006): 15392 obs
+01:37:57 DEBUG: Loading BHPS wave q from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w17\qindresp.tab
+01:37:59 INFO: BHPS wave q (2007): 14873 obs
+01:37:59 DEBUG: Loading BHPS wave r from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w18\rindresp.tab
+01:38:01 INFO: BHPS wave r (2008): 14419 obs
+01:38:01 DEBUG: Loading USoc wave a from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\a_indresp.tab
+01:38:12 INFO: USoc wave a (2009): 50994 obs
+01:38:12 DEBUG: Loading USoc wave b from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\b_indresp.tab
+01:38:26 INFO: USoc wave b (2010): 54568 obs
+01:38:26 DEBUG: Loading USoc wave c from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\c_indresp.tab
+01:38:51 INFO: USoc wave c (2011): 49692 obs
+01:38:51 DEBUG: Loading USoc wave d from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\d_indresp.tab
+01:39:22 INFO: USoc wave d (2012): 47074 obs
+01:39:22 DEBUG: Loading USoc wave e from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\e_indresp.tab
+01:39:41 INFO: USoc wave e (2013): 44837 obs
+01:39:41 DEBUG: Loading USoc wave f from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\f_indresp.tab
+01:39:56 INFO: USoc wave f (2014): 45192 obs
+01:39:56 DEBUG: Loading USoc wave g from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\g_indresp.tab
+01:40:16 INFO: USoc wave g (2015): 42170 obs
+01:40:16 DEBUG: Loading USoc wave h from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\h_indresp.tab
+01:40:29 INFO: USoc wave h (2016): 39294 obs
+01:40:29 DEBUG: Loading USoc wave i from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\i_indresp.tab
+01:40:47 INFO: USoc wave i (2017): 36058 obs
+01:40:47 DEBUG: Loading USoc wave j from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\j_indresp.tab
+01:41:00 INFO: USoc wave j (2018): 34319 obs
+01:41:00 DEBUG: Loading USoc wave k from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\k_indresp.tab
+01:41:17 INFO: USoc wave k (2019): 32008 obs
+01:41:17 DEBUG: Loading USoc wave l from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\l_indresp.tab
+01:41:29 INFO: USoc wave l (2020): 29271 obs
+01:41:29 DEBUG: Loading USoc wave m from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\m_indresp.tab
+01:41:46 INFO: USoc wave m (2021): 27998 obs
+01:41:46 DEBUG: Loading USoc wave n from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\n_indresp.tab
+01:42:18 INFO: USoc wave n (2022): 35471 obs
+01:42:18 INFO: Combined: 807942 person-year observations
+01:42:19 INFO: Dropped 2770 observations with unmappable jbstat codes
+01:42:19 INFO: Final: 805172 person-year records, 118153 unique persons
+01:42:20 DEBUG: BHPS wave a: no income column found
+01:42:21 DEBUG: BHPS wave b: no income column found
+01:42:21 DEBUG: BHPS wave c: no income column found
+01:42:22 DEBUG: BHPS wave d: no income column found
+01:42:23 DEBUG: BHPS wave e: no income column found
+01:42:24 DEBUG: BHPS wave f: no income column found
+01:42:24 DEBUG: BHPS wave g: no income column found
+01:42:26 DEBUG: BHPS wave h: no income column found
+01:42:27 DEBUG: BHPS wave i: no income column found
+01:42:29 DEBUG: BHPS wave j: no income column found
+01:42:31 DEBUG: BHPS wave k: no income column found
+01:42:33 DEBUG: BHPS wave l: no income column found
+01:42:35 DEBUG: BHPS wave m: no income column found
+01:42:37 DEBUG: BHPS wave n: no income column found
+01:42:39 DEBUG: BHPS wave o: no income column found
+01:42:41 DEBUG: BHPS wave p: no income column found
+01:42:43 DEBUG: BHPS wave q: no income column found
+01:42:44 DEBUG: BHPS wave r: no income column found
+01:42:54 INFO: USoc income wave a (2009): 50994 obs
+01:43:07 INFO: USoc income wave b (2010): 54558 obs
+01:43:31 INFO: USoc income wave c (2011): 49692 obs
+01:43:46 INFO: USoc income wave d (2012): 47074 obs
+01:44:03 INFO: USoc income wave e (2013): 44837 obs
+01:44:19 INFO: USoc income wave f (2014): 44400 obs
+01:44:37 INFO: USoc income wave g (2015): 41857 obs
+01:44:49 INFO: USoc income wave h (2016): 38783 obs
+01:45:06 INFO: USoc income wave i (2017): 35174 obs
+01:45:18 INFO: USoc income wave j (2018): 33588 obs
+01:45:34 INFO: USoc income wave k (2019): 31311 obs
+01:45:44 INFO: USoc income wave l (2020): 28531 obs
+01:45:56 INFO: USoc income wave m (2021): 27207 obs
+01:46:17 INFO: USoc income wave n (2022): 34110 obs
+01:46:17 INFO: Combined income: 562116 person-year obs
+01:46:17 INFO: Clipping 216 negative incomes to zero
+01:46:17 INFO: National medians per wave:
+01:46:17 INFO:   2009: £2216.34/month
+01:46:17 INFO:   2010: £2427.43/month
+01:46:17 INFO:   2011: £2545.11/month
+01:46:17 INFO:   2012: £2627.67/month
+01:46:17 INFO:   2013: £2725.17/month
+01:46:17 INFO:   2014: £2867.61/month
+01:46:17 INFO:   2015: £2896.31/month
+01:46:17 INFO:   2016: £2941.96/month
+01:46:17 INFO:   2017: £3034.02/month
+01:46:17 INFO:   2018: £3096.64/month
+01:46:17 INFO:   2019: £3205.95/month
+01:46:17 INFO:   2020: £3309.23/month
+01:46:17 INFO:   2021: £3352.01/month
+01:46:17 INFO:   2022: £3532.90/month
+01:46:24 INFO: Final: 562116 person-year records, 97422 unique persons
+01:46:25 INFO:   L: 22.4%
+01:46:25 INFO:   M: 27.6%
+01:46:25 INFO:   H: 50.0%
+01:46:25 INFO: Merged employment + income: 559970 person-year obs, 97269 unique persons
+01:46:32 INFO: Built 22324 trajectories (dropped: 71860 too short, 3085 broken gaps)
+01:46:32 INFO: Trajectory lengths: mean=13.5, min=12, max=14
+01:46:32 INFO: Total imputed person-years: 13597 (4.5%)
+01:46:32 INFO: State distribution:
+01:46:32 INFO:   EL: 7.3%
+01:46:32 INFO:   EM: 14.4%
+01:46:32 INFO:   EH: 37.9%
+01:46:32 INFO:   UL: 1.6%
+01:46:32 INFO:   UM: 0.9%
+01:46:32 INFO:   UH: 0.8%
+01:46:32 INFO:   IL: 12.4%
+01:46:32 INFO:   IM: 12.0%
+01:46:32 INFO:   IH: 12.6%
+01:46:32 INFO:     Trajectories: 22324
+01:46:32 INFO: Embedding 22324 trajectories...
+01:46:33 INFO:   Unigrams: (22324, 9)
+01:46:33 INFO:   Bigrams: (22324, 81)
+01:46:33 INFO:   Raw embedding: (22324, 90)
+01:46:33 INFO:   PCA reduction: (22324, 20) (explained variance: 0.488)
+01:46:33 INFO:   Final: 22324 points × 20 dims (method=pca)
+01:46:33 INFO:     Embedding: (22324, 20), var=0.0000
+01:46:39 INFO:     Threshold: 19.089 (75th pct)
+01:46:39 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+01:46:42 INFO:   Completed in 2.7s
+01:46:42 INFO:   H0: 1999 finite + 1 infinite, top lifetimes: [17.514, 15.677, 15.219, 15.054, 14.876]
+01:46:42 INFO:   H1: 2508 finite + 0 infinite, top lifetimes: [3.856, 3.251, 2.37, 2.301, 2.29]
+01:46:42 INFO: Regime discovery: 22324 trajectories, 20 dims
+01:47:41 INFO: GMM: K*=8, BIC=-1196064.5, silhouette=0.089
+01:47:41 INFO:   Regime 0: n=1520, dominant=EH, emp=49.6%, low_inc=32.0%, stability=0.24
+01:47:41 INFO:   Regime 1: n=6166, dominant=EH, emp=92.4%, low_inc=0.0%, stability=0.78
+01:47:41 INFO:   Regime 2: n=2495, dominant=EH, emp=60.2%, low_inc=21.9%, stability=0.32
+01:47:41 INFO:   Regime 3: n=1633, dominant=IL, emp=56.4%, low_inc=63.9%, stability=0.32
+01:47:41 INFO:   Regime 4: n=4076, dominant=IL, emp=0.0%, low_inc=37.0%, stability=0.37
+01:47:41 INFO:   Regime 5: n=1987, dominant=EH, emp=47.4%, low_inc=6.3%, stability=0.39
+01:47:41 INFO:   Regime 6: n=1515, dominant=EH, emp=38.1%, low_inc=17.9%, stability=0.23
+01:47:41 INFO:   Regime 7: n=2932, dominant=EH, emp=98.9%, low_inc=26.3%, stability=0.40
+01:47:41 INFO:     GMM k_optimal: 8
+01:47:41 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+01:47:41 INFO:   Config: min10_tfidf_thresh75
+01:47:41 DEBUG: Loading BHPS wave a from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w1\aindresp.tab
+01:47:42 INFO: BHPS wave a (1991): 10264 obs
+01:47:42 DEBUG: Loading BHPS wave b from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w2\bindresp.tab
+01:47:43 INFO: BHPS wave b (1992): 9845 obs
+01:47:43 DEBUG: Loading BHPS wave c from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w3\cindresp.tab
+01:47:44 INFO: BHPS wave c (1993): 9600 obs
+01:47:44 DEBUG: Loading BHPS wave d from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w4\dindresp.tab
+01:47:44 INFO: BHPS wave d (1994): 9481 obs
+01:47:44 DEBUG: Loading BHPS wave e from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w5\eindresp.tab
+01:47:45 INFO: BHPS wave e (1995): 9249 obs
+01:47:45 DEBUG: Loading BHPS wave f from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w6\findresp.tab
+01:47:46 INFO: BHPS wave f (1996): 9438 obs
+01:47:46 DEBUG: Loading BHPS wave g from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w7\gindresp.tab
+01:47:47 INFO: BHPS wave g (1997): 11193 obs
+01:47:47 DEBUG: Loading BHPS wave h from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w8\hindresp.tab
+01:47:49 INFO: BHPS wave h (1998): 10906 obs
+01:47:49 DEBUG: Loading BHPS wave i from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w9\iindresp.tab
+01:47:51 INFO: BHPS wave i (1999): 15623 obs
+01:47:51 DEBUG: Loading BHPS wave j from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w10\jindresp.tab
+01:47:52 INFO: BHPS wave j (2000): 15603 obs
+01:47:52 DEBUG: Loading BHPS wave k from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w11\kindresp.tab
+01:47:55 INFO: BHPS wave k (2001): 18867 obs
+01:47:55 DEBUG: Loading BHPS wave l from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w12\lindresp.tab
+01:47:58 INFO: BHPS wave l (2002): 16597 obs
+01:47:58 DEBUG: Loading BHPS wave m from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w13\mindresp.tab
+01:48:00 INFO: BHPS wave m (2003): 16238 obs
+01:48:00 DEBUG: Loading BHPS wave n from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w14\nindresp.tab
+01:48:02 INFO: BHPS wave n (2004): 15791 obs
+01:48:02 DEBUG: Loading BHPS wave o from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w15\oindresp.tab
+01:48:04 INFO: BHPS wave o (2005): 15617 obs
+01:48:04 DEBUG: Loading BHPS wave p from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w16\pindresp.tab
+01:48:06 INFO: BHPS wave p (2006): 15392 obs
+01:48:06 DEBUG: Loading BHPS wave q from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w17\qindresp.tab
+01:48:08 INFO: BHPS wave q (2007): 14873 obs
+01:48:08 DEBUG: Loading BHPS wave r from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w18\rindresp.tab
+01:48:10 INFO: BHPS wave r (2008): 14419 obs
+01:48:10 DEBUG: Loading USoc wave a from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\a_indresp.tab
+01:48:21 INFO: USoc wave a (2009): 50994 obs
+01:48:21 DEBUG: Loading USoc wave b from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\b_indresp.tab
+01:48:34 INFO: USoc wave b (2010): 54568 obs
+01:48:34 DEBUG: Loading USoc wave c from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\c_indresp.tab
+01:49:00 INFO: USoc wave c (2011): 49692 obs
+01:49:00 DEBUG: Loading USoc wave d from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\d_indresp.tab
+01:49:15 INFO: USoc wave d (2012): 47074 obs
+01:49:15 DEBUG: Loading USoc wave e from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\e_indresp.tab
+01:49:35 INFO: USoc wave e (2013): 44837 obs
+01:49:35 DEBUG: Loading USoc wave f from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\f_indresp.tab
+01:49:51 INFO: USoc wave f (2014): 45192 obs
+01:49:51 DEBUG: Loading USoc wave g from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\g_indresp.tab
+01:50:11 INFO: USoc wave g (2015): 42170 obs
+01:50:11 DEBUG: Loading USoc wave h from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\h_indresp.tab
+01:50:23 INFO: USoc wave h (2016): 39294 obs
+01:50:23 DEBUG: Loading USoc wave i from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\i_indresp.tab
+01:50:39 INFO: USoc wave i (2017): 36058 obs
+01:50:39 DEBUG: Loading USoc wave j from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\j_indresp.tab
+01:50:51 INFO: USoc wave j (2018): 34319 obs
+01:50:51 DEBUG: Loading USoc wave k from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\k_indresp.tab
+01:51:07 INFO: USoc wave k (2019): 32008 obs
+01:51:07 DEBUG: Loading USoc wave l from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\l_indresp.tab
+01:51:17 INFO: USoc wave l (2020): 29271 obs
+01:51:17 DEBUG: Loading USoc wave m from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\m_indresp.tab
+01:51:28 INFO: USoc wave m (2021): 27998 obs
+01:51:28 DEBUG: Loading USoc wave n from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\n_indresp.tab
+01:51:50 INFO: USoc wave n (2022): 35471 obs
+01:51:50 INFO: Combined: 807942 person-year observations
+01:51:50 INFO: Dropped 2770 observations with unmappable jbstat codes
+01:51:50 INFO: Final: 805172 person-year records, 118153 unique persons
+01:51:51 DEBUG: BHPS wave a: no income column found
+01:51:52 DEBUG: BHPS wave b: no income column found
+01:51:52 DEBUG: BHPS wave c: no income column found
+01:51:53 DEBUG: BHPS wave d: no income column found
+01:51:54 DEBUG: BHPS wave e: no income column found
+01:51:55 DEBUG: BHPS wave f: no income column found
+01:51:56 DEBUG: BHPS wave g: no income column found
+01:51:57 DEBUG: BHPS wave h: no income column found
+01:51:58 DEBUG: BHPS wave i: no income column found
+01:52:00 DEBUG: BHPS wave j: no income column found
+01:52:03 DEBUG: BHPS wave k: no income column found
+01:52:05 DEBUG: BHPS wave l: no income column found
+01:52:07 DEBUG: BHPS wave m: no income column found
+01:52:09 DEBUG: BHPS wave n: no income column found
+01:52:11 DEBUG: BHPS wave o: no income column found
+01:52:13 DEBUG: BHPS wave p: no income column found
+01:52:14 DEBUG: BHPS wave q: no income column found
+01:52:16 DEBUG: BHPS wave r: no income column found
+01:52:26 INFO: USoc income wave a (2009): 50994 obs
+01:52:39 INFO: USoc income wave b (2010): 54558 obs
+01:53:03 INFO: USoc income wave c (2011): 49692 obs
+01:53:18 INFO: USoc income wave d (2012): 47074 obs
+01:53:36 INFO: USoc income wave e (2013): 44837 obs
+01:53:50 INFO: USoc income wave f (2014): 44400 obs
+01:54:09 INFO: USoc income wave g (2015): 41857 obs
+01:54:22 INFO: USoc income wave h (2016): 38783 obs
+01:54:39 INFO: USoc income wave i (2017): 35174 obs
+01:54:51 INFO: USoc income wave j (2018): 33588 obs
+01:55:07 INFO: USoc income wave k (2019): 31311 obs
+01:55:19 INFO: USoc income wave l (2020): 28531 obs
+01:55:31 INFO: USoc income wave m (2021): 27207 obs
+01:55:53 INFO: USoc income wave n (2022): 34110 obs
+01:55:53 INFO: Combined income: 562116 person-year obs
+01:55:53 INFO: Clipping 216 negative incomes to zero
+01:55:53 INFO: National medians per wave:
+01:55:53 INFO:   2009: £2216.34/month
+01:55:53 INFO:   2010: £2427.43/month
+01:55:53 INFO:   2011: £2545.11/month
+01:55:53 INFO:   2012: £2627.67/month
+01:55:53 INFO:   2013: £2725.17/month
+01:55:53 INFO:   2014: £2867.61/month
+01:55:53 INFO:   2015: £2896.31/month
+01:55:53 INFO:   2016: £2941.96/month
+01:55:53 INFO:   2017: £3034.02/month
+01:55:53 INFO:   2018: £3096.64/month
+01:55:53 INFO:   2019: £3205.95/month
+01:55:53 INFO:   2020: £3309.23/month
+01:55:53 INFO:   2021: £3352.01/month
+01:55:53 INFO:   2022: £3532.90/month
+01:56:00 INFO: Final: 562116 person-year records, 97422 unique persons
+01:56:00 INFO:   L: 22.4%
+01:56:00 INFO:   M: 27.6%
+01:56:00 INFO:   H: 50.0%
+01:56:00 INFO: Merged employment + income: 559970 person-year obs, 97269 unique persons
+01:56:08 INFO: Built 27280 trajectories (dropped: 66904 too short, 3085 broken gaps)
+01:56:08 INFO: Trajectory lengths: mean=12.9, min=10, max=14
+01:56:08 INFO: Total imputed person-years: 17073 (4.8%)
+01:56:08 INFO: State distribution:
+01:56:08 INFO:   EL: 7.1%
+01:56:08 INFO:   EM: 14.1%
+01:56:08 INFO:   EH: 36.9%
+01:56:08 INFO:   UL: 1.7%
+01:56:08 INFO:   UM: 1.0%
+01:56:08 INFO:   UH: 0.9%
+01:56:08 INFO:   IL: 13.1%
+01:56:08 INFO:   IM: 12.4%
+01:56:08 INFO:   IH: 12.8%
+01:56:08 INFO:     Trajectories: 27280
+01:56:08 INFO: Embedding 27280 trajectories...
+01:56:08 INFO:   Unigrams: (27280, 9)
+01:56:08 INFO:   Bigrams: (27280, 81)
+01:56:08 INFO:   Raw embedding: (27280, 90)
+01:56:08 INFO:   Applied TF-IDF weighting
+01:56:08 INFO:   PCA reduction: (27280, 20) (explained variance: 0.896)
+01:56:08 INFO:   Final: 27280 points × 20 dims (method=pca)
+01:56:08 INFO:     Embedding: (27280, 20), var=0.0000
+01:56:16 INFO:     Threshold: 1.614 (75th pct)
+01:56:16 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+01:56:20 INFO:   Completed in 4.2s
+01:56:20 INFO:   H0: 1999 finite + 1 infinite, top lifetimes: [1.254, 0.889, 0.848, 0.756, 0.745]
+01:56:20 INFO:   H1: 3054 finite + 0 infinite, top lifetimes: [0.177, 0.176, 0.175, 0.174, 0.173]
+01:56:20 INFO: Regime discovery: 27280 trajectories, 20 dims
+01:57:29 INFO: GMM: K*=8, BIC=-3193378.2, silhouette=0.090
+01:57:29 INFO:   Regime 0: n=2865, dominant=EH, emp=96.5%, low_inc=29.3%, stability=0.37
+01:57:29 INFO:   Regime 1: n=2730, dominant=EH, emp=49.4%, low_inc=16.9%, stability=0.31
+01:57:29 INFO:   Regime 2: n=3194, dominant=IL, emp=0.0%, low_inc=59.8%, stability=0.60
+01:57:29 INFO:   Regime 3: n=3686, dominant=IH, emp=34.2%, low_inc=0.0%, stability=0.50
+01:57:29 INFO:   Regime 4: n=2107, dominant=IL, emp=61.3%, low_inc=60.9%, stability=0.28
+01:57:29 INFO:   Regime 5: n=3727, dominant=EH, emp=36.1%, low_inc=15.0%, stability=0.25
+01:57:29 INFO:   Regime 6: n=7075, dominant=EH, emp=99.6%, low_inc=1.8%, stability=0.77
+01:57:29 INFO:   Regime 7: n=1896, dominant=IL, emp=37.3%, low_inc=43.0%, stability=0.21
+01:57:29 INFO:     GMM k_optimal: 8
+01:57:29 INFO:     ARI vs baseline: 0.4658
+01:57:29 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+01:57:29 INFO:   Config: min10_tf_thresh50
+01:57:29 DEBUG: Loading BHPS wave a from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w1\aindresp.tab
+01:57:29 INFO: BHPS wave a (1991): 10264 obs
+01:57:29 DEBUG: Loading BHPS wave b from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w2\bindresp.tab
+01:57:30 INFO: BHPS wave b (1992): 9845 obs
+01:57:30 DEBUG: Loading BHPS wave c from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w3\cindresp.tab
+01:57:31 INFO: BHPS wave c (1993): 9600 obs
+01:57:31 DEBUG: Loading BHPS wave d from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w4\dindresp.tab
+01:57:32 INFO: BHPS wave d (1994): 9481 obs
+01:57:32 DEBUG: Loading BHPS wave e from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w5\eindresp.tab
+01:57:32 INFO: BHPS wave e (1995): 9249 obs
+01:57:32 DEBUG: Loading BHPS wave f from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w6\findresp.tab
+01:57:33 INFO: BHPS wave f (1996): 9438 obs
+01:57:33 DEBUG: Loading BHPS wave g from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w7\gindresp.tab
+01:57:34 INFO: BHPS wave g (1997): 11193 obs
+01:57:34 DEBUG: Loading BHPS wave h from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w8\hindresp.tab
+01:57:35 INFO: BHPS wave h (1998): 10906 obs
+01:57:35 DEBUG: Loading BHPS wave i from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w9\iindresp.tab
+01:57:37 INFO: BHPS wave i (1999): 15623 obs
+01:57:37 DEBUG: Loading BHPS wave j from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w10\jindresp.tab
+01:57:38 INFO: BHPS wave j (2000): 15603 obs
+01:57:38 DEBUG: Loading BHPS wave k from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w11\kindresp.tab
+01:57:41 INFO: BHPS wave k (2001): 18867 obs
+01:57:41 DEBUG: Loading BHPS wave l from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w12\lindresp.tab
+01:57:43 INFO: BHPS wave l (2002): 16597 obs
+01:57:43 DEBUG: Loading BHPS wave m from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w13\mindresp.tab
+01:57:45 INFO: BHPS wave m (2003): 16238 obs
+01:57:45 DEBUG: Loading BHPS wave n from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w14\nindresp.tab
+01:57:47 INFO: BHPS wave n (2004): 15791 obs
+01:57:47 DEBUG: Loading BHPS wave o from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w15\oindresp.tab
+01:57:49 INFO: BHPS wave o (2005): 15617 obs
+01:57:49 DEBUG: Loading BHPS wave p from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w16\pindresp.tab
+01:57:51 INFO: BHPS wave p (2006): 15392 obs
+01:57:51 DEBUG: Loading BHPS wave q from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w17\qindresp.tab
+01:57:52 INFO: BHPS wave q (2007): 14873 obs
+01:57:52 DEBUG: Loading BHPS wave r from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w18\rindresp.tab
+01:57:54 INFO: BHPS wave r (2008): 14419 obs
+01:57:54 DEBUG: Loading USoc wave a from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\a_indresp.tab
+01:58:04 INFO: USoc wave a (2009): 50994 obs
+01:58:04 DEBUG: Loading USoc wave b from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\b_indresp.tab
+01:58:16 INFO: USoc wave b (2010): 54568 obs
+01:58:16 DEBUG: Loading USoc wave c from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\c_indresp.tab
+01:58:39 INFO: USoc wave c (2011): 49692 obs
+01:58:39 DEBUG: Loading USoc wave d from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\d_indresp.tab
+01:58:53 INFO: USoc wave d (2012): 47074 obs
+01:58:53 DEBUG: Loading USoc wave e from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\e_indresp.tab
+01:59:10 INFO: USoc wave e (2013): 44837 obs
+01:59:10 DEBUG: Loading USoc wave f from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\f_indresp.tab
+01:59:24 INFO: USoc wave f (2014): 45192 obs
+01:59:24 DEBUG: Loading USoc wave g from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\g_indresp.tab
+01:59:42 INFO: USoc wave g (2015): 42170 obs
+01:59:42 DEBUG: Loading USoc wave h from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\h_indresp.tab
+01:59:53 INFO: USoc wave h (2016): 39294 obs
+01:59:53 DEBUG: Loading USoc wave i from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\i_indresp.tab
+02:00:10 INFO: USoc wave i (2017): 36058 obs
+02:00:10 DEBUG: Loading USoc wave j from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\j_indresp.tab
+02:00:21 INFO: USoc wave j (2018): 34319 obs
+02:00:21 DEBUG: Loading USoc wave k from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\k_indresp.tab
+02:00:36 INFO: USoc wave k (2019): 32008 obs
+02:00:36 DEBUG: Loading USoc wave l from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\l_indresp.tab
+02:00:46 INFO: USoc wave l (2020): 29271 obs
+02:00:46 DEBUG: Loading USoc wave m from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\m_indresp.tab
+02:00:57 INFO: USoc wave m (2021): 27998 obs
+02:00:57 DEBUG: Loading USoc wave n from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\n_indresp.tab
+02:01:18 INFO: USoc wave n (2022): 35471 obs
+02:01:18 INFO: Combined: 807942 person-year observations
+02:01:18 INFO: Dropped 2770 observations with unmappable jbstat codes
+02:01:19 INFO: Final: 805172 person-year records, 118153 unique persons
+02:01:19 DEBUG: BHPS wave a: no income column found
+02:01:20 DEBUG: BHPS wave b: no income column found
+02:01:21 DEBUG: BHPS wave c: no income column found
+02:01:22 DEBUG: BHPS wave d: no income column found
+02:01:22 DEBUG: BHPS wave e: no income column found
+02:01:23 DEBUG: BHPS wave f: no income column found
+02:01:24 DEBUG: BHPS wave g: no income column found
+02:01:25 DEBUG: BHPS wave h: no income column found
+02:01:27 DEBUG: BHPS wave i: no income column found
+02:01:28 DEBUG: BHPS wave j: no income column found
+02:01:31 DEBUG: BHPS wave k: no income column found
+02:01:33 DEBUG: BHPS wave l: no income column found
+02:01:35 DEBUG: BHPS wave m: no income column found
+02:01:37 DEBUG: BHPS wave n: no income column found
+02:01:38 DEBUG: BHPS wave o: no income column found
+02:01:41 DEBUG: BHPS wave p: no income column found
+02:01:43 DEBUG: BHPS wave q: no income column found
+02:01:44 DEBUG: BHPS wave r: no income column found
+02:01:55 INFO: USoc income wave a (2009): 50994 obs
+02:02:08 INFO: USoc income wave b (2010): 54558 obs
+02:02:31 INFO: USoc income wave c (2011): 49692 obs
+02:02:47 INFO: USoc income wave d (2012): 47074 obs
+02:03:04 INFO: USoc income wave e (2013): 44837 obs
+02:03:19 INFO: USoc income wave f (2014): 44400 obs
+02:03:37 INFO: USoc income wave g (2015): 41857 obs
+02:03:50 INFO: USoc income wave h (2016): 38783 obs
+02:04:07 INFO: USoc income wave i (2017): 35174 obs
+02:04:19 INFO: USoc income wave j (2018): 33588 obs
+02:04:35 INFO: USoc income wave k (2019): 31311 obs
+02:04:45 INFO: USoc income wave l (2020): 28531 obs
+02:04:59 INFO: USoc income wave m (2021): 27207 obs
+02:05:21 INFO: USoc income wave n (2022): 34110 obs
+02:05:21 INFO: Combined income: 562116 person-year obs
+02:05:21 INFO: Clipping 216 negative incomes to zero
+02:05:21 INFO: National medians per wave:
+02:05:21 INFO:   2009: £2216.34/month
+02:05:21 INFO:   2010: £2427.43/month
+02:05:21 INFO:   2011: £2545.11/month
+02:05:21 INFO:   2012: £2627.67/month
+02:05:21 INFO:   2013: £2725.17/month
+02:05:21 INFO:   2014: £2867.61/month
+02:05:21 INFO:   2015: £2896.31/month
+02:05:21 INFO:   2016: £2941.96/month
+02:05:21 INFO:   2017: £3034.02/month
+02:05:21 INFO:   2018: £3096.64/month
+02:05:21 INFO:   2019: £3205.95/month
+02:05:21 INFO:   2020: £3309.23/month
+02:05:21 INFO:   2021: £3352.01/month
+02:05:21 INFO:   2022: £3532.90/month
+02:05:27 INFO: Final: 562116 person-year records, 97422 unique persons
+02:05:27 INFO:   L: 22.4%
+02:05:27 INFO:   M: 27.6%
+02:05:27 INFO:   H: 50.0%
+02:05:28 INFO: Merged employment + income: 559970 person-year obs, 97269 unique persons
+02:05:35 INFO: Built 27280 trajectories (dropped: 66904 too short, 3085 broken gaps)
+02:05:35 INFO: Trajectory lengths: mean=12.9, min=10, max=14
+02:05:35 INFO: Total imputed person-years: 17073 (4.8%)
+02:05:35 INFO: State distribution:
+02:05:35 INFO:   EL: 7.1%
+02:05:35 INFO:   EM: 14.1%
+02:05:35 INFO:   EH: 36.9%
+02:05:35 INFO:   UL: 1.7%
+02:05:35 INFO:   UM: 1.0%
+02:05:35 INFO:   UH: 0.9%
+02:05:35 INFO:   IL: 13.1%
+02:05:35 INFO:   IM: 12.4%
+02:05:35 INFO:   IH: 12.8%
+02:05:35 INFO:     Trajectories: 27280
+02:05:35 INFO: Embedding 27280 trajectories...
+02:05:36 INFO:   Unigrams: (27280, 9)
+02:05:36 INFO:   Bigrams: (27280, 81)
+02:05:36 INFO:   Raw embedding: (27280, 90)
+02:05:36 INFO:   PCA reduction: (27280, 20) (explained variance: 0.485)
+02:05:36 INFO:   Final: 27280 points × 20 dims (method=pca)
+02:05:36 INFO:     Embedding: (27280, 20), var=0.0000
+02:05:44 INFO:     Threshold: 16.057 (50th pct)
+02:05:44 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+02:05:45 INFO:   Completed in 1.9s
+02:05:45 INFO:   H0: 1999 finite + 1 infinite, top lifetimes: [15.094, 15.037, 14.764, 14.717, 14.584]
+02:05:45 INFO:   H1: 2602 finite + 3 infinite, top lifetimes: [2.476, 2.445, 2.435, 2.403, 2.402]
+02:05:46 INFO: Regime discovery: 27280 trajectories, 20 dims
+02:06:39 INFO: GMM: K*=7, BIC=-1468415.2, silhouette=0.084
+02:06:39 INFO:   Regime 0: n=7336, dominant=EH, emp=92.4%, low_inc=0.0%, stability=0.78
+02:06:39 INFO:   Regime 1: n=3357, dominant=EH, emp=99.3%, low_inc=26.6%, stability=0.40
+02:06:39 INFO:   Regime 2: n=2090, dominant=IL, emp=58.8%, low_inc=61.0%, stability=0.29
+02:06:39 INFO:   Regime 3: n=5415, dominant=IL, emp=0.0%, low_inc=38.7%, stability=0.39
+02:06:39 INFO:   Regime 4: n=3717, dominant=EH, emp=58.9%, low_inc=19.9%, stability=0.30
+02:06:39 INFO:   Regime 5: n=1560, dominant=EH, emp=40.9%, low_inc=5.5%, stability=0.40
+02:06:39 INFO:   Regime 6: n=3805, dominant=EH, emp=41.8%, low_inc=23.5%, stability=0.24
+02:06:39 INFO:     GMM k_optimal: 7
+02:06:39 INFO:     ARI vs baseline: 0.9696
+02:06:39 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+02:06:39 INFO:   Config: min10_tf_thresh90
+02:06:39 DEBUG: Loading BHPS wave a from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w1\aindresp.tab
+02:06:40 INFO: BHPS wave a (1991): 10264 obs
+02:06:40 DEBUG: Loading BHPS wave b from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w2\bindresp.tab
+02:06:41 INFO: BHPS wave b (1992): 9845 obs
+02:06:41 DEBUG: Loading BHPS wave c from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w3\cindresp.tab
+02:06:42 INFO: BHPS wave c (1993): 9600 obs
+02:06:42 DEBUG: Loading BHPS wave d from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w4\dindresp.tab
+02:06:43 INFO: BHPS wave d (1994): 9481 obs
+02:06:43 DEBUG: Loading BHPS wave e from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w5\eindresp.tab
+02:06:43 INFO: BHPS wave e (1995): 9249 obs
+02:06:43 DEBUG: Loading BHPS wave f from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w6\findresp.tab
+02:06:44 INFO: BHPS wave f (1996): 9438 obs
+02:06:44 DEBUG: Loading BHPS wave g from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w7\gindresp.tab
+02:06:45 INFO: BHPS wave g (1997): 11193 obs
+02:06:45 DEBUG: Loading BHPS wave h from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w8\hindresp.tab
+02:06:47 INFO: BHPS wave h (1998): 10906 obs
+02:06:47 DEBUG: Loading BHPS wave i from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w9\iindresp.tab
+02:06:49 INFO: BHPS wave i (1999): 15623 obs
+02:06:49 DEBUG: Loading BHPS wave j from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w10\jindresp.tab
+02:06:51 INFO: BHPS wave j (2000): 15603 obs
+02:06:51 DEBUG: Loading BHPS wave k from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w11\kindresp.tab
+02:06:53 INFO: BHPS wave k (2001): 18867 obs
+02:06:54 DEBUG: Loading BHPS wave l from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w12\lindresp.tab
+02:06:56 INFO: BHPS wave l (2002): 16597 obs
+02:06:56 DEBUG: Loading BHPS wave m from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w13\mindresp.tab
+02:06:59 INFO: BHPS wave m (2003): 16238 obs
+02:06:59 DEBUG: Loading BHPS wave n from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w14\nindresp.tab
+02:07:01 INFO: BHPS wave n (2004): 15791 obs
+02:07:01 DEBUG: Loading BHPS wave o from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w15\oindresp.tab
+02:07:04 INFO: BHPS wave o (2005): 15617 obs
+02:07:04 DEBUG: Loading BHPS wave p from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w16\pindresp.tab
+02:07:07 INFO: BHPS wave p (2006): 15392 obs
+02:07:07 DEBUG: Loading BHPS wave q from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w17\qindresp.tab
+02:07:09 INFO: BHPS wave q (2007): 14873 obs
+02:07:09 DEBUG: Loading BHPS wave r from trajectory_tda\data\UKDA-5151-tab\tab\bhps_w18\rindresp.tab
+02:07:11 INFO: BHPS wave r (2008): 14419 obs
+02:07:11 DEBUG: Loading USoc wave a from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\a_indresp.tab
+02:07:22 INFO: USoc wave a (2009): 50994 obs
+02:07:22 DEBUG: Loading USoc wave b from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\b_indresp.tab
+02:07:36 INFO: USoc wave b (2010): 54568 obs
+02:07:36 DEBUG: Loading USoc wave c from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\c_indresp.tab
+02:08:02 INFO: USoc wave c (2011): 49692 obs
+02:08:02 DEBUG: Loading USoc wave d from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\d_indresp.tab
+02:08:18 INFO: USoc wave d (2012): 47074 obs
+02:08:18 DEBUG: Loading USoc wave e from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\e_indresp.tab
+02:08:37 INFO: USoc wave e (2013): 44837 obs
+02:08:38 DEBUG: Loading USoc wave f from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\f_indresp.tab
+02:08:53 INFO: USoc wave f (2014): 45192 obs
+02:08:53 DEBUG: Loading USoc wave g from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\g_indresp.tab
+02:09:13 INFO: USoc wave g (2015): 42170 obs
+02:09:13 DEBUG: Loading USoc wave h from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\h_indresp.tab
+02:09:27 INFO: USoc wave h (2016): 39294 obs
+02:09:27 DEBUG: Loading USoc wave i from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\i_indresp.tab
+02:09:46 INFO: USoc wave i (2017): 36058 obs
+02:09:46 DEBUG: Loading USoc wave j from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\j_indresp.tab
+02:10:00 INFO: USoc wave j (2018): 34319 obs
+02:10:00 DEBUG: Loading USoc wave k from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\k_indresp.tab
+02:10:18 INFO: USoc wave k (2019): 32008 obs
+02:10:18 DEBUG: Loading USoc wave l from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\l_indresp.tab
+02:10:31 INFO: USoc wave l (2020): 29271 obs
+02:10:31 DEBUG: Loading USoc wave m from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\m_indresp.tab
+02:10:44 INFO: USoc wave m (2021): 27998 obs
+02:10:44 DEBUG: Loading USoc wave n from trajectory_tda\data\UKDA-6614-tab\tab\ukhls\n_indresp.tab
+02:11:09 INFO: USoc wave n (2022): 35471 obs
+02:11:09 INFO: Combined: 807942 person-year observations
+02:11:09 INFO: Dropped 2770 observations with unmappable jbstat codes
+02:11:09 INFO: Final: 805172 person-year records, 118153 unique persons
+02:11:10 DEBUG: BHPS wave a: no income column found
+02:11:11 DEBUG: BHPS wave b: no income column found
+02:11:12 DEBUG: BHPS wave c: no income column found
+02:11:13 DEBUG: BHPS wave d: no income column found
+02:11:13 DEBUG: BHPS wave e: no income column found
+02:11:14 DEBUG: BHPS wave f: no income column found
+02:11:15 DEBUG: BHPS wave g: no income column found
+02:11:17 DEBUG: BHPS wave h: no income column found
+02:11:19 DEBUG: BHPS wave i: no income column found
+02:11:21 DEBUG: BHPS wave j: no income column found
+02:11:24 DEBUG: BHPS wave k: no income column found
+02:11:27 DEBUG: BHPS wave l: no income column found
+02:11:30 DEBUG: BHPS wave m: no income column found
+02:11:32 DEBUG: BHPS wave n: no income column found
+02:11:34 DEBUG: BHPS wave o: no income column found
+02:11:36 DEBUG: BHPS wave p: no income column found
+02:11:38 DEBUG: BHPS wave q: no income column found
+02:11:40 DEBUG: BHPS wave r: no income column found
+02:11:52 INFO: USoc income wave a (2009): 50994 obs
+02:12:07 INFO: USoc income wave b (2010): 54558 obs
+02:12:34 INFO: USoc income wave c (2011): 49692 obs
+02:12:52 INFO: USoc income wave d (2012): 47074 obs
+02:13:12 INFO: USoc income wave e (2013): 44837 obs
+02:13:29 INFO: USoc income wave f (2014): 44400 obs
+02:13:51 INFO: USoc income wave g (2015): 41857 obs
+02:14:05 INFO: USoc income wave h (2016): 38783 obs
+02:14:25 INFO: USoc income wave i (2017): 35174 obs
+02:14:39 INFO: USoc income wave j (2018): 33588 obs
+02:14:58 INFO: USoc income wave k (2019): 31311 obs
+02:15:11 INFO: USoc income wave l (2020): 28531 obs
+02:15:25 INFO: USoc income wave m (2021): 27207 obs
+02:15:53 INFO: USoc income wave n (2022): 34110 obs
+02:15:53 INFO: Combined income: 562116 person-year obs
+02:15:53 INFO: Clipping 216 negative incomes to zero
+02:15:53 INFO: National medians per wave:
+02:15:53 INFO:   2009: £2216.34/month
+02:15:53 INFO:   2010: £2427.43/month
+02:15:53 INFO:   2011: £2545.11/month
+02:15:53 INFO:   2012: £2627.67/month
+02:15:53 INFO:   2013: £2725.17/month
+02:15:53 INFO:   2014: £2867.61/month
+02:15:53 INFO:   2015: £2896.31/month
+02:15:53 INFO:   2016: £2941.96/month
+02:15:53 INFO:   2017: £3034.02/month
+02:15:53 INFO:   2018: £3096.64/month
+02:15:53 INFO:   2019: £3205.95/month
+02:15:53 INFO:   2020: £3309.23/month
+02:15:53 INFO:   2021: £3352.01/month
+02:15:53 INFO:   2022: £3532.90/month
+02:16:02 INFO: Final: 562116 person-year records, 97422 unique persons
+02:16:02 INFO:   L: 22.4%
+02:16:02 INFO:   M: 27.6%
+02:16:02 INFO:   H: 50.0%
+02:16:02 INFO: Merged employment + income: 559970 person-year obs, 97269 unique persons
+02:16:11 INFO: Built 27280 trajectories (dropped: 66904 too short, 3085 broken gaps)
+02:16:11 INFO: Trajectory lengths: mean=12.9, min=10, max=14
+02:16:11 INFO: Total imputed person-years: 17073 (4.8%)
+02:16:11 INFO: State distribution:
+02:16:11 INFO:   EL: 7.1%
+02:16:11 INFO:   EM: 14.1%
+02:16:11 INFO:   EH: 36.9%
+02:16:11 INFO:   UL: 1.7%
+02:16:11 INFO:   UM: 1.0%
+02:16:11 INFO:   UH: 0.9%
+02:16:11 INFO:   IL: 13.1%
+02:16:11 INFO:   IM: 12.4%
+02:16:11 INFO:   IH: 12.8%
+02:16:11 INFO:     Trajectories: 27280
+02:16:11 INFO: Embedding 27280 trajectories...
+02:16:11 INFO:   Unigrams: (27280, 9)
+02:16:12 INFO:   Bigrams: (27280, 81)
+02:16:12 INFO:   Raw embedding: (27280, 90)
+02:16:12 INFO:   PCA reduction: (27280, 20) (explained variance: 0.485)
+02:16:12 INFO:   Final: 27280 points × 20 dims (method=pca)
+02:16:12 INFO:     Embedding: (27280, 20), var=0.0000
+02:16:20 INFO:     Threshold: 23.326 (90th pct)
+02:16:20 INFO: Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=1
+02:16:23 INFO:   Completed in 3.2s
+02:16:23 INFO:   H0: 1999 finite + 1 infinite, top lifetimes: [15.094, 15.037, 14.764, 14.717, 14.584]
+02:16:23 INFO:   H1: 2605 finite + 0 infinite, top lifetimes: [2.476, 2.445, 2.435, 2.403, 2.402]
+02:16:23 INFO: Regime discovery: 27280 trajectories, 20 dims
+02:17:30 INFO: GMM: K*=7, BIC=-1468415.2, silhouette=0.084
+02:17:30 INFO:   Regime 0: n=7336, dominant=EH, emp=92.4%, low_inc=0.0%, stability=0.78
+02:17:30 INFO:   Regime 1: n=3357, dominant=EH, emp=99.3%, low_inc=26.6%, stability=0.40
+02:17:30 INFO:   Regime 2: n=2090, dominant=IL, emp=58.8%, low_inc=61.0%, stability=0.29
+02:17:30 INFO:   Regime 3: n=5415, dominant=IL, emp=0.0%, low_inc=38.7%, stability=0.39
+02:17:30 INFO:   Regime 4: n=3717, dominant=EH, emp=58.9%, low_inc=19.9%, stability=0.30
+02:17:30 INFO:   Regime 5: n=1560, dominant=EH, emp=40.9%, low_inc=5.5%, stability=0.40
+02:17:30 INFO:   Regime 6: n=3805, dominant=EH, emp=41.8%, low_inc=23.5%, stability=0.24
+02:17:30 INFO:     GMM k_optimal: 7
+02:17:30 INFO:     ARI vs baseline: 0.9696
+02:17:30 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+02:17:30 INFO: Saved: results\trajectory_tda_robustness\pipeline_sensitivity.json
+02:17:30 INFO: ============================================================
+02:17:30 INFO: Pipeline Sensitivity Summary
+02:17:30 INFO: ============================================================
+02:17:30 INFO:   min10_tf_thresh75 (BASELINE): n=27280, k=7, H0_pers=12881.3, H1_pers=1324.4, ARI=0.970
+02:17:30 INFO:   min8_tf_thresh75: n=33802, k=8, H0_pers=13039.3, H1_pers=1378.5
+02:17:30 INFO:   min12_tf_thresh75: n=22324, k=8, H0_pers=12277.9, H1_pers=1225.2
+02:17:30 INFO:   min10_tfidf_thresh75: n=27280, k=8, H0_pers=909.1, H1_pers=122.3, ARI=0.466
+02:17:30 INFO:   min10_tf_thresh50: n=27280, k=7, H0_pers=12881.3, H1_pers=1322.9, ARI=0.970
+02:17:30 INFO:   min10_tf_thresh90: n=27280, k=7, H0_pers=12881.3, H1_pers=1324.4, ARI=0.970
+02:17:30 INFO:   k_optimal stable: False
+02:17:30 INFO: ============================================================

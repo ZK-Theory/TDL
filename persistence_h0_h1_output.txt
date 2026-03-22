@@ -1,0 +1,62 @@
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpwziatgbm.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmp38xkq3oj.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+===========================================================================
+PHASE 3: STRUCTURE ANALYSIS - PERSISTENCE H0 AND H1
+===========================================================================
+
+1. Loading mobility surface...
+   Shape: (150, 150)
+   Value range: [-1.068, 2.388]
+
+2. Computing H0 persistence (connected components)...
+   Total H0 pairs: 983
+   Finite pairs:   27
+   Infinite pairs: 956 (essential components)
+
+   Top 5 persistent features (lifetimes):
+      1. 0.2787
+      2. 0.2510
+      3. 0.1728
+      4. 0.0342
+      5. 0.0210
+
+3. Computing H1 persistence (cycles/loops)...
+   Cycles detected during filtration: 22201
+   Final loop count (full grid): 22201
+   First 5 cycle birth values:
+      1. -0.9976
+      2. -0.9976
+      3. -0.9976
+      4. -0.9271
+      5. -0.9271
+
+4. Comparing with Morse-Smale decomposition...
+   MS minima: 383
+   MS saddles: 787
+   MS maxima: 405
+
+===========================================================================
+PERSISTENCE STRUCTURE SUMMARY
+===========================================================================
+
+   H0 (Connected Components):
+   - 27 transient components (merge as threshold increases)
+   - 956 persistent components (survive to infinity)
+   - Mean lifetime: 0.0317
+   - Max lifetime:  0.2787
+   
+   H1 (Cycles/Loops):
+   - 22201 cycles born during sublevel filtration
+   - 22201 total cycles in complete grid
+   - Cycles indicate regions enclosed by low-mobility areas
+   
+   Interpretation:
+   - H0: 97% components robust = stable basin structure
+   - H1: Cycles = circular dependencies or enclosed deprivation pockets
+   - Mapper also detected cycles (7 hubs, 2 components)
+

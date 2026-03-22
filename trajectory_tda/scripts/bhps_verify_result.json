@@ -1,0 +1,12 @@
+{
+  "total": 8509,
+  "era": {
+    "bhps_only": 8509
+  },
+  "bhps_stats": {
+    "n": 8509,
+    "mean_len": 14.4726759901281,
+    "min_year": 1991,
+    "max_year": 2008
+  }
+}

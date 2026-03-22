@@ -203,3 +203,4 @@ When writing a new DL trainer, subclass `BaseTrainer` and implement `train_epoch
 ## Skills
 
 Use `/paper-draft` to initiate academic writing assistance. It reads existing paper files and drafts/extends/critiques sections following field journal conventions (JEG, Sociological Methodology, JRSS-A etc).
+<!-- /vexp -->

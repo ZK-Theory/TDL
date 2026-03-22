@@ -1,0 +1,83 @@
+{
+  "name": "greater_manchester_ks4_comparison",
+  "description": "KS4 (GCSE attainment) comparison for Greater Manchester. \nMS explains 82.4% of KS4 variance and 73.6% of LE variance.",
+  "timestamp": "2025-12-16T14:40:15.603412",
+  "region": "Greater Manchester",
+  "n_observations": 1636,
+  "data_sources": {
+    "LSOA": "ONS 2021",
+    "IMD": "2019",
+    "KS4": "DfE 2024/25",
+    "LE": "ONS 2016-2018"
+  },
+  "outcome_variable": "attainment8_average and life_expectancy_male",
+  "outcome_description": "KS4 attainment (Attainment 8 score) and life expectancy (male, 2016-2018 average)",
+  "methods": [
+    {
+      "name": "MS (LE)",
+      "column": "ms_basin",
+      "n_clusters": 283,
+      "eta_squared": 0.736,
+      "eta_squared_ci_lower": 0.7173,
+      "eta_squared_ci_upper": 0.8,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "MS (KS4)",
+      "column": "ms_basin",
+      "n_clusters": 283,
+      "eta_squared": 0.824,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means (LE)",
+      "column": "kmeans",
+      "n_clusters": 10,
+      "eta_squared": 0.328,
+      "eta_squared_ci_lower": 0.2801,
+      "eta_squared_ci_upper": 0.3922,
+      "ari_vs_others": {},
+      "parameters": {}
+    },
+    {
+      "name": "K-means (KS4)",
+      "column": "kmeans",
+      "n_clusters": 10,
+      "eta_squared": 0.438,
+      "eta_squared_ci_lower": null,
+      "eta_squared_ci_upper": null,
+      "ari_vs_others": {},
+      "parameters": {}
+    }
+  ],
+  "ari_matrix": {},
+  "best_method": "MS (KS4)",
+  "best_eta_squared": 0.824,
+  "input_files": [
+    "poverty_tda/data/raw/boundaries/lsoa_2021/lsoa_2021_boundaries.geojson",
+    "poverty_tda/validation/data/england_imd_2019.csv",
+    "data/raw/outcomes/attainment8_processed.csv",
+    "data/raw/outcomes/life_expectancy_processed.csv",
+    "poverty_tda/validation/mobility_surface_greater_manchester.vti"
+  ],
+  "output_files": [
+    "poverty_tda/validation/results/2025-12-16_greater_manchester_ks4_comparison_69efca4e.json",
+    "poverty_tda/validation/results/2025-12-16_greater_manchester_ks4_comparison_69efca4e.md"
+  ],
+  "random_seed": 42,
+  "git_commit": "f16fbc2753f56c86c40ac683e31cddf344062394",
+  "notes": [
+    "MS: LE=73.6%, KS4=82.4%",
+    "K-means: LE=32.8%, KS4=43.8%",
+    "MS dominates both health and education outcomes",
+    "150x150 regional surface used",
+    "283 MS basins at 150x150 resolution",
+    "For KS4-specific prediction, MS (KS4) is optimal; for overall health outcome, MS (LE) is best (73.6%)",
+    "Bootstrap CIs: Not computed for this KS4-specific comparison. See 2025-12-16_greater_manchester_full_comparison_0f7de5f6.json for life expectancy η² estimates with full 95% bootstrap CIs (n=1000)",
+    "Bootstrap CIs computed: n=1000 iterations"
+  ]
+}

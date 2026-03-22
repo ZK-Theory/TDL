@@ -1,0 +1,125 @@
+{
+  "council": "glasgow",
+  "n_zones": 746,
+  "static_2020": {
+    "description": "Static 2020 ranks (7D)",
+    "dimensions": 7,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 746,
+        "n_finite": 745,
+        "n_infinite": 1,
+        "total_persistence": 468.1301622092724,
+        "max_persistence": 1.836958646774292,
+        "persistence_entropy": 6.507096397955348
+      },
+      "H1": {
+        "n_features": 484,
+        "n_finite": 484,
+        "n_infinite": 0,
+        "total_persistence": 43.25989127159119,
+        "max_persistence": 0.46784716844558716,
+        "persistence_entropy": 5.777953641946641
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 1.836958646774292,
+        "null_mean": 2.5938267850875856,
+        "null_std": 0.2417035813494394,
+        "null_p95": 3.065903782844543,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.46784716844558716,
+        "null_mean": 0.6646554160118103,
+        "null_std": 0.07401941885893006,
+        "null_p95": 0.8082938432693482,
+        "p_value": 1.0,
+        "significant_at_005": false
+      }
+    }
+  },
+  "displacement": {
+    "description": "Displacement \u0394(2016\u21922020) (7D)",
+    "dimensions": 7,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 746,
+        "n_finite": 742,
+        "n_infinite": 4,
+        "total_persistence": 701.2293113470078,
+        "max_persistence": 3.957479238510132,
+        "persistence_entropy": 6.455303946700529
+      },
+      "H1": {
+        "n_features": 529,
+        "n_finite": 528,
+        "n_infinite": 1,
+        "total_persistence": 50.04129043221474,
+        "max_persistence": 0.46996045112609863,
+        "persistence_entropy": 5.916578148380506
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 3.957479238510132,
+        "null_mean": 3.997741208076477,
+        "null_std": 0.10753423419908216,
+        "null_p95": 4.1440898180007935,
+        "p_value": 0.66,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.46996045112609863,
+        "null_mean": 0.5427060234546661,
+        "null_std": 0.0972294385964972,
+        "null_p95": 0.7274086713790893,
+        "p_value": 0.78,
+        "significant_at_005": false
+      }
+    }
+  },
+  "concatenated": {
+    "description": "Concatenated [2016, 2020] (14D)",
+    "dimensions": 14,
+    "persistence_summary": {
+      "H0": {
+        "n_features": 746,
+        "n_finite": 745,
+        "n_infinite": 1,
+        "total_persistence": 809.8922500908375,
+        "max_persistence": 3.348149538040161,
+        "persistence_entropy": 6.529068408323743
+      },
+      "H1": {
+        "n_features": 539,
+        "n_finite": 539,
+        "n_infinite": 0,
+        "total_persistence": 59.438051491975784,
+        "max_persistence": 0.842296838760376,
+        "persistence_entropy": 5.893235537677553
+      }
+    },
+    "permutation_test": {
+      "H0": {
+        "observed": 3.348149538040161,
+        "null_mean": 4.206275501251221,
+        "null_std": 0.18060064053020572,
+        "null_p95": 4.498290371894836,
+        "p_value": 1.0,
+        "significant_at_005": false
+      },
+      "H1": {
+        "observed": 0.842296838760376,
+        "null_mean": 0.8225180149078369,
+        "null_std": 0.062553410736769,
+        "null_p95": 0.9318419933319092,
+        "p_value": 0.34,
+        "significant_at_005": false
+      }
+    }
+  },
+  "elapsed_seconds": 28.720303297042847
+}

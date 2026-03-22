@@ -1,0 +1,184 @@
+{
+  "region": "west_midlands",
+  "timestamp": "2026-02-22T12:44:11.079658",
+  "resolution_check": {
+    "check": "resolution_alignment",
+    "n_observations": 1638,
+    "n_unique_outcomes": 1618,
+    "ratio": 0.9877899877899878,
+    "passed": true,
+    "severity": "OK"
+  },
+  "random_partition": {
+    "check": "random_partition_baseline",
+    "k": 206,
+    "n_observations": 1638,
+    "n_trials": 200,
+    "mean_eta2": 0.12444895546423097,
+    "std_eta2": 0.01097554087741302,
+    "p95_eta2": 0.14401386714827943,
+    "p99_eta2": 0.14880564883035458,
+    "theoretical_expectation": 0.12522907758094073,
+    "ms_k": 206,
+    "ms_eta2": 0.4938578193043011,
+    "ms_omega2": 0.4212514225471451,
+    "ms_excess_over_random_mean": 0.36940886384007016,
+    "ms_exceeds_p95": true
+  },
+  "matched_k": {
+    "check": "matched_k_kmeans",
+    "ms_k": 206,
+    "ms_eta2": 0.4938578193043011,
+    "kmeans_matched_k_eta2": 0.8812179365346846,
+    "kmeans_matched_k_omega2": 0.8641418418688372,
+    "ms_advantage_at_matched_k": -0.3873601172303835,
+    "auto_k_results": {
+      "5": {
+        "eta2": 0.5895216512593051,
+        "omega2": 0.5883682980184081
+      },
+      "10": {
+        "eta2": 0.68112912744552,
+        "omega2": 0.6792332886467428
+      },
+      "15": {
+        "eta2": 0.7366472905502239,
+        "omega2": 0.7342564671599869
+      },
+      "20": {
+        "eta2": 0.7579276343485611,
+        "omega2": 0.7549720516428013
+      },
+      "50": {
+        "eta2": 0.8187760381107438,
+        "omega2": 0.8130913241537447
+      },
+      "100": {
+        "eta2": 0.8422437296345836,
+        "omega2": 0.832003726662526
+      }
+    }
+  },
+  "interpolation": {
+    "check": "interpolation_sensitivity",
+    "linear": {
+      "basins": 186,
+      "eta2": 0.4364893950988181,
+      "omega2": 0.3645507655333074
+    },
+    "cubic": {
+      "basins": 206,
+      "eta2": 0.4938578193043011,
+      "omega2": 0.4212514225471451
+    },
+    "basin_ratio": 1.10752688172043,
+    "eta2_difference": 0.05736842420548299
+  },
+  "lad_collapse": {
+    "check": "lad_collapse",
+    "n_lsoas": 1638,
+    "n_unique_outcomes": 1618,
+    "n_lads": 7,
+    "outcome_is_lad_level": false,
+    "lad_eta2": 0.05906798306904035,
+    "lad_omega2": 0.055574492008071116,
+    "resolution_check": {
+      "check": "resolution_alignment",
+      "n_observations": 1638,
+      "n_unique_outcomes": 1618,
+      "ratio": 0.9877899877899878,
+      "passed": true,
+      "severity": "OK"
+    },
+    "ms_comparison": {
+      "ms_eta2": 0.4938578193043011,
+      "lad_eta2": 0.05906798306904035,
+      "difference": 0.4347898362352608,
+      "ms_captures_within_lad_variance": true
+    }
+  },
+  "cv_r2": {
+    "check": "cv_r2",
+    "methods": {
+      "MS_basins": {
+        "n_features": 205,
+        "r2_insample": 0.49385781930430084,
+        "r2_cv_random_5fold": -0.13739248440776228,
+        "r2_cv_random_fold_scores": [
+          -0.07967646588495803,
+          0.21298641736322643,
+          -0.33989775743682826,
+          -0.13922918826955888,
+          -0.3411454278106927
+        ],
+        "r2_loo_lad": -0.4591673720061072,
+        "r2_loo_lad_fold_scores": [
+          0.04605746050035853,
+          -1.7974481013893295,
+          -0.33198925152189096,
+          -0.018920070998216687,
+          -0.8816211693627003,
+          -0.06173213032232816,
+          -0.16851834094864304
+        ],
+        "overfitting_gap": 0.6312503037120631
+      },
+      "KMeans_matched_k": {
+        "n_features": 205,
+        "r2_insample": 0.8812179365346846,
+        "r2_cv_random_5fold": 0.409081812433295,
+        "r2_cv_random_fold_scores": [
+          0.2583832012970677,
+          0.6659745449864266,
+          0.415637416269962,
+          0.5090867279513668,
+          0.19632717166165148
+        ],
+        "r2_loo_lad": 0.050281488967867737,
+        "r2_loo_lad_fold_scores": [
+          -0.05110388195186011,
+          -0.16788780905675993,
+          0.3208542020386461,
+          -0.02140706027085626,
+          0.5892675274319824,
+          -0.3019047660043488,
+          -0.015847789411729263
+        ],
+        "overfitting_gap": 0.4721361241013896
+      },
+      "IMD_only": {
+        "n_features": 1,
+        "r2_insample": 0.767293463021657,
+        "r2_cv_random_5fold": 0.7308025993748506,
+        "r2_cv_random_fold_scores": [
+          0.5732213667614858,
+          0.7928411464932974,
+          0.7574234703410718,
+          0.7961269713228297,
+          0.7344000419555681
+        ],
+        "r2_loo_lad": 0.7472405575885647,
+        "r2_loo_lad_fold_scores": [
+          0.5222815695939698,
+          0.8753376424858841,
+          0.7306883106541617,
+          0.7396976199179097,
+          0.8827746062705906,
+          0.6644525862400459,
+          0.815451567957392
+        ],
+        "overfitting_gap": 0.036490863646806426
+      }
+    }
+  },
+  "summary": {
+    "outcome_col": "education_score",
+    "total_issues": 3,
+    "issues": [
+      "NO MS ADVANTAGE AT MATCHED K: diff = -0.387",
+      "OVERFITTING (MS_basins): gap = 0.631",
+      "OVERFITTING (KMeans_matched_k): gap = 0.472"
+    ],
+    "elapsed_seconds": 14.062750101089478
+  }
+}

@@ -1,0 +1,95 @@
+INFO: Loaded KS4: 1638 LSOAs
+INFO: Loading migration data from data\raw\outcomes\internal_migration_by_lad.xlsx
+INFO: Filtered to year 2024: 165673 rows
+INFO: Aggregated by sex: 91264 unique LAD pairs
+INFO: Computing LAD-level migration metrics
+INFO: Computed metrics for 320 LADs
+INFO: Loaded Migration: 1638 LSOAs
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmp0kledorq.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.01 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmp58mnthd6.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpnxtaf40f.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.02 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmpx7skn_19.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpr84h4dcz.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.05 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmpbqqootn1.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmp6kdom5fm.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.1 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmp14ku5xcj.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpbjot743f.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.15 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmphy63oyfn.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+INFO: Loading VTK file: poverty_tda\validation\mobility_surface_wm_150.vti
+INFO: Loaded VTK data: 22500 points, 22201 cells, arrays: ['mobility']
+INFO: Scalar field 'mobility': range [-1.0682, 2.3882]
+INFO: Using TTK subprocess (conda environment)
+INFO: Running TTK Morse-Smale computation via subprocess...
+INFO: Running TTK subprocess: C:\Users\steph/miniconda3/envs/ttk_env/python.exe C:\Users\steph\AppData\Local\Temp\tmpcsziztxs.py --vtk-path poverty_tda\validation\mobility_surface_wm_150.vti --scalar-name mobility --persistence-threshold 0.2 --compute-ascending 1 --compute-descending 1 --compute-separatrices 1 --output-json C:\Users\steph\AppData\Local\Temp\tmpphh5ewym.json
+INFO: Morse-Smale complex: 383 minima, 787 saddles, 405 maxima, 3094 separatrices
+======================================================================
+TASK 9.5.5: Persistence Threshold Sensitivity Analysis
+======================================================================
+
+1. Loading WM data...
+   1638 LSOAs loaded
+
+2. Testing persistence thresholds...
+   Thresholds: [0.01, 0.02, 0.05, 0.1, 0.15, 0.2]
+
+   Persistence = 0.01...
+      Minima: 383, Basins: 245, LE=0.828, KS4=0.900, Migration=0.827
+
+   Persistence = 0.02...
+      Minima: 383, Basins: 245, LE=0.828, KS4=0.900, Migration=0.827
+
+   Persistence = 0.05...
+      Minima: 383, Basins: 245, LE=0.828, KS4=0.900, Migration=0.827
+
+   Persistence = 0.1...
+      Minima: 383, Basins: 245, LE=0.828, KS4=0.900, Migration=0.827
+
+   Persistence = 0.15...
+      Minima: 383, Basins: 245, LE=0.828, KS4=0.900, Migration=0.827
+
+   Persistence = 0.2...
+      Minima: 383, Basins: 245, LE=0.828, KS4=0.900, Migration=0.827
+
+==========================================================================================
+PERSISTENCE SENSITIVITY RESULTS - ALL OUTCOMES WITH 95% BOOTSTRAP CIs
+==========================================================================================
+
+  Thresh   Minima   Basins    LE eta2   KS4 eta2   Mig eta2
+----------------------------------------------------------------------
+    0.01      383      245      0.828      0.900      0.827
+    0.02      383      245      0.828      0.900      0.827
+    0.05      383      245      0.828      0.900      0.827
+    0.10      383      245      0.828      0.900      0.827
+    0.15      383      245      0.828      0.900      0.827
+    0.20      383      245      0.828      0.900      0.827
+
+----------------------------------------------------------------------
+ROBUSTNESS ANALYSIS:
+   LE          : mean=0.828, variation=0.000 -> ROBUST
+   KS4         : mean=0.900, variation=0.000 -> ROBUST
+   Migration   : mean=0.827, variation=0.000 -> ROBUST

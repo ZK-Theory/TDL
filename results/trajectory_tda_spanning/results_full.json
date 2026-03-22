@@ -1,0 +1,23 @@
+{
+  "n_total": 32763,
+  "n_spanning": 8459,
+  "n_bhps_only": 2753,
+  "n_usoc_only": 21551,
+  "sufficient_for_tda": true,
+  "embedding_shape": [
+    8459,
+    20
+  ],
+  "k_optimal": 8,
+  "n_persistent_loops": 900,
+  "null_p_values": {
+    "label_shuffle_H0": 0.856,
+    "label_shuffle_H1": 0.772,
+    "order_shuffle_H0": 0.0,
+    "order_shuffle_H1": 0.374,
+    "markov_H0": 1.0,
+    "markov_H1": 1.0
+  },
+  "elapsed": 1186.2093155384064,
+  "n_permutations": 500
+}

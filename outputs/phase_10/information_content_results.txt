@@ -1,0 +1,20 @@
+REGRESSION ANALYSIS RESULTS
+===========================
+
+TARGET: Future_Ret_30d
+----------------------------------------
+Baseline R^2 (VIX only): 0.0114
+Augmented R^2 (VIX+Tau): 0.0141
+Delta R^2:               0.0027
+Tau p-value:             1.1737e-04
+Tau Coefficient:         0.0029
+>> RESULT: Tau is SIGNIFICANT.
+
+TARGET: Future_Vol_30d
+----------------------------------------
+Baseline R^2 (VIX only): 0.4611
+Augmented R^2 (VIX+Tau): 0.4612
+Delta R^2:               0.0001
+Tau p-value:             2.5481e-01
+Tau Coefficient:         -0.0013
+>> RESULT: Tau is NOT signficant.

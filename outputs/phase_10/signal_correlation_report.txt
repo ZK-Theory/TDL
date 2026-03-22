@@ -1,0 +1,16 @@
+PHASE 10.1 SIGNAL ANALYSIS REPORT
+=================================
+Period: 2002-02-01 to 2025-12-17
+Count: 6009 trading days
+
+OVERALL CORRELATION (Tau vs VIX)
+Pearson r:  0.2120
+Spearman r: 0.1314
+
+INTERPRETATION:
+>> POSITIVE: Low correlation (<0.5). Tau contains unique information.
+
+REGIME STABILITY
+2000-2008 (Pre-GFC): r = -0.2484 (N=1489)
+2008-2016 (GFC & Post): r = 0.2951 (N=2015)
+2016-2024 (Modern/COVID): r = 0.1631 (N=2264)

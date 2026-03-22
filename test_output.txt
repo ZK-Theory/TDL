@@ -1,0 +1,97 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-9.0.2, pluggy-1.6.0 -- C:\Users\steph\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Projects\TDL
+configfile: pyproject.toml
+plugins: anyio-4.10.0, cov-7.0.0
+collecting ... collected 63 items
+
+tests/trajectory/test_analysis.py::TestPersistenceLandscape::test_empty_diagram PASSED [  1%]
+tests/trajectory/test_analysis.py::TestPersistenceLandscape::test_single_feature PASSED [  3%]
+tests/trajectory/test_analysis.py::TestPersistenceImage::test_shape PASSED [  4%]
+tests/trajectory/test_analysis.py::TestPersistenceImage::test_empty_diagram PASSED [  6%]
+tests/trajectory/test_analysis.py::TestWassersteinDistance::test_identical_diagrams PASSED [  7%]
+tests/trajectory/test_analysis.py::TestWassersteinDistance::test_different_diagrams_positive PASSED [  9%]
+tests/trajectory/test_analysis.py::TestWassersteinDistance::test_empty_vs_nonempty PASSED [ 11%]
+tests/trajectory/test_analysis.py::TestVectoriseDiagram::test_all_methods PASSED [ 12%]
+tests/trajectory/test_analysis.py::TestFitGMM::test_finds_clusters PASSED [ 14%]
+tests/trajectory/test_analysis.py::TestFitGMM::test_silhouette_positive PASSED [ 15%]
+tests/trajectory/test_analysis.py::TestDiscoverRegimes::test_basic_run PASSED [ 17%]
+tests/trajectory/test_analysis.py::TestCycleDetection::test_no_ph_warning PASSED [ 19%]
+tests/trajectory/test_analysis.py::TestCycleDetection::test_with_ph PASSED [ 20%]
+tests/trajectory/test_analysis.py::TestGroupComparison::test_two_groups PASSED [ 22%]
+tests/trajectory/test_analysis.py::TestGroupComparison::test_wasserstein_positive_for_different_groups PASSED [ 23%]
+tests/trajectory/test_ngram_embed.py::TestUnigrams::test_uniform_trajectory PASSED [ 25%]
+tests/trajectory/test_ngram_embed.py::TestUnigrams::test_two_states PASSED [ 26%]
+tests/trajectory/test_ngram_embed.py::TestUnigrams::test_all_states PASSED [ 28%]
+tests/trajectory/test_ngram_embed.py::TestUnigrams::test_dimension PASSED [ 30%]
+tests/trajectory/test_ngram_embed.py::TestBigrams::test_single_transition PASSED [ 31%]
+tests/trajectory/test_ngram_embed.py::TestBigrams::test_self_loop PASSED [ 33%]
+tests/trajectory/test_ngram_embed.py::TestBigrams::test_dimension PASSED [ 34%]
+tests/trajectory/test_ngram_embed.py::TestBigrams::test_normalisation PASSED [ 36%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_unigram_only_shape PASSED [ 38%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_bigram_shape PASSED [ 39%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_pca_reduction PASSED [ 41%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_tfidf FAILED  [ 42%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_state_to_idx_exported PASSED [ 44%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_clustered_trajectories_separable PASSED [ 46%]
+tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_empty_raises PASSED [ 47%]
+tests/trajectory/test_permutation_nulls.py::TestLabelShuffle::test_preserves_shape PASSED [ 49%]
+tests/trajectory/test_permutation_nulls.py::TestLabelShuffle::test_preserves_rows PASSED [ 50%]
+tests/trajectory/test_permutation_nulls.py::TestOrderShuffle::test_preserves_unigrams PASSED [ 52%]
+tests/trajectory/test_permutation_nulls.py::TestMarkovShuffle::test_preserves_trajectory_lengths PASSED [ 53%]
+tests/trajectory/test_permutation_nulls.py::TestMarkovShuffle::test_markov_order_2 PASSED [ 55%]
+tests/trajectory/test_permutation_nulls.py::TestMarkovShuffle::test_invalid_order_raises PASSED [ 57%]
+tests/trajectory/test_permutation_nulls.py::TestPermutationTestTrajectories::test_label_shuffle_produces_pvalue PASSED [ 58%]
+tests/trajectory/test_permutation_nulls.py::TestPermutationTestTrajectories::test_order_shuffle_requires_trajectories PASSED [ 60%]
+tests/trajectory/test_permutation_nulls.py::TestPermutationTestTrajectories::test_markov_requires_trajectories PASSED [ 61%]
+tests/trajectory/test_permutation_nulls.py::TestPermutationTestTrajectories::test_order_shuffle_runs PASSED [ 63%]
+tests/trajectory/test_trajectory_builder.py::TestInterpolateGaps::test_no_gaps PASSED [ 65%]
+tests/trajectory/test_trajectory_builder.py::TestInterpolateGaps::test_one_year_gap PASSED [ 66%]
+tests/trajectory/test_trajectory_builder.py::TestInterpolateGaps::test_two_year_gap PASSED [ 68%]
+tests/trajectory/test_trajectory_builder.py::TestInterpolateGaps::test_gap_too_large PASSED [ 69%]
+tests/trajectory/test_trajectory_builder.py::TestInterpolateGaps::test_single_year PASSED [ 71%]
+tests/trajectory/test_trajectory_builder.py::TestFindLongestRun::test_all_consecutive PASSED [ 73%]
+tests/trajectory/test_trajectory_builder.py::TestFindLongestRun::test_two_runs PASSED [ 74%]
+tests/trajectory/test_trajectory_builder.py::TestFindLongestRun::test_too_short PASSED [ 76%]
+tests/trajectory/test_trajectory_builder.py::TestBuildTrajectories::test_basic_merge PASSED [ 77%]
+tests/trajectory/test_trajectory_builder.py::TestBuildTrajectories::test_filter_short PASSED [ 79%]
+tests/trajectory/test_trajectory_builder.py::TestBuildTrajectories::test_multiple_persons PASSED [ 80%]
+tests/trajectory/test_trajectory_builder.py::TestBuildTrajectories::test_all_nine_states PASSED [ 82%]
+tests/trajectory/test_trajectory_builder.py::TestBuildTrajectories::test_empty_input PASSED [ 84%]
+tests/trajectory/test_trajectory_ph.py::TestMaxminLandmarks::test_correct_count PASSED [ 85%]
+tests/trajectory/test_trajectory_ph.py::TestMaxminLandmarks::test_unique_indices PASSED [ 87%]
+tests/trajectory/test_trajectory_ph.py::TestMaxminLandmarks::test_cap_at_n PASSED [ 88%]
+tests/trajectory/test_trajectory_ph.py::TestMaxminLandmarks::test_spatial_coverage PASSED [ 90%]
+tests/trajectory/test_trajectory_ph.py::TestComputeTrajectoryPH::test_maxmin_vr_returns_ph PASSED [ 92%]
+tests/trajectory/test_trajectory_ph.py::TestComputeTrajectoryPH::test_witness_returns_ph PASSED [ 93%]
+tests/trajectory/test_trajectory_ph.py::TestComputeTrajectoryPH::test_both_methods PASSED [ 95%]
+tests/trajectory/test_trajectory_ph.py::TestComputeTrajectoryPH::test_adaptive_landmarks PASSED [ 96%]
+tests/trajectory/test_trajectory_ph.py::TestComputeTrajectoryPH::test_elapsed_recorded PASSED [ 98%]
+tests/trajectory/test_trajectory_ph.py::TestComputeTrajectoryPH::test_clustered_data_has_h0 PASSED [100%]
+
+================================== FAILURES ===================================
+__________________________ TestNgramEmbed.test_tfidf __________________________
+tests\trajectory\test_ngram_embed.py:104: in test_tfidf
+    assert not np.allclose(emb_raw, emb_tfidf)
+E   assert not True
+E    +  where True = <function allclose at 0x000002197ECB1870>(array([[-1.54945158, -1.198579  ,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.0153411 ,  0.48956044,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-1.54945158,  1.33363016, -0.76225171, ...,  2.        ,\n        -0.31448545, -0.31448545],\n       ...,\n       [-0.0153411 , -1.198579  ,  0.1451908 , ...,  2.        ,\n        -0.31448545, -0.31448545],\n       [-0.78239634,  1.33363016, -0.76225171, ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.78239634, -1.198579  , -1.66969422, ...,  2.        ,\n        -0.31448545, -0.31448545]], shape=(50, 90)), array([[-1.54945158, -1.198579  ,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.0153411 ,  0.48956044,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-1.54945158,  1.33363016, -0.76225171, ...,  2.        ,\n        -0.31448545, -0.31448545],\n       ...,\n       [-0.0153411 , -1.198579  ,  0.1451908 , ...,  2.        ,\n        -0.31448545, -0.31448545],\n       [-0.78239634,  1.33363016, -0.76225171, ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.78239634, -1.198579  , -1.66969422, ...,  2.        ,\n        -0.31448545, -0.31448545]], shape=(50, 90)))
+E    +    where <function allclose at 0x000002197ECB1870> = np.allclose
+============================== warnings summary ===============================
+tests/trajectory/test_analysis.py::TestGroupComparison::test_two_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_two_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_two_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_two_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_wasserstein_positive_for_different_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_wasserstein_positive_for_different_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_wasserstein_positive_for_different_groups
+tests/trajectory/test_analysis.py::TestGroupComparison::test_wasserstein_positive_for_different_groups
+  C:\Projects\TDL\trajectory_tda\analysis\group_comparison.py:155: DeprecationWarning: `trapz` is deprecated. Use `trapezoid` instead, or one of the numerical integration functions in `scipy.integrate`.
+    l1_integral = float(np.trapz(landscapes[0]))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/trajectory/test_ngram_embed.py::TestNgramEmbed::test_tfidf - assert not True
+ +  where True = <function allclose at 0x000002197ECB1870>(array([[-1.54945158, -1.198579  ,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.0153411 ,  0.48956044,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-1.54945158,  1.33363016, -0.76225171, ...,  2.        ,\n        -0.31448545, -0.31448545],\n       ...,\n       [-0.0153411 , -1.198579  ,  0.1451908 , ...,  2.        ,\n        -0.31448545, -0.31448545],\n       [-0.78239634,  1.33363016, -0.76225171, ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.78239634, -1.198579  , -1.66969422, ...,  2.        ,\n        -0.31448545, -0.31448545]], shape=(50, 90)), array([[-1.54945158, -1.198579  ,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.0153411 ,  0.48956044,  0.1451908 , ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-1.54945158,  1.33363016, -0.76225171, ...,  2.        ,\n        -0.31448545, -0.31448545],\n       ...,\n       [-0.0153411 , -1.198579  ,  0.1451908 , ...,  2.        ,\n        -0.31448545, -0.31448545],\n       [-0.78239634,  1.33363016, -0.76225171, ..., -0.5       ,\n        -0.31448545, -0.31448545],\n       [-0.78239634, -1.198579  , -1.66969422, ...,  2.        ,\n        -0.31448545, -0.31448545]], shape=(50, 90)))
+ +    where <function allclose at 0x000002197ECB1870> = np.allclose
+================== 1 failed, 62 passed, 8 warnings in 20.00s ==================
