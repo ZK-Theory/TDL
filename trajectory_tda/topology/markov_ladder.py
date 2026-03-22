@@ -249,37 +249,15 @@ class MarkovLadderTest:
             markov_order,
             self.n_null_simulations,
         )
-        null_tps = []
-        for i in range(self.n_null_simulations):
-            null_trajs = simulate_markov_trajectories(
-                transition_matrix,
-                initial_distribution,
-                n_trajectories=len(observed_embedding),
-                length=trajectory_length,
-                rng=self.rng,
-            )
-            # Encode null trajectories as n-grams and project to PCA space
-            # (encoding step handled by caller via trajectory_tda/data/ module)
-            # Here we assume null_embedding is provided as encoded+projected
-            if i == 0:
-                logger.info("Null trajectory simulation complete; encoding via PCA...")
-            # Placeholder: actual encoding injected by run_full_ladder()
-            _ = null_trajs  # used by subclass or full pipeline
-
-            null_tps.append(0.0)  # replaced by full pipeline
-
-        null_distribution = np.array(null_tps)
-        null_mean = null_distribution.mean()
-        null_std = null_distribution.std()
-        z_score = (observed_tp - null_mean) / (null_std + 1e-10)
-        p_value = float((null_distribution <= observed_tp).mean())
-
-        return MarkovLadderResult(
-            markov_order=markov_order,
-            observed_total_persistence=observed_tp,
-            null_distribution=null_distribution,
-            p_value=p_value,
-            z_score=z_score,
-            n_null_simulations=self.n_null_simulations,
-            homology_dimension=self.homology_dim,
+        # NOTE: Null trajectory embedding and persistence diagram computation
+        # are not implemented here. Returning statistics derived from a
+        # placeholder null distribution (e.g. all zeros) would be misleading.
+        # Callers must provide a concrete implementation (e.g. via a higher-
+        # level pipeline that computes null embeddings/diagrams) or override
+        # this method in a subclass.
+        raise NotImplementedError(
+            "Null trajectory embedding and persistence diagram computation are "
+            "not implemented in this base Markov ladder rung. Provide a "
+            "null-embedding/diagram computation or use a pipeline that "
+            "overrides run_rung() with a concrete implementation."
         )
