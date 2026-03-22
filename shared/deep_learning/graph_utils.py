@@ -225,4 +225,5 @@ def add_household_edges(
 
     new_edges = torch.tensor([new_src, new_dst], dtype=torch.long)
     combined = torch.cat([data.edge_index, new_edges], dim=1)
-    return Data(x=data.x, edge_index=combined, edge_attr=data.edge_attr)
+    data.edge_index = combined
+    return data
