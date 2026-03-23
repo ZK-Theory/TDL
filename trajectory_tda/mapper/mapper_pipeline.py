@@ -20,11 +20,13 @@ from sklearn.preprocessing import MinMaxScaler
 
 try:
     import kmapper as km
-except ImportError as exc:
-    raise ImportError(
-        "trajectory_tda.mapper requires the 'mapper' extra: "
-        "pip install 'tdl[mapper]'"
-    ) from exc
+
+    HAS_KMAPPER = True
+except ImportError:
+    km = None  # type: ignore[assignment]
+    HAS_KMAPPER = False
+
+_KMAPPER_ERR = "trajectory_tda.mapper requires the 'mapper' extra: pip install 'tdl[mapper]'"
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,8 @@ def build_mapper_graph(
         Tuple of (graph, mapper_object) where graph is KeplerMapper's
         graph dict containing 'nodes' and 'links'.
     """
+    if not HAS_KMAPPER:
+        raise ImportError(_KMAPPER_ERR)
     mapper = km.KeplerMapper(verbose=verbose)
 
     # Create lens (projection)
@@ -166,7 +170,7 @@ def build_mapper_graph(
         clusterer=cl,
     )
 
-    summary = mapper_graph_summary(graph)
+    summary = mapper_graph_summary(graph, n_points=len(embeddings))
     logger.info(
         "Mapper graph: %d nodes, %d edges, %d components, coverage=%.2f",
         summary["n_nodes"],
@@ -178,11 +182,16 @@ def build_mapper_graph(
     return graph, mapper
 
 
-def mapper_graph_summary(graph: dict) -> dict:
+def mapper_graph_summary(graph: dict, n_points: int | None = None) -> dict:
     """Extract summary statistics from a Mapper graph.
 
     Args:
         graph: KeplerMapper graph dict with 'nodes' and 'links' keys.
+        n_points: Total number of data points in the dataset.  When
+            provided, coverage is computed against this value.  When
+            omitted, coverage is estimated from the maximum covered
+            index (may overstate coverage if high-index points are
+            not in any node).
 
     Returns:
         Dict with keys: n_nodes, n_edges, mean_node_size, median_node_size,
@@ -202,11 +211,15 @@ def mapper_graph_summary(graph: dict) -> dict:
     for members in nodes.values():
         all_members.update(members)
 
-    # Estimate total data points from max index
-    if nodes:
-        max_idx = max(max(m) for m in nodes.values()) + 1
+    # Determine denominator for coverage
+    if n_points is not None:
+        total = max(1, n_points)
+    elif nodes:
+        # Estimate from max covered index — may overstate coverage if
+        # high-index points are not in any node; pass n_points to avoid this.
+        total = max(max(m) for m in nodes.values()) + 1
     else:
-        max_idx = 1
+        total = 1
 
     return {
         "n_nodes": n_nodes,
@@ -216,7 +229,7 @@ def mapper_graph_summary(graph: dict) -> dict:
         "min_node_size": int(min(node_sizes)) if node_sizes else 0,
         "max_node_size": int(max(node_sizes)) if node_sizes else 0,
         "n_covered": len(all_members),
-        "coverage": len(all_members) / max(1, max_idx) if nodes else 0,
+        "coverage": len(all_members) / total if nodes else 0,
         "n_connected_components": _count_components(graph),
     }
 
@@ -298,7 +311,7 @@ def save_mapper_graph(
         if isinstance(obj, np.floating):
             return float(obj)
         if isinstance(obj, set):
-            return list(obj)
+            return sorted(obj)
         return obj
 
     serialisable: dict[str, Any] = {

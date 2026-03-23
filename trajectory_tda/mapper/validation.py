@@ -55,16 +55,16 @@ def validate_against_regimes(
             "n_bridge_nodes": 0,
         }
 
-    # Build Mapper-based cluster labels for NMI
-    # Assign each point to its first node (for points in multiple nodes)
+    # Build Mapper-based cluster labels for NMI.
+    # Iterate in sorted order so first-assignment is deterministic.
     point_to_node: dict[int, str] = {}
-    for node_id, members in nodes.items():
-        for m in members:
+    for node_id in sorted(nodes.keys()):
+        for m in nodes[node_id]:
             if m not in point_to_node:
                 point_to_node[m] = node_id
 
-    # NMI: map node IDs to integers
-    node_id_map = {nid: i for i, nid in enumerate(nodes.keys())}
+    # NMI: map node IDs to integers using deterministic ordering
+    node_id_map = {nid: i for i, nid in enumerate(sorted(nodes.keys()))}
     covered_indices = sorted(point_to_node.keys())
     mapper_labels = np.array([node_id_map[point_to_node[i]] for i in covered_indices])
     regime_subset = regime_labels[covered_indices]

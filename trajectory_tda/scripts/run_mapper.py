@@ -47,7 +47,7 @@ def _save_json(data: dict, path: Path) -> None:
         if isinstance(obj, np.floating):
             return float(obj)
         if isinstance(obj, set):
-            return list(obj)
+            return sorted(obj)
         return obj
 
     with open(path, "w") as f:
@@ -159,8 +159,7 @@ def run_synthetic_pipeline(output_dir: str, skip_grid_search: bool = False) -> d
 
     colorings_save = {
         "regime_label": {
-            nid: {k: v for k, v in stats.items() if k != "members"}
-            for nid, stats in regime_coloring.items()
+            nid: {k: v for k, v in stats.items() if k != "members"} for nid, stats in regime_coloring.items()
         },
         "regime_distribution": regime_dist,
     }
@@ -189,11 +188,7 @@ def run_synthetic_pipeline(output_dir: str, skip_grid_search: bool = False) -> d
     validation = validate_against_regimes(graph, regime_labels, n_regimes=n_regimes)
     membership_labels = compute_node_membership_labels(graph, len(embeddings))
 
-    validation_save = {
-        k: v
-        for k, v in validation.items()
-        if k != "per_node_regime_distribution"
-    }
+    validation_save = {k: v for k, v in validation.items() if k != "per_node_regime_distribution"}
     validation_save["membership_label_counts"] = {
         "assigned": int(np.sum(membership_labels >= 0)),
         "unassigned": int(np.sum(membership_labels == -1)),
@@ -306,8 +301,7 @@ def run_pipeline(
     colorings_summary = {}
     for cname, cdata in colorings.items():
         colorings_summary[cname] = {
-            node_id: {k: v for k, v in stats.items() if k != "members"}
-            for node_id, stats in cdata.items()
+            node_id: {k: v for k, v in stats.items() if k != "members"} for node_id, stats in cdata.items()
         }
     colorings_summary["regime_distribution"] = regime_dist
     all_results["02_node_coloring"] = colorings_summary
@@ -342,9 +336,7 @@ def run_pipeline(
                     "n_nodes": r["summary"]["n_nodes"] if r["summary"] else None,
                     "n_edges": r["summary"]["n_edges"] if r["summary"] else None,
                     "coverage": r["summary"]["coverage"] if r["summary"] else None,
-                    "n_components": (
-                        r["summary"]["n_connected_components"] if r["summary"] else None
-                    ),
+                    "n_components": (r["summary"]["n_connected_components"] if r["summary"] else None),
                 }
                 for r in broad_results["results"]
             ],
@@ -373,11 +365,7 @@ def run_pipeline(
         validation = validate_against_regimes(graph, gmm_labels, n_regimes=n_regimes)
         membership_labels = compute_node_membership_labels(graph, len(embeddings))
 
-        validation_save = {
-            k: v
-            for k, v in validation.items()
-            if k != "per_node_regime_distribution"
-        }
+        validation_save = {k: v for k, v in validation.items() if k != "per_node_regime_distribution"}
         validation_save["per_node_regime_distribution_sample"] = dict(
             list(validation["per_node_regime_distribution"].items())[:10]
         )
@@ -408,9 +396,7 @@ def run_pipeline(
     logger.info("=" * 60)
     logger.info("Step 7: Saving graph and generating HTML visualisations")
     logger.info("=" * 60)
-    color_values = (
-        gmm_labels.astype(np.float64) if len(gmm_labels) > 0 else embeddings[:, 0]
-    )
+    color_values = gmm_labels.astype(np.float64) if len(gmm_labels) > 0 else embeddings[:, 0]
     save_mapper_graph(
         graph,
         str(outdir / "06_mapper_graph.json"),
