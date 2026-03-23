@@ -12,12 +12,12 @@ Usage:
     python -m trajectory_tda.scripts.run_wasserstein_nulls --synthetic
 
     # Real data from checkpoint
-    python -m trajectory_tda.scripts.run_wasserstein_nulls \
-        --results-dir results/trajectory_tda_integration \
+    python -m trajectory_tda.scripts.run_wasserstein_nulls \\
+        --results-dir results/trajectory_tda_integration \\
         --data-dir trajectory_tda/data
 
     # Custom permutation count and null types
-    python -m trajectory_tda.scripts.run_wasserstein_nulls --synthetic \
+    python -m trajectory_tda.scripts.run_wasserstein_nulls --synthetic \\
         --n-perms 200 --null-types order_shuffle markov
 """
 
@@ -115,7 +115,6 @@ def _make_synthetic_data(
 
 
 def _load_checkpoint_data(
-    results_dir: Path,
     data_dir: Path,
 ) -> tuple[np.ndarray, list[list[str]], dict]:
     """Load embeddings and trajectories from existing pipeline checkpoint."""
@@ -223,7 +222,6 @@ def main():
     else:
         logger.info(f"Loading data from {args.data_dir}")
         emb, trajs, embed_kwargs = _load_checkpoint_data(
-            Path(args.results_dir),
             Path(args.data_dir),
         )
 

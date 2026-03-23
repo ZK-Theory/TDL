@@ -31,9 +31,9 @@ from trajectory_tda.topology.vectorisation import wasserstein_distance as comput
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 # Null model generators
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 
 
 def _label_shuffle(
@@ -224,9 +224,9 @@ def _markov_shuffle(
     return embeddings
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 # Stratified Markov null (per-regime transition matrices)
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 
 
 def _stratified_markov_shuffle(
@@ -295,7 +295,11 @@ def _stratified_markov_shuffle(
 
         if n_regime < min_regime_n:
             logger.warning(
-                f"Regime {k}: only {n_regime} trajectories (< {min_regime_n}), using global transition matrix"
+                "Regime %s: only %d trajectories (< %d), "
+                "using global transition matrix",
+                k,
+                n_regime,
+                min_regime_n,
             )
             regime_tm[int(k)] = global_tm.copy()
             regime_init[int(k)] = global_init_probs.copy()
@@ -345,9 +349,9 @@ def _stratified_markov_shuffle(
     return embeddings
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 # Phase-order shuffle (for Phase 6 career-phase analysis)
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 
 
 def phase_order_shuffle_test(
@@ -452,9 +456,9 @@ def phase_order_shuffle_test(
     }
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 # Core permutation test
-# ─────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────
 
 
 def _single_permutation(
@@ -639,15 +643,11 @@ def permutation_test_trajectories(
                 i, j = rng_pairs.choice(n_permutations, size=2, replace=False)
                 dgm_i = null_results[i].get(f"{key}_dgm", [])
                 dgm_j = null_results[j].get(f"{key}_dgm", [])
-                if len(dgm_i) > 0 and len(dgm_j) > 0:
-                    d_i = np.array(dgm_i)
-                    d_j = np.array(dgm_j)
-                    # Build minimal PHResult wrappers for wasserstein_distance
-                    ph_i = PHResult(dgms={dim: d_i})
-                    ph_j = PHResult(dgms={dim: d_j})
-                    null_null_dists.append(compute_wasserstein(ph_i, ph_j, dim=dim))
-                elif len(dgm_i) == 0 and len(dgm_j) == 0:
-                    null_null_dists.append(0.0)
+                d_i = np.array(dgm_i) if len(dgm_i) > 0 else np.empty((0, 2))
+                d_j = np.array(dgm_j) if len(dgm_j) > 0 else np.empty((0, 2))
+                ph_i = PHResult(dgms={dim: d_i})
+                ph_j = PHResult(dgms={dim: d_j})
+                null_null_dists.append(compute_wasserstein(ph_i, ph_j, dim=dim))
 
             null_null_arr = np.array(null_null_dists) if null_null_dists else np.array([0.0])
             mean_obs_null = float(obs_null_dists.mean())
