@@ -35,6 +35,47 @@ from trajectory_tda.topology.permutation_nulls import permutation_test_trajector
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Synthetic data generation (no test-module dependencies)
+# ---------------------------------------------------------------------------
+
+_STATES = ["EL", "EM", "EH", "UL", "UM", "UH", "IL", "IM", "IH"]
+_POVERTY_CYCLE = ["EL", "UL", "IL", "IM", "EM", "EL"]
+
+
+def _make_cyclic_trajectories(
+    n: int = 50,
+    cycle: list[str] | None = None,
+    noise: float = 0.1,
+    t: int = 20,
+    seed: int = 42,
+) -> list[list[str]]:
+    """Generate trajectories following a poverty-churn cycle.
+
+    Default cycle: EL → UL → IL → IM → EM → EL.
+    With probability *noise* a random state is substituted instead.
+    """
+    rng = np.random.RandomState(seed)
+    if cycle is None:
+        cycle = _POVERTY_CYCLE
+    cycle_len = len(cycle)
+    trajectories = []
+    for _ in range(n):
+        traj = []
+        start = rng.randint(cycle_len)
+        for step in range(t):
+            if rng.random() < noise:
+                traj.append(_STATES[rng.randint(len(_STATES))])
+            else:
+                traj.append(cycle[(start + step) % cycle_len])
+        trajectories.append(traj)
+    return trajectories
+
+
+# ---------------------------------------------------------------------------
+# I/O helpers
+# ---------------------------------------------------------------------------
+
 
 def _save_results(data: dict, path: Path, name: str) -> None:
     """Save results to JSON with numpy conversion."""
@@ -65,11 +106,9 @@ def _make_synthetic_data(
     seed: int = 42,
 ) -> tuple[np.ndarray, list[list[str]], dict]:
     """Generate synthetic trajectory data for validation."""
-    from tests.trajectory.conftest import make_cyclic_trajectories
-
     from trajectory_tda.embedding.ngram_embed import ngram_embed
 
-    trajs = make_cyclic_trajectories(n=n, t=t, seed=seed)
+    trajs = _make_cyclic_trajectories(n=n, t=t, seed=seed)
     embed_kwargs = {"pca_dim": 5}
     emb, _ = ngram_embed(trajs, **embed_kwargs)
     return emb, trajs, embed_kwargs
