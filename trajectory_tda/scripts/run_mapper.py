@@ -5,8 +5,8 @@ graphs with multiple parameter configurations, colors nodes by trajectory
 outcomes, and validates the Mapper decomposition against GMM regimes.
 
 Usage:
-    python -m trajectory_tda.scripts.run_mapper \
-        --results-dir results/trajectory_tda_integration \
+    python -m trajectory_tda.scripts.run_mapper \\
+        --results-dir results/trajectory_tda_integration \\
         --output-dir results/trajectory_tda_mapper
 
     # Synthetic mode (no real data needed):
@@ -150,12 +150,17 @@ def run_synthetic_pipeline(output_dir: str, skip_grid_search: bool = False) -> d
     logger.info("=" * 60)
     logger.info("Step 3: Coloring nodes by regime membership")
     logger.info("=" * 60)
-    regime_coloring = color_nodes_by_outcome(graph, regime_labels.astype(np.float64), outcome_name="regime_label")
+    regime_coloring = color_nodes_by_outcome(
+        graph,
+        regime_labels.astype(np.float64),
+        outcome_name="regime_label",
+    )
     regime_dist = compute_node_regime_distribution(graph, regime_labels, n_regimes=n_regimes)
 
     colorings_save = {
         "regime_label": {
-            nid: {k: v for k, v in stats.items() if k != "members"} for nid, stats in regime_coloring.items()
+            nid: {k: v for k, v in stats.items() if k != "members"}
+            for nid, stats in regime_coloring.items()
         },
         "regime_distribution": regime_dist,
     }
@@ -200,7 +205,6 @@ def run_synthetic_pipeline(output_dir: str, skip_grid_search: bool = False) -> d
         graph,
         str(outdir / "05_mapper_graph.json"),
         mapper_obj=mapper_obj,
-        embeddings=embeddings,
         color_values=regime_labels.astype(np.float64),
     )
 
@@ -241,7 +245,10 @@ def run_pipeline(
         compute_all_colorings,
         compute_node_regime_distribution,
     )
-    from trajectory_tda.mapper.parameter_search import mapper_parameter_search, parameter_grid_search
+    from trajectory_tda.mapper.parameter_search import (
+        mapper_parameter_search,
+        parameter_grid_search,
+    )
     from trajectory_tda.mapper.validation import (
         compute_node_membership_labels,
         identify_subregime_structure,
@@ -295,7 +302,8 @@ def run_pipeline(
     colorings_summary = {}
     for cname, cdata in colorings.items():
         colorings_summary[cname] = {
-            node_id: {k: v for k, v in stats.items() if k != "members"} for node_id, stats in cdata.items()
+            node_id: {k: v for k, v in stats.items() if k != "members"}
+            for node_id, stats in cdata.items()
         }
     colorings_summary["regime_distribution"] = regime_dist
     all_results["02_node_coloring"] = colorings_summary
@@ -330,7 +338,9 @@ def run_pipeline(
                     "n_nodes": r["summary"]["n_nodes"] if r["summary"] else None,
                     "n_edges": r["summary"]["n_edges"] if r["summary"] else None,
                     "coverage": r["summary"]["coverage"] if r["summary"] else None,
-                    "n_components": (r["summary"]["n_connected_components"] if r["summary"] else None),
+                    "n_components": (
+                        r["summary"]["n_connected_components"] if r["summary"] else None
+                    ),
                 }
                 for r in broad_results["results"]
             ],
@@ -377,9 +387,9 @@ def run_pipeline(
     logger.info("Step 6: Identifying sub-regime structure")
     logger.info("=" * 60)
     if len(gmm_labels) > 0:
-        from trajectory_tda.mapper.node_coloring import _compute_employment_rate
+        from trajectory_tda.mapper.node_coloring import compute_employment_rate
 
-        emp_rate = _compute_employment_rate(trajectories)
+        emp_rate = compute_employment_rate(trajectories)
         subregime = identify_subregime_structure(graph, gmm_labels, emp_rate)
         all_results["05_subregime"] = subregime
         _save_json(subregime, outdir / "05_subregime_structure.json")
@@ -390,19 +400,21 @@ def run_pipeline(
     logger.info("=" * 60)
     logger.info("Step 7: Saving graph and generating HTML visualisations")
     logger.info("=" * 60)
+    color_values = (
+        gmm_labels.astype(np.float64) if len(gmm_labels) > 0 else embeddings[:, 0]
+    )
     save_mapper_graph(
         graph,
         str(outdir / "06_mapper_graph.json"),
         mapper_obj=mapper_obj,
-        embeddings=embeddings,
-        color_values=gmm_labels.astype(np.float64) if len(gmm_labels) > 0 else embeddings[:, 0],
+        color_values=color_values,
     )
 
     try:
         # Additional HTML with employment rate coloring
-        from trajectory_tda.mapper.node_coloring import _compute_employment_rate
+        from trajectory_tda.mapper.node_coloring import compute_employment_rate
 
-        emp_rate = _compute_employment_rate(trajectories)
+        emp_rate = compute_employment_rate(trajectories)
         mapper_obj.visualize(
             graph,
             path_html=str(outdir / "figures" / "mapper_graph_employment.html"),

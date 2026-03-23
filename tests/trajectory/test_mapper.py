@@ -21,7 +21,10 @@ from trajectory_tda.mapper.node_coloring import (
     compute_escape_probability,
     compute_node_regime_distribution,
 )
-from trajectory_tda.mapper.parameter_search import mapper_parameter_search, parameter_grid_search
+from trajectory_tda.mapper.parameter_search import (
+    mapper_parameter_search,
+    parameter_grid_search,
+)
 from trajectory_tda.mapper.validation import (
     compute_node_membership_labels,
     identify_subregime_structure,
@@ -48,7 +51,7 @@ def synthetic_embeddings():
 @pytest.fixture()
 def simple_graph(synthetic_embeddings):
     """Build a Mapper graph from synthetic embeddings."""
-    graph, mapper_obj = build_mapper_graph(
+    graph, _ = build_mapper_graph(
         synthetic_embeddings,
         projection="pca_2d",
         n_cubes=5,
@@ -76,7 +79,7 @@ class TestMapperSpecRequired:
 
     def test_build_mapper_graph_basic(self, synthetic_embeddings):
         """Produces valid graph dict with nodes and links."""
-        graph, mapper_obj = build_mapper_graph(
+        graph, _ = build_mapper_graph(
             synthetic_embeddings,
             n_cubes=5,
             overlap_frac=0.3,

@@ -14,16 +14,24 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import kmapper as km
 import numpy as np
 from sklearn.cluster import DBSCAN, AgglomerativeClustering
 from sklearn.preprocessing import MinMaxScaler
+
+try:
+    import kmapper as km
+except ImportError as exc:
+    raise ImportError(
+        "trajectory_tda.mapper requires the 'mapper' extra: "
+        "pip install 'tdl[mapper]'"
+    ) from exc
 
 logger = logging.getLogger(__name__)
 
 
 def load_embeddings(results_dir: str) -> tuple[np.ndarray, list[list[str]], dict]:
-    """Load pre-computed PCA-20D embeddings, trajectories, and metadata from P01 results.
+    """Load pre-computed PCA-20D embeddings, trajectories, and metadata
+    from P01 results.
 
     Args:
         results_dir: Path to directory containing P01 results.
@@ -83,7 +91,6 @@ def build_mapper_graph(
     overlap_frac: float = 0.3,
     clusterer: str = "dbscan",
     clusterer_params: dict | None = None,
-    random_state: int = 42,
     scaler: str = "minmax",
     verbose: int = 1,
 ) -> tuple[dict, km.KeplerMapper]:
@@ -100,7 +107,6 @@ def build_mapper_graph(
         clusterer_params: Parameters for the clustering algorithm.
             DBSCAN defaults: {"eps": 0.5, "min_samples": 5}.
             Agglomerative defaults: {"threshold": 1.5}.
-        random_state: Random seed for reproducibility.
         scaler: Scaling for lens values. "minmax" or None.
         verbose: KeplerMapper verbosity level.
 
@@ -263,15 +269,14 @@ def save_mapper_graph(
     graph: dict,
     output_path: str,
     mapper_obj: km.KeplerMapper | None = None,
-    embeddings: np.ndarray | None = None,
     color_values: np.ndarray | None = None,
 ) -> None:
     """Save Mapper graph as JSON and optionally as HTML visualization.
 
     The JSON file contains the graph structure (nodes as index lists,
     edges as adjacency lists) plus summary statistics.  If a KeplerMapper
-    object and embeddings are provided, an HTML visualization is also
-    generated alongside the JSON file.
+    object is provided, an HTML visualization is also generated alongside
+    the JSON file.
 
     Args:
         graph: KeplerMapper graph dict with 'nodes' and 'links' keys.
@@ -279,7 +284,6 @@ def save_mapper_graph(
             (if generated) is written to the same directory with a
             ``.html`` suffix.
         mapper_obj: Optional KeplerMapper instance used for HTML export.
-        embeddings: Optional (N, D) embeddings array for HTML export.
         color_values: Optional (N,) array used to color the HTML graph.
     """
     out = Path(output_path)

@@ -131,7 +131,7 @@ def compute_escape_probability(
     return escape
 
 
-def _compute_employment_rate(trajectories: list[list[str]]) -> np.ndarray:
+def compute_employment_rate(trajectories: list[list[str]]) -> np.ndarray:
     """Compute fraction of periods spent in employment for each trajectory.
 
     Args:
@@ -211,15 +211,21 @@ def compute_all_colorings(
     # 1. Escape probability
     if len(gmm_labels) > 0:
         escape = compute_escape_probability(gmm_labels, disadvantaged)
-        colorings["escape_probability"] = color_nodes_by_outcome(graph, escape, outcome_name="escape_probability")
+        colorings["escape_probability"] = color_nodes_by_outcome(
+            graph, escape, outcome_name="escape_probability"
+        )
 
     # 2. Employment rate
-    emp_rate = _compute_employment_rate(trajectories)
-    colorings["employment_rate"] = color_nodes_by_outcome(graph, emp_rate, outcome_name="employment_rate")
+    emp_rate = compute_employment_rate(trajectories)
+    colorings["employment_rate"] = color_nodes_by_outcome(
+        graph, emp_rate, outcome_name="employment_rate"
+    )
 
     # 3. Final income proxy
     income = _compute_final_income_proxy(trajectories)
-    colorings["final_income"] = color_nodes_by_outcome(graph, income, outcome_name="final_income")
+    colorings["final_income"] = color_nodes_by_outcome(
+        graph, income, outcome_name="final_income"
+    )
 
     # 4. Regime label (as float for aggregation)
     if len(gmm_labels) > 0:

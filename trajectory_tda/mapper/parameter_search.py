@@ -12,7 +12,10 @@ from itertools import product
 
 import numpy as np
 
-from trajectory_tda.mapper.mapper_pipeline import build_mapper_graph, mapper_graph_summary
+from trajectory_tda.mapper.mapper_pipeline import (
+    build_mapper_graph,
+    mapper_graph_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +118,6 @@ def mapper_parameter_search(
     overlap_range: list[float] | None = None,
     projection: str = "pca_2d",
     clusterer: str = "dbscan",
-    random_state: int = 42,
 ) -> dict:
     """Grid search over Mapper hyperparameters.
 
@@ -131,7 +133,6 @@ def mapper_parameter_search(
             Default: [0.2, 0.3, 0.4, 0.5].
         projection: Lens function name for all configurations.
         clusterer: Clustering algorithm name for all configurations.
-        random_state: Random seed for reproducibility.
 
     Returns:
         Dict with keys:
@@ -163,7 +164,6 @@ def mapper_parameter_search(
                 n_cubes=nc,
                 overlap_frac=ov,
                 clusterer=clusterer,
-                random_state=random_state,
                 verbose=0,
             )
             summary = mapper_graph_summary(graph)
