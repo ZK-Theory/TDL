@@ -1,1 +1,1 @@
-"""Pipeline orchestration scripts."""
+"""Pipeline scripts for end-to-end trajectory TDA runs."""

@@ -62,6 +62,9 @@ dist/
 .env.local
 .env.*.local
 
+# Local Claude settings (machine-specific permissions)
+.claude/settings.local.json
+
 # OS files
 .DS_Store
 .DS_Store?
