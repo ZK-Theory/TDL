@@ -189,7 +189,11 @@ def run_synthetic_pipeline(output_dir: str, skip_grid_search: bool = False) -> d
     validation = validate_against_regimes(graph, regime_labels, n_regimes=n_regimes)
     membership_labels = compute_node_membership_labels(graph, len(embeddings))
 
-    validation_save = {k: v for k, v in validation.items() if k != "per_node_regime_distribution"}
+    validation_save = {
+        k: v
+        for k, v in validation.items()
+        if k != "per_node_regime_distribution"
+    }
     validation_save["membership_label_counts"] = {
         "assigned": int(np.sum(membership_labels >= 0)),
         "unassigned": int(np.sum(membership_labels == -1)),
@@ -369,7 +373,11 @@ def run_pipeline(
         validation = validate_against_regimes(graph, gmm_labels, n_regimes=n_regimes)
         membership_labels = compute_node_membership_labels(graph, len(embeddings))
 
-        validation_save = {k: v for k, v in validation.items() if k != "per_node_regime_distribution"}
+        validation_save = {
+            k: v
+            for k, v in validation.items()
+            if k != "per_node_regime_distribution"
+        }
         validation_save["per_node_regime_distribution_sample"] = dict(
             list(validation["per_node_regime_distribution"].items())[:10]
         )
