@@ -3,7 +3,7 @@ name = "tdl"
 version = "0.1.0"
 description = "Topological Data Analysis for Financial Market Regime Detection and UK Poverty Trap Analysis"
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11,<3.14"
 authors = [
     { name = "TDL Project" }
 ]
@@ -41,6 +41,12 @@ dev = [
 ]
 kriging = [
     "pykrige>=1.7.0",
+]
+mapper = [
+    "kmapper>=2.0.0",
+]
+wasserstein = [
+    "pot>=0.9.0",
 ]
 
 [build-system]
