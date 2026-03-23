@@ -1,0 +1,156 @@
+{
+  "results": [
+    {
+      "n_cubes": 10,
+      "overlap_frac": 0.2,
+      "n_nodes": 863,
+      "n_edges": 479,
+      "n_components": 519,
+      "mean_node_size": 29.82039397450753,
+      "coverage": 0.553779602610162
+    },
+    {
+      "n_cubes": 10,
+      "overlap_frac": 0.3,
+      "n_nodes": 1111,
+      "n_edges": 935,
+      "n_components": 519,
+      "mean_node_size": 30.05220522052205,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 10,
+      "overlap_frac": 0.4,
+      "n_nodes": 1507,
+      "n_edges": 1746,
+      "n_components": 519,
+      "mean_node_size": 30.63901791639018,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 10,
+      "overlap_frac": 0.5,
+      "n_nodes": 2098,
+      "n_edges": 3166,
+      "n_components": 519,
+      "mean_node_size": 28.162059103908483,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 15,
+      "overlap_frac": 0.2,
+      "n_nodes": 925,
+      "n_edges": 610,
+      "n_components": 521,
+      "mean_node_size": 24.284324324324324,
+      "coverage": 0.5534863259769778
+    },
+    {
+      "n_cubes": 15,
+      "overlap_frac": 0.3,
+      "n_nodes": 1197,
+      "n_edges": 1123,
+      "n_components": 519,
+      "mean_node_size": 23.764411027568922,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 15,
+      "overlap_frac": 0.4,
+      "n_nodes": 1593,
+      "n_edges": 1944,
+      "n_components": 519,
+      "mean_node_size": 24.627118644067796,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 15,
+      "overlap_frac": 0.5,
+      "n_nodes": 2213,
+      "n_edges": 3457,
+      "n_components": 519,
+      "mean_node_size": 27.02169001355626,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 20,
+      "overlap_frac": 0.2,
+      "n_nodes": 935,
+      "n_edges": 560,
+      "n_components": 521,
+      "mean_node_size": 25.776470588235295,
+      "coverage": 0.5524231981816848
+    },
+    {
+      "n_cubes": 20,
+      "overlap_frac": 0.3,
+      "n_nodes": 1199,
+      "n_edges": 1067,
+      "n_components": 519,
+      "mean_node_size": 24.93160967472894,
+      "coverage": 0.5536329642935699
+    },
+    {
+      "n_cubes": 20,
+      "overlap_frac": 0.4,
+      "n_nodes": 1597,
+      "n_edges": 1942,
+      "n_components": 519,
+      "mean_node_size": 24.527238572323107,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 20,
+      "overlap_frac": 0.5,
+      "n_nodes": 2266,
+      "n_edges": 3594,
+      "n_components": 519,
+      "mean_node_size": 26.327449249779345,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 25,
+      "overlap_frac": 0.2,
+      "n_nodes": 948,
+      "n_edges": 593,
+      "n_components": 526,
+      "mean_node_size": 22.734177215189874,
+      "coverage": 0.5509201554366155
+    },
+    {
+      "n_cubes": 25,
+      "overlap_frac": 0.3,
+      "n_nodes": 1205,
+      "n_edges": 1077,
+      "n_components": 524,
+      "mean_node_size": 23.346887966804978,
+      "coverage": 0.5534863259769778
+    },
+    {
+      "n_cubes": 25,
+      "overlap_frac": 0.4,
+      "n_nodes": 1625,
+      "n_edges": 2005,
+      "n_components": 519,
+      "mean_node_size": 24.39323076923077,
+      "coverage": 0.5538529217684581
+    },
+    {
+      "n_cubes": 25,
+      "overlap_frac": 0.5,
+      "n_nodes": 2282,
+      "n_edges": 3638,
+      "n_components": 519,
+      "mean_node_size": 26.068361086765997,
+      "coverage": 0.5538529217684581
+    }
+  ],
+  "best_by_coverage": {
+    "n_cubes": 10,
+    "overlap_frac": 0.3
+  },
+  "best_by_components": {
+    "n_cubes": 10,
+    "overlap_frac": 0.2
+  }
+}

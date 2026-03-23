@@ -1,0 +1,11 @@
+{
+  "n_nodes": 1197,
+  "n_edges": 1123,
+  "mean_node_size": 23.764411027568922,
+  "median_node_size": 4.0,
+  "min_node_size": 3,
+  "max_node_size": 2335,
+  "n_covered": 15108,
+  "coverage": 0.5538529217684581,
+  "n_connected_components": 519
+}
