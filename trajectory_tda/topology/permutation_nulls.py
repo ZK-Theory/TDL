@@ -20,11 +20,13 @@ import numpy as np
 from joblib import Parallel, delayed
 
 from poverty_tda.topology.multidim_ph import (
+    PHResult,
     compute_rips_ph,
     persistence_summary,
 )
 from trajectory_tda.embedding.ngram_embed import STATES, ngram_embed
 from trajectory_tda.topology.trajectory_ph import maxmin_landmarks
+from trajectory_tda.topology.vectorisation import wasserstein_distance as compute_wasserstein
 
 logger = logging.getLogger(__name__)
 
@@ -293,8 +295,7 @@ def _stratified_markov_shuffle(
 
         if n_regime < min_regime_n:
             logger.warning(
-                f"Regime {k}: only {n_regime} trajectories (< {min_regime_n}), "
-                "using global transition matrix"
+                f"Regime {k}: only {n_regime} trajectories (< {min_regime_n}), using global transition matrix"
             )
             regime_tm[int(k)] = global_tm.copy()
             regime_init[int(k)] = global_init_probs.copy()
@@ -467,7 +468,8 @@ def _single_permutation(
     statistic: str,
     markov_order: int,
     embed_kwargs: dict | None,
-) -> dict[str, float]:
+    ph_observed: PHResult | None = None,
+) -> dict:
     """Execute one permutation and return statistic values."""
     rng = np.random.RandomState(seed)
 
@@ -484,8 +486,11 @@ def _single_permutation(
         if regime_labels is None:
             raise ValueError("null_type='stratified_markov1' requires metadata['regime_labels']")
         X_perm = _stratified_markov_shuffle(
-            trajectories or [], np.asarray(regime_labels), rng,
-            markov_order=1, embed_kwargs=embed_kwargs,
+            trajectories or [],
+            np.asarray(regime_labels),
+            rng,
+            markov_order=1,
+            embed_kwargs=embed_kwargs,
         )
     else:
         raise ValueError(f"Unknown null_type: {null_type}")
@@ -499,6 +504,22 @@ def _single_permutation(
         landmarks = X_perm
 
     ph = compute_rips_ph(landmarks, max_dim=max_dim)
+
+    # Wasserstein statistic: return W(null, observed) per dimension
+    if statistic == "wasserstein" and ph_observed is not None:
+        result = {}
+        for dim in range(max_dim + 1):
+            key = f"H{dim}"
+            result[key] = compute_wasserstein(ph, ph_observed, dim=dim)
+            # Store raw diagram for null-null baseline computation
+            feats = ph.h_features(dim)
+            arr = np.array(feats) if len(feats) > 0 else np.empty((0, 2))
+            # Filter infinite features
+            if len(arr) > 0:
+                arr = arr[np.isfinite(arr[:, 1])]
+            result[f"{key}_dgm"] = arr.tolist()
+        return result
+
     summary = persistence_summary(ph)
 
     result = {}
@@ -514,8 +535,11 @@ def permutation_test_trajectories(
     trajectories: list[list[str]] | None = None,
     metadata: dict | None = None,
     null_type: Literal[
-        "label_shuffle", "cohort_shuffle", "order_shuffle",
-        "markov", "stratified_markov1",
+        "label_shuffle",
+        "cohort_shuffle",
+        "order_shuffle",
+        "markov",
+        "stratified_markov1",
     ] = "label_shuffle",
     n_permutations: int = 1000,
     max_dim: int = 1,
@@ -536,16 +560,21 @@ def permutation_test_trajectories(
         n_permutations: Number of permutations
         max_dim: Maximum homology dimension to test
         n_landmarks: Landmarks for subsampling
-        statistic: 'total_persistence' or 'max_persistence'
+        statistic: 'total_persistence', 'max_persistence', or 'wasserstein'
         markov_order: Order for Markov null (1 or 2)
         n_jobs: Number of parallel jobs (-1 = all cores)
         seed: Random seed base
         embed_kwargs: Kwargs passed to ngram_embed for re-embedding nulls
 
     Returns:
-        Dict with per-dimension results:
+        Dict with per-dimension results. For scalar statistics:
             {f'H{dim}': {observed, null_mean, null_std, null_p95, p_value,
                          significant_at_005}}
+        For wasserstein statistic:
+            {f'H{dim}': {mean_wasserstein_obs_null, std_wasserstein_obs_null,
+                         median_wasserstein_obs_null, mean_wasserstein_null_null,
+                         p_value, significant_at_005, obs_null_distribution,
+                         n_null_null_pairs}}
     """
     # Validate inputs
     if null_type in ("order_shuffle", "markov", "stratified_markov1") and trajectories is None:
@@ -562,12 +591,16 @@ def permutation_test_trajectories(
         obs_landmarks = embeddings
 
     ph_obs = compute_rips_ph(obs_landmarks, max_dim=max_dim)
-    obs_summary = persistence_summary(ph_obs)
-    observed = {}
-    for dim in range(max_dim + 1):
-        key = f"H{dim}"
-        observed[key] = obs_summary.get(key, {}).get(statistic, 0.0)
-    logger.info(f"  Observed {statistic}: {observed}")
+
+    if statistic != "wasserstein":
+        obs_summary = persistence_summary(ph_obs)
+        observed = {}
+        for dim in range(max_dim + 1):
+            key = f"H{dim}"
+            observed[key] = obs_summary.get(key, {}).get(statistic, 0.0)
+        logger.info(f"  Observed {statistic}: {observed}")
+    else:
+        logger.info("  Wasserstein mode: computing W(null, observed) for each permutation")
 
     # Run permutations in parallel
     seeds = [seed + i + 1 for i in range(n_permutations)]
@@ -584,30 +617,80 @@ def permutation_test_trajectories(
             statistic,
             markov_order,
             embed_kwargs,
+            ph_observed=ph_obs if statistic == "wasserstein" else None,
         )
         for s in seeds
     )
 
     # Aggregate results
     results = {}
-    for dim in range(max_dim + 1):
-        key = f"H{dim}"
-        null_vals = np.array([r[key] for r in null_results])
-        obs_val = observed[key]
-        p_value = float(np.mean(null_vals >= obs_val))
 
-        results[key] = {
-            "observed": obs_val,
-            "null_mean": float(null_vals.mean()),
-            "null_std": float(null_vals.std()),
-            "null_p95": float(np.percentile(null_vals, 95)),
-            "p_value": p_value,
-            "significant_at_005": p_value < 0.05,
-            "null_distribution": null_vals.tolist(),
-        }
-        logger.info(
-            f"  {key}: observed={obs_val:.4f}, null={null_vals.mean():.4f}±{null_vals.std():.4f}, p={p_value:.4f}"
-        )
+    if statistic == "wasserstein":
+        # Wasserstein aggregation: obs-null distances + null-null baseline
+        for dim in range(max_dim + 1):
+            key = f"H{dim}"
+            obs_null_dists = np.array([r[key] for r in null_results])
+
+            # Compute null-null baseline from stored diagrams
+            n_null_pairs = min(500, n_permutations * (n_permutations - 1) // 2)
+            rng_pairs = np.random.RandomState(seed)
+            null_null_dists = []
+            for _ in range(n_null_pairs):
+                i, j = rng_pairs.choice(n_permutations, size=2, replace=False)
+                dgm_i = null_results[i].get(f"{key}_dgm", [])
+                dgm_j = null_results[j].get(f"{key}_dgm", [])
+                if len(dgm_i) > 0 and len(dgm_j) > 0:
+                    d_i = np.array(dgm_i)
+                    d_j = np.array(dgm_j)
+                    # Build minimal PHResult wrappers for wasserstein_distance
+                    ph_i = PHResult(dgms={dim: d_i})
+                    ph_j = PHResult(dgms={dim: d_j})
+                    null_null_dists.append(compute_wasserstein(ph_i, ph_j, dim=dim))
+                elif len(dgm_i) == 0 and len(dgm_j) == 0:
+                    null_null_dists.append(0.0)
+
+            null_null_arr = np.array(null_null_dists) if null_null_dists else np.array([0.0])
+            mean_obs_null = float(obs_null_dists.mean())
+
+            # p-value: fraction of null-null W distances >= mean(obs-null W)
+            # If observed is typical of nulls, obs-null W ~ null-null W, p ~ 0.5
+            # If observed is atypical, obs-null W >> null-null W, p ~ 0
+            p_value = float(np.mean(null_null_arr >= mean_obs_null))
+
+            results[key] = {
+                "mean_wasserstein_obs_null": mean_obs_null,
+                "std_wasserstein_obs_null": float(obs_null_dists.std()),
+                "median_wasserstein_obs_null": float(np.median(obs_null_dists)),
+                "mean_wasserstein_null_null": float(null_null_arr.mean()),
+                "std_wasserstein_null_null": float(null_null_arr.std()),
+                "p_value": p_value,
+                "significant_at_005": p_value < 0.05,
+                "obs_null_distribution": obs_null_dists.tolist(),
+                "n_null_null_pairs": len(null_null_dists),
+            }
+            logger.info(
+                f"  {key}: mean_W(obs,null)={mean_obs_null:.4f}, "
+                f"mean_W(null,null)={float(null_null_arr.mean()):.4f}, p={p_value:.4f}"
+            )
+    else:
+        for dim in range(max_dim + 1):
+            key = f"H{dim}"
+            null_vals = np.array([r[key] for r in null_results])
+            obs_val = observed[key]
+            p_value = float(np.mean(null_vals >= obs_val))
+
+            results[key] = {
+                "observed": obs_val,
+                "null_mean": float(null_vals.mean()),
+                "null_std": float(null_vals.std()),
+                "null_p95": float(np.percentile(null_vals, 95)),
+                "p_value": p_value,
+                "significant_at_005": p_value < 0.05,
+                "null_distribution": null_vals.tolist(),
+            }
+            logger.info(
+                f"  {key}: observed={obs_val:.4f}, null={null_vals.mean():.4f}±{null_vals.std():.4f}, p={p_value:.4f}"
+            )
 
     results["null_type"] = null_type
     results["n_permutations"] = n_permutations
