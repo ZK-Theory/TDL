@@ -3,7 +3,7 @@ name = "tdl"
 version = "0.1.0"
 description = "Topological Data Analysis for Financial Market Regime Detection and UK Poverty Trap Analysis"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 authors = [
     { name = "TDL Project" }
 ]
