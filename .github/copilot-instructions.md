@@ -94,4 +94,11 @@ When writing a new DL trainer, subclass `BaseTrainer` and implement `train_epoch
 ## Skills
 
 Use `/paper-draft` to initiate academic writing assistance. It reads existing paper files and drafts/extends/critiques sections following field journal conventions (JEG, Sociological Methodology, JRSS-A etc).
+
+Use `/humanizer` to remove AI writing patterns from paper text. Tuned for academic
+writing in TDA and computational social science. Handles both general AI tells
+(significance inflation, em dash overuse, hedge-stacking, etc.) and academic-specific
+patterns (contribution inflation, formulaic abstracts, passive-voice evasion, lit-review
+padding, results over-interpretation, conclusion mirrors). Works on any section:
+abstract, introduction, methods, results, discussion.
 <!-- /vexp -->

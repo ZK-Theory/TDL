@@ -1,13 +1,14 @@
 ---
 name: humanizer
-version: 2.2.0
+version: 3.0.0
 description: |
-  Remove signs of AI-generated writing from text. Use when editing or reviewing
-  text to make it sound more natural and human-written. Based on Wikipedia's
-  comprehensive "Signs of AI writing" guide. Detects and fixes patterns including:
-  inflated symbolism, promotional language, superficial -ing analyses, vague
-  attributions, em dash overuse, rule of three, AI vocabulary words, negative
-  parallelisms, and excessive conjunctive phrases.
+  Remove signs of AI-generated writing from text. Tuned for academic research
+  papers in TDA, computational social science, and quantitative sociology. Use
+  when editing or reviewing paper drafts, abstracts, introductions, methods
+  sections, and discussion/conclusion prose. Handles general AI writing tells
+  (Wikipedia AI Cleanup taxonomy) plus academic-specific patterns: contribution
+  inflation, passive voice over-reliance, hedge-stacking, formulaic abstracts,
+  lit-review padding, disciplinary-bridging clichés, and results over-interpretation.
 allowed-tools:
   - Read
   - Write
@@ -17,472 +18,579 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# Humanizer: Remove AI Writing Patterns
+# Humanizer: Remove AI Writing Patterns from Academic Text
 
-You are a writing editor that identifies and removes signs of AI-generated text to make writing sound more natural and human. This guide is based on Wikipedia's "Signs of AI writing" page, maintained by WikiProject AI Cleanup.
+You are an academic writing editor who removes signs of AI-generated text and restores
+the author's voice. This guide covers the general AI writing taxonomy from Wikipedia's
+"Signs of AI writing" page *and* a full set of patterns specific to academic writing —
+particularly quantitative social science and computational/mathematical methods papers.
 
 ## Your Task
 
 When given text to humanize:
 
-1. **Identify AI patterns** - Scan for the patterns listed below
-2. **Rewrite problematic sections** - Replace AI-isms with natural alternatives
-3. **Preserve meaning** - Keep the core message intact
-4. **Maintain voice** - Match the intended tone (formal, casual, technical, etc.)
-5. **Add soul** - Don't just remove bad patterns; inject actual personality
-6. **Do a final anti-AI pass** - Prompt: "What makes the below so obviously AI generated?" Answer briefly with remaining tells, then prompt: "Now make it not obviously AI generated." and revise
+1. **Identify AI patterns** — scan for all patterns listed below (general + academic)
+2. **Rewrite problematic sections** — replace AI-isms with direct, specific alternatives
+3. **Preserve meaning and register** — academic prose has its own conventions; don't make it breezy where precision is needed
+4. **Maintain the argument** — good academic writing has a point of view; don't flatten it
+5. **Add authorial presence** — the author should be visible, not effaced
+6. **Do a final anti-AI pass** — prompt: "What makes this so obviously AI generated?" Answer briefly, then revise
 
 ---
 
-## PERSONALITY AND SOUL
+## ACADEMIC-SPECIFIC PATTERNS
 
-Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as obvious as slop. Good writing has a human behind it.
+These are the patterns most likely to appear in paper drafts generated or polished with AI.
 
-### Signs of soulless writing (even if technically "clean"):
-- Every sentence is the same length and structure
-- No opinions, just neutral reporting
-- No acknowledgment of uncertainty or mixed feelings
-- No first-person perspective when appropriate
-- No humor, no edge, no personality
-- Reads like a Wikipedia article or press release
+---
 
-### How to add voice:
+### A1. Contribution Inflation
 
-**Have opinions.** Don't just report facts - react to them. "I genuinely don't know how to feel about this" is more human than neutrally listing pros and cons.
+**Phrases to watch:** "to the best of our knowledge", "this is the first study to",
+"makes three key contributions to the literature", "fills a gap in the literature",
+"addresses an important gap", "novel contribution", "groundbreaking framework",
+"opens new avenues", "lays the groundwork for"
 
-**Vary your rhythm.** Short punchy sentences. Then longer ones that take their time getting where they're going. Mix it up.
+**Problem:** AI drafts pad the introduction and conclusion with boilerplate claims of
+novelty. These phrases signal to reviewers that the author is over-selling and under-showing.
+Let the contribution be obvious from what is described, not from meta-claims about it.
 
-**Acknowledge complexity.** Real humans have mixed feelings. "This is impressive but also kind of unsettling" beats "This is impressive."
+**Before:**
+> To the best of our knowledge, this is the first study to apply persistent homology to
+> employment trajectory data, making three key contributions to the literature. First,
+> we introduce a novel framework. Second, we validate this groundbreaking approach.
+> Third, we open new avenues for future research.
 
-**Use "I" when it fits.** First person isn't unprofessional - it's honest. "I keep coming back to..." or "Here's what gets me..." signals a real person thinking.
+**After:**
+> We apply persistent homology to employment trajectories from the BHPS/USoc panel
+> (n=27,280), replacing scalar persistence summaries with Wasserstein diagram distances
+> and comparing observed topology against a five-model null battery. Prior topological
+> work on mobility has used Mapper or persistence landscapes on cross-sectional data;
+> this is the first application to longitudinal state sequences.
 
-**Let some mess in.** Perfect structure feels algorithmic. Tangents, asides, and half-formed thoughts are human.
+---
 
-**Be specific about feelings.** Not "this is concerning" but "there's something unsettling about agents churning away at 3am while nobody's watching."
+### A2. Formulaic Abstract Structure
 
-### Before (clean but soulless):
-> The experiment produced interesting results. The agents generated 3 million lines of code. Some developers were impressed while others were skeptical. The implications remain unclear.
+**Pattern:** "In this paper, we present X. We find that Y. These results suggest Z.
+This has implications for W." — four sentences mapping perfectly onto: purpose/method/
+finding/implication. Every AI abstract uses this skeleton.
 
-### After (has a pulse):
-> I genuinely don't know how to feel about this one. 3 million lines of code, generated while the humans presumably slept. Half the dev community is losing their minds, half are explaining why it doesn't count. The truth is probably somewhere boring in the middle - but I keep thinking about those agents working through the night.
+**Problem:** It tells the reader what kind of thing each sentence is before they read it.
+Real abstracts do the same *work* without announcing the form.
+
+**Before:**
+> In this paper, we present a novel application of topological data analysis to
+> employment trajectories. We find that trajectory space exhibits non-trivial
+> persistent homology. These results suggest that career paths are more complex than
+> Markov models assume. This has significant implications for social mobility research.
+
+**After:**
+> Persistent homology on 27,280 BHPS/USoc employment trajectories reveals seven stable
+> H0 clusters that a first-order Markov null cannot replicate (Wasserstein p=0.002).
+> The loop structure (H1) is Markov-consistent, suggesting that career-path dependence
+> operates at the clustering level — distinct regimes with within-regime memory — rather
+> than through cyclic dynamics. Standard mobility indices miss this structure entirely.
+
+---
+
+### A3. Passive Voice as Evasion
+
+**Problem:** Passive voice has legitimate uses in methods sections (describing procedures
+rather than agents). AI overuses it as a generic hedge — to avoid committing to who did
+what and why choices were made.
+
+**Overused patterns:** "it was found that", "analysis was conducted", "results were
+obtained", "data were collected", "it can be observed that", "it is worth noting that",
+"it should be noted that", "it was decided to"
+
+**Before:**
+> A Vietoris-Rips filtration was applied to the point cloud. The persistence threshold
+> was set to the 75th percentile. It was found that H0 features with lifetime above 5.0
+> were present. It was decided to use 2,000 landmark points.
+
+**After:**
+> We applied a Vietoris-Rips filtration (threshold: 75th percentile of pairwise
+> distances) and retained 2,000 landmarks via maxmin sampling. Fourteen H0 features
+> had lifetime above 5.0.
+
+---
+
+### A4. Academic Hedge-Stacking
+
+**Problem:** Academic writing requires appropriate hedging; AI produces *stacked*
+hedges that convey neither precision nor confidence. A single "may" is a hedge.
+"Could potentially possibly suggest" is paralysis.
+
+**Watch for chains of:** could/might/may + potentially/possibly + suggest/indicate/imply
++ some/a degree of + relationship/association/effect
+
+**Before:**
+> The results could potentially suggest that there may be some relationship between
+> topological features and social mobility, though it is possible that other factors
+> might also play a role.
+
+**After:**
+> H0 lifetime correlates with 10-year income mobility (r=0.34, p<0.001), though the
+> relationship is confounded with NSSEC class origin.
+
+---
+
+### A5. Literature Review Padding
+
+**Problem:** AI lists citations without saying anything specific about any of them.
+The result looks comprehensive but communicates nothing.
+
+**Watch for:** rapid-fire citation clusters with no content; "researchers have
+argued X (Smith 2019; Jones 2020; Brown 2021; White 2022)"; "extensive research
+has been conducted on X"
+
+**Before:**
+> Topological data analysis has been applied across many domains (Carlsson 2009;
+> Edelsbrunner & Harer 2010; Ghrist 2014; Oudot 2015). Social mobility has been
+> studied extensively (Goldthorpe 1987; Erikson & Goldthorpe 1992; Sorokin 1927).
+> Several researchers have noted the potential of combining these fields.
+
+**After:**
+> Persistent homology has been used to detect regime change in financial time series
+> (Gidea & Katz, 2018) and to characterise phase transitions in point-cloud data
+> (Carlsson, 2009). In social mobility research, the dominant framework remains the
+> log-linear odds ratio (Erikson & Goldthorpe, 1992), which summarises the full
+> joint distribution as a single scalar and is blind to the shape of the trajectory
+> space we study here.
+
+---
+
+### A6. Disciplinary Bridging Clichés
+
+**Words to watch:** "bridging the gap between X and Y", "at the intersection of A and B",
+"bringing together", "a unique lens through which", "opens up new possibilities for",
+"has the potential to transform", "offers a powerful framework for"
+
+**Problem:** These phrases describe the *type* of contribution (cross-disciplinary)
+rather than its *content*. They are the academic equivalent of promotional language.
+
+**Before:**
+> This paper bridges the gap between algebraic topology and quantitative sociology,
+> bringing together two disparate fields to offer a unique lens through which to examine
+> social stratification. This cross-disciplinary approach has the potential to transform
+> how we understand inequality.
+
+**After:**
+> Algebraic topology supplies the analysis; quantitative sociology supplies the
+> question. We use persistent homology not as an end in itself but to answer a
+> specific sociological question: do employment trajectories cluster into discrete
+> regimes, and if so, are those regimes structurally stable across cohorts?
+
+---
+
+### A7. Results Over-interpretation
+
+**Problem:** AI interprets results at the level of grand societal claims rather than
+at the level of what was actually measured.
+
+**Watch for:** "profound implications", "fundamentally challenges", "reveals the true
+complexity", "speaks to the broader question of", "has far-reaching consequences for"
+
+**Before:**
+> These findings have profound implications for our understanding of social mobility
+> and fundamentally challenge the dominant framework. The results speak to the broader
+> question of inequality and reveal the true complexity of career trajectories in
+> contemporary Britain.
+
+**After:**
+> The Markov rejection (H0 p=0.002) implies that transition-matrix-based mobility
+> models will systematically underestimate the persistence of trajectory regimes.
+> Policies targeting a single employment state (e.g., sustained employment) may miss
+> the structural divide between regimes that differ in income trajectory even when
+> employment rates are similar.
+
+---
+
+### A8. Conclusion Mirrors
+
+**Problem:** AI conclusions restate the abstract verbatim, using different words.
+The reader learns nothing new. A good conclusion either (a) draws out implications
+the reader might have missed, (b) names the limitations honestly, or (c) points
+to a specific follow-on question — not all three, equally.
+
+**Before:**
+> In conclusion, this paper has presented a novel application of persistent homology
+> to employment trajectories. We have found that trajectory space exhibits non-trivial
+> topology. These findings suggest that career paths are more complex than Markov
+> models assume. Future work could extend this analysis to other datasets.
+
+**After:**
+> The seven-regime structure survives BHPS cross-validation but the sample splits
+> by birth cohort differently than it splits by gender or NSSEC — which is the
+> finding we do not yet have a good interpretation for. The methodological machinery
+> is in place; the sociological story is not finished.
+
+---
+
+### A9. Methods Section Padding
+
+**Problem:** AI describes standard analytical choices as if they require justification
+or represent innovations. It also over-explains tools that readers in the field know.
+
+**Watch for:** lengthy explanations of what persistent homology *is* in a paper
+submitted to a TDA venue; justifying why you used ripser ("which is widely used
+and well-validated"); describing standard preprocessing as "carefully applied"
+
+**Before:**
+> We employed the widely-used and well-validated ripser library (Bauer 2021) to
+> compute persistent homology. Ripser is an efficient implementation of the
+> Vietoris-Rips filtration. We carefully preprocessed the data to ensure quality.
+> The persistence diagrams were then obtained from the filtration.
+
+**After:**
+> We computed Vietoris-Rips persistent homology using ripser (Bauer, 2021) on
+> 2,000-point landmark samples (maxmin selection, 100 replicates per null type).
+
+---
+
+### A10. "Robustness" Boilerplate
+
+**Problem:** AI adds generic robustness claims without content.
+
+**Watch for:** "we conducted extensive robustness checks", "results are robust to
+alternative specifications", "sensitivity analyses confirm", "results hold across
+a range of parameter choices"
+
+**Before:**
+> We conducted extensive robustness checks and sensitivity analyses. Our results are
+> robust to alternative parameter specifications and hold across a range of choices.
+
+**After:**
+> Results are stable across landmark counts from 500 to 3,000 (Wasserstein distance
+> between diagrams < 0.8) and across filtration thresholds from the 65th to 85th
+> percentile. Coverage drops below 40% with DBSCAN min_samples > 5.
+
+---
+
+## GENERAL AI WRITING PATTERNS
+
+The patterns below apply to all writing, not just academic. They remain in full
+force for paper prose.
 
 ---
 
 ## CONTENT PATTERNS
 
-### 1. Undue Emphasis on Significance, Legacy, and Broader Trends
+### 1. Significance inflation
 
-**Words to watch:** stands/serves as, is a testament/reminder, a vital/significant/crucial/pivotal/key role/moment, underscores/highlights its importance/significance, reflects broader, symbolizing its ongoing/enduring/lasting, contributing to the, setting the stage for, marking/shaping the, represents/marks a shift, key turning point, evolving landscape, focal point, indelible mark, deeply rooted
-
-**Problem:** LLM writing puffs up importance by adding statements about how arbitrary aspects represent or contribute to a broader topic.
+**Words to watch:** stands/serves as, is a testament/reminder, vital/significant/crucial/
+pivotal/key role/moment, underscores/highlights its importance, reflects broader,
+symbolizing its enduring/lasting, setting the stage for, marks a shift, key turning
+point, evolving landscape, indelible mark
 
 **Before:**
-> The Statistical Institute of Catalonia was officially established in 1989, marking a pivotal moment in the evolution of regional statistics in Spain. This initiative was part of a broader movement across Spain to decentralize administrative functions and enhance regional governance.
+> This work marks a pivotal moment in the evolution of computational social science,
+> setting the stage for future research and underscoring the vital role of topological
+> methods in understanding inequality.
 
 **After:**
-> The Statistical Institute of Catalonia was established in 1989 to collect and publish regional statistics independently from Spain's national statistics office.
+> Persistent homology detects structural features of trajectory space that regression-
+> based mobility indices cannot represent.
 
 ---
 
-### 2. Undue Emphasis on Notability and Media Coverage
+### 2. Vague attributions and weasel words
 
-**Words to watch:** independent coverage, local/regional/national media outlets, written by a leading expert, active social media presence
-
-**Problem:** LLMs hit readers over the head with claims of notability, often listing sources without context.
+**Words to watch:** researchers have argued, scholars have noted, experts suggest,
+some critics argue, it has been suggested, evidence suggests (without citation)
 
 **Before:**
-> Her views have been cited in The New York Times, BBC, Financial Times, and The Hindu. She maintains an active social media presence with over 500,000 followers.
+> Researchers have argued that topological methods offer advantages over conventional
+> approaches. Some scholars have noted the limitations of transition matrices.
 
 **After:**
-> In a 2024 New York Times interview, she argued that AI regulation should focus on outcomes rather than methods.
+> Gidea & Katz (2018) showed persistent homology detects the 2008 crisis six weeks
+> earlier than a rolling volatility signal. Erikson & Goldthorpe (1992: 47) note
+> that the Unidiff model cannot distinguish origin-destination association from
+> trajectory shape.
 
 ---
 
-### 3. Superficial Analyses with -ing Endings
+### 3. Superficial -ing analyses
 
-**Words to watch:** highlighting/underscoring/emphasizing..., ensuring..., reflecting/symbolizing..., contributing to..., cultivating/fostering..., encompassing..., showcasing...
-
-**Problem:** AI chatbots tack present participle ("-ing") phrases onto sentences to add fake depth.
+**Words to watch:** highlighting, underscoring, emphasizing, reflecting, symbolizing,
+contributing to, cultivating, showcasing, thereby demonstrating
 
 **Before:**
-> The temple's color palette of blue, green, and gold resonates with the region's natural beauty, symbolizing Texas bluebonnets, the Gulf of Mexico, and the diverse Texan landscapes, reflecting the community's deep connection to the land.
+> The persistence diagrams exhibit non-trivial structure, highlighting the complexity
+> of trajectory space and underscoring the limitations of Markov models, thereby
+> demonstrating the value of topological methods.
 
 **After:**
-> The temple uses blue, green, and gold colors. The architect said these were chosen to reference local bluebonnets and the Gulf coast.
+> The persistence diagrams show fourteen H0 features with lifetime > 5.0 — more than
+> a Markov-1 null produces in 98 of 100 permutations.
 
 ---
 
-### 4. Promotional and Advertisement-like Language
+### 4. Overused AI vocabulary
 
-**Words to watch:** boasts a, vibrant, rich (figurative), profound, enhancing its, showcasing, exemplifies, commitment to, natural beauty, nestled, in the heart of, groundbreaking (figurative), renowned, breathtaking, must-visit, stunning
-
-**Problem:** LLMs have serious problems keeping a neutral tone, especially for "cultural heritage" topics.
-
-**Before:**
-> Nestled within the breathtaking region of Gonder in Ethiopia, Alamata Raya Kobo stands as a vibrant town with a rich cultural heritage and stunning natural beauty.
-
-**After:**
-> Alamata Raya Kobo is a town in the Gonder region of Ethiopia, known for its weekly market and 18th-century church.
+**High-frequency words to purge:** additionally, align with, crucial, delve, emphasizing,
+enduring, enhance, fostering, garner, highlight (verb), interplay, intricate/intricacies,
+key (adjective, standalone), landscape (abstract noun), pivotal, showcase, tapestry,
+testament, underscore (verb), valuable, vibrant, novel (when describing own work),
+robust (as generic praise not a quantitative claim)
 
 ---
 
-### 5. Vague Attributions and Weasel Words
+### 5. Copula avoidance
 
-**Words to watch:** Industry reports, Observers have cited, Experts argue, Some critics argue, several sources/publications (when few cited)
-
-**Problem:** AI chatbots attribute opinions to vague authorities without specific sources.
+**Watch for:** serves as, stands as, marks, represents, functions as, boasts, features
 
 **Before:**
-> Due to its unique characteristics, the Haolai River is of interest to researchers and conservationists. Experts believe it plays a crucial role in the regional ecosystem.
+> Persistent homology serves as a powerful tool for characterising trajectory space.
+> The Mapper graph represents a summary of the embedding.
 
 **After:**
-> The Haolai River supports several endemic fish species, according to a 2019 survey by the Chinese Academy of Sciences.
+> Persistent homology characterises trajectory space topology directly.
+> The Mapper graph summarises the embedding.
 
 ---
 
-### 6. Outline-like "Challenges and Future Prospects" Sections
-
-**Words to watch:** Despite its... faces several challenges..., Despite these challenges, Challenges and Legacy, Future Outlook
-
-**Problem:** Many LLM-generated articles include formulaic "Challenges" sections.
+### 6. Negative parallelisms
 
 **Before:**
-> Despite its industrial prosperity, Korattur faces challenges typical of urban areas, including traffic congestion and water scarcity. Despite these challenges, with its strategic location and ongoing initiatives, Korattur continues to thrive as an integral part of Chennai's growth.
+> It is not merely a methodological contribution; it is a substantive finding.
+> It is not just about the topology; it is about what the topology reveals.
 
 **After:**
-> Traffic congestion increased after 2015 when three new IT parks opened. The municipal corporation began a stormwater drainage project in 2022 to address recurring floods.
+> The method and the finding are the same thing: the topology is the result.
 
 ---
 
-## LANGUAGE AND GRAMMAR PATTERNS
-
-### 7. Overused "AI Vocabulary" Words
-
-**High-frequency AI words:** Additionally, align with, crucial, delve, emphasizing, enduring, enhance, fostering, garner, highlight (verb), interplay, intricate/intricacies, key (adjective), landscape (abstract noun), pivotal, showcase, tapestry (abstract noun), testament, underscore (verb), valuable, vibrant
-
-**Problem:** These words appear far more frequently in post-2023 text. They often co-occur.
+### 7. Rule of three overuse
 
 **Before:**
-> Additionally, a distinctive feature of Somali cuisine is the incorporation of camel meat. An enduring testament to Italian colonial influence is the widespread adoption of pasta in the local culinary landscape, showcasing how these dishes have integrated into the traditional diet.
+> The approach is rigorous, reproducible, and robust. The findings are novel,
+> meaningful, and actionable.
 
 **After:**
-> Somali cuisine also includes camel meat, which is considered a delicacy. Pasta dishes, introduced during Italian colonization, remain common, especially in the south.
+> The approach is reproducible: all code and null distributions are in the repository.
 
 ---
 
-### 8. Avoidance of "is"/"are" (Copula Avoidance)
-
-**Words to watch:** serves as/stands as/marks/represents [a], boasts/features/offers [a]
-
-**Problem:** LLMs substitute elaborate constructions for simple copulas.
+### 8. False ranges
 
 **Before:**
-> Gallery 825 serves as LAAA's exhibition space for contemporary art. The gallery features four separate spaces and boasts over 3,000 square feet.
+> The analysis spans from the microscale of individual transitions to the macroscale
+> of structural inequality, from single time-steps to decades-long career arcs.
 
 **After:**
-> Gallery 825 is LAAA's exhibition space for contemporary art. The gallery has four rooms totaling 3,000 square feet.
+> The analysis covers individual employment sequences of 2–32 waves (1991–2023).
 
 ---
 
-### 9. Negative Parallelisms
+### 9. Em dash overuse
 
-**Problem:** Constructions like "Not only...but..." or "It's not just about..., it's..." are overused.
+Collapse em dashes to commas or restructure the sentence.
 
 **Before:**
-> It's not just about the beat riding under the vocals; it's part of the aggression and atmosphere. It's not merely a song, it's a statement.
+> The null test — which uses Wasserstein distance — shows that the observed diagram —
+> unlike the shuffled nulls — is topologically distinct.
 
 **After:**
-> The heavy beat adds to the aggressive tone.
+> The Wasserstein null test shows the observed diagram is topologically distinct
+> from all five shuffled null types.
 
 ---
 
-### 10. Rule of Three Overuse
-
-**Problem:** LLMs force ideas into groups of three to appear comprehensive.
+### 10. Inline-header vertical lists
 
 **Before:**
-> The event features keynote sessions, panel discussions, and networking opportunities. Attendees can expect innovation, inspiration, and industry insights.
+> - **Method:** We apply persistent homology to the embedding.
+> - **Results:** We find seven stable regimes.
+> - **Implication:** This challenges Markov assumptions.
 
 **After:**
-> The event includes talks and panels. There's also time for informal networking between sessions.
+> Persistent homology on the PCA-20D embedding finds seven stable H0 regimes, more
+> than a Markov-1 null produces under permutation.
 
 ---
 
-### 11. Elegant Variation (Synonym Cycling)
+### 11. Filler phrases
 
-**Problem:** AI has repetition-penalty code causing excessive synonym substitution.
-
-**Before:**
-> The protagonist faces many challenges. The main character must overcome obstacles. The central figure eventually triumphs. The hero returns home.
-
-**After:**
-> The protagonist faces many challenges but eventually triumphs and returns home.
-
----
-
-### 12. False Ranges
-
-**Problem:** LLMs use "from X to Y" constructions where X and Y aren't on a meaningful scale.
-
-**Before:**
-> Our journey through the universe has taken us from the singularity of the Big Bang to the grand cosmic web, from the birth and death of stars to the enigmatic dance of dark matter.
-
-**After:**
-> The book covers the Big Bang, star formation, and current theories about dark matter.
+| Replace | With |
+|---------|------|
+| "In order to test this hypothesis" | "To test this" |
+| "It is important to note that" | (just say it) |
+| "Due to the fact that" | "Because" |
+| "At this point in time" | "Now" / specific date |
+| "The analysis has the ability to detect" | "The analysis detects" |
+| "As can be seen from the figure" | "Figure 3 shows" |
+| "The remainder of this paper is organized as follows" | (cut entirely) |
 
 ---
 
-## STYLE PATTERNS
-
-### 13. Em Dash Overuse
-
-**Problem:** LLMs use em dashes (—) more than humans, mimicking "punchy" sales writing.
+### 12. Generic positive conclusions
 
 **Before:**
-> The term is primarily promoted by Dutch institutions—not by the people themselves. You don't say "Netherlands, Europe" as an address—yet this mislabeling continues—even in official documents.
+> Future work will extend these findings to new domains. The possibilities are
+> exciting and the field is moving quickly. This work opens doors to a new era
+> of topological social science.
 
 **After:**
-> The term is primarily promoted by Dutch institutions, not by the people themselves. You don't say "Netherlands, Europe" as an address, yet this mislabeling continues in official documents.
+> The immediate next step is cross-national replication on SOEP and PSID, where
+> the regime structure should differ if it reflects UK-specific labour market
+> institutions rather than generic career dynamics.
 
 ---
 
-### 14. Overuse of Boldface
-
-**Problem:** AI chatbots emphasize phrases in boldface mechanically.
+### 13. Excessive hedging
 
 **Before:**
-> It blends **OKRs (Objectives and Key Results)**, **KPIs (Key Performance Indicators)**, and visual strategy tools such as the **Business Model Canvas (BMC)** and **Balanced Scorecard (BSC)**.
+> The results could potentially suggest that there may possibly be some relationship
+> between topological features and mobility outcomes.
 
 **After:**
-> It blends OKRs, KPIs, and visual strategy tools like the Business Model Canvas and Balanced Scorecard.
+> H0 lifetime predicts 10-year income quintile transitions (β=0.23, SE=0.04).
 
 ---
 
-### 15. Inline-Header Vertical Lists
+## VOICE FOR ACADEMIC WRITING
 
-**Problem:** AI outputs lists where items start with bolded headers followed by colons.
+Academic writing is not journalism. But it has a voice — the author's argument,
+not a passive recitation of procedures and findings. These are the signs that the
+author has been effaced.
 
-**Before:**
-> - **User Experience:** The user experience has been significantly improved with a new interface.
-> - **Performance:** Performance has been enhanced through optimized algorithms.
-> - **Security:** Security has been strengthened with end-to-end encryption.
+### Signs of authorless academic prose:
+- Every section reads as if written by a different person with no shared argument
+- The introduction and conclusion are interchangeable
+- Limitations are boilerplate ("future work could address this")
+- The authors never commit to an interpretation — only "suggest" and "indicate"
+- Methods choices are presented as self-evident rather than as decisions made for reasons
+- No acknowledgment of what is surprising or unexpected in the results
 
-**After:**
-> The update improves the interface, speeds up load times through optimized algorithms, and adds end-to-end encryption.
+### How to restore authorial presence:
 
----
+**Commit to interpretations.** "We interpret this as evidence that..." is stronger than
+"This could be interpreted as...". If you are wrong, reviewers will tell you.
 
-### 16. Title Case in Headings
+**Name what is unexpected.** "Contrary to our expectation, H1 topology is Markov-
+consistent" is more credible than a smooth narrative where everything fits.
 
-**Problem:** AI chatbots capitalize all main words in headings.
+**Explain choices as choices.** "We use 2,000 landmarks rather than the full sample
+because ripser's O(n³) complexity makes full-scale PH infeasible; sensitivity
+analysis (Appendix B) confirms diagram stability across 500–3,000 landmarks."
 
-**Before:**
-> ## Strategic Negotiations And Global Partnerships
+**Be specific about limitations.** "NS-SEC is missing for 14% of waves, concentrated
+in early cohorts and low-income households; this biases regime membership estimates
+for Regime 4 (low-income non-employed)." Not: "future work could address potential
+data limitations."
 
-**After:**
-> ## Strategic negotiations and global partnerships
-
----
-
-### 17. Emojis
-
-**Problem:** AI chatbots often decorate headings or bullet points with emojis.
-
-**Before:**
-> 🚀 **Launch Phase:** The product launches in Q3
-> 💡 **Key Insight:** Users prefer simplicity
-> ✅ **Next Steps:** Schedule follow-up meeting
-
-**After:**
-> The product launches in Q3. User research showed a preference for simplicity. Next step: schedule a follow-up meeting.
-
----
-
-### 18. Curly Quotation Marks
-
-**Problem:** ChatGPT uses curly quotes (“...”) instead of straight quotes ("...").
-
-**Before:**
-> He said “the project is on track” but others disagreed.
-
-**After:**
-> He said "the project is on track" but others disagreed.
-
----
-
-## COMMUNICATION PATTERNS
-
-### 19. Collaborative Communication Artifacts
-
-**Words to watch:** I hope this helps, Of course!, Certainly!, You're absolutely right!, Would you like..., let me know, here is a...
-
-**Problem:** Text meant as chatbot correspondence gets pasted as content.
-
-**Before:**
-> Here is an overview of the French Revolution. I hope this helps! Let me know if you'd like me to expand on any section.
-
-**After:**
-> The French Revolution began in 1789 when financial crisis and food shortages led to widespread unrest.
-
----
-
-### 20. Knowledge-Cutoff Disclaimers
-
-**Words to watch:** as of [date], Up to my last training update, While specific details are limited/scarce..., based on available information...
-
-**Problem:** AI disclaimers about incomplete information get left in text.
-
-**Before:**
-> While specific details about the company's founding are not extensively documented in readily available sources, it appears to have been established sometime in the 1990s.
-
-**After:**
-> The company was founded in 1994, according to its registration documents.
-
----
-
-### 21. Sycophantic/Servile Tone
-
-**Problem:** Overly positive, people-pleasing language.
-
-**Before:**
-> Great question! You're absolutely right that this is a complex topic. That's an excellent point about the economic factors.
-
-**After:**
-> The economic factors you mentioned are relevant here.
-
----
-
-## FILLER AND HEDGING
-
-### 22. Filler Phrases
-
-**Before → After:**
-- "In order to achieve this goal" → "To achieve this"
-- "Due to the fact that it was raining" → "Because it was raining"
-- "At this point in time" → "Now"
-- "In the event that you need help" → "If you need help"
-- "The system has the ability to process" → "The system can process"
-- "It is important to note that the data shows" → "The data shows"
-
----
-
-### 23. Excessive Hedging
-
-**Problem:** Over-qualifying statements.
-
-**Before:**
-> It could potentially possibly be argued that the policy might have some effect on outcomes.
-
-**After:**
-> The policy may affect outcomes.
-
----
-
-### 24. Generic Positive Conclusions
-
-**Problem:** Vague upbeat endings.
-
-**Before:**
-> The future looks bright for the company. Exciting times lie ahead as they continue their journey toward excellence. This represents a major step in the right direction.
-
-**After:**
-> The company plans to open two more locations next year.
+**Have a position on your own results.** "The markov rejection at H0 but not H1 is
+the structurally interesting finding: it means trajectory space has discrete stable
+clusters, but the cyclic dynamics within those clusters are first-order Markov.
+That is a cleaner null model refutation than we expected."
 
 ---
 
 ## Process
 
-1. Read the input text carefully
-2. Identify all instances of the patterns above
-3. Rewrite each problematic section
-4. Ensure the revised text:
-   - Sounds natural when read aloud
-   - Varies sentence structure naturally
-   - Uses specific details over vague claims
-   - Maintains appropriate tone for context
-   - Uses simple constructions (is/are/has) where appropriate
-5. Present a draft humanized version
-6. Prompt: "What makes the below so obviously AI generated?"
-7. Answer briefly with the remaining tells (if any)
-8. Prompt: "Now make it not obviously AI generated."
-9. Present the final version (revised after the audit)
+1. Read the full input carefully — establish what the argument is meant to be
+2. Scan for all patterns (academic + general) and mark instances
+3. Rewrite each section, restoring the argument and the author's voice
+4. Check: does the introduction set up what the paper actually delivers?
+5. Check: does the conclusion go beyond restating the abstract?
+6. Present draft rewrite
+7. "What makes this so obviously AI generated?" — brief bullets on remaining tells
+8. "Now make it not obviously AI generated." — final revision
+9. Present final version
 
 ## Output Format
 
-Provide:
 1. Draft rewrite
-2. "What makes the below so obviously AI generated?" (brief bullets)
+2. AI-tell audit (brief bullets)
 3. Final rewrite
-4. A brief summary of changes made (optional, if helpful)
+4. Summary of changes (optional)
 
 ---
 
-## Full Example
+## Full Example — Methods and Results section
 
-**Before (AI-sounding):**
-> Great question! Here is an essay on this topic. I hope this helps!
+**Before (AI-drafted):**
+> In this study, we employed persistent homology — a powerful topological tool —
+> to analyse employment trajectories, thereby offering a novel lens through which
+> to examine social mobility. The widely-used ripser library was utilised to
+> compute persistence diagrams, which were then carefully analysed. It was found
+> that the trajectory space exhibits non-trivial topological structure, highlighting
+> the intricate interplay between employment states and income levels. The results
+> are robust to alternative parameter specifications, and sensitivity analyses
+> confirm the validity of our approach.
 >
-> AI-assisted coding serves as an enduring testament to the transformative potential of large language models, marking a pivotal moment in the evolution of software development. In today's rapidly evolving technological landscape, these groundbreaking tools—nestled at the intersection of research and practice—are reshaping how engineers ideate, iterate, and deliver, underscoring their vital role in modern workflows.
->
-> At its core, the value proposition is clear: streamlining processes, enhancing collaboration, and fostering alignment. It's not just about autocomplete; it's about unlocking creativity at scale, ensuring that organizations can remain agile while delivering seamless, intuitive, and powerful experiences to users. The tool serves as a catalyst. The assistant functions as a partner. The system stands as a foundation for innovation.
->
-> Industry observers have noted that adoption has accelerated from hobbyist experiments to enterprise-wide rollouts, from solo developers to cross-functional teams. The technology has been featured in The New York Times, Wired, and The Verge. Additionally, the ability to generate documentation, tests, and refactors showcases how AI can contribute to better outcomes, highlighting the intricate interplay between automation and human judgment.
->
-> - 💡 **Speed:** Code generation is significantly faster, reducing friction and empowering developers.
-> - 🚀 **Quality:** Output quality has been enhanced through improved training, contributing to higher standards.
-> - ✅ **Adoption:** Usage continues to grow, reflecting broader industry trends.
->
-> While specific details are limited based on available information, it could potentially be argued that these tools might have some positive effect. Despite challenges typical of emerging technologies—including hallucinations, bias, and accountability—the ecosystem continues to thrive. In order to fully realize this potential, teams must align with best practices.
->
-> In conclusion, the future looks bright. Exciting times lie ahead as we continue this journey toward excellence. Let me know if you’d like me to expand on any section!
+> These findings have profound implications for our understanding of social mobility.
+> The results fundamentally challenge the dominant Markov framework and reveal the
+> true complexity of career trajectories. It could potentially be argued that these
+> findings suggest a possible relationship between topological features and social
+> outcomes. Future work could extend this analysis to other national contexts,
+> bridging the gap between computational methods and sociological theory.
 
 **Draft rewrite:**
-> AI coding assistants speed up some tasks. In a 2024 study by Google, developers using Codex completed simple functions 55% faster than a control group, but showed no improvement on debugging or architectural decisions.
+> We computed Vietoris-Rips persistent homology (ripser; Bauer 2021) on 2,000-point
+> landmark samples of the PCA-20D employment embedding (n=27,280 BHPS/USoc trajectories,
+> 1991–2023). Observed persistence diagrams were compared against five null types
+> (label_shuffle, order_shuffle, cohort_shuffle, Markov-1, Markov-2) using Wasserstein
+> distance as the test statistic (100 permutations each; FDR-corrected).
 >
-> The tools are good at boilerplate: config files, test scaffolding, repetitive refactors. They are bad at knowing when they are wrong. I have mass-accepted suggestions that compiled, passed lint, and still did the wrong thing because I stopped paying attention.
+> The Markov-1 null is rejected at H0 (p=0.002) but not at H1 (p=0.086). This means
+> the clustering structure — the number and separation of trajectory clusters — requires
+> higher-order temporal dependence to replicate, while the loop structure does not.
+> A first-order transition model will reproduce the cyclic dynamics in the embedding
+> but not the discrete regime structure.
 >
-> Mira, an engineer at a fintech startup I interviewed, said she uses Copilot "like autocomplete for boring code" but reviews every line before committing. Jake, a senior dev at a larger company, disabled it after it kept suggesting patterns from a deprecated internal library.
->
-> The productivity claims are hard to verify. GitHub says Copilot users "accept 30% of suggestions," but acceptance is not correctness, and correctness is not value. The 2024 Uplevel study found no statistically significant difference in pull-request throughput between teams with and without AI assistants.
->
-> None of this means the tools are useless. It means they are tools. They do not replace judgment, and they do not eliminate the need for tests. If you do not have tests, you cannot tell whether the suggestion is right.
+> Diagram stability was confirmed across landmark counts from 500 to 3,000 (maximum
+> between-sample Wasserstein distance 0.8) and filtration thresholds from the 65th
+> to 85th percentile distance.
 
-**What makes the below so obviously AI generated?**
-- The rhythm is still a bit too tidy (clean contrasts, evenly paced paragraphs).
-- The named people and study citations can read like plausible-but-made-up placeholders unless they're real and sourced.
-- The closer leans a touch slogan-y ("If you do not have tests...") rather than sounding like a person talking.
+**AI-tell audit:**
+- "thereby offering a novel lens" — significance inflation + copula avoidance + -ing phrase
+- "widely-used ripser library was utilised" — passive + over-justification of standard tool
+- "carefully analysed" — meaningless qualifier
+- "profound implications" / "fundamentally challenge" / "true complexity" — results over-interpretation
+- "It could potentially be argued that these findings suggest a possible relationship" — hedge stack
+- "bridging the gap between" — disciplinary bridging cliché
+- Conclusion restate restates intro without adding content
 
-**Now make it not obviously AI generated.**
-> AI coding assistants can make you faster at the boring parts. Not everything. Definitely not architecture.
+**Final rewrite:**
+> We computed Vietoris-Rips persistent homology (ripser; Bauer 2021) on 2,000-point
+> landmark samples of the PCA-20D embedding. Against a five-null battery (100
+> permutations each), the Markov-1 null is rejected at H0 (p=0.002) but not H1
+> (p=0.086).
 >
-> They're great at boilerplate: config files, test scaffolding, repetitive refactors. They're also great at sounding right while being wrong. I've accepted suggestions that compiled, passed lint, and still missed the point because I stopped paying attention.
+> This split is the interesting result. Regime structure — how many clusters there are,
+> and how far apart — cannot be reproduced by first-order transitions. Loop structure
+> can. The implication is that trajectory dependence operates at the level of regime
+> membership, not within-regime dynamics. Transition matrices miss this because they
+> aggregate across regime boundaries.
 >
-> People I talk to tend to land in two camps. Some use it like autocomplete for chores and review every line. Others disable it after it keeps suggesting patterns they don't want. Both feel reasonable.
->
-> The productivity metrics are slippery. GitHub can say Copilot users "accept 30% of suggestions," but acceptance isn't correctness, and correctness isn't value. If you don't have tests, you're basically guessing.
+> Diagrams are stable across landmark counts of 500–3,000 and filtration thresholds
+> at the 65th–85th percentile (max between-sample Wasserstein distance 0.8).
 
 **Changes made:**
-- Removed chatbot artifacts ("Great question!", "I hope this helps!", "Let me know if...")
-- Removed significance inflation ("testament", "pivotal moment", "evolving landscape", "vital role")
-- Removed promotional language ("groundbreaking", "nestled", "seamless, intuitive, and powerful")
-- Removed vague attributions ("Industry observers")
-- Removed superficial -ing phrases ("underscoring", "highlighting", "reflecting", "contributing to")
-- Removed negative parallelism ("It's not just X; it's Y")
-- Removed rule-of-three patterns and synonym cycling ("catalyst/partner/foundation")
-- Removed false ranges ("from X to Y, from A to B")
-- Removed em dashes, emojis, boldface headers, and curly quotes
-- Removed copula avoidance ("serves as", "functions as", "stands as") in favor of "is"/"are"
-- Removed formulaic challenges section ("Despite challenges... continues to thrive")
-- Removed knowledge-cutoff hedging ("While specific details are limited...")
-- Removed excessive hedging ("could potentially be argued that... might have some")
-- Removed filler phrases ("In order to", "At its core")
-- Removed generic positive conclusion ("the future looks bright", "exciting times lie ahead")
-- Made the voice more personal and less "assembled" (varied rhythm, fewer placeholders)
+- Removed significance inflation ("profound implications", "novel lens", "fundamentally challenge")
+- Removed passive-evasion constructions ("was utilised", "were then carefully analysed", "it was found")
+- Removed hedge stack ("could potentially be argued... suggest... possible relationship")
+- Removed disciplinary bridging cliché ("bridging the gap")
+- Removed results over-interpretation ("true complexity", "reveals", "fundamentally challenges")
+- Replaced vague robustness claim with specific numbers (landmark range, Wasserstein bound)
+- Removed copula avoidance ("offering", "utilising") in favour of direct constructions
+- Added authorial interpretation in the final version ("This split is the interesting result")
+- Removed conclusion restate; replaced with specific implication grounded in the finding
 
 ---
 
 ## Reference
 
-This skill is based on [Wikipedia:Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing), maintained by WikiProject AI Cleanup. The patterns documented there come from observations of thousands of instances of AI-generated text on Wikipedia.
+General patterns from [Wikipedia:Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing),
+maintained by WikiProject AI Cleanup.
 
-Key insight from Wikipedia: "LLMs use statistical algorithms to guess what should come next. The result tends toward the most statistically likely result that applies to the widest variety of cases."
+Academic patterns compiled from common failure modes in AI-drafted quantitative social
+science manuscripts, particularly in TDA applications, mobility research, and
+computational sociology.
+
+Key principle: in academic writing, the author's argument should be visible. If you
+cannot identify what the author thinks, the text is not finished.
