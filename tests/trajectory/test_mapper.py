@@ -9,6 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+pytest.importorskip("kmapper")
+
 from trajectory_tda.mapper.mapper_pipeline import (
     _count_components,
     build_mapper_graph,
