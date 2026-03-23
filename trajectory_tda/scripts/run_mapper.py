@@ -413,7 +413,8 @@ def run_pipeline(
             graph,
             path_html=str(outdir / "figures" / "mapper_graph_employment.html"),
             title="Trajectory Mapper - colored by Employment Rate",
-            color_values=emp_rate,
+            color_values=np.asarray(emp_rate).reshape(-1),
+            color_function_name="Mean",
         )
         logger.info("Saved employment-rate HTML to figures/mapper_graph_employment.html")
     except Exception:
