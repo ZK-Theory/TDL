@@ -186,7 +186,9 @@ def mapper_graph_summary(graph: dict) -> dict:
     edges = graph.get("links", {})
 
     n_nodes = len(nodes)
-    n_edges = sum(len(v) for v in edges.values()) // 2  # undirected
+    # KeplerMapper stores each undirected edge once (source -> [targets]),
+    # so the sum of neighbour-list lengths equals the edge count directly.
+    n_edges = sum(len(v) for v in edges.values())
     node_sizes = [len(members) for members in nodes.values()]
 
     # Coverage: fraction of data points in at least one node
