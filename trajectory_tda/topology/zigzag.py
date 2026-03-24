@@ -230,7 +230,16 @@ def create_annual_snapshots(
 
 
 def _wsl_path(win_path: Path) -> str:
-    """Convert an absolute Windows path to its WSL ``/mnt/`` equivalent."""
+    """Convert an absolute Windows path to its WSL ``/mnt/`` equivalent.
+
+    On non-Windows platforms, or when the path has no drive letter (e.g.
+    already a POSIX path), the POSIX representation is returned unchanged so
+    that the bridge script can be invoked directly without WSL.
+    """
+    import sys  # noqa: PLC0415
+
+    if sys.platform != "win32" or not win_path.drive:
+        return win_path.as_posix()
     parts = win_path.parts
     drive = parts[0].rstrip(":\\").lower()
     rest = "/".join(p.replace("\\", "/") for p in parts[1:])
@@ -336,9 +345,8 @@ def run_gudhi_zigzag(
         embeddings_by_year: Dict mapping calendar year → embedding matrix
             of shape ``(n_active, n_dims)``.  Row order need not be
             consistent across years (identity is tracked via ``metadata``).
-        max_filtration: Rips threshold ``ε``.  Edges longer than this are
-            excluded.  Set to ``"auto"`` to use the 30th percentile of
-            pairwise landmark distances (not yet implemented).
+        max_filtration: Rips threshold ``ε`` as a numeric cutoff.  Edges
+            longer than this value are excluded from the filtration.
         n_landmarks: Maximum number of landmarks selected per year via
             greedy MaxMin.  Landmarks are selected per year then deduplicated
             across years using ``metadata`` row indices.  Pass ``None`` to
@@ -408,7 +416,20 @@ def run_gudhi_zigzag(
         n_dims = emb_list[0].shape[1]
         emb_all = np.full((len(metadata), n_dims), np.nan, dtype=np.float64)
         for year, row_idx in row_indices_by_year.items():
-            emb_all[row_idx] = embeddings_by_year[year]
+            emb_year = embeddings_by_year[year]
+            if emb_year.shape[0] != len(row_idx):
+                raise ValueError(
+                    f"Mismatch between metadata and embeddings for year {year}: "
+                    f"{len(row_idx)} rows expected from metadata mask, "
+                    f"but embeddings_by_year[{year!r}] has shape {emb_year.shape}."
+                )
+            if emb_year.shape[1] != n_dims:
+                raise ValueError(
+                    f"Inconsistent embedding dimensionality for year {year}: "
+                    f"expected {n_dims} dimensions based on embeddings_by_year, "
+                    f"but embeddings_by_year[{year!r}] has {emb_year.shape[1]}."
+                )
+            emb_all[row_idx] = emb_year
 
     start_years_arr = metadata["start_year"].to_numpy()
     end_years_arr = metadata["end_year"].to_numpy()
@@ -455,12 +476,8 @@ def run_gudhi_zigzag(
     logger.info("Vertex pairs within ε=%.2f: %d", max_filtration, len(pairs))
 
     # ── 5. Build filtration arrays ───────────────────────────────────────────
-    # Pre-allocate conservatively
-    max_simplices = N + len(pairs)
-    if max_dim >= 2:
-        # Rough upper bound for triangles: O(|edges|^1.5) heuristic — cap at 2M
-        max_simplices += min(len(pairs) ** 2 // 2, 2_000_000)
-
+    # Collect simplices (vertices, edges, and optionally triangles) with their
+    # active time intervals in dynamic lists.
     sv_list: list[list[int]] = []
     times_list: list[list[float]] = []
 
@@ -539,11 +556,19 @@ def run_gudhi_zigzag(
         wsl_bcode = _wsl_path(bcode_path)
 
         logger.info("Calling WSL dionysus bridge: %s", wsl_bridge)
-        result = subprocess.run(
-            ["wsl", "--exec", wsl_python, wsl_bridge, wsl_filt, wsl_bcode],
-            capture_output=True,
-            text=True,
-        )
+        try:
+            result = subprocess.run(
+                ["wsl", "--exec", wsl_python, wsl_bridge, wsl_filt, wsl_bcode],
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            raise RuntimeError(
+                "WSL bridge could not be launched. On Windows, ensure WSL is "
+                "installed and the 'wsl' executable is on the PATH. On Linux/macOS, "
+                f"set wsl_python to a local Python interpreter with dionysus installed. "
+                f"Original error: {exc}"
+            ) from exc
 
         if result.returncode != 0:
             raise RuntimeError(

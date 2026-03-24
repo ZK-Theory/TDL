@@ -35,7 +35,16 @@
       "Bash(\"C:/Projects/TDL/.claude/commands/$skill.md\")",
       "Bash(echo \"Created $skill.md\")",
       "Skill(humanizer)",
-      "Skill(humanizer:*)"
+      "Skill(humanizer:*)",
+      "Bash(find C:/Projects/TDL/docs -name *.md)",
+      "Bash(find C:/Projects/TDL -maxdepth 2 -name Meta-Research*)",
+      "Bash(find C:/Projects/TDL -maxdepth 3 -name *Research*Plan* -o -name *research*plan*)",
+      "Bash(for d:*)",
+      "Bash(do touch:*)",
+      "Bash(done)",
+      "Bash(touch papers/P01-VR-PH-Core/figures/.gitkeep)",
+      "Bash(touch papers/P04-Multipers-Poverty/figures/.gitkeep)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")"
     ]
   }
 }

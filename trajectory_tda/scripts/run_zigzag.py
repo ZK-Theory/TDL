@@ -6,7 +6,7 @@ Runs four stages against the checkpoint artefacts produced by
     Stage 1  Annual partition — build embeddings_by_year dict
     Stage 2  Annual snapshots — VR PH per year (independent)
     Stage 3  Topological time series — scalar Betti/persistence summaries
-    Stage 4  Full zigzag — cross-year feature tracking via Gudhi
+    Stage 4  Full zigzag — cross-year feature tracking via dionysus (WSL bridge)
 
 Run from the command line::
 
