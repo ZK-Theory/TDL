@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr:*)",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python -m pytest tests/trajectory/test_permutation_nulls.py tests/trajectory/test_mapper.py -v --no-header)",
+      "Bash(git worktree:*)",
+      "Bash(git branch:*)",
+      "Bash(grep -E \"\\\\.\\(npy|json|joblib\\)$\")",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python -c \":*)",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python -m trajectory_tda.scripts.run_wasserstein_nulls --help)",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python -m trajectory_tda.scripts.run_mapper --help)",
+      "Bash(.venv/Scripts/python -m trajectory_tda.scripts.run_mapper --synthetic --verbose)",
+      "Bash(.venv/Scripts/python -m trajectory_tda.scripts.run_mapper --results-dir results/trajectory_tda_integration --output-dir results/trajectory_tda_mapper --skip-grid-search --verbose)",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python -m trajectory_tda.scripts.run_mapper --results-dir C:/Projects/TDL/results/trajectory_tda_integration --output-dir C:/Projects/TDL/results/trajectory_tda_mapper --skip-grid-search --verbose)",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python -m trajectory_tda.scripts.run_mapper --results-dir C:/Projects/TDL/results/trajectory_tda_integration --output-dir C:/Projects/TDL/results/trajectory_tda_mapper --verbose)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k, d[k].get\\(''''p_value'''',''''?''''\\) if isinstance\\(d[k],dict\\) else ''''?''''\\) for k in d]\")",
+      "Bash(python -c \":*)",
+      "Bash(C:/Projects/TDL/.venv/Scripts/python C:/Projects/TDL/trajectory_tda/scripts/run_wasserstein_nulls.py --help)",
+      "Bash(tasklist)",
+      "Bash(wmic process:*)",
+      "Read(//c/Users/steph/.claude/**)",
+      "WebSearch",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:code.visualstudio.com)",
+      "Bash(find C:/Users/steph/AppData/Roaming/Claude/ -name *.skill)",
+      "Bash(python -m scripts.package_skill --help)",
+      "Bash(set PYTHONIOENCODING=utf-8)",
+      "Bash(python -m scripts.package_skill \"C:/Projects/TDL/.claude/skills/humanizer\" \"C:/Projects/TDL/.claude/skills\")",
+      "Bash(find C:/Users/steph/AppData/Roaming/Claude/ -name manifest.json -exec cat {})",
+      "Bash(2)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,''''='''',v\\) for k,v in d.items\\(\\) if ''''skill'''' in k.lower\\(\\) or ''''command'''' in k.lower\\(\\) or ''''plugin'''' in k.lower\\(\\)]\")",
+      "Bash(for skill:*)",
+      "Bash(do)",
+      "Read(//c/Projects/TDL/.claude/skills/$skill/**)",
+      "Bash(\"C:/Projects/TDL/.claude/commands/$skill.md\")",
+      "Bash(echo \"Created $skill.md\")",
+      "Skill(humanizer)",
+      "Skill(humanizer:*)"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "shape": [
+    32763,
+    20
+  ],
+  "info": {
+    "state_to_idx": {
+      "EL": 0,
+      "EM": 1,
+      "EH": 2,
+      "UL": 3,
+      "UM": 4,
+      "UH": 5,
+      "IL": 6,
+      "IM": 7,
+      "IH": 8
+    },
+    "n_unigram_dims": 9,
+    "n_bigram_dims": 81,
+    "n_trigram_dims": 0,
+    "raw_dims": 90,
+    "final_dims": 20,
+    "method": "pca",
+    "explained_variance": 0.8896095920589383,
+    "tfidf": true,
+    "n_trajectories": 32763
+  }
+}
