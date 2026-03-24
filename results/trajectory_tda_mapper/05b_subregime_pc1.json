@@ -1,0 +1,2878 @@
+{
+  "subregimes": [
+    {
+      "regime": 4,
+      "node_id": "cube1_cluster0",
+      "node_mean": -3.8430359007007775,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.8587634046237935,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube2_cluster0",
+      "node_mean": -3.8430359007007775,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.8587634046237935,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube6_cluster0",
+      "node_mean": -3.4145612825539153,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.35426144981545,
+      "node_size": 67
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster0",
+      "node_mean": -3.645900151212688,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.5497781566057707,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster1",
+      "node_mean": -3.4922670453398768,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.308977776942732,
+      "node_size": 16
+    },
+    {
+      "regime": 1,
+      "node_id": "cube7_cluster2",
+      "node_mean": -3.4214122609780846,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.362616140599024,
+      "node_size": 119
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster3",
+      "node_mean": -3.3585972354026663,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0994673280098444,
+      "node_size": 11
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster4",
+      "node_mean": -3.5251696721439747,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3605484653130973,
+      "node_size": 18
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster5",
+      "node_mean": -3.4988419272422835,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.31928306921255,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster6",
+      "node_mean": -3.673054410314761,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.5923390087352653,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube7_cluster7",
+      "node_mean": -3.456495829340043,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2529109393634699,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster0",
+      "node_mean": -3.4976660103030275,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3174399687699963,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster1",
+      "node_mean": -3.4994422981422106,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3202240743417488,
+      "node_size": 15
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster2",
+      "node_mean": -3.325596650378616,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0477431025719202,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube8_cluster3",
+      "node_mean": -3.4302394831784557,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.373380838339397,
+      "node_size": 52
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster4",
+      "node_mean": -3.3585972354026663,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0994673280098444,
+      "node_size": 11
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster5",
+      "node_mean": -3.4460411990860833,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2365246343409417,
+      "node_size": 9
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster6",
+      "node_mean": -3.5251696721439747,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3605484653130973,
+      "node_size": 18
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster7",
+      "node_mean": -3.7444754132903153,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.7042823593218668,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster8",
+      "node_mean": -3.4071539895695344,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1755738727038414,
+      "node_size": 13
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster9",
+      "node_mean": -3.4988419272422835,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.31928306921255,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster10",
+      "node_mean": -3.673054410314761,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.5923390087352653,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube8_cluster11",
+      "node_mean": -3.456495829340043,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2529109393634699,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster0",
+      "node_mean": -3.325596650378616,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0477431025719202,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster1",
+      "node_mean": -3.328913138242917,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0529412760537007,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster2",
+      "node_mean": -3.4460411990860833,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2365246343409417,
+      "node_size": 9
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster3",
+      "node_mean": -3.4071539895695344,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1755738727038414,
+      "node_size": 13
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster4",
+      "node_mean": -3.451346672503828,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2448402900456619,
+      "node_size": 12
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster5",
+      "node_mean": -3.305371783013053,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0160431918489412,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube10_cluster0",
+      "node_mean": -3.328913138242917,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0529412760537007,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube10_cluster1",
+      "node_mean": -3.343389557223829,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.075631224076041,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube10_cluster2",
+      "node_mean": -3.305371783013053,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0160431918489412,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube11_cluster0",
+      "node_mean": -3.343389557223829,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.075631224076041,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube14_cluster0",
+      "node_mean": -3.0518525326782737,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.9119422273497777,
+      "node_size": 296
+    },
+    {
+      "regime": 1,
+      "node_id": "cube15_cluster1",
+      "node_mean": -3.0751817959178127,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.9403920002883899,
+      "node_size": 466
+    },
+    {
+      "regime": 4,
+      "node_id": "cube15_cluster12",
+      "node_mean": -3.4462890055260686,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.236913039460349,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube15_cluster13",
+      "node_mean": -3.503072919928745,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3259146128467387,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube15_cluster14",
+      "node_mean": -3.456495829340043,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2529109393634699,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube16_cluster3",
+      "node_mean": -3.325596650378616,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0477431025719202,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube16_cluster4",
+      "node_mean": -3.1158021601466572,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.9899280755226796,
+      "node_size": 170
+    },
+    {
+      "regime": 4,
+      "node_id": "cube16_cluster16",
+      "node_mean": -3.4071539895695344,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1755738727038414,
+      "node_size": 13
+    },
+    {
+      "regime": 4,
+      "node_id": "cube16_cluster19",
+      "node_mean": -3.4462890055260686,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.236913039460349,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube16_cluster20",
+      "node_mean": -3.503072919928745,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3259146128467387,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube16_cluster21",
+      "node_mean": -3.456495829340043,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2529109393634699,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube16_cluster26",
+      "node_mean": -3.298621299958808,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0054626670776923,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster2",
+      "node_mean": -3.325596650378616,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0477431025719202,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster12",
+      "node_mean": -3.4071539895695344,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1755738727038414,
+      "node_size": 13
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster15",
+      "node_mean": -3.298621299958808,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0054626670776923,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube19_cluster0",
+      "node_mean": -3.343389557223829,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.075631224076041,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube23_cluster0",
+      "node_mean": -2.379658380506865,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.0922090534564821,
+      "node_size": 104
+    },
+    {
+      "regime": 1,
+      "node_id": "cube24_cluster0",
+      "node_mean": -2.6071251580947097,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.369602218727305,
+      "node_size": 827
+    },
+    {
+      "regime": 1,
+      "node_id": "cube25_cluster1",
+      "node_mean": -2.664848708685255,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.4399954364920318,
+      "node_size": 1027
+    },
+    {
+      "regime": 1,
+      "node_id": "cube26_cluster1",
+      "node_mean": -2.724314439632059,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.5125132235174656,
+      "node_size": 304
+    },
+    {
+      "regime": 4,
+      "node_id": "cube34_cluster1",
+      "node_mean": -1.8777864567082572,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2215154816063143,
+      "node_size": 12
+    },
+    {
+      "regime": 4,
+      "node_id": "cube34_cluster4",
+      "node_mean": -1.956944523258424,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0974452665938508,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster6",
+      "node_mean": -1.9763498357815994,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0670299039901092,
+      "node_size": 32
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster12",
+      "node_mean": -1.956944523258424,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0974452665938508,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster14",
+      "node_mean": -1.8900490671196617,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.202295397328576,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster16",
+      "node_mean": -1.8661201154861065,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.239800989665353,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube36_cluster0",
+      "node_mean": -2.385253726189558,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.099032514298394,
+      "node_size": 962
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster19",
+      "node_mean": -1.8900490671196617,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.202295397328576,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster21",
+      "node_mean": -1.8661201154861065,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.239800989665353,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube37_cluster0",
+      "node_mean": -2.5235217625748456,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.2676488224706248,
+      "node_size": 205
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster5",
+      "node_mean": -1.8921495398108625,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.199003173177801,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster8",
+      "node_mean": -1.92077491643028,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1541365311946612,
+      "node_size": 17
+    },
+    {
+      "regime": 4,
+      "node_id": "cube38_cluster3",
+      "node_mean": -1.8921495398108625,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.199003173177801,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube38_cluster4",
+      "node_mean": -1.92077491643028,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1541365311946612,
+      "node_size": 17
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster1",
+      "node_mean": -1.8057032339635486,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.33449677756886,
+      "node_size": 78
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster4",
+      "node_mean": -1.5245703851094992,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.7751368099057143,
+      "node_size": 68
+    },
+    {
+      "regime": 5,
+      "node_id": "cube47_cluster8",
+      "node_mean": -1.4276118582045016,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 2.035597606451563,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster9",
+      "node_mean": -1.4262366035975902,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.929262522506832,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster11",
+      "node_mean": -1.956944523258424,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0974452665938508,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster13",
+      "node_mean": -1.4616377806847103,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.8737756739225542,
+      "node_size": 9
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster16",
+      "node_mean": -1.7118891361632749,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.4815384600220773,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster2",
+      "node_mean": -1.9142770247690146,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1643211510404476,
+      "node_size": 50
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster3",
+      "node_mean": -2.0105222498612165,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0134689853480898,
+      "node_size": 80
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster4",
+      "node_mean": -1.852598056261927,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2609950999875394,
+      "node_size": 98
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster9",
+      "node_mean": -1.541375715925754,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.7487965883894787,
+      "node_size": 85
+    },
+    {
+      "regime": 5,
+      "node_id": "cube48_cluster13",
+      "node_mean": -1.4276118582045016,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 2.035597606451563,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster14",
+      "node_mean": -1.4262366035975902,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.929262522506832,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster15",
+      "node_mean": -1.8369200189628228,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2855684320994416,
+      "node_size": 13
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster17",
+      "node_mean": -1.956944523258424,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0974452665938508,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster19",
+      "node_mean": -1.4616377806847103,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.8737756739225542,
+      "node_size": 9
+    },
+    {
+      "regime": 0,
+      "node_id": "cube48_cluster20",
+      "node_mean": -1.4618146687588112,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.2574851670179872,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster21",
+      "node_mean": -1.8661201154861065,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.239800989665353,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster24",
+      "node_mean": -1.7118891361632749,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.4815384600220773,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster2",
+      "node_mean": -1.9270838147152212,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1442481344611668,
+      "node_size": 47
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster4",
+      "node_mean": -2.0105222498612165,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.0134689853480898,
+      "node_size": 80
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster8",
+      "node_mean": -1.6993454040278748,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.50119916689535,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster10",
+      "node_mean": -1.6085970391907733,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.6434357023245358,
+      "node_size": 17
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster12",
+      "node_mean": -1.8369200189628228,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.2855684320994416,
+      "node_size": 13
+    },
+    {
+      "regime": 0,
+      "node_id": "cube49_cluster13",
+      "node_mean": -1.4618146687588112,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.2574851670179872,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster14",
+      "node_mean": -1.8661201154861065,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.239800989665353,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster1",
+      "node_mean": -1.6111144326947855,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.6394900077551036,
+      "node_size": 72
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster3",
+      "node_mean": -1.8921495398108625,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.199003173177801,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster4",
+      "node_mean": -1.92077491643028,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1541365311946612,
+      "node_size": 17
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster0",
+      "node_mean": -1.6111144326947855,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.6394900077551036,
+      "node_size": 72
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster3",
+      "node_mean": -1.8921495398108625,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.199003173177801,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster5",
+      "node_mean": -1.92077491643028,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.1541365311946612,
+      "node_size": 17
+    },
+    {
+      "regime": 5,
+      "node_id": "cube61_cluster4",
+      "node_mean": -0.9505022940836702,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.6523183351446078,
+      "node_size": 21
+    },
+    {
+      "regime": 5,
+      "node_id": "cube61_cluster5",
+      "node_mean": -0.9034294467057878,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.6145030239496114,
+      "node_size": 15
+    },
+    {
+      "regime": 0,
+      "node_id": "cube61_cluster6",
+      "node_mean": -0.9181946543568913,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.039584883109024,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster7",
+      "node_mean": -1.7925971934645102,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3550388313802328,
+      "node_size": 66
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster10",
+      "node_mean": -1.5245703851094992,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.7751368099057143,
+      "node_size": 68
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster12",
+      "node_mean": -1.332585267130288,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 2.0760490972438355,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube61_cluster13",
+      "node_mean": -1.0738297630051155,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.7513917261956653,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube61_cluster17",
+      "node_mean": -1.4276118582045016,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 2.035597606451563,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube61_cluster19",
+      "node_mean": -1.0037866582757577,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.695123581183284,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster21",
+      "node_mean": -1.4616377806847103,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.8737756739225542,
+      "node_size": 9
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster22",
+      "node_mean": -1.2469391092061053,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 2.2102885713966107,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster23",
+      "node_mean": -1.7118891361632749,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.4815384600220773,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube62_cluster4",
+      "node_mean": -0.9505022940836702,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.6523183351446078,
+      "node_size": 21
+    },
+    {
+      "regime": 5,
+      "node_id": "cube62_cluster5",
+      "node_mean": -0.9034294467057878,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.6145030239496114,
+      "node_size": 15
+    },
+    {
+      "regime": 0,
+      "node_id": "cube62_cluster6",
+      "node_mean": -0.9181946543568913,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.039584883109024,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster7",
+      "node_mean": -1.7925971934645102,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3550388313802328,
+      "node_size": 66
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster10",
+      "node_mean": -1.541375715925754,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.7487965883894787,
+      "node_size": 85
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster12",
+      "node_mean": -1.332585267130288,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 2.0760490972438355,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster13",
+      "node_mean": -1.7592383882668328,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.4073245214407868,
+      "node_size": 15
+    },
+    {
+      "regime": 5,
+      "node_id": "cube62_cluster14",
+      "node_mean": -1.0738297630051155,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.7513917261956653,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster18",
+      "node_mean": -1.7806878455835837,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3737052215112797,
+      "node_size": 12
+    },
+    {
+      "regime": 5,
+      "node_id": "cube62_cluster19",
+      "node_mean": -1.4276118582045016,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 2.035597606451563,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster21",
+      "node_mean": -1.8037143638647972,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3376140788312345,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube62_cluster22",
+      "node_mean": -1.0037866582757577,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.695123581183284,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster24",
+      "node_mean": -1.4616377806847103,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.8737756739225542,
+      "node_size": 9
+    },
+    {
+      "regime": 0,
+      "node_id": "cube62_cluster25",
+      "node_mean": -1.4618146687588112,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.2574851670179872,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster27",
+      "node_mean": -1.7118891361632749,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.4815384600220773,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster2",
+      "node_mean": -1.7706386564305945,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3894560491053585,
+      "node_size": 12
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster4",
+      "node_mean": -1.6993454040278748,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.50119916689535,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster5",
+      "node_mean": -1.7806878455835837,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3737052215112797,
+      "node_size": 12
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster6",
+      "node_mean": -1.6085970391907733,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.6434357023245358,
+      "node_size": 17
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster7",
+      "node_mean": -1.8037143638647972,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.3376140788312345,
+      "node_size": 8
+    },
+    {
+      "regime": 0,
+      "node_id": "cube63_cluster10",
+      "node_mean": -1.4618146687588112,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.2574851670179872,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube64_cluster0",
+      "node_mean": -1.6111144326947855,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.6394900077551036,
+      "node_size": 72
+    },
+    {
+      "regime": 4,
+      "node_id": "cube65_cluster0",
+      "node_mean": -1.6111144326947855,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 1.6394900077551036,
+      "node_size": 72
+    },
+    {
+      "regime": 5,
+      "node_id": "cube75_cluster1",
+      "node_mean": -0.5648878823968837,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.3425404102582796,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube75_cluster2",
+      "node_mean": -0.6231077048238415,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.049884649427867,
+      "node_size": 119
+    },
+    {
+      "regime": 5,
+      "node_id": "cube75_cluster4",
+      "node_mean": -0.4481960593912013,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2487976722112781,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster3",
+      "node_mean": -0.8508757006243618,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.57228470971469,
+      "node_size": 30
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster4",
+      "node_mean": -0.8845647858028853,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.599348363410285,
+      "node_size": 17
+    },
+    {
+      "regime": 0,
+      "node_id": "cube76_cluster5",
+      "node_mean": -0.9181946543568913,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.039584883109024,
+      "node_size": 20
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster7",
+      "node_mean": -0.5648878823968837,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.3425404102582796,
+      "node_size": 9
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster8",
+      "node_mean": -0.9681397939875428,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.6664871731206177,
+      "node_size": 7
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster11",
+      "node_mean": -0.4481960593912013,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2487976722112781,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster14",
+      "node_mean": -0.8159302138131758,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.5442117434031906,
+      "node_size": 23
+    },
+    {
+      "regime": 4,
+      "node_id": "cube76_cluster17",
+      "node_mean": -1.2469391092061053,
+      "regime_mean": -2.6571258313949078,
+      "z_score": 2.2102885713966107,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster18",
+      "node_mean": -0.7839165539254795,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.51849401909759,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube77_cluster2",
+      "node_mean": -0.8508757006243618,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.57228470971469,
+      "node_size": 30
+    },
+    {
+      "regime": 5,
+      "node_id": "cube77_cluster3",
+      "node_mean": -0.8845647858028853,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.599348363410285,
+      "node_size": 17
+    },
+    {
+      "regime": 0,
+      "node_id": "cube77_cluster4",
+      "node_mean": -0.904314347354576,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.0340212122425723,
+      "node_size": 25
+    },
+    {
+      "regime": 5,
+      "node_id": "cube77_cluster8",
+      "node_mean": -0.9681397939875428,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.6664871731206177,
+      "node_size": 7
+    },
+    {
+      "regime": 5,
+      "node_id": "cube77_cluster17",
+      "node_mean": -0.8159302138131758,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.5442117434031906,
+      "node_size": 23
+    },
+    {
+      "regime": 0,
+      "node_id": "cube77_cluster21",
+      "node_mean": -0.881676100349206,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.0249470789895896,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube77_cluster23",
+      "node_mean": -0.7839165539254795,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.51849401909759,
+      "node_size": 5
+    },
+    {
+      "regime": 0,
+      "node_id": "cube78_cluster10",
+      "node_mean": -0.8487931193453147,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.0117665287767648,
+      "node_size": 5
+    },
+    {
+      "regime": 0,
+      "node_id": "cube78_cluster13",
+      "node_mean": -0.881676100349206,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.0249470789895896,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster0",
+      "node_mean": -0.5487148460988192,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.1406059001270366,
+      "node_size": 102
+    },
+    {
+      "regime": 5,
+      "node_id": "cube91_cluster1",
+      "node_mean": -0.34893296042992894,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.1690560549841054,
+      "node_size": 27
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster2",
+      "node_mean": -0.3827075938686593,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.3430498686149286,
+      "node_size": 251
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster4",
+      "node_mean": -0.582926253289876,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.0988854755897375,
+      "node_size": 22
+    },
+    {
+      "regime": 5,
+      "node_id": "cube91_cluster5",
+      "node_mean": -0.23886403135275783,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0806337258111969,
+      "node_size": 20
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster6",
+      "node_mean": -0.48092363802437343,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.223276512445538,
+      "node_size": 38
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster7",
+      "node_mean": -0.131469632943798,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.6494317233902729,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube91_cluster8",
+      "node_mean": -0.3929910277352069,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2044494849252478,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster0",
+      "node_mean": -0.5487148460988192,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.1406059001270366,
+      "node_size": 102
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster2",
+      "node_mean": -0.34893296042992894,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.1690560549841054,
+      "node_size": 27
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster3",
+      "node_mean": -0.4183473173797412,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.299587628462966,
+      "node_size": 273
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster5",
+      "node_mean": -0.4555652568497836,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2547176135506373,
+      "node_size": 21
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster6",
+      "node_mean": -0.3352115245937316,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.1580331321083632,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster7",
+      "node_mean": -0.4545667408220787,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.2554184507944852,
+      "node_size": 22
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster8",
+      "node_mean": -0.23397070075682702,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0767027373630227,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster9",
+      "node_mean": -0.5984573590725385,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.0799454675635327,
+      "node_size": 21
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster10",
+      "node_mean": -0.23886403135275783,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0806337258111969,
+      "node_size": 20
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster11",
+      "node_mean": -0.48092363802437343,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.223276512445538,
+      "node_size": 38
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster12",
+      "node_mean": -0.715740110099799,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.4637254299204747,
+      "node_size": 15
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster13",
+      "node_mean": -0.6294378790269364,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.0421650735076688,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster14",
+      "node_mean": -0.3929910277352069,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2044494849252478,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube93_cluster4",
+      "node_mean": -0.4555652568497836,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2547176135506373,
+      "node_size": 21
+    },
+    {
+      "regime": 5,
+      "node_id": "cube93_cluster5",
+      "node_mean": -0.3352115245937316,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.1580331321083632,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster6",
+      "node_mean": -0.6391936596096677,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.030268009311178,
+      "node_size": 14
+    },
+    {
+      "regime": 5,
+      "node_id": "cube93_cluster9",
+      "node_mean": -0.23397070075682702,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0767027373630227,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube93_cluster12",
+      "node_mean": -0.715740110099799,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.4637254299204747,
+      "node_size": 15
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster14",
+      "node_mean": -0.6294378790269364,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.0421650735076688,
+      "node_size": 6
+    },
+    {
+      "regime": 0,
+      "node_id": "cube93_cluster16",
+      "node_mean": -0.8487931193453147,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.0117665287767648,
+      "node_size": 5
+    },
+    {
+      "regime": 0,
+      "node_id": "cube94_cluster13",
+      "node_mean": -0.8487931193453147,
+      "regime_mean": 1.6753730959442321,
+      "z_score": 1.0117665287767648,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube106_cluster0",
+      "node_mean": 0.25335721185105387,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.1187237127121112,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster0",
+      "node_mean": -0.3666182741955654,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.3626706121736227,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster2",
+      "node_mean": 0.012627344093543259,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.8251563588303152,
+      "node_size": 224
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster4",
+      "node_mean": 0.06597506476596816,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.8902133014495195,
+      "node_size": 48
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster7",
+      "node_mean": 0.1706552846918004,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.0178696469360973,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster9",
+      "node_mean": -0.09944152821476618,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.6884896352428314,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster10",
+      "node_mean": 0.13114813774078954,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.9696911275946158,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster11",
+      "node_mean": -0.131469632943798,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.6494317233902729,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster12",
+      "node_mean": -0.3250017272093603,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.4134215210252996,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster0",
+      "node_mean": -0.3666182741955654,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.3626706121736227,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster3",
+      "node_mean": 0.012627344093543259,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.8251563588303152,
+      "node_size": 224
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster5",
+      "node_mean": 0.06597506476596816,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.8902133014495195,
+      "node_size": 48
+    },
+    {
+      "regime": 5,
+      "node_id": "cube108_cluster7",
+      "node_mean": -0.3334289625726396,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.156601135929954,
+      "node_size": 12
+    },
+    {
+      "regime": 5,
+      "node_id": "cube108_cluster9",
+      "node_mean": -0.23397070075682702,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0767027373630227,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster11",
+      "node_mean": -0.09944152821476618,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.6884896352428314,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster12",
+      "node_mean": 0.13114813774078954,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.9696911275946158,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster13",
+      "node_mean": -0.16259532608901578,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 1.6114742922684206,
+      "node_size": 9
+    },
+    {
+      "regime": 5,
+      "node_id": "cube109_cluster2",
+      "node_mean": -0.3334289625726396,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.156601135929954,
+      "node_size": 12
+    },
+    {
+      "regime": 5,
+      "node_id": "cube109_cluster3",
+      "node_mean": -0.23397070075682702,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0767027373630227,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube123_cluster0",
+      "node_mean": 0.38223434775703174,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.275887923851433,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster1",
+      "node_mean": 0.5416331107607439,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.4702729143926465,
+      "node_size": 196
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster6",
+      "node_mean": 0.37896348972624994,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.271899149438169,
+      "node_size": 34
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster9",
+      "node_mean": 0.38223434775703174,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.275887923851433,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster10",
+      "node_mean": 0.5748467280015215,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.5107765453589526,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster13",
+      "node_mean": 0.7654314937830111,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.743192513937526,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster14",
+      "node_mean": 0.595066040271344,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.5354337682272865,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster1",
+      "node_mean": 0.5416331107607439,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.4702729143926465,
+      "node_size": 196
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster7",
+      "node_mean": 0.37896348972624994,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.271899149438169,
+      "node_size": 34
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster10",
+      "node_mean": 0.5748467280015215,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.5107765453589526,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster13",
+      "node_mean": 0.7654314937830111,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.743192513937526,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster15",
+      "node_mean": 0.5614813967487995,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.494477674902348,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube142_cluster0",
+      "node_mean": 1.3087856559154625,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5254545401031914,
+      "node_size": 462
+    },
+    {
+      "regime": 1,
+      "node_id": "cube142_cluster1",
+      "node_mean": 0.8775331828817197,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.879899257230126,
+      "node_size": 143
+    },
+    {
+      "regime": 1,
+      "node_id": "cube142_cluster5",
+      "node_mean": 0.9358202903083007,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.9509797261891406,
+      "node_size": 24
+    },
+    {
+      "regime": 1,
+      "node_id": "cube142_cluster9",
+      "node_mean": 0.722768655090338,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.6911656641711734,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube143_cluster0",
+      "node_mean": 1.3087856559154625,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5254545401031914,
+      "node_size": 462
+    },
+    {
+      "regime": 1,
+      "node_id": "cube143_cluster1",
+      "node_mean": 0.8775331828817197,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.879899257230126,
+      "node_size": 143
+    },
+    {
+      "regime": 1,
+      "node_id": "cube143_cluster5",
+      "node_mean": 0.9358202903083007,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.9509797261891406,
+      "node_size": 24
+    },
+    {
+      "regime": 1,
+      "node_id": "cube143_cluster9",
+      "node_mean": 0.722768655090338,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 2.6911656641711734,
+      "node_size": 8
+    },
+    {
+      "regime": 6,
+      "node_id": "cube144_cluster0",
+      "node_mean": 1.2972162956476612,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.049250870167313,
+      "node_size": 27
+    },
+    {
+      "regime": 6,
+      "node_id": "cube144_cluster1",
+      "node_mean": 1.279541322962936,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.03932457017703,
+      "node_size": 16
+    },
+    {
+      "regime": 6,
+      "node_id": "cube144_cluster2",
+      "node_mean": 1.2729056166732835,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.0355979442606333,
+      "node_size": 6
+    },
+    {
+      "regime": 6,
+      "node_id": "cube145_cluster0",
+      "node_mean": 1.2972162956476612,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.049250870167313,
+      "node_size": 27
+    },
+    {
+      "regime": 6,
+      "node_id": "cube145_cluster1",
+      "node_mean": 1.279541322962936,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.03932457017703,
+      "node_size": 16
+    },
+    {
+      "regime": 6,
+      "node_id": "cube145_cluster4",
+      "node_mean": 1.268661139410927,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.033214237345799,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube160_cluster0",
+      "node_mean": 1.3087856559154625,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5254545401031914,
+      "node_size": 462
+    },
+    {
+      "regime": 1,
+      "node_id": "cube160_cluster6",
+      "node_mean": 1.129883838639233,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 3.1876380307822827,
+      "node_size": 39
+    },
+    {
+      "regime": 2,
+      "node_id": "cube160_cluster9",
+      "node_mean": 1.6982705822727489,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0755102985609413,
+      "node_size": 17
+    },
+    {
+      "regime": 1,
+      "node_id": "cube160_cluster11",
+      "node_mean": 1.027987755417396,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 3.063376908550097,
+      "node_size": 14
+    },
+    {
+      "regime": 2,
+      "node_id": "cube161_cluster0",
+      "node_mean": 1.3087856559154625,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5254545401031914,
+      "node_size": 462
+    },
+    {
+      "regime": 1,
+      "node_id": "cube161_cluster7",
+      "node_mean": 1.129883838639233,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 3.1876380307822827,
+      "node_size": 39
+    },
+    {
+      "regime": 2,
+      "node_id": "cube161_cluster10",
+      "node_mean": 1.6982705822727489,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0755102985609413,
+      "node_size": 17
+    },
+    {
+      "regime": 1,
+      "node_id": "cube161_cluster12",
+      "node_mean": 1.027987755417396,
+      "regime_mean": -1.4840297027077598,
+      "z_score": 3.063376908550097,
+      "node_size": 14
+    },
+    {
+      "regime": 2,
+      "node_id": "cube161_cluster14",
+      "node_mean": 1.7144619193757216,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.056805598072304,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube162_cluster0",
+      "node_mean": 1.2972162956476612,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.049250870167313,
+      "node_size": 27
+    },
+    {
+      "regime": 2,
+      "node_id": "cube162_cluster1",
+      "node_mean": 1.4858552202366815,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.3208986627708743,
+      "node_size": 642
+    },
+    {
+      "regime": 6,
+      "node_id": "cube162_cluster2",
+      "node_mean": 1.279541322962936,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.03932457017703,
+      "node_size": 16
+    },
+    {
+      "regime": 6,
+      "node_id": "cube162_cluster5",
+      "node_mean": 1.600072492073984,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.2193355154602485,
+      "node_size": 7
+    },
+    {
+      "regime": 6,
+      "node_id": "cube162_cluster6",
+      "node_mean": 1.2729056166732835,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.0355979442606333,
+      "node_size": 6
+    },
+    {
+      "regime": 6,
+      "node_id": "cube163_cluster0",
+      "node_mean": 1.2972162956476612,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.049250870167313,
+      "node_size": 27
+    },
+    {
+      "regime": 2,
+      "node_id": "cube163_cluster1",
+      "node_mean": 1.4858552202366815,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.3208986627708743,
+      "node_size": 642
+    },
+    {
+      "regime": 6,
+      "node_id": "cube163_cluster2",
+      "node_mean": 1.279541322962936,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.03932457017703,
+      "node_size": 16
+    },
+    {
+      "regime": 6,
+      "node_id": "cube163_cluster3",
+      "node_mean": 1.838623183374064,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.3533060605338716,
+      "node_size": 18
+    },
+    {
+      "regime": 6,
+      "node_id": "cube163_cluster4",
+      "node_mean": 1.600072492073984,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.2193355154602485,
+      "node_size": 7
+    },
+    {
+      "regime": 6,
+      "node_id": "cube163_cluster5",
+      "node_mean": 1.268661139410927,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.033214237345799,
+      "node_size": 8
+    },
+    {
+      "regime": 6,
+      "node_id": "cube164_cluster0",
+      "node_mean": 1.838623183374064,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.3533060605338716,
+      "node_size": 18
+    },
+    {
+      "regime": 6,
+      "node_id": "cube164_cluster1",
+      "node_mean": 1.9094087765888776,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.393059391176788,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube165_cluster0",
+      "node_mean": 1.9094087765888776,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.393059391176788,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube179_cluster6",
+      "node_mean": 1.6982705822727489,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0755102985609413,
+      "node_size": 17
+    },
+    {
+      "regime": 2,
+      "node_id": "cube180_cluster6",
+      "node_mean": 1.6982705822727489,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0755102985609413,
+      "node_size": 17
+    },
+    {
+      "regime": 2,
+      "node_id": "cube180_cluster11",
+      "node_mean": 1.7144619193757216,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.056805598072304,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube181_cluster0",
+      "node_mean": 1.4858552202366815,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.3208986627708743,
+      "node_size": 642
+    },
+    {
+      "regime": 6,
+      "node_id": "cube181_cluster4",
+      "node_mean": 1.600072492073984,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.2193355154602485,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube182_cluster0",
+      "node_mean": 1.4858552202366815,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.3208986627708743,
+      "node_size": 642
+    },
+    {
+      "regime": 6,
+      "node_id": "cube182_cluster1",
+      "node_mean": 1.8444168731875938,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.356559808314169,
+      "node_size": 19
+    },
+    {
+      "regime": 6,
+      "node_id": "cube182_cluster2",
+      "node_mean": 1.600072492073984,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.2193355154602485,
+      "node_size": 7
+    },
+    {
+      "regime": 6,
+      "node_id": "cube183_cluster0",
+      "node_mean": 2.1533384031779903,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.530050757060697,
+      "node_size": 8
+    },
+    {
+      "regime": 6,
+      "node_id": "cube183_cluster1",
+      "node_mean": 1.8444168731875938,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.356559808314169,
+      "node_size": 19
+    },
+    {
+      "regime": 6,
+      "node_id": "cube183_cluster2",
+      "node_mean": 1.9094087765888776,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.393059391176788,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube184_cluster0",
+      "node_mean": 2.1533384031779903,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.530050757060697,
+      "node_size": 8
+    },
+    {
+      "regime": 6,
+      "node_id": "cube184_cluster1",
+      "node_mean": 1.9094087765888776,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.393059391176788,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube198_cluster8",
+      "node_mean": 2.4085278452495547,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0461113776910853,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube198_cluster10",
+      "node_mean": 2.60036948237553,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2002246640584813,
+      "node_size": 7
+    },
+    {
+      "regime": 5,
+      "node_id": "cube198_cluster12",
+      "node_mean": 2.567661230221168,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.173948948805217,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube198_cluster15",
+      "node_mean": 2.4033882190815317,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0419825311522406,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube199_cluster12",
+      "node_mean": 2.4085278452495547,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0461113776910853,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube199_cluster15",
+      "node_mean": 2.60036948237553,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2002246640584813,
+      "node_size": 7
+    },
+    {
+      "regime": 5,
+      "node_id": "cube199_cluster20",
+      "node_mean": 2.567661230221168,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.173948948805217,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube199_cluster23",
+      "node_mean": 2.4033882190815317,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.0419825311522406,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube202_cluster0",
+      "node_mean": 2.1533384031779903,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.530050757060697,
+      "node_size": 8
+    },
+    {
+      "regime": 6,
+      "node_id": "cube202_cluster1",
+      "node_mean": 2.724984374619531,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.8510882772866475,
+      "node_size": 6
+    },
+    {
+      "regime": 6,
+      "node_id": "cube203_cluster0",
+      "node_mean": 2.1533384031779903,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.530050757060697,
+      "node_size": 8
+    },
+    {
+      "regime": 6,
+      "node_id": "cube203_cluster1",
+      "node_mean": 2.4097935656771825,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.6740764889490278,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube204_cluster0",
+      "node_mean": 2.4097935656771825,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.6740764889490278,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube221_cluster12",
+      "node_mean": 2.60036948237553,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2002246640584813,
+      "node_size": 7
+    },
+    {
+      "regime": 5,
+      "node_id": "cube221_cluster17",
+      "node_mean": 2.567661230221168,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.173948948805217,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube222_cluster14",
+      "node_mean": 2.60036948237553,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.2002246640584813,
+      "node_size": 7
+    },
+    {
+      "regime": 5,
+      "node_id": "cube222_cluster21",
+      "node_mean": 2.567661230221168,
+      "regime_mean": 1.1063187752674823,
+      "z_score": 1.173948948805217,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube225_cluster0",
+      "node_mean": 2.7711793143938177,
+      "regime_mean": -0.5711012534678708,
+      "z_score": 1.8770314478030528,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube243_cluster2",
+      "node_mean": 3.554828804518114,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0692394071591957,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube243_cluster5",
+      "node_mean": 3.6014521264816985,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1231000159259685,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster1",
+      "node_mean": 3.724979722660701,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.2658026645037286,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster4",
+      "node_mean": 3.5761190425599545,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0938345053510121,
+      "node_size": 9
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster14",
+      "node_mean": 3.4965910300633447,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.001961447261661,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster17",
+      "node_mean": 3.581380603474495,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0999128125583355,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster18",
+      "node_mean": 3.554828804518114,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0692394071591957,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster21",
+      "node_mean": 3.6393733137361317,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.166907667218552,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster25",
+      "node_mean": 3.6014521264816985,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1231000159259685,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube245_cluster3",
+      "node_mean": 3.5761190425599545,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0938345053510121,
+      "node_size": 9
+    },
+    {
+      "regime": 2,
+      "node_id": "cube245_cluster12",
+      "node_mean": 3.4965910300633447,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.001961447261661,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube245_cluster14",
+      "node_mean": 3.581380603474495,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0999128125583355,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube245_cluster17",
+      "node_mean": 3.6393733137361317,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.166907667218552,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube264_cluster0",
+      "node_mean": 3.641987198977333,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1699273029804045,
+      "node_size": 132
+    },
+    {
+      "regime": 2,
+      "node_id": "cube264_cluster1",
+      "node_mean": 3.554828804518114,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0692394071591957,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube264_cluster2",
+      "node_mean": 4.02185709608718,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.608763984898698,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube264_cluster3",
+      "node_mean": 3.8782858653608727,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.4429063505080493,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube264_cluster4",
+      "node_mean": 3.6364694491078273,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.163553038889431,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster0",
+      "node_mean": 3.724979722660701,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.2658026645037286,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster1",
+      "node_mean": 3.607935078965472,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.130589309967582,
+      "node_size": 157
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster2",
+      "node_mean": 3.7134452051335485,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.2524776565532296,
+      "node_size": 127
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster3",
+      "node_mean": 3.606219515386969,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1286074413485152,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster4",
+      "node_mean": 3.5313533024206434,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0421198287846003,
+      "node_size": 34
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster5",
+      "node_mean": 3.6340814026651707,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1607942986335291,
+      "node_size": 41
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster6",
+      "node_mean": 3.7547414140104225,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.300184230349183,
+      "node_size": 28
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster7",
+      "node_mean": 3.5814275985466684,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0999671026236868,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster8",
+      "node_mean": 4.1579562782098325,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.7659896928289787,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster9",
+      "node_mean": 3.4965910300633447,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.001961447261661,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster10",
+      "node_mean": 3.9228197079725944,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.4943531323496444,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster11",
+      "node_mean": 3.646942113192331,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1756513630595076,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster12",
+      "node_mean": 3.554828804518114,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0692394071591957,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster13",
+      "node_mean": 3.684861340390121,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.219456750038019,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster14",
+      "node_mean": 3.6393733137361317,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.166907667218552,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster15",
+      "node_mean": 4.02185709608718,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.608763984898698,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster16",
+      "node_mean": 3.8782858653608727,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.4429063505080493,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster17",
+      "node_mean": 3.6364694491078273,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.163553038889431,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster0",
+      "node_mean": 3.665092172370301,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1966188358887058,
+      "node_size": 304
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster2",
+      "node_mean": 3.606219515386969,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1286074413485152,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster3",
+      "node_mean": 3.5313533024206434,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0421198287846003,
+      "node_size": 34
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster4",
+      "node_mean": 3.626426643125259,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1519512992199543,
+      "node_size": 40
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster5",
+      "node_mean": 3.7547414140104225,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.300184230349183,
+      "node_size": 28
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster6",
+      "node_mean": 3.5814275985466684,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.0999671026236868,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster7",
+      "node_mean": 4.1579562782098325,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.7659896928289787,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster8",
+      "node_mean": 3.4965910300633447,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.001961447261661,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster9",
+      "node_mean": 3.9228197079725944,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.4943531323496444,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster10",
+      "node_mean": 3.646942113192331,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1756513630595076,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster11",
+      "node_mean": 3.684861340390121,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.219456750038019,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster12",
+      "node_mean": 3.6393733137361317,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.166907667218552,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube267_cluster0",
+      "node_mean": 3.6303981884102314,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.1565393430955169,
+      "node_size": 177
+    },
+    {
+      "regime": 2,
+      "node_id": "cube285_cluster0",
+      "node_mean": 4.028054365189228,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.6159232492425935,
+      "node_size": 21
+    },
+    {
+      "regime": 2,
+      "node_id": "cube285_cluster1",
+      "node_mean": 4.02185709608718,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.608763984898698,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube285_cluster2",
+      "node_mean": 3.9319277080430965,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.504874957217212,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster0",
+      "node_mean": 4.028054365189228,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.6159232492425935,
+      "node_size": 21
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster1",
+      "node_mean": 3.996235727374801,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5791654394032801,
+      "node_size": 55
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster2",
+      "node_mean": 4.1579562782098325,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.7659896928289787,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster3",
+      "node_mean": 4.6608714516432705,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 2.3469718334908753,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster4",
+      "node_mean": 4.306450267479369,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.937534240137529,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster5",
+      "node_mean": 3.9296739194232115,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5022713154777099,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster6",
+      "node_mean": 4.007052011960682,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.591660723905857,
+      "node_size": 11
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster7",
+      "node_mean": 4.02185709608718,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.608763984898698,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster8",
+      "node_mean": 3.9319277080430965,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.504874957217212,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster9",
+      "node_mean": 4.341947962530246,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.9785422032069733,
+      "node_size": 2
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster10",
+      "node_mean": 4.157259707889255,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.7651849946664477,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster0",
+      "node_mean": 3.9941255472756665,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5767276983766825,
+      "node_size": 87
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster1",
+      "node_mean": 4.1579562782098325,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.7659896928289787,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster2",
+      "node_mean": 4.6608714516432705,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 2.3469718334908753,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster3",
+      "node_mean": 3.9296739194232115,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5022713154777099,
+      "node_size": 8
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster4",
+      "node_mean": 4.007052011960682,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.591660723905857,
+      "node_size": 11
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster5",
+      "node_mean": 4.381304286196432,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 2.0240077655523288,
+      "node_size": 1
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster6",
+      "node_mean": 4.157259707889255,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.7651849946664477,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube288_cluster0",
+      "node_mean": 3.9804311602743514,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.5609075467977214,
+      "node_size": 31
+    },
+    {
+      "regime": 2,
+      "node_id": "cube307_cluster0",
+      "node_mean": 4.6608714516432705,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 2.3469718334908753,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube307_cluster1",
+      "node_mean": 4.331350773856929,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.966300024633619,
+      "node_size": 3
+    },
+    {
+      "regime": 2,
+      "node_id": "cube308_cluster0",
+      "node_mean": 4.6608714516432705,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 2.3469718334908753,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube308_cluster1",
+      "node_mean": 4.331350773856929,
+      "regime_mean": 2.6292638271150137,
+      "z_score": 1.966300024633619,
+      "node_size": 3
+    }
+  ],
+  "summary": {
+    "0": 13,
+    "1": 63,
+    "2": 89,
+    "3": 0,
+    "4": 105,
+    "5": 56,
+    "6": 32
+  },
+  "n_total": 358
+}

@@ -1,0 +1,2390 @@
+{
+  "subregimes": [
+    {
+      "regime": 1,
+      "node_id": "cube6_cluster0",
+      "node_mean": 5.6317694096399595,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.3401084181289356,
+      "node_size": 67
+    },
+    {
+      "regime": 1,
+      "node_id": "cube7_cluster2",
+      "node_mean": 5.792025982155174,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.460402809325804,
+      "node_size": 119
+    },
+    {
+      "regime": 1,
+      "node_id": "cube8_cluster3",
+      "node_mean": 5.998510412126699,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.6153975056756147,
+      "node_size": 52
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster1",
+      "node_mean": 7.829579372339578,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.766428202577121,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube9_cluster5",
+      "node_mean": 8.180322084188662,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.9873653586097166,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube10_cluster0",
+      "node_mean": 7.829579372339578,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.766428202577121,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube10_cluster1",
+      "node_mean": 8.893710006200829,
+      "regime_mean": 5.025334811650129,
+      "z_score": 2.4367372010250445,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube10_cluster2",
+      "node_mean": 8.180322084188662,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.9873653586097166,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube11_cluster0",
+      "node_mean": 8.893710006200829,
+      "regime_mean": 5.025334811650129,
+      "z_score": 2.4367372010250445,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube16_cluster4",
+      "node_mean": 5.5018931147015095,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.2426185642944383,
+      "node_size": 170
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster0",
+      "node_mean": 6.643745735161843,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.019456982720192,
+      "node_size": 28
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster3",
+      "node_mean": 7.745987336911357,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.7137725494428837,
+      "node_size": 33
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster4",
+      "node_mean": 8.114173583194562,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.945697602754125,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube17_cluster7",
+      "node_mean": 7.72291949464678,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.6992418313593185,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube18_cluster0",
+      "node_mean": 6.643745735161843,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.019456982720192,
+      "node_size": 28
+    },
+    {
+      "regime": 4,
+      "node_id": "cube18_cluster1",
+      "node_mean": 7.946838804037014,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.8402913634697617,
+      "node_size": 40
+    },
+    {
+      "regime": 4,
+      "node_id": "cube18_cluster2",
+      "node_mean": 8.114173583194562,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.945697602754125,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube18_cluster3",
+      "node_mean": 7.72291949464678,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.6992418313593185,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube19_cluster0",
+      "node_mean": 8.893710006200829,
+      "regime_mean": 5.025334811650129,
+      "z_score": 2.4367372010250445,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube24_cluster3",
+      "node_mean": 3.168783305537432,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1694646700600937,
+      "node_size": 63
+    },
+    {
+      "regime": 4,
+      "node_id": "cube24_cluster5",
+      "node_mean": 3.103887328605542,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2103434455753437,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube24_cluster6",
+      "node_mean": 3.0044562986487535,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2729762765306367,
+      "node_size": 22
+    },
+    {
+      "regime": 4,
+      "node_id": "cube24_cluster7",
+      "node_mean": 2.869521038158963,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.3579736597804968,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster0",
+      "node_mean": 3.3984845104331036,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.024773050726471,
+      "node_size": 102
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster7",
+      "node_mean": 3.4211891168918083,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0104711393528032,
+      "node_size": 47
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster9",
+      "node_mean": 3.2912139927399657,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0923440716047712,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster10",
+      "node_mean": 3.0044562986487535,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2729762765306367,
+      "node_size": 22
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster13",
+      "node_mean": 2.933962489126562,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.317381195770806,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster26",
+      "node_mean": 3.3379759257503436,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0628881538027073,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube25_cluster30",
+      "node_mean": 3.1397436420108082,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1877571119411852,
+      "node_size": 9
+    },
+    {
+      "regime": 4,
+      "node_id": "cube26_cluster10",
+      "node_mean": 3.334903997357756,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0648231993493873,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube26_cluster25",
+      "node_mean": 3.3379759257503436,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0628881538027073,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube26_cluster28",
+      "node_mean": 3.1397436420108082,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1877571119411852,
+      "node_size": 9
+    },
+    {
+      "regime": 4,
+      "node_id": "cube27_cluster5",
+      "node_mean": 7.764225841697618,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.7252612083419379,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube28_cluster0",
+      "node_mean": 7.130917238454388,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.3263323155535982,
+      "node_size": 129
+    },
+    {
+      "regime": 4,
+      "node_id": "cube28_cluster1",
+      "node_mean": 7.764225841697618,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.7252612083419379,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube34_cluster2",
+      "node_mean": 3.126374734906663,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1961783512572703,
+      "node_size": 18
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster2",
+      "node_mean": 2.6031629121751103,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.5257559253928048,
+      "node_size": 44
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster3",
+      "node_mean": 2.9288381998260955,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.3206090487424749,
+      "node_size": 119
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster4",
+      "node_mean": 3.3248113721555588,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0711806683252099,
+      "node_size": 77
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster7",
+      "node_mean": 3.092889344690553,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2172712111601507,
+      "node_size": 19
+    },
+    {
+      "regime": 4,
+      "node_id": "cube35_cluster8",
+      "node_mean": 2.970849794741942,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2941454274396484,
+      "node_size": 26
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster2",
+      "node_mean": 2.6287527113412774,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.5096365955814675,
+      "node_size": 46
+    },
+    {
+      "regime": 1,
+      "node_id": "cube36_cluster3",
+      "node_mean": 5.25547415467457,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.0576475624156108,
+      "node_size": 67
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster4",
+      "node_mean": 2.9354937301747865,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.316416648166633,
+      "node_size": 123
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster5",
+      "node_mean": 3.385351363180646,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0330457820069538,
+      "node_size": 59
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster8",
+      "node_mean": 3.4351345950511534,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0016867108245602,
+      "node_size": 14
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster9",
+      "node_mean": 3.0970069344864712,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.214677490610911,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster11",
+      "node_mean": 3.2912139927399657,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0923440716047712,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster12",
+      "node_mean": 2.970849794741942,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2941454274396484,
+      "node_size": 26
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster14",
+      "node_mean": 3.076193837862174,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2277879166327708,
+      "node_size": 11
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster23",
+      "node_mean": 3.096006281092157,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.215307814514004,
+      "node_size": 11
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster25",
+      "node_mean": 2.914027358500702,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.329938580191985,
+      "node_size": 4
+    },
+    {
+      "regime": 4,
+      "node_id": "cube36_cluster26",
+      "node_mean": 3.3379759257503436,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0628881538027073,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube37_cluster1",
+      "node_mean": 5.25547415467457,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.0576475624156108,
+      "node_size": 67
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster3",
+      "node_mean": 7.611054433468733,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.6287766509260775,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster5",
+      "node_mean": 7.002155853089478,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.245223932319164,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster11",
+      "node_mean": 3.334903997357756,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0648231993493873,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster12",
+      "node_mean": 3.076193837862174,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2277879166327708,
+      "node_size": 11
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster20",
+      "node_mean": 3.1215455373017544,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1992203223337985,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube37_cluster21",
+      "node_mean": 3.3379759257503436,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0628881538027073,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube38_cluster1",
+      "node_mean": 7.611054433468733,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.6287766509260775,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube38_cluster2",
+      "node_mean": 6.841900160028502,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.144276896595271,
+      "node_size": 153
+    },
+    {
+      "regime": 4,
+      "node_id": "cube38_cluster3",
+      "node_mean": 7.002155853089478,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.245223932319164,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube38_cluster7",
+      "node_mean": 7.764225841697618,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.7252612083419379,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube39_cluster0",
+      "node_mean": 7.088866864741895,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2998442670089334,
+      "node_size": 125
+    },
+    {
+      "regime": 4,
+      "node_id": "cube39_cluster1",
+      "node_mean": 7.764225841697618,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.7252612083419379,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster4",
+      "node_mean": 3.2354773789846685,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1274532513937476,
+      "node_size": 68
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster7",
+      "node_mean": 3.126374734906663,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1961783512572703,
+      "node_size": 18
+    },
+    {
+      "regime": 4,
+      "node_id": "cube47_cluster9",
+      "node_mean": 3.2679715251487336,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1069847883333235,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube48_cluster1",
+      "node_mean": 6.934726744546211,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.318155414255483,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster2",
+      "node_mean": 2.5623545638936283,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.5514616068142841,
+      "node_size": 50
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster3",
+      "node_mean": 2.8538839287780298,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.367823667659436,
+      "node_size": 80
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster5",
+      "node_mean": 3.1316964814345045,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.192826117545017,
+      "node_size": 37
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster9",
+      "node_mean": 3.2484944118391574,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1192536620033027,
+      "node_size": 85
+    },
+    {
+      "regime": 4,
+      "node_id": "cube48_cluster14",
+      "node_mean": 3.2679715251487336,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1069847883333235,
+      "node_size": 5
+    },
+    {
+      "regime": 0,
+      "node_id": "cube48_cluster20",
+      "node_mean": 4.455597481209993,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.3276441119073572,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube49_cluster0",
+      "node_mean": 6.934726744546211,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.318155414255483,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster2",
+      "node_mean": 2.553879262295511,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.5568003037232945,
+      "node_size": 47
+    },
+    {
+      "regime": 1,
+      "node_id": "cube49_cluster3",
+      "node_mean": 5.25547415467457,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.0576475624156108,
+      "node_size": 67
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster4",
+      "node_mean": 2.8538839287780298,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.367823667659436,
+      "node_size": 80
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster5",
+      "node_mean": 3.136738136039829,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1896503171860398,
+      "node_size": 19
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster10",
+      "node_mean": 3.300562543257118,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0864553044415197,
+      "node_size": 17
+    },
+    {
+      "regime": 4,
+      "node_id": "cube49_cluster11",
+      "node_mean": 3.0286621920072667,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2577286860399772,
+      "node_size": 10
+    },
+    {
+      "regime": 0,
+      "node_id": "cube49_cluster13",
+      "node_mean": 4.455597481209993,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.3276441119073572,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube49_cluster16",
+      "node_mean": 9.456031648434319,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.210738249858712,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube50_cluster0",
+      "node_mean": 5.25547415467457,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.0576475624156108,
+      "node_size": 67
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster1",
+      "node_mean": 6.992180117893325,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.238940093798463,
+      "node_size": 72
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster2",
+      "node_mean": 7.611054433468733,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.6287766509260775,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster3",
+      "node_mean": 7.002155853089478,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.245223932319164,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube50_cluster7",
+      "node_mean": 3.0286621920072667,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.2577286860399772,
+      "node_size": 10
+    },
+    {
+      "regime": 1,
+      "node_id": "cube50_cluster9",
+      "node_mean": 9.456031648434319,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.210738249858712,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster0",
+      "node_mean": 6.992180117893325,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.238940093798463,
+      "node_size": 72
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster1",
+      "node_mean": 7.611054433468733,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.6287766509260775,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster2",
+      "node_mean": 7.317476666233358,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.4438483978900125,
+      "node_size": 40
+    },
+    {
+      "regime": 4,
+      "node_id": "cube51_cluster3",
+      "node_mean": 7.002155853089478,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.245223932319164,
+      "node_size": 7
+    },
+    {
+      "regime": 4,
+      "node_id": "cube52_cluster0",
+      "node_mean": 7.342884005700504,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.4598527940886743,
+      "node_size": 37
+    },
+    {
+      "regime": 1,
+      "node_id": "cube60_cluster3",
+      "node_mean": 8.55741993733193,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.536207732870552,
+      "node_size": 6
+    },
+    {
+      "regime": 0,
+      "node_id": "cube61_cluster6",
+      "node_mean": 4.742417762323198,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.2657113874139196,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster10",
+      "node_mean": 3.2354773789846685,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1274532513937476,
+      "node_size": 68
+    },
+    {
+      "regime": 4,
+      "node_id": "cube61_cluster12",
+      "node_mean": 3.152919380712045,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1794575517823063,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube61_cluster13",
+      "node_mean": 2.546490683010155,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.2548760275327806,
+      "node_size": 5
+    },
+    {
+      "regime": 3,
+      "node_id": "cube61_cluster18",
+      "node_mean": 3.348896362507429,
+      "regime_mean": 5.620274148048281,
+      "z_score": 1.180185349289407,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube61_cluster20",
+      "node_mean": 8.55741993733193,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.536207732870552,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube62_cluster1",
+      "node_mean": 6.934726744546211,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.318155414255483,
+      "node_size": 10
+    },
+    {
+      "regime": 0,
+      "node_id": "cube62_cluster6",
+      "node_mean": 4.742417762323198,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.2657113874139196,
+      "node_size": 20
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster10",
+      "node_mean": 3.2484944118391574,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1192536620033027,
+      "node_size": 85
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster12",
+      "node_mean": 3.152919380712045,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.1794575517823063,
+      "node_size": 8
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster13",
+      "node_mean": 2.608236420913193,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.5225600597230975,
+      "node_size": 15
+    },
+    {
+      "regime": 5,
+      "node_id": "cube62_cluster14",
+      "node_mean": 2.546490683010155,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.2548760275327806,
+      "node_size": 5
+    },
+    {
+      "regime": 4,
+      "node_id": "cube62_cluster18",
+      "node_mean": 2.9123494962327925,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.3309954863090987,
+      "node_size": 12
+    },
+    {
+      "regime": 3,
+      "node_id": "cube62_cluster20",
+      "node_mean": 3.348896362507429,
+      "regime_mean": 5.620274148048281,
+      "z_score": 1.180185349289407,
+      "node_size": 6
+    },
+    {
+      "regime": 0,
+      "node_id": "cube62_cluster25",
+      "node_mean": 4.455597481209993,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.3276441119073572,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube63_cluster0",
+      "node_mean": 6.934726744546211,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.318155414255483,
+      "node_size": 10
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster2",
+      "node_mean": 2.586511953908793,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.5362445691772564,
+      "node_size": 12
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster5",
+      "node_mean": 2.9123494962327925,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.3309954863090987,
+      "node_size": 12
+    },
+    {
+      "regime": 4,
+      "node_id": "cube63_cluster6",
+      "node_mean": 3.300562543257118,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.0864553044415197,
+      "node_size": 17
+    },
+    {
+      "regime": 6,
+      "node_id": "cube63_cluster9",
+      "node_mean": 12.037681132775687,
+      "regime_mean": 7.627780642665318,
+      "z_score": 1.3334034098598635,
+      "node_size": 6
+    },
+    {
+      "regime": 0,
+      "node_id": "cube63_cluster10",
+      "node_mean": 4.455597481209993,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.3276441119073572,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube63_cluster12",
+      "node_mean": 9.456031648434319,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.210738249858712,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube64_cluster0",
+      "node_mean": 6.992180117893325,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.238940093798463,
+      "node_size": 72
+    },
+    {
+      "regime": 6,
+      "node_id": "cube64_cluster2",
+      "node_mean": 12.037681132775687,
+      "regime_mean": 7.627780642665318,
+      "z_score": 1.3334034098598635,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube64_cluster3",
+      "node_mean": 9.456031648434319,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.210738249858712,
+      "node_size": 6
+    },
+    {
+      "regime": 4,
+      "node_id": "cube65_cluster0",
+      "node_mean": 6.992180117893325,
+      "regime_mean": 5.025334811650129,
+      "z_score": 1.238940093798463,
+      "node_size": 72
+    },
+    {
+      "regime": 5,
+      "node_id": "cube75_cluster1",
+      "node_mean": 2.954181547202368,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0283880253812272,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube75_cluster5",
+      "node_mean": 8.554994333698154,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.5343869868766093,
+      "node_size": 9
+    },
+    {
+      "regime": 0,
+      "node_id": "cube76_cluster5",
+      "node_mean": 4.742417762323198,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.2657113874139196,
+      "node_size": 20
+    },
+    {
+      "regime": 1,
+      "node_id": "cube76_cluster6",
+      "node_mean": 7.5206767358910405,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.7579907132036423,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster7",
+      "node_mean": 2.954181547202368,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0283880253812272,
+      "node_size": 9
+    },
+    {
+      "regime": 5,
+      "node_id": "cube76_cluster8",
+      "node_mean": 2.4730518002830633,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.2956741598678219,
+      "node_size": 7
+    },
+    {
+      "regime": 3,
+      "node_id": "cube76_cluster9",
+      "node_mean": 2.983316955897251,
+      "regime_mean": 5.620274148048281,
+      "z_score": 1.370136779839526,
+      "node_size": 6
+    },
+    {
+      "regime": 3,
+      "node_id": "cube76_cluster13",
+      "node_mean": 3.348896362507429,
+      "regime_mean": 5.620274148048281,
+      "z_score": 1.180185349289407,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube76_cluster15",
+      "node_mean": 7.131179230933492,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.465619770182761,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube76_cluster16",
+      "node_mean": 8.554994333698154,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.5343869868766093,
+      "node_size": 9
+    },
+    {
+      "regime": 0,
+      "node_id": "cube77_cluster4",
+      "node_mean": 4.8759399981359355,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.236880107379457,
+      "node_size": 25
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster5",
+      "node_mean": 7.1482069878538965,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.4784014216310584,
+      "node_size": 32
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster6",
+      "node_mean": 7.5206767358910405,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.7579907132036423,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube77_cluster8",
+      "node_mean": 2.4730518002830633,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.2956741598678219,
+      "node_size": 7
+    },
+    {
+      "regime": 3,
+      "node_id": "cube77_cluster9",
+      "node_mean": 2.983316955897251,
+      "regime_mean": 5.620274148048281,
+      "z_score": 1.370136779839526,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster11",
+      "node_mean": 8.215037337600519,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.279202945206189,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster12",
+      "node_mean": 7.633130582052073,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.842402645577919,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster13",
+      "node_mean": 8.923253860849316,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.810815934069337,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster14",
+      "node_mean": 9.800041826631047,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.468964756904298,
+      "node_size": 12
+    },
+    {
+      "regime": 3,
+      "node_id": "cube77_cluster16",
+      "node_mean": 3.348896362507429,
+      "regime_mean": 5.620274148048281,
+      "z_score": 1.180185349289407,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube77_cluster19",
+      "node_mean": 7.131179230933492,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.465619770182761,
+      "node_size": 5
+    },
+    {
+      "regime": 0,
+      "node_id": "cube77_cluster21",
+      "node_mean": 5.678341205774477,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.063618674355949,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster0",
+      "node_mean": 9.486622918369138,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.233701165731624,
+      "node_size": 23
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster1",
+      "node_mean": 7.1482069878538965,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.4784014216310584,
+      "node_size": 32
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster4",
+      "node_mean": 8.215037337600519,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.279202945206189,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster5",
+      "node_mean": 10.207681853445616,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.7749541343351565,
+      "node_size": 16
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster6",
+      "node_mean": 7.633130582052073,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.842402645577919,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster7",
+      "node_mean": 8.923253860849316,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.810815934069337,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube78_cluster8",
+      "node_mean": 9.800041826631047,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.468964756904298,
+      "node_size": 12
+    },
+    {
+      "regime": 0,
+      "node_id": "cube78_cluster10",
+      "node_mean": 5.410028941386882,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.121554987241608,
+      "node_size": 5
+    },
+    {
+      "regime": 6,
+      "node_id": "cube78_cluster12",
+      "node_mean": 12.037681132775687,
+      "regime_mean": 7.627780642665318,
+      "z_score": 1.3334034098598635,
+      "node_size": 6
+    },
+    {
+      "regime": 0,
+      "node_id": "cube78_cluster13",
+      "node_mean": 5.678341205774477,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.063618674355949,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube79_cluster0",
+      "node_mean": 9.486622918369138,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.233701165731624,
+      "node_size": 23
+    },
+    {
+      "regime": 1,
+      "node_id": "cube79_cluster2",
+      "node_mean": 10.207681853445616,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.7749541343351565,
+      "node_size": 16
+    },
+    {
+      "regime": 6,
+      "node_id": "cube79_cluster5",
+      "node_mean": 12.037681132775687,
+      "regime_mean": 7.627780642665318,
+      "z_score": 1.3334034098598635,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube91_cluster1",
+      "node_mean": 2.8490061182833903,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0868170333956457,
+      "node_size": 27
+    },
+    {
+      "regime": 5,
+      "node_id": "cube91_cluster3",
+      "node_mean": 2.8603689260274,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0805045553618982,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster4",
+      "node_mean": 7.471447962824677,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.7210378120374528,
+      "node_size": 22
+    },
+    {
+      "regime": 1,
+      "node_id": "cube91_cluster6",
+      "node_mean": 6.337466062887313,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.8698299012462574,
+      "node_size": 38
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster1",
+      "node_mean": 7.5206767358910405,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.7579907132036423,
+      "node_size": 8
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster2",
+      "node_mean": 2.8490061182833903,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0868170333956457,
+      "node_size": 27
+    },
+    {
+      "regime": 5,
+      "node_id": "cube92_cluster4",
+      "node_mean": 2.8603689260274,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0805045553618982,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster9",
+      "node_mean": 7.445297869876857,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.701408604563913,
+      "node_size": 21
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster11",
+      "node_mean": 6.337466062887313,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.8698299012462574,
+      "node_size": 38
+    },
+    {
+      "regime": 1,
+      "node_id": "cube92_cluster13",
+      "node_mean": 7.104478727315176,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.4455774045124845,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster0",
+      "node_mean": 7.1482069878538965,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.4784014216310584,
+      "node_size": 32
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster1",
+      "node_mean": 7.5206767358910405,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.7579907132036423,
+      "node_size": 8
+    },
+    {
+      "regime": 0,
+      "node_id": "cube93_cluster3",
+      "node_mean": 5.522376533119419,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.0972959201377508,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster7",
+      "node_mean": 8.215037337600519,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.279202945206189,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster8",
+      "node_mean": 7.633130582052073,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.842402645577919,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster10",
+      "node_mean": 8.923253860849316,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.810815934069337,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster11",
+      "node_mean": 9.800041826631047,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.468964756904298,
+      "node_size": 12
+    },
+    {
+      "regime": 1,
+      "node_id": "cube93_cluster14",
+      "node_mean": 7.104478727315176,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.4455774045124845,
+      "node_size": 6
+    },
+    {
+      "regime": 0,
+      "node_id": "cube93_cluster16",
+      "node_mean": 5.410028941386882,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.121554987241608,
+      "node_size": 5
+    },
+    {
+      "regime": 0,
+      "node_id": "cube93_cluster17",
+      "node_mean": 5.695020651586802,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.0600171036504584,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster1",
+      "node_mean": 9.486622918369138,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.233701165731624,
+      "node_size": 23
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster3",
+      "node_mean": 7.1482069878538965,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.4784014216310584,
+      "node_size": 32
+    },
+    {
+      "regime": 0,
+      "node_id": "cube94_cluster5",
+      "node_mean": 5.522376533119419,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.0972959201377508,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster6",
+      "node_mean": 8.215037337600519,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.279202945206189,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster7",
+      "node_mean": 10.207681853445616,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.7749541343351565,
+      "node_size": 16
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster8",
+      "node_mean": 7.633130582052073,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.842402645577919,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster9",
+      "node_mean": 8.923253860849316,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.810815934069337,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube94_cluster10",
+      "node_mean": 9.800041826631047,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.468964756904298,
+      "node_size": 12
+    },
+    {
+      "regime": 0,
+      "node_id": "cube94_cluster13",
+      "node_mean": 5.410028941386882,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.121554987241608,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube95_cluster1",
+      "node_mean": 9.486622918369138,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.233701165731624,
+      "node_size": 23
+    },
+    {
+      "regime": 1,
+      "node_id": "cube95_cluster4",
+      "node_mean": 10.207681853445616,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 4.7749541343351565,
+      "node_size": 16
+    },
+    {
+      "regime": 1,
+      "node_id": "cube106_cluster0",
+      "node_mean": 7.862533766066341,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.0146009893119943,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube107_cluster1",
+      "node_mean": 2.8525274087596726,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0848608206986832,
+      "node_size": 38
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster4",
+      "node_mean": 5.33795995456249,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.1195643931837347,
+      "node_size": 48
+    },
+    {
+      "regime": 5,
+      "node_id": "cube107_cluster5",
+      "node_mean": 2.8918511433820386,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0630149691626072,
+      "node_size": 31
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster7",
+      "node_mean": 7.763446412488357,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.9402224306863203,
+      "node_size": 9
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster9",
+      "node_mean": 6.460544489756223,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.96221702894586,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube107_cluster12",
+      "node_mean": 7.618191829920789,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.831189076832069,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube108_cluster1",
+      "node_mean": 2.8525274087596726,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0848608206986832,
+      "node_size": 38
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster5",
+      "node_mean": 5.33795995456249,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.1195643931837347,
+      "node_size": 48
+    },
+    {
+      "regime": 5,
+      "node_id": "cube108_cluster6",
+      "node_mean": 2.8918511433820386,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.0630149691626072,
+      "node_size": 31
+    },
+    {
+      "regime": 1,
+      "node_id": "cube108_cluster11",
+      "node_mean": 6.460544489756223,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.96221702894586,
+      "node_size": 14
+    },
+    {
+      "regime": 0,
+      "node_id": "cube109_cluster1",
+      "node_mean": 5.522376533119419,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.0972959201377508,
+      "node_size": 11
+    },
+    {
+      "regime": 0,
+      "node_id": "cube110_cluster1",
+      "node_mean": 5.522376533119419,
+      "regime_mean": 10.604128173346899,
+      "z_score": 1.0972959201377508,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube123_cluster0",
+      "node_mean": 7.99098909311752,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.1110242131529326,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster6",
+      "node_mean": 5.63954144032693,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.3459423860291522,
+      "node_size": 34
+    },
+    {
+      "regime": 5,
+      "node_id": "cube124_cluster8",
+      "node_mean": 2.6883519870516186,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.1760666006926026,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster9",
+      "node_mean": 7.99098909311752,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 3.1110242131529326,
+      "node_size": 7
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster13",
+      "node_mean": 5.22435734570845,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.0342901578997161,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube124_cluster14",
+      "node_mean": 6.962953689425703,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.3393435820562374,
+      "node_size": 6
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster7",
+      "node_mean": 5.63954144032693,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.3459423860291522,
+      "node_size": 34
+    },
+    {
+      "regime": 5,
+      "node_id": "cube125_cluster9",
+      "node_mean": 2.6883519870516186,
+      "regime_mean": 4.805336570028024,
+      "z_score": 1.1760666006926026,
+      "node_size": 11
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster13",
+      "node_mean": 5.22435734570845,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.0342901578997161,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube125_cluster15",
+      "node_mean": 6.907881965669233,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 2.2980047503473684,
+      "node_size": 5
+    },
+    {
+      "regime": 1,
+      "node_id": "cube142_cluster5",
+      "node_mean": 5.564055189474512,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.2892796704381047,
+      "node_size": 24
+    },
+    {
+      "regime": 1,
+      "node_id": "cube142_cluster9",
+      "node_mean": 6.233176150385534,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.7915461133461685,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube143_cluster5",
+      "node_mean": 5.564055189474512,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.2892796704381047,
+      "node_size": 24
+    },
+    {
+      "regime": 1,
+      "node_id": "cube143_cluster9",
+      "node_mean": 6.233176150385534,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.7915461133461685,
+      "node_size": 8
+    },
+    {
+      "regime": 1,
+      "node_id": "cube160_cluster6",
+      "node_mean": 5.239347850291648,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.045542573911537,
+      "node_size": 39
+    },
+    {
+      "regime": 1,
+      "node_id": "cube160_cluster11",
+      "node_mean": 5.70044306129062,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.3916573498633746,
+      "node_size": 14
+    },
+    {
+      "regime": 1,
+      "node_id": "cube161_cluster7",
+      "node_mean": 5.239347850291648,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.045542573911537,
+      "node_size": 39
+    },
+    {
+      "regime": 1,
+      "node_id": "cube161_cluster12",
+      "node_mean": 5.70044306129062,
+      "regime_mean": 3.8464726908872087,
+      "z_score": 1.3916573498633746,
+      "node_size": 14
+    },
+    {
+      "regime": 2,
+      "node_id": "cube161_cluster14",
+      "node_mean": 4.311109889303043,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2459046289465365,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube180_cluster4",
+      "node_mean": 4.223561443483733,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.3388988521792906,
+      "node_size": 14
+    },
+    {
+      "regime": 2,
+      "node_id": "cube180_cluster11",
+      "node_mean": 4.311109889303043,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2459046289465365,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube181_cluster3",
+      "node_mean": 4.223561443483733,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.3388988521792906,
+      "node_size": 14
+    },
+    {
+      "regime": 5,
+      "node_id": "cube181_cluster6",
+      "node_mean": 11.201418757697482,
+      "regime_mean": 4.805336570028024,
+      "z_score": 3.5532703906737715,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube182_cluster3",
+      "node_mean": 11.201418757697482,
+      "regime_mean": 4.805336570028024,
+      "z_score": 3.5532703906737715,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube198_cluster5",
+      "node_mean": 6.675764619717994,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2658387585082715,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube198_cluster6",
+      "node_mean": 3.9163834175488503,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6651842779073722,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube198_cluster9",
+      "node_mean": 4.010553660849049,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.5651563614162496,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster5",
+      "node_mean": 3.7645179068479644,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.826496281465059,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster8",
+      "node_mean": 4.173275352546546,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.3923128896570867,
+      "node_size": 17
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster9",
+      "node_mean": 6.616776877454014,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2031818007432615,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster10",
+      "node_mean": 3.9163834175488503,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6651842779073722,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster13",
+      "node_mean": 4.010553660849049,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.5651563614162496,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster14",
+      "node_mean": 4.4929726598191735,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0527294455285565,
+      "node_size": 9
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster17",
+      "node_mean": 7.056221159280924,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6699608424513415,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster18",
+      "node_mean": 4.534334531602375,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.008794740555379,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube199_cluster22",
+      "node_mean": 3.7789899711873125,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.8111240110698799,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube200_cluster2",
+      "node_mean": 3.7645179068479644,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.826496281465059,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube200_cluster4",
+      "node_mean": 4.173275352546546,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.3923128896570867,
+      "node_size": 17
+    },
+    {
+      "regime": 2,
+      "node_id": "cube200_cluster5",
+      "node_mean": 4.4929726598191735,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0527294455285565,
+      "node_size": 9
+    },
+    {
+      "regime": 2,
+      "node_id": "cube200_cluster7",
+      "node_mean": 7.056221159280924,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6699608424513415,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube200_cluster8",
+      "node_mean": 4.534334531602375,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.008794740555379,
+      "node_size": 6
+    },
+    {
+      "regime": 5,
+      "node_id": "cube200_cluster9",
+      "node_mean": 11.201418757697482,
+      "regime_mean": 4.805336570028024,
+      "z_score": 3.5532703906737715,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube200_cluster10",
+      "node_mean": 3.7789899711873125,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.8111240110698799,
+      "node_size": 5
+    },
+    {
+      "regime": 5,
+      "node_id": "cube201_cluster0",
+      "node_mean": 11.201418757697482,
+      "regime_mean": 4.805336570028024,
+      "z_score": 3.5532703906737715,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube220_cluster3",
+      "node_mean": 7.117847732398071,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.7354207743084256,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube221_cluster4",
+      "node_mean": 6.675764619717994,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2658387585082715,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube221_cluster6",
+      "node_mean": 4.4829386514896585,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0633875994430195,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube221_cluster9",
+      "node_mean": 4.173162368680322,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.392432901460597,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube221_cluster13",
+      "node_mean": 4.481856844360737,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0645366982385518,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube221_cluster21",
+      "node_mean": 7.117847732398071,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.7354207743084256,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster4",
+      "node_mean": 3.7645179068479644,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.826496281465059,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster7",
+      "node_mean": 6.616776877454014,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2031818007432615,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster9",
+      "node_mean": 4.4829386514896585,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0633875994430195,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster11",
+      "node_mean": 4.173162368680322,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.392432901460597,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster12",
+      "node_mean": 4.4929726598191735,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0527294455285565,
+      "node_size": 9
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster15",
+      "node_mean": 4.463270642258332,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0842790181756456,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster16",
+      "node_mean": 7.056221159280924,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6699608424513415,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster17",
+      "node_mean": 4.534334531602375,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.008794740555379,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube222_cluster25",
+      "node_mean": 3.8018035586206573,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.786891349682663,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube223_cluster1",
+      "node_mean": 3.7645179068479644,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.826496281465059,
+      "node_size": 7
+    },
+    {
+      "regime": 2,
+      "node_id": "cube223_cluster4",
+      "node_mean": 4.4929726598191735,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0527294455285565,
+      "node_size": 9
+    },
+    {
+      "regime": 2,
+      "node_id": "cube223_cluster5",
+      "node_mean": 7.056221159280924,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6699608424513415,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube223_cluster6",
+      "node_mean": 4.534334531602375,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.008794740555379,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube223_cluster7",
+      "node_mean": 3.8018035586206573,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.786891349682663,
+      "node_size": 6
+    },
+    {
+      "regime": 2,
+      "node_id": "cube223_cluster8",
+      "node_mean": 4.517181714646598,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0270145144660232,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube243_cluster0",
+      "node_mean": 6.667799652302442,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.2573783460937302,
+      "node_size": 196
+    },
+    {
+      "regime": 2,
+      "node_id": "cube243_cluster4",
+      "node_mean": 7.117847732398071,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.7354207743084256,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube244_cluster24",
+      "node_mean": 7.117847732398071,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.7354207743084256,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube245_cluster13",
+      "node_mean": 4.5400194067437,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0027562490322532,
+      "node_size": 11
+    },
+    {
+      "regime": 2,
+      "node_id": "cube246_cluster1",
+      "node_mean": 4.517181714646598,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0270145144660232,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube264_cluster0",
+      "node_mean": 7.039802168677571,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.6525205411057755,
+      "node_size": 132
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster1",
+      "node_mean": 6.91615381155717,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.5211808831962599,
+      "node_size": 157
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster2",
+      "node_mean": 6.566904672610332,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.150207394322444,
+      "node_size": 127
+    },
+    {
+      "regime": 2,
+      "node_id": "cube265_cluster8",
+      "node_mean": 6.447221862337033,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.023079952235702,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster0",
+      "node_mean": 6.532292413880913,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.113442148694708,
+      "node_size": 304
+    },
+    {
+      "regime": 2,
+      "node_id": "cube266_cluster7",
+      "node_mean": 6.447221862337033,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.023079952235702,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube267_cluster0",
+      "node_mean": 6.507457629368843,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.0870625656736763,
+      "node_size": 177
+    },
+    {
+      "regime": 2,
+      "node_id": "cube285_cluster0",
+      "node_mean": 7.857862425361814,
+      "regime_mean": 5.484053864869623,
+      "z_score": 2.521466613374711,
+      "node_size": 21
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster0",
+      "node_mean": 7.857862425361814,
+      "regime_mean": 5.484053864869623,
+      "z_score": 2.521466613374711,
+      "node_size": 21
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster1",
+      "node_mean": 7.139969879271468,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.7589189854471854,
+      "node_size": 55
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster2",
+      "node_mean": 6.447221862337033,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.023079952235702,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster3",
+      "node_mean": 8.768091889184511,
+      "regime_mean": 5.484053864869623,
+      "z_score": 3.488315095487784,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster9",
+      "node_mean": 8.031663706955626,
+      "regime_mean": 5.484053864869623,
+      "z_score": 2.7060788589425124,
+      "node_size": 2
+    },
+    {
+      "regime": 2,
+      "node_id": "cube286_cluster10",
+      "node_mean": 6.726728451984345,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.3199726948702615,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster0",
+      "node_mean": 7.2091675702278435,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.8324209815108212,
+      "node_size": 87
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster1",
+      "node_mean": 6.447221862337033,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.023079952235702,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster2",
+      "node_mean": 8.768091889184511,
+      "regime_mean": 5.484053864869623,
+      "z_score": 3.488315095487784,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster5",
+      "node_mean": 8.094999075552058,
+      "regime_mean": 5.484053864869623,
+      "z_score": 2.77335387851215,
+      "node_size": 1
+    },
+    {
+      "regime": 2,
+      "node_id": "cube287_cluster6",
+      "node_mean": 6.726728451984345,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.3199726948702615,
+      "node_size": 5
+    },
+    {
+      "regime": 2,
+      "node_id": "cube288_cluster0",
+      "node_mean": 7.307448610049436,
+      "regime_mean": 5.484053864869623,
+      "z_score": 1.9368153984668852,
+      "node_size": 31
+    },
+    {
+      "regime": 2,
+      "node_id": "cube307_cluster0",
+      "node_mean": 8.768091889184511,
+      "regime_mean": 5.484053864869623,
+      "z_score": 3.488315095487784,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube307_cluster1",
+      "node_mean": 7.982310490205516,
+      "regime_mean": 5.484053864869623,
+      "z_score": 2.6536557232401767,
+      "node_size": 3
+    },
+    {
+      "regime": 2,
+      "node_id": "cube308_cluster0",
+      "node_mean": 8.768091889184511,
+      "regime_mean": 5.484053864869623,
+      "z_score": 3.488315095487784,
+      "node_size": 10
+    },
+    {
+      "regime": 2,
+      "node_id": "cube308_cluster1",
+      "node_mean": 7.982310490205516,
+      "regime_mean": 5.484053864869623,
+      "z_score": 2.6536557232401767,
+      "node_size": 3
+    }
+  ],
+  "summary": {
+    "0": 18,
+    "1": 83,
+    "2": 72,
+    "3": 6,
+    "4": 94,
+    "5": 20,
+    "6": 4
+  },
+  "n_total": 297
+}

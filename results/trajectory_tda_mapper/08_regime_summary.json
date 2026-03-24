@@ -1,0 +1,135 @@
+{
+  "0": {
+    "name": "Mixed Churn",
+    "n_nodes": 26,
+    "total_trajectories": 232,
+    "mean_node_size": 8.923076923076923,
+    "median_node_size": 6.0,
+    "pc1_node_means_range": [
+      -1.4618146687588112,
+      -0.1753651378195
+    ],
+    "pc1_node_means_std": 0.39330341471716324,
+    "l2_node_means_range": [
+      4.455597481209993,
+      12.10694202687331
+    ],
+    "l2_node_means_std": 2.585308982964276,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  },
+  "1": {
+    "name": "Secure HE",
+    "n_nodes": 173,
+    "total_trajectories": 27959,
+    "mean_node_size": 161.61271676300578,
+    "median_node_size": 16.0,
+    "pc1_node_means_range": [
+      -3.4302394831784557,
+      1.129883838639233
+    ],
+    "pc1_node_means_std": 0.9834869881438381,
+    "l2_node_means_range": [
+      2.551161897087328,
+      10.207681853445616
+    ],
+    "l2_node_means_std": 2.2418933831187946,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  },
+  "2": {
+    "name": "Inactive Low",
+    "n_nodes": 256,
+    "total_trajectories": 16892,
+    "mean_node_size": 65.984375,
+    "median_node_size": 7.0,
+    "pc1_node_means_range": [
+      1.3087856559154625,
+      4.6608714516432705
+    ],
+    "pc1_node_means_std": 0.7294361337264028,
+    "l2_node_means_range": [
+      3.7645179068479644,
+      8.768091889184511
+    ],
+    "l2_node_means_std": 0.9585695262573232,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  },
+  "3": {
+    "name": "Emp-Inact Mix",
+    "n_nodes": 10,
+    "total_trajectories": 56,
+    "mean_node_size": 5.6,
+    "median_node_size": 6.0,
+    "pc1_node_means_range": [
+      -1.244716649401165,
+      -0.9794451728719441
+    ],
+    "pc1_node_means_std": 0.12679716073921943,
+    "l2_node_means_range": [
+      2.983316955897251,
+      6.070830006185214
+    ],
+    "l2_node_means_std": 1.3995493748891028,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  },
+  "4": {
+    "name": "Employed Mid",
+    "n_nodes": 351,
+    "total_trajectories": 6406,
+    "mean_node_size": 18.25071225071225,
+    "median_node_size": 9.0,
+    "pc1_node_means_range": [
+      -3.8430359007007775,
+      -1.2469391092061053
+    ],
+    "pc1_node_means_std": 0.5618388174913586,
+    "l2_node_means_range": [
+      2.553879262295511,
+      8.893710006200829
+    ],
+    "l2_node_means_std": 1.3218538814430694,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  },
+  "5": {
+    "name": "HI Inactive",
+    "n_nodes": 164,
+    "total_trajectories": 1860,
+    "mean_node_size": 11.341463414634147,
+    "median_node_size": 7.0,
+    "pc1_node_means_range": [
+      -1.4276118582045016,
+      2.60036948237553
+    ],
+    "pc1_node_means_std": 1.1244963827078922,
+    "l2_node_means_range": [
+      2.4730518002830633,
+      11.201418757697482
+    ],
+    "l2_node_means_std": 1.383429793350961,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  },
+  "6": {
+    "name": "Low-Inc Churn",
+    "n_nodes": 80,
+    "total_trajectories": 755,
+    "mean_node_size": 9.4375,
+    "median_node_size": 7.0,
+    "pc1_node_means_range": [
+      -1.199621058064521,
+      2.7711793143938177
+    ],
+    "pc1_node_means_std": 1.2309094227682809,
+    "l2_node_means_range": [
+      4.410606797440929,
+      12.037681132775687
+    ],
+    "l2_node_means_std": 1.7695252121950122,
+    "n_subregime_nodes_pc1": 0,
+    "n_subregime_nodes_l2": 0
+  }
+}
