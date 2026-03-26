@@ -1,0 +1,15 @@
+{
+  "nodes": {},
+  "links": {},
+  "summary": {
+    "n_nodes": 0,
+    "n_edges": 0,
+    "mean_node_size": 0,
+    "median_node_size": 0,
+    "min_node_size": 0,
+    "max_node_size": 0,
+    "n_covered": 0,
+    "coverage": 0,
+    "n_connected_components": 0
+  }
+}

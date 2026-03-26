@@ -328,11 +328,13 @@ def save_mapper_graph(
     if mapper_obj is not None:
         html_path = out.with_suffix(".html")
         try:
+            cv = np.asarray(color_values).reshape(-1) if color_values is not None else None
             mapper_obj.visualize(
                 graph,
                 path_html=str(html_path),
                 title="KeplerMapper Visualization",
-                color_values=color_values,
+                color_values=cv,
+                color_function_name="Mean",
             )
             logger.info("Saved Mapper HTML visualization to %s", html_path)
         except Exception:
