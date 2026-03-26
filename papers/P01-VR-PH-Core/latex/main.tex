@@ -53,8 +53,8 @@
 % --- Title ---
 \title{Persistent Homology of UK Socioeconomic Life-Course Trajectories}
 \author{%
-  [Author Names]\\
-  \textit{[Affiliations]}
+  Stephen Dorman\\
+  \textit{The Open University, UK}
 }
 \date{March 2026}
 
@@ -63,22 +63,22 @@
 \maketitle
 
 \begin{abstract}
-Longitudinal panel data captures the temporal structure of life-course dynamics, yet conventional sequence analysis methods treat trajectories as character strings, discarding their geometric structure in high-dimensional space.
+Scalar persistence summaries and diagram-level Wasserstein distances give opposite verdicts on whether first-order Markov dynamics account for the topology of UK life-course trajectories.
 We apply persistent homology (PH) to 27,280 employment-income trajectories drawn from Understanding Society (2009--2023), with cross-era validation on 8,509 trajectories from the British Household Panel Study (1991--2008).
-Each trajectory is a sequence of nine states combining employment status with income band, embedded into 20-dimensional PCA space via $n$-gram frequency vectors and analysed using Vietoris--Rips persistent homology with maxmin landmarks.
-We introduce a \textbf{Markov memory ladder}---a battery of five null models of escalating structural complexity---that characterises the generating process underlying the observed topology.
+Each trajectory is a sequence of nine states combining employment status (employed, unemployed, inactive) with income band (low, mid, high), embedded into 20-dimensional PCA space via $n$-gram frequency vectors and analysed using Vietoris--Rips persistent homology with maxmin landmarks.
+A \textbf{Markov memory ladder}---five null models of escalating structural complexity---characterises the generating process underlying the observed topology.
 
 Seven distinct mobility regimes emerge via Gaussian mixture models optimised by BIC.
 Total-persistence tests suggest that temporal ordering creates topological structure (order-shuffle $\HH{0}$ $\pval < 0.005$) while first-order Markov dynamics fully account for the topology (Markov-1 $\HH{0}$ $\pval = 1.000$).
-However, upgrading the test statistic from total persistence to Wasserstein diagram-level distances reverses the Markov finding.
+Upgrading the test statistic to Wasserstein diagram-level distances---comparing the full geometric configuration of persistence features rather than collapsing them to a single scalar---reverses the Markov finding.
 Under Wasserstein testing (100 permutations, 2,000 landmarks), the Markov-1 null is rejected for $\HH{0}$ ($\pval = 0.002$): observed persistence diagrams differ significantly in shape from Markov-generated diagrams, even though Markov surrogates produce more total persistence.
-Markov-2 is \emph{not} rejected under Wasserstein ($\pval = 0.546$), localising the non-Markovian structure to second-order memory.
 Order-shuffle $\HH{0}$ is borderline under Wasserstein ($\pval = 0.058$), label shuffle serves as a negative control ($\pval = 0.452$), and $\HH{1}$ (loops) remains non-significant under all null types.
-This discrepancy between scalar and diagram-level tests is itself a methodological finding: total persistence masks structural differences that Wasserstein distances detect.
+The discrepancy between scalar and diagram-level tests is itself a methodological finding: total persistence masks structural differences that Wasserstein distances detect.
 
 These findings replicate on BHPS-era trajectories (1991--2008): order-shuffle $\HH{0}$ $\pval = 0.000$, Markov-1 $\HH{0}$ $\pval = 0.000$---with the BHPS data additionally rejecting Markov-1 $\HH{1}$ ($\pval = 0.000$).
 Stratified Wasserstein distances reveal significant topological differences by gender, parental NS-SEC, and birth cohort; 30/50 tests survive Benjamini--Hochberg FDR correction at $q < 0.05$.
-Overlapping 10-year career-phase windows confirm extreme regime stickiness: among 7,453 individuals starting in disadvantaged regimes, only 416 (5.6\%) escape to advantaged regimes.
+Overlapping 10-year career-phase windows confirm extreme regime stickiness: among 7,453 individuals starting in disadvantaged regimes, only 416 (5.6\%) escape to advantaged regimes (11.0\% under non-overlapping windows).
+Comparison with optimal matching (OM) baselines (ARI = 0.26 at matched $k = 7$) confirms that TDA's primary added value lies in formal null testing and multi-scale geometric characterisation.
 
 \medskip
 \noindent\textbf{Keywords:} persistent homology, topological data analysis, social mobility, life-course trajectories, Markov models, regime switching, Wasserstein distance
@@ -92,27 +92,13 @@ Overlapping 10-year career-phase windows confirm extreme regime stickiness: amon
 \newpage
 
 % ============================================================
-% Body content converted from markdown draft
-% To regenerate: python scripts/md2latex.py --draft drafts/v6-2026-03.md --output latex/body.tex
+% Body content converted from markdown draft v7
+% Source: drafts/v7-2026-03.md
 \input{body}
 
 % ============================================================
 % BIBLIOGRAPHY
 \nocite{*}  % Include all references while citations are converted from markdown
 \bibliography{references}
-
-
-% ============================================================
-\appendix
-
-\section{\texorpdfstring{$\HH{0}$}{H0} Merge Tree Analysis}
-\label{app:merge}
-
-\placeholder{Appendix A}
-
-\section{Landmark Sensitivity}
-\label{app:landmarks}
-
-\placeholder{Appendix B}
 
 \end{document}

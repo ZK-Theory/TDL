@@ -14,9 +14,9 @@ tags: [paper, tda, persistent-homology, markov-ladder, wasserstein, core]
 
 ## Status
 
-Current draft: `drafts/v7-2026-03.md` (seventh draft — humanizer pass applied)
+Current draft: `drafts/v8-2026-03.md` (eighth draft — reviewer revision complete)
 
-Key finding: Order-shuffle H₀ rejected (*p* < 0.005, total persistence). Markov-1 rejected under Wasserstein (*p* = 0.002) but not under total persistence (*p* = 1.000). Discrepancy replicates cross-era on BHPS: order-shuffle H₀ *p* = 0.000, Markov-1 H₀ *p* = 0.000, Markov-1 H₁ *p* = 0.000 (Wasserstein). BHPS Markov-1 H₁ rejection is a new finding not seen in USoc.
+Key finding: Order-shuffle H₀ rejected (*p* < 0.005, total persistence). Markov-1 rejected under Wasserstein (*p* = 0.002) but not under total persistence (*p* = 1.000). Discrepancy replicates cross-era on BHPS: order-shuffle H₀ *p* = 0.000, Markov-1 H₀ *p* = 0.000, Markov-1 H₁ *p* = 0.000 (Wasserstein). BHPS Markov-1 H₁ rejection decisive in longer BHPS window (mean 14.5 yr) but borderline in USoc (*p* = 0.086, mean 12.9 yr).
 
 ## Target
 
@@ -30,8 +30,14 @@ Fallback: *Social Forces* / *JASA: Applications & Case Studies*
 - [x] Wasserstein test for integration: Markov-2 — **done**: H₀ p=0.546 (not rejected), H₁ p=0.078 (not rejected); second-order memory suffices
 - [x] Wasserstein test for integration: cohort_shuffle — omitted (no metadata); total-persistence negative control sufficient
 - [x] Final humaniser pass on v6 before submission — **done**: v7 created with all 8 fixes
-- [x] Figures: all 14 figures generated and integrated into LaTeX — **done**: `papers/P01-VR-PH-Core/scripts/generate_figures.py` + `integrate_figures.py`; 55-page clean PDF built
-- [x] LaTeX/arXiv pipeline for preprint submission — main.tex, references.bib, Makefile, md2latex.py created
+- [x] Figures: all 14 figures generated and integrated into LaTeX — **done**
+- [x] LaTeX/arXiv pipeline — main.tex, references.bib, Makefile, md2latex.py created
+- [x] LaTeX body.tex updated to v7 — all verified
+- [x] Humanizer refinements ported
+- [x] Full proof-read of LaTeX PDF against v7 markdown — all numerical values verified
+- [x] **v8 reviewer revisions** — Figure 14 caption updated to n=500 (H₀ p=0.98, H₁ p=0.542, 95% CIs); Figure 14 regenerated; fig2 reordered before fig3 in body.tex; abstract BHPS H₁ window-length qualifier; Wasserstein mean formulation explained; TF vs TF-IDF justified; income threshold forward-ref to §5.4; Inactive Low income heterogeneity parenthetical; NS-SEC missingness caveat at §4.6; H₁ window-length test framed as discriminating test; "inevitably" → "often"; draft history reference removed; P4 "not hypothesised" → "emerged from dual-statistic design"
+
+- [ ] Submit to *Sociological Methodology*
 
 ## Draft History
 
@@ -44,6 +50,7 @@ Fallback: *Social Forces* / *JASA: Applications & Case Studies*
 | v5 | `drafts/v5-2026-03.md` | 2026-03 | **Wasserstein results integrated; test-statistic discrepancy as headline** |
 | v6 | `drafts/v6-2026-03.md` | 2026-03 | **Full Wasserstein battery (label/order/Markov-1); BHPS Wasserstein cross-era validation; BHPS H₁ rejection; Markov-2 placeholder** |
 | v7 | `drafts/v7-2026-03.md` | 2026-03 | **Humanizer pass: rewrote abstract lead, conclusion; removed AI enumeration patterns; cut throat-clearing in §2.2/§2.3; fixed -ing clauses; flowing caveats in §5.2** |
+| v8 | `drafts/v8-2026-03.md` | 2026-03 | **Reviewer revisions: Figure 14 n=500 fix (S1); fig2 reordered before fig3 in LaTeX (S2); abstract BHPS H₁ window qualifier (C1); Wasserstein mean formulation (C2); TF justification (C3); income threshold forward-ref (C4); NS-SEC missingness caveat (C6); IL income heterogeneity (C7); H₁ discriminating test (C8); polish items P1–P4** |
 
 ## Computation
 
