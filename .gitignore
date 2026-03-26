@@ -99,5 +99,16 @@ results/trajectory_tda_phase6/02_window_regimes.json
 results/trajectory_tda_phase6/03_regime_sequences.json
 results/trajectory_tda_integration/01_trajectories_sequences.json
 
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
+
 # Windows null device artifact
 nul
