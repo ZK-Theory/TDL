@@ -6,10 +6,15 @@ and gmm_labels from 05_analysis.json directly.
 
 Usage:
     python -m trajectory_tda.scripts.run_mapper_from_existing
+    python -m trajectory_tda.scripts.run_mapper_from_existing \\
+        --results-dir results/trajectory_tda_integration \\
+        --output-dir results/trajectory_tda_mapper \\
+        --disadvantaged-regimes 2 6
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import time
@@ -18,9 +23,6 @@ from pathlib import Path
 import numpy as np
 
 logger = logging.getLogger(__name__)
-
-RESULTS_DIR = Path("results/trajectory_tda_integration")
-OUTPUT_DIR = Path("results/trajectory_tda_mapper")
 
 
 def _save_json(data: dict, path: Path) -> None:
@@ -42,12 +44,77 @@ def _save_json(data: dict, path: Path) -> None:
     logger.info("Saved %s", path)
 
 
+def _parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="Run Mapper pipeline from existing P01 embeddings and GMM labels.")
+    parser.add_argument(
+        "--results-dir",
+        type=Path,
+        default=Path("results/trajectory_tda_integration"),
+        help=("Directory containing P01 integration outputs " "(embeddings.npy, 05_analysis.json)."),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("results/trajectory_tda_mapper"),
+        help="Directory to write Mapper outputs.",
+    )
+    parser.add_argument(
+        "--disadvantaged-regimes",
+        type=int,
+        nargs="+",
+        default=None,
+        metavar="REGIME_IDX",
+        help=(
+            "Regime indices treated as disadvantaged for escape probability. "
+            "If omitted, inferred from regime profiles in 05_analysis.json "
+            "(dominant_state in {inactive, low_income}), falling back to [2, 6]."
+        ),
+    )
+    return parser.parse_args()
+
+
+def _infer_disadvantaged_regimes(analysis: dict) -> list[int]:
+    """Infer disadvantaged regime indices from 05_analysis.json metadata.
+
+    Looks for regimes whose dominant_state matches known disadvantaged labels.
+    Falls back to [2, 6] if no profiles are found.
+
+    Args:
+        analysis: Dict loaded from 05_analysis.json.
+
+    Returns:
+        Sorted list of disadvantaged regime indices.
+    """
+    profiles = analysis.get("regimes", {}).get("profiles", {})
+    if not profiles:
+        logger.warning("No regime profiles in 05_analysis.json; defaulting to [2, 6].")
+        return [2, 6]
+
+    disadvantaged_states = {"inactive", "low_income", "low-income", "inactive_low"}
+    inferred = [
+        int(rid)
+        for rid, prof in profiles.items()
+        if str(prof.get("dominant_state", "")).lower() in disadvantaged_states
+    ]
+    if not inferred:
+        logger.warning("Could not infer disadvantaged regimes from profiles; defaulting to [2, 6].")
+        return [2, 6]
+
+    logger.info("Inferred disadvantaged regimes from metadata: %s", sorted(inferred))
+    return sorted(inferred)
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    args = _parse_args()
+    results_dir = args.results_dir
+    output_dir = args.output_dir
 
     from trajectory_tda.mapper.mapper_pipeline import (
         build_mapper_graph,
@@ -69,8 +136,8 @@ def main() -> None:
         validate_against_regimes,
     )
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUTPUT_DIR / "figures").mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "figures").mkdir(exist_ok=True)
 
     all_results: dict = {}
     t0 = time.time()
@@ -80,31 +147,39 @@ def main() -> None:
     logger.info("Step 1: Loading embeddings and GMM labels from P01")
     logger.info("=" * 60)
 
-    embeddings = np.load(RESULTS_DIR / "embeddings.npy")
+    embeddings = np.load(results_dir / "embeddings.npy")
     logger.info("Embeddings: %s", embeddings.shape)
 
-    with open(RESULTS_DIR / "05_analysis.json") as f:
+    with open(results_dir / "05_analysis.json") as f:
         analysis = json.load(f)
 
     gmm_labels = np.array(analysis["gmm_labels"], dtype=np.int64)
     n_regimes = analysis["regimes"]["k_optimal"]
     logger.info("GMM labels: %d, k_optimal: %d", len(gmm_labels), n_regimes)
 
-    # Validate alignment between embeddings and GMM labels before running Mapper/validation
+    # Validate alignment between embeddings and GMM labels before running
     n_embeddings = embeddings.shape[0]
     n_labels = len(gmm_labels)
     if n_embeddings != n_labels:
         msg = (
             "Mismatch between embeddings and GMM labels: "
-            f"{n_embeddings} embeddings loaded from '{RESULTS_DIR / 'embeddings.npy'}' "
-            f"but {n_labels} GMM labels loaded from '{RESULTS_DIR / '05_analysis.json'}'. "
+            f"{n_embeddings} embeddings loaded from "
+            f"'{results_dir / 'embeddings.npy'}' "
+            f"but {n_labels} GMM labels loaded from "
+            f"'{results_dir / '05_analysis.json'}'. "
             "These must have the same length for Mapper and validation; "
             "please regenerate the inputs so they are aligned."
         )
         logger.error(msg)
         raise ValueError(msg)
-    # Identify disadvantaged regimes from P01: Regime 2 (Inactive Low) and Regime 6 (Low-Income Churn)
-    disadvantaged_regimes = [2, 6]
+
+    # Derive disadvantaged regimes from CLI override or metadata
+    if args.disadvantaged_regimes is not None:
+        disadvantaged_regimes = args.disadvantaged_regimes
+        logger.info("Disadvantaged regimes (from CLI): %s", disadvantaged_regimes)
+    else:
+        disadvantaged_regimes = _infer_disadvantaged_regimes(analysis)
+        logger.info("Disadvantaged regimes (inferred): %s", disadvantaged_regimes)
 
     # Step 2: Parameter grid search
     logger.info("=" * 60)
@@ -117,7 +192,7 @@ def main() -> None:
         overlap_range=[0.2, 0.3, 0.4, 0.5],
     )
     all_results["01_parameter_search"] = grid_results
-    _save_json(grid_results, OUTPUT_DIR / "01_parameter_search.json")
+    _save_json(grid_results, output_dir / "01_parameter_search.json")
 
     # Broader multi-projection search
     broad_results = parameter_grid_search(
@@ -142,7 +217,7 @@ def main() -> None:
         ],
     }
     all_results["01b_broad_grid_search"] = broad_save
-    _save_json(broad_save, OUTPUT_DIR / "01b_broad_grid_search.json")
+    _save_json(broad_save, output_dir / "01b_broad_grid_search.json")
 
     # Step 3: Build Mapper graph with best parameters
     logger.info("=" * 60)
@@ -162,8 +237,12 @@ def main() -> None:
     )
     summary = mapper_graph_summary(graph)
     all_results["02_mapper_graph"] = summary
-    all_results["02_mapper_graph"]["params"] = {"projection": proj, "n_cubes": nc, "overlap_frac": ov}
-    _save_json(all_results["02_mapper_graph"], OUTPUT_DIR / "02_mapper_graph.json")
+    all_results["02_mapper_graph"]["params"] = {
+        "projection": proj,
+        "n_cubes": nc,
+        "overlap_frac": ov,
+    }
+    _save_json(all_results["02_mapper_graph"], output_dir / "02_mapper_graph.json")
 
     # Also build with default params for comparison
     logger.info("Building default-params graph (pca_2d, 15, 0.3) for comparison")
@@ -176,7 +255,7 @@ def main() -> None:
     )
     summary_default = mapper_graph_summary(graph_default)
     all_results["02b_mapper_graph_default"] = summary_default
-    _save_json(summary_default, OUTPUT_DIR / "02b_mapper_graph_default.json")
+    _save_json(summary_default, output_dir / "02b_mapper_graph_default.json")
 
     # Step 4: Node colouring
     logger.info("=" * 60)
@@ -200,7 +279,7 @@ def main() -> None:
         "regime_distribution": regime_dist,
     }
     all_results["03_node_coloring"] = colorings_save
-    _save_json(colorings_save, OUTPUT_DIR / "03_node_coloring.json")
+    _save_json(colorings_save, output_dir / "03_node_coloring.json")
 
     # Step 5: Validate against GMM regimes
     logger.info("=" * 60)
@@ -219,16 +298,33 @@ def main() -> None:
         "unassigned": int(np.sum(membership_labels == -1)),
     }
     all_results["04_validation"] = validation_save
-    _save_json(validation_save, OUTPUT_DIR / "04_validation.json")
+    _save_json(validation_save, output_dir / "04_validation.json")
 
     # Step 6: Sub-regime structure
     logger.info("=" * 60)
     logger.info("Step 6: Identifying sub-regime structure")
     logger.info("=" * 60)
 
-    subregime = identify_subregime_structure(graph, gmm_labels, escape_prob)
-    all_results["05_subregime"] = subregime
-    _save_json(subregime, OUTPUT_DIR / "05_subregime_structure.json")
+    # 6a. Sub-regimes using escape probability (original behaviour)
+    subregime_escape = identify_subregime_structure(graph, gmm_labels, escape_prob)
+    all_results["05_subregime_escape_prob"] = subregime_escape
+    # Preserve original filename for backwards compatibility
+    _save_json(subregime_escape, output_dir / "05_subregime_structure.json")
+
+    # 6b. Sub-regimes using continuous outcomes from embeddings (PC1 and L2 norm)
+    #     These reproduce the manuscript's PC1/L2 sub-regime results; escape_prob
+    #     is binary so it rarely yields sub-regimes under the z-score threshold.
+    pc1_values = embeddings[:, 0]
+    l2_values = np.linalg.norm(embeddings, axis=1)
+
+    subregime_pc1 = identify_subregime_structure(graph, gmm_labels, pc1_values)
+    subregime_l2 = identify_subregime_structure(graph, gmm_labels, l2_values)
+
+    all_results["05_subregime_pc1"] = subregime_pc1
+    all_results["05_subregime_l2"] = subregime_l2
+
+    _save_json(subregime_pc1, output_dir / "05_subregime_pc1_structure.json")
+    _save_json(subregime_l2, output_dir / "05_subregime_l2_structure.json")
 
     # Step 7: Save graph + HTML
     logger.info("=" * 60)
@@ -237,7 +333,7 @@ def main() -> None:
 
     save_mapper_graph(
         graph,
-        str(OUTPUT_DIR / "06_mapper_graph.json"),
+        str(output_dir / "06_mapper_graph.json"),
         mapper_obj=mapper_obj,
         color_values=escape_prob,
     )
@@ -246,13 +342,13 @@ def main() -> None:
     try:
         mapper_obj.visualize(
             graph,
-            path_html=str(OUTPUT_DIR / "figures" / "mapper_escape_prob.html"),
+            path_html=str(output_dir / "figures" / "mapper_escape_prob.html"),
             title="Trajectory Mapper - Escape Probability",
             color_values=escape_prob,
         )
         mapper_obj.visualize(
             graph,
-            path_html=str(OUTPUT_DIR / "figures" / "mapper_regime_labels.html"),
+            path_html=str(output_dir / "figures" / "mapper_regime_labels.html"),
             title="Trajectory Mapper - GMM Regime Labels",
             color_values=gmm_labels.astype(np.float64),
         )
@@ -262,11 +358,11 @@ def main() -> None:
 
     elapsed = time.time() - t0
     all_results["elapsed_seconds"] = elapsed
-    _save_json(all_results, OUTPUT_DIR / "07_pipeline_results.json")
+    _save_json(all_results, output_dir / "07_pipeline_results.json")
 
     logger.info("=" * 60)
     logger.info("Pipeline complete in %.1f seconds", elapsed)
-    logger.info("Results saved to %s", OUTPUT_DIR)
+    logger.info("Results saved to %s", output_dir)
     logger.info("=" * 60)
 
 

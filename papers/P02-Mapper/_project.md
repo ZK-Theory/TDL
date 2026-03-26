@@ -34,6 +34,8 @@ VR persistent homology reveals global connectivity; Mapper reveals *interior den
 - [x] First draft (v1-2026-03.md)
 - [x] Identify within-regime sub-clusters with meaningfully different outcomes (PC1, L2 norm)
 - [x] Populate §4 results with computation outputs
+- [ ] Extend parameter sensitivity to additional lens functions (sum, density estimator) and integrate into §3.3/§3.5
+- [ ] Run agglomerative clustering sensitivity check and report alongside DBSCAN in §3.3
 - [ ] Generate figures (Mapper graphs coloured by PC1, L2 norm, regime labels)
 - [ ] Reconstruct trajectory sequences for integration results (needed for employment rate, final income colouring)
 - [ ] Re-run sub-regime analysis with lower DBSCAN eps to resolve churning-regime noise
