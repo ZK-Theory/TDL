@@ -14,9 +14,11 @@ tags: [paper, tda, mapper, kmapper, trajectory, interior-structure]
 
 ## Status
 
-Mapper computation complete. Pipeline run on 27,280 PCA-20D embeddings from P01 integration results.
-Current state: first draft with actual results (v1-2026-03.md). §4 populated with computed outputs (1,060 nodes, NMI=0.434, 358 sub-regime nodes on PC1).
-Results saved to `results/trajectory_tda_mapper/`.
+v4 draft complete (v4-2026-04.md). Reviewer-response revision: "causal geography" → "outcome geography" throughout; permutation null tests added (§4.3); multi-threshold table (§4.3/Table 4a); UMAP-16D robustness section (§4.7); outcome–embedding correlation matrix (§4.8/Table 9); R3/R5 churning decomposition (§4.4.2/Table 7a); OM dendrogram figure (Fig 11); novelty framing ("first application of Mapper to longitudinal life-course data in sociology"); formal outcome variable definitions; sample representativeness caveats; algorithm rationale (DBSCAN as lower bound, agglomerative as upper bound); code availability statement; three new references (Gabadinho et al. 2011; Liao et al. 2022; Ritschard & Studer 2018; Watson & Wooden 2012). LaTeX pipeline not yet rebuilt — update main.tex/body.tex to match v4.
+
+Previous drafts: v1-2026-03.md, v2-2026-03.md, v3-2026-03.md.
+
+Results saved to `results/trajectory_tda_mapper/reviewer_response/` (01\u201305 JSON outputs).
 
 ## Target
 
@@ -25,31 +27,50 @@ Fallback: *Journal of the Royal Statistical Society Series A*
 
 ## Key Contribution
 
-VR persistent homology reveals global connectivity; Mapper reveals *interior density structure* — sub-regions within regimes with different escape probabilities. Colouring Mapper nodes by substantive outcomes (escape probability, income endpoint, NS-SEC origin) creates a causal geography of trajectory space that the 7-GMM typology cannot provide.
+VR persistent homology reveals global connectivity; Mapper reveals *interior density structure* — sub-regions within regimes with different escape probabilities. Colouring Mapper nodes by substantive outcomes creates an outcome geography of trajectory space that the 7-GMM typology cannot provide. Sensitivity analysis across 24 configurations separates robust findings (within-regime heterogeneity) from algorithm-dependent findings (noise rate, bridge nodes). Permutation nulls confirm sub-regime structure is not distributional artefact (regime-shuffle: obs=358 vs null mean=86, p<0.01; within-node-shuffle: obs=358 vs null mean=9.4, p<0.01). UMAP-16D robustness check confirms sub-regime findings are embedding-invariant. R3/R5 churning decomposition reveals that both regimes have identical E\u2194I transition rates but differ structurally: R3 churns within employment income bands; R5 churns within inactivity income bands.
 
 ## Open Items
 
 - [x] Summarise Mapper results from run/p02-mapper
-- [x] Parameter tuning documentation (overlap fraction, clustering resolution)
-- [x] First draft (v1-2026-03.md)
-- [x] Identify within-regime sub-clusters with meaningfully different outcomes (PC1, L2 norm)
-- [x] Populate §4 results with computation outputs
-- [ ] Extend parameter sensitivity to additional lens functions (sum, density estimator) and integrate into §3.3/§3.5
-- [ ] Run agglomerative clustering sensitivity check and report alongside DBSCAN in §3.3
-- [ ] Generate figures (Mapper graphs coloured by PC1, L2 norm, regime labels)
-- [ ] Reconstruct trajectory sequences for integration results (needed for employment rate, final income colouring)
-- [ ] Re-run sub-regime analysis with lower DBSCAN eps to resolve churning-regime noise
+- [x] Parameter tuning documentation
+- [x] v1\u2013v3 drafts
+- [x] Sensitivity analysis (24 configs)
+- [x] Trajectory outcome reconstruction (14 variables)
+- [x] LaTeX pipeline and PDF build
+- [x] Obsidian vault updated
+- [x] Permutation null tests (regime-shuffle, within-node-shuffle, 100 perms each)
+- [x] Multi-threshold sub-regime analysis + FDR correction
+- [x] UMAP-16D embedding robustness
+- [x] Outcome\u2013embedding correlation matrix
+- [x] R3/R5 churning decomposition
+- [x] OM dendrogram figure (Fig 11)
+- [x] v4 draft (all reviewer-response revisions)
+- [ ] Rebuild LaTeX (main.tex/body.tex) to match v4
 - [ ] Run /humanizer pass before submission review
+- [ ] Final figure quality review (production-ready PNGs/PDFs)
+- [ ] Supplementary materials (interactive HTML Mapper visualisations)
 
 ## Computation
 
-Mapper code: `trajectory_tda/mapper/` (mapper_pipeline.py, node_coloring.py, validation.py, parameter_search.py).
-Pipeline script: `trajectory_tda/scripts/run_mapper_from_existing.py` (uses P01 embeddings directly).
-Results: `results/trajectory_tda_mapper/` (01–08 JSON outputs + HTML visualisations).
+Mapper code: `trajectory_tda/mapper/` (mapper_pipeline.py, node_coloring.py, validation.py, parameter_search.py, permutation_null.py, correlation_analysis.py).
+Pipeline script: `trajectory_tda/scripts/run_mapper_from_existing.py`.
+Sensitivity sweep: `trajectory_tda/scripts/run_mapper_sensitivity_sweep.py` (24 configs).
+Reviewer analyses: `trajectory_tda/scripts/run_p02_reviewer_analyses.py` (UMAP robustness, null tests, multi-threshold FDR, correlation matrix, R3/R5 churning decomp).
+OM dendrogram: `trajectory_tda/viz/om_dendrogram_figure.py`.
+LaTeX: `papers/P02-Mapper/latex/` (Makefile, main.tex, body.tex, references.bib) — *needs rebuilding for v4*.
+Figure generation: `trajectory_tda/scripts/generate_mapper_figures.py` (7 figures).
+Results: `results/trajectory_tda_mapper/` (01–08 JSON + HTML) and `results/trajectory_tda_mapper/reviewer_response/` (01–05 JSON).
 
-### Key results
-- Best params: PCA-2D, n_cubes=30, overlap=0.5
+### Key results (baseline DBSCAN eps=0.5, PCA-2D)
 - Graph: 1,060 nodes, 1,774 edges, 223 components, 50.7% coverage
 - NMI=0.434, purity=0.999, 0 bridge nodes
 - 358 sub-regime nodes on PC1 (|z|>1.0); R6 most heterogeneous (std=1.23)
-- 297 sub-regime nodes on L2 norm
+- Regime-shuffle null: observed=358, null mean=86.3, p<0.01 (0/100 perms \u2265 358)
+- Within-node-shuffle null: observed=358, null mean=9.4, p<0.01
+- FDR correction: 2/14 regime\u00d7variable tests significant at q<0.05 (both R6)
+- PC1\u2013employment\_rate correlation: r=\u22120.921 (high overlap expected)
+- PC1\u2013churning\_rate correlation: r=+0.115 (independent dimension)
+
+### Key results (UMAP-16D robustness)
+- UMAP-16D + first-2D lens: 1,604 nodes, 100% coverage, NMI=0.422, purity=0.967, 81 bridge nodes, 576 sub-regime nodes
+- Qualitative sub-regime and bridge findings confirmed; quantitative differences expected from non-linear embedding

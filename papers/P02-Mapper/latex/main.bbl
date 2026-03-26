@@ -1,0 +1,83 @@
+\begin{thebibliography}{}
+
+\bibitem[Dorman, 2026]{author2026a}
+Dorman, S. (2026).
+\newblock Persistent homology of {UK} socioeconomic life-course trajectories.
+\newblock Companion paper, P01.
+
+\bibitem[Ester et~al., 1996]{ester1996density}
+Ester, M., Kriegel, H.-P., Sander, J., and Xu, X. (1996).
+\newblock A density-based algorithm for discovering clusters in large spatial
+  databases with noise.
+\newblock In {\em Proceedings of the 2nd International Conference on Knowledge
+  Discovery and Data Mining}, pages 226--231.
+
+\bibitem[Halpin, 2010]{halpin2010optimal}
+Halpin, B. (2010).
+\newblock Optimal matching analysis and life-course data: The importance of
+  duration.
+\newblock {\em Sociological Methods \& Research}, 38(3):365--388.
+
+\bibitem[Jenkins, 2011]{jenkins2011changing}
+Jenkins, S.~P. (2011).
+\newblock {\em Changing Fortunes: Income Mobility and Poverty Dynamics in
+  {B}ritain}.
+\newblock Oxford University Press.
+
+\bibitem[Lesnard, 2010]{lesnard2010setting}
+Lesnard, L. (2010).
+\newblock Setting cost in optimal matching to uncover contemporaneous
+  socio-temporal patterns.
+\newblock {\em Sociological Methods \& Research}, 38(3):389--419.
+
+\bibitem[Lum et~al., 2013]{lum2013extracting}
+Lum, P.~Y., Singh, G., Lehman, A., Ishkanov, T., Vejdemo-Johansson, M.,
+  Alagappan, M., Carlsson, J., and Carlsson, G. (2013).
+\newblock Extracting insights from the shape of complex data using topology.
+\newblock {\em Scientific Reports}, 3:1236.
+
+\bibitem[Rizvi et~al., 2017]{rizvi2017single}
+Rizvi, A.~H., Camara, P.~G., Kandror, E.~K., Roberts, T.~J., Schieren, I.,
+  Maniatis, T., and Rabadan, R. (2017).
+\newblock Single-cell topological {RNA}-seq analysis reveals insights into
+  cellular differentiation and development.
+\newblock {\em Nature Biotechnology}, 35(6):551--560.
+
+\bibitem[Robinson and Turner, 2017]{robinson2017hypothesis}
+Robinson, A. and Turner, K. (2017).
+\newblock Hypothesis testing for topological data analysis.
+\newblock {\em Journal of Applied and Computational Topology}, 1(2):241--261.
+
+\bibitem[Singh et~al., 2007]{singh2007topological}
+Singh, G., M{\'e}moli, F., and Carlsson, G. (2007).
+\newblock Topological methods for the analysis of high dimensional data sets
+  and {3D} object recognition.
+\newblock In {\em Eurographics Symposium on Point-Based Graphics}, pages
+  91--100.
+
+\bibitem[Studer, 2013]{studer2013weighted}
+Studer, M. (2013).
+\newblock {WeightedCluster} library manual: A practical guide to creating
+  typologies of trajectories in the social sciences with {R}.
+\newblock {\em LIVES Working Papers}, 24.
+
+\bibitem[Studer and Ritschard, 2016]{studer2016what}
+Studer, M. and Ritschard, G. (2016).
+\newblock What matters in differences between life trajectories: A comparative
+  review of sequence dissimilarity measures.
+\newblock {\em Journal of the Royal Statistical Society: Series A},
+  179(2):481--511.
+
+\bibitem[van Veen and Saul, 2019]{vanveen2019keplermapper}
+van Veen, H.~J. and Saul, N. (2019).
+\newblock {KeplerMapper}: A flexible {P}ython implementation of the {M}apper
+  algorithm.
+\newblock {\em Journal of Open Source Software}, 4(42):1315.
+
+\bibitem[Vandecasteele, 2010]{vandecasteele2010socio}
+Vandecasteele, L. (2010).
+\newblock The socio-demographic determinants of poverty in {E}urope: A
+  comparative analysis.
+\newblock {\em European Sociological Review}, 26(5):537--553.
+
+\end{thebibliography}

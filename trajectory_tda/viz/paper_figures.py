@@ -198,7 +198,9 @@ def plot_embedding_cloud(
         )
         # Centroid
         cx, cy = coords[mask].mean(axis=0)
-        ax.scatter(cx, cy, c=[colors[i]], s=80, edgecolors="black", linewidths=0.8, zorder=5)
+        ax.scatter(
+            cx, cy, c=[colors[i]], s=80, edgecolors="black", linewidths=0.8, zorder=5
+        )
 
     ax.set_xlabel("Component 1")
     ax.set_ylabel("Component 2")
@@ -220,16 +222,22 @@ def plot_persistence_diagrams(
     diagrams: dict,
     method: str = "maxmin_vr",
     n_highlight_h1: int = 50,
+    n_barcode: int = 30,
     figsize: tuple[float, float] = FIGSIZE_WIDE,
     title: str = "Persistence Diagrams",
     save_path: Path | None = None,
 ) -> Figure:
     """Plot H₀ and H₁ persistence diagrams side by side.
 
+    H₀ includes an inset barcode of the top features, since all VR H₀
+    births are at 0 and the standard scatter degenerates to a vertical
+    stripe.
+
     Args:
         diagrams: Loaded 03_ph_diagrams.json with {method: {dim: [[b,d],...]}}
         method: PH method key
         n_highlight_h1: Number of top H₁ features to highlight
+        n_barcode: Number of top H₀ features to show in barcode inset
         figsize: Figure dimensions
         title: Plot title
         save_path: Output directory
@@ -262,7 +270,13 @@ def plot_persistence_diagrams(
         # Diagonal
         lim_min = min(b_fin.min(), 0) if len(b_fin) > 0 else 0
         lim_max = d_fin.max() * 1.05 if len(d_fin) > 0 else 1
-        ax.plot([lim_min, lim_max], [lim_min, lim_max], "k--", linewidth=0.5, alpha=0.5)
+        ax.plot(
+            [lim_min, lim_max],
+            [lim_min, lim_max],
+            "k--",
+            linewidth=0.5,
+            alpha=0.5,
+        )
 
         if dim_key == "0":
             # H₀: color by persistence
@@ -288,6 +302,48 @@ def plot_persistence_diagrams(
                     label=f"∞ ({inf_mask.sum()})",
                 )
                 ax.legend(fontsize=8)
+
+            # ── Barcode inset for H₀ ──────────────────────────────
+            # All VR H₀ births are 0, so the scatter degenerates to a
+            # vertical stripe. An inset barcode of the top features
+            # makes the gap structure readable.
+            if len(persistence) > 0:
+                n_show = min(n_barcode, len(persistence))
+                top_idx = np.argsort(persistence)[::-1][:n_show]
+                top_deaths = d_fin[top_idx]
+                # Sort by death (descending) for visual clarity
+                bar_order = np.argsort(top_deaths)[::-1]
+                top_deaths = top_deaths[bar_order]
+
+                inset = ax.inset_axes([0.30, 0.22, 0.62, 0.58])
+                colors = plt.cm.viridis(top_deaths / top_deaths.max())
+                y_pos = np.arange(n_show)
+                inset.barh(
+                    y_pos,
+                    top_deaths,
+                    height=0.8,
+                    color=colors,
+                    edgecolor="none",
+                )
+                inset.set_xlim(0, lim_max)
+                inset.set_yticks([])
+                inset.set_xlabel(
+                    "Death (= persistence)",
+                    fontsize=6,
+                    labelpad=2,
+                )
+                inset.set_title(
+                    f"Top {n_show} $H_0$ bars",
+                    fontsize=7,
+                    pad=3,
+                )
+                inset.tick_params(labelsize=5, pad=1)
+                # White background with subtle border
+                inset.patch.set_facecolor("white")
+                inset.patch.set_alpha(0.95)
+                for spine in inset.spines.values():
+                    spine.set_edgecolor("0.5")
+                    spine.set_linewidth(0.6)
         else:
             # H₁: highlight top features
             order = np.argsort(persistence)[::-1]
@@ -405,7 +461,9 @@ def plot_betti_null_comparison(
             density=True,
             label=f"Null ({null_type})",
         )
-        ax.axvline(observed, color="red", linewidth=2, label=f"Observed ({observed:,.1f})")
+        ax.axvline(
+            observed, color="red", linewidth=2, label=f"Observed ({observed:,.1f})"
+        )
 
         # Null envelope
         null_mean = null_arr.mean()
@@ -420,7 +478,11 @@ def plot_betti_null_comparison(
         )
 
         p_str = f"p = {p_value:.4f}" if p_value is not None else ""
-        sig = "★ Significant" if p_value is not None and p_value < 0.05 else "Not significant"
+        sig = (
+            "★ Significant"
+            if p_value is not None and p_value < 0.05
+            else "Not significant"
+        )
         ax.set_title(f"{panel_title}\n{null_type} ({sig}, {p_str})")
         ax.set_xlabel("Total Persistence")
         ax.set_ylabel("Density")
@@ -507,7 +569,9 @@ def plot_regime_profiles(
         for j in range(len(metrics)):
             val = data[i, j]
             color = "white" if val > 0.6 or val < 0.15 else "black"
-            ax.text(j, i, f"{val:.0%}", ha="center", va="center", fontsize=7, color=color)
+            ax.text(
+                j, i, f"{val:.0%}", ha="center", va="center", fontsize=7, color=color
+            )
 
     fig.colorbar(im, ax=ax, shrink=0.7, label="Rate")
     fig.tight_layout()
@@ -684,7 +748,11 @@ def plot_cycle_analysis(
     h1_summary = cycles.get("h1_summary", {})
 
     if loop_profiles:
-        cycle_lengths = [lp.get("mean_cycle_length", 0) for lp in loop_profiles if lp.get("mean_cycle_length", 0) > 0]
+        cycle_lengths = [
+            lp.get("mean_cycle_length", 0)
+            for lp in loop_profiles
+            if lp.get("mean_cycle_length", 0) > 0
+        ]
         if cycle_lengths:
             ax.hist(
                 cycle_lengths,
@@ -711,7 +779,9 @@ def plot_cycle_analysis(
     max_pers = h1_summary.get("max_persistence", 0)
     total_pers = h1_summary.get("total_persistence", 0)
     summary_text = (
-        f"Max persistence: {max_pers:.2f}\n" f"Total persistence: {total_pers:.1f}\n" f"Persistent loops: {n_loops:,}"
+        f"Max persistence: {max_pers:.2f}\n"
+        f"Total persistence: {total_pers:.1f}\n"
+        f"Persistent loops: {n_loops:,}"
     )
     ax.text(
         0.95,
@@ -1243,7 +1313,9 @@ def generate_all_figures(
             if len(landscape_data) == 2:
                 plot_landscape_comparison(landscape_data, save_path=output_dir)
     else:
-        logger.info("No stratified data found — run run_stratified.py first for Figures 10–11")
+        logger.info(
+            "No stratified data found — run run_stratified.py first for Figures 10–11"
+        )
 
     logger.info(f"All available figures saved to {output_dir}")
 
@@ -1256,10 +1328,14 @@ def generate_all_figures(
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s"
+    )
 
     parser = argparse.ArgumentParser(description="Generate publication figures")
-    parser.add_argument("--results-dir", type=str, default="results/trajectory_tda_integration")
+    parser.add_argument(
+        "--results-dir", type=str, default="results/trajectory_tda_integration"
+    )
     parser.add_argument("--output-dir", type=str, default="figures/trajectory_tda")
     args = parser.parse_args()
 

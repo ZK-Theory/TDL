@@ -1,0 +1,42 @@
+{
+  "R3_Emp-Inactive_Mix": {
+    "n_trajectories": 3333,
+    "total_transitions": 18008,
+    "transition_types": {
+      "E<->I": {
+        "count": 6548,
+        "fraction": 0.3636
+      },
+      "within_E": {
+        "count": 6945,
+        "fraction": 0.3857
+      },
+      "within_I": {
+        "count": 4515,
+        "fraction": 0.2507
+      }
+    }
+  },
+  "R5_High-Income_Inactive": {
+    "n_trajectories": 1813,
+    "total_transitions": 7042,
+    "transition_types": {
+      "E<->I": {
+        "count": 2500,
+        "fraction": 0.355
+      },
+      "I<->U": {
+        "count": 170,
+        "fraction": 0.0241
+      },
+      "within_E": {
+        "count": 541,
+        "fraction": 0.0768
+      },
+      "within_I": {
+        "count": 3831,
+        "fraction": 0.544
+      }
+    }
+  }
+}

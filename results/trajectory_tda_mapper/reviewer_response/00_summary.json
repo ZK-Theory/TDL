@@ -1,0 +1,8 @@
+{
+  "elapsed_seconds": 60.111122131347656,
+  "analyses_run": [
+    "permutation_nulls",
+    "multi_threshold",
+    "correlation_matrix"
+  ]
+}

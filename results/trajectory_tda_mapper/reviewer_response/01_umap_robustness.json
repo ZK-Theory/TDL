@@ -1,0 +1,177 @@
+{
+  "configs_tested": 4,
+  "results": [
+    {
+      "label": "umap16_pca2d_dbscan_eps0.5",
+      "summary": {
+        "n_nodes": 1604,
+        "n_edges": 2657,
+        "mean_node_size": 67.53241895261846,
+        "median_node_size": 33.0,
+        "min_node_size": 5,
+        "max_node_size": 2130,
+        "n_covered": 27279,
+        "coverage": 0.9999633431085044,
+        "n_connected_components": 343
+      },
+      "validation": {
+        "nmi": 0.421854329498685,
+        "purity": 0.9666922916970668,
+        "n_bridge_nodes": 81
+      },
+      "subregime_dim1": {
+        "n_total": 576,
+        "per_regime": {
+          "0": 14,
+          "1": 314,
+          "2": 160,
+          "3": 21,
+          "4": 25,
+          "5": 18,
+          "6": 24
+        }
+      },
+      "subregime_l2": {
+        "n_total": 576,
+        "per_regime": {
+          "0": 11,
+          "1": 303,
+          "2": 168,
+          "3": 32,
+          "4": 25,
+          "5": 11,
+          "6": 26
+        }
+      }
+    },
+    {
+      "label": "umap16_l2norm_dbscan_eps0.5",
+      "summary": {
+        "n_nodes": 776,
+        "n_edges": 433,
+        "mean_node_size": 70.08505154639175,
+        "median_node_size": 33.0,
+        "min_node_size": 5,
+        "max_node_size": 2113,
+        "n_covered": 27279,
+        "coverage": 0.9999633431085044,
+        "n_connected_components": 343
+      },
+      "validation": {
+        "nmi": 0.43300810668335227,
+        "purity": 0.9695049214482807,
+        "n_bridge_nodes": 37
+      },
+      "subregime_dim1": {
+        "n_total": 289,
+        "per_regime": {
+          "0": 7,
+          "1": 157,
+          "2": 86,
+          "3": 10,
+          "4": 15,
+          "5": 6,
+          "6": 8
+        }
+      },
+      "subregime_l2": {
+        "n_total": 281,
+        "per_regime": {
+          "0": 4,
+          "1": 147,
+          "2": 89,
+          "3": 14,
+          "4": 15,
+          "5": 4,
+          "6": 8
+        }
+      }
+    },
+    {
+      "label": "umap16_pca2d_agglom_t1.5",
+      "summary": {
+        "n_nodes": 3238,
+        "n_edges": 6117,
+        "mean_node_size": 33.49444101297097,
+        "median_node_size": 29.0,
+        "min_node_size": 1,
+        "max_node_size": 154,
+        "n_covered": 27280,
+        "coverage": 1.0,
+        "n_connected_components": 535
+      },
+      "validation": {
+        "nmi": 0.4002619304985794,
+        "purity": 0.9538714757273252,
+        "n_bridge_nodes": 164
+      },
+      "subregime_dim1": {
+        "n_total": 828,
+        "per_regime": {
+          "0": 18,
+          "1": 326,
+          "2": 169,
+          "3": 57,
+          "4": 83,
+          "5": 104,
+          "6": 71
+        }
+      },
+      "subregime_l2": {
+        "n_total": 973,
+        "per_regime": {
+          "0": 12,
+          "1": 414,
+          "2": 226,
+          "3": 99,
+          "4": 91,
+          "5": 58,
+          "6": 73
+        }
+      }
+    },
+    {
+      "label": "umap16_umap2d_dbscan_eps0.5",
+      "summary": {
+        "n_nodes": 1604,
+        "n_edges": 2657,
+        "mean_node_size": 67.53241895261846,
+        "median_node_size": 33.0,
+        "min_node_size": 5,
+        "max_node_size": 2130,
+        "n_covered": 27279,
+        "coverage": 0.9999633431085044,
+        "n_connected_components": 343
+      },
+      "validation": {
+        "nmi": 0.421854329498685,
+        "purity": 0.9666922916970668,
+        "n_bridge_nodes": 81
+      },
+      "subregime_dim1": {
+        "n_total": 576,
+        "per_regime": {
+          "0": 14,
+          "1": 314,
+          "2": 160,
+          "3": 21,
+          "4": 25,
+          "5": 18,
+          "6": 24
+        }
+      },
+      "subregime_l2": {
+        "n_total": 576,
+        "per_regime": {
+          "0": 11,
+          "1": 303,
+          "2": 168,
+          "3": 32,
+          "4": 25,
+          "5": 11,
+          "6": 26
+        }
+      }
+    }
+  ]
+}

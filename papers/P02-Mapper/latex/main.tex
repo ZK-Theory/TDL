@@ -1,0 +1,94 @@
+% main.tex — P02: Mapper Analysis of UK Employment Trajectories
+% Sociological Methods & Research submission
+%
+% Build: latexmk -pdf main.tex  (or see Makefile)
+
+\documentclass[12pt, a4paper]{article}
+
+% --- Encoding & fonts ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathpazo}           % Palatino for body text
+\usepackage{inconsolata}        % monospace
+
+% --- Page geometry ---
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\doublespacing                  % journal requirement
+
+% --- Mathematics ---
+\usepackage{amsmath, amssymb, amsthm}
+
+% --- Tables ---
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% --- Graphics ---
+\usepackage{graphicx}
+\graphicspath{{figures/}{../figures/}}
+\usepackage[font=small, labelfont=bf]{caption}
+\usepackage{subcaption}
+
+% --- Hyperlinks (load last among basics) ---
+\usepackage[colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!60!black]{hyperref}
+
+% --- Bibliography ---
+\usepackage[round, authoryear]{natbib}
+\bibliographystyle{apalike}
+
+% --- Misc ---
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% --- Custom commands ---
+\newcommand{\HH}[1]{H_{#1}}    % homology dimension
+\newcommand{\PH}{\mathrm{PH}}
+\newcommand{\VR}{\mathrm{VR}}
+\newcommand{\Wass}{W_1}         % 1-Wasserstein distance
+\newcommand{\pval}{\textit{p}}  % p-value formatting
+\newcommand{\placeholder}[1]{\textbf{[#1]}}  % mark placeholders
+
+% --- Title ---
+\title{From Global Topology to Navigable Trajectory Space:\\
+  Mapper Analysis of UK Employment Trajectories}
+\author{%
+  Stephen Dorman\\
+  \textit{The Open University, UK}
+}
+\date{March 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Mapper \citep{singh2007topological}, applied to 27,280 employment-income
+trajectories from Understanding Society (2009--2023) in PCA-20D space,
+reproduces the seven Gaussian mixture model (GMM) regimes at node level
+(purity~0.999, NMI~=~0.434) while fragmenting each regime into sub-regions
+that vary on the PC1 income gradient. Low-Income Churn splits into 80 nodes
+spanning a 4-unit PC1 range (node-mean std~=~1.23); 32 of these deviate by
+more than one standard deviation from the regime mean. Across all seven
+regimes, 358 of 1,060 nodes qualify as sub-regime outliers. A sensitivity
+analysis across 24 configurations --- two clustering algorithms, four lens
+functions, three parameter values each --- shows that the 49\% noise rate and
+the absence of bridge nodes are DBSCAN properties, not data properties:
+agglomerative clustering covers 100\% of trajectories and identifies 203--449
+bridge nodes spanning regime boundaries. Within-regime heterogeneity persists
+across all 24 configurations. Colouring nodes by reconstructed trajectory
+outcomes reveals a within-R6 bifurcation: nodes near the Employed Mid boundary
+show employment rates of~0.7 and final income trending mid-range; nodes near
+Inactive Low show rates below~0.3 and persistently low income.
+
+\medskip\noindent\textbf{Keywords:} Mapper algorithm, topological data analysis,
+trajectory analysis, within-regime heterogeneity, employment trajectories,
+KeplerMapper, sensitivity analysis, causal geography
+\end{abstract}
+
+\input{body}
+
+\bibliography{references}
+
+\end{document}
