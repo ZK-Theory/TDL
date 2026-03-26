@@ -90,6 +90,19 @@ def main() -> None:
     n_regimes = analysis["regimes"]["k_optimal"]
     logger.info("GMM labels: %d, k_optimal: %d", len(gmm_labels), n_regimes)
 
+    # Validate alignment between embeddings and GMM labels before running Mapper/validation
+    n_embeddings = embeddings.shape[0]
+    n_labels = len(gmm_labels)
+    if n_embeddings != n_labels:
+        msg = (
+            "Mismatch between embeddings and GMM labels: "
+            f"{n_embeddings} embeddings loaded from '{RESULTS_DIR / 'embeddings.npy'}' "
+            f"but {n_labels} GMM labels loaded from '{RESULTS_DIR / '05_analysis.json'}'. "
+            "These must have the same length for Mapper and validation; "
+            "please regenerate the inputs so they are aligned."
+        )
+        logger.error(msg)
+        raise ValueError(msg)
     # Identify disadvantaged regimes from P01: Regime 2 (Inactive Low) and Regime 6 (Low-Income Churn)
     disadvantaged_regimes = [2, 6]
 
