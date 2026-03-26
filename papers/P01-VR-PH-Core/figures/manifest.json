@@ -1,0 +1,58 @@
+{
+  "1": {
+    "stem": "fig1_trajectory_heatmap",
+    "caption": "Exemplar trajectories from each of the seven mobility regimes. Each row represents one individual; colours encode employment-income state."
+  },
+  "2": {
+    "stem": "fig2_embedding_cloud",
+    "caption": "Trajectory embedding space (bigram PCA-20D reduced to UMAP-2D). Points are individual career trajectories, coloured by GMM regime."
+  },
+  "3": {
+    "stem": "fig3_persistence_diagrams",
+    "caption": "Persistence diagrams for $H_0$ (connected components, left) and $H_1$ (loops, right). Points far from the diagonal represent long-lived topological features."
+  },
+  "4": {
+    "stem": "fig4_betti_null_comparison",
+    "caption": "Observed total persistence versus order-shuffle null (left: $H_0$; right: $H_1$). Red line = observed; histogram = null distribution."
+  },
+  "5": {
+    "stem": "fig5_regime_profiles",
+    "caption": "Regime profile heatmap. Rows are the seven mobility regimes; columns are labour-market metrics. Values are rates (0--1)."
+  },
+  "6": {
+    "stem": "fig6_stability_income",
+    "caption": "Stability versus high-income rate for each regime. Bubble size is proportional to regime membership."
+  },
+  "7": {
+    "stem": "fig7_cycle_analysis",
+    "caption": "Cycle (\\textit{H}\\textsubscript{1}) analysis. Left: $H_1$ persistence diagram with top 20 features highlighted. Right: cycle-length distribution."
+  },
+  "8": {
+    "stem": "fig8_null_table",
+    "caption": "Null model validation summary across the Markov memory ladder. Significant results (\\textit{p} < 0.05) are shaded green."
+  },
+  "9": {
+    "stem": "fig9_markov_memory_depth",
+    "caption": "Total persistence distributions for order-shuffle, Markov order-1, and Markov order-2 null models. Red line = observed value."
+  },
+  "10": {
+    "stem": "fig10_wasserstein_heatmap",
+    "caption": "Pairwise Wasserstein distances between persistence diagrams by parental NS-SEC. Stars mark statistically significant differences."
+  },
+  "11": {
+    "stem": "fig11_landscape_comparison",
+    "caption": "Persistence landscape comparison (\\textit{L}\\textsubscript{1}) for male versus female trajectories. Shaded region shows the difference."
+  },
+  "12": {
+    "stem": "fig12_transition_heatmap",
+    "caption": "Regime transition probability matrix. Cell $(i, j)$ shows $P(\\text{regime}_{t+1} = j \\mid \\text{regime}_t = i)$ estimated from overlapping career-phase windows."
+  },
+  "13": {
+    "stem": "fig13_escape_probabilities",
+    "caption": "Cumulative escape probability from disadvantaged regimes (Regimes 2 \\& 6) by horizon window. Among $N = 7{,}453$ individuals starting in a disadvantaged regime, 5.6\\% ever reach an advantaged regime."
+  },
+  "14": {
+    "stem": "fig14_phase_ph_nulls",
+    "caption": "Phase-level persistent homology. Left: persistence diagram for career-phase embeddings. Right: phase-order shuffle null test ($n = 100$ permutations). The observed total persistence is not an outlier relative to the null ($H_0$: $p = 0.73$, $H_1$: $p = 0.28$)."
+  }
+}

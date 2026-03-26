@@ -1,0 +1,118 @@
+% main.tex — P01: Persistent Homology of UK Socioeconomic Life-Course Trajectories
+% arXiv preprint / Sociological Methodology submission
+%
+% Build: latexmk -pdf main.tex  (or see Makefile)
+
+\documentclass[12pt, a4paper]{article}
+
+% --- Encoding & fonts ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathpazo}           % Palatino for body text
+\usepackage{inconsolata}        % monospace
+
+% --- Page geometry ---
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\doublespacing                  % journal requirement
+
+% --- Mathematics ---
+\usepackage{amsmath, amssymb, amsthm}
+
+% --- Tables ---
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% --- Graphics ---
+\usepackage{graphicx}
+\graphicspath{{../}}
+\usepackage[font=small, labelfont=bf]{caption}
+\usepackage{subcaption}
+
+% --- Hyperlinks (load last among basics) ---
+\usepackage[colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!60!black]{hyperref}
+
+% --- Bibliography ---
+\usepackage[round, authoryear]{natbib}
+\bibliographystyle{apalike}
+
+% --- Misc ---
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% --- Custom commands ---
+\newcommand{\HH}[1]{H_{#1}}    % homology dimension
+\newcommand{\PH}{\mathrm{PH}}
+\newcommand{\VR}{\mathrm{VR}}
+\newcommand{\Wass}{W_1}         % 1-Wasserstein distance
+\newcommand{\pval}{\textit{p}}  % p-value formatting
+\newcommand{\placeholder}[1]{\textbf{[#1]}}  % mark placeholders
+
+% --- Title ---
+\title{Persistent Homology of UK Socioeconomic Life-Course Trajectories}
+\author{%
+  [Author Names]\\
+  \textit{[Affiliations]}
+}
+\date{March 2026}
+
+% ============================================================
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Longitudinal panel data captures the temporal structure of life-course dynamics, yet conventional sequence analysis methods treat trajectories as character strings, discarding their geometric structure in high-dimensional space.
+We apply persistent homology (PH) to 27,280 employment-income trajectories drawn from Understanding Society (2009--2023), with cross-era validation on 8,509 trajectories from the British Household Panel Study (1991--2008).
+Each trajectory is a sequence of nine states combining employment status with income band, embedded into 20-dimensional PCA space via $n$-gram frequency vectors and analysed using Vietoris--Rips persistent homology with maxmin landmarks.
+We introduce a \textbf{Markov memory ladder}---a battery of five null models of escalating structural complexity---that characterises the generating process underlying the observed topology.
+
+Seven distinct mobility regimes emerge via Gaussian mixture models optimised by BIC.
+Total-persistence tests suggest that temporal ordering creates topological structure (order-shuffle $\HH{0}$ $\pval < 0.005$) while first-order Markov dynamics fully account for the topology (Markov-1 $\HH{0}$ $\pval = 1.000$).
+However, upgrading the test statistic from total persistence to Wasserstein diagram-level distances reverses the Markov finding.
+Under Wasserstein testing (100 permutations, 2,000 landmarks), the Markov-1 null is rejected for $\HH{0}$ ($\pval = 0.002$): observed persistence diagrams differ significantly in shape from Markov-generated diagrams, even though Markov surrogates produce more total persistence.
+Markov-2 is \emph{not} rejected under Wasserstein ($\pval = 0.546$), localising the non-Markovian structure to second-order memory.
+Order-shuffle $\HH{0}$ is borderline under Wasserstein ($\pval = 0.058$), label shuffle serves as a negative control ($\pval = 0.452$), and $\HH{1}$ (loops) remains non-significant under all null types.
+This discrepancy between scalar and diagram-level tests is itself a methodological finding: total persistence masks structural differences that Wasserstein distances detect.
+
+These findings replicate on BHPS-era trajectories (1991--2008): order-shuffle $\HH{0}$ $\pval = 0.000$, Markov-1 $\HH{0}$ $\pval = 0.000$---with the BHPS data additionally rejecting Markov-1 $\HH{1}$ ($\pval = 0.000$).
+Stratified Wasserstein distances reveal significant topological differences by gender, parental NS-SEC, and birth cohort; 30/50 tests survive Benjamini--Hochberg FDR correction at $q < 0.05$.
+Overlapping 10-year career-phase windows confirm extreme regime stickiness: among 7,453 individuals starting in disadvantaged regimes, only 416 (5.6\%) escape to advantaged regimes.
+
+\medskip
+\noindent\textbf{Keywords:} persistent homology, topological data analysis, social mobility, life-course trajectories, Markov models, regime switching, Wasserstein distance
+
+\medskip
+\noindent\textbf{JEL Codes:} C14, C38, J62, D63
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ============================================================
+% Body content converted from markdown draft
+% To regenerate: python scripts/md2latex.py --draft drafts/v6-2026-03.md --output latex/body.tex
+\input{body}
+
+% ============================================================
+% BIBLIOGRAPHY
+\nocite{*}  % Include all references while citations are converted from markdown
+\bibliography{references}
+
+
+% ============================================================
+\appendix
+
+\section{\texorpdfstring{$\HH{0}$}{H0} Merge Tree Analysis}
+\label{app:merge}
+
+\placeholder{Appendix A}
+
+\section{Landmark Sensitivity}
+\label{app:landmarks}
+
+\placeholder{Appendix B}
+
+\end{document}
