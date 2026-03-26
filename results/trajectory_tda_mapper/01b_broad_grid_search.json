@@ -1,0 +1,450 @@
+{
+  "best": {
+    "projection": "pca_2d",
+    "n_cubes": 30,
+    "overlap_frac": 0.5
+  },
+  "n_evaluated": 40,
+  "results": [
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 10,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 391,
+      "n_edges": 221,
+      "coverage": 0.5071119583547181,
+      "n_components": 229
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 10,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 498,
+      "n_edges": 426,
+      "coverage": 0.5071119583547181,
+      "n_components": 228
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 10,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 681,
+      "n_edges": 811,
+      "coverage": 0.5071119583547181,
+      "n_components": 227
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 10,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 942,
+      "n_edges": 1438,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 15,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 430,
+      "n_edges": 322,
+      "coverage": 0.5063054476134614,
+      "n_components": 229
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 15,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 559,
+      "n_edges": 567,
+      "coverage": 0.50707529877557,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 15,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 725,
+      "n_edges": 920,
+      "coverage": 0.5071119583547181,
+      "n_components": 229
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 15,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 999,
+      "n_edges": 1587,
+      "coverage": 0.5071119583547181,
+      "n_components": 227
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 20,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 433,
+      "n_edges": 276,
+      "coverage": 0.5048024048683921,
+      "n_components": 225
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 20,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 544,
+      "n_edges": 497,
+      "coverage": 0.5064154263509055,
+      "n_components": 226
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 20,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 728,
+      "n_edges": 910,
+      "coverage": 0.5071119583547181,
+      "n_components": 227
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 20,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 1018,
+      "n_edges": 1649,
+      "coverage": 0.5071119583547181,
+      "n_components": 226
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 25,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 435,
+      "n_edges": 321,
+      "coverage": 0.5024561918029181,
+      "n_components": 221
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 25,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 545,
+      "n_edges": 530,
+      "coverage": 0.5056089156096488,
+      "n_components": 223
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 25,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 750,
+      "n_edges": 963,
+      "coverage": 0.5068553413006819,
+      "n_components": 227
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 25,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 1058,
+      "n_edges": 1737,
+      "coverage": 0.5071119583547181,
+      "n_components": 228
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 30,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 471,
+      "n_edges": 387,
+      "coverage": 0.5005865532663685,
+      "n_components": 219
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 30,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 588,
+      "n_edges": 636,
+      "coverage": 0.504692426130948,
+      "n_components": 221
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 30,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 767,
+      "n_edges": 1049,
+      "coverage": 0.5065620646674976,
+      "n_components": 224
+    },
+    {
+      "params": {
+        "projection": "pca_2d",
+        "n_cubes": 30,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 1060,
+      "n_edges": 1774,
+      "coverage": 0.5068920008798299,
+      "n_components": 223
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 10,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 310,
+      "n_edges": 80,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 10,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 335,
+      "n_edges": 103,
+      "coverage": 0.5071119583547181,
+      "n_components": 232
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 10,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 379,
+      "n_edges": 147,
+      "coverage": 0.5071119583547181,
+      "n_components": 232
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 10,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 443,
+      "n_edges": 211,
+      "coverage": 0.5071119583547181,
+      "n_components": 232
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 15,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 298,
+      "n_edges": 67,
+      "coverage": 0.5069286604589779,
+      "n_components": 231
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 15,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 342,
+      "n_edges": 112,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 15,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 387,
+      "n_edges": 157,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 15,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 469,
+      "n_edges": 239,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 20,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 316,
+      "n_edges": 90,
+      "coverage": 0.5068186817215339,
+      "n_components": 226
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 20,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 373,
+      "n_edges": 145,
+      "coverage": 0.5071119583547181,
+      "n_components": 228
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 20,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 417,
+      "n_edges": 187,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 20,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 472,
+      "n_edges": 241,
+      "coverage": 0.5071119583547181,
+      "n_components": 231
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 25,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 305,
+      "n_edges": 77,
+      "coverage": 0.5064154263509055,
+      "n_components": 228
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 25,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 350,
+      "n_edges": 119,
+      "coverage": 0.5071119583547181,
+      "n_components": 231
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 25,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 412,
+      "n_edges": 182,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 25,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 487,
+      "n_edges": 257,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 30,
+        "overlap_frac": 0.2
+      },
+      "n_nodes": 328,
+      "n_edges": 103,
+      "coverage": 0.5057188943470929,
+      "n_components": 225
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 30,
+        "overlap_frac": 0.3
+      },
+      "n_nodes": 362,
+      "n_edges": 136,
+      "coverage": 0.5064887455092015,
+      "n_components": 226
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 30,
+        "overlap_frac": 0.4
+      },
+      "n_nodes": 433,
+      "n_edges": 205,
+      "coverage": 0.5071119583547181,
+      "n_components": 228
+    },
+    {
+      "params": {
+        "projection": "l2norm",
+        "n_cubes": 30,
+        "overlap_frac": 0.5
+      },
+      "n_nodes": 497,
+      "n_edges": 267,
+      "coverage": 0.5071119583547181,
+      "n_components": 230
+    }
+  ]
+}

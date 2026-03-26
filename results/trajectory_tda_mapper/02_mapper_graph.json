@@ -1,0 +1,16 @@
+{
+  "n_nodes": 1060,
+  "n_edges": 1774,
+  "mean_node_size": 51.094339622641506,
+  "median_node_size": 8.0,
+  "min_node_size": 1,
+  "max_node_size": 2335,
+  "n_covered": 13827,
+  "coverage": 0.5068920008798299,
+  "n_connected_components": 223,
+  "params": {
+    "projection": "pca_2d",
+    "n_cubes": 30,
+    "overlap_frac": 0.5
+  }
+}
