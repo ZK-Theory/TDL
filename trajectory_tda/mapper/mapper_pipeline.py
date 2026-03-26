@@ -151,7 +151,7 @@ def build_mapper_graph(
     if clusterer == "dbscan":
         cl = DBSCAN(
             eps=clusterer_params.get("eps", 0.5),
-            min_samples=clusterer_params.get("min_samples", 3),
+            min_samples=clusterer_params.get("min_samples", 5),
         )
     elif clusterer == "agglomerative":
         cl = AgglomerativeClustering(
