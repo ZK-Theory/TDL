@@ -77,7 +77,7 @@ The statistical significance of topological features requires comparison to appr
 
 For life-course trajectories, the relevant null models must be carefully chosen to test specific hypotheses. A label shuffle null (permuting state labels globally) tests whether the specific identity of states matters; an order shuffle (permuting each trajectory's state sequence) tests whether temporal ordering matters, preserving marginal state frequencies; and a Markov-$k$ null (simulating from an estimated $k$-th order Markov chain) tests whether topology exceeds what $k$-step memory produces.
 
-Higher-order Markov chains as generative models have a long history in sociology \citep{singer1976representation, tong1990nonlinear}. Our contribution is to arrange these null models into a systematic "memory ladder" --- a sequence of increasingly structured null hypotheses that progressively preserves more of the observed data's structure. When the observed topology first becomes consistent with a Markov-$k$ null, we can conclude that the topological complexity of the trajectory space is well captured by $k$-step memory. Critically, the answer depends on how "consistent" is measured. As we show, total persistence (a scalar) and Wasserstein distance (a diagram-level metric) give different answers for the Markov null --- the scalar test lacks sensitivity to structural differences in the configuration of persistence features that the Wasserstein test detects.
+Markov chains as generative models for social dynamics have a long history in sociology \citep{singer1976representation}. Our contribution is to arrange these null models into a systematic "memory ladder" --- a sequence of increasingly structured null hypotheses that progressively preserves more of the observed data's structure. When the observed topology first becomes consistent with a Markov-$k$ null, we can conclude that the topological complexity of the trajectory space is well captured by $k$-step memory. Critically, the answer depends on how "consistent" is measured. As we show, total persistence (a scalar) and Wasserstein distance (a diagram-level metric) give different answers for the Markov null --- the scalar test lacks sensitivity to structural differences in the configuration of persistence features that the Wasserstein test detects.
 
 
 \section{Data and Methodology}
@@ -223,7 +223,7 @@ Persistent homology on the PCA-20D embedding with 5,000 maxmin landmarks reveals
 
 \subsubsection{Total-persistence tests}
 
-The five null models in the Markov memory ladder yield the following results for total persistence at $L = 5{,}000$ landmarks (Table 2):
+The five null models in the Markov memory ladder yield the following results for total persistence at $L = 5{,}000$ landmarks (Table~\ref{tab:total-persistence}):
 
 \begin{table}[htbp]
 \centering
@@ -492,16 +492,16 @@ Of the 50 tests, 30 are significant at \textit{p} < 0.05 (raw). After BH FDR cor
 
 \begin{table}[htbp]
 \centering
-\caption{Stratified Wasserstein Test Summary (FDR-Corrected).}
+\caption{Stratified Wasserstein Test Summary (FDR-Corrected). Each axis contributes tests for both $H_0$ and $H_1$. The Sig.\ H\textsubscript{0} and Sig.\ H\textsubscript{1} columns show how the 30 BH-corrected significant tests split by homological dimension.}
 \label{tab:stratified}
-\begin{tabular}{llll}
+\begin{tabular}{lllll}
 \toprule
-Axis & Tests & Significant (raw) & Significant (BH \textit{q} < 0.05) \\
+Axis & Tests & Significant (raw) & Sig.\ $H_0$ (BH \textit{q} < 0.05) & Sig.\ $H_1$ (BH \textit{q} < 0.05) \\
 \midrule
-Gender & 2 & 1 & 1 \\
-Parental NS-SEC & 6 & 3 & 3 \\
-Birth cohort & 42 & 26 & 26 \\
-\textbf{Total} & \textbf{50} & \textbf{30} & \textbf{30} \\
+Gender & 2 & 1 & 1 & 0 \\
+Parental NS-SEC & 6 & 3 & 3 & 0 \\
+Birth cohort & 42 & 26 & 12 & 14 \\
+\textbf{Total} & \textbf{50} & \textbf{30} & \textbf{16} & \textbf{14} \\
 \bottomrule
 \end{tabular}
 \end{table}
