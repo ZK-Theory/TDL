@@ -109,4 +109,43 @@ patterns (contribution inflation, formulaic abstracts, passive-voice evasion, li
 padding, results over-interpretation, conclusion mirrors). Works on any section:
 abstract, introduction, methods, results, discussion.
 
+---
+
+## Research Knowledge Tools (MCP)
+
+Two MCP servers provide direct access to academic papers and library documentation during agent sessions.
+
+### arXiv Paper Access — `arxiv-latex-mcp`
+
+Fetches arXiv papers as flattened LaTeX source (not PDF), preserving equations and notation precisely. Essential for TDA/GDL papers with heavy mathematical content.
+
+**Tools:**
+
+- `get_paper_abstract` — fetch abstract by arXiv ID (e.g., `0910.4315`)
+- `get_paper_prompt` — fetch full flattened LaTeX of a paper
+- `list_paper_sections` — list section headings
+- `get_paper_section` — fetch a specific section by path
+
+**Usage:** When referencing or discussing an arXiv paper, use the arXiv ID (e.g., `2302.03247` for a persistence paper). The LaTeX source gives accurate equation rendering for context.
+
+**Key papers for this project:**
+
+- `0812.0197` — Carlsson & de Silva, zigzag persistence
+- `0906.0612` — Carlsson, "Topology and Data" (foundational TDA survey; LaTeX may not be available)
+
+**Note:** Pre-2010 papers may lack LaTeX source on arXiv. Use `get_paper_abstract` to verify an ID before fetching full content.
+
+### Library Documentation — Context7
+
+Cloud-indexed documentation for software libraries. Use when you need API details, function signatures, or usage examples.
+
+**Tools:**
+
+- `resolve-library-id` — resolve a library name to a Context7 ID (e.g., `gudhi` → `/inria/gudhi`)
+- `query-docs` — fetch documentation for a specific query from an indexed library
+
+**Priority libraries for this project:** gudhi, giotto-tda, ripser, torch-geometric, TopoModelX, kmapper, dionysus, multipers, POT (optimal transport), scikit-tda
+
+**Usage:** When implementing topology computation or needing API details, query Context7 first. If a library is not indexed, fall back to reading source code or hosted docs directly.
+
 <!-- /vexp -->

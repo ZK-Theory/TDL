@@ -106,3 +106,87 @@ Not previously stated. Added Code Availability statement (v4, end of §6) with G
 ---
 
 *All R1–R11 items resolved. v4 ready for humanizer pass before final submission review.*
+
+---
+
+## Round 1 (Second internal review of v4, March 2026)
+
+**Draft reviewed:** v4-2026-04.md
+**Reviewer:** Internal quality check against original peer review PDF
+**Status:** All items resolved in v4-2026-04.md (in-place revision)
+
+---
+
+### R12 — Embedding Robustness Qualifier (Tier 1 Essential)
+
+**Comment:** Abstract and §1.3 use unqualified robustness language ("within-regime heterogeneity persists across all 24 configurations") despite §5.6 acknowledging embedding robustness was only partially tested. Reviewer's fallback: reframe as "robust to Mapper configuration, contingent on PCA-20D embedding."
+
+**Response:** Added qualifying phrases throughout: abstract now says "within the PCA-20D embedding, within-regime heterogeneity persists across all 24 configurations; a UMAP-16D replication confirms qualitative robustness to embedding choice (§4.7)." §1.3 adds "robust to Mapper configuration within the PCA-20D embedding and replicate qualitatively under UMAP-16D." §4.5.1 scoped to "(within PCA-20D)." §5.6 rewritten: claims are "robust to Mapper configuration and qualitatively robust to embedding choice, but contingent on the n-gram frequency representation." §6 conclusion scoped to "under both PCA-20D and UMAP-16D embeddings."
+
+---
+
+### R13 — "Author (2026a)" → Real Name (Tier 3 Essential)
+
+**Comment:** Placeholder "Author (2026a)" throughout would cause desk rejection.
+
+**Response:** All 11 instances replaced with "Dorman (2026a)". Author field updated to "Stephen Dorman". Reference entry updated to "Dorman, S. (2026a). *Sociological Methodology*."
+
+---
+
+### R14 — |z| > 1.0 Statistical Justification (Tier 2)
+
+**Comment:** Threshold arbitrary under non-normal distributions; no FDR acknowledgement for 14 comparisons; no permutation null for sub-regime node counts.
+
+**Response:** §3.7 now explicitly states |z| > 1.0 is an exploratory screening criterion, not a significance test. Points to multi-threshold Table 4a (|z| > 0.5, 1.0, 1.5, 2.0) for robustness. Notes that FDR-corrected binomial tests are reported in §4.3, and permutation nulls provide distribution-free confirmation.
+
+---
+
+### R15 — Bridge Node Scaling Table (Tier 3 Polish)
+
+**Comment:** Reviewer asked for threshold–bridge-count relationship explicitly; only prose existed.
+
+**Response:** Added Table 7b to §4.5.2 showing bridge node counts by distance threshold (1.0, 1.5, 2.0) across all four lens functions. Text explicitly notes the relationship is monotonically increasing with no natural elbow.
+
+---
+
+### R16 — Figure 6 Caption Truncation Note (Tier 3 Polish)
+
+**Comment:** Note about 1,500-node truncation was in §5.6 limitations, not in the figure caption itself.
+
+**Response:** Figure 6 caption updated to: "Right: Agglomerative graph showing the 1,500 largest nodes for visual clarity; full graph contains 37,772 nodes at 100% coverage."
+
+---
+
+### R17 — Sociological Value of Navigability (Tier 2 Partial)
+
+**Comment:** §1.3 does not explicitly tie navigability to a sociological value proposition (efficiency targeting, theoretical understanding of absorbing states).
+
+**Response:** Added sentence to §1.3: "For sociology, this navigability matters: it converts an abstract statistical observation ('clusters are heterogeneous') into a concrete, spatially indexed answer about which sub-populations within a regime face divergent outcomes — enabling both more precise theoretical accounts of absorbing-state boundaries and better-targeted policy interventions."
+
+---
+
+### R18 — OM Dendrogram Comparison Strengthened (Tier 2)
+
+**Comment:** §5.5 comparison "mostly rhetorical" — needed side-by-side with same colour scheme.
+
+**Response:** Figure 11 description now cross-references Figure 8's colour scheme ("using the same colour scheme as the Mapper employment rate graph (Figure 8)"). Added interpretability comparison: "For a sociology audience, the Mapper graph is interpretable as a map ('these individuals are near the boundary with stable employment'), whereas the dendrogram is interpretable as a hierarchy ('these sub-clusters merge at Ward distance 12'). The former is more natural for questions about where within a regime someone sits."
+
+---
+
+### R19 — Code Availability (Tier 2)
+
+**Comment:** No code availability statement.
+
+**Response:** Already present in v4 at end of paper (after §6 Conclusion): GitHub URL, branch, module paths, and archived results. Confirmed present; no change needed.
+
+---
+
+### R20 — Undefined Variables Cleanup
+
+**Comment:** §4.4.1 prose mentioned "employment improvement score" and "escape-to-employment indicator" which were not formally defined in §3.4.
+
+**Response:** §4.4.1 prose updated to reference only the 6 formally defined variables. Table 9 (correlation matrix) trimmed of the two undefined rows.
+
+---
+
+*All R12–R20 items resolved. v4 ready for humanizer pass before final submission review.*

@@ -71,20 +71,24 @@ reproduces the seven Gaussian mixture model (GMM) regimes at node level
 that vary on the PC1 income gradient. Low-Income Churn splits into 80 nodes
 spanning a 4-unit PC1 range (node-mean std~=~1.23); 32 of these deviate by
 more than one standard deviation from the regime mean. Across all seven
-regimes, 358 of 1,060 nodes qualify as sub-regime outliers. A sensitivity
-analysis across 24 configurations --- two clustering algorithms, four lens
-functions, three parameter values each --- shows that the 49\% noise rate and
-the absence of bridge nodes are DBSCAN properties, not data properties:
-agglomerative clustering covers 100\% of trajectories and identifies 203--449
-bridge nodes spanning regime boundaries. Within-regime heterogeneity persists
-across all 24 configurations. Colouring nodes by reconstructed trajectory
-outcomes reveals a within-R6 bifurcation: nodes near the Employed Mid boundary
-show employment rates of~0.7 and final income trending mid-range; nodes near
-Inactive Low show rates below~0.3 and persistently low income.
+regimes, 358 of 1,060 nodes qualify as sub-regime outliers; permutation null
+tests confirm this exceeds chance ($\pval < 0.01$, both regime-shuffle and
+within-node-shuffle nulls). A sensitivity analysis across 24
+configurations --- two clustering algorithms, four lens functions, three
+parameter values each --- shows that the 49\% noise rate and the absence of
+bridge nodes are DBSCAN properties, not data properties: agglomerative
+clustering covers 100\% of trajectories and identifies 203--449 bridge nodes
+spanning regime boundaries. Within-regime heterogeneity persists across all 24
+configurations within PCA-20D and replicates qualitatively under UMAP-16D,
+though specific node counts are embedding-dependent. Colouring nodes by
+reconstructed trajectory outcomes reveals a within-R6 bifurcation: nodes near
+the Employed Mid boundary show employment rates of~0.7 and final income
+trending mid-range; nodes near Inactive Low show rates below~0.3 and
+persistently low income.
 
 \medskip\noindent\textbf{Keywords:} Mapper algorithm, topological data analysis,
 trajectory analysis, within-regime heterogeneity, employment trajectories,
-KeplerMapper, sensitivity analysis, causal geography
+KeplerMapper, sensitivity analysis, outcome geography
 \end{abstract}
 
 \input{body}

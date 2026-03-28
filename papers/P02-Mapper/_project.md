@@ -14,7 +14,7 @@ tags: [paper, tda, mapper, kmapper, trajectory, interior-structure]
 
 ## Status
 
-v4 draft complete (v4-2026-04.md). Reviewer-response revision: "causal geography" → "outcome geography" throughout; permutation null tests added (§4.3); multi-threshold table (§4.3/Table 4a); UMAP-16D robustness section (§4.7); outcome–embedding correlation matrix (§4.8/Table 9); R3/R5 churning decomposition (§4.4.2/Table 7a); OM dendrogram figure (Fig 11); novelty framing ("first application of Mapper to longitudinal life-course data in sociology"); formal outcome variable definitions; sample representativeness caveats; algorithm rationale (DBSCAN as lower bound, agglomerative as upper bound); code availability statement; three new references (Gabadinho et al. 2011; Liao et al. 2022; Ritschard & Studer 2018; Watson & Wooden 2012). LaTeX pipeline not yet rebuilt — update main.tex/body.tex to match v4.
+v4 draft revised (v4-2026-04.md). Second revision pass addressing remaining reviewer feedback: embedding robustness qualifiers added to abstract, §1.3, §4.5.1, §5.6, and §6 (all robustness claims now explicitly scoped to PCA-20D with UMAP-16D replication noted); "Author (2026a)" → "Dorman (2026a)" throughout with proper reference entry; |z| > 1.0 threshold justified in §3.7 with multi-threshold rationale and FDR acknowledgement; bridge node scaling Table 7b added to §4.5.2; Figure 6 caption updated with truncation note (1,500 of 37,772 nodes); §1.3 sociological value proposition sentence added; §5.5 OM comparison strengthened with interpretability comparison and colour-scheme cross-reference; §4.4.1 prose cleaned (undefined variables removed); Table 9 trimmed of undefined variables. Code availability section confirmed present. LaTeX pipeline rebuilt from v4 markdown (body.tex regenerated, main.tex abstract/keywords updated, references.bib citation key fixed). PDF compiles cleanly.
 
 Previous drafts: v1-2026-03.md, v2-2026-03.md, v3-2026-03.md.
 
@@ -45,7 +45,7 @@ VR persistent homology reveals global connectivity; Mapper reveals *interior den
 - [x] R3/R5 churning decomposition
 - [x] OM dendrogram figure (Fig 11)
 - [x] v4 draft (all reviewer-response revisions)
-- [ ] Rebuild LaTeX (main.tex/body.tex) to match v4
+- [x] Rebuild LaTeX (main.tex/body.tex) to match v4
 - [ ] Run /humanizer pass before submission review
 - [ ] Final figure quality review (production-ready PNGs/PDFs)
 - [ ] Supplementary materials (interactive HTML Mapper visualisations)

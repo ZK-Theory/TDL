@@ -1,9 +1,9 @@
 \begin{thebibliography}{}
 
-\bibitem[Dorman, 2026]{author2026a}
+\bibitem[Dorman, 2026]{dorman2026a}
 Dorman, S. (2026).
 \newblock Persistent homology of {UK} socioeconomic life-course trajectories.
-\newblock Companion paper, P01.
+\newblock Working paper.
 
 \bibitem[Ester et~al., 1996]{ester1996density}
 Ester, M., Kriegel, H.-P., Sander, J., and Xu, X. (1996).
@@ -11,6 +11,11 @@ Ester, M., Kriegel, H.-P., Sander, J., and Xu, X. (1996).
   databases with noise.
 \newblock In {\em Proceedings of the 2nd International Conference on Knowledge
   Discovery and Data Mining}, pages 226--231.
+
+\bibitem[Gabadinho et~al., 2011]{Gabadinho2011}
+Gabadinho, A., Ritschard, G., M{\"u}ller, N.~S., and Studer, M. (2011).
+\newblock Analyzing and visualizing state sequences in {R} with {TraMineR}.
+\newblock {\em Journal of Statistical Software}, 40(4):1--37.
 
 \bibitem[Halpin, 2010]{halpin2010optimal}
 Halpin, B. (2010).
@@ -30,11 +35,37 @@ Lesnard, L. (2010).
   socio-temporal patterns.
 \newblock {\em Sociological Methods \& Research}, 38(3):389--419.
 
+\bibitem[Li et~al., 2015]{li2015identification}
+Li, L., Cheng, W.-Y., Glicksberg, B.~S., Gottesman, O., Tamler, R., Chen, R.,
+  Bottinger, E.~P., and Dudley, J.~T. (2015).
+\newblock Identification of type 2 diabetes subgroups through topological
+  analysis of patient similarity.
+\newblock {\em Science Translational Medicine}, 7(311):311ra174.
+
+\bibitem[Liao et~al., 2022]{Liao2022}
+Liao, T.~F., Bolano, D., Brzinsky-Fay, C., Cornwell, B., Fasang, A.~E., Helske,
+  S., Piccarreta, R., Raab, M., Ritschard, G., Struffolino, E., and Studer, M.
+  (2022).
+\newblock Sequence analysis: Its past, present, and future.
+\newblock {\em Social Science Research}, 107:102772.
+
 \bibitem[Lum et~al., 2013]{lum2013extracting}
 Lum, P.~Y., Singh, G., Lehman, A., Ishkanov, T., Vejdemo-Johansson, M.,
   Alagappan, M., Carlsson, J., and Carlsson, G. (2013).
 \newblock Extracting insights from the shape of complex data using topology.
 \newblock {\em Scientific Reports}, 3:1236.
+
+\bibitem[McInnes et~al., 2018]{mcinnes2018umap}
+McInnes, L., Healy, J., and Melville, J. (2018).
+\newblock {UMAP}: Uniform manifold approximation and projection for dimension
+  reduction.
+\newblock {\em arXiv preprint arXiv:1802.03426}.
+
+\bibitem[Ritschard and Studer, 2018]{Ritschard2018}
+Ritschard, G. and Studer, M., editors (2018).
+\newblock {\em Sequence Analysis and Related Approaches: Innovative Methods and
+  Applications}, volume~10 of {\em Life Course Research and Social Policies}.
+\newblock Springer.
 
 \bibitem[Rizvi et~al., 2017]{rizvi2017single}
 Rizvi, A.~H., Camara, P.~G., Kandror, E.~K., Roberts, T.~J., Schieren, I.,
@@ -79,5 +110,11 @@ Vandecasteele, L. (2010).
 \newblock The socio-demographic determinants of poverty in {E}urope: A
   comparative analysis.
 \newblock {\em European Sociological Review}, 26(5):537--553.
+
+\bibitem[Watson and Wooden, 2012]{Watson2012}
+Watson, N. and Wooden, M. (2012).
+\newblock The {HILDA} survey: A case study in the design and development of a
+  successful household panel study.
+\newblock {\em Longitudinal and Life Course Studies}, 3(3):369--381.
 
 \end{thebibliography}

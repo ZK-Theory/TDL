@@ -1,5 +1,5 @@
 % body.tex — P02: Mapper Analysis of UK Employment Trajectories
-% Auto-generated from v3-2026-03.md
+% Auto-generated from v4-2026-04.md
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Introduction}
@@ -7,7 +7,7 @@
 
 \subsection{The Limitation of Global Summaries}
 
-In a companion paper \citep{author2026a}, we applied Vietoris--Rips persistent homology to the same trajectory embedding analysed here. Temporal ordering creates topological structure (order-shuffle $\HH{0}$ $\pval < 0.005$); Wasserstein diagram-level tests reject the first-order Markov null even when scalar total-persistence tests do not ($\pval = 0.002$ vs.\ $\pval = 1.000$); seven mobility regimes exhibit extreme stickiness (5.6\% escape rate from disadvantaged regimes).
+In a companion paper \citep{dorman2026a}, we applied Vietoris--Rips persistent homology to the same trajectory embedding analysed here. Temporal ordering creates topological structure (order-shuffle $\HH{0}$ $\pval < 0.005$); Wasserstein diagram-level tests reject the first-order Markov null even when scalar total-persistence tests do not ($\pval = 0.002$ vs.\ $\pval = 1.000$); seven mobility regimes exhibit extreme stickiness (5.6\% escape rate from disadvantaged regimes).
 
 But global topology is, by construction, a summary. The persistence diagram records that trajectory clusters exist and how they merge as the filtration radius increases. It does not record what happens \emph{inside} those clusters --- whether a regime labelled ``Low-Income Churn'' is internally homogeneous or contains sub-populations with markedly different prospects. The seven-component GMM that defines the regime typology has the same limitation: it assigns each trajectory a single label, collapsing any within-regime variation into a regime-level mean.
 
@@ -17,13 +17,15 @@ The compression has practical consequences. If the Low-Income Churn regime conta
 
 The Mapper algorithm \citep{singh2007topological} works at a different resolution. Where persistent homology computes a global topological invariant (the persistence diagram), Mapper constructs a \emph{graph-based simplicial summary} that preserves local geometric structure. The algorithm projects the point cloud through a \emph{lens function} to a lower-dimensional space, covers the lens image with overlapping intervals, clusters the pre-image of each interval, and records overlaps between clusters as edges. The result is a graph in which nodes are geometrically coherent groups of data points and edges connect groups that share members.
 
-The graph can be \emph{coloured} by any variable defined on the data points. Computing the mean of an outcome variable within each node transforms the abstract graph into a map on which outcomes are geographically readable. Regions where escape probability is high become visually and statistically distinguishable from regions where it is low, even when both carry the same GMM label. We call this a \emph{outcome geography} of trajectory space.
+The graph can be \emph{coloured} by any variable defined on the data points. Computing the mean of an outcome variable within each node transforms the abstract graph into a map on which outcomes are geographically readable. Regions where escape probability is high become visually and statistically distinguishable from regions where it is low, even when both carry the same GMM label. We call this an \emph{outcome geography} of trajectory space: a spatial representation of where in the trajectory manifold outcomes diverge, not a claim about why they do so.
 
 Outside the social sciences, Mapper has been used to identify cell-differentiation branches in single-cell RNA-seq \citep{rizvi2017single} and racial-profiling subgroups invisible to standard clustering \citep{lum2013extracting}. Life-course sociology, where the question is not merely ``how many types exist?'' but ``where within each type do outcomes diverge?'', has not picked it up.
 
 \subsection{Contribution}
 
-Mapper, applied to the PCA-20D trajectory embedding from \citet{author2026a}, reproduces the seven GMM regimes at node level while fragmenting the churning regimes into sub-regions with detectably different positions along the income gradient. A 24-configuration sensitivity analysis --- varying the clustering algorithm, its parameters, and the lens function --- establishes that within-regime heterogeneity is robust to all tested choices, but that noise rate (49\% under DBSCAN, 0\% under agglomerative) and bridge node count (zero vs.\ hundreds) are algorithm properties rather than data properties. Reconstructing trajectory-level outcomes from the raw state sequences and colouring Mapper nodes by employment rate, churning rate, and final income band produces an outcome geography that locates within-regime sub-populations with divergent labour market outcomes.
+Mapper, applied to the PCA-20D trajectory embedding from \citet{dorman2026a}, reproduces the seven GMM regimes at node level while fragmenting the churning regimes into sub-regions with detectably different positions along the income gradient. A 24-configuration sensitivity analysis --- varying the clustering algorithm, its parameters, and the lens function --- establishes that within-regime heterogeneity is robust to all tested choices, but that noise rate (49\% under DBSCAN, 0\% under agglomerative) and bridge node count (zero vs.\ hundreds) are algorithm properties rather than data properties. Reconstructing trajectory-level outcomes from the raw state sequences and colouring Mapper nodes by employment rate, churning rate, and final income band produces an outcome geography that locates within-regime sub-populations with divergent labour market outcomes. These findings are robust to Mapper configuration within the PCA-20D embedding and replicate qualitatively under UMAP-16D (\S\ref{sec:umap}), though specific node counts are embedding-dependent.
+
+Prior applications of Mapper in social science have used cross-sectional data \citep{lum2013extracting} or domain-specific similarity embeddings \citep{li2015identification}; longitudinal life-course sequences, where the question is not which people are similar but which have similar \emph{trajectories through time}, have not been analysed this way. \citet{halpin2010optimal} documented that sequence-analysis clusters are internally heterogeneous (silhouette rarely above 0.3) but had no method to map where the heterogeneity concentrates; Mapper supplies that map. For sociology, this navigability matters: it converts an abstract statistical observation (``clusters are heterogeneous'') into a concrete, spatially indexed answer about which sub-populations within a regime face divergent outcomes --- enabling both more precise theoretical accounts of absorbing-state boundaries and better-targeted policy interventions.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Literature Review}
@@ -39,7 +41,7 @@ KeplerMapper \citep{vanveen2019keplermapper} provides the standard Python implem
 
 \subsection{Mapper and Persistent Homology: Complementary Views}
 
-Persistent homology and Mapper address different questions about the same point cloud. PH computes global topological invariants --- the number and persistence of connected components, loops, and voids --- that characterise the multi-scale shape of the entire space. These invariants are coordinate-free, mathematically stable, and amenable to formal hypothesis testing via null-model batteries \citep{robinson2017hypothesis, author2026a}.
+Persistent homology and Mapper address different questions about the same point cloud. PH computes global topological invariants --- the number and persistence of connected components, loops, and voids --- that characterise the multi-scale shape of the entire space. These invariants are coordinate-free, mathematically stable, and amenable to formal hypothesis testing via null-model batteries \citep{robinson2017hypothesis, dorman2026a}.
 
 Mapper, by contrast, produces a coordinate-dependent graph that preserves local geometric structure at the cost of global topological guarantees. The Mapper graph is not a topological invariant: it depends on the choice of lens function, cover parameters, and clustering algorithm. What it provides instead is \emph{navigability} --- the ability to inspect individual regions of the data space, colour them by outcome variables, and identify sub-populations that global summaries compress away.
 
@@ -51,23 +53,29 @@ The recognition that typological labels can mask substantial within-type variati
 
 The specific problem of within-regime heterogeneity in mobility outcomes has received less attention. \citet{jenkins2011changing} documented extensive income churning in the UK, noting that individuals with similar annual income trajectories can have very different long-run outcomes depending on the timing and sequencing of income shocks. \citet{vandecasteele2010socio} distinguished between ``transient'' and ``recurrent'' poverty trajectories that would typically be assigned to the same cluster. Mapper detects sub-regime structure without imposing additional parametric assumptions.
 
+Recent methodological work has expanded tools for measuring complexity within sequence trajectories. \citet{Gabadinho2011} introduced complexity indices for life sequences including turbulence, distinguishing sequences that visit many states from those that alternate rapidly between states. \citet{Ritschard2018} reviewed entropy-based measures of within-trajectory complexity, noting that high-entropy trajectories need not cluster together even when their average state distributions are similar. \citet{Liao2022} proposed sequence network analysis, constructing co-occurrence graphs among sequence patterns and identifying communities. These methods reduce within-trajectory complexity to scalars; Mapper complements them by preserving the spatial structure of the sequence-type distribution --- identifying not just that some trajectories are more complex than others, but \emph{where} in the trajectory manifold complexity concentrates and what other outcomes accompany it.
+
 \subsection{Comparison with Optimal Matching}
 
 Optimal matching (OM) and its variants \citep{lesnard2010setting, studer2016what} produce pairwise distance matrices that can be clustered into trajectory types. OM distances summarise total dissimilarity between two sequences without localising which aspects differ; cutting the dendrogram at a given height produces flat clusters with no internal structure. Mapper produces a graph with internal topology: branches, hubs, and peripheries that correspond to distinct geometric sub-regions of each cluster.
 
-In our companion paper \citep{author2026a}, the adjusted Rand index between OM ($k = 7$) and GMM ($k = 7$) clusters was 0.26, indicating overlapping but non-identical boundaries. The moderate concordance suggests that broad trajectory types (secure employment, inactivity, churning) are recoverable by either method, while finer distinctions depend on the analytic approach. Mapper operates downstream of both methods: it takes the embedding as input and reveals structure within whatever typology is imposed.
+In our companion paper \citep{dorman2026a}, the adjusted Rand index between OM ($k = 7$) and GMM ($k = 7$) clusters was 0.26, indicating overlapping but non-identical boundaries. The moderate concordance suggests that broad trajectory types (secure employment, inactivity, churning) are recoverable by either method, while finer distinctions depend on the analytic approach. Mapper operates downstream of both methods: it takes the embedding as input and reveals structure within whatever typology is imposed.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Methods}
+\section{Data and Methods}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Data}
+\subsection{Data Source and Trajectory Construction}
 
-We draw on Understanding Society (USoc, 2009--2023), the UK's primary longitudinal household study. From over 118,000 respondents, we reconstruct 27,280 individual trajectories with at least 10 consecutive annual observations. Each trajectory is a time-ordered sequence through a nine-state space combining employment status --- employed~(E), unemployed~(U), or inactive~(I) --- with income band --- low~(L), mid~(M), or high~(H) --- derived from equivalised household income relative to 60\% of the contemporary median. The full data pipeline, including imputation, equivalisation, and cohort-overlap handling, is described in \citet{author2026a}.
+We reuse the trajectory dataset from our companion paper \citep{dorman2026a}. Briefly: from Understanding Society (USoc, waves 1--14, 2009--2023), we reconstruct 27,280 individual trajectories with at least 10 consecutive years of valid employment-income observations. Each person-year is assigned to one of nine states crossing employment status (employed, unemployed, inactive) with income band (low, mid, high), where low is defined as below 60\% of the contemporary equivalised household income median, mid as 60--120\%, and high as above 120\%.
+
+Mean trajectory length is 12.9 years (median 13, range 10--14). The range 10--14 is narrow because USoc operates on annual waves with the 14th fielded in 2022/23; shorter trajectories arise from cohort entry timing (later-entry cohorts have fewer waves available) and attrition, not from birth decade restrictions. The sample is 56\% female; birth cohorts span the 1930s through the 1990s. Forward-fill imputation affected 4.9\% of person-years.
+
+Known panel survey limitations apply. Low-income workers face higher attrition in household panels \citep{Watson2012}, so the sample slightly overrepresents stable employment trajectories. USoc's annual refreshment samples (BHPS cross-linkage from wave 1, ethnic minority boost, immigrant sample from wave 3) partially mitigate attrition bias but do not eliminate it. The companion paper \citep[{\S}3.1]{dorman2026a} reports a full attrition analysis; results here are subject to the same caveats. Full data construction details, including BHPS cross-wave linkage and equivalisation procedures, are reported there.
 
 \subsection{Embedding}
 
-Trajectories are embedded in continuous space via n-gram frequency vectors. For each trajectory, we compute unigram (9 dimensions: relative frequency of each state) and bigram (81 dimensions: relative frequency of each consecutive state pair) frequencies, yielding a 90-dimensional term-frequency vector. After standardisation, we project to 20 dimensions via PCA, retaining the same frozen PCA loadings used in \citet{author2026a}. The resulting 27,280 points in $\mathbb{R}^{20}$ serve as input to both persistent homology (companion paper) and Mapper (this paper).
+Trajectories are embedded in continuous space via n-gram frequency vectors. For each trajectory, we compute unigram (9 dimensions: relative frequency of each state) and bigram (81 dimensions: relative frequency of each consecutive state pair) frequencies, yielding a 90-dimensional term-frequency vector. After standardisation, we project to 20 dimensions via PCA, retaining the same frozen PCA loadings used in \citet{dorman2026a}. The resulting 27,280 points in $\mathbb{R}^{20}$ serve as input to both persistent homology (companion paper) and Mapper (this paper).
 
 \subsection{Mapper Construction}
 
@@ -80,26 +88,39 @@ We construct Mapper graphs using KeplerMapper~2.1 \citep{vanveen2019keplermapper
 \textbf{Clustering.} We evaluate two clustering algorithms within each cover element:
 
 \begin{enumerate}[nosep]
-  \item \emph{DBSCAN} \citep{ester1996density} with $\varepsilon \in \{0.2, 0.3, 0.5\}$ and $\mathrm{min\_samples} = 5$. DBSCAN does not require pre-specifying the number of clusters and naturally handles noise points (which are excluded from Mapper nodes). Varying $\varepsilon$ controls the neighbourhood radius: smaller $\varepsilon$ produces tighter clusters with more noise; larger $\varepsilon$ produces broader clusters with less noise.
+  \item \emph{DBSCAN} \citep{ester1996density} with $\varepsilon \in \{0.2, 0.3, 0.5\}$ and $\mathrm{min\_samples} = 5$. DBSCAN does not require pre-specifying the number of clusters and naturally handles noise points (which are excluded from Mapper nodes). Varying $\varepsilon$ controls the neighbourhood radius: smaller $\varepsilon$ produces tighter clusters with more noise; larger $\varepsilon$ produces broader clusters with less noise. We use DBSCAN as a \emph{conservative lower bound} on sub-regime structure: only geometrically dense sub-regions enter the graph, so detected structure is unlikely to reflect noise.
 
-  \item \emph{Agglomerative clustering} with distance threshold $\in \{1.0, 1.5, 2.0\}$ and no pre-specified cluster count. Unlike DBSCAN, agglomerative clustering assigns every point to a cluster --- there are no noise points, and coverage is necessarily 100\%. Varying the distance threshold controls the granularity: lower thresholds produce more, smaller clusters.
+  \item \emph{Agglomerative clustering} with distance threshold $\in \{1.0, 1.5, 2.0\}$ and no pre-specified cluster count. Unlike DBSCAN, agglomerative clustering assigns every point to a cluster --- there are no noise points, and coverage is necessarily 100\%. Varying the distance threshold controls the granularity: lower thresholds produce more, smaller clusters. We use agglomerative clustering as a \emph{complete-coverage upper bound}: it captures boundary-spanning trajectories that DBSCAN treats as noise, but at the cost of producing large graphs that are harder to visualise. The two algorithms are complementary: DBSCAN for exploratory visual inspection of robust structure; agglomerative for coverage statistics and boundary analysis.
 \end{enumerate}
 
 \textbf{Scaling.} Lens values are MinMax-scaled before cover construction, ensuring that the cover grid spans the data range in each lens dimension.
 
 \subsection{Node Colouring and Outcome Variables}
 
-For each Mapper node, we compute summary statistics (mean, standard deviation, minimum, maximum, count) for two continuous embedding-derived variables:
+For each Mapper node, we compute summary statistics (mean, standard deviation, minimum, maximum, count) for two continuous outcome variables:
 
 \begin{enumerate}[nosep]
-  \item \textbf{PC1 (income gradient proxy).} The first principal component of the PCA-20D embedding, which correlates with the employment-inactivity and income gradients.
+  \item \textbf{PC1 (income gradient proxy).} The first principal component of the PCA-20D embedding, which correlates with the employment-inactivity and income gradients. Higher PC1 values correspond to positions nearer the inactivity-low territory; lower values correspond to employed-high territory.
 
-  \item \textbf{L2 norm (trajectory extremity).} The Euclidean distance from the embedding centroid.
+  \item \textbf{L2 norm (trajectory extremity).} The Euclidean distance from the embedding centroid. Higher L2 norm indicates more atypical career paths.
 \end{enumerate}
 
-Additionally, we reconstruct 14 per-trajectory outcome variables from the raw nine-state sequences (Table~\ref{tab:outcomes}): employment rate, unemployment rate, inactivity rate, high-income rate, low-income rate, churning rate (state transitions per year), initial and final employment status and income band, an income-improvement score, and an escape-to-employment indicator. These enable node colouring by substantive outcomes rather than embedding coordinates alone.
-
 For each node we also compute the \textbf{regime distribution}: the fraction of member trajectories belonging to each of the seven GMM regimes.
+
+We additionally reconstruct six time-averaged outcome variables from the raw 9-state sequences. These are defined formally as follows. Let $T_i$ denote the trajectory length (number of observed waves) and $s_{i,t} \in \{\mathrm{EL, EM, EH, UL, UM, UH, IL, IM, IH}\}$ the state at wave~$t$ for individual~$i$, where E = employed, U = unemployed, I = inactive, L/M/H = low/mid/high income band.
+
+\begin{itemize}[nosep]
+  \item \textbf{Employment rate:} $e_i = T_i^{-1} \sum_{t=1}^{T_i} \mathbb{1}[s_{i,t} \in \{\mathrm{EL, EM, EH}\}]$
+  \item \textbf{Unemployment rate:} $u_i = T_i^{-1} \sum_{t=1}^{T_i} \mathbb{1}[s_{i,t} \in \{\mathrm{UL, UM, UH}\}]$
+  \item \textbf{Inactivity rate:} $\iota_i = T_i^{-1} \sum_{t=1}^{T_i} \mathbb{1}[s_{i,t} \in \{\mathrm{IL, IM, IH}\}]$
+  \item \textbf{High-income rate:} $h_i = T_i^{-1} \sum_{t=1}^{T_i} \mathbb{1}[s_{i,t} \in \{\mathrm{EH, UH, IH}\}]$
+  \item \textbf{Low-income rate:} $\ell_i = T_i^{-1} \sum_{t=1}^{T_i} \mathbb{1}[s_{i,t} \in \{\mathrm{EL, UL, IL}\}]$
+  \item \textbf{Churning rate:} $c_i = (T_i - 1)^{-1} \sum_{t=2}^{T_i} \mathbb{1}[s_{i,t} \neq s_{i,t-1}]$
+\end{itemize}
+
+Note that $e_i + u_i + \iota_i = 1$ and $h_i + m_i + \ell_i = 1$ by construction. All six outcomes are computed over the entire observed trajectory.
+
+\textbf{Information overlap.} PC1 and the outcome variables are derived from the same n-gram state sequences, so some correlation is expected. We report the full PC1--outcome correlation matrix in \S\ref{sec:correlation} and interpret sub-regime structure accordingly. Outcome variables that correlate weakly with PC1 --- specifically churning rate ($r = 0.12$) and final income band ($r = -0.22$) --- provide information about within-regime heterogeneity that is partially orthogonal to the embedding geometry. Strongly correlated variables (employment rate: $r = -0.92$; inactivity rate: $r = 0.85$) essentially summarise the same gradient that PC1 already represents; colouring nodes by these variables is interpretively useful but not independent of the embedding.
 
 \subsection{Sensitivity Analysis Design}\label{sec:sensitivity-design}
 
@@ -133,6 +154,8 @@ To detect within-regime sub-structure, we apply the following procedure for each
   \item Compute the regime-level mean and standard deviation of the outcome variable across all trajectories assigned to that regime in the full dataset.
   \item For each majority-regime node, compute a z-score for the node-level mean relative to the trajectory-level regime mean and standard deviation, and flag nodes where $|z| > 1.0$.
 \end{enumerate}
+
+The $|z| > 1.0$ threshold is a conventional screening criterion identifying nodes whose mean falls outside approximately one standard deviation of the regime mean. We do not claim statistical significance at this threshold; it serves as an exploratory flag for nodes that merit substantive inspection. To assess robustness, we report sub-regime counts at four thresholds ($|z| > 0.5, 1.0, 1.5, 2.0$) in Table~\ref{tab:multi-threshold}. Where formal inference is required --- specifically, for the count of sub-regime nodes across 7 regimes $\times$ 2 variables (14 comparisons) --- we apply Benjamini--Hochberg FDR correction at $q < 0.05$ (\S\ref{sec:subregime}). The permutation null tests in \S\ref{sec:subregime} provide a complementary, distribution-free assessment that does not depend on normality assumptions.
 
 Flagged nodes are the sub-regions where outcomes detectably differ from the regime average.
 
@@ -221,13 +244,33 @@ R3 & Employment-Inactive Mix & 12 & 4.7 \\
 \end{tabular}
 \end{table}
 
-Employed Mid (R4) fragments most (353 nodes). The churning regimes fragment less: Mixed Churn produces only 26 nodes, and Low-Income Churn produces 80 --- but with low coverage (232 of 3,787 and 755 of 2,064 trajectories respectively). The low coverage of churning regimes means that many churning trajectories are DBSCAN noise --- geometrically isolated points that do not cluster at $\varepsilon = 0.5$. This isolation is itself a structural finding, but it is partly algorithm-dependent (\S4.5).
+Employed Mid (R4) fragments most (353 nodes). The churning regimes fragment less: Mixed Churn produces only 26 nodes, and Low-Income Churn produces 80 --- but with low coverage (232 of 3,787 and 755 of 2,064 trajectories respectively). The low coverage of churning regimes means that many churning trajectories are DBSCAN noise --- geometrically isolated points that do not cluster at $\varepsilon = 0.5$. This isolation is itself a structural finding, but it is partly algorithm-dependent (\S\ref{sec:sensitivity}).
 
-\subsection{Within-Regime Heterogeneity}
+\subsection{Within-Regime Heterogeneity}\label{sec:subregime}
 
 Node purity is near-perfect (0.999), so binary indicators like escape probability produce no within-regime variation. Within-regime heterogeneity must be assessed on continuous variables. We use PC1 of the embedding (income gradient proxy) and L2 norm (trajectory extremity).
 
 \textbf{PC1 as income gradient.} Sub-regime analysis ($|z| > 1.0$ from regime-mean PC1) identifies \textbf{358 sub-regime nodes} across six of seven regimes (Table~\ref{tab:subregime}).
+
+\textbf{Permutation null test.} To assess whether 358 is larger than chance, we run two permutation tests (100 permutations each). \emph{Regime-shuffle null}: shuffle all GMM labels, rebuild Mapper, recount sub-regime nodes. Observed 358 nodes vs.\ null mean = 86.3 (sd = 12.5), range 42--113; empirical $\pval < 0.01$ (0/100 permutations reached 358). \emph{Within-node-shuffle null}: fix the Mapper graph, shuffle outcome values within each regime, recount. Observed 358 vs.\ null mean = 9.4 (sd = 5.2), range 0--26; $\pval < 0.01$. Both tests confirm that the observed sub-regime structure reflects genuine spatial concentration of outcome variation, not distributional properties of the outcome variable.
+
+\textbf{Multi-threshold analysis.} Table~\ref{tab:multi-threshold} reports sub-regime node counts at four z-score thresholds. FDR-corrected binomial tests (Benjamini--Hochberg, 14 regime$\times$variable comparisons) find 2 out of 14 statistically significant at $q < 0.05$ at the $|z| > 1.0$ threshold; both correspond to R6 (Low-Income Churn).
+
+\begin{table}[htbp]
+\centering
+\caption{Sub-Regime Node Counts by Z-Score Threshold (PCA-20D, DBSCAN $\varepsilon = 0.5$)}
+\label{tab:multi-threshold}
+\begin{tabular}{lrr}
+\toprule
+Threshold & PC1 sub-regime nodes & L2 sub-regime nodes \\
+\midrule
+$|z| > 0.5$ & 703 & 638 \\
+$|z| > 1.0$ & 358 & 297 \\
+$|z| > 1.5$ & 134 & 130 \\
+$|z| > 2.0$ & 40 & 74 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{table}[htbp]
 \centering
@@ -268,7 +311,7 @@ R3 & Emp-Inactive Mix & 12 & 0 & 0.13 \\
 \label{fig:subregime}
 \end{figure}
 
-\subsection{Causal Geography: Multi-Variable Node Colouring}
+\subsection{Outcome Geography: Multi-Variable Node Colouring}
 
 The same Mapper graph, coloured by different variables, exposes a multi-layered geography (Figures~\ref{fig:pc1}--\ref{fig:regimes}, \ref{fig:employment}--\ref{fig:final-income}).
 
@@ -280,7 +323,7 @@ The same Mapper graph, coloured by different variables, exposes a multi-layered 
 
 \subsubsection{Outcome Variables from Reconstructed Trajectories}
 
-We reconstruct 14 per-trajectory outcome variables from the raw 9-state sequences, enabling Mapper node colouring by substantive outcomes rather than embedding coordinates alone (Table~\ref{tab:outcomes}). Each of the 27,280 trajectories yields a time-averaged employment rate, unemployment rate, inactivity rate, high-income rate, low-income rate, churning rate (state transitions per year), initial and final employment status and income band, an employment improvement score, and an escape-to-employment indicator.
+We reconstruct six per-trajectory outcome variables from the raw 9-state sequences (defined formally in \S3.4), enabling Mapper node colouring by substantive outcomes rather than embedding coordinates alone (Table~\ref{tab:outcomes}). We additionally compute auxiliary variables (initial and final employment status and income band, trajectory length, number of state changes) for the correlation analysis in \S\ref{sec:correlation}.
 
 \begin{table}[htbp]
 \centering
@@ -300,7 +343,7 @@ Churning rate & 0.310 & 0.214 & 0.000 & 1.000 \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:regime-outcomes} reports per-regime means, confirming that the reconstructed outcomes align with the regime interpretation established in \citet{author2026a}.
+Table~\ref{tab:regime-outcomes} reports per-regime means, confirming that the reconstructed outcomes align with the regime interpretation established in \citet{dorman2026a}.
 
 \begin{table}[htbp]
 \centering
@@ -313,10 +356,10 @@ Regime & Emp. & Unemp. & Inact. & High Inc. & Low Inc. & Churn \\
 R0 Mixed Churn & 0.411 & 0.206 & 0.383 & 0.422 & 0.237 & 0.491 \\
 R1 Secure EH & 0.923 & 0.003 & 0.074 & 0.854 & 0.000 & 0.153 \\
 R2 Inactive Low & 0.000 & 0.000 & 1.000 & 0.278 & 0.391 & 0.250 \\
-R3 Emp-Inact. Mix & 0.586 & 0.000 & 0.414 & 0.406 & 0.200 & 0.452 \\
+R3 Emp-Inact.\ Mix & 0.586 & 0.000 & 0.414 & 0.406 & 0.200 & 0.452 \\
 R4 Employed Mid & 0.985 & 0.000 & 0.015 & 0.421 & 0.260 & 0.373 \\
-R5 High-Inc. Inact. & 0.413 & 0.004 & 0.583 & 0.673 & 0.084 & 0.322 \\
-R6 Low-Inc. Churn & 0.589 & 0.101 & 0.310 & 0.145 & 0.612 & 0.352 \\
+R5 High-Inc.\ Inact.\ & 0.413 & 0.004 & 0.583 & 0.673 & 0.084 & 0.322 \\
+R6 Low-Inc.\ Churn & 0.589 & 0.101 & 0.310 & 0.145 & 0.612 & 0.352 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -339,7 +382,7 @@ R6 Low-Inc. Churn & 0.589 & 0.101 & 0.310 & 0.145 & 0.612 & 0.352 \\
 \label{fig:churning}
 \end{figure}
 
-\textbf{Final income band (Figure~\ref{fig:final-income}).} Colouring by mean final income band (Low = 0, Mid = 1, High = 2) produces the most heterogeneous map. Within the Inactive Low cluster (R2), some nodes end at high income (individuals who exited inactivity to high-income employment late in the observation window) while others end low (persistently inactive and low-income). The R5 (High-Income Inactive) cluster is predominantly green, confirming that these individuals retain high household income despite inactivity --- a retirement or wealth effect. R6 (Low-Income Churn) splits visually into two sub-populations on final income: one trending toward mid-income (near the R4 boundary) and one remaining low (near R2).
+\textbf{Final income band (Figure~\ref{fig:final-income}).} Colouring by mean final income band (Low = 0, Mid = 1, High = 2) produces the most heterogeneous map. Within the Inactive Low cluster (R2), some nodes end at high income (green: individuals who exited inactivity to high-income employment late in the observation window) while others end low (red: persistently inactive and low-income). The R5 (High-Income Inactive) cluster is predominantly green, confirming that these individuals retain high household income despite inactivity --- a retirement or wealth effect. R6 (Low-Income Churn) splits visually into two sub-populations on final income: one trending toward mid-income (yellow, near the R4 boundary) and one remaining low (red, near R2).
 
 \begin{figure}[htbp]
 \centering
@@ -348,7 +391,31 @@ R6 Low-Inc. Churn & 0.589 & 0.101 & 0.310 & 0.145 & 0.612 & 0.352 \\
 \label{fig:final-income}
 \end{figure}
 
-\subsection{Sensitivity Analysis}
+\subsubsection{Churning Decomposition: R3 and R5}
+
+Regimes R3 (Employment-Inactive Mix, $n = 3{,}333$) and R5 (High-Income Inactive, $n = 1{,}813$) are both mixed employment-inactivity regimes with similar employment rates (${\sim}0.41$--$0.59$), yet their Mapper sub-structure differs. We decompose the year-to-year state transitions within each regime into six types---E$\leftrightarrow$I, E$\leftrightarrow$U, U$\leftrightarrow$I, within-E, within-I, within-U---to characterise the nature of their churning (Table~\ref{tab:churning-decomp}).
+
+\begin{table}[htbp]
+\centering
+\caption{Transition Type Decomposition for R3 and R5}
+\label{tab:churning-decomp}
+\begin{tabular}{lrr}
+\toprule
+Transition type & R3 Emp-Inactive Mix & R5 High-Inc Inactive \\
+\midrule
+E $\leftrightarrow$ I (cross-status) & 36.4\% & 35.5\% \\
+within-E (income band change) & 38.6\% & 7.7\% \\
+within-I (inactivity income change) & 25.1\% & 54.4\% \\
+U $\leftrightarrow$ I & 0.0\% & 2.4\% \\
+E $\leftrightarrow$ U & 0.0\% & 0.0\% \\
+within-U & 0.0\% & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The E$\leftrightarrow$I cross-status transition rate is nearly identical across R3 and R5 (36.4\% vs.\ 35.5\%), confirming that both regimes involve cycling between employment and inactivity. What distinguishes them is within-regime churning: R3 generates substantial income-band movement while employed (within-E = 38.6\%), suggesting volatile earnings; R5 generates substantial income-band movement while inactive (within-I = 54.4\%), suggesting ongoing income volatility \emph{within} inactivity --- consistent with the household-income-based equivalisation capturing non-employment income (pension income, partner earnings, benefit fluctuations). The Mapper graph replicates this distinction spatially: R3 nodes show a wide spread in high-income rate; R5 nodes show concentrated high-income rates but wide variation in inactivity duration.
+
+\subsection{Sensitivity Analysis}\label{sec:sensitivity}
 
 We evaluate 24 configurations across four lens functions, three DBSCAN $\varepsilon$ values, and three agglomerative thresholds (Tables~\ref{tab:dbscan-sweep}--\ref{tab:agglom-sweep}). The results separate findings that are robust to algorithm choice from findings that depend on it.
 
@@ -412,7 +479,7 @@ Density & 2.0 & 13,620 & 100\% & 0.380 & 0.990 & 263 & 5,100 \\
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{fig6_dbscan_vs_agglom}
-\caption{DBSCAN ($\varepsilon = 0.5$) vs.\ agglomerative ($t = 1.5$) comparison.}
+\caption{DBSCAN ($\varepsilon = 0.5$) vs.\ agglomerative ($t = 1.5$) comparison. Left: DBSCAN graph (1,060 nodes, 50.7\% coverage). Right: Agglomerative graph showing the 1,500 largest nodes for visual clarity; full graph contains 37,772 nodes at 100\% coverage. Node colour indicates dominant GMM regime.}
 \label{fig:dbscan-agglom}
 \end{figure}
 
@@ -425,7 +492,7 @@ Density & 2.0 & 13,620 & 100\% & 0.380 & 0.990 & 263 & 5,100 \\
 
 \subsubsection{Findings Robust to Algorithm Choice}
 
-\textbf{Within-regime heterogeneity persists across all 24 configurations.} Every DBSCAN and agglomerative configuration detects sub-regime structure on both PC1 and L2 norm. The number of sub-regime nodes varies with resolution (more nodes $\to$ more sub-regime nodes), but the qualitative pattern --- R6 and R5 most heterogeneous, R3 least --- is invariant.
+\textbf{Within-regime heterogeneity persists across all 24 configurations (within PCA-20D).} Every DBSCAN and agglomerative configuration detects sub-regime structure on both PC1 and L2 norm. Section~\ref{sec:umap} confirms that these findings replicate qualitatively under UMAP-16D. The number of sub-regime nodes varies with resolution (more nodes $\to$ more sub-regime nodes), but the qualitative pattern --- R6 and R5 most heterogeneous, R3 least --- is invariant.
 
 \textbf{Coverage is determined by the clustering algorithm, not the cover.} Within each algorithm class, coverage is effectively constant across lens functions and parameter values: ${\sim}40\%$ at DBSCAN $\varepsilon = 0.2$, ${\sim}44\%$ at $\varepsilon = 0.3$, ${\sim}51\%$ at $\varepsilon = 0.5$, and 100\% for all agglomerative configurations. The cover parameters (\texttt{n\_cubes}, overlap) control graph resolution; the clustering algorithm controls what fraction of the sample enters the graph at all.
 
@@ -439,11 +506,93 @@ Density & 2.0 & 13,620 & 100\% & 0.380 & 0.990 & 263 & 5,100 \\
 
 \textbf{Bridge nodes are algorithm-dependent.} Under DBSCAN, zero or very few bridge nodes exist (0--2 across all 12 DBSCAN configurations). Under agglomerative clustering, 86--449 bridge nodes appear, scaling with the distance threshold and lens dimensionality. The PCA-2D lens produces the most bridge nodes (203--449), consistent with its 2D cover creating more boundary interactions. The regime boundaries are not as geometrically sharp as the DBSCAN results suggest --- the sharpness reflects DBSCAN's exclusion of boundary-region points as noise rather than the absence of boundary-spanning trajectories.
 
+\textbf{Bridge node scaling with distance threshold (Table~\ref{tab:bridge-scaling}).} Table~\ref{tab:bridge-scaling} reports bridge node counts as a function of agglomerative distance threshold for each lens function. The relationship is monotonically increasing across all four lenses, with no natural elbow --- larger thresholds merge more boundary trajectories into multi-regime nodes. This monotonic scaling confirms that bridge node counts are threshold-dependent rather than reflecting a discrete boundary width.
+
+\begin{table}[htbp]
+\centering
+\caption{Bridge Node Count by Agglomerative Distance Threshold and Lens Function}
+\label{tab:bridge-scaling}
+\begin{tabular}{lrrr}
+\toprule
+Lens & Threshold 1.0 & Threshold 1.5 & Threshold 2.0 \\
+\midrule
+PCA-2D & 203 & 359 & 449 \\
+L2 norm & 112 & 168 & 233 \\
+Sum & 108 & 158 & 206 \\
+Density & 86 & 151 & 263 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Lens Function Effects}
 
 The four lens functions produce structurally similar Mapper graphs with interpretable differences (Figure~\ref{fig:lens}). PCA-2D, the only 2D lens, produces the most nodes and edges (1,060 nodes, 1,774 edges at DBSCAN $\varepsilon = 0.5$) because its 2D cover grid has more cells than any 1D cover. The 1D lenses (L2 norm, sum, density) produce sparser graphs (494--586 nodes, 265--377 edges) but with comparable coverage.
 
 L2 norm and sum lenses produce higher NMI (0.485, 0.488) than PCA-2D (0.434) or density (0.416), suggesting that these 1D projections align more closely with the GMM's classification boundaries. The density lens, despite capturing local crowding, does not improve regime correspondence --- possibly because the GMM already captures density modes.
+
+\subsection{Embedding Robustness (UMAP-16D)}\label{sec:umap}
+
+All results in \S4.1--\S4.6 use PCA-20D embeddings. To assess whether the sub-regime structure is specific to this embedding, we repeat the baseline Mapper analysis on UMAP-16D embeddings \citep{mcinnes2018umap} cached from the companion analysis. UMAP is a non-linear manifold learning method that preserves local neighbourhood structure at the cost of global distance properties; it often provides a more compact but less interpretable embedding than PCA.
+
+\begin{table}[htbp]
+\centering
+\caption{Mapper on UMAP-16D vs.\ PCA-20D (DBSCAN, $\varepsilon = 0.5$)}
+\label{tab:umap}
+\begin{tabular}{llrrrrrr}
+\toprule
+Embedding & Projection & Nodes & Coverage & NMI & Purity & Bridge & Sub-regime \\
+\midrule
+PCA-20D & PCA-2D & 1,060 & 50.7\% & 0.434 & 0.999 & 0 & 358 \\
+UMAP-16D & First-2D & 1,604 & 100\% & 0.422 & 0.967 & 81 & 576 \\
+UMAP-16D & L2 norm & 3,238 & 100\% & 0.400 & 0.954 & 164 & 828 \\
+UMAP-16D & dims 1--2 as lens & 1,604 & 100\% & 0.422 & 0.967 & 81 & 576 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Several findings from the PCA-20D analysis replicate under UMAP-16D:
+
+\begin{enumerate}[nosep]
+  \item \textbf{Sub-regime structure persists.} Under UMAP-16D, 576--828 sub-regime nodes are detected, compared with 358 under PCA-20D (the higher count reflects UMAP's 100\% coverage vs.\ PCA-20D's 51\%). The qualitative finding --- distinct geometric sub-regions within regimes --- is embedding-invariant.
+
+  \item \textbf{Regime purity remains high (0.954--0.967).} The seven GMM regimes occupy geometrically separable regions in UMAP-16D space, confirming that the typology is not PCA-specific.
+
+  \item \textbf{Bridge nodes appear under UMAP-16D.} The PCA-20D DBSCAN analysis produces zero bridge nodes; UMAP-16D produces 81--164. This is consistent with the agglomerative findings (\S\ref{sec:sensitivity}): DBSCAN's zero bridge count partially reflects its noise exclusion in sparse boundary regions. UMAP's complete coverage exposes those boundary-spanning trajectories.
+\end{enumerate}
+
+One finding differs: UMAP-16D NMI (0.400--0.422) is slightly lower than PCA-20D NMI (0.434). The GMM was fitted on PCA-20D, so some divergence is expected. The conclusion from \S4.1--\S4.6 that the dominant findings are robust to Mapper configuration holds; they are also substantially robust to the choice of embedding method, with the caveat that UMAP's non-linear compression may redistribute some inter-regime boundary trajectories.
+
+\subsection{Outcome--Embedding Correlation Matrix (Addressing Circularity)}\label{sec:correlation}
+
+The six outcome variables are derived from the same n-gram state sequences used to construct the PCA-20D embedding. We report the full PC1--outcome Pearson correlation matrix to flag variables that are essentially redundant with PC1 and those that provide independent information.
+
+\begin{table}[htbp]
+\centering
+\caption{Pearson Correlations between PC1 and Outcome Variables ($N = 27{,}280$)}
+\label{tab:correlation}
+\begin{tabular}{lrr}
+\toprule
+Outcome variable & $r$ with PC1 & $r$ with L2 norm \\
+\midrule
+Employment rate & $-0.921$ & $-0.148$ \\
+Inactivity rate & $+0.846$ & $+0.125$ \\
+Final employment status & $+0.706$ & $+0.165$ \\
+Initial employment status & $+0.629$ & $+0.058$ \\
+Unemployment rate & $+0.346$ & $+0.229$ \\
+High-income rate & $-0.305$ & $+0.143$ \\
+Low-income rate & $+0.265$ & $+0.085$ \\
+Initial income band & $-0.260$ & $+0.012$ \\
+\textbf{Final income band} & $\mathbf{-0.223}$ & $\mathbf{+0.150}$ \\
+\textbf{Churning rate} & $\mathbf{+0.115}$ & $\mathbf{+0.108}$ \\
+Trajectory length & $-0.099$ & $-0.004$ \\
+N state changes & $+0.094$ & $+0.109$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Employment rate ($r = -0.92$) and inactivity rate ($r = +0.85$) are highly correlated with PC1: colouring Mapper nodes by these variables largely reproduces the PC1-gradient visualisation. This is expected: PC1 is a linear combination of n-gram frequencies that primarily captures the employment-inactivity contrast, so the employment rate and inactivity rate Mapper figures do not provide independent evidence of sub-regime structure beyond PC1.
+
+\textbf{Churning rate ($r = +0.12$) and final income band ($r = -0.22$) are weakly correlated with PC1}, indicating that these outcomes capture information not summarised by the income gradient. The within-R6 bifurcation on final income band (\S4.4.1) and the orthogonal churning structure visible in Figure~\ref{fig:churning} therefore represent genuinely independent information about within-regime heterogeneity.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Discussion}
@@ -451,13 +600,13 @@ L2 norm and sum lenses produce higher NMI (0.485, 0.488) than PCA-2D (0.434) or 
 
 \subsection{What Mapper Adds to Global Persistent Homology}
 
-The companion paper \citep{author2026a} established that UK trajectory space has significant topological structure: temporal ordering creates cluster separation (order-shuffle $\HH{0}$ $\pval < 0.005$), and Wasserstein diagram-level distances reject the first-order Markov null ($\pval = 0.002$). The Mapper analysis shifts from global shape to local geography.
+The companion paper \citep{dorman2026a} established that UK trajectory space has significant topological structure: temporal ordering creates cluster separation (order-shuffle $\HH{0}$ $\pval < 0.005$), and Wasserstein diagram-level distances reject the first-order Markov null ($\pval = 0.002$). The Mapper analysis resolves within-regime geometry that the global persistence diagram cannot represent.
 
 The seven GMM regimes are geometrically distinct --- purity exceeds 0.99 across all 24 tested configurations. But within these pure-regime regions, Mapper fragments each regime into nodes that vary on the PC1 income gradient. Low-Income Churn spans a 4-unit PC1 range across its 80 DBSCAN nodes; High-Income Inactive spans 4 units across 164 nodes. The persistence diagram summarises global connectivity and cannot see this; flat clustering assigns a single label and cannot see it either.
 
 \subsection{The Algorithm Matters: Noise and Bridge Nodes}
 
-Our sensitivity analysis reveals a cautionary finding for applied Mapper users. Two results that appeared to characterise the data --- the 49\% noise rate and the absence of bridge nodes --- turn out to characterise the clustering algorithm.
+Two results that appeared to characterise the data --- the 49\% noise rate and the absence of bridge nodes --- turn out to characterise the clustering algorithm.
 
 Under DBSCAN ($\varepsilon = 0.5$), 49.3\% of trajectories are excluded as noise and zero bridge nodes exist, suggesting that regime boundaries are geometrically sharp and churning trajectories are too dispersed to cluster. Under agglomerative clustering (threshold = 1.5), 100\% of trajectories are covered and 359 bridge nodes span regime boundaries. The same data, the same cover, the same lens --- different algorithm, different conclusions about noise and boundary structure.
 
@@ -465,9 +614,9 @@ This does not invalidate DBSCAN-based results. DBSCAN's noise exclusion is itsel
 
 \subsection{Implications for Within-Regime Heterogeneity}
 
-The within-regime heterogeneity detected by Mapper is robust to all 24 configurations tested. For empirical research, this means that regime-level statistics (mean escape rate, mean income, mean employment share) are incomplete descriptors. The Low-Income Churn regime's 80 DBSCAN nodes span from PC1 $\approx -1.2$ (near the Employed Mid boundary) to PC1 $\approx 2.8$ (near the Inactive Low boundary). Individuals at these opposite ends of the same regime label occupy qualitatively different positions in trajectory space. Regression models that use regime membership as a predictor implicitly average over this variation.
+Regime-level statistics (mean escape rate, mean income, mean employment share) are incomplete descriptors of trajectory types, and the incompleteness is not uniform. The Low-Income Churn regime's 80 DBSCAN nodes span from PC1 $\approx -1.2$ (near the Employed Mid boundary) to PC1 $\approx 2.8$ (near the Inactive Low boundary) --- a 4-unit range that a single regime label collapses to zero.
 
-For policy, the Mapper graph works as a cartographic tool. Colouring nodes by PC1 shows where within a disadvantaged regime individuals sit on the income gradient. Nodes near the Employed Mid boundary plausibly contain individuals whose churning reflects temporary disruption with ongoing labour market attachment; nodes near the Inactive Low boundary contain individuals drifting toward the absorbing inactivity state. These sub-populations may require different interventions, but a regime-level analysis treats them identically.
+For policy, the Mapper graph works as a cartographic tool. Colouring nodes by PC1 shows where within a disadvantaged regime individuals sit on the income gradient. Nodes near the Employed Mid boundary plausibly contain individuals whose churning reflects temporary disruption with ongoing labour market attachment; nodes near the Inactive Low boundary contain individuals drifting toward the absorbing inactivity state. These sub-populations may require different interventions; the Mapper graph identifies \emph{where} in trajectory space the distinction matters most, while causal identification of what interventions would work requires additional covariates and experimental or quasi-experimental variation. The phrase ``outcome geography'' we use throughout is intended to convey spatial structure in outcome distributions, not a claim about mechanisms.
 
 \subsection{Coverage and the Churning Regimes}
 
@@ -479,9 +628,20 @@ A pragmatic recommendation: use DBSCAN for initial visualisation and interpretiv
 
 \subsection{Comparison with Optimal Matching}
 
-OM produces flat clusters with no internal structure; the silhouette score of 0.215 at $k = 7$ \citep{author2026a} confirms internal heterogeneity. Mapper makes this heterogeneity explicit and navigable. Where OM says ``these 2,064 trajectories all belong to the Low-Income Churn type'', Mapper says ``within this type, there are 80 geometrically distinct sub-regions (under DBSCAN, covering 37\% of members) or over 5,000 (under agglomerative, covering 100\%), with PC1 values spanning 4 units.''
+OM produces flat clusters with no internal structure; the silhouette score of 0.215 at $k = 7$ \citep{dorman2026a} confirms internal heterogeneity. Mapper makes this heterogeneity explicit and navigable. Where OM says ``these 2,064 trajectories all belong to the Low-Income Churn type'', Mapper says ``within this type, there are 80 geometrically distinct sub-regions (under DBSCAN, covering 37\% of members) or over 5,000 (under agglomerative, covering 100\%), with PC1 values spanning 4 units.''
 
-OM remains computationally efficient and well understood. Mapper is more complex and parameter-dependent, but the principal findings survive all 24 sensitivity configurations. OM asks ``how many types?''; Mapper asks ``what is inside each type?''
+OM remains computationally efficient and well understood. Mapper is more complex and parameter-dependent, but the principal findings survive all 24 sensitivity configurations and the UMAP-16D embedding check. OM asks ``how many types?''; Mapper asks ``what is inside each type?''
+
+\textbf{Computational cost comparison.} OM requires an $O(N^2)$ pairwise distance matrix ($27{,}280 \times 27{,}280 = 744$M pairs) followed by $O(N^2 \log N)$ Ward linkage, totalling roughly 15--30 minutes on a modern laptop. Mapper requires $O(N \cdot k)$ where $k$ is the number of cover elements ($30 \times 30 = 900$ bins here), each clustered with DBSCAN or agglomerative clustering; total runtime for our 24-configuration sweep is approximately 120 seconds. For exploratory analysis with iterative parameter tuning, Mapper is substantially more practical.
+
+\textbf{OM dendrogram comparison (Figure~\ref{fig:om-dendrogram}).} Figure~\ref{fig:om-dendrogram} presents the OM Ward dendrogram truncated to 50 representative leaves and coloured by cluster-mean employment rate at the $k = 7$ cut, using the same colour scheme as the Mapper employment rate graph (Figure~\ref{fig:employment}). The dendrogram confirms that two broad super-clusters account for most separability: a high-employment group (left, employment rate 0.85--0.99) and a mixed-to-inactive group (right, 0.00--0.59). Within each super-cluster, sub-divisions are visible at lower Ward distances, but these sub-divisions do not correspond directly to the spatial sub-regions Mapper identifies within each regime. This is because the OM dendrogram lacks position information: two trajectories that are spatially adjacent in PCA-20D but belong to different sub-clusters can appear far apart in the dendrogram if their pairwise OM distance is large. Mapper's spatial layout --- where adjacency reflects geometric proximity, not summary statistics --- is what makes the within-regime bifurcation in R6 visible. For a sociology audience, the Mapper graph is interpretable as a map (``these individuals are near the boundary with stable employment''), whereas the dendrogram is interpretable as a hierarchy (``these sub-clusters merge at Ward distance 12''). The former is more natural for questions about where within a regime someone sits.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig11_om_dendrogram}
+\caption{OM Ward dendrogram coloured by cluster-mean employment rate ($k = 7$).}
+\label{fig:om-dendrogram}
+\end{figure}
 
 \subsection{Limitations}
 
@@ -489,7 +649,7 @@ Mapper is not a topological invariant: the graph depends on the lens function, c
 
 The within-regime heterogeneity we detect is descriptive. The Mapper graph shows \emph{where} outcomes differ but not \emph{why}. Identifying mechanisms requires additional covariates (age, education, region) and potentially causal methods; the Mapper graph identifies the sub-populations for whom the distinction matters most, but does not explain it.
 
-The analysis depends on the PCA-20D embedding from n-gram frequency vectors. The companion paper reports ARI = 0.33 between PCA-20D and UMAP-16D regime assignments, so finer-grained structure is partly embedding-dependent. Whether Mapper sub-regions are robust to alternative embeddings remains untested.
+The analysis depends on the PCA-20D embedding from n-gram frequency vectors. Section~\ref{sec:umap} reports that the principal sub-regime findings replicate on UMAP-16D embeddings, but with some quantitative differences (lower NMI, higher sub-regime count from complete coverage). All claims about within-regime heterogeneity and algorithm dependence are therefore robust to Mapper configuration and qualitatively robust to embedding choice, but contingent on the n-gram frequency representation; alternative sequence representations (e.g., optimal matching distance matrices, recurrent neural network embeddings) remain untested.
 
 The agglomerative clustering graphs (13,620--44,396 nodes) are too large for effective visual inspection. We visualise only the 1,500 largest nodes (Figure~\ref{fig:dbscan-agglom}, right panel). Alternative approaches --- interactive tools, hierarchical node aggregation, or topological simplification --- may be needed to make large agglomerative Mapper graphs interpretable.
 
@@ -497,10 +657,16 @@ The agglomerative clustering graphs (13,620--44,396 nodes) are too large for eff
 \section{Conclusion}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Within-regime heterogeneity is real. Across all 24 Mapper configurations --- two clustering algorithms, four lens functions, three parameter values each --- the seven GMM regimes fragment into sub-regions with distinct positions along the PC1 income gradient. Low-Income Churn nodes span 4 units on PC1; the endpoints represent qualitatively different positions in trajectory space. The persistence diagram cannot see this (it tracks global connectivity). The GMM label cannot see it (it assigns one type per trajectory).
+Within-regime heterogeneity is real. Across all 24 Mapper configurations --- two clustering algorithms, four lens functions, three parameter values each --- and under both PCA-20D and UMAP-16D embeddings, the seven GMM regimes fragment into sub-regions with distinct positions along the dominant embedding gradient. Low-Income Churn nodes span 4 units on PC1; the endpoints represent qualitatively different positions in trajectory space. The persistence diagram cannot see this (it tracks global connectivity). The GMM label cannot see it (it assigns one type per trajectory).
 
 The clustering algorithm matters more than is typically acknowledged. Under DBSCAN, half the sample is noise and no bridge nodes exist; under agglomerative clustering, coverage is complete and hundreds of bridge nodes span regime boundaries. Mapper papers that report noise rates or bridge statistics under a single clustering algorithm may be reporting algorithm properties.
 
-Colouring nodes by reconstructed trajectory outcomes --- employment rate, churning rate, final income band --- turns the graph into something a policymaker or a sociologist can read. Within Low-Income Churn, nodes near Employed Mid show employment rates of~0.7 and final income trending mid-range; nodes near Inactive Low show rates below~0.3. A regime-level analysis treats these sub-populations identically. Mapper does not.
+Colouring nodes by reconstructed trajectory outcomes --- employment rate, churning rate, final income band --- turns the graph into an outcome geography that a policymaker or a sociologist can read. Within Low-Income Churn, nodes near Employed Mid show employment rates of~0.7 and final income trending mid-range; nodes near Inactive Low show rates below~0.3. A regime-level analysis treats these sub-populations identically. Mapper does not.
 
-The approach applies to any point cloud with typological labels and outcome variables. The immediate test is cross-national: if the within-regime bifurcation in R6 reflects UK-specific labour market institutions, it should differ in SOEP and PSID data. If it does not, it reflects generic career dynamics --- and the policy implications change accordingly.
+The immediate next step is cross-national replication on SOEP, PSID, and CNEF, where the regime boundaries and within-regime bifurcations should differ if they reflect UK-specific labour market institutions. If they do not, the structure is generic --- and the policy implication is that the sub-population near the R6/R4 boundary is identifiable from trajectory data alone, regardless of national context.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section*{Code Availability}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+All analysis code and reproducible scripts for this paper are available at \url{https://github.com/stephendor/TDL} (branch: \texttt{papers/p02-mapper}). The pipeline is implemented in Python using KeplerMapper~2.1 \citep{vanveen2019keplermapper}. Key modules: \texttt{trajectory\_tda/mapper/mapper\_pipeline.py} (Mapper construction and sensitivity sweep), \texttt{trajectory\_tda/mapper/validation.py} (regime validation and sub-regime detection), \texttt{trajectory\_tda/scripts/reconstruct\_trajectory\_outcomes.py} (outcome variable reconstruction from raw sequences), \texttt{trajectory\_tda/mapper/permutation\_null.py} (permutation null tests). The sensitivity sweep results, permutation null distributions, and correlation matrices are archived in \texttt{results/trajectory\_tda\_mapper/reviewer\_response/}.
