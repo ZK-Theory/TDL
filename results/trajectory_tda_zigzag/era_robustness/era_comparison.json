@@ -1,0 +1,93 @@
+{
+  "full_panel_h0_at_eps1": {
+    "eps": 1.0,
+    "landmarks": 150,
+    "n_h0_bars": 4,
+    "h0_bars": [
+      {
+        "birth_level": 0.0,
+        "death_level": 11.0,
+        "birth_year": 1991.0,
+        "death_year": 1996.5,
+        "lifetime_years": 5.5
+      },
+      {
+        "birth_level": 0.0,
+        "death_level": 24.0,
+        "birth_year": 1991.0,
+        "death_year": 2003.0,
+        "lifetime_years": 12.0
+      },
+      {
+        "birth_level": 35.0,
+        "death_level": 63.0,
+        "birth_year": 2008.5,
+        "death_year": 2022.5,
+        "lifetime_years": 14.0
+      },
+      {
+        "birth_level": 0.0,
+        "death_level": 63.0,
+        "birth_year": 1991.0,
+        "death_year": 2022.5,
+        "lifetime_years": 31.5
+      }
+    ]
+  },
+  "bhps_features": {
+    "eps": 1.0,
+    "landmarks": 150,
+    "n_h0_bars": 3,
+    "h0_bars": [
+      {
+        "birth_year": 1991.0,
+        "death_year": 2008.5,
+        "lifetime_years": 17.5
+      },
+      {
+        "birth_year": 1991.0,
+        "death_year": 2008.5,
+        "lifetime_years": 17.5
+      },
+      {
+        "birth_year": 1991.0,
+        "death_year": 2008.5,
+        "lifetime_years": 17.5
+      }
+    ]
+  },
+  "usoc_features": {
+    "eps": 1.0,
+    "landmarks": 150,
+    "n_h0_bars": 4,
+    "h0_bars": [
+      {
+        "birth_year": 2009.0,
+        "death_year": 2022.5,
+        "lifetime_years": 13.5
+      },
+      {
+        "birth_year": 2009.0,
+        "death_year": 2022.5,
+        "lifetime_years": 13.5
+      },
+      {
+        "birth_year": 2009.0,
+        "death_year": 2022.5,
+        "lifetime_years": 13.5
+      },
+      {
+        "birth_year": 2009.0,
+        "death_year": 2022.5,
+        "lifetime_years": 13.5
+      }
+    ]
+  },
+  "adjudication": [
+    "BHPS at \u03b5=1.0: 3 components \u2014 1991.0\u21922008.5 (17.5yr), 1991.0\u21922008.5 (17.5yr), 1991.0\u21922008.5 (17.5yr). Internal sub-structure present; features not artefactual.",
+    "USOC at \u03b5=1.0: 4 components \u2014 2009.0\u21922022.5 (13.5yr), 2009.0\u21922022.5 (13.5yr), 2009.0\u21922022.5 (13.5yr), 2009.0\u21922022.5 (13.5yr). Internal sub-structure present; features not artefactual.",
+    "BHPS at \u03b5=0.51, L=100: 78 long-lived H\u2080 bars present. Feature sub-structure survives within BHPS era.",
+    "VERDICT: BOTH eras show internal topological sub-structure at \u03b5=1.0. Full-panel features are genuine, not merge artefacts."
+  ],
+  "verdict": "BOTH eras show internal topological sub-structure at \u03b5=1.0. Full-panel features are genuine, not merge artefacts."
+}

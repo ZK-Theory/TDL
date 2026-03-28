@@ -1,0 +1,318 @@
+{
+  "eps": 0.6,
+  "n_landmarks": 150,
+  "n_h0_bars": 30,
+  "n_h1_bars": 3453,
+  "n_h0_long": 30,
+  "elapsed_seconds": 1.6179499626159668,
+  "h0_bars": [
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    }
+  ],
+  "h0_long_bars": [
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    }
+  ],
+  "h1_summary": {
+    "n_finite": 3453,
+    "mean_lifetime": 17.5,
+    "median_lifetime": 17.5,
+    "max_lifetime": 17.5
+  }
+}

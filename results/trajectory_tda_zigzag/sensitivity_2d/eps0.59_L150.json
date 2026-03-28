@@ -1,0 +1,1145 @@
+{
+  "eps": 0.59,
+  "n_landmarks": 150,
+  "n_h0_bars": 161,
+  "n_h1_bars": 8525,
+  "elapsed_seconds": 19.9,
+  "h0_bars": [
+    {
+      "birth_level": 0.0,
+      "death_level": 1.0,
+      "birth_year": 1991.0,
+      "death_year": 1991.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 1.0,
+      "birth_year": 1991.0,
+      "death_year": 1991.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 1.0,
+      "birth_year": 1991.0,
+      "death_year": 1991.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 1.0,
+      "birth_year": 1991.0,
+      "death_year": 1991.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 3.0,
+      "birth_year": 1991.0,
+      "death_year": 1992.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 5.0,
+      "birth_year": 1991.0,
+      "death_year": 1993.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 9.0,
+      "birth_year": 1991.0,
+      "death_year": 1995.5,
+      "lifetime_years": 4.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 9.0,
+      "birth_year": 1991.0,
+      "death_year": 1995.5,
+      "lifetime_years": 4.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 11.0,
+      "birth_year": 1991.0,
+      "death_year": 1996.5,
+      "lifetime_years": 5.5
+    },
+    {
+      "birth_level": 9.0,
+      "death_level": 13.0,
+      "birth_year": 1995.5,
+      "death_year": 1997.5,
+      "lifetime_years": 2.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 15.0,
+      "birth_year": 1991.0,
+      "death_year": 1998.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 15.0,
+      "birth_year": 1991.0,
+      "death_year": 1998.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 15.0,
+      "birth_year": 1991.0,
+      "death_year": 1998.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 15.0,
+      "birth_year": 1991.0,
+      "death_year": 1998.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 15.0,
+      "birth_year": 1991.0,
+      "death_year": 1998.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 17.0,
+      "birth_year": 1991.0,
+      "death_year": 1999.5,
+      "lifetime_years": 8.5
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 17.0,
+      "birth_year": 1998.5,
+      "death_year": 1999.5,
+      "lifetime_years": 1.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 17.0,
+      "birth_year": 1991.0,
+      "death_year": 1999.5,
+      "lifetime_years": 8.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 17.0,
+      "birth_year": 1991.0,
+      "death_year": 1999.5,
+      "lifetime_years": 8.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 19.0,
+      "birth_year": 1991.0,
+      "death_year": 2000.5,
+      "lifetime_years": 9.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 19.0,
+      "birth_year": 1991.0,
+      "death_year": 2000.5,
+      "lifetime_years": 9.5
+    },
+    {
+      "birth_level": 9.0,
+      "death_level": 19.0,
+      "birth_year": 1995.5,
+      "death_year": 2000.5,
+      "lifetime_years": 5.0
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 19.0,
+      "birth_year": 1998.5,
+      "death_year": 2000.5,
+      "lifetime_years": 2.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 19.0,
+      "birth_year": 1991.0,
+      "death_year": 2000.5,
+      "lifetime_years": 9.5
+    },
+    {
+      "birth_level": 3.0,
+      "death_level": 19.0,
+      "birth_year": 1992.5,
+      "death_year": 2000.5,
+      "lifetime_years": 8.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 19.0,
+      "birth_year": 1991.0,
+      "death_year": 2000.5,
+      "lifetime_years": 9.5
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 21.0,
+      "birth_year": 1998.5,
+      "death_year": 2001.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 11.0,
+      "death_level": 21.0,
+      "birth_year": 1996.5,
+      "death_year": 2001.5,
+      "lifetime_years": 5.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 22.0,
+      "birth_year": 1991.0,
+      "death_year": 2002.0,
+      "lifetime_years": 11.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 23.0,
+      "birth_year": 1991.0,
+      "death_year": 2002.5,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 23.0,
+      "birth_year": 1991.0,
+      "death_year": 2002.5,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 24.0,
+      "birth_year": 1991.0,
+      "death_year": 2003.0,
+      "lifetime_years": 12.0
+    },
+    {
+      "birth_level": 22.0,
+      "death_level": 25.0,
+      "birth_year": 2002.0,
+      "death_year": 2003.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 20.0,
+      "death_level": 25.0,
+      "birth_year": 2001.0,
+      "death_year": 2003.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 21.0,
+      "death_level": 27.0,
+      "birth_year": 2001.5,
+      "death_year": 2004.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 23.0,
+      "death_level": 29.0,
+      "birth_year": 2002.5,
+      "death_year": 2005.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 19.0,
+      "death_level": 29.0,
+      "birth_year": 2000.5,
+      "death_year": 2005.5,
+      "lifetime_years": 5.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 30.0,
+      "birth_year": 1991.0,
+      "death_year": 2006.0,
+      "lifetime_years": 15.0
+    },
+    {
+      "birth_level": 30.0,
+      "death_level": 31.0,
+      "birth_year": 2006.0,
+      "death_year": 2006.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 24.0,
+      "death_level": 32.0,
+      "birth_year": 2003.0,
+      "death_year": 2007.0,
+      "lifetime_years": 4.0
+    },
+    {
+      "birth_level": 20.0,
+      "death_level": 33.0,
+      "birth_year": 2001.0,
+      "death_year": 2007.5,
+      "lifetime_years": 6.5
+    },
+    {
+      "birth_level": 28.0,
+      "death_level": 35.0,
+      "birth_year": 2005.0,
+      "death_year": 2008.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 29.0,
+      "death_level": 35.0,
+      "birth_year": 2005.5,
+      "death_year": 2008.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 34.0,
+      "death_level": 35.0,
+      "birth_year": 2008.0,
+      "death_year": 2008.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 35.0,
+      "birth_year": 1998.5,
+      "death_year": 2008.5,
+      "lifetime_years": 10.0
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 35.0,
+      "birth_year": 1998.5,
+      "death_year": 2008.5,
+      "lifetime_years": 10.0
+    },
+    {
+      "birth_level": 26.0,
+      "death_level": 35.0,
+      "birth_year": 2004.0,
+      "death_year": 2008.5,
+      "lifetime_years": 4.5
+    },
+    {
+      "birth_level": 1.0,
+      "death_level": 35.0,
+      "birth_year": 1991.5,
+      "death_year": 2008.5,
+      "lifetime_years": 17.0
+    },
+    {
+      "birth_level": 21.0,
+      "death_level": 35.0,
+      "birth_year": 2001.5,
+      "death_year": 2008.5,
+      "lifetime_years": 7.0
+    },
+    {
+      "birth_level": 27.0,
+      "death_level": 35.0,
+      "birth_year": 2004.5,
+      "death_year": 2008.5,
+      "lifetime_years": 4.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 35.0,
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 35.0,
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 35.0,
+      "birth_year": 1998.5,
+      "death_year": 2008.5,
+      "lifetime_years": 10.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 35.0,
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_level": 17.0,
+      "death_level": 35.0,
+      "birth_year": 1999.5,
+      "death_year": 2008.5,
+      "lifetime_years": 9.0
+    },
+    {
+      "birth_level": 20.0,
+      "death_level": 35.0,
+      "birth_year": 2001.0,
+      "death_year": 2008.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 35.0,
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 35.0,
+      "birth_year": 1998.5,
+      "death_year": 2008.5,
+      "lifetime_years": 10.0
+    },
+    {
+      "birth_level": 25.0,
+      "death_level": 35.0,
+      "birth_year": 2003.5,
+      "death_year": 2008.5,
+      "lifetime_years": 5.0
+    },
+    {
+      "birth_level": 34.0,
+      "death_level": 35.0,
+      "birth_year": 2008.0,
+      "death_year": 2008.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 19.0,
+      "death_level": 35.0,
+      "birth_year": 2000.5,
+      "death_year": 2008.5,
+      "lifetime_years": 8.0
+    },
+    {
+      "birth_level": 29.0,
+      "death_level": 35.0,
+      "birth_year": 2005.5,
+      "death_year": 2008.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 35.0,
+      "birth_year": 1991.0,
+      "death_year": 2008.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 37.0,
+      "birth_year": 2008.5,
+      "death_year": 2009.5,
+      "lifetime_years": 1.0
+    },
+    {
+      "birth_level": 36.0,
+      "death_level": 37.0,
+      "birth_year": 2009.0,
+      "death_year": 2009.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 41.0,
+      "birth_year": 2008.5,
+      "death_year": 2011.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 27.0,
+      "death_level": 41.0,
+      "birth_year": 2004.5,
+      "death_year": 2011.5,
+      "lifetime_years": 7.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 41.0,
+      "birth_year": 2008.5,
+      "death_year": 2011.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 29.0,
+      "death_level": 41.0,
+      "birth_year": 2005.5,
+      "death_year": 2011.5,
+      "lifetime_years": 6.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 41.0,
+      "birth_year": 2008.5,
+      "death_year": 2011.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 37.0,
+      "death_level": 43.0,
+      "birth_year": 2009.5,
+      "death_year": 2012.5,
+      "lifetime_years": 3.0
+    },
+    {
+      "birth_level": 17.0,
+      "death_level": 44.0,
+      "birth_year": 1999.5,
+      "death_year": 2013.0,
+      "lifetime_years": 13.5
+    },
+    {
+      "birth_level": 28.0,
+      "death_level": 50.0,
+      "birth_year": 2005.0,
+      "death_year": 2016.0,
+      "lifetime_years": 11.0
+    },
+    {
+      "birth_level": 31.0,
+      "death_level": 52.0,
+      "birth_year": 2006.5,
+      "death_year": 2017.0,
+      "lifetime_years": 10.5
+    },
+    {
+      "birth_level": 33.0,
+      "death_level": 56.0,
+      "birth_year": 2007.5,
+      "death_year": 2019.0,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 36.0,
+      "death_level": 56.0,
+      "birth_year": 2009.0,
+      "death_year": 2019.0,
+      "lifetime_years": 10.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 56.0,
+      "birth_year": 2008.5,
+      "death_year": 2019.0,
+      "lifetime_years": 10.5
+    },
+    {
+      "birth_level": 50.0,
+      "death_level": 58.0,
+      "birth_year": 2016.0,
+      "death_year": 2020.0,
+      "lifetime_years": 4.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 58.0,
+      "birth_year": 2008.5,
+      "death_year": 2020.0,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 58.0,
+      "birth_year": 2008.5,
+      "death_year": 2020.0,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 42.0,
+      "death_level": 58.0,
+      "birth_year": 2012.0,
+      "death_year": 2020.0,
+      "lifetime_years": 8.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 58.0,
+      "birth_year": 2008.5,
+      "death_year": 2020.0,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 60.0,
+      "birth_year": 2008.5,
+      "death_year": 2021.0,
+      "lifetime_years": 12.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 60.0,
+      "birth_year": 2008.5,
+      "death_year": 2021.0,
+      "lifetime_years": 12.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 60.0,
+      "birth_year": 2008.5,
+      "death_year": 2021.0,
+      "lifetime_years": 12.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 60.0,
+      "birth_year": 2020.0,
+      "death_year": 2021.0,
+      "lifetime_years": 1.0
+    },
+    {
+      "birth_level": 39.0,
+      "death_level": 60.0,
+      "birth_year": 2010.5,
+      "death_year": 2021.0,
+      "lifetime_years": 10.5
+    },
+    {
+      "birth_level": 36.0,
+      "death_level": 62.0,
+      "birth_year": 2009.0,
+      "death_year": 2022.0,
+      "lifetime_years": 13.0
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 62.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.0,
+      "lifetime_years": 1.0
+    },
+    {
+      "birth_level": 54.0,
+      "death_level": 62.0,
+      "birth_year": 2018.0,
+      "death_year": 2022.0,
+      "lifetime_years": 4.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 62.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.0,
+      "lifetime_years": 13.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 62.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.0,
+      "lifetime_years": 2.0
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 44.0,
+      "death_level": 63.0,
+      "birth_year": 2013.0,
+      "death_year": 2022.5,
+      "lifetime_years": 9.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 28.0,
+      "death_level": 63.0,
+      "birth_year": 2005.0,
+      "death_year": 2022.5,
+      "lifetime_years": 17.5
+    },
+    {
+      "birth_level": 36.0,
+      "death_level": 63.0,
+      "birth_year": 2009.0,
+      "death_year": 2022.5,
+      "lifetime_years": 13.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 42.0,
+      "death_level": 63.0,
+      "birth_year": 2012.0,
+      "death_year": 2022.5,
+      "lifetime_years": 10.5
+    },
+    {
+      "birth_level": 54.0,
+      "death_level": 63.0,
+      "birth_year": 2018.0,
+      "death_year": 2022.5,
+      "lifetime_years": 4.5
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 46.0,
+      "death_level": 63.0,
+      "birth_year": 2014.0,
+      "death_year": 2022.5,
+      "lifetime_years": 8.5
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 42.0,
+      "death_level": 63.0,
+      "birth_year": 2012.0,
+      "death_year": 2022.5,
+      "lifetime_years": 10.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 40.0,
+      "death_level": 63.0,
+      "birth_year": 2011.0,
+      "death_year": 2022.5,
+      "lifetime_years": 11.5
+    },
+    {
+      "birth_level": 46.0,
+      "death_level": 63.0,
+      "birth_year": 2014.0,
+      "death_year": 2022.5,
+      "lifetime_years": 8.5
+    },
+    {
+      "birth_level": 22.0,
+      "death_level": 63.0,
+      "birth_year": 2002.0,
+      "death_year": 2022.5,
+      "lifetime_years": 20.5
+    },
+    {
+      "birth_level": 19.0,
+      "death_level": 63.0,
+      "birth_year": 2000.5,
+      "death_year": 2022.5,
+      "lifetime_years": 22.0
+    },
+    {
+      "birth_level": 15.0,
+      "death_level": 63.0,
+      "birth_year": 1998.5,
+      "death_year": 2022.5,
+      "lifetime_years": 24.0
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 48.0,
+      "death_level": 63.0,
+      "birth_year": 2015.0,
+      "death_year": 2022.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 37.0,
+      "death_level": 63.0,
+      "birth_year": 2009.5,
+      "death_year": 2022.5,
+      "lifetime_years": 13.0
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 48.0,
+      "death_level": 63.0,
+      "birth_year": 2015.0,
+      "death_year": 2022.5,
+      "lifetime_years": 7.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 54.0,
+      "death_level": 63.0,
+      "birth_year": 2018.0,
+      "death_year": 2022.5,
+      "lifetime_years": 4.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 60.0,
+      "death_level": 63.0,
+      "birth_year": 2021.0,
+      "death_year": 2022.5,
+      "lifetime_years": 1.5
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 37.0,
+      "death_level": 63.0,
+      "birth_year": 2009.5,
+      "death_year": 2022.5,
+      "lifetime_years": 13.0
+    },
+    {
+      "birth_level": 62.0,
+      "death_level": 63.0,
+      "birth_year": 2022.0,
+      "death_year": 2022.5,
+      "lifetime_years": 0.5
+    },
+    {
+      "birth_level": 58.0,
+      "death_level": 63.0,
+      "birth_year": 2020.0,
+      "death_year": 2022.5,
+      "lifetime_years": 2.5
+    },
+    {
+      "birth_level": 56.0,
+      "death_level": 63.0,
+      "birth_year": 2019.0,
+      "death_year": 2022.5,
+      "lifetime_years": 3.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 63.0,
+      "birth_year": 1991.0,
+      "death_year": 2022.5,
+      "lifetime_years": 31.5
+    }
+  ],
+  "h1_summary": {
+    "n_finite": 8525,
+    "mean_lifetime_years": 10.472,
+    "median_lifetime_years": 10.5,
+    "max_lifetime_years": 31.5,
+    "n_above_1yr": 7825,
+    "n_above_5yr": 6670,
+    "n_above_10yr": 4930
+  }
+}

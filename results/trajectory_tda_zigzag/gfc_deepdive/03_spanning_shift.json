@@ -1,0 +1,23 @@
+{
+  "population_counts": {
+    "spanning": 8459,
+    "bhps_only": 2753,
+    "usoc_only": 21551
+  },
+  "centroid_distances": {
+    "spanning_bhps": 0.1106034765337416,
+    "spanning_usoc": 0.06075893612665769,
+    "bhps_usoc": 0.1552043144048584
+  },
+  "intra_group_spread": {
+    "spanning": 0.6626942641004655,
+    "bhps_only": 0.7878351976252657,
+    "usoc_only": 0.7798808321055014
+  },
+  "nn_distances": {
+    "threshold_95pct": 0.3078399514561695,
+    "frac_outside_usoc": 0.119,
+    "frac_outside_spanning": 0.0462,
+    "mannwhitney_p": 1.075292068740752e-181
+  }
+}

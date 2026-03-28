@@ -1,0 +1,1577 @@
+{
+  "yearly_stats_full": {
+    "1991": {
+      "n_individuals": 4729,
+      "h0": {
+        "total_persistence": 61.907856434875825,
+        "max_persistence": 0.8113309741020203,
+        "mean_persistence": 0.22430382766259357,
+        "std_persistence": 0.13610381706525318,
+        "persistence_entropy": 5.441770335584289,
+        "n_bars": 278,
+        "n_finite_bars": 276,
+        "n_long_bars": 138,
+        "normalized_total": 0.22430382766259357
+      },
+      "h1": {
+        "total_persistence": 2.601219143718481,
+        "max_persistence": 0.18135321140289307,
+        "mean_persistence": 0.030966894568077157,
+        "std_persistence": 0.035337100528172155,
+        "persistence_entropy": 3.9168795017758624,
+        "n_bars": 84,
+        "n_finite_bars": 84,
+        "n_long_bars": 42,
+        "normalized_total": 0.030966894568077157
+      }
+    },
+    "1992": {
+      "n_individuals": 5071,
+      "h0": {
+        "total_persistence": 65.19166805036366,
+        "max_persistence": 0.6462906002998352,
+        "mean_persistence": 0.23534898213127675,
+        "std_persistence": 0.1260597510376602,
+        "persistence_entropy": 5.475755380161199,
+        "n_bars": 280,
+        "n_finite_bars": 277,
+        "n_long_bars": 138,
+        "normalized_total": 0.23534898213127675
+      },
+      "h1": {
+        "total_persistence": 2.668323129415512,
+        "max_persistence": 0.12758877873420715,
+        "mean_persistence": 0.025906049800150602,
+        "std_persistence": 0.024377959549024938,
+        "persistence_entropy": 4.260740294741454,
+        "n_bars": 103,
+        "n_finite_bars": 103,
+        "n_long_bars": 51,
+        "normalized_total": 0.025906049800150602
+      }
+    },
+    "1993": {
+      "n_individuals": 5283,
+      "h0": {
+        "total_persistence": 66.9874753461347,
+        "max_persistence": 0.8570928573608398,
+        "mean_persistence": 0.24537536756825898,
+        "std_persistence": 0.1277073122872447,
+        "persistence_entropy": 5.478526462655476,
+        "n_bars": 275,
+        "n_finite_bars": 273,
+        "n_long_bars": 136,
+        "normalized_total": 0.24537536756825898
+      },
+      "h1": {
+        "total_persistence": 2.2275600284337997,
+        "max_persistence": 0.15862712264060974,
+        "mean_persistence": 0.026206588569809407,
+        "std_persistence": 0.02814856343194597,
+        "persistence_entropy": 3.9885016998865526,
+        "n_bars": 85,
+        "n_finite_bars": 85,
+        "n_long_bars": 42,
+        "normalized_total": 0.026206588569809407
+      }
+    },
+    "1994": {
+      "n_individuals": 5454,
+      "h0": {
+        "total_persistence": 67.18187358614747,
+        "max_persistence": 0.9687724709510803,
+        "mean_persistence": 0.2373917794563515,
+        "std_persistence": 0.1414068075245164,
+        "persistence_entropy": 5.476072297749755,
+        "n_bars": 286,
+        "n_finite_bars": 283,
+        "n_long_bars": 141,
+        "normalized_total": 0.2373917794563515
+      },
+      "h1": {
+        "total_persistence": 2.8994132354855537,
+        "max_persistence": 0.17559221386909485,
+        "mean_persistence": 0.02735295505175051,
+        "std_persistence": 0.027916209234026768,
+        "persistence_entropy": 4.23086852105881,
+        "n_bars": 106,
+        "n_finite_bars": 106,
+        "n_long_bars": 53,
+        "normalized_total": 0.02735295505175051
+      }
+    },
+    "1995": {
+      "n_individuals": 5604,
+      "h0": {
+        "total_persistence": 64.08314084773883,
+        "max_persistence": 0.8876754641532898,
+        "mean_persistence": 0.23302960308268666,
+        "std_persistence": 0.14867710934279485,
+        "persistence_entropy": 5.419630265407949,
+        "n_bars": 276,
+        "n_finite_bars": 275,
+        "n_long_bars": 137,
+        "normalized_total": 0.23302960308268666
+      },
+      "h1": {
+        "total_persistence": 2.2823976911604404,
+        "max_persistence": 0.14131653308868408,
+        "mean_persistence": 0.029261508861031287,
+        "std_persistence": 0.027956163114300984,
+        "persistence_entropy": 3.9370284230767525,
+        "n_bars": 78,
+        "n_finite_bars": 78,
+        "n_long_bars": 39,
+        "normalized_total": 0.029261508861031287
+      }
+    },
+    "1996": {
+      "n_individuals": 5795,
+      "h0": {
+        "total_persistence": 65.98419458139688,
+        "max_persistence": 0.8593428134918213,
+        "mean_persistence": 0.24258895066690028,
+        "std_persistence": 0.14063059692467478,
+        "persistence_entropy": 5.445989627308745,
+        "n_bars": 274,
+        "n_finite_bars": 272,
+        "n_long_bars": 136,
+        "normalized_total": 0.24258895066690028
+      },
+      "h1": {
+        "total_persistence": 2.9763894826173782,
+        "max_persistence": 0.2031773328781128,
+        "mean_persistence": 0.03166371790018487,
+        "std_persistence": 0.03659421537564703,
+        "persistence_entropy": 4.048260192225413,
+        "n_bars": 94,
+        "n_finite_bars": 94,
+        "n_long_bars": 47,
+        "normalized_total": 0.03166371790018487
+      }
+    },
+    "1997": {
+      "n_individuals": 5917,
+      "h0": {
+        "total_persistence": 68.43406372127468,
+        "max_persistence": 0.7098581194877625,
+        "mean_persistence": 0.24705438166525157,
+        "std_persistence": 0.13464092349120604,
+        "persistence_entropy": 5.467259150976517,
+        "n_bars": 278,
+        "n_finite_bars": 277,
+        "n_long_bars": 138,
+        "normalized_total": 0.24705438166525157
+      },
+      "h1": {
+        "total_persistence": 3.3506877943873405,
+        "max_persistence": 0.16363292932510376,
+        "mean_persistence": 0.03384533125643778,
+        "std_persistence": 0.03091694393993631,
+        "persistence_entropy": 4.214121578119619,
+        "n_bars": 99,
+        "n_finite_bars": 99,
+        "n_long_bars": 49,
+        "normalized_total": 0.03384533125643778
+      }
+    },
+    "1998": {
+      "n_individuals": 6067,
+      "h0": {
+        "total_persistence": 63.824022499554516,
+        "max_persistence": 0.7357073426246643,
+        "mean_persistence": 0.23124645833171925,
+        "std_persistence": 0.13183157836019066,
+        "persistence_entropy": 5.450460442782691,
+        "n_bars": 279,
+        "n_finite_bars": 276,
+        "n_long_bars": 138,
+        "normalized_total": 0.23124645833171925
+      },
+      "h1": {
+        "total_persistence": 2.8768321350216866,
+        "max_persistence": 0.15864089131355286,
+        "mean_persistence": 0.031269914511105286,
+        "std_persistence": 0.03127106747162898,
+        "persistence_entropy": 4.103789333389843,
+        "n_bars": 92,
+        "n_finite_bars": 92,
+        "n_long_bars": 46,
+        "normalized_total": 0.031269914511105286
+      }
+    },
+    "1999": {
+      "n_individuals": 8135,
+      "h0": {
+        "total_persistence": 69.7541428304405,
+        "max_persistence": 0.9943276047706604,
+        "mean_persistence": 0.25457716361474636,
+        "std_persistence": 0.16228940783886223,
+        "persistence_entropy": 5.421472036353823,
+        "n_bars": 277,
+        "n_finite_bars": 274,
+        "n_long_bars": 137,
+        "normalized_total": 0.25457716361474636
+      },
+      "h1": {
+        "total_persistence": 2.753862515091896,
+        "max_persistence": 0.21803349256515503,
+        "mean_persistence": 0.03165359212749306,
+        "std_persistence": 0.03373916798009799,
+        "persistence_entropy": 4.037893283411916,
+        "n_bars": 88,
+        "n_finite_bars": 87,
+        "n_long_bars": 43,
+        "normalized_total": 0.03165359212749306
+      }
+    },
+    "2000": {
+      "n_individuals": 8529,
+      "h0": {
+        "total_persistence": 64.02122360031466,
+        "max_persistence": 0.87546706199646,
+        "mean_persistence": 0.24250463484967671,
+        "std_persistence": 0.14659021702773226,
+        "persistence_entropy": 5.395522381617334,
+        "n_bars": 265,
+        "n_finite_bars": 264,
+        "n_long_bars": 132,
+        "normalized_total": 0.24250463484967671
+      },
+      "h1": {
+        "total_persistence": 2.266397178173065,
+        "max_persistence": 0.11329260468482971,
+        "mean_persistence": 0.025465136833405226,
+        "std_persistence": 0.02121990191348372,
+        "persistence_entropy": 4.163475301653173,
+        "n_bars": 89,
+        "n_finite_bars": 89,
+        "n_long_bars": 44,
+        "normalized_total": 0.025465136833405226
+      }
+    },
+    "2001": {
+      "n_individuals": 9618,
+      "h0": {
+        "total_persistence": 68.80854727793485,
+        "max_persistence": 0.8177962303161621,
+        "mean_persistence": 0.2448702750104443,
+        "std_persistence": 0.14228586249944242,
+        "persistence_entropy": 5.481316409684066,
+        "n_bars": 283,
+        "n_finite_bars": 281,
+        "n_long_bars": 140,
+        "normalized_total": 0.2448702750104443
+      },
+      "h1": {
+        "total_persistence": 2.9464711137115955,
+        "max_persistence": 0.16871660947799683,
+        "mean_persistence": 0.03348262629217722,
+        "std_persistence": 0.0321991141208363,
+        "persistence_entropy": 4.084581771201792,
+        "n_bars": 88,
+        "n_finite_bars": 88,
+        "n_long_bars": 44,
+        "normalized_total": 0.03348262629217722
+      }
+    },
+    "2002": {
+      "n_individuals": 9689,
+      "h0": {
+        "total_persistence": 65.3537464607507,
+        "max_persistence": 0.7754462957382202,
+        "mean_persistence": 0.24027112669393638,
+        "std_persistence": 0.13228392547629025,
+        "persistence_entropy": 5.450879829619952,
+        "n_bars": 275,
+        "n_finite_bars": 272,
+        "n_long_bars": 136,
+        "normalized_total": 0.24027112669393638
+      },
+      "h1": {
+        "total_persistence": 2.6338111385703087,
+        "max_persistence": 0.1860806941986084,
+        "mean_persistence": 0.034655409718030376,
+        "std_persistence": 0.03354186699931351,
+        "persistence_entropy": 3.9168625971389015,
+        "n_bars": 76,
+        "n_finite_bars": 76,
+        "n_long_bars": 38,
+        "normalized_total": 0.034655409718030376
+      }
+    },
+    "2003": {
+      "n_individuals": 9747,
+      "h0": {
+        "total_persistence": 63.94948024535552,
+        "max_persistence": 0.9664217233657837,
+        "mean_persistence": 0.2351083832549835,
+        "std_persistence": 0.14379615403274526,
+        "persistence_entropy": 5.430399700862089,
+        "n_bars": 275,
+        "n_finite_bars": 272,
+        "n_long_bars": 136,
+        "normalized_total": 0.2351083832549835
+      },
+      "h1": {
+        "total_persistence": 2.1873560920357704,
+        "max_persistence": 0.18439781665802002,
+        "mean_persistence": 0.023269745659955005,
+        "std_persistence": 0.027375157064979692,
+        "persistence_entropy": 4.0380934368739245,
+        "n_bars": 94,
+        "n_finite_bars": 94,
+        "n_long_bars": 47,
+        "normalized_total": 0.023269745659955005
+      }
+    },
+    "2004": {
+      "n_individuals": 9734,
+      "h0": {
+        "total_persistence": 71.31408599577844,
+        "max_persistence": 0.8633918762207031,
+        "mean_persistence": 0.25110593660485364,
+        "std_persistence": 0.1379523312700328,
+        "persistence_entropy": 5.496723610549334,
+        "n_bars": 285,
+        "n_finite_bars": 284,
+        "n_long_bars": 142,
+        "normalized_total": 0.25110593660485364
+      },
+      "h1": {
+        "total_persistence": 3.6442080587148666,
+        "max_persistence": 0.2212713062763214,
+        "mean_persistence": 0.0314155867130592,
+        "std_persistence": 0.03703584517746987,
+        "persistence_entropy": 4.218100834812889,
+        "n_bars": 116,
+        "n_finite_bars": 116,
+        "n_long_bars": 58,
+        "normalized_total": 0.0314155867130592
+      }
+    },
+    "2005": {
+      "n_individuals": 9711,
+      "h0": {
+        "total_persistence": 72.34226760047247,
+        "max_persistence": 0.9598129987716675,
+        "mean_persistence": 0.2547262943678608,
+        "std_persistence": 0.148904999248892,
+        "persistence_entropy": 5.483331468182749,
+        "n_bars": 286,
+        "n_finite_bars": 284,
+        "n_long_bars": 142,
+        "normalized_total": 0.2547262943678608
+      },
+      "h1": {
+        "total_persistence": 3.030034216120839,
+        "max_persistence": 0.15603619813919067,
+        "mean_persistence": 0.03060640622344282,
+        "std_persistence": 0.028040474521305016,
+        "persistence_entropy": 4.230667766114697,
+        "n_bars": 100,
+        "n_finite_bars": 99,
+        "n_long_bars": 49,
+        "normalized_total": 0.03060640622344282
+      }
+    },
+    "2006": {
+      "n_individuals": 9694,
+      "h0": {
+        "total_persistence": 72.96513883955777,
+        "max_persistence": 0.845085084438324,
+        "mean_persistence": 0.26629612715167067,
+        "std_persistence": 0.15595915377708305,
+        "persistence_entropy": 5.442555820737314,
+        "n_bars": 277,
+        "n_finite_bars": 274,
+        "n_long_bars": 137,
+        "normalized_total": 0.26629612715167067
+      },
+      "h1": {
+        "total_persistence": 3.2556053325533867,
+        "max_persistence": 0.14925432205200195,
+        "mean_persistence": 0.032556053325533865,
+        "std_persistence": 0.030046733521192064,
+        "persistence_entropy": 4.19832729025934,
+        "n_bars": 100,
+        "n_finite_bars": 100,
+        "n_long_bars": 50,
+        "normalized_total": 0.032556053325533865
+      }
+    },
+    "2007": {
+      "n_individuals": 9647,
+      "h0": {
+        "total_persistence": 64.72985199652612,
+        "max_persistence": 0.9273234009742737,
+        "mean_persistence": 0.22953848225718482,
+        "std_persistence": 0.1391527355358507,
+        "persistence_entropy": 5.462804748836163,
+        "n_bars": 284,
+        "n_finite_bars": 282,
+        "n_long_bars": 141,
+        "normalized_total": 0.22953848225718482
+      },
+      "h1": {
+        "total_persistence": 2.334368832409382,
+        "max_persistence": 0.15607395768165588,
+        "mean_persistence": 0.026526918550106613,
+        "std_persistence": 0.028358605865913256,
+        "persistence_entropy": 4.024338995185496,
+        "n_bars": 88,
+        "n_finite_bars": 88,
+        "n_long_bars": 44,
+        "normalized_total": 0.026526918550106613
+      }
+    },
+    "2008": {
+      "n_individuals": 9587,
+      "h0": {
+        "total_persistence": 72.97657660208642,
+        "max_persistence": 0.7709882259368896,
+        "mean_persistence": 0.2625056712305267,
+        "std_persistence": 0.14598985569487882,
+        "persistence_entropy": 5.470274961705716,
+        "n_bars": 280,
+        "n_finite_bars": 278,
+        "n_long_bars": 139,
+        "normalized_total": 0.2625056712305267
+      },
+      "h1": {
+        "total_persistence": 2.920202925801277,
+        "max_persistence": 0.13822373747825623,
+        "mean_persistence": 0.029797989038788542,
+        "std_persistence": 0.030382643679255764,
+        "persistence_entropy": 4.139510802163537,
+        "n_bars": 98,
+        "n_finite_bars": 98,
+        "n_long_bars": 49,
+        "normalized_total": 0.029797989038788542
+      }
+    },
+    "2009": {
+      "n_individuals": 27175,
+      "h0": {
+        "total_persistence": 75.54638705868274,
+        "max_persistence": 0.8267353773117065,
+        "mean_persistence": 0.2905630271487798,
+        "std_persistence": 0.1619241794609055,
+        "persistence_entropy": 5.403684988672224,
+        "n_bars": 261,
+        "n_finite_bars": 260,
+        "n_long_bars": 130,
+        "normalized_total": 0.2905630271487798
+      },
+      "h1": {
+        "total_persistence": 3.4102522432804108,
+        "max_persistence": 0.15456071496009827,
+        "mean_persistence": 0.03515723962144753,
+        "std_persistence": 0.032191962277282445,
+        "persistence_entropy": 4.174033856484667,
+        "n_bars": 97,
+        "n_finite_bars": 97,
+        "n_long_bars": 48,
+        "normalized_total": 0.03515723962144753
+      }
+    },
+    "2010": {
+      "n_individuals": 28495,
+      "h0": {
+        "total_persistence": 79.05674108117819,
+        "max_persistence": 0.9858881831169128,
+        "mean_persistence": 0.2972057935382639,
+        "std_persistence": 0.17180091833110311,
+        "persistence_entropy": 5.4256581201039555,
+        "n_bars": 267,
+        "n_finite_bars": 266,
+        "n_long_bars": 133,
+        "normalized_total": 0.2972057935382639
+      },
+      "h1": {
+        "total_persistence": 2.693388357758522,
+        "max_persistence": 0.18889129161834717,
+        "mean_persistence": 0.03740817163553503,
+        "std_persistence": 0.03955834041872308,
+        "persistence_entropy": 3.83985410757409,
+        "n_bars": 72,
+        "n_finite_bars": 72,
+        "n_long_bars": 36,
+        "normalized_total": 0.03740817163553503
+      }
+    },
+    "2011": {
+      "n_individuals": 28632,
+      "h0": {
+        "total_persistence": 75.81897801964303,
+        "max_persistence": 0.8364476561546326,
+        "mean_persistence": 0.2850337519535452,
+        "std_persistence": 0.14224752445115618,
+        "persistence_entropy": 5.452749113198195,
+        "n_bars": 269,
+        "n_finite_bars": 266,
+        "n_long_bars": 133,
+        "normalized_total": 0.2850337519535452
+      },
+      "h1": {
+        "total_persistence": 3.6701944395899773,
+        "max_persistence": 0.18512412905693054,
+        "mean_persistence": 0.033671508620091536,
+        "std_persistence": 0.03525119796684064,
+        "persistence_entropy": 4.267501126331889,
+        "n_bars": 109,
+        "n_finite_bars": 109,
+        "n_long_bars": 54,
+        "normalized_total": 0.033671508620091536
+      }
+    },
+    "2012": {
+      "n_individuals": 28577,
+      "h0": {
+        "total_persistence": 73.87281624067973,
+        "max_persistence": 0.9207927584648132,
+        "mean_persistence": 0.2808852328542955,
+        "std_persistence": 0.16221137933785293,
+        "persistence_entropy": 5.407791602159063,
+        "n_bars": 264,
+        "n_finite_bars": 263,
+        "n_long_bars": 131,
+        "normalized_total": 0.2808852328542955
+      },
+      "h1": {
+        "total_persistence": 3.4899803400039673,
+        "max_persistence": 0.22308647632598877,
+        "mean_persistence": 0.0379345689130866,
+        "std_persistence": 0.04030922568267916,
+        "persistence_entropy": 4.054008131964518,
+        "n_bars": 93,
+        "n_finite_bars": 92,
+        "n_long_bars": 46,
+        "normalized_total": 0.0379345689130866
+      }
+    },
+    "2013": {
+      "n_individuals": 28582,
+      "h0": {
+        "total_persistence": 67.41719700204314,
+        "max_persistence": 0.8114696145057678,
+        "mean_persistence": 0.2592969115463198,
+        "std_persistence": 0.1575155577666106,
+        "persistence_entropy": 5.365118783937735,
+        "n_bars": 266,
+        "n_finite_bars": 260,
+        "n_long_bars": 130,
+        "normalized_total": 0.2592969115463198
+      },
+      "h1": {
+        "total_persistence": 2.7542911246418953,
+        "max_persistence": 0.1268024444580078,
+        "mean_persistence": 0.032026640984208085,
+        "std_persistence": 0.02736318402502503,
+        "persistence_entropy": 4.1108158390692395,
+        "n_bars": 86,
+        "n_finite_bars": 86,
+        "n_long_bars": 43,
+        "normalized_total": 0.032026640984208085
+      }
+    },
+    "2014": {
+      "n_individuals": 28100,
+      "h0": {
+        "total_persistence": 73.35342965386047,
+        "max_persistence": 0.9240736365318298,
+        "mean_persistence": 0.27891037891201703,
+        "std_persistence": 0.15525445292326714,
+        "persistence_entropy": 5.410956678374319,
+        "n_bars": 268,
+        "n_finite_bars": 263,
+        "n_long_bars": 131,
+        "normalized_total": 0.27891037891201703
+      },
+      "h1": {
+        "total_persistence": 2.6822844445705414,
+        "max_persistence": 0.13254928588867188,
+        "mean_persistence": 0.03193195767345883,
+        "std_persistence": 0.0300746191666169,
+        "persistence_entropy": 4.04333529703663,
+        "n_bars": 84,
+        "n_finite_bars": 84,
+        "n_long_bars": 42,
+        "normalized_total": 0.03193195767345883
+      }
+    },
+    "2015": {
+      "n_individuals": 27729,
+      "h0": {
+        "total_persistence": 73.03733141999692,
+        "max_persistence": 0.8817297220230103,
+        "mean_persistence": 0.2809128131538343,
+        "std_persistence": 0.1480860227460294,
+        "persistence_entropy": 5.417837893339671,
+        "n_bars": 265,
+        "n_finite_bars": 260,
+        "n_long_bars": 130,
+        "normalized_total": 0.2809128131538343
+      },
+      "h1": {
+        "total_persistence": 2.9912269711494446,
+        "max_persistence": 0.1762339174747467,
+        "mean_persistence": 0.03560984489463624,
+        "std_persistence": 0.03245664721526076,
+        "persistence_entropy": 4.049447455405261,
+        "n_bars": 84,
+        "n_finite_bars": 84,
+        "n_long_bars": 42,
+        "normalized_total": 0.03560984489463624
+      }
+    },
+    "2016": {
+      "n_individuals": 27415,
+      "h0": {
+        "total_persistence": 75.47335666912953,
+        "max_persistence": 0.9827290773391724,
+        "mean_persistence": 0.2858839267770058,
+        "std_persistence": 0.15525703028780144,
+        "persistence_entropy": 5.42790032173634,
+        "n_bars": 266,
+        "n_finite_bars": 264,
+        "n_long_bars": 132,
+        "normalized_total": 0.2858839267770058
+      },
+      "h1": {
+        "total_persistence": 3.2390087991952896,
+        "max_persistence": 0.2659741938114166,
+        "mean_persistence": 0.039024202399943246,
+        "std_persistence": 0.04804464959547906,
+        "persistence_entropy": 3.85131942505201,
+        "n_bars": 83,
+        "n_finite_bars": 83,
+        "n_long_bars": 41,
+        "normalized_total": 0.039024202399943246
+      }
+    },
+    "2017": {
+      "n_individuals": 27082,
+      "h0": {
+        "total_persistence": 75.78641345317234,
+        "max_persistence": 0.9025969505310059,
+        "mean_persistence": 0.29604067755145447,
+        "std_persistence": 0.15489255817034997,
+        "persistence_entropy": 5.403968281827003,
+        "n_bars": 258,
+        "n_finite_bars": 256,
+        "n_long_bars": 128,
+        "normalized_total": 0.29604067755145447
+      },
+      "h1": {
+        "total_persistence": 3.2126256227493286,
+        "max_persistence": 0.16586971282958984,
+        "mean_persistence": 0.030890630987974312,
+        "std_persistence": 0.029525745297052836,
+        "persistence_entropy": 4.262135441549629,
+        "n_bars": 104,
+        "n_finite_bars": 104,
+        "n_long_bars": 52,
+        "normalized_total": 0.030890630987974312
+      }
+    },
+    "2018": {
+      "n_individuals": 26768,
+      "h0": {
+        "total_persistence": 72.62261808908303,
+        "max_persistence": 0.9837863445281982,
+        "mean_persistence": 0.281483015849159,
+        "std_persistence": 0.16685018037315608,
+        "persistence_entropy": 5.374943666031869,
+        "n_bars": 260,
+        "n_finite_bars": 258,
+        "n_long_bars": 129,
+        "normalized_total": 0.281483015849159
+      },
+      "h1": {
+        "total_persistence": 3.5628370493650436,
+        "max_persistence": 0.1746177077293396,
+        "mean_persistence": 0.038726489667011345,
+        "std_persistence": 0.033461738477214044,
+        "persistence_entropy": 4.171894706224281,
+        "n_bars": 92,
+        "n_finite_bars": 92,
+        "n_long_bars": 46,
+        "normalized_total": 0.038726489667011345
+      }
+    },
+    "2019": {
+      "n_individuals": 25101,
+      "h0": {
+        "total_persistence": 73.54322158028062,
+        "max_persistence": 0.969502866268158,
+        "mean_persistence": 0.28069931900870465,
+        "std_persistence": 0.15847484501451317,
+        "persistence_entropy": 5.402932009270286,
+        "n_bars": 265,
+        "n_finite_bars": 262,
+        "n_long_bars": 131,
+        "normalized_total": 0.28069931900870465
+      },
+      "h1": {
+        "total_persistence": 3.275456227362156,
+        "max_persistence": 0.20130831003189087,
+        "mean_persistence": 0.03560278508002344,
+        "std_persistence": 0.033735068959244885,
+        "persistence_entropy": 4.1064539265355755,
+        "n_bars": 93,
+        "n_finite_bars": 92,
+        "n_long_bars": 46,
+        "normalized_total": 0.03560278508002344
+      }
+    },
+    "2020": {
+      "n_individuals": 23189,
+      "h0": {
+        "total_persistence": 73.40714727353995,
+        "max_persistence": 0.9483475685119629,
+        "mean_persistence": 0.2791146284165017,
+        "std_persistence": 0.15893058746820038,
+        "persistence_entropy": 5.4048263504175225,
+        "n_bars": 266,
+        "n_finite_bars": 263,
+        "n_long_bars": 131,
+        "normalized_total": 0.2791146284165017
+      },
+      "h1": {
+        "total_persistence": 2.81370110809803,
+        "max_persistence": 0.128983736038208,
+        "mean_persistence": 0.028137011080980302,
+        "std_persistence": 0.02848086545445337,
+        "persistence_entropy": 4.173498499484728,
+        "n_bars": 100,
+        "n_finite_bars": 100,
+        "n_long_bars": 50,
+        "normalized_total": 0.028137011080980302
+      }
+    },
+    "2021": {
+      "n_individuals": 21448,
+      "h0": {
+        "total_persistence": 71.94184570445438,
+        "max_persistence": 0.9184512495994568,
+        "mean_persistence": 0.2745871973452457,
+        "std_persistence": 0.16303366830921276,
+        "persistence_entropy": 5.400202433188493,
+        "n_bars": 263,
+        "n_finite_bars": 262,
+        "n_long_bars": 131,
+        "normalized_total": 0.2745871973452457
+      },
+      "h1": {
+        "total_persistence": 2.857395939528942,
+        "max_persistence": 0.20108604431152344,
+        "mean_persistence": 0.03442645710275834,
+        "std_persistence": 0.034416213951490145,
+        "persistence_entropy": 4.0053171959313945,
+        "n_bars": 83,
+        "n_finite_bars": 83,
+        "n_long_bars": 41,
+        "normalized_total": 0.03442645710275834
+      }
+    },
+    "2022": {
+      "n_individuals": 19034,
+      "h0": {
+        "total_persistence": 71.21915365255197,
+        "max_persistence": 0.8654239773750305,
+        "mean_persistence": 0.2771173293873617,
+        "std_persistence": 0.15519098510423948,
+        "persistence_entropy": 5.38963280503329,
+        "n_bars": 259,
+        "n_finite_bars": 257,
+        "n_long_bars": 128,
+        "normalized_total": 0.2771173293873617
+      },
+      "h1": {
+        "total_persistence": 3.153455436229706,
+        "max_persistence": 0.11458933353424072,
+        "mean_persistence": 0.030032908916473387,
+        "std_persistence": 0.022655615104875692,
+        "persistence_entropy": 4.381109403331085,
+        "n_bars": 105,
+        "n_finite_bars": 105,
+        "n_long_bars": 52,
+        "normalized_total": 0.030032908916473387
+      }
+    }
+  },
+  "yearly_stats_subsampled": {
+    "1991": {
+      "total_persistence_h0": {
+        "mean": 65.77076984257042,
+        "std": 1.7960190216494238
+      },
+      "entropy_h0": {
+        "mean": 5.4537911891059885,
+        "std": 0.027673593387703234
+      },
+      "total_persistence_h1": {
+        "mean": 2.830570919958417,
+        "std": 0.2651998652558499
+      },
+      "entropy_h1": {
+        "mean": 4.112514628649415,
+        "std": 0.11571169593478124
+      },
+      "n_h0": {
+        "mean": 277.26666666666665
+      },
+      "n_h1": {
+        "mean": 96.06666666666666
+      }
+    },
+    "1992": {
+      "total_persistence_h0": {
+        "mean": 67.04855225044768,
+        "std": 2.6272036652022117
+      },
+      "entropy_h0": {
+        "mean": 5.465604452684997,
+        "std": 0.020989934567941602
+      },
+      "total_persistence_h1": {
+        "mean": 2.877165825191565,
+        "std": 0.2787508466504785
+      },
+      "entropy_h1": {
+        "mean": 4.139628876830364,
+        "std": 0.08522250297068809
+      },
+      "n_h0": {
+        "mean": 278.1333333333333
+      },
+      "n_h1": {
+        "mean": 96.46666666666667
+      }
+    },
+    "1993": {
+      "total_persistence_h0": {
+        "mean": 66.61186176902928,
+        "std": 3.1024653376874816
+      },
+      "entropy_h0": {
+        "mean": 5.469956313086386,
+        "std": 0.019404652441822608
+      },
+      "total_persistence_h1": {
+        "mean": 2.849620173480127,
+        "std": 0.29564091535012343
+      },
+      "entropy_h1": {
+        "mean": 4.107146990153937,
+        "std": 0.0890776598317853
+      },
+      "n_h0": {
+        "mean": 280.2
+      },
+      "n_h1": {
+        "mean": 95.86666666666666
+      }
+    },
+    "1994": {
+      "total_persistence_h0": {
+        "mean": 67.56116338351703,
+        "std": 2.371983859030733
+      },
+      "entropy_h0": {
+        "mean": 5.469679408372548,
+        "std": 0.019442737710124097
+      },
+      "total_persistence_h1": {
+        "mean": 2.9788748275039665,
+        "std": 0.3732384776081232
+      },
+      "entropy_h1": {
+        "mean": 4.119445802254318,
+        "std": 0.13256081241701875
+      },
+      "n_h0": {
+        "mean": 280.0
+      },
+      "n_h1": {
+        "mean": 97.33333333333333
+      }
+    },
+    "1995": {
+      "total_persistence_h0": {
+        "mean": 68.74577321875246,
+        "std": 2.3596748946476622
+      },
+      "entropy_h0": {
+        "mean": 5.466340401957959,
+        "std": 0.020263152034027024
+      },
+      "total_persistence_h1": {
+        "mean": 2.9768581388021436,
+        "std": 0.27936645265003474
+      },
+      "entropy_h1": {
+        "mean": 4.144340186362896,
+        "std": 0.09111688934551357
+      },
+      "n_h0": {
+        "mean": 279.3333333333333
+      },
+      "n_h1": {
+        "mean": 97.66666666666667
+      }
+    },
+    "1996": {
+      "total_persistence_h0": {
+        "mean": 67.38018210195892,
+        "std": 3.0463218381692214
+      },
+      "entropy_h0": {
+        "mean": 5.468730307209739,
+        "std": 0.03633798200778036
+      },
+      "total_persistence_h1": {
+        "mean": 2.869889951628719,
+        "std": 0.35757362480136073
+      },
+      "entropy_h1": {
+        "mean": 4.053143950084415,
+        "std": 0.11600822582862183
+      },
+      "n_h0": {
+        "mean": 280.6
+      },
+      "n_h1": {
+        "mean": 90.93333333333334
+      }
+    },
+    "1997": {
+      "total_persistence_h0": {
+        "mean": 66.95523519181558,
+        "std": 2.481262132704868
+      },
+      "entropy_h0": {
+        "mean": 5.4586372349030645,
+        "std": 0.02927927507841002
+      },
+      "total_persistence_h1": {
+        "mean": 2.9062195495400256,
+        "std": 0.3396392012873404
+      },
+      "entropy_h1": {
+        "mean": 4.1022317310018375,
+        "std": 0.1436204184462432
+      },
+      "n_h0": {
+        "mean": 277.3333333333333
+      },
+      "n_h1": {
+        "mean": 96.93333333333334
+      }
+    },
+    "1998": {
+      "total_persistence_h0": {
+        "mean": 68.16832719519192,
+        "std": 2.530179563833766
+      },
+      "entropy_h0": {
+        "mean": 5.468438255691606,
+        "std": 0.022932629694167688
+      },
+      "total_persistence_h1": {
+        "mean": 2.893492637013868,
+        "std": 0.3796333319827508
+      },
+      "entropy_h1": {
+        "mean": 4.125731314353404,
+        "std": 0.11910490310252218
+      },
+      "n_h0": {
+        "mean": 277.73333333333335
+      },
+      "n_h1": {
+        "mean": 97.13333333333334
+      }
+    },
+    "1999": {
+      "total_persistence_h0": {
+        "mean": 68.27731569292274,
+        "std": 2.029340421993681
+      },
+      "entropy_h0": {
+        "mean": 5.459303622712414,
+        "std": 0.020855703857323177
+      },
+      "total_persistence_h1": {
+        "mean": 2.745619460185473,
+        "std": 0.3042457271601014
+      },
+      "entropy_h1": {
+        "mean": 4.08045282947274,
+        "std": 0.11246993719565108
+      },
+      "n_h0": {
+        "mean": 279.2
+      },
+      "n_h1": {
+        "mean": 91.46666666666667
+      }
+    },
+    "2000": {
+      "total_persistence_h0": {
+        "mean": 68.29849816718391,
+        "std": 2.1237918133913314
+      },
+      "entropy_h0": {
+        "mean": 5.458069883854503,
+        "std": 0.019927980876059976
+      },
+      "total_persistence_h1": {
+        "mean": 2.8245216649997165,
+        "std": 0.2856960270207591
+      },
+      "entropy_h1": {
+        "mean": 4.099256555143014,
+        "std": 0.11246815103780396
+      },
+      "n_h0": {
+        "mean": 276.3333333333333
+      },
+      "n_h1": {
+        "mean": 93.73333333333333
+      }
+    },
+    "2001": {
+      "total_persistence_h0": {
+        "mean": 70.4429837557755,
+        "std": 2.770275707950292
+      },
+      "entropy_h0": {
+        "mean": 5.458271981153406,
+        "std": 0.021821673789641807
+      },
+      "total_persistence_h1": {
+        "mean": 2.9648147082272875,
+        "std": 0.46643387744220205
+      },
+      "entropy_h1": {
+        "mean": 4.107368776400839,
+        "std": 0.129817087332438
+      },
+      "n_h0": {
+        "mean": 277.53333333333336
+      },
+      "n_h1": {
+        "mean": 95.13333333333334
+      }
+    },
+    "2002": {
+      "total_persistence_h0": {
+        "mean": 68.90111104068517,
+        "std": 3.860069791632437
+      },
+      "entropy_h0": {
+        "mean": 5.46121881767387,
+        "std": 0.02251694136747215
+      },
+      "total_persistence_h1": {
+        "mean": 3.049491889640035,
+        "std": 0.3813405614939885
+      },
+      "entropy_h1": {
+        "mean": 4.127050461711308,
+        "std": 0.06299353869017514
+      },
+      "n_h0": {
+        "mean": 278.26666666666665
+      },
+      "n_h1": {
+        "mean": 96.73333333333333
+      }
+    },
+    "2003": {
+      "total_persistence_h0": {
+        "mean": 70.12305661498252,
+        "std": 2.6936732649210864
+      },
+      "entropy_h0": {
+        "mean": 5.46750729687129,
+        "std": 0.01831374860259817
+      },
+      "total_persistence_h1": {
+        "mean": 3.047217893565509,
+        "std": 0.47216714764844175
+      },
+      "entropy_h1": {
+        "mean": 4.127409912128633,
+        "std": 0.12381310542048395
+      },
+      "n_h0": {
+        "mean": 279.46666666666664
+      },
+      "n_h1": {
+        "mean": 97.26666666666667
+      }
+    },
+    "2004": {
+      "total_persistence_h0": {
+        "mean": 70.2964402074412,
+        "std": 2.6037129709222153
+      },
+      "entropy_h0": {
+        "mean": 5.47067348016484,
+        "std": 0.019158978734313957
+      },
+      "total_persistence_h1": {
+        "mean": 3.101206108387347,
+        "std": 0.30532511156340825
+      },
+      "entropy_h1": {
+        "mean": 4.182929440961927,
+        "std": 0.06412364503101303
+      },
+      "n_h0": {
+        "mean": 278.26666666666665
+      },
+      "n_h1": {
+        "mean": 102.33333333333333
+      }
+    },
+    "2005": {
+      "total_persistence_h0": {
+        "mean": 69.51225976322402,
+        "std": 2.6555690147168276
+      },
+      "entropy_h0": {
+        "mean": 5.4581460819757925,
+        "std": 0.01742293818145716
+      },
+      "total_persistence_h1": {
+        "mean": 2.914556525260857,
+        "std": 0.2664554441644959
+      },
+      "entropy_h1": {
+        "mean": 4.139307848715365,
+        "std": 0.08803683037584566
+      },
+      "n_h0": {
+        "mean": 277.8666666666667
+      },
+      "n_h1": {
+        "mean": 97.53333333333333
+      }
+    },
+    "2006": {
+      "total_persistence_h0": {
+        "mean": 71.07604879269813,
+        "std": 3.0782206409762716
+      },
+      "entropy_h0": {
+        "mean": 5.478958941659045,
+        "std": 0.021170670867983077
+      },
+      "total_persistence_h1": {
+        "mean": 3.0919849456371664,
+        "std": 0.24802689388492166
+      },
+      "entropy_h1": {
+        "mean": 4.169812502259448,
+        "std": 0.10742523932766382
+      },
+      "n_h0": {
+        "mean": 281.93333333333334
+      },
+      "n_h1": {
+        "mean": 102.73333333333333
+      }
+    },
+    "2007": {
+      "total_persistence_h0": {
+        "mean": 71.5814581579057,
+        "std": 3.124395535751446
+      },
+      "entropy_h0": {
+        "mean": 5.483094265488486,
+        "std": 0.02376807193722521
+      },
+      "total_persistence_h1": {
+        "mean": 3.184666530865855,
+        "std": 0.30566038452023614
+      },
+      "entropy_h1": {
+        "mean": 4.167213213722234,
+        "std": 0.11354270376264941
+      },
+      "n_h0": {
+        "mean": 282.8666666666667
+      },
+      "n_h1": {
+        "mean": 101.06666666666666
+      }
+    },
+    "2008": {
+      "total_persistence_h0": {
+        "mean": 71.92334324767081,
+        "std": 2.9318434062577645
+      },
+      "entropy_h0": {
+        "mean": 5.473514204236562,
+        "std": 0.024605655877563616
+      },
+      "total_persistence_h1": {
+        "mean": 3.102465627575824,
+        "std": 0.364254911923704
+      },
+      "entropy_h1": {
+        "mean": 4.196088855218805,
+        "std": 0.1205075199460866
+      },
+      "n_h0": {
+        "mean": 281.26666666666665
+      },
+      "n_h1": {
+        "mean": 103.2
+      }
+    },
+    "2009": {
+      "total_persistence_h0": {
+        "mean": 73.47300627407887,
+        "std": 3.1014559348026625
+      },
+      "entropy_h0": {
+        "mean": 5.406981740735938,
+        "std": 0.02556576875429006
+      },
+      "total_persistence_h1": {
+        "mean": 3.1000830868276323,
+        "std": 0.41170990542071745
+      },
+      "entropy_h1": {
+        "mean": 4.079080804474166,
+        "std": 0.13336520316054437
+      },
+      "n_h0": {
+        "mean": 263.3333333333333
+      },
+      "n_h1": {
+        "mean": 91.4
+      }
+    },
+    "2010": {
+      "total_persistence_h0": {
+        "mean": 74.79198973575215,
+        "std": 3.5204003217458415
+      },
+      "entropy_h0": {
+        "mean": 5.406876128182406,
+        "std": 0.017987444397629213
+      },
+      "total_persistence_h1": {
+        "mean": 3.1190203442476783,
+        "std": 0.3173834806582824
+      },
+      "entropy_h1": {
+        "mean": 4.075745436237608,
+        "std": 0.13963939059674815
+      },
+      "n_h0": {
+        "mean": 266.6666666666667
+      },
+      "n_h1": {
+        "mean": 91.06666666666666
+      }
+    },
+    "2011": {
+      "total_persistence_h0": {
+        "mean": 73.13783769331263,
+        "std": 3.0852715004610913
+      },
+      "entropy_h0": {
+        "mean": 5.391677748145811,
+        "std": 0.030076622325946017
+      },
+      "total_persistence_h1": {
+        "mean": 3.16407226706925,
+        "std": 0.42973055133222743
+      },
+      "entropy_h1": {
+        "mean": 4.055065571610586,
+        "std": 0.09197423973367788
+      },
+      "n_h0": {
+        "mean": 263.1333333333333
+      },
+      "n_h1": {
+        "mean": 89.13333333333334
+      }
+    },
+    "2012": {
+      "total_persistence_h0": {
+        "mean": 75.21964920794952,
+        "std": 2.97233282005923
+      },
+      "entropy_h0": {
+        "mean": 5.403774513121643,
+        "std": 0.019320647439222533
+      },
+      "total_persistence_h1": {
+        "mean": 3.2264931543784696,
+        "std": 0.3931406951359794
+      },
+      "entropy_h1": {
+        "mean": 4.068054409989069,
+        "std": 0.09137202158832074
+      },
+      "n_h0": {
+        "mean": 264.06666666666666
+      },
+      "n_h1": {
+        "mean": 89.86666666666666
+      }
+    },
+    "2013": {
+      "total_persistence_h0": {
+        "mean": 75.10773691260881,
+        "std": 3.401037458157511
+      },
+      "entropy_h0": {
+        "mean": 5.4140626830333645,
+        "std": 0.021331592064618547
+      },
+      "total_persistence_h1": {
+        "mean": 3.12507347403956,
+        "std": 0.414839776994006
+      },
+      "entropy_h1": {
+        "mean": 4.053576260126309,
+        "std": 0.11489801828952051
+      },
+      "n_h0": {
+        "mean": 265.8
+      },
+      "n_h1": {
+        "mean": 88.66666666666667
+      }
+    },
+    "2014": {
+      "total_persistence_h0": {
+        "mean": 74.45660637432165,
+        "std": 3.435482632357299
+      },
+      "entropy_h0": {
+        "mean": 5.408283293018095,
+        "std": 0.02101711329678756
+      },
+      "total_persistence_h1": {
+        "mean": 3.245744648406951,
+        "std": 0.24705614454824695
+      },
+      "entropy_h1": {
+        "mean": 4.102812545673529,
+        "std": 0.09894870914624258
+      },
+      "n_h0": {
+        "mean": 264.4
+      },
+      "n_h1": {
+        "mean": 91.06666666666666
+      }
+    },
+    "2015": {
+      "total_persistence_h0": {
+        "mean": 75.83509705524399,
+        "std": 3.2366841305082596
+      },
+      "entropy_h0": {
+        "mean": 5.40545902675989,
+        "std": 0.02996647561338781
+      },
+      "total_persistence_h1": {
+        "mean": 3.3835639268140763,
+        "std": 0.37953999654867215
+      },
+      "entropy_h1": {
+        "mean": 4.099883225387139,
+        "std": 0.09485440334261022
+      },
+      "n_h0": {
+        "mean": 263.73333333333335
+      },
+      "n_h1": {
+        "mean": 93.2
+      }
+    },
+    "2016": {
+      "total_persistence_h0": {
+        "mean": 74.87853833796379,
+        "std": 2.5868673000818094
+      },
+      "entropy_h0": {
+        "mean": 5.4087571064716204,
+        "std": 0.019308880642935775
+      },
+      "total_persistence_h1": {
+        "mean": 3.0886542437226803,
+        "std": 0.4520596964316378
+      },
+      "entropy_h1": {
+        "mean": 4.054018966961128,
+        "std": 0.14181623993868298
+      },
+      "n_h0": {
+        "mean": 263.6666666666667
+      },
+      "n_h1": {
+        "mean": 88.46666666666667
+      }
+    },
+    "2017": {
+      "total_persistence_h0": {
+        "mean": 74.04225868605478,
+        "std": 2.9550572322659123
+      },
+      "entropy_h0": {
+        "mean": 5.393276680091645,
+        "std": 0.03422013418213207
+      },
+      "total_persistence_h1": {
+        "mean": 3.124438527681279,
+        "std": 0.3662811150330867
+      },
+      "entropy_h1": {
+        "mean": 4.097394728394543,
+        "std": 0.08776890078411323
+      },
+      "n_h0": {
+        "mean": 262.46666666666664
+      },
+      "n_h1": {
+        "mean": 92.66666666666667
+      }
+    },
+    "2018": {
+      "total_persistence_h0": {
+        "mean": 75.01099088615462,
+        "std": 2.14911473224016
+      },
+      "entropy_h0": {
+        "mean": 5.402332994348023,
+        "std": 0.026795681325796735
+      },
+      "total_persistence_h1": {
+        "mean": 3.14247499370494,
+        "std": 0.2754314302730851
+      },
+      "entropy_h1": {
+        "mean": 4.041160343561277,
+        "std": 0.12719037793817473
+      },
+      "n_h0": {
+        "mean": 263.8
+      },
+      "n_h1": {
+        "mean": 88.0
+      }
+    },
+    "2019": {
+      "total_persistence_h0": {
+        "mean": 75.40864101679254,
+        "std": 3.1841744231525264
+      },
+      "entropy_h0": {
+        "mean": 5.401478762967447,
+        "std": 0.032034725089480666
+      },
+      "total_persistence_h1": {
+        "mean": 3.1831232035211126,
+        "std": 0.37737125500623364
+      },
+      "entropy_h1": {
+        "mean": 4.074099079960385,
+        "std": 0.07992613214547317
+      },
+      "n_h0": {
+        "mean": 263.26666666666665
+      },
+      "n_h1": {
+        "mean": 89.26666666666667
+      }
+    },
+    "2020": {
+      "total_persistence_h0": {
+        "mean": 73.34402725151526,
+        "std": 3.0810513691688013
+      },
+      "entropy_h0": {
+        "mean": 5.3941189754321925,
+        "std": 0.031729238028664015
+      },
+      "total_persistence_h1": {
+        "mean": 3.2188053639785226,
+        "std": 0.3049579540336847
+      },
+      "entropy_h1": {
+        "mean": 4.095123122426512,
+        "std": 0.13338783421866432
+      },
+      "n_h0": {
+        "mean": 259.53333333333336
+      },
+      "n_h1": {
+        "mean": 91.6
+      }
+    },
+    "2021": {
+      "total_persistence_h0": {
+        "mean": 74.08484188897725,
+        "std": 2.9755251000649814
+      },
+      "entropy_h0": {
+        "mean": 5.4060679886714915,
+        "std": 0.021981234215808724
+      },
+      "total_persistence_h1": {
+        "mean": 3.2505253637941256,
+        "std": 0.37601096120310773
+      },
+      "entropy_h1": {
+        "mean": 4.098804557930741,
+        "std": 0.09362429693763731
+      },
+      "n_h0": {
+        "mean": 262.8
+      },
+      "n_h1": {
+        "mean": 91.53333333333333
+      }
+    },
+    "2022": {
+      "total_persistence_h0": {
+        "mean": 72.37227024061426,
+        "std": 2.239367884416403
+      },
+      "entropy_h0": {
+        "mean": 5.407339390265921,
+        "std": 0.020743369415832987
+      },
+      "total_persistence_h1": {
+        "mean": 3.061236366212184,
+        "std": 0.24168148919978677
+      },
+      "entropy_h1": {
+        "mean": 4.126946672663897,
+        "std": 0.09934256809603056
+      },
+      "n_h0": {
+        "mean": 262.06666666666666
+      },
+      "n_h1": {
+        "mean": 93.33333333333333
+      }
+    }
+  },
+  "target_n": 8000,
+  "n_landmarks": 300,
+  "n_reps": 15
+}

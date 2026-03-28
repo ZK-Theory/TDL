@@ -1,0 +1,136 @@
+% main.tex — P03: Zigzag Persistence, Survey Design, and Labour Market Fragmentation
+% Sociological Methods & Research submission / arXiv preprint
+%
+% Build: make          (runs pdflatex + bibtex twice)
+%        latexmk -pdf main.tex  (continuous)
+
+\documentclass[12pt, a4paper]{article}
+
+% --- Encoding & fonts ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathpazo}           % Palatino for body text
+\usepackage{inconsolata}        % monospace
+
+% --- Page geometry ---
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\doublespacing                  % journal requirement
+
+% --- Mathematics ---
+\usepackage{amsmath, amssymb, amsthm}
+
+% --- Tables ---
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% --- Graphics ---
+\usepackage{graphicx}
+\graphicspath{{figures/}{../figures/}}
+\usepackage[font=small, labelfont=bf]{caption}
+\usepackage{subcaption}
+
+% --- Hyperlinks (load last among basics) ---
+\usepackage[colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!60!black]{hyperref}
+
+% --- Bibliography ---
+\usepackage[round, authoryear]{natbib}
+\bibliographystyle{apalike}
+
+% --- Misc ---
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{microtype}          % better line-breaking
+
+% --- Custom commands ---
+\newcommand{\HH}[1]{H_{#1}}    % homology dimension
+\newcommand{\PH}{\mathrm{PH}}
+\newcommand{\VR}{\mathrm{VR}}
+\newcommand{\Wass}{W_2}         % 2-Wasserstein distance
+\newcommand{\pval}{\textit{p}}  % p-value formatting
+\newcommand{\placeholder}[1]{\textbf{[#1]}}  % mark placeholders
+\newcommand{\TP}{\mathrm{TP}}   % total persistence
+\newcommand{\AUC}{\mathrm{AUC}} % area under Betti curve
+\newcommand{\PE}{\mathrm{PE}}   % persistence entropy
+
+% --- Title ---
+\title{Topological Business Cycles?\\
+  Zigzag Persistence, Survey Design, and Labour Market\\
+  Fragmentation in the UK, 1991--2022}
+\author{%
+  Stephen Dorman\\
+  \textit{The Open University, UK}
+}
+\date{March 2026}
+
+% ============================================================
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We apply zigzag persistent homology to 32 annual snapshots of UK
+employment-income trajectories from the British Household Panel Study and
+Understanding Society ($N = 35{,}789$ individuals, 1991--2022).
+Zigzag persistence tracks topological features across a temporal sequence of
+spaces; each year's point cloud is a sub-sample of a common PCA embedding of
+nine-state career $n$-gram vectors, with frozen loadings ensuring cross-year
+comparability.
+
+The na\"ive zigzag barcode tells an appealing story: a connected component born
+at the 2008 Global Financial Crisis persists through 2022, while the 1993
+recession produced only a transient 5.5-year fragment.
+Pairwise Wasserstein distances between the 32 annual persistence diagrams
+reinforce this picture, with a sharp two-block structure separating BHPS-era
+(1991--2008) from USoc-era (2009--2022) topology.
+
+We then show that this narrative is mostly wrong.
+Era-specific zigzag runs, spanning-individual analysis, sub-sampled Betti curves
+at matched sample sizes, and pool-draw null models converge on the same
+conclusion: the dominant post-2008 topological shift is driven by Understanding
+Society's expanded sampling frame, not by the GFC.
+Spanning individuals present in both surveys maintain stable BHPS-like topology;
+the 21,000 USoc-only newcomers, who disproportionately occupy previously
+unsampled regions of the embedding, account for virtually all of the cross-era
+topological difference.
+The block structure in the Wasserstein matrix is highly significant under both
+label-permutation (all six test statistics at $p < 0.001$) and pool-draw null
+models ($p < 0.001$ for block ratio), confirming that the era separation is
+real---but its source is survey design, not economic shock.
+
+Within the BHPS era alone, where survey design is constant, total $\HH{0}$
+persistence increases at $+0.31$/year ($p < 0.0001$), and this trend correlates
+strongly with labour market composition variables---employment rate ($r = +0.82$),
+part-time share ($r = +0.80$), unemployment ($r = -0.81$)---but not with GDP
+growth.
+First-differenced correlations yield no significant associations after
+multiple-testing correction, indicating that topology tracks slow structural
+change in employment composition, not business-cycle dynamics.
+
+The paper develops a diagnostic toolkit---spanning-individual decomposition,
+era-specific robustness, pool-draw null models---for adjudicating between
+substantive and artefactual topological change in linked panel data.
+It documents a genuine secular increase in the topological complexity of UK
+career trajectories during 1991--2008, consistent with labour market
+flexibilisation, already underway before the financial crisis.
+
+\medskip
+\noindent\textbf{Keywords:} zigzag persistence, topological data analysis,
+survey design artefacts, labour market trajectories, Wasserstein distance,
+time-varying topology
+
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ============================================================
+% Body content converted from Markdown draft v2-2026-03.md
+\input{body}
+
+% ============================================================
+\bibliography{references}
+
+\end{document}

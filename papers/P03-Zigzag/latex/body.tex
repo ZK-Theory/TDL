@@ -1,0 +1,922 @@
+% body.tex — P03: Zigzag Persistence, Survey Design, and Labour Market Fragmentation
+% Converted from drafts/v2-2026-03.md
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Introduction}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Motivation}
+
+Labour markets restructure during economic crises.
+The 2008 Global Financial Crisis displaced over 750,000 UK workers into
+unemployment within eighteen months, shifted sectoral employment towards
+low-paid services, and inaugurated a decade of real-wage stagnation without
+post-war precedent \citep{gregg2010unemployment, blundell2014wages}.
+Cross-sectional measures (unemployment rates, Gini coefficients, median wages)
+capture the level of such shocks.
+Longitudinal sequence analysis captures their effect on individual careers
+\citep{abbott1995sequence, halpin1998class}.
+Neither captures whether crises \emph{restructure the space of possible
+trajectories}: whether the set of career types available to individuals is
+geometrically different after a crisis than before.
+
+Persistent homology (PH) provides a multi-scale summary of the topology of a
+data set (its connected components, loops, and higher-dimensional voids) that is
+stable under perturbation and robust to noise
+\citep{edelsbrunner2010computational, carlsson2009topology}.
+In a companion paper \citep{dorman2026a}, we apply standard PH to a static
+cross-section of UK employment-income trajectories and identify significant
+topological structure exceeding first-order Markov baselines under Wasserstein
+testing.
+
+But a single persistence diagram cannot distinguish structural change from stable
+heterogeneity.
+A trajectory space that looks topologically complex in 2022 might have been
+identical in 1991.
+To answer temporal questions, we need methods that track topology across time.
+
+\subsection{Zigzag Persistence}
+
+Zigzag persistence \citep{carlsson2010zigzag} generalises PH to sequences of
+spaces connected by inclusions in alternating directions:
+\[
+  K_1 \hookrightarrow K_1 \cup K_2 \hookleftarrow K_2
+       \hookrightarrow K_2 \cup K_3 \hookleftarrow K_3
+       \hookrightarrow \cdots
+\]
+The zigzag algorithm computes a single barcode over this tower.
+A bar of length $k$ in the $\HH{0}$ barcode corresponds to a connected component
+that remained distinct across $k$ consecutive snapshots---qualitatively different
+from per-year PH.
+
+Zigzag persistence has been applied in neuroscience
+\citep{bendich2016persistent}, dynamic networks \citep{kim2021analysis}, and
+materials science \citep{townsend2020representation}.
+Related sliding-window methods have been used in financial time series:
+\citet{gidea2018topological} detect early warnings of the 2008 crash via
+persistence landscape norms on rolling windows of stock returns.
+To our knowledge, zigzag persistence has not been applied to longitudinal
+socioeconomic panel data.
+
+\subsection{The Identification Problem}
+
+When longitudinal data spans multiple survey instruments, as when the British
+Household Panel Study (BHPS, 1991--2008) gives way to Understanding Society
+(USoc, 2009 onwards), any change in topology could reflect genuine structural
+change, survey-design differences (sampling frame, questionnaire wording, income
+measurement), or both.
+Every time-series analysis of linked panels faces this identification problem
+\citep{lynn2009methodology}, but topological methods make it unusually visible:
+the Wasserstein distance between annual persistence diagrams quantifies how
+different two years look in topology space, and this distance responds to both
+substantive and design-related variation.
+
+We exploit this property, treating the survey transition as a natural experiment.
+If post-2008 topological change is economic (the GFC), it should affect spanning
+individuals (present in both surveys) and newcomers alike.
+If it is survey-design (the USoc sampling frame captures a broader population),
+spanning individuals should maintain pre-2008 topology while newcomers drive the
+change.
+As we show, the data decisively support the second interpretation.
+
+\subsection{Research Questions}
+
+\begin{enumerate}
+  \item \textbf{Temporal evolution.} How does the topology of the UK trajectory
+    space change across 32 annual snapshots (1991--2022)?
+  \item \textbf{Source identification.} Is the dominant post-2008 topological
+    change driven by economic restructuring or by the BHPS-to-USoc survey
+    transition?
+  \item \textbf{Within-era dynamics.} Within a single survey (BHPS 1991--2008),
+    does trajectory topology correlate with macroeconomic conditions?
+\end{enumerate}
+
+\subsection{Contribution}
+
+We make three contributions.
+First, we apply zigzag persistence to population-level panel data and show that
+its headline finding (a topological discontinuity at 2008) is largely an artefact
+of survey design, not the Global Financial Crisis.
+Zigzag persistence works, but it detects \emph{all} sources of distributional
+change, including non-substantive ones.
+Second, we develop a set of diagnostics for telling apart genuine structural
+change and survey confounds in time-varying TDA: spanning-individual
+decomposition, era-specific zigzag, sub-sampled Betti comparison, and pool-draw
+null models.
+Third, having controlled for survey design, we document a real secular trend in
+topological complexity during 1991--2008 that tracks labour market composition
+(employment rate, part-time share, self-employment) rather than business-cycle
+dynamics (GDP growth, inflation).
+
+Section~\ref{sec:lit} reviews the relevant literature.
+Section~\ref{sec:data} describes the data, embedding, and analytical methods.
+Section~\ref{sec:results} presents results: the na\"ive zigzag findings
+(\S\S\ref{sec:naive}--\ref{sec:sensitivity}), the survey-confound decomposition
+(\S\ref{sec:decomp}), the Wasserstein distance analysis with null models
+(\S\ref{sec:wasserstein}), and the macroeconomic correlations
+(\S\ref{sec:macro}).
+Section~\ref{sec:discussion} discusses implications.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Related Work}
+\label{sec:lit}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Business Cycles and Labour Market Structure}
+
+Economic recessions reshape not just unemployment levels but the structure of
+labour market transitions.
+\citet{elsby2010labor} document that the 2008 recession produced both elevated
+job-loss rates and reduced job-finding rates, with the latter persisting well
+beyond the trough.
+In the UK, \citet{gregg2010unemployment} show the GFC disproportionately
+affected younger workers and manufacturing, while \citet{blundell2014wages}
+document falling real wages alongside rising employment.
+\citet{bukodi2019social} use sequence analysis on British birth cohorts to show
+declining intergenerational class fluidity, and \citet{halpin1998class} identify
+five trajectory types with distinct transition patterns in early BHPS data.
+
+These approaches share an individual-level or typological focus.
+None can detect whether the \emph{global geometry} of the trajectory space
+changes during crises.
+
+\subsection{Time-Varying Topology}
+
+Extensions of PH to temporal data fall into three categories.
+\textbf{Sliding-window PH} \citep{perea2015sliding, perea2019topological}
+embeds a time series via delay coordinates and computes PH per window.
+\citet{gidea2018topological} apply this to daily stock returns, detecting
+pre-crash signals in persistence landscape norms.
+This operates on rolling windows of a single signal; ours operates on annual
+population cross-sections.
+
+\textbf{Zigzag persistence} \citep{carlsson2010zigzag} computes a barcode over
+a tower of simplicial complexes connected by alternating inclusions.
+The diamond construction (Cohen-Steiner et al.\ 2009) is standard: given
+complexes $K_1, \ldots, K_T$, form $K_1 \hookrightarrow K_1 \cup K_2
+\hookleftarrow K_2 \hookrightarrow \cdots$.
+Applications include brain-state tracking \citep{bendich2016persistent},
+evolving random graphs \citep{dey2019simba}, and dynamic molecular structures
+\citep{townsend2020representation}.
+
+\textbf{Vineyard persistence} \citep{cohen2006vines} tracks pairs as a
+filtration varies continuously, less natural for discrete population snapshots
+with different individuals.
+
+\subsection{TDA in the Social Sciences}
+
+Social-science TDA applications remain sparse.
+\citet{feng2021persistent} use PH on US Congressional voting networks to detect
+partisan polarisation.
+\citet{iacopini2019simplicial} use simplicial complexes for social contagion.
+These are cross-sectional network studies; ours uses longitudinal individual-level
+trajectories with zigzag tracking.
+
+\subsection{Survey Design and Longitudinal Comparability}
+
+The transition from BHPS to USoc introduced changes in sampling frame (USoc
+covers a larger population with ethnic minority boost samples), questionnaire
+design, interview mode (more online, less face-to-face), and income measurement
+\citep{lynn2009methodology, buck2011understanding}.
+Studies linking the two surveys routinely find discontinuities attributable to
+design rather than substance \citep{benzeval2020understanding}.
+Persistent homology provides an independent, geometric measure of this
+discontinuity.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Data and Methods}
+\label{sec:data}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Data}
+
+We draw on the British Household Panel Study (BHPS, 1991--2008) and
+Understanding Society (USoc, 2009--2022), the longest continuous UK household
+panel.
+The sample comprises all individuals observed for at least 10 consecutive years,
+yielding $N = 35{,}789$ trajectories: 8,509 from the BHPS era and 27,280 from
+USoc.
+Of these, 8,459 ``spanning'' individuals appear in both surveys.
+
+Each trajectory is a time-ordered sequence of annual states from a nine-element
+state space combining employment status (employed, unemployed, inactive) with
+income band (low, mid, high), where ``low'' is below 60\% of the contemporary
+median equivalised household income.
+
+Annual active counts range from 4,729 (1991) to 28,632 (2018).
+The BHPS--USoc transition produces a near-threefold jump: from 9,587 (2008) to
+27,175 (2009).
+This discontinuity is central to the paper.
+
+\subsection{Embedding}
+
+Following \citet{dorman2026a}, each trajectory is encoded as an $n$-gram
+frequency vector (counts of all state unigrams, bigrams, and trigrams from the
+nine-state alphabet, dimension $9 + 81 + 729 = 819$) then projected into
+$\mathbb{R}^{20}$ via PCA.
+The PCA loadings are \textbf{frozen}: fitted once to the full sample and applied
+to all annual sub-selections without re-fitting.
+This ensures a common coordinate system across years.
+
+\subsection{Independent Annual Persistent Homology}
+
+For each year $Y \in [1991, 2022]$, we select individuals active in that year
+from the embedded point cloud.
+To control for sample-size variation, we sub-sample to $n = 8{,}000$ per year
+(with 10--15 repetitions) and select $L = 300$ maxmin landmarks per sub-sample.
+We compute Vietoris--Rips PH via GUDHI \citep{maria2014gudhi} with max edge
+length 1.1.
+
+From each annual persistence diagram, we extract:
+\begin{itemize}
+  \item $\AUC(\beta_0)$: area under the Betti-0 curve integrated over
+    $\varepsilon \in [0.3, 0.8]$
+  \item $\TP(k)$: sum of bar lifetimes (total persistence) in dimension $k$
+  \item $\PE(k)$: Shannon entropy of the normalised lifetime distribution in
+    dimension $k$
+\end{itemize}
+
+\subsection{Zigzag Persistence}
+
+We compute zigzag persistence via the diamond construction over 32 annual
+sub-clouds.
+For each year, $L$ points are selected by maxmin greedy subsampling.
+Unique landmarks across all years form the vertex set.
+A vertex representing individual $I$ (active in years $[s_I, e_I]$) is present
+at zigzag levels spanning that interval; edges between individuals $I, J$ with
+$d(v_I, v_J) \leq \varepsilon$ are present for the intersection of their
+vertex-level intervals.
+We use dionysus~2 \citep{morozov2010dionysus} with default parameters
+$\varepsilon = 2.0$, sparse $= 0.5$, max dimension 1.
+
+To assess sensitivity, we compute zigzag over a 2D grid: 11 values of
+$\varepsilon$ (0.34--1.00) $\times$ 4 values of $L$ (75, 100, 150, 200), plus
+era-specific runs at matched sample sizes.
+
+\subsection{Wasserstein Distance Matrix}
+
+We compute pairwise 2-Wasserstein distances between all 32 annual $\HH{0}$
+persistence diagrams using GUDHI:
+\[
+  \Wass(D_Y, D_{Y'}) \quad \text{for all } Y, Y' \in [1991, 2022].
+\]
+Both full-sample (300 landmarks) and sub-sampled ($n = 8{,}000$, $L = 300$, 10
+repetitions, mean distances) versions are computed.
+We analyse the resulting $32 \times 32$ matrix via hierarchical clustering
+(Ward's method), Mantel tests (correlation between $\Wass$ and temporal distance
+$|Y - Y'|$), and multidimensional scaling.
+
+\subsection{Null Models}
+
+We employ three null models.
+
+\textbf{Label permutation} ($n = 1{,}000$).
+Permute the year labels on the observed $\Wass$ matrix, keeping the first 18
+positions as ``BHPS'' and the last 14 as ``USoc.''
+Compute block ratio (cross-era/within-era mean $\Wass$), consecutive-year mean,
+and Mantel $r$ for each permutation.
+Tests whether temporal structure is significant.
+
+\textbf{Pool-draw pairs} ($n = 100$).
+Draw two random subsets of $n = 8{,}000$ from the full pool (ignoring year
+labels), compute fresh Rips diagrams, and compute $\Wass$.
+Tests baseline diagram variability under year-ignorant sampling.
+
+\textbf{Pool-draw full} ($n = 50$, 32 diagrams each).
+Draw 32 independent random subsets, assign them to ``BHPS'' (first 18) and
+``USoc'' (last 14) positions, and compute block statistics.
+Tests whether year-specific population composition produces block structure.
+
+\subsection{Spanning-Individual Decomposition}
+
+To distinguish survey-coverage effects from economic change, we partition the
+USoc-era sample into:
+\begin{itemize}
+  \item \textbf{Spanning individuals} ($n = 8{,}459$): present in both BHPS and
+    USoc
+  \item \textbf{USoc-only newcomers} ($n = 21{,}551$): present only in USoc
+\end{itemize}
+We compute sub-sampled Betti curves and persistence summaries separately for each
+group and compare them to the BHPS reference distribution.
+If the post-2008 topological shift is economic, spanning individuals should show
+it.
+If it is survey coverage, only newcomers should differ from BHPS.
+
+\subsection{Macroeconomic Correlations}
+
+We correlate six topological time series with seven UK macroeconomic indicators
+(1991--2022) from ONS: real GDP growth, ILO unemployment rate, Gini coefficient,
+employment rate (16--64), part-time employment share, self-employment share, and
+CPI inflation.
+
+Four specifications control for confounds:
+\begin{enumerate}
+  \item \textbf{Raw Pearson correlations} (full panel, 32 years)
+  \item \textbf{Within-era} (BHPS-only, USoc-only)---eliminates
+    survey-transition effects
+  \item \textbf{Detrended} (residuals from linear time regression)---removes
+    shared secular trends
+  \item \textbf{First-differenced} ($\Delta Y \sim \Delta X$)---most
+    conservative, removes all level effects
+\end{enumerate}
+All $\pval$-values are corrected for multiple testing via Benjamini--Hochberg
+FDR at $\alpha = 0.05$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Results}
+\label{sec:results}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Na\"{i}ve Zigzag: An Apparently Compelling Story}
+\label{sec:naive}
+
+At 150 maxmin landmarks and $\varepsilon = 1.0$, the zigzag barcode contains four
+$\HH{0}$ bars (Table~\ref{tab:zigzag_bars}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Zigzag $\HH{0}$ bars (150 landmarks, $\varepsilon = 1.0$).}
+  \label{tab:zigzag_bars}
+  \begin{tabular}{clcccp{5cm}}
+    \toprule
+    Bar & Birth & Death & Lifetime & Interpretation \\
+    \midrule
+    1 & 1991   & 2022.5 & 31.5 yr & Dominant component \\
+    2 & 1991   & 2003   & 12.0 yr & Pre-2000s cluster \\
+    3 & 1991   & 1996.5 &  5.5 yr & ERM recession fragment \\
+    4 & 2008.5 & 2022.5 & 14.0 yr & GFC-born cluster \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Bar~1 spans the full panel: one connected component persists throughout.
+Bar~3 is born with the panel and dies during the mid-1990s recovery, plausibly
+the topological signature of the 1993 recession.
+Bar~4 is the most striking: it appears at the onset of the GFC and persists to
+the end of the panel, a seemingly permanent topological scar.
+Unlike the transient 1993 fragment, the GFC cluster never merges back.
+
+Per-year Betti-0 estimates are flat across all 32 years (range 234--274,
+CV $<$ 5\%).
+Independent annual PH detects no recession signature, which suggests zigzag
+reveals cross-year structure invisible to static snapshots.
+
+This is the story of our earlier analysis \citep{dorman2026b}.
+It is wrong.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{fig1_zigzag_barcode}
+  \caption{Zigzag $\HH{0}$ barcode (150 landmarks, $\varepsilon = 1.0$) annotated
+    with economic events and the BHPS--USoc survey boundary.
+    Horizontal bars show birth--death intervals; coloured bands indicate recession years;
+    the dashed vertical line marks the survey transition.}
+  \label{fig:barcode}
+\end{figure}
+
+\subsection{The Sensitivity Grid: Robustness of Zigzag Features}
+\label{sec:sensitivity}
+
+A systematic 2D parameter sweep ($11\ \varepsilon$ values $\times\ 4$ landmark
+counts) reveals the dependence structure (Table~\ref{tab:sensitivity}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{$\HH{0}$ bar count across $\varepsilon \times L$ grid (selected rows).}
+  \label{tab:sensitivity}
+  \begin{tabular}{lrrrr}
+    \toprule
+    $\varepsilon \backslash L$ & 75 & 100 & 150 & 200 \\
+    \midrule
+    0.49 & 416 & 490 & 528 & 519 \\
+    0.54 & 329 & 357 & 310 & 275 \\
+    0.70 &  68 &  51 &  35 &  26 \\
+    1.00 &   5 &   4 &   4 &   4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Below the per-year Betti knee ($\varepsilon \approx 0.54$), $\HH{0}$ increases
+with $L$: noise dominates.
+At the knee, $\HH{0}$ is approximately constant across $L$, the regime of
+maximal resolution-stability.
+Above the knee, $\HH{0}$ decreases with $L$: signal dominates.
+The 4-bar structure at $\varepsilon = 1.0$ is consistent at $L = 100$, 150, and
+200 (identical bars), so the coarse topology is stable above the knee.
+At every parameter combination, features cluster around $2008 \pm 1$, where both
+the GFC and the survey transition fall.
+
+\subsection{Decomposition: Survey Design, Not Economic Shock}
+\label{sec:decomp}
+
+Three lines of evidence demonstrate that the dominant post-2008 topological shift
+reflects the BHPS--USoc survey transition.
+
+\subsubsection{Era-Specific Zigzag}
+
+Running zigzag separately within each survey era (BHPS-only 1991--2008;
+USoc-only 2009--2022) at $\varepsilon = 1.0$, $L = 150$:
+
+\begin{center}
+  \begin{tabular}{lrl}
+    \toprule
+    Era & $\HH{0}$ bars & Structure \\
+    \midrule
+    BHPS-only & 3 & All full-span (1991--2008.5) \\
+    USoc-only & 4 & All full-span (2009--2022.5) \\
+    Full panel & 4 & Deaths at 1996.5, 2003; birth at 2008.5 \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+No within-era merger events occur: all era-specific bars span their full era.
+The temporal features in the full-panel zigzag (bars dying at 1996.5 and 2003;
+the GFC birth at 2008.5) arise from cross-era interactions when spanning
+respondents bridge the two surveys' distinct subpopulations.
+Bar~4, the ``GFC cluster,'' is a product of pooling surveys with different
+sampling frames.
+
+Sub-sampling USoc to match BHPS sample sizes ($n = 9{,}500$, 10 random draws)
+reduces the component count from 4 to a mean of 2.2 (range 1--3).
+The fourth component depends on sample size at coarse scales.
+
+\subsubsection{Spanning-Individual Decomposition}
+
+Spanning individuals ($n = 8{,}459$), present in both surveys, serve as an
+internal control.
+
+\begin{center}
+  \begin{tabular}{lll}
+    \toprule
+    Population & $\beta_0(0.70)$, 2009--2015 & vs.\ BHPS reference ($\approx 6.0$) \\
+    \midrule
+    Spanning only  & $\approx 5.7$ & Matches BHPS \\
+    USoc newcomers & $\approx 9.5$ & 50\% more complex \\
+    Combined       & $\approx 8.1$ & Intermediate \\
+    \bottomrule
+  \end{tabular}
+\end{center}
+
+Spanning individuals maintain BHPS-like topology after the survey transition.
+Their embedding positions are stable: only 4.6\% fall outside the BHPS-era
+manifold (vs.\ a 5\% baseline).
+USoc-only newcomers ($n = 21{,}551$) look different: 11.9\% fall outside the
+BHPS manifold (Mann--Whitney $p < 10^{-6}$), and their PCs 1--4 are shifted.
+State-composition analysis shows that USoc newcomers have more Employed-Low
+(5.6\% vs 3.4\% among spanners) and more Inactive-High (12.5\% vs 8.5\%)
+trajectories, career types that the BHPS sampling frame underrepresented.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{fig3_spanning_decomposition}
+  \caption{Spanning individuals vs.\ USoc newcomers: embedding shift (\% outside
+    BHPS-era manifold) and Betti-0 comparison at matched sample sizes.}
+  \label{fig:spanning}
+\end{figure}
+
+\subsubsection{Sub-sampled Betti Curves}
+
+$\AUC(\beta_0, \varepsilon = 0.3\text{--}0.8)$ at matched $n = 8{,}000$ shows a
+gradual BHPS-era rise (8.95 in 1991 $\to$ 11.49 in 2008), a step up at 2009
+($\to 14.82$), and a plateau through 2022.
+The step at 2009 persists at matched sample sizes.
+
+Total persistence $\HH{0}$ shows a clear BHPS-era trend ($+0.31$/year,
+$p < 0.0001$) followed by a flat USoc era ($-0.05$/year, $p = 0.49$).
+CUSUM changepoint analysis locates the total-persistence trend break at
+2006---two years before the GFC---and the entropy changepoint at 2008.
+
+$\HH{1}$ loops show gradual increase with no discontinuity at the GFC
+(pre- vs post-GFC $p = 0.28$).
+The loop topology is stable across the transition.
+
+\textbf{Interpretation.}
+The post-2008 complexity shift is survey coverage, not economic shock.
+Within BHPS alone, a genuine secular trend in topological complexity was already
+underway, consistent with the broader narrative of labour market flexibilisation
+(growth of part-time work, self-employment, atypical contracts) during the 1990s
+and 2000s.
+The USoc transition did not create this trend; it brought into the sample a
+broader population that the BHPS frame had missed.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{fig2_topological_timeseries}
+  \caption{Sub-sampled topological time series (1991--2022), $n = 8{,}000$ per
+    year, 15 repetitions, with BHPS/USoc era shading and CUSUM changepoint
+    markers.
+    Top: $\AUC(\beta_0)$; middle: total persistence $\TP(\HH{0})$; bottom:
+    persistence entropy.}
+  \label{fig:timeseries}
+\end{figure}
+
+\subsection{Wasserstein Distance Matrix and Null Models}
+\label{sec:wasserstein}
+
+\subsubsection{Block Structure}
+
+The sub-sampled $32 \times 32$ $\Wass$ matrix between annual $\HH{0}$ diagrams
+shows clean two-block structure (Table~\ref{tab:block_means}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Block means of pairwise $\Wass$ (sub-sampled, $\HH{0}$).}
+  \label{tab:block_means}
+  \begin{tabular}{lrr}
+    \toprule
+    Block & Mean $\Wass$ & SD \\
+    \midrule
+    BHPS--BHPS & 0.486 & 0.042 \\
+    BHPS--USoc & 0.752 & 0.105 \\
+    USoc--USoc & 0.466 & 0.033 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Cross-era distances are $1.55\times$ within-BHPS and $1.61\times$ within-USoc.
+Within-era distances are comparable; the asymmetry is concentrated in the
+cross-era block.
+
+Hierarchical clustering (Ward's method) at $k = 2$ perfectly separates BHPS from
+USoc: zero misclassifications across 32 years.
+At $k = 3$, the algorithm splits BHPS into early (1991--92, 94--96, 99, 2001)
+and late (1993, 97--98, 2000, 02--08) sub-eras.
+USoc years are not split until $k = 4$ (2009--10 and 2022 separate from the
+2011--2021 core).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.9\linewidth]{fig4_wasserstein_heatmap}
+  \caption{Wasserstein-2 distance heatmap ($32 \times 32$ annual $\HH{0}$
+    diagrams, sub-sampled) with Ward's dendrogram.
+    BHPS years (1991--2008) are coloured blue; USoc years (2009--2022) red.
+    The lower-left BHPS block and upper-right USoc block are visibly cooler
+    (lower $\Wass$) than the cross-era blocks.}
+  \label{fig:heatmap}
+\end{figure}
+
+\subsubsection{Temporal Structure}
+
+Mantel tests reveal strong full-panel time-topology correlation and an
+informative within-era asymmetry (Table~\ref{tab:mantel}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Mantel test results: correlation of $\Wass$ with temporal distance.}
+  \label{tab:mantel}
+  \begin{tabular}{lrr}
+    \toprule
+    Panel & Pearson $r$ & $p$ \\
+    \midrule
+    Full (1991--2022)  & 0.768 & $< 10^{-6}$ \\
+    BHPS (1991--2008)  & 0.423 & $< 10^{-6}$ \\
+    USoc (2009--2022)  & 0.144 & 0.17 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+BHPS-era diagrams show moderate temporal ordering: adjacent years are more
+similar than distant ones.
+USoc-era diagrams are topologically homogeneous: 14 years of persistence diagrams
+with no significant temporal structure.
+This fits a picture of USoc maintaining a stable expanded sampling frame; once
+the broader population is in the sample, the topology stops evolving.
+
+The $2008 \to 2009$ consecutive jump ($\Wass = 0.507$) is the 4th largest of 31
+consecutive-year steps, behind $1992 \to 93$ (0.546), $2005 \to 06$ (0.538), and
+$1993 \to 94$ (0.515).
+It is not an outlier, which fits a survey transition rather than a discrete
+economic shock.
+
+\subsubsection{Null Models}
+
+\textbf{Label permutation} ($1{,}000$ permutations).
+All six test statistics reject the null (Table~\ref{tab:null_permutation}); the
+temporal structure in the $\Wass$ matrix is not random.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Label-permutation null model ($n = 1{,}000$ permutations).}
+  \label{tab:null_permutation}
+  \begin{tabular}{lrrr}
+    \toprule
+    Statistic & Observed & Null mean $\pm$ SD & $p$ \\
+    \midrule
+    Block ratio       & 1.581 & $1.001 \pm 0.025$ & $< 0.001$ \\
+    Cross-era $\Wass$ & 0.752 & $0.618 \pm 0.007$ & $< 0.001$ \\
+    Within-BHPS       & 0.486 & $0.617 \pm 0.014$ & $< 0.001$ \\
+    Within-USoc       & 0.466 & $0.618 \pm 0.019$ & $< 0.001$ \\
+    Consecutive mean  & 0.467 & $0.618 \pm 0.027$ & $< 0.001$ \\
+    Mantel $r$        & 0.768 & $0.001 \pm 0.048$ & $< 0.001$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Pool-draw full} (50 permutations, 32 diagrams each).
+The block structure cannot be reproduced by random year-ignorant subsampling:
+\begin{itemize}
+  \item Block ratio: observed 1.581 vs null $1.007 \pm 0.095$ ($p < 0.001$)
+  \item Cross-era $\Wass$: observed 0.752 vs null $0.481 \pm 0.042$
+    ($p < 0.001$)
+\end{itemize}
+However, consecutive-year smoothness is \emph{not} significant (observed 0.467
+vs null $0.476 \pm 0.026$, $p = 0.34$): adjacent years' diagrams are no more
+similar than random subsets.
+The dominant signal is the era-level block, not fine-grained year-to-year
+evolution.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{fig5_mds_embedding}
+  \caption{MDS embedding of the Wasserstein distance matrix, coloured by survey
+    era (BHPS circles, USoc squares), with recession years marked by red outlines.
+    The clear left-right era separation contrasts with the absence of a distinct
+    GFC cluster within the USoc era.}
+  \label{fig:mds}
+\end{figure}
+
+\subsubsection{$\HH{1}$ Block Structure}
+
+Loop topology ($\HH{1}$) shows minimal era separation: cross-era $\Wass$ is only
+13\% above within-era means.
+The loop structure of the trajectory space is stable across the survey
+transition; the design confound operates almost entirely through connected
+components, not loops.
+
+\subsection{Macroeconomic Correlations}
+\label{sec:macro}
+
+Having established that the dominant cross-era signal is survey design, we
+restrict the most informative macro analysis to within-era correlations.
+Full-panel analyses at four robustness levels supplement this.
+
+\subsubsection{Full-Panel Correlations}
+
+Seventeen of 42 raw Pearson correlations survive BH-FDR correction.
+The strongest (Table~\ref{tab:macro_full}) are uniformly labour-market
+\emph{composition} variables, not \emph{performance} variables.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Strongest raw correlations surviving BH-FDR ($\alpha = 0.05$).}
+  \label{tab:macro_full}
+  \begin{tabular}{llrr}
+    \toprule
+    Macro indicator & Topological measure & $r$ & $p$ \\
+    \midrule
+    Self-employment share & $\AUC(\beta_0)$ & $+0.872$ & $< 0.0001$ \\
+    Self-employment share & $\TP(\HH{0})$   & $+0.846$ & $< 0.0001$ \\
+    Self-employment share & $\PE(\HH{0})$   & $-0.792$ & $< 0.0001$ \\
+    Gini                  & $\PE(\HH{0})$   & $+0.740$ & $< 0.0001$ \\
+    Employment rate       & $\TP(\HH{0})$   & $+0.698$ & $< 0.0001$ \\
+    Employment rate       & $\AUC(\beta_0)$ & $+0.638$ & $0.0001$ \\
+    Gini                  & $\AUC(\beta_0)$ & $-0.590$ & $0.0004$ \\
+    Part-time share       & $\TP(\HH{0})$   & $+0.559$ & $0.0009$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+GDP growth and inflation show no significant association with any topological
+measure after correction.
+
+\subsubsection{Robustness Hierarchy}
+
+The four specifications reveal a clear hierarchy (Table~\ref{tab:robustness}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Significant correlations by specification (BH-FDR at $\alpha = 0.05$).}
+  \label{tab:robustness}
+  \begin{tabular}{lrl}
+    \toprule
+    Specification & Surviving / Total & Interpretation \\
+    \midrule
+    Raw             & 17 / 42 & Many associations (includes shared trends) \\
+    Detrended       & 10 / 35 & Most survive; removes linear time trends \\
+    Within-BHPS     &  4 / 35 & Pure within-survey, constant design \\
+    First-differenced &  0 / 35 & No year-on-year associations \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The critical result: year-on-year changes in macroeconomic indicators do not
+predict year-on-year changes in topology.
+Topology tracks slow structural shifts in \emph{who works and how}, not annual
+business-cycle fluctuations.
+
+\subsubsection{Within-BHPS Correlations}
+
+Within the BHPS era alone---where survey design is constant---the following
+associations survive (Table~\ref{tab:within_bhps}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Significant correlations within the BHPS era (BH-FDR, $\alpha = 0.05$).}
+  \label{tab:within_bhps}
+  \begin{tabular}{llrr}
+    \toprule
+    Macro indicator & Topological measure & $r$ & $p$ \\
+    \midrule
+    Employment rate & $\AUC(\beta_0)$ & $+0.823$ & $< 0.001$ \\
+    Unemployment    & $\AUC(\beta_0)$ & $-0.807$ & $< 0.001$ \\
+    Part-time share & $\AUC(\beta_0)$ & $+0.795$ & $< 0.001$ \\
+    Employment rate & $\TP(\HH{0})$   & $+0.763$ & $< 0.001$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+These are strong associations within a constant survey design: as the employment
+rate rises and unemployment falls during the 1990s--2000s UK expansion, the
+trajectory space becomes more topologically complex (more fine-scale
+fragmentation).
+A tighter labour market with rising part-time and self-employment produces a more
+heterogeneous population of career trajectories, a broader menu of employment
+configurations that manifests as increased topological complexity.
+
+\subsubsection{Detrended and Within-USoc}
+
+After detrending, unemployment flips sign (raw $r = -0.45 \to$ detrended
+$r = +0.69$), which makes sense: cyclically, unemployment spikes coincide with
+transient fine-scale fragmentation.
+
+Within USoc, self-employment ($r = +0.71$) and inflation ($r = -0.64$) are the
+only significant correlates, a narrower set consistent with the USoc era's
+topological homogeneity observed in the Mantel test.
+
+\subsubsection{Lagged Analysis}
+
+No significant lag structure emerges for GDP growth at any lead/lag ($\pm 3$
+years).
+Unemployment shows marginal strengthening when topology leads ($r = -0.44$ at
+lag $+3$), but this is likely a level-shift artefact rather than causal dynamics.
+We do not claim that topology functions as a leading indicator.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Discussion}
+\label{sec:discussion}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Cautionary Finding}
+
+Zigzag persistence, and any time-varying topological method, does not on its own
+distinguish substantive distributional change from survey-design artefacts.
+The na\"ive zigzag analysis (\S\ref{sec:naive}) produced an appealing story about
+the 2008 financial crisis creating a permanent topological scar in the UK
+trajectory space.
+The spanning-individual decomposition (\S\ref{sec:decomp}) showed this story to
+be mostly wrong.
+
+This vulnerability is not specific to zigzag persistence.
+Any distributional comparison (Wasserstein distances, kernel MMD tests, classifier
+two-sample tests) would detect the BHPS--USoc shift.
+What the topological framework gives is \emph{structured} decomposition: the
+block structure in the Wasserstein matrix, the era-specific zigzag, the within-era
+Mantel test, and the loop-stability finding each supply a distinct piece of
+evidence.
+Together, they allow confident source identification.
+
+For applied time-varying TDA, the implication is that whenever point-cloud
+populations change for non-substantive reasons (survey redesigns, missingness
+patterns, covariate shift), topological change should be assumed partly artefactual
+until proven otherwise.
+The spanning-individual decomposition provides one route to this proof.
+
+\subsection{What Survives: Secular Flexibilisation}
+
+Having removed the survey confound, the remaining signal is worth attention.
+Within the BHPS era (1991--2008), total $\HH{0}$ persistence increases at
+$+0.31$/year ($p < 0.0001$), and the CUSUM changepoint at 2006 places the
+inflection before the GFC.
+The within-BHPS correlation with employment rate ($r = +0.82$), unemployment
+($r = -0.81$), and part-time share ($r = +0.80$) is strong and robust.
+
+This pattern aligns with the flexibilisation of UK labour markets during
+1991--2008: rising employment rates, growth of part-time and temporary work,
+expansion of self-employment, and the spread of non-standard employment
+arrangements \citep{rubery2016labour, grimshaw2017reducing}.
+As the labour market tightened and diversified, the space of career trajectories
+grew more complex---not because individual lives became more chaotic, but because
+the range of populated employment configurations expanded.
+More trajectory types gained members; the point cloud grew more geometrically
+diverse.
+
+First-differenced correlations yield nothing, which tells us this is a slow
+structural process, not a business-cycle phenomenon.
+Topological complexity tracks \emph{levels} of employment diversity, not
+\emph{changes} in GDP.
+This is the kind of long-run structural shift that the sociological literature on
+flexibilisation describes, now given a topological characterisation.
+
+\subsection{The Wasserstein Distance as a Survey-Comparability Diagnostic}
+
+The $32 \times 32$ Wasserstein distance matrix has methodological value beyond
+this paper.
+Two surveys that produce similar persistence diagrams yield low $\Wass$; a high
+cross-era $\Wass$, especially one exceeding within-era distances, flags a design
+discontinuity.
+Here the block ratio (1.58) and perfect hierarchical-clustering separation at
+$k = 2$ provide a clear diagnostic.
+
+This suggests a broader application: for any linked longitudinal study, computing
+pairwise Wasserstein distances between annual topological summaries could work as
+a routine comparability check.
+A topological distance matrix (as in Figure~\ref{fig:heatmap}) would flag
+design-related breaks, possibly more sensitively than standard balance tests on
+marginal distributions, because persistence diagrams capture geometric structure
+that marginals miss.
+
+\subsection{$\HH{1}$ Stability}
+
+The minimal cross-era $\HH{1}$ difference (13\% elevation vs 55--60\% for
+$\HH{0}$) deserves attention.
+Loop structures in the trajectory space, corresponding to cyclical career
+patterns (cycling between employment and unemployment, or between income bands),
+appear invariant to both survey design and macroeconomic conditions.
+The \emph{qualitative forms} of cyclical career dynamics are stable over three
+decades, even as the \emph{number and distribution} of trajectory clusters
+($\HH{0}$) change.
+Whether this extends to higher homology is an open question.
+
+\subsection{Limitations}
+
+\textbf{Zigzag landmark sensitivity.}
+The 4-bar structure at $\varepsilon = 1.0$ requires $L \geq 100$ landmarks; at
+$L = 75$, only one bar survives.
+The sensitivity grid shows this is $\varepsilon$-dependent, not a resolution
+issue, but formal bootstrap stability analysis on bar lifetimes would strengthen
+the finding.
+
+\textbf{Frozen PCA.}
+The common coordinate system depends on PCA loadings fitted to the full (BHPS +
+USoc) sample.
+If the factor structure genuinely differs between surveys, frozen loadings may
+distort.
+Robustness checks with era-specific PCA would address this.
+
+\textbf{Causal inference.}
+With 32 time points, and only 18 within BHPS, statistical power for dynamic
+specifications is limited.
+The within-BHPS correlations are descriptive associations, not causal claims.
+
+\textbf{State-space coarseness.}
+The nine-state employment $\times$ income classification discards within-state
+heterogeneity.
+A finer classification (adding sector or occupation) might reveal richer
+topological structure, but at the cost of sparser $n$-grams.
+
+\textbf{UK-specific.}
+The BHPS--USoc transition is specific to the UK.
+The methodological lesson (survey confounds in time-varying TDA) generalises; the
+substantive findings may not.
+
+\subsection{Connections to the Research Programme}
+
+Paper~1 \citep{dorman2026a} establishes static topological structure in the
+trajectory space.
+Paper~2 \citep{dorman2026b} applies Mapper to reveal its interior graph structure.
+This paper adds the temporal dimension and the cautionary finding about survey
+design.
+
+The Wasserstein distance matrix opens paths for Papers~5 (cross-national
+comparison) and~6 (intergenerational analysis): pairwise $\Wass$ between
+countries' annual diagrams would provide a topological metric of welfare-state
+similarity, and parent-child $\Wass$ comparisons could measure intergenerational
+topological mobility.
+In each case, the diagnostics developed here (spanning populations, block-structure
+tests, pool-draw nulls) would be needed for separating design from substance.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conclusion}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Zigzag persistent homology applied to 32 years of UK employment-income
+trajectories reveals that what appeared to be a topological signature of the 2008
+financial crisis is predominantly a survey-design effect: Understanding Society's
+broader sampling frame captures career types absent from the British Household
+Panel Study.
+Establishing this required era-specific robustness tests, spanning-individual
+analysis, and Wasserstein null models, confirming that time-varying topological
+methods in the social sciences need the same attention to survey methodology as
+any other longitudinal analysis.
+
+The harder-won finding is a genuine secular increase in topological complexity
+within the BHPS era (1991--2008), driven by labour market composition rather than
+business-cycle dynamics.
+Topology tracks the slow structural diversification of UK careers, a quantitative
+expression of flexibilisation that was underway before the financial crisis and
+already visible in the geometry of the trajectory space.
+
+The method works.
+It detects real distributional change.
+The challenge is that not all distributional change is substantively interesting,
+and decomposing the signal requires tools beyond topology alone.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{fig6_zigzag_schematic}
+  \caption{Zigzag tower (diamond construction) over annual snapshot sub-clouds.
+    Each annual point cloud $P_t$ is linked to its neighbours via the union
+    complexes $P_t \cup P_{t+1}$, enabling topological features to be tracked
+    across time without requiring a common simplex filtration.}
+  \label{fig:schematic}
+\end{figure}

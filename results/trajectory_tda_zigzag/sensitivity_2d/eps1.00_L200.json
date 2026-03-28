@@ -1,0 +1,46 @@
+{
+  "eps": 1.0,
+  "n_landmarks": 200,
+  "n_h0_bars": 4,
+  "n_h1_bars": 351787,
+  "elapsed_seconds": 269.6,
+  "h0_bars": [
+    {
+      "birth_level": 0.0,
+      "death_level": 11.0,
+      "birth_year": 1991.0,
+      "death_year": 1996.5,
+      "lifetime_years": 5.5
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 24.0,
+      "birth_year": 1991.0,
+      "death_year": 2003.0,
+      "lifetime_years": 12.0
+    },
+    {
+      "birth_level": 35.0,
+      "death_level": 63.0,
+      "birth_year": 2008.5,
+      "death_year": 2022.5,
+      "lifetime_years": 14.0
+    },
+    {
+      "birth_level": 0.0,
+      "death_level": 63.0,
+      "birth_year": 1991.0,
+      "death_year": 2022.5,
+      "lifetime_years": 31.5
+    }
+  ],
+  "h1_summary": {
+    "n_finite": 351787,
+    "mean_lifetime_years": 10.905,
+    "median_lifetime_years": 11.5,
+    "max_lifetime_years": 31.5,
+    "n_above_1yr": 328911,
+    "n_above_5yr": 289237,
+    "n_above_10yr": 222545
+  }
+}

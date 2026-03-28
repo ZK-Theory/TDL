@@ -1,0 +1,789 @@
+{
+  "eps0.70_L150": {
+    "eps": 0.7,
+    "n_landmarks": 150,
+    "n_repeats": 5,
+    "h0_counts": [
+      24,
+      24,
+      21,
+      26,
+      29
+    ],
+    "h0_mean": 24.8,
+    "h0_std": 2.6381811916545836,
+    "reps": [
+      {
+        "rep": 0,
+        "n_h0": 24,
+        "n_h1": 2090,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 3.402979850769043
+      },
+      {
+        "rep": 1,
+        "n_h0": 24,
+        "n_h1": 2617,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 3.546856164932251
+      },
+      {
+        "rep": 2,
+        "n_h0": 21,
+        "n_h1": 2526,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 3.217061758041382
+      },
+      {
+        "rep": 3,
+        "n_h0": 26,
+        "n_h1": 2534,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 3.003047466278076
+      },
+      {
+        "rep": 4,
+        "n_h0": 29,
+        "n_h1": 1659,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 2.9096474647521973
+      }
+    ]
+  },
+  "eps1.00_L150": {
+    "eps": 1.0,
+    "n_landmarks": 150,
+    "n_repeats": 5,
+    "h0_counts": [
+      3,
+      2,
+      3,
+      1,
+      2
+    ],
+    "h0_mean": 2.2,
+    "h0_std": 0.7483314773547882,
+    "reps": [
+      {
+        "rep": 0,
+        "n_h0": 3,
+        "n_h1": 23303,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 9.118441581726074
+      },
+      {
+        "rep": 1,
+        "n_h0": 2,
+        "n_h1": 16739,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 5.278239965438843
+      },
+      {
+        "rep": 2,
+        "n_h0": 3,
+        "n_h1": 21355,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 7.3098437786102295
+      },
+      {
+        "rep": 3,
+        "n_h0": 1,
+        "n_h1": 21833,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 7.092085838317871
+      },
+      {
+        "rep": 4,
+        "n_h0": 2,
+        "n_h1": 21633,
+        "h0_bars": [
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          },
+          {
+            "birth_year": 2009.0,
+            "death_year": 2022.5,
+            "lifetime_years": 13.5
+          }
+        ],
+        "elapsed": 7.428171634674072
+      }
+    ]
+  }
+}

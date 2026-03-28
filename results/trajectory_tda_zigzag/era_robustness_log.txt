@@ -1,0 +1,259 @@
+18:51:08 [__main__] INFO: Loaded full-panel reference: 4 H\u2080 bars at \u03b5=1.0, L=150
+18:51:08 [__main__] INFO: ======================================================================
+18:51:08 [__main__] INFO: ERA: BHPS (1991–2008), knee \u03b5 = 0.51
+18:51:08 [__main__] INFO: \u03b5 grid: [0.51, 0.54, 0.6, 0.7, 1.0]
+18:51:08 [__main__] INFO: L grid: [100, 150]
+18:51:08 [__main__] INFO: Total cells: 10
+18:51:08 [__main__] INFO: ======================================================================
+18:51:08 [trajectory_tda.data.annual_partition] INFO: Loading metadata from results\trajectory_tda_full\01_trajectories.json
+18:51:08 [trajectory_tda.data.annual_partition] INFO: Loading embeddings from results\trajectory_tda_full\embeddings.npy
+18:51:08 [trajectory_tda.data.annual_partition] INFO: Annual partition complete: 18 years (1991–2008), median n=8332, min n=4729, max n=9747
+18:51:08 [__main__] INFO: 18 years available (1991–2008)
+18:51:08 [__main__] INFO: [1/10] BHPS \u03b5=0.51, L=100
+18:51:08 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.51, n_landmarks=100, max_dim=1
+18:51:08 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 370
+18:51:08 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.51: 774
+18:51:08 [trajectory_tda.topology.zigzag] INFO: Filtration: 370 vertices, 774 edges (+triangles if max_dim=2)
+18:51:08 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:09 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 78 H\u2080 bars, 482 H\u2081 bars over 18-year tower (1991–2008)
+18:51:09 [__main__] INFO: BHPS \u03b5=0.51, L=100: 78 H\u2080 (78 long-lived), 482 H\u2081 (1.5 s)
+18:51:09 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:09 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:09 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:09 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:09 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:09 [__main__] INFO: [2/10] BHPS \u03b5=0.51, L=150
+18:51:09 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.51, n_landmarks=150, max_dim=1
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 513
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.51: 1698
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Filtration: 513 vertices, 1698 edges (+triangles if max_dim=2)
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 68 H\u2080 bars, 1253 H\u2081 bars over 18-year tower (1991–2008)
+18:51:10 [__main__] INFO: BHPS \u03b5=0.51, L=150: 68 H\u2080 (68 long-lived), 1253 H\u2081 (0.7 s)
+18:51:10 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:10 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:10 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:10 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:10 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:10 [__main__] INFO: [3/10] BHPS \u03b5=0.54, L=100
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.54, n_landmarks=100, max_dim=1
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 370
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.54: 973
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Filtration: 370 vertices, 973 edges (+triangles if max_dim=2)
+18:51:10 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:11 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 59 H\u2080 bars, 662 H\u2081 bars over 18-year tower (1991–2008)
+18:51:11 [__main__] INFO: BHPS \u03b5=0.54, L=100: 59 H\u2080 (59 long-lived), 662 H\u2081 (0.9 s)
+18:51:11 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:11 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:11 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:11 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:11 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:11 [__main__] INFO: [4/10] BHPS \u03b5=0.54, L=150
+18:51:11 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.54, n_landmarks=150, max_dim=1
+18:51:12 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 513
+18:51:12 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.54: 2214
+18:51:12 [trajectory_tda.topology.zigzag] INFO: Filtration: 513 vertices, 2214 edges (+triangles if max_dim=2)
+18:51:12 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:12 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 50 H\u2080 bars, 1751 H\u2081 bars over 18-year tower (1991–2008)
+18:51:12 [__main__] INFO: BHPS \u03b5=0.54, L=150: 50 H\u2080 (50 long-lived), 1751 H\u2081 (1.3 s)
+18:51:12 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:12 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:12 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:12 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:12 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:12 [__main__] INFO: [5/10] BHPS \u03b5=0.60, L=100
+18:51:12 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.60, n_landmarks=100, max_dim=1
+18:51:13 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 370
+18:51:13 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.60: 1573
+18:51:13 [trajectory_tda.topology.zigzag] INFO: Filtration: 370 vertices, 1573 edges (+triangles if max_dim=2)
+18:51:13 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:13 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 42 H\u2080 bars, 1245 H\u2081 bars over 18-year tower (1991–2008)
+18:51:13 [__main__] INFO: BHPS \u03b5=0.60, L=100: 42 H\u2080 (42 long-lived), 1245 H\u2081 (1.0 s)
+18:51:13 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:13 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:13 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:13 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:13 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:13 [__main__] INFO: [6/10] BHPS \u03b5=0.60, L=150
+18:51:13 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.60, n_landmarks=150, max_dim=1
+18:51:14 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 513
+18:51:14 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.60: 3936
+18:51:14 [trajectory_tda.topology.zigzag] INFO: Filtration: 513 vertices, 3936 edges (+triangles if max_dim=2)
+18:51:14 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:15 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 30 H\u2080 bars, 3453 H\u2081 bars over 18-year tower (1991–2008)
+18:51:15 [__main__] INFO: BHPS \u03b5=0.60, L=150: 30 H\u2080 (30 long-lived), 3453 H\u2081 (1.6 s)
+18:51:15 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:15 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:15 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:15 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:15 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:15 [__main__] INFO: [7/10] BHPS \u03b5=0.70, L=100
+18:51:15 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.70, n_landmarks=100, max_dim=1
+18:51:15 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 370
+18:51:15 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.70: 3689
+18:51:15 [trajectory_tda.topology.zigzag] INFO: Filtration: 370 vertices, 3689 edges (+triangles if max_dim=2)
+18:51:15 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:16 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 16 H\u2080 bars, 3335 H\u2081 bars over 18-year tower (1991–2008)
+18:51:16 [__main__] INFO: BHPS \u03b5=0.70, L=100: 16 H\u2080 (16 long-lived), 3335 H\u2081 (1.1 s)
+18:51:16 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:16 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:16 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:16 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:16 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:16 [__main__] INFO: [8/10] BHPS \u03b5=0.70, L=150
+18:51:16 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=0.70, n_landmarks=150, max_dim=1
+18:51:17 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 513
+18:51:17 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.70: 9177
+18:51:17 [trajectory_tda.topology.zigzag] INFO: Filtration: 513 vertices, 9177 edges (+triangles if max_dim=2)
+18:51:17 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:18 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 10 H\u2080 bars, 8674 H\u2081 bars over 18-year tower (1991–2008)
+18:51:18 [__main__] INFO: BHPS \u03b5=0.70, L=150: 10 H\u2080 (10 long-lived), 8674 H\u2081 (1.8 s)
+18:51:18 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:18 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:18 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:18 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:18 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:18 [__main__] INFO: [9/10] BHPS \u03b5=1.00, L=100
+18:51:18 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=1.00, n_landmarks=100, max_dim=1
+18:51:18 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 370
+18:51:18 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=1.00: 19946
+18:51:18 [trajectory_tda.topology.zigzag] INFO: Filtration: 370 vertices, 19946 edges (+triangles if max_dim=2)
+18:51:18 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:51:24 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 3 H\u2080 bars, 19579 H\u2081 bars over 18-year tower (1991–2008)
+18:51:24 [__main__] INFO: BHPS \u03b5=1.00, L=100: 3 H\u2080 (3 long-lived), 19579 H\u2081 (6.5 s)
+18:51:24 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:24 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:24 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:51:24 [__main__] INFO: [10/10] BHPS \u03b5=1.00, L=150
+18:51:24 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 18 years (1991–2008), max_filtration=1.00, n_landmarks=150, max_dim=1
+18:51:25 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 513
+18:51:25 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=1.00: 43804
+18:51:25 [trajectory_tda.topology.zigzag] INFO: Filtration: 513 vertices, 43804 edges (+triangles if max_dim=2)
+18:51:25 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:00 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 3 H\u2080 bars, 43294 H\u2081 bars over 18-year tower (1991–2008)
+18:52:00 [__main__] INFO: BHPS \u03b5=1.00, L=150: 3 H\u2080 (3 long-lived), 43294 H\u2081 (35.3 s)
+18:52:00 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:52:00 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:52:00 [__main__] INFO:   H\u2080: 1991.0 \u2192 2008.5 (17.5 yr)
+18:52:00 [__main__] INFO: Saved era grid: results\trajectory_tda_zigzag\era_robustness\bhps_grid.json
+18:52:00 [__main__] INFO: ======================================================================
+18:52:00 [__main__] INFO: ERA: USOC (2009–2022), knee \u03b5 = 0.64
+18:52:00 [__main__] INFO: \u03b5 grid: [0.54, 0.64, 0.7, 1.0]
+18:52:00 [__main__] INFO: L grid: [100, 150]
+18:52:00 [__main__] INFO: Total cells: 8
+18:52:00 [__main__] INFO: ======================================================================
+18:52:00 [trajectory_tda.data.annual_partition] INFO: Loading metadata from results\trajectory_tda_full\01_trajectories.json
+18:52:00 [trajectory_tda.data.annual_partition] INFO: Loading embeddings from results\trajectory_tda_full\embeddings.npy
+18:52:00 [trajectory_tda.data.annual_partition] INFO: Annual partition complete: 14 years (2009–2022), median n=27295, min n=19034, max n=28632
+18:52:00 [__main__] INFO: 14 years available (2009–2022)
+18:52:00 [__main__] INFO: [1/8] USOC \u03b5=0.54, L=100
+18:52:00 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=0.54, n_landmarks=100, max_dim=1
+18:52:05 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 450
+18:52:05 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.54: 393
+18:52:05 [trajectory_tda.topology.zigzag] INFO: Filtration: 450 vertices, 393 edges (+triangles if max_dim=2)
+18:52:05 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:05 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 196 H\u2080 bars, 139 H\u2081 bars over 14-year tower (2009–2022)
+18:52:05 [__main__] INFO: USOC \u03b5=0.54, L=100: 196 H\u2080 (196 long-lived), 139 H\u2081 (5.1 s)
+18:52:05 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:05 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:05 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:05 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:05 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:05 [__main__] INFO: [2/8] USOC \u03b5=0.54, L=150
+18:52:05 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=0.54, n_landmarks=150, max_dim=1
+18:52:12 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 698
+18:52:12 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.54: 832
+18:52:12 [trajectory_tda.topology.zigzag] INFO: Filtration: 698 vertices, 832 edges (+triangles if max_dim=2)
+18:52:12 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:12 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 188 H\u2080 bars, 322 H\u2081 bars over 14-year tower (2009–2022)
+18:52:12 [__main__] INFO: USOC \u03b5=0.54, L=150: 188 H\u2080 (188 long-lived), 322 H\u2081 (7.2 s)
+18:52:12 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:12 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:12 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:12 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:12 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:12 [__main__] INFO: [3/8] USOC \u03b5=0.64, L=100
+18:52:12 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=0.64, n_landmarks=100, max_dim=1
+18:52:17 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 450
+18:52:17 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.64: 691
+18:52:17 [trajectory_tda.topology.zigzag] INFO: Filtration: 450 vertices, 691 edges (+triangles if max_dim=2)
+18:52:17 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:17 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 71 H\u2080 bars, 312 H\u2081 bars over 14-year tower (2009–2022)
+18:52:17 [__main__] INFO: USOC \u03b5=0.64, L=100: 71 H\u2080 (71 long-lived), 312 H\u2081 (4.9 s)
+18:52:17 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:17 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:17 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:17 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:17 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:17 [__main__] INFO: [4/8] USOC \u03b5=0.64, L=150
+18:52:17 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=0.64, n_landmarks=150, max_dim=1
+18:52:24 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 698
+18:52:24 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.64: 1779
+18:52:24 [trajectory_tda.topology.zigzag] INFO: Filtration: 698 vertices, 1779 edges (+triangles if max_dim=2)
+18:52:24 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:24 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 36 H\u2080 bars, 1117 H\u2081 bars over 14-year tower (2009–2022)
+18:52:24 [__main__] INFO: USOC \u03b5=0.64, L=150: 36 H\u2080 (36 long-lived), 1117 H\u2081 (7.4 s)
+18:52:24 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:24 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:24 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:24 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:24 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:24 [__main__] INFO: [5/8] USOC \u03b5=0.70, L=100
+18:52:24 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=0.70, n_landmarks=100, max_dim=1
+18:52:29 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 450
+18:52:29 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.70: 984
+18:52:29 [trajectory_tda.topology.zigzag] INFO: Filtration: 450 vertices, 984 edges (+triangles if max_dim=2)
+18:52:29 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:29 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 34 H\u2080 bars, 568 H\u2081 bars over 14-year tower (2009–2022)
+18:52:29 [__main__] INFO: USOC \u03b5=0.70, L=100: 34 H\u2080 (34 long-lived), 568 H\u2081 (4.9 s)
+18:52:29 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:29 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:29 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:29 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:29 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:29 [__main__] INFO: [6/8] USOC \u03b5=0.70, L=150
+18:52:29 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=0.70, n_landmarks=150, max_dim=1
+18:52:36 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 698
+18:52:36 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=0.70: 2855
+18:52:36 [trajectory_tda.topology.zigzag] INFO: Filtration: 698 vertices, 2855 edges (+triangles if max_dim=2)
+18:52:36 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:37 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 17 H\u2080 bars, 2174 H\u2081 bars over 14-year tower (2009–2022)
+18:52:37 [__main__] INFO: USOC \u03b5=0.70, L=150: 17 H\u2080 (17 long-lived), 2174 H\u2081 (7.4 s)
+18:52:37 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:37 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:37 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:37 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:37 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:37 [__main__] INFO: [7/8] USOC \u03b5=1.00, L=100
+18:52:37 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=1.00, n_landmarks=100, max_dim=1
+18:52:41 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 450
+18:52:41 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=1.00: 7388
+18:52:41 [trajectory_tda.topology.zigzag] INFO: Filtration: 450 vertices, 7388 edges (+triangles if max_dim=2)
+18:52:41 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:42 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 4 H\u2080 bars, 6942 H\u2081 bars over 14-year tower (2009–2022)
+18:52:42 [__main__] INFO: USOC \u03b5=1.00, L=100: 4 H\u2080 (4 long-lived), 6942 H\u2081 (5.3 s)
+18:52:42 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:42 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:42 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:42 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:42 [__main__] INFO: [8/8] USOC \u03b5=1.00, L=150
+18:52:42 [trajectory_tda.topology.zigzag] INFO: Building zigzag filtration: 14 years (2009–2022), max_filtration=1.00, n_landmarks=150, max_dim=1
+18:52:49 [trajectory_tda.topology.zigzag] INFO: Total unique landmarks across all years: 698
+18:52:49 [trajectory_tda.topology.zigzag] INFO: Vertex pairs within \u03b5=1.00: 26654
+18:52:49 [trajectory_tda.topology.zigzag] INFO: Filtration: 698 vertices, 26654 edges (+triangles if max_dim=2)
+18:52:49 [trajectory_tda.topology.zigzag] INFO: Calling WSL dionysus bridge: /mnt/c/Projects/TDL/trajectory_tda/scripts/zigzag_dionysus_bridge.py
+18:52:55 [trajectory_tda.topology.zigzag] INFO: Zigzag complete: 4 H\u2080 bars, 25960 H\u2081 bars over 14-year tower (2009–2022)
+18:52:55 [__main__] INFO: USOC \u03b5=1.00, L=150: 4 H\u2080 (4 long-lived), 25960 H\u2081 (12.8 s)
+18:52:55 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:55 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:55 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:55 [__main__] INFO:   H\u2080: 2009.0 \u2192 2022.5 (13.5 yr)
+18:52:55 [__main__] INFO: Saved era grid: results\trajectory_tda_zigzag\era_robustness\usoc_grid.json
+18:52:55 [__main__] INFO: ======================================================================
+18:52:55 [__main__] INFO: ERA ROBUSTNESS VERDICT
+18:52:55 [__main__] INFO: ======================================================================
+18:52:55 [__main__] INFO:   BHPS at \u03b5=1.0: 3 components — 1991.0\u21922008.5 (17.5yr), 1991.0\u21922008.5 (17.5yr), 1991.0\u21922008.5 (17.5yr). Internal sub-structure present; features not artefactual.
+18:52:55 [__main__] INFO:   USOC at \u03b5=1.0: 4 components — 2009.0\u21922022.5 (13.5yr), 2009.0\u21922022.5 (13.5yr), 2009.0\u21922022.5 (13.5yr), 2009.0\u21922022.5 (13.5yr). Internal sub-structure present; features not artefactual.
+18:52:55 [__main__] INFO:   BHPS at \u03b5=0.51, L=100: 78 long-lived H\u2080 bars present. Feature sub-structure survives within BHPS era.
+18:52:55 [__main__] INFO:   VERDICT: BOTH eras show internal topological sub-structure at \u03b5=1.0. Full-panel features are genuine, not merge artefacts.
+18:52:55 [__main__] INFO: Saved comparison: results\trajectory_tda_zigzag\era_robustness\era_comparison.json

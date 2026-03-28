@@ -1,0 +1,52 @@
+{
+  "bhps": {
+    "era": "bhps",
+    "year_range": [
+      1991,
+      2008
+    ],
+    "n_years": 18,
+    "n_landmarks": 150,
+    "n_h0_bars": 1,
+    "n_h1_bars": 333389,
+    "elapsed_seconds": 2865.895754337311,
+    "h0_bars": [
+      {
+        "birth_year": 1991.0,
+        "death_year": 2008.5,
+        "lifetime_years": 17.5
+      }
+    ],
+    "h1_summary": {
+      "n_finite": 333389,
+      "mean_lifetime": 9.109523709540507,
+      "median_lifetime": 9.0,
+      "max_lifetime": 17.5
+    }
+  },
+  "usoc": {
+    "era": "usoc",
+    "year_range": [
+      2009,
+      2022
+    ],
+    "n_years": 14,
+    "n_landmarks": 150,
+    "n_h0_bars": 1,
+    "n_h1_bars": 270615,
+    "elapsed_seconds": 671.4756631851196,
+    "h0_bars": [
+      {
+        "birth_year": 2009.0,
+        "death_year": 2022.5,
+        "lifetime_years": 13.5
+      }
+    ],
+    "h1_summary": {
+      "n_finite": 270615,
+      "mean_lifetime": 11.12326922010975,
+      "median_lifetime": 11.5,
+      "max_lifetime": 13.5
+    }
+  }
+}

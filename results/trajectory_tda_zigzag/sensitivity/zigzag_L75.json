@@ -1,0 +1,21 @@
+{
+  "n_landmarks": 75,
+  "n_h0_bars": 1,
+  "n_h1_bars": 243031,
+  "elapsed_seconds": 154.91666197776794,
+  "h0_bars": [
+    {
+      "birth_year": 1991.0,
+      "death_year": 2022.5,
+      "lifetime_years": 31.5
+    }
+  ],
+  "h1_summary": {
+    "n_finite": 243031,
+    "mean_lifetime": 9.715526002855603,
+    "median_lifetime": 10.5,
+    "max_lifetime": 31.5,
+    "n_above_5yr": 190035,
+    "n_above_10yr": 140078
+  }
+}
