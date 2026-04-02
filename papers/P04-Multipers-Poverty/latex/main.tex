@@ -1,0 +1,70 @@
+% main.tex — P04: Multi-Parameter PH for Income-Stratified Trajectory Topology
+% arXiv preprint / JASA Applications submission
+%
+% Build: latexmk -pdf main.tex
+
+\documentclass[12pt, a4paper]{article}
+
+% --- Encoding & fonts ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathpazo}           % Palatino for body text
+\usepackage{inconsolata}        % monospace
+
+% --- Page geometry ---
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\doublespacing                  % journal requirement
+
+% --- Mathematics ---
+\usepackage{amsmath, amssymb, amsthm}
+
+% --- Tables ---
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% --- Graphics ---
+\usepackage{graphicx}
+\graphicspath{{../../../figures/trajectory_tda/p04/}}
+\usepackage[font=small, labelfont=bf]{caption}
+\usepackage{subcaption}
+
+% --- Hyperlinks (load last among basics) ---
+\usepackage[colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!60!black]{hyperref}
+
+% --- Bibliography ---
+\usepackage[round, authoryear]{natbib}
+\bibliographystyle{apalike}
+
+% --- Misc ---
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+% --- Custom commands ---
+\newcommand{\HH}[1]{H_{#1}}    % homology dimension
+\newcommand{\PH}{\mathrm{PH}}
+\newcommand{\VR}{\mathrm{VR}}
+\newcommand{\Wass}{W_1}         % 1-Wasserstein distance
+\newcommand{\pval}{\textit{p}}  % p-value formatting
+\newcommand{\placeholder}[1]{\textbf{[#1]}}
+
+% --- Title ---
+\title{Multi-Parameter Persistent Homology Reveals Income-Stratified\\
+  Topological Structure in UK Employment Trajectories}
+\author{%
+  Stephen Dorman\\
+  \textit{The Open University, UK}
+}
+\date{April 2026}
+
+\begin{document}
+
+\maketitle
+
+\input{body}
+
+% \bibliography{references}
+
+\end{document}
