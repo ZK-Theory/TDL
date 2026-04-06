@@ -14,9 +14,25 @@ tags: [paper, tda, mapper, kmapper, trajectory, interior-structure]
 
 ## Status
 
-v4 draft revised (v4-2026-04.md). Second revision pass addressing remaining reviewer feedback: embedding robustness qualifiers added to abstract, §1.3, §4.5.1, §5.6, and §6 (all robustness claims now explicitly scoped to PCA-20D with UMAP-16D replication noted); "Author (2026a)" → "Dorman (2026a)" throughout with proper reference entry; |z| > 1.0 threshold justified in §3.7 with multi-threshold rationale and FDR acknowledgement; bridge node scaling Table 7b added to §4.5.2; Figure 6 caption updated with truncation note (1,500 of 37,772 nodes); §1.3 sociological value proposition sentence added; §5.5 OM comparison strengthened with interpretability comparison and colour-scheme cross-reference; §4.4.1 prose cleaned (undefined variables removed); Table 9 trimmed of undefined variables. Code availability section confirmed present. LaTeX pipeline rebuilt from v4 markdown (body.tex regenerated, main.tex abstract/keywords updated, references.bib citation key fixed). PDF compiles cleanly.
+v5 draft complete (v5-2026-04.md). Final revision addressing all outstanding reviewer feedback.
 
-Previous drafts: v1-2026-03.md, v2-2026-03.md, v3-2026-03.md.
+Changes v4→v5:
+- §1.3: Strengthened sociological value proposition — now explicitly ties navigability to absorbing-state boundary identification and efficiency targeting for policy interventions
+- §2.1: Added specification that X is the 27,280-point cloud in R^20 and k ∈ {1, 2} (reviewer technical correction)
+- §3.4: Clarified that consecutive identical states count as no transition for churning rate
+- §3.7: Expanded |z| > 1.0 justification with three-part rationale, explicit acknowledgement of non-normality, and note on FDR correction for 14 comparisons
+- §4.2: Separated R0 and R6 coverage figures with explicit percentages and noise counts (reviewer technical correction on Table 3 interpretation)
+- §4.3: Expanded multi-threshold analysis prose with monotonicity note and clearer FDR/permutation interplay
+- §4.4.1 Figure 9: Cross-referenced churning decomposition in §4.4.2 to clarify nature of R3/R5 cycling
+- §5.5: Added practitioner considerations paragraph comparing OM vs Mapper tuning complexity
+- §5.6: Added paragraph on |z| > 1.0 as exploratory vs individually significant
+- Figure 6 caption: Now includes bridge node counts for both panels
+- Code Availability: Added Python version, data access note (UK Data Service SN 6614)
+- References: Alphabetised (Dorman moved to correct position)
+- All "Author (2026a)" → "Dorman (2026a)" confirmed throughout
+- All "causal geography" → "outcome geography" confirmed throughout
+
+Previous drafts: v1-2026-03.md, v2-2026-03.md, v3-2026-03.md, v4-2026-04.md.
 
 Results saved to `results/trajectory_tda_mapper/reviewer_response/` (01\u201305 JSON outputs).
 
@@ -45,9 +61,12 @@ VR persistent homology reveals global connectivity; Mapper reveals *interior den
 - [x] R3/R5 churning decomposition
 - [x] OM dendrogram figure (Fig 11)
 - [x] v4 draft (all reviewer-response revisions)
+- [x] v5 draft (final revision — all feedback items resolved)
 - [x] Rebuild LaTeX (main.tex/body.tex) to match v4
+- [ ] Rebuild LaTeX from v5 markdown
 - [ ] Run /humanizer pass before submission review
 - [ ] Final figure quality review (production-ready PNGs/PDFs)
+- [ ] Resolve P01 companion paper "causal geography" → "outcome geography" for consistency
 - [ ] Supplementary materials (interactive HTML Mapper visualisations)
 
 ## Computation

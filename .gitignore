@@ -112,3 +112,6 @@ results/trajectory_tda_integration/01_trajectories_sequences.json
 
 # Windows null device artifact
 nul
+
+# Submission guidelines (journal-specific, not tracked)
+papers/submission guidelines/

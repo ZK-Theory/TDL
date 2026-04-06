@@ -1,0 +1,12 @@
+feat(p04): complete multipers bifiltration pipeline + scale sensitivity + results
+
+Adds P04 multi-parameter PH implementation with full production pipeline:
+- Core module: multipers_bifiltration.py (bifiltration, signed measure, nulls)
+- Scripts: p04_run_nulls.py, p04_run_5k.py, p04_explore_discretisation.py, p04_appendix_b.py
+- Tests: test_multipers_validation.py, test_p04_embedding_stability.py  
+- Results: p04_multipers/ (2k landmarks + 999 perms), p04_multipers_5k/, p04_exploration/
+- Figures: null distributions, baseline comparison, regime income, Hilbert/rank analysis
+- Paper drafts: v2-v4, LaTeX main, archive of v1
+
+Implements income-stratified TDA for trajectory poverty trap detection.
+Enables P04 submission (Sociological Methodology target).
