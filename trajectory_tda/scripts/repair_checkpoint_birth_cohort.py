@@ -32,6 +32,17 @@ from trajectory_tda.data.covariate_extractor import attach_birth_cohort_metadata
 logger = logging.getLogger(__name__)
 
 
+def _json_safe(value: Any) -> Any:
+    """Recursively replace NaN-like values with JSON-safe nulls."""
+    if isinstance(value, float) and pd.isna(value):
+        return None
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _metadata_dict_to_frame(raw_metadata: dict[str, Any], n_rows: int | None) -> pd.DataFrame:
     """Convert JSON checkpoint metadata back to a DataFrame."""
     columns: dict[str, list[Any]] = {}
@@ -54,15 +65,15 @@ def repair_checkpoint(checkpoint_dir: Path, data_dir: Path) -> tuple[int, int]:
     if not checkpoint_file.exists():
         raise FileNotFoundError(f"Checkpoint file not found: {checkpoint_file}")
 
-    with open(checkpoint_file) as handle:
+    with open(checkpoint_file, encoding="utf-8") as handle:
         payload = json.load(handle)
 
     metadata = _metadata_dict_to_frame(payload.get("metadata", {}), payload.get("n"))
     repaired = attach_birth_cohort_metadata(metadata, data_dir=data_dir)
 
-    payload["metadata"] = repaired.to_dict()
-    with open(checkpoint_file, "w") as handle:
-        json.dump(payload, handle, indent=2, default=str)
+    payload["metadata"] = _json_safe(repaired.astype(object).where(pd.notna(repaired), None).to_dict())
+    with open(checkpoint_file, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, default=str, allow_nan=False)
 
     birth_year_count = 0
     if "birth_year" in repaired.columns:

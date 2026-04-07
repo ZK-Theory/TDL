@@ -37,13 +37,102 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import time
+from collections.abc import Iterable
+from importlib.resources import files
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+def _metadata_fallback(key: str) -> object:
+    """Provide explicit fallbacks for sparse checkpoint metadata."""
+    if key in {"cohort", "birth_cohort"}:
+        return "unknown"
+    return np.nan
+
+
+def _resolve_trajectory_data_dir(explicit_data_dir: str | Path | None = None) -> Path:
+    """Resolve the raw trajectory data directory from CLI, env, or package data."""
+    if explicit_data_dir is not None:
+        return Path(explicit_data_dir)
+
+    env_data_dir = os.environ.get("TRAJECTORY_TDA_DATA_DIR")
+    if env_data_dir:
+        return Path(env_data_dir)
+
+    return Path(str(files("trajectory_tda").joinpath("data")))
+
+
+def _checkpoint_meta_column(key: str, values: object, n_rows: int | None) -> list[object]:
+    """Convert checkpoint metadata into a length-safe column for DataFrame rebuild."""
+    if isinstance(values, dict):
+        values_dict = cast(dict[object, object], values)
+        indexed_values: dict[int, object] = {}
+        for raw_key, raw_value in values_dict.items():
+            try:
+                indexed_values[int(raw_key)] = raw_value
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Skipping non-numeric metadata index %r in %s",
+                    raw_key,
+                    key,
+                )
+
+        if not indexed_values:
+            logger.warning("Skipping metadata field %s: no integer-indexed entries", key)
+            return []
+
+        if n_rows is None:
+            return [indexed_values[index] for index in sorted(indexed_values)]
+
+        fallback = _metadata_fallback(key)
+        ordered_values = [indexed_values.get(index, fallback) for index in range(n_rows)]
+        missing_count = sum(index not in indexed_values for index in range(n_rows))
+        if missing_count:
+            logger.warning(
+                "Metadata field %s missing %d/%d indexed entries; using explicit fallback values",
+                key,
+                missing_count,
+                n_rows,
+            )
+        return ordered_values
+
+    if isinstance(values, (str, bytes)) or not isinstance(values, Iterable):
+        logger.warning(
+            "Skipping metadata field %s: unsupported metadata type %s",
+            key,
+            type(values).__name__,
+        )
+        return []
+
+    sequence = list(cast(Iterable[Any], values))
+    if n_rows is None:
+        return sequence
+
+    fallback = _metadata_fallback(key)
+    if len(sequence) < n_rows:
+        logger.warning(
+            "Metadata field %s shorter than checkpoint length (%d < %d); padding with fallback values",
+            key,
+            len(sequence),
+            n_rows,
+        )
+        return sequence + [fallback] * (n_rows - len(sequence))
+    if len(sequence) > n_rows:
+        logger.warning(
+            "Metadata field %s longer than checkpoint length (%d > %d); truncating extras",
+            key,
+            len(sequence),
+            n_rows,
+        )
+        return sequence[:n_rows]
+    return sequence
 
 
 def _normalise_cohort_label(value: object) -> str:
@@ -75,7 +164,7 @@ def _convert_numpy(obj: object) -> object:
 
 def load_checkpoint(
     checkpoint_dir: Path,
-) -> tuple[np.ndarray, list[list[str]], dict]:
+) -> tuple[np.ndarray, list[list[str]], dict[str, Any]]:
     """Load embeddings and trajectories from a pipeline checkpoint.
 
     Args:
@@ -99,7 +188,11 @@ def load_checkpoint(
         trajectories = json.load(f)
 
     # Read embed kwargs from checkpoint metadata
-    embed_kwargs: dict = {"pca_dim": 20, "include_bigrams": True, "tfidf": False}
+    embed_kwargs: dict[str, Any] = {
+        "pca_dim": 20,
+        "include_bigrams": True,
+        "tfidf": False,
+    }
     if info_path.exists():
         with open(info_path) as f:
             info = json.load(f)
@@ -115,7 +208,8 @@ def load_checkpoint(
 
 def load_cohort_metadata(
     checkpoint_dir: Path,
-) -> dict | None:
+    data_dir: str | Path | None = None,
+) -> dict[str, Any] | None:
     """Try to load birth cohort metadata for cohort_shuffle null.
 
     Returns:
@@ -135,24 +229,21 @@ def load_cohort_metadata(
         cohort = meta.get("cohort", {})
     if not cohort and meta.get("pidp"):
         try:
-            from trajectory_tda.data.covariate_extractor import attach_birth_cohort_metadata
+            from trajectory_tda.data.covariate_extractor import (
+                attach_birth_cohort_metadata,
+            )
 
             n = traj_data.get("n")
-            checkpoint_meta: dict[str, list] = {}
+            checkpoint_meta: dict[str, list[Any]] = {}
             for key, values in meta.items():
-                if isinstance(values, dict):
-                    if n is None:
-                        ordered_keys = sorted(values, key=int)
-                        checkpoint_meta[key] = [values[idx] for idx in ordered_keys]
-                    else:
-                        checkpoint_meta[key] = [values.get(str(i)) for i in range(n)]
-                else:
-                    checkpoint_meta[key] = list(values)
+                column_values = _checkpoint_meta_column(key, values, n)
+                if column_values:
+                    checkpoint_meta[key] = column_values
 
             metadata_df = pd.DataFrame(checkpoint_meta)
             metadata_df = attach_birth_cohort_metadata(
                 metadata_df,
-                data_dir=Path(__file__).resolve().parents[1] / "data",
+                data_dir=_resolve_trajectory_data_dir(data_dir),
             )
             if "birth_cohort" in metadata_df.columns and metadata_df["birth_cohort"].notna().any():
                 cohort = metadata_df["birth_cohort"].tolist()
@@ -184,7 +275,8 @@ def run_battery(
     seed: int = 42,
     output_name: str = "04_nulls_wasserstein.json",
     overwrite_output: bool = False,
-) -> dict:
+    data_dir: str | Path | None = None,
+) -> dict[str, Any]:
     """Run Wasserstein null tests and merge with existing results.
 
     Args:
@@ -198,6 +290,7 @@ def run_battery(
         seed: Random seed.
         output_name: Output JSON path, relative to checkpoint_dir unless absolute.
         overwrite_output: If true, ignore any existing output file and rerun all keys.
+        data_dir: Optional raw data directory override for cohort metadata recovery.
 
     Returns:
         Merged results dict.
@@ -207,7 +300,7 @@ def run_battery(
     )
 
     embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
-    metadata = load_cohort_metadata(checkpoint_dir)
+    metadata = load_cohort_metadata(checkpoint_dir, data_dir=data_dir)
 
     out_path = Path(output_name)
     if not out_path.is_absolute():
@@ -215,7 +308,7 @@ def run_battery(
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load existing results to merge
-    existing: dict = {}
+    existing: dict[str, Any] = {}
     if out_path.exists() and not overwrite_output:
         with open(out_path) as f:
             existing = json.load(f)
@@ -319,6 +412,15 @@ def main() -> None:
         action="store_true",
         help="Rerun all requested keys even if the output file already exists.",
     )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default=None,
+        help=(
+            "Optional raw data directory override for cohort metadata recovery. "
+            "Defaults to TRAJECTORY_TDA_DATA_DIR or the packaged trajectory_tda/data directory."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -338,6 +440,7 @@ def main() -> None:
         seed=args.seed,
         output_name=args.output_name,
         overwrite_output=args.overwrite_output,
+        data_dir=args.data_dir,
     )
 
     logger.info(f"\nComplete. Result keys: {list(results.keys())}")

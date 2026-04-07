@@ -59,7 +59,7 @@ All `_project.md` files use this schema (Obsidian Dataview-compatible):
 
 ```yaml
 ---
-paper: P01                           # paper identifier
+paper: PXX                           # paper identifier
 title: "Full paper title"
 status: in-progress                  # idea|in-progress|submitted|under-review|published|archived
 target-journal: "Journal Name"
@@ -92,8 +92,8 @@ v5-2026-03.md       ← fifth draft, March 2026 (current)
 ## Stage Map
 
 ```
-Stage 0 (Months 0–3):   Consolidate and submit P01
-Stage 1 (Months 3–12):  P01-A + P01-B companion submissions; P02/P03 retained as archived source papers
+Stage 0 (Months 0–3):   Consolidate and submit P01-A and P01-B
+Stage 1 (Historical development, months 3–12):  Archived source papers P01, P02, and P03 retained as historical inputs
 Stage 2 (Months 12–24): P04–P06 (P04 prioritised after P01-A/B arXiv posting)
 Stage 3 (Months 24–48): P07–P10 (geometric and topological deep learning)
 ```

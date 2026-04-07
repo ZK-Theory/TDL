@@ -66,7 +66,7 @@ P01-A and P01-B should be submitted to JRSS and posted to arXiv on the same day.
 - **Status:** Phase 0 scaffolding in progress; archived source papers remain as
   historical record only
 
-### Stage 1 — Archived source papers (months 3–12, historical inputs)
+### Stage 1 — Archived source papers (historical development: months 3–12)
 
 - **P02 — Mapper:** archived as a standalone submission target; its mature
   content now feeds P01-A. Core implementation remains in
@@ -178,7 +178,16 @@ Cloud-indexed documentation for software libraries. Use when you need API detail
 
 ## Obsidian Vault Integration
 
-The research record lives in a separate Obsidian vault at `C:\Users\steph\Documents\TDA-Research\`. This repo contains code only; the vault holds theory, methodology, literature, and project management. They must stay in sync.
+The research record lives in a separate Obsidian vault configured via
+`TDA_VAULT_PATH`. This repo contains code only; the vault holds theory,
+methodology, literature, and project management. They must stay in sync.
+
+Example setup:
+
+- Windows PowerShell: `$env:TDA_VAULT_PATH = 'C:\Users\<you>\Documents\TDA-Research'`
+- macOS/Linux shell: `export TDA_VAULT_PATH="$HOME/Documents/TDA-Research"`
+
+All paths below are relative to the configured vault root.
 
 | Vault location                    | What's there                                                |
 | --------------------------------- | ----------------------------------------------------------- |
@@ -212,7 +221,7 @@ Use these prefixes on every commit to keep the repo-vault bridge meaningful:
 - **Persistence landscape L² distance** is a mandatory complementary metric alongside Wasserstein-2
 - **Research context comment** required at the top of every new script:
   ```python
-  # Research context: TDA-Research/03-Papers/P01/_project.md
+  # Research context: TDA-Research/03-Papers/P01-A/_project.md
   # Purpose: [what this script does in the research context]
   ```
 - **Random seeds** must always be specified and recorded for any stochastic process (Markov simulation, permutation tests, bootstrap); log them in the script and in the vault's Computational-Log

@@ -53,7 +53,7 @@ Active computation. v4 draft integrates Appendix B (Hilbert function + rank inva
   - Resolution stability: quantile grid H1 low-fraction converges to ~0.33 by resolution 10 (range [0.329, 0.444]);
     fixed grid more volatile (range [0.263, 0.507])
   - Quartile-level H1 mass is robust across strategies: Q1≈20k, Q2≈35k, Q3≈79k, Q4≈77k
-  - For JASA: quantile as primary analysis; fixed grid in sensitivity appendix
+  - For AoAS: quantile as primary analysis; fixed grid in sensitivity appendix
   - Script: `trajectory_tda/scripts/p04_explore_discretisation.py`
   - Results: `results/p04_exploration/discretisation_exploration.json`
   - Figures: `figures/trajectory_tda/p04_exploration/`
@@ -63,7 +63,7 @@ Active computation. v4 draft integrates Appendix B (Hilbert function + rank inva
   - Interpretation: topological cycles (diverse trajectory connectivity) concentrate among mid-to-high income individuals
   - Poverty trap signal: *absence* of H1 at low income — low-income trajectories form simpler, more linear structures
   - Euler surface (H0 − H1) adds no information: all negative, same gradient as H1
-  - For JASA: H1 signed measure heatmap as primary figure; quartile bar chart as secondary;
+  - For AoAS: H1 signed measure heatmap as primary figure; quartile bar chart as secondary;
     Euler surface mentioned as robustness check
   - Signed measure heatmap is the most visually compelling visualisation — strong (ε, τ) gradient visible
   - **Key finding to test with permutation nulls:** H1 low-income fraction ~0.33 vs 0.50 expected under null
@@ -128,7 +128,8 @@ Single-parameter VR persistent homology (P01) captures global topological struct
 
 - [ ] Run the income-proxy endogeneity regression of the income proxy on PC1-PC20
   and report $R^2$
-- [ ] Reframe the draft and submission materials for AoAS rather than JASA
+- [ ] Reframe the draft and submission materials for AoAS (IMS class,
+  separate supplement, reproducibility statement)
 
 - [x] Verify P01 embedding pipeline produces stable output for P04 consumption
 - [x] Install `multipers` and run tutorial / validation on synthetic bifiltration
