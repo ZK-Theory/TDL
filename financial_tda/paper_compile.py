@@ -1,6 +1,7 @@
 import os
+from pathlib import Path
 
-base_dir = r"C:\Projects\TDL\financial_tda\paper"
+base_dir = str(Path(__file__).parent / "paper")
 intro_file = os.path.join(base_dir, "paper_draft_intro_discussion_conclusion.md")
 lit_file = os.path.join(base_dir, "paper_draft_literature_review.md")
 meth_file = os.path.join(base_dir, "paper_draft_methodology.md")

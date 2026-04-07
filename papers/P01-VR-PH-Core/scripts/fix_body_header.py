@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-body_path = Path("c:/Projects/TDL/papers/P01-VR-PH-Core/latex/body.tex")
+body_path = Path(__file__).parent.parent / "latex" / "body.tex"
 
 with open(body_path, encoding="utf-8") as f:
     lines = f.readlines()

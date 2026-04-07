@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-body_path = Path("C:/Projects/TDL/papers/P01-VR-PH-Core/latex/body.tex")
+body_path = Path(__file__).parent / "papers" / "P01-VR-PH-Core" / "latex" / "body.tex"
 text = body_path.read_text(encoding="utf-8")
 
 lines = text.split("\n")

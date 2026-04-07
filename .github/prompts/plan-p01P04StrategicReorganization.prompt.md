@@ -20,6 +20,15 @@ Reorganize four technique-first papers into three journal-targeted papers. **P01
 
 ## Phase 0: Infrastructure and Pre-Drafting Deliverables
 
+**Phase 0 review status (2026-04-07):** the blocking infrastructure items are
+now complete. Authorship is fixed, the new paper scaffolding exists, the
+original P01-P03 directories are archived in metadata, P04's target metadata is
+updated, `papers/shared/notation.md` exists, and the Wasserstein-order audit is
+resolved in favour of treating the archived trajectory null-battery results as
+W2-era outputs. The remaining items from this section are administrative or
+draft-integration carryovers, not blockers for Phase 1, Phase 2 pre-requisites,
+or the P04 endogeneity check.
+
 ### 0.1 Create new directory structure
 
 ```
@@ -36,30 +45,38 @@ papers/
   P04-Multipers-Poverty/ ← keep, update target
 ```
 
-### 0.2 Authorship decision (BLOCKING)
+### 0.2 Authorship decision (resolved)
 
-P04 currently says "Authors: To be determined." Decide before any draft assembly:
+Completed on 2026-04-07.
 
-- Is a statistician collaborator being added for P01-B or P04?
-- Affects CRediT, cover letters, submission accounts, contribution framing
-- Must precede Phase 1/2/3 drafting
+- Single-author programme convention retained
+- Author: Stephen Dorman
+- Affiliation: The Open University, UK
+- Corresponding author: Stephen Dorman
 
-### 0.3 Archive original paper directories
+### 0.3 Archive original paper directories (completed)
 
 - P01-VR-PH-Core → status: archived ("Content redistributed to P01-A and P01-B")
 - P02-Mapper → status: archived ("Content absorbed into P01-A")
 - P03-Zigzag → status: archived ("Content absorbed into P01-B")
 - Original drafts preserved as historical record
 
-### 0.4 Update P04 metadata
+### 0.4 Update P04 metadata (completed)
 
 - target-journal → "Annals of Applied Statistics"
 
-### 0.5 Shared submission statements (blocked on 0.2)
+### 0.5 Shared submission statements (drafted; final DOI wording pending)
 
 Write once, adapt per paper: Data Availability (USoc DOI: 10.5255/UKDA-SN-6614-19, BHPS DOI: 10.5255/UKDA-SN-5151-3, UKDS licence + synthetic data), Code Availability (paper-specific GitHub + Zenodo DOI), Ethics, Conflicts, Funding, CRediT.
 
-### 0.6 Notation standardisation document (BEFORE drafting)
+Status on 2026-04-07:
+
+- `papers/shared/submission-statements.md` created
+- authorship and CRediT no longer blocked
+- final code-availability wording still depends on paper-specific GitHub repos
+  and Zenodo DOIs
+
+### 0.6 Notation standardisation document (completed before drafting)
 
 Create `papers/shared/notation.md` — 2-page reference reconciling conflicting notation:
 
@@ -69,11 +86,21 @@ Create `papers/shared/notation.md` — 2-page reference reconciling conflicting 
 | Persistence diagram  | $D$   | (unstandardised)                                         | (unstandardised)                 | Standardise                 |
 | Wasserstein distance | $W_1$ | (varies)                                                 | (varies)                         | See computation check below |
 
-Key conflict: P01-B §3 draws on both P01 and P03 methodology. Notation MUST be reconciled before drafting, not after.
+Key conflict: P01-B §3 draws on both P01 and P03 methodology. Notation had to
+be reconciled before drafting, not after.
 
-**Wasserstein order computation check (BLOCKING).** The table above lists P01 as using $W_1$ and the project mandate requires $W_2$. This is potentially a scientific error, not just a notation inconsistency. P01 v8 computes the **1-Wasserstein distance** via `gudhi.wasserstein`; P03 v2 computes **2-Wasserstein distances** in the Wasserstein matrix analysis. These are genuinely different distances ($L^1$ vs $L^2$ ground metric on the birth-death plane) — their results are not interchangeable. Before standardising notation, verify whether P01 and P03 use the same Wasserstein order computationally. If different, both papers need a sentence explaining the choice of order; they cannot both be relabelled $W_2$ without checking the underlying code. This is a Phase 0 computation check, not a pure writing decision.
+Status on 2026-04-07: completed. `papers/shared/notation.md` now exists and the
+Wasserstein-order computation audit is resolved. P03 is internally aligned on
+$W_2$, and the archived P01 trajectory null-battery outputs should also be
+treated as W2-era results. The surviving $W_1$ wording in the legacy P01
+manuscript is stale prose, not the authoritative computation record. Exact
+replay drift remains a code-environment provenance caveat, but the order check
+is no longer a blocking Phase 0 item.
 
 ### 0.7 Compulsory fixes (assigned to inheriting paper)
+
+Status on 2026-04-07: still open, but these are draft-assembly tasks rather
+than Phase 0 blockers.
 
 | Fix                                                            | Assigned to      |
 | -------------------------------------------------------------- | ---------------- |
@@ -82,15 +109,30 @@ Key conflict: P01-B §3 draws on both P01 and P03 methodology. Notation MUST be 
 | Figure S1: UMAP-16D scatter (from `embeddings_umap16.npy`)     | P01-A supplement |
 | Remove JEL codes                                               | All              |
 
-### 0.8 Update programme documentation
+### 0.8 Update programme documentation (mostly complete; editorial query unsent)
 
-- CLAUDE.md programme table: new IDs, targets, arXiv categories
-- copilot-instructions.md: submission sequence, stage descriptions
-- **Email RSS editorial office:** notify of companion submission to JRSS-A and JRSS-B simultaneously, confirm cover letter language, ask whether joint or coordinated handling applies. JRSS-A and JRSS-B share editorial infrastructure at the Royal Statistical Society; a brief pre-submission query could smooth the review process.
+- CLAUDE.md programme table: updated with new IDs, targets, arXiv categories
+- copilot-instructions.md: updated with submission sequence and stage descriptions
+- `papers/shared/rss-editorial-query.md`: drafted
+- **Remaining:** send or finalise the RSS editorial-office query on companion
+  submission handling and cover-letter language
 
-### 0.9 Humanizer pass definition
+### 0.9 Humanizer pass definition (completed)
 
 **Humanizer pass** (referenced at the end of every Phase): run the `/humanizer` command to remove AI-generation register patterns, ensure natural academic cadence, check for repeated sentence structures, and verify hedging language is appropriately calibrated for each journal's tone. Applied to every draft before submission review.
+
+### 0.10 Remaining Phase 0 carryovers (non-blocking)
+
+- Send or finalise the RSS editorial-office query using
+  `papers/shared/rss-editorial-query.md`
+- Finalise code-availability wording once the paper-specific GitHub repos and
+  Zenodo DOIs exist
+- Carry the compulsory inherited fixes into the first full P01-A and P01-B
+  drafts:
+  - P01-B §3.3 Wasserstein p-value justification
+  - P01-A Supplementary A imputation balance by regime
+  - P01-A Figure S1 from `embeddings_umap16.npy`
+  - JEL-code removal where legacy draft material is imported
 
 ---
 
@@ -390,6 +432,9 @@ Phase 3 done → P04 submission to AoAS (after P01-A/B on arXiv)
 Phase 4 (repos) → after drafts finalised, before submission
 ```
 
+Phase 0 no longer sits on the critical path as a blocking stage. The remaining
+carryovers listed above are administrative or draft-integration tasks only.
+
 **Critical path:** P03 maturation → P01-B assembly → simultaneous submission with P01-A.
 P01-A will be ready first; use wait time for polish, supplement, and P04 endogeneity check.
 
@@ -406,7 +451,7 @@ P01-A will be ready first; use wait time for polish, supplement, and P04 endogen
 - **P01-B §4 strict scope:** testing framework demonstration only, no regime profiles/escape rates/stratification/Mapper
 - **Zigzag in P01-B:** brief (~1.5pp), motivating, technique-agnostic framing; NOT a full zigzag paper
 - **P04 sequenced after arXiv:** submit to AoAS after P01-A/B posted; do not wait for JRSS acceptance
-- **Authorship:** must be resolved in Phase 0 before any drafting
+- **Authorship:** resolved in Phase 0 as single-author Stephen Dorman
 
 ## Risks
 
