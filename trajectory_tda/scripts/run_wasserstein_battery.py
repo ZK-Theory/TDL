@@ -2,7 +2,7 @@
 Run Wasserstein-distance null tests on any pipeline checkpoint directory.
 
 Loads embeddings + trajectories from a checkpoint, runs specified null types
-with Wasserstein statistic, and merges results into 04_nulls_wasserstein.json.
+with Wasserstein statistic, and writes results to a configurable JSON path.
 
 Usage:
     # BHPS-era Wasserstein (order_shuffle + markov)
@@ -23,6 +23,13 @@ Usage:
         --checkpoint-dir results/trajectory_tda_integration \
         --null-types label_shuffle cohort_shuffle order_shuffle markov \
         --n-perms 100 --landmarks 2000
+
+    # Post-audit archival run without touching the legacy JSON
+    python -m trajectory_tda.scripts.run_wasserstein_battery \
+        --checkpoint-dir results/trajectory_tda_integration \
+        --output-name post_audit/04_nulls_wasserstein_w2_20260407.json \
+        --null-types label_shuffle cohort_shuffle order_shuffle markov \
+        --n-perms 100 --landmarks 2000
 """
 
 from __future__ import annotations
@@ -37,6 +44,18 @@ import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+def _normalise_cohort_label(value: object) -> str:
+    """Map missing cohort labels to a stable string bucket."""
+    if value is None:
+        return "unknown"
+    try:
+        if value != value:
+            return "unknown"
+    except Exception:
+        pass
+    return str(value)
 
 
 def _convert_numpy(obj: object) -> object:
@@ -147,11 +166,11 @@ def load_cohort_metadata(
     # Convert to array aligned with trajectory indices
     if isinstance(cohort, dict):
         n = traj_data.get("n", len(cohort))
-        cohort_arr = [cohort.get(str(i), "unknown") for i in range(n)]
+        cohort_arr = [_normalise_cohort_label(cohort.get(str(i), "unknown")) for i in range(n)]
     else:
-        cohort_arr = list(cohort)
+        cohort_arr = [_normalise_cohort_label(value) for value in cohort]
 
-    return {"cohort": np.array(cohort_arr)}
+    return {"cohort": np.array(cohort_arr, dtype=object)}
 
 
 def run_battery(
@@ -163,6 +182,8 @@ def run_battery(
     markov_order: int = 1,
     n_jobs: int = 1,
     seed: int = 42,
+    output_name: str = "04_nulls_wasserstein.json",
+    overwrite_output: bool = False,
 ) -> dict:
     """Run Wasserstein null tests and merge with existing results.
 
@@ -175,6 +196,8 @@ def run_battery(
         markov_order: Markov chain order (1 or 2).
         n_jobs: Parallelism (-1 = all cores, 1 = serial).
         seed: Random seed.
+        output_name: Output JSON path, relative to checkpoint_dir unless absolute.
+        overwrite_output: If true, ignore any existing output file and rerun all keys.
 
     Returns:
         Merged results dict.
@@ -186,13 +209,20 @@ def run_battery(
     embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
     metadata = load_cohort_metadata(checkpoint_dir)
 
+    out_path = Path(output_name)
+    if not out_path.is_absolute():
+        out_path = checkpoint_dir / out_path
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Load existing results to merge
-    out_path = checkpoint_dir / "04_nulls_wasserstein.json"
     existing: dict = {}
-    if out_path.exists():
+    if out_path.exists() and not overwrite_output:
         with open(out_path) as f:
             existing = json.load(f)
         logger.info(f"Loaded existing results with keys: {list(existing.keys())}")
+    elif out_path.exists() and overwrite_output:
+        logger.info(f"Overwriting existing output: {out_path}")
+        out_path.unlink()
 
     for null_type in null_types:
         # Determine result key (markov order-2 stored under "markov2")
@@ -278,6 +308,17 @@ def main() -> None:
     parser.add_argument("--markov-order", type=int, default=1)
     parser.add_argument("--n-jobs", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--output-name",
+        type=str,
+        default="04_nulls_wasserstein.json",
+        help="Output JSON path, relative to checkpoint-dir unless absolute.",
+    )
+    parser.add_argument(
+        "--overwrite-output",
+        action="store_true",
+        help="Rerun all requested keys even if the output file already exists.",
+    )
 
     args = parser.parse_args()
 
@@ -295,6 +336,8 @@ def main() -> None:
         markov_order=args.markov_order,
         n_jobs=args.n_jobs,
         seed=args.seed,
+        output_name=args.output_name,
+        overwrite_output=args.overwrite_output,
     )
 
     logger.info(f"\nComplete. Result keys: {list(results.keys())}")

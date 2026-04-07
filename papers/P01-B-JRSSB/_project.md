@@ -25,6 +25,10 @@ Authorship fixed by programme convention: single author Stephen Dorman
 Planned submission strategy: simultaneous JRSS-B submission, JRSS-A companion
 submission, and same-day arXiv posting (`stat.ME`).
 
+Post-audit W2 insert and repo extraction note prepared in
+`papers/P01-B-JRSSB/notes/2026-04-07-post-audit-w2-insert.md` and
+`papers/P01-B-JRSSB/notes/2026-04-07-post-audit-w2-repo-note.md`.
+
 ## Target
 
 Primary: *Journal of the Royal Statistical Society Series B*
@@ -39,7 +43,9 @@ Primary: *Journal of the Royal Statistical Society Series B*
 ## Open Items
 
 - [ ] Formalise the spanning-individual decomposition and pool-draw null model
+- [ ] Insert the post-audit W2 table and paragraph from `notes/2026-04-07-post-audit-w2-insert.md` into Section 4 of the first full draft
 - [ ] Update the draft text to reflect the resolved W2 audit and replay caveat
 - [ ] Assemble v1 from P01 v8 and P03 v2+
 - [ ] Keep zigzag exposition brief and explicitly subordinate to the testing framework
+- [ ] Use `notes/2026-04-07-post-audit-w2-repo-note.md` when building the standalone paper repo so the `post_audit` W2 JSONs are treated as authoritative artifacts
 - [ ] Prepare JRSS-B submission package and arXiv metadata

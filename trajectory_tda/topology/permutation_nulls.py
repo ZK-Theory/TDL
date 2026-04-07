@@ -31,6 +31,18 @@ from trajectory_tda.topology.vectorisation import wasserstein_distance as comput
 logger = logging.getLogger(__name__)
 
 
+def _normalise_cohort_label(value: object) -> str:
+    """Map missing cohort labels to a stable string bucket."""
+    if value is None:
+        return "unknown"
+    try:
+        if value != value:
+            return "unknown"
+    except Exception:
+        pass
+    return str(value)
+
+
 # ───────────────────────────────────────────────────────────────────
 # Null model generators
 # ───────────────────────────────────────────────────────────────────
@@ -64,10 +76,12 @@ def _cohort_shuffle(
         logger.warning("No cohort info, falling back to label_shuffle")
         return _label_shuffle(embeddings, rng)
 
+    cohort_array = np.asarray([_normalise_cohort_label(value) for value in cohorts], dtype=object)
+
     result = embeddings.copy()
-    unique_cohorts = np.unique(cohorts)
+    unique_cohorts = np.unique(cohort_array)
     for c in unique_cohorts:
-        mask = cohorts == c
+        mask = cohort_array == c
         indices = np.where(mask)[0]
         perm = rng.permutation(len(indices))
         result[indices] = embeddings[indices[perm]]
@@ -295,8 +309,7 @@ def _stratified_markov_shuffle(
 
         if n_regime < min_regime_n:
             logger.warning(
-                "Regime %s: only %d trajectories (< %d), "
-                "using global transition matrix",
+                "Regime %s: only %d trajectories (< %d), " "using global transition matrix",
                 k,
                 n_regime,
                 min_regime_n,
