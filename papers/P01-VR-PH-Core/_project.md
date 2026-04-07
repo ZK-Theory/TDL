@@ -1,7 +1,7 @@
 ---
 paper: P01
 title: "Persistent Homology of UK Socioeconomic Life-Course Trajectories"
-status: in-progress
+status: archived
 target-journal: "Sociological Methodology"
 submitted: null
 deadline: 2026-06-01
@@ -14,6 +14,10 @@ tags: [paper, tda, persistent-homology, markov-ladder, wasserstein, core]
 
 ## Status
 
+Archived on 2026-04-07. Content redistributed to `papers/P01-A-JRSSA/`
+(applied/regime material) and `papers/P01-B-JRSSB/` (testing-framework and null
+model material). Drafts and LaTeX remain as the historical source record.
+
 Current draft: `drafts/v8-2026-03.md` (eighth draft — reviewer revision complete)
 
 Key finding: Order-shuffle H₀ rejected (*p* < 0.005, total persistence). Markov-1 rejected under Wasserstein (*p* = 0.002) but not under total persistence (*p* = 1.000). Discrepancy replicates cross-era on BHPS: order-shuffle H₀ *p* = 0.000, Markov-1 H₀ *p* = 0.000, Markov-1 H₁ *p* = 0.000 (Wasserstein). BHPS Markov-1 H₁ rejection decisive in longer BHPS window (mean 14.5 yr) but borderline in USoc (*p* = 0.086, mean 12.9 yr).
@@ -24,6 +28,8 @@ Primary: *Sociological Methodology*
 Fallback: *Social Forces* / *JASA: Applications & Case Studies*
 
 ## Open Items
+
+- [x] Archive standalone submission plan — superseded by P01-A (JRSS-A) and P01-B (JRSS-B)
 
 - [x] Wasserstein testing on BHPS-era sample (n=8,509) — **done**: order-shuffle + Markov-1 complete
 - [x] Wasserstein test for integration: label_shuffle, order_shuffle, Markov-1 — **done**
@@ -37,7 +43,6 @@ Fallback: *Social Forces* / *JASA: Applications & Case Studies*
 - [x] Full proof-read of LaTeX PDF against v7 markdown — all numerical values verified
 - [x] **v8 reviewer revisions** — Figure 14 caption updated to n=500 (H₀ p=0.98, H₁ p=0.542, 95% CIs); Figure 14 regenerated; fig2 reordered before fig3 in body.tex; abstract BHPS H₁ window-length qualifier; Wasserstein mean formulation explained; TF vs TF-IDF justified; income threshold forward-ref to §5.4; Inactive Low income heterogeneity parenthetical; NS-SEC missingness caveat at §4.6; H₁ window-length test framed as discriminating test; "inevitably" → "often"; draft history reference removed; P4 "not hypothesised" → "emerged from dual-statistic design"
 
-- [ ] Submit to *Sociological Methodology*
 
 ## Draft History
 

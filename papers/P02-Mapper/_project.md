@@ -1,7 +1,7 @@
 ---
 paper: P02
 title: "From Global Topology to Navigable Trajectory Space: Mapper Analysis of UK Employment Trajectories"
-status: in-progress
+status: archived
 target-journal: "Sociological Methods & Research"
 submitted: null
 deadline: 2026-09-01
@@ -13,6 +13,10 @@ tags: [paper, tda, mapper, kmapper, trajectory, interior-structure]
 ---
 
 ## Status
+
+Archived on 2026-04-07. Content absorbed into `papers/P01-A-JRSSA/`. The v5
+draft, figures, and LaTeX sources remain as the historical source record for the
+within-regime anatomy component of the companion JRSS-A paper.
 
 v5 draft complete (v5-2026-04.md). Final revision addressing all outstanding reviewer feedback.
 
@@ -46,6 +50,10 @@ Fallback: *Journal of the Royal Statistical Society Series A*
 VR persistent homology reveals global connectivity; Mapper reveals *interior density structure* — sub-regions within regimes with different escape probabilities. Colouring Mapper nodes by substantive outcomes creates an outcome geography of trajectory space that the 7-GMM typology cannot provide. Sensitivity analysis across 24 configurations separates robust findings (within-regime heterogeneity) from algorithm-dependent findings (noise rate, bridge nodes). Permutation nulls confirm sub-regime structure is not distributional artefact (regime-shuffle: obs=358 vs null mean=86, p<0.01; within-node-shuffle: obs=358 vs null mean=9.4, p<0.01). UMAP-16D robustness check confirms sub-regime findings are embedding-invariant. R3/R5 churning decomposition reveals that both regimes have identical E\u2194I transition rates but differ structurally: R3 churns within employment income bands; R5 churns within inactivity income bands.
 
 ## Open Items
+
+The standalone submission is retired. Remaining unchecked items below are kept as
+historical context and, where still relevant, should be evaluated inside P01-A
+rather than completed in this archived directory.
 
 - [x] Summarise Mapper results from run/p02-mapper
 - [x] Parameter tuning documentation

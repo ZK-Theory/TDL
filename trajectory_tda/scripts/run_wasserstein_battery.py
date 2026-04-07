@@ -34,6 +34,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,32 @@ def load_cohort_metadata(
     cohort = meta.get("birth_cohort", {})
     if not cohort:
         cohort = meta.get("cohort", {})
+    if not cohort and meta.get("pidp"):
+        try:
+            from trajectory_tda.data.covariate_extractor import attach_birth_cohort_metadata
+
+            n = traj_data.get("n")
+            checkpoint_meta: dict[str, list] = {}
+            for key, values in meta.items():
+                if isinstance(values, dict):
+                    if n is None:
+                        ordered_keys = sorted(values, key=int)
+                        checkpoint_meta[key] = [values[idx] for idx in ordered_keys]
+                    else:
+                        checkpoint_meta[key] = [values.get(str(i)) for i in range(n)]
+                else:
+                    checkpoint_meta[key] = list(values)
+
+            metadata_df = pd.DataFrame(checkpoint_meta)
+            metadata_df = attach_birth_cohort_metadata(
+                metadata_df,
+                data_dir=Path(__file__).resolve().parents[1] / "data",
+            )
+            if "birth_cohort" in metadata_df.columns and metadata_df["birth_cohort"].notna().any():
+                cohort = metadata_df["birth_cohort"].tolist()
+                logger.info("Recovered birth_cohort metadata from raw covariates for cohort_shuffle")
+        except Exception as exc:  # pragma: no cover - defensive logging path
+            logger.warning("Could not backfill birth_cohort metadata: %s", exc)
     if not cohort:
         logger.warning("No birth_cohort metadata found — cohort_shuffle will fall " "back to label_shuffle")
         return None

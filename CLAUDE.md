@@ -8,12 +8,33 @@ Research platform applying **Topological Data Analysis (TDA)**, **topological de
 - **poverty_tda** — UK poverty trap detection via Morse-Smale complex analysis on socioeconomic mobility landscapes
 - **trajectory_tda** — Employment/income career trajectory analysis via persistent homology on BHPS/UKHLS panel data
 
+## Obsidian Vault Integration
+
+The research record lives in a separate Obsidian vault at:
+`C:\Users\steph\Documents\TDA-Research\`
+
+This repo contains the code. The vault contains theory, methodology, literature, and project management. **They must stay in sync.**
+
+| Vault location | What's there |
+|---|---|
+| `03-Papers/[ID]/_project.md` | Paper status, open items, draft history |
+| `04-Methods/Computational-Log.md` | Logged results and decisions |
+| `04-Methods/Pipeline-Overview.md` | Pipeline architecture description |
+| `04-Methods/Datasets/` | Dataset processing notes |
+| `02-Notes/Permanent/` | Crystallised methodological insights |
+| `CONVENTIONS.md` | Always/never rules with rationale — **load at session start** |
+| `VAULT-MAP.md` | Full vault navigation index |
+
+**When working on code:** Cross-check `CONVENTIONS.md` for locked methodological decisions before implementing. Any new decision should be added there after locking.
+
 ## Key Concepts (Domain Knowledge)
 
 **TDA fundamentals used here:**
 - Persistent homology: tracks topological features (connected components H0, loops H1, voids H2) across filtration scales
 - Persistence diagrams / barcodes: birth-death pairs; points far from diagonal = significant features
-- Wasserstein/bottleneck distance: metrics between persistence diagrams
+- Wasserstein-2 distance: **mandatory** for persistence diagram comparisons — captures both position and multiplicity of features
+- Persistence landscape L² distance: **mandatory complementary metric** alongside Wasserstein-2 — captures shape-level differences single statistics miss
+- Bottleneck distance: insufficient as primary metric (captures only single worst discrepancy); do not use alone
 - Mapper: graph-based topological summary via cover + clustering
 - Morse-Smale complex: decomposes a function's domain into ascending/descending manifolds; basins = stable regions (poverty traps)
 
@@ -29,6 +50,8 @@ Research platform applying **Topological Data Analysis (TDA)**, **topological de
 - Permutation nulls are the standard for hypothesis testing on persistence features
 - Bootstrap resampling (n=1000) for confidence intervals on topological summaries
 - FDR correction (Benjamini-Hochberg) for multiple comparisons
+- Always specify the **Markov order k** when describing null models — "Markov null model" alone is ambiguous
+- Always check **BHPS wave variable documentation** before assuming variable coding is consistent across waves or between BHPS and Understanding Society
 
 ## Architecture
 
@@ -71,7 +94,7 @@ papers/PXX-Name/
 ---
 paper: P01                    # paper identifier (P01–P10, FIN-01, etc.)
 title: "Full paper title"
-status: in-progress           # idea | in-progress | submitted | under-review | published
+status: in-progress           # idea | in-progress | submitted | under-review | published | archived
 target-journal: "Name"
 submitted: null               # ISO date or null
 deadline: 2026-06-01          # target submission date or null
@@ -83,14 +106,18 @@ tags: [paper, tda, ...]
 ---
 ```
 
-### Programme papers
+### Current submission track
+
+| ID | Title | Status | Stage | Target | arXiv |
+|---|---|---|---|---|---|
+| P01-A | The Geometry of UK Career Inequality: Topology, Regimes, and Mobility Boundaries | in-progress | 0 | JRSS-A | stat.AP |
+| P01-B | Structured Hypothesis Testing for Persistent Homology of Longitudinal Social Data | in-progress | 0 | JRSS-B | stat.ME |
+| P04 | Multi-Parameter Persistent Homology Reveals Income-Stratified Career Topology | in-progress | 2 | AoAS | stat.ME, math.AT |
+
+### Later programme papers
 
 | ID | Title | Status | Stage |
 |---|---|---|---|
-| P01 | VR PH of UK Trajectories | in-progress | 0 |
-| P02 | Mapper for Interior Structure | in-progress | 1 |
-| P03 | Zigzag + Business Cycle Topology | in-progress | 1 |
-| P04 | Multi-Parameter PH, Poverty Traps | idea | 2 |
 | P05 | Cross-National Welfare State Topology | idea | 2 |
 | P06 | Intergenerational Topological Inheritance | idea | 2 |
 | P07 | Geometric Trajectory Forecasting | idea | 3 |
@@ -98,6 +125,9 @@ tags: [paper, tda, ...]
 | P09 | CCNNs for Multi-Level Social Data | idea | 3 |
 | P10 | Topological Fairness | idea | 3 |
 | FIN-01 | Market Regime Detection (financial) | in-progress | — |
+
+Archived source papers preserved as historical record: `papers/P01-VR-PH-Core/`,
+`papers/P02-Mapper/`, and `papers/P03-Zigzag/`.
 
 ### Draft naming convention
 
@@ -116,11 +146,19 @@ See `papers/README.md` for full structure documentation.
 
 ## Code Conventions
 
-- **Python 3.11**, 88-char line length, Ruff rules E/F/I/W
+- **Python 3.13**, 88-char line length, Ruff rules E/F/I/W
 - **Type hints** mandatory on all public APIs; use `numpy.typing.NDArray` not bare `np.ndarray`
 - **Docstrings**: Google-style on all public functions/classes
 - **Imports**: standard → third-party → local; no wildcard imports
 - **Pre-commit**: ruff linting/formatting runs on every commit; don't skip hooks
+- **Research context comment**: add at the top of every new script:
+  ```python
+  # Research context: TDA-Research/03-Papers/P01/_project.md
+  # Purpose: [what this script does in the research context]
+  ```
+- **Random seeds**: always specify and record for any stochastic process (Markov simulation, permutation tests, bootstrap); log them in the script and in the vault's Computational-Log entry
+
+**Key libraries:** `giotto-tda`, `gudhi`, `ripser`, `persim`, `scikit-tda`, `umap-learn`, `torch-geometric`, `geopandas`, `libpysal`
 
 ```python
 # Correct pattern for typed numpy arrays
@@ -137,6 +175,45 @@ def compute_persistence(point_cloud: NDArray[np.float64], max_dim: int = 2) -> l
     Returns:
         List of (dimension, (birth, death)) persistence pairs.
     """
+```
+
+## Commit Message Conventions
+
+Use prefixes to keep the repo-vault bridge meaningful:
+
+| Prefix | Meaning | Vault action needed |
+|---|---|---|
+| `[RESULT]` | Quantitative result worth logging | Update `04-Methods/Computational-Log.md` |
+| `[DECISION]` | Parameter or method locked | Update `04-Methods/Computational-Log.md` + `CONVENTIONS.md` |
+| `[NEGATIVE]` | Informative negative result | Create permanent note in `02-Notes/Permanent/` |
+| `[PIPELINE]` | Pipeline change | Update `04-Methods/Pipeline-Overview.md` |
+| `[DATA]` | Data processing change | Update relevant `04-Methods/Datasets/` note |
+| `[EXPLORE]` | Exploratory, no vault action needed | No vault update required |
+
+Examples:
+```
+[RESULT] P01: Wasserstein-2 permutation test p=0.002 at k=3 Markov null
+[DECISION] P01: Lock n_components=50 for UMAP embedding
+[NEGATIVE] FIN-01: Bottleneck distance cannot distinguish market regimes
+```
+
+## After-Session Sync (Repo → Vault)
+
+When finishing a session that produced results, decisions, or insights:
+
+1. **In Cowork:** Say "repo bridge" or "log results" to trigger the `tda-repo-bridge` skill, which structures session outputs and files them into the vault
+2. **In Claude Code / Copilot:** Produce the vault entry text and write it directly to `04-Methods/Computational-Log.md`
+3. **Manually:** Add an entry to `04-Methods/Computational-Log.md` in the vault
+
+Format for Computational-Log entries:
+```
+### YYYY-MM-DD — PXX: [short description]
+
+**Script/notebook:** `C:\Users\steph\TDL\[path]` (commit `[hash]`)
+**What was done:** [summary]
+**Key findings:** [table or bullets]
+**Decision:** [if any parameter/method locked]
+**Resolves:** [open items closed]
 ```
 
 ## Common Workflows
@@ -207,6 +284,9 @@ This project uses APM (Agentic Project Management) v0.5.3. Phase plans live in `
 - Do not commit large data files; data lives outside the repo or in `.gitignore`d `data/` directories
 - Do not skip pre-commit hooks (`--no-verify`)
 - Do not amend published commits; create new commits instead
+- **Do not run persistent homology on raw trajectories** without the embedding step — the Vietoris-Rips complex requires a metric space
+- **Do not assume BHPS and Understanding Society use the same variable coding** even for variables that appear identical — always check wave documentation
+- **Do not use bottleneck distance as the sole comparison metric** for persistence diagrams — always use Wasserstein-2 as primary
 
 ## Geometric / Topological Deep Learning (Emerging)
 

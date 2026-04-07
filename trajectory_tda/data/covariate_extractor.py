@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -39,6 +40,9 @@ NSSEC3_MAP = {
     7: "Routine/Manual",
     8: "Routine/Manual",
 }
+
+BIRTH_COHORT_BINS = [0, 1950, 1960, 1970, 1980, 2010]
+BIRTH_COHORT_LABELS = ["pre-1950", "1950s", "1960s", "1970s", "post-1980"]
 
 
 def extract_covariates(
@@ -106,6 +110,74 @@ def extract_covariates(
     )
 
     return covs
+
+
+def attach_birth_cohort_metadata(
+    metadata: pd.DataFrame,
+    data_dir: str | Path,
+    bhps_subdir: str = "UKDA-5151-tab",
+    usoc_subdir: str = "UKDA-6614-tab",
+) -> pd.DataFrame:
+    """Augment trajectory metadata with birth-year cohort information.
+
+    This keeps checkpoint metadata rich enough for later cohort-preserving
+    null models without forcing downstream scripts to rediscover covariates.
+
+    Args:
+        metadata: Trajectory-level metadata with at least a ``pidp`` column.
+        data_dir: Root data directory containing BHPS/USoc raw files.
+        bhps_subdir: BHPS data subdirectory name.
+        usoc_subdir: USoc data subdirectory name.
+
+    Returns:
+        Metadata augmented with ``birth_year`` and ``birth_cohort`` when the
+        underlying covariates can be recovered.
+    """
+    if metadata.empty or "pidp" not in metadata.columns:
+        return metadata
+
+    result = metadata.copy()
+    birth_year: pd.Series | None = None
+    if "birth_year" in result.columns:
+        birth_year = cast(pd.Series, pd.to_numeric(result["birth_year"], errors="coerce"))
+    needs_birth_year = birth_year is None or birth_year.isna().all()
+
+    if needs_birth_year:
+        if "birth_year" in result.columns:
+            result = result.drop(columns=["birth_year"])
+        try:
+            covs = extract_covariates(
+                data_dir=data_dir,
+                pidps=result["pidp"].to_numpy(),
+                bhps_subdir=bhps_subdir,
+                usoc_subdir=usoc_subdir,
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging path
+            logger.warning("Could not recover birth-year covariates: %s", exc)
+            return result
+
+        if "birth_year" in covs.columns:
+            cov_birth = cast(pd.DataFrame, covs.loc[:, ["pidp", "birth_year"]])
+            cov_birth = cov_birth.loc[~cov_birth["pidp"].duplicated(keep="first")]
+            result = result.merge(cov_birth, on="pidp", how="left")
+
+    birth_year = None
+    if "birth_year" in result.columns:
+        birth_year = cast(pd.Series, pd.to_numeric(result["birth_year"], errors="coerce"))
+    has_birth_cohort = "birth_cohort" in result.columns and result["birth_cohort"].notna().any()
+    if birth_year is not None and not has_birth_cohort:
+        cohorts = pd.cut(
+            birth_year,
+            bins=BIRTH_COHORT_BINS,
+            labels=BIRTH_COHORT_LABELS,
+        )
+        result["birth_cohort"] = cohorts.astype(object).where(pd.notna(cohorts), None)
+
+    if "birth_cohort" in result.columns:
+        coverage = int(pd.Series(result["birth_cohort"]).notna().sum())
+        logger.info("Birth cohort metadata coverage: %d/%d", coverage, len(result))
+
+    return result
 
 
 def _load_usoc_covariates(usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:

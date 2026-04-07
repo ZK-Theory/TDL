@@ -8,9 +8,7 @@ Run: python trajectory_tda/scripts/bhps_tda_pipeline.py
 import os
 import sys
 
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import json
 import logging
@@ -20,6 +18,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from trajectory_tda.analysis.cycle_detection import detect_cycles
+from trajectory_tda.analysis.regime_discovery import discover_regimes
+from trajectory_tda.data.covariate_extractor import attach_birth_cohort_metadata
+from trajectory_tda.embedding.ngram_embed import ngram_embed
+from trajectory_tda.topology.permutation_nulls import permutation_test_trajectories
+from trajectory_tda.topology.trajectory_ph import compute_trajectory_ph
+from trajectory_tda.utils.model_io import save_model
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -28,6 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SCRIPT_DIR = Path(__file__).parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
 CHECKPOINT_DIR = Path("results/trajectory_tda_bhps")
 CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -38,6 +45,7 @@ logger.info("Loading BHPS trajectories...")
 trajectories_raw = np.load(SCRIPT_DIR / "bhps_trajectories.npy", allow_pickle=True)
 trajectories = [list(t) for t in trajectories_raw]
 metadata = pd.read_pickle(SCRIPT_DIR / "bhps_metadata.pkl")
+metadata = attach_birth_cohort_metadata(metadata, data_dir=DATA_DIR)
 logger.info(f"Loaded {len(trajectories)} BHPS-era trajectories")
 
 # Save trajectory checkpoint
@@ -51,9 +59,6 @@ with open(CHECKPOINT_DIR / "01_trajectories_sequences.json", "w") as f:
 logger.info("=" * 60)
 logger.info("Step 3: Embedding BHPS trajectories (n-grams + PCA-20D)")
 logger.info("=" * 60)
-
-from trajectory_tda.embedding.ngram_embed import ngram_embed
-from trajectory_tda.utils.model_io import save_model
 
 embeddings, embed_info = ngram_embed(
     trajectories,
@@ -83,8 +88,6 @@ logger.info("=" * 60)
 logger.info("Step 4: Computing persistent homology (maxmin VR, L=5000)")
 logger.info("=" * 60)
 
-from trajectory_tda.topology.trajectory_ph import compute_trajectory_ph
-
 ph_result = compute_trajectory_ph(
     embeddings,
     max_dim=1,
@@ -98,10 +101,7 @@ ph_cp = {
     "n_landmarks": ph_result["n_landmarks"],
     "elapsed": ph_result["elapsed_seconds"],
     "summaries": {
-        k: {
-            dk: {kk: vv for kk, vv in dv.items() if kk != "features"}
-            for dk, dv in v.items()
-        }
+        k: {dk: {kk: vv for kk, vv in dv.items() if kk != "features"} for dk, dv in v.items()}
         for k, v in ph_result.get("summaries", {}).items()
     },
 }
@@ -113,9 +113,7 @@ raw_diagrams = {}
 for method_key in ["witness", "maxmin_vr"]:
     if method_key in ph_result:
         ph_obj = ph_result[method_key]
-        raw_diagrams[method_key] = {
-            str(dim): dgm.tolist() for dim, dgm in ph_obj.dgms.items()
-        }
+        raw_diagrams[method_key] = {str(dim): dgm.tolist() for dim, dgm in ph_obj.dgms.items()}
         if hasattr(ph_obj, "landmark_indices") and ph_obj.landmark_indices is not None:
             np.save(
                 CHECKPOINT_DIR / f"03_landmark_indices_{method_key}.npy",
@@ -128,8 +126,6 @@ with open(CHECKPOINT_DIR / "03_ph_diagrams.json", "w") as f:
 logger.info("=" * 60)
 logger.info("Step 5: Permutation tests (all 4 null models, 100 perms)")
 logger.info("=" * 60)
-
-from trajectory_tda.topology.permutation_nulls import permutation_test_trajectories
 
 null_types = ["label_shuffle", "cohort_shuffle", "order_shuffle", "markov"]
 embed_kwargs = {"include_bigrams": True, "tfidf": False, "pca_dim": 20}
@@ -176,9 +172,6 @@ with open(CHECKPOINT_DIR / "04_nulls.json", "w") as f:
 logger.info("=" * 60)
 logger.info("Step 6: Analysis (regimes, cycles)")
 logger.info("=" * 60)
-
-from trajectory_tda.analysis.cycle_detection import detect_cycles
-from trajectory_tda.analysis.regime_discovery import discover_regimes
 
 regimes = discover_regimes(embeddings, trajectories, ph_result=ph_result)
 logger.info(f"Optimal k={regimes['k_optimal']}")

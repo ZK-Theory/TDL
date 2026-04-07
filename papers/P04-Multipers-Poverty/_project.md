@@ -2,7 +2,7 @@
 paper: P04
 title: "Multi-Parameter Persistent Homology for Poverty Trap Detection in UK Employment Trajectories"
 status: in-progress
-target-journal: "JASA Applications and Case Studies"
+target-journal: "Annals of Applied Statistics"
 submitted: null
 deadline: null
 priority: medium
@@ -14,6 +14,11 @@ current-draft: papers/P04-Multipers-Poverty/drafts/v4-2026-04.md
 ---
 
 ## Status
+
+Target updated to *Annals of Applied Statistics* during the P01-P04 strategic
+reorganisation. Draft v4 remains the current source draft, and authorship is now
+fixed as single-author Stephen Dorman (The Open University, UK); endogeneity
+checks and AoAS-specific reframing are still pending.
 
 Active computation. v4 draft integrates Appendix B (Hilbert function + rank invariant) results and LaTeX pipeline.
 
@@ -120,6 +125,10 @@ Single-parameter VR persistent homology (P01) captures global topological struct
 8. Write results sections with comparison to P01 single-parameter baseline
 
 ## Open Items
+
+- [ ] Run the income-proxy endogeneity regression of the income proxy on PC1-PC20
+  and report $R^2$
+- [ ] Reframe the draft and submission materials for AoAS rather than JASA
 
 - [x] Verify P01 embedding pipeline produces stable output for P04 consumption
 - [x] Install `multipers` and run tutorial / validation on synthetic bifiltration

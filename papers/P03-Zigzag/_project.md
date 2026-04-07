@@ -1,7 +1,7 @@
 ---
 paper: P03
 title: "Topological Business Cycles? Zigzag Persistence, Survey Design, and Labour Market Fragmentation in the UK, 1991–2022"
-status: in-progress
+status: archived
 target-journal: "Sociological Methods & Research"
 submitted: null
 deadline: 2026-12-01
@@ -13,6 +13,11 @@ tags: [paper, tda, zigzag, business-cycle, time-series-topology]
 ---
 
 ## Status
+
+Archived on 2026-04-07. Content absorbed into `papers/P01-B-JRSSB/`. The v2
+draft, figures, and LaTeX sources remain as the historical source record for the
+survey-design diagnostic toolkit and zigzag motivation now feeding the JRSS-B
+paper.
 
 Zigzag computation complete; paper v2 drafted and humanized; LaTeX package builds
 cleanly to 29 pages. Key finding: dominant post-2008 topological discontinuity is a
@@ -29,6 +34,8 @@ Fallback: *Journal of Computational Social Science*
 Tracks how UK trajectory-space topology changes across annual cohort snapshots (1991–2023), capturing topological signatures of recession (1993, 2008), austerity (2010–2015), and pandemic (2020). Tests whether H₀ increases (fragmentation) during recessions and H₁ appears during recovery.
 
 ## Open Items
+
+- [x] Archive standalone submission plan — superseded by P01-B (JRSS-B)
 
 - [x] Zigzag computation complete (4-stage pipeline, 150 landmarks, 32 years)
 - [x] Annual snapshot data pipeline verified (1991–2022, `results/trajectory_tda_zigzag/`)

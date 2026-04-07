@@ -1,4 +1,4 @@
-## vexp context tools <!-- vexp v1.2.30 -->
+## vexp context tools <!-- vexp v1.3.6 -->
 
 **MANDATORY: use `run_pipeline` — do NOT grep, glob, or read files manually.**
 vexp returns pre-indexed, graph-ranked context in a single call.
@@ -40,23 +40,47 @@ This is a PhD/postdoc-scale programme running ~48 months. Before scaffolding new
 
 ### Current priority (Stage 0)
 
-Upgrade Paper 1 test statistic from total persistence (scalar) to diagram-level Wasserstein distance using `gudhi`/`hera`. File: `trajectory_tda/validation/wasserstein_null_tests.py`. CPU-only, minutes of runtime.
+Strategic reorganisation of the trajectory programme into two companion papers:
 
-### Stage 0 — Paper 1 (months 0–3)
+- **P01-A (JRSS-A):** applied paper combining VR-PH regimes with Mapper
+  interior structure
+- **P01-B (JRSS-B):** methods paper combining the Markov memory ladder with
+  survey-design diagnostics
 
-- **What:** Markov memory ladder + Wasserstein null tests on BHPS/USoc trajectory topology
-- **Key upgrade:** `gudhi.wasserstein.wasserstein_distance()` replacing total-persistence scalar
-- **Target:** Sociological Methodology
-- **Status:** Draft complete; needs Wasserstein upgrade before submission
+Blocking Phase 0 deliverables:
 
-### Stage 1 — Papers 2 & 3 (months 3–12, parallel)
+- authorship / corresponding-author decision
+- shared notation standard before draft assembly
+- Wasserstein-order audit: the legacy P01 manuscript currently writes `W_1`,
+  while reusable trajectory Wasserstein code paths default to `W_2`
 
-- **Paper 2 — Mapper:** `kmapper` on existing PCA-20D embedding; colour nodes by escape probability. File: `trajectory_tda/topology/mapper.py`. CPU-only, minutes.
-- **Paper 3 — Zigzag persistence:** Annual cohort snapshots 1991–2023; frozen PCA loadings; `gudhi` zigzag (Kerber-Schreiber streaming). File: `trajectory_tda/topology/zigzag.py`. Hours, local i7/32GB.
+P01-A and P01-B should be submitted to JRSS and posted to arXiv on the same day.
+
+### Stage 0 — P01-A / P01-B companion papers (months 0–3)
+
+- **What:** split the former P01/P02/P03 line into an applied JRSS-A paper and a
+  methods JRSS-B paper
+- **Key outputs:** `papers/P01-A-JRSSA/`, `papers/P01-B-JRSSB/`, and
+  `papers/shared/notation.md`
+- **Target:** simultaneous JRSS-A + JRSS-B submission with same-day arXiv posting
+- **Status:** Phase 0 scaffolding in progress; archived source papers remain as
+  historical record only
+
+### Stage 1 — Archived source papers (months 3–12, historical inputs)
+
+- **P02 — Mapper:** archived as a standalone submission target; its mature
+  content now feeds P01-A. Core implementation remains in
+  `trajectory_tda/topology/mapper.py`.
+- **P03 — Zigzag persistence:** archived as a standalone submission target; its
+  diagnostic toolkit now feeds P01-B. Core implementation remains in
+  `trajectory_tda/topology/zigzag.py`.
 
 ### Stage 2 — Papers 4–6 (months 12–24)
 
-- **Paper 4 — Multi-parameter PH:** `multipers` bifiltration (distance + income); development local, full-scale A100 (~4–8 GPU-hrs). `trajectory_tda/topology/multipers_bifiltration.py`
+- **Paper 4 — Multi-parameter PH:** `multipers` bifiltration (distance + income),
+  now targeted to AoAS; first blocking step is the income-proxy endogeneity
+  check. Development local, full-scale A100 (~4–8 GPU-hrs).
+  `trajectory_tda/topology/multipers_bifiltration.py`
 - **Paper 5 — Cross-national:** Same pipeline on SOEP/PSID/CNEF; start data access requests at month 12. Highest sociological impact paper.
 - **Paper 6 — Intergenerational:** BHPS-USoc household IDs for parent-child linkage; Wasserstein between regime-conditional child diagrams.
 
@@ -69,16 +93,16 @@ Upgrade Paper 1 test statistic from total persistence (scalar) to diagram-level 
 
 ### Submission sequence
 
-Paper 1 → (Papers 2 + 3 simultaneous) → (Papers 5 + 4) → (Papers 7 + 10) → (Papers 8 + 9)
+P01-A + P01-B simultaneous → P04 → (Papers 5 + 6) → (Papers 7 + 10) → (Papers 8 + 9)
 
 ### Computational resource map (local i7/32GB/RTX 3080)
 
-| Paper          | Local feasible? | Cloud needed?   | Runtime       |
-| -------------- | --------------- | --------------- | ------------- |
-| 1–3, 5, 6, 10  | Yes, fully      | No              | Minutes–hours |
-| 4 (full scale) | Dev only        | A100, 4–8 hrs   | Hours locally |
-| 7, 8 (2-level) | Yes             | No              | Hours         |
-| 9 (3–4 level)  | No              | A100, 20–40 hrs | Cloud only    |
+| Paper                  | Local feasible? | Cloud needed?   | Runtime       |
+| ---------------------- | --------------- | --------------- | ------------- |
+| P01-A, P01-B, 5, 6, 10 | Yes, fully      | No              | Minutes–hours |
+| P04 (full scale)       | Dev only        | A100, 4–8 hrs   | Hours locally |
+| 7, 8 (2-level)         | Yes             | No              | Hours         |
+| 9 (3–4 level)          | No              | A100, 20–40 hrs | Cloud only    |
 
 ---
 
@@ -149,3 +173,50 @@ Cloud-indexed documentation for software libraries. Use when you need API detail
 **Usage:** When implementing topology computation or needing API details, query Context7 first. If a library is not indexed, fall back to reading source code or hosted docs directly.
 
 <!-- /vexp -->
+
+---
+
+## Obsidian Vault Integration
+
+The research record lives in a separate Obsidian vault at `C:\Users\steph\Documents\TDA-Research\`. This repo contains code only; the vault holds theory, methodology, literature, and project management. They must stay in sync.
+
+| Vault location                    | What's there                                                |
+| --------------------------------- | ----------------------------------------------------------- |
+| `03-Papers/[ID]/_project.md`      | Paper status, open items, draft history                     |
+| `04-Methods/Computational-Log.md` | Logged results and decisions                                |
+| `04-Methods/Pipeline-Overview.md` | Pipeline architecture                                       |
+| `CONVENTIONS.md`                  | Locked methodological rules — **check before implementing** |
+| `VAULT-MAP.md`                    | Full vault navigation index                                 |
+
+---
+
+## Commit Message Conventions
+
+Use these prefixes on every commit to keep the repo-vault bridge meaningful:
+
+| Prefix       | Meaning                             | Vault action needed                         |
+| ------------ | ----------------------------------- | ------------------------------------------- |
+| `[RESULT]`   | Quantitative result worth logging   | Update `04-Methods/Computational-Log.md`    |
+| `[DECISION]` | Parameter or method locked          | Update Computational-Log + `CONVENTIONS.md` |
+| `[NEGATIVE]` | Informative negative result         | Create note in `02-Notes/Permanent/`        |
+| `[PIPELINE]` | Pipeline change                     | Update `04-Methods/Pipeline-Overview.md`    |
+| `[DATA]`     | Data processing change              | Update relevant `04-Methods/Datasets/` note |
+| `[EXPLORE]`  | Exploratory, no vault action needed | No update required                          |
+
+---
+
+## Methodological Mandates (enforced in all Python code)
+
+- **Python 3.13** is the project runtime (not 3.11)
+- **Wasserstein-2 distance** is mandatory for persistence diagram comparisons; bottleneck distance must not be used as the sole metric
+- **Persistence landscape L² distance** is a mandatory complementary metric alongside Wasserstein-2
+- **Research context comment** required at the top of every new script:
+  ```python
+  # Research context: TDA-Research/03-Papers/P01/_project.md
+  # Purpose: [what this script does in the research context]
+  ```
+- **Random seeds** must always be specified and recorded for any stochastic process (Markov simulation, permutation tests, bootstrap); log them in the script and in the vault's Computational-Log
+- **Always specify the Markov order k** when describing null models — "Markov null model" alone is ambiguous
+- **Never run persistent homology on raw trajectories** — the Vietoris-Rips complex requires a metric space; always embed first
+- **Never assume BHPS and Understanding Society share variable coding** — always check wave documentation before making cross-wave assumptions
+- **Key libraries:** `giotto-tda`, `gudhi`, `ripser`, `persim`, `scikit-tda`, `umap-learn`, `torch-geometric`, `geopandas`, `libpysal`

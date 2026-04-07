@@ -76,6 +76,7 @@ def build_full_checkpoint(
         pca_dim: Number of PCA dimensions for the embedding.
         tfidf: Whether to apply TF-IDF weighting before PCA.
     """
+    from trajectory_tda.data.covariate_extractor import attach_birth_cohort_metadata
     from trajectory_tda.data.trajectory_builder import build_trajectories_from_raw
     from trajectory_tda.embedding.ngram_embed import ngram_embed
     from trajectory_tda.utils.model_io import save_model
@@ -98,6 +99,7 @@ def build_full_checkpoint(
         max_gap=max_gap,
         income_threshold=income_threshold,
     )
+    metadata = attach_birth_cohort_metadata(metadata, data_dir=data_dir)
 
     logger.info("Total trajectories: %d", len(trajectories))
 
