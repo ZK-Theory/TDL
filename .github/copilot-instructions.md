@@ -34,6 +34,46 @@ Intent auto-detection, hybrid ranking, session memory, auto-expanding budget.
 
 ---
 
+## Vault-Engine MCP Server
+
+On-device access to the Obsidian research vaults. Uses QMD (local embeddings)
+for hybrid search and a wikilink graph index for link-aware context expansion.
+
+### Available tools
+
+| Tool             | Purpose                                           | When to use                                             |
+| ---------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| `vault_query`    | Graph-augmented search across vaults              | Finding methodology, decisions, literature, conventions |
+| `vault_get`      | Read a specific page with backlinks/forward links | Loading CONVENTIONS, \_project.md, Computational-Log    |
+| `vault_graph`    | N-hop wikilink neighborhood                       | Understanding how concepts connect                      |
+| `vault_skeleton` | Token-efficient page summaries (80-90% reduction) | Scanning multiple pages without context overflow        |
+| `vault_status`   | Dashboard with health metrics                     | Session start, checking paper pipeline status           |
+| `cross_vault`    | Shared concepts between TDA & Counting Lives      | Finding Two Lenses connections                          |
+| `vault_observe`  | Save observations linked to vault pages           | Recording insights for cross-session memory             |
+
+### Vault identifiers
+
+- `tda` — TDA-Research vault (methodology, papers, literature)
+- `cl` — Counting Lives vault (book manuscript, sources, research)
+
+### Workflow integration
+
+1. **Session start:** Call `vault_get("CONVENTIONS", vault="tda")` to load locked rules
+2. **Paper work:** Call `vault_get("03-Papers/P01-A/_project.md")` before writing
+3. **Methodology questions:** Call `vault_query("your question")` — expands via wikilinks
+4. **After decisions:** Call `vault_observe("decision text", page="CONVENTIONS")`
+
+### Key vault pages to know
+
+| Page                   | Purpose                                                   |
+| ---------------------- | --------------------------------------------------------- |
+| `CONVENTIONS`          | Locked always/never rules — **check before implementing** |
+| `Computational-Log`    | All logged results and decisions                          |
+| `Pipeline-Overview`    | Pipeline architecture                                     |
+| `markov-memory-ladder` | Core P01-B methodology                                    |
+
+---
+
 ## 10-Paper Research Programme
 
 This is a PhD/postdoc-scale programme running ~48 months. Before scaffolding new code, check which stage it belongs to. **Do not build Stage 2/3 infrastructure until Stage 0 is complete.**

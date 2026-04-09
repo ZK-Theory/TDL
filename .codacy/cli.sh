@@ -22,13 +22,20 @@ case "$arch" in
   ;;
 esac
 
+# On Windows (MINGW/Cygwin/MSYS) the executable has a .exe suffix
+case "$os_name" in
+  MINGW*|CYGWIN*|MSYS*)
+    bin_name="codacy-cli-v2.exe"
+    ;;
+esac
+
 if [ -z "$CODACY_CLI_V2_TMP_FOLDER" ]; then
     if [ "$(uname)" = "Linux" ]; then
         CODACY_CLI_V2_TMP_FOLDER="$HOME/.cache/codacy/codacy-cli-v2"
     elif [ "$(uname)" = "Darwin" ]; then
         CODACY_CLI_V2_TMP_FOLDER="$HOME/Library/Caches/Codacy/codacy-cli-v2"
     else
-        CODACY_CLI_V2_TMP_FOLDER=".codacy-cli-v2"
+        CODACY_CLI_V2_TMP_FOLDER="$HOME/.codacy-cli-v2"
     fi
 fi
 
@@ -87,8 +94,17 @@ download() {
 }
 
 download_cli() {
-    # OS name lower case
-    suffix=$(echo "$os_name" | tr '[:upper:]' '[:lower:]')
+    # Normalise OS name: map MINGW*/CYGWIN* to "windows", otherwise lower-case
+    local raw_os
+    raw_os=$(echo "$os_name" | tr '[:upper:]' '[:lower:]')
+    case "$raw_os" in
+        mingw*|cygwin*|msys*)
+            suffix="windows"
+            ;;
+        *)
+            suffix="$raw_os"
+            ;;
+    esac
 
     local bin_folder="$1"
     local bin_path="$2"
@@ -97,11 +113,17 @@ download_cli() {
     if [ ! -f "$bin_path" ]; then
         echo "📥 Downloading CLI version $version..."
 
-        remote_file="codacy-cli-v2_${version}_${suffix}_${arch}.tar.gz"
-        url="https://github.com/codacy/codacy-cli-v2/releases/download/${version}/${remote_file}"
-
-        download "$url" "$bin_folder"
-        tar xzfv "${bin_folder}/${remote_file}" -C "${bin_folder}"
+        if [ "$suffix" = "windows" ]; then
+            remote_file="codacy-cli-v2_${version}_${suffix}_${arch}.zip"
+            url="https://github.com/codacy/codacy-cli-v2/releases/download/${version}/${remote_file}"
+            download "$url" "$bin_folder"
+            unzip -o "${bin_folder}/${remote_file}" -d "${bin_folder}"
+        else
+            remote_file="codacy-cli-v2_${version}_${suffix}_${arch}.tar.gz"
+            url="https://github.com/codacy/codacy-cli-v2/releases/download/${version}/${remote_file}"
+            download "$url" "$bin_folder"
+            tar xzfv "${bin_folder}/${remote_file}" -C "${bin_folder}"
+        fi
     fi
 }
 

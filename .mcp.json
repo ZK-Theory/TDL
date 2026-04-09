@@ -6,6 +6,17 @@
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
+    },
+    "vault-engine": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["C:\\Users\\steph\\TDL\\scripts\\vault\\mcp_server.py"],
+      "env": {
+        "TDA_VAULT_PATH": "C:\\Users\\steph\\Documents\\TDA-Research",
+        "CL_VAULT_PATH": "C:\\Users\\steph\\Documents\\Counting Lives\\Counting Lives",
+        "LLAMA_CUDA": "0",
+        "NODE_LLAMA_CPP_GPU": "false"
+      }
     }
   }
 }

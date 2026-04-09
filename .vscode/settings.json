@@ -29,6 +29,7 @@
     "**/.vexp/index.db-shm": true,
     "**/.vexp/parent_workspace.json": true,
     "**/.vexp/.gitignore": true,
-    "**/.vexp/.gitattributes": true
+    "**/.vexp/.gitattributes": true,
+    "**/.vexp/daemon.pipe": true
   }
 }
