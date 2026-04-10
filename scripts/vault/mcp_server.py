@@ -43,6 +43,19 @@ VAULTS: dict[str, Path] = {
 DB_PATH = Path(os.environ.get("VAULT_ENGINE_DB", Path.home() / ".cache" / "vault-engine" / "graph.sqlite"))
 SKIP_DIRS = {".obsidian", ".trash", "node_modules", ".git", ".apm"}
 
+# ── Logging ─────────────────────────────────────────────────────────
+LOG_PATH = Path(os.environ.get("VAULT_ENGINE_LOG", Path.home() / ".cache" / "vault-engine" / "server.log"))
+
+
+def _log(msg: str) -> None:
+    """Append a timestamped line to the server log."""
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat()} {msg}\n")
+    except OSError:
+        pass
+
 # Resolve QMD — find qmd.js and invoke via node for cross-platform reliability
 _QMD_JS_CANDIDATES = [
     Path.home() / "AppData" / "Roaming" / "npm" / "node_modules" / "@tobilu" / "qmd" / "dist" / "cli" / "qmd.js",
@@ -253,7 +266,7 @@ def _skeletonize(content: str) -> str:
 
 # ── QMD integration ─────────────────────────────────────────────────
 
-def _qmd_cmd(args: list[str]) -> list[dict]:
+def _qmd_cmd(args: list[str], timeout: int = 30) -> list[dict]:
     """Run a QMD CLI command via node, returns parsed JSON list."""
     if not QMD_JS:
         return []
@@ -261,12 +274,22 @@ def _qmd_cmd(args: list[str]) -> list[dict]:
     cmd = ["node", QMD_JS] + args
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=60, env=QMD_ENV,
+            cmd,
+            capture_output=True,
+            timeout=timeout,
+            env=QMD_ENV,
+            encoding="utf-8",
+            errors="replace",
         )
         if result.returncode != 0:
+            _log(f"QMD returned {result.returncode}: {(result.stderr or '')[:200]}")
             return []
         return json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError, OSError):
+    except subprocess.TimeoutExpired:
+        _log(f"QMD timed out after {timeout}s: {' '.join(args[:3])}")
+        return []
+    except (json.JSONDecodeError, FileNotFoundError, OSError) as exc:
+        _log(f"QMD error: {exc}")
         return []
 
 
@@ -279,11 +302,22 @@ def _qmd_search(query: str, collection: str | None = None, n: int = 10) -> list[
 
 
 def _qmd_query(query: str, collection: str | None = None, n: int = 10) -> list[dict]:
-    """Hybrid search via QMD CLI (BM25 + vector + reranking)."""
-    args = ["query", query, "--json", "-n", str(n)]
+    """Hybrid search via QMD CLI (BM25 + vector, no reranker).
+
+    The Qwen3-Reranker-0.6B GGUF crashes with STATUS_STACK_BUFFER_OVERRUN
+    on Windows (node-llama-cpp NAPI binding issue). Skip it — the RRF
+    fusion of BM25 + vector scores is good enough for ~300 documents.
+    Falls back to BM25-only search if hybrid also fails.
+    """
+    args = ["query", query, "--json", "-n", str(n), "--no-rerank"]
     if collection:
         args.extend(["-c", collection])
-    return _qmd_cmd(args)
+    results = _qmd_cmd(args, timeout=30)
+    if results:
+        return results
+    # Fallback to BM25-only search
+    _log("QMD query failed, falling back to BM25 search")
+    return _qmd_search(query, collection=collection, n=n)
 
 
 # ── Page reading ────────────────────────────────────────────────────
@@ -666,7 +700,8 @@ def vault_skeleton(
     Typically 80-90% token reduction vs full content.
 
     Args:
-        pages: List of page stems or relative paths.
+        pages: List of page stems or relative paths, e.g. ["CONVENTIONS", "Computational-Log"].
+               NOT a single string — must be a JSON array.
         vault: Which vault ('tda' or 'cl').
     """
     parts: list[str] = []
@@ -829,8 +864,8 @@ def vault_observe(
     the observation was recorded.
 
     Args:
-        observation: The insight or note to record.
-        page: Page stem or path to link to (optional).
+        observation: The insight or note to record (required string, e.g. "Decided to use W2 not W1").
+        page: Page stem or path to link to (optional, e.g. "CONVENTIONS").
         vault: Which vault ('tda' or 'cl').
     """
     conn = _ensure_index()
@@ -882,6 +917,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.http:
+        _log(f"Starting vault-engine HTTP on port {args.http}")
         mcp.run(transport="sse", sse_params={"port": args.http})
     else:
+        _log("Starting vault-engine stdio")
         mcp.run(transport="stdio")

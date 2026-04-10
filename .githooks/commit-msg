@@ -1,0 +1,39 @@
+#!/bin/bash
+# commit-msg: enforce TDL commit prefix convention.
+# All commits must start with one of the six defined prefixes.
+# See CLAUDE.md § Commit Message Conventions.
+
+COMMIT_MSG_FILE="$1"
+FIRST_LINE=$(head -1 "$COMMIT_MSG_FILE")
+
+# Skip automated commits: merges, reverts, fixups, squashes
+case "$FIRST_LINE" in
+  Merge*|Revert*|fixup!*|squash!*) exit 0 ;;
+esac
+
+# Check for required prefix
+if ! echo "$FIRST_LINE" | grep -qE '^\[(RESULT|DECISION|NEGATIVE|PIPELINE|DATA|EXPLORE)\]'; then
+  echo ""
+  echo "ERROR: Missing TDL commit prefix."
+  echo "  Your message: $FIRST_LINE"
+  echo ""
+  echo "Subject must start with one of:"
+  echo "  [RESULT]   — quantitative result       → update 04-Methods/Computational-Log.md"
+  echo "  [DECISION] — method/parameter locked   → update Computational-Log + CONVENTIONS.md"
+  echo "  [NEGATIVE] — informative null result   → create 02-Notes/Permanent/ note"
+  echo "  [PIPELINE] — pipeline/module change    → update 04-Methods/Pipeline-Overview.md"
+  echo "  [DATA]     — data processing change    → update 04-Methods/Datasets/ note"
+  echo "  [EXPLORE]  — exploratory, no output    → no vault action required"
+  echo ""
+  echo "Example: [RESULT] P01-B: Markov-2 null W2 p=0.003 (H1, n=500, L=5000)"
+  echo "See: CLAUDE.md § Commit Message Conventions"
+  exit 1
+fi
+
+# Advisory only: warn if subject line exceeds 72 characters
+SUBJECT_LEN=${#FIRST_LINE}
+if [ "$SUBJECT_LEN" -gt 72 ]; then
+  echo "Advisory: subject line is ${SUBJECT_LEN} characters (recommended ≤72)."
+fi
+
+exit 0

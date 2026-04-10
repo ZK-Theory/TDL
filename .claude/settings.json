@@ -11,6 +11,23 @@
             "statusMessage": "Linting and formatting..."
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/research-context-check.sh",
+            "timeout": 10,
+            "statusMessage": "Checking research context header..."
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/results-vault-reminder.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for vault reminder..."
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -21,6 +38,17 @@
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/vexp-guard.sh",
             "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notation-guard.sh",
+            "timeout": 10,
+            "statusMessage": "Checking notation conventions..."
           }
         ]
       }

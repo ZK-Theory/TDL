@@ -1,0 +1,64 @@
+#!/bin/bash
+# prepare-commit-msg: suggest a TDL commit prefix based on staged files.
+# Injects the suggested [PREFIX] PXX: template and annotates with staged file list.
+# Only runs for fresh commits — not --amend, merges, squashes, or cherry-picks.
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# Skip for automated/existing-message commit types
+case "$COMMIT_SOURCE" in
+  merge|squash|commit) exit 0 ;;
+esac
+
+# Don't overwrite a message that already has a TDL prefix
+FIRST_LINE=$(head -1 "$COMMIT_MSG_FILE")
+if echo "$FIRST_LINE" | grep -qE '^\[(RESULT|DECISION|NEGATIVE|PIPELINE|DATA|EXPLORE)\]'; then
+  exit 0
+fi
+
+# Inspect staged files
+STAGED=$(git diff --cached --name-only 2>/dev/null)
+STAGED_COUNT=$(printf '%s\n' "$STAGED" | grep -c . 2>/dev/null || echo 0)
+
+# Select prefix + vault note in priority order
+if printf '%s\n' "$STAGED" | grep -qE '^results/'; then
+  PREFIX="[RESULT]"
+  VAULT="update 04-Methods/Computational-Log.md"
+elif printf '%s\n' "$STAGED" | grep -qE 'CONVENTIONS|Computational-Log'; then
+  PREFIX="[DECISION]"
+  VAULT="update Computational-Log.md + CONVENTIONS.md"
+elif printf '%s\n' "$STAGED" | grep -qE '^(trajectory_tda|poverty_tda|financial_tda|shared)/data/'; then
+  PREFIX="[DATA]"
+  VAULT="update 04-Methods/Datasets/ note"
+elif printf '%s\n' "$STAGED" | grep -qE 'pipeline|/scripts/|/experiments/'; then
+  PREFIX="[PIPELINE]"
+  VAULT="update 04-Methods/Pipeline-Overview.md"
+elif printf '%s\n' "$STAGED" | grep -qE '^papers/'; then
+  PREFIX="[EXPLORE]"
+  VAULT="no vault action required (upgrade to [RESULT]/[DECISION] if applicable)"
+elif printf '%s\n' "$STAGED" | grep -qE '^(trajectory_tda|poverty_tda|financial_tda|shared)/'; then
+  PREFIX="[EXPLORE]"
+  VAULT="no vault action required"
+else
+  PREFIX="[EXPLORE]"
+  VAULT="no vault action required"
+fi
+
+ORIGINAL=$(cat "$COMMIT_MSG_FILE")
+
+{
+  echo "$PREFIX PXX: "
+  echo ""
+  echo "# Suggested prefix: $PREFIX"
+  echo "# Vault action:     $VAULT"
+  echo "# Other prefixes:   [RESULT] [DECISION] [NEGATIVE] [PIPELINE] [DATA] [EXPLORE]"
+  echo "#"
+  echo "# Staged files ($STAGED_COUNT):"
+  printf '%s\n' "$STAGED" | head -8 | sed 's/^/# /'
+  [ "$STAGED_COUNT" -gt 8 ] && echo "# ... and $((STAGED_COUNT - 8)) more"
+  echo "#"
+  printf '%s\n' "$ORIGINAL"
+} > "$COMMIT_MSG_FILE"
+
+exit 0
