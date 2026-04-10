@@ -162,8 +162,8 @@ When creating or modifying skills, apply these constraints:
 |---|---|---|
 | `session-capture/SKILL.md` | New skill: file conversation outputs back to vaults | Cowork skill |
 | `vault-health-check/SKILL.md` | New skill: lint and audit both vaults | Cowork skill |
-| `CONVENTIONS-TDA.md` | Always/never rules for TDA research | TDA vault root |
-| `CONVENTIONS-CL.md` | Always/never rules for Counting Lives | CL vault root |
+| `CONVENTIONS.md` | Always/never rules for TDA research | TDA vault root |
+| `CONVENTIONS.md` | Always/never rules for Counting Lives | CL vault root |
 | `review-personas.md` | Specialist review identities | Shared reference |
 | `implementation-blueprint-template.md` | Disposable blueprint for website features | Website project |
 | `tda-session-amendments.md` | Patches to add index regeneration | Applied to existing skill |

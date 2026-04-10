@@ -294,21 +294,40 @@ def _resolve_page(vault: str, path_or_stem: str) -> Path | None:
     if not vault_path or not vault_path.exists():
         return None
 
+    try:
+        resolved_vault = vault_path.resolve()
+    except OSError:
+        return None
+
+    def _safe_path(candidate: Path) -> Path | None:
+        """Return candidate if it resolves to inside the vault, else None."""
+        try:
+            resolved = candidate.resolve()
+            if resolved.is_relative_to(resolved_vault):
+                return resolved
+        except OSError:
+            pass
+        return None
+
     # Try as direct relative path
     candidate = vault_path / path_or_stem
-    if candidate.exists():
-        return candidate
+    safe = _safe_path(candidate)
+    if safe and safe.exists():
+        return safe
     if not path_or_stem.endswith(".md"):
         candidate = vault_path / (path_or_stem + ".md")
-        if candidate.exists():
-            return candidate
+        safe = _safe_path(candidate)
+        if safe and safe.exists():
+            return safe
 
     # Try as stem search
     for f in vault_path.rglob("*.md"):
         if any(p in SKIP_DIRS for p in f.parts):
             continue
         if f.stem == path_or_stem:
-            return f
+            safe = _safe_path(f)
+            if safe:
+                return safe
 
     return None
 
@@ -319,7 +338,10 @@ def _read_page(vault: str, path_or_stem: str) -> tuple[str | None, str | None]:
     if not resolved:
         return None, None
     vault_path = VAULTS[vault]
-    content = resolved.read_text(encoding="utf-8", errors="replace")
+    try:
+        content = resolved.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None, None
     rel = str(resolved.relative_to(vault_path)).replace("\\", "/")
     return content, rel
 
@@ -376,9 +398,11 @@ def vault_query(
 
     if not qmd_results:
         # Fall back to database full-text match
+        escaped_query = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped_query}%"
         rows = conn.execute(
-            "SELECT vault, rel_path, title FROM pages WHERE title LIKE ? OR frontmatter LIKE ? LIMIT ?",
-            (f"%{query}%", f"%{query}%", max_results),
+            "SELECT vault, rel_path, title FROM pages WHERE title LIKE ? ESCAPE '\\' OR frontmatter LIKE ? ESCAPE '\\' LIMIT ?",
+            (pattern, pattern, max_results),
         ).fetchall()
         for v, rp, title in rows:
             content, _ = _read_page(v, rp)

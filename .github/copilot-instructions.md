@@ -4,11 +4,13 @@
 vexp returns pre-indexed, graph-ranked context in a single call.
 
 ### Workflow
+
 1. `run_pipeline` with your task description — ALWAYS FIRST (replaces all other tools)
 2. Make targeted changes based on the context returned
 3. `run_pipeline` again only if you need more context
 
 ### Available MCP tools
+
 - `run_pipeline` — **PRIMARY TOOL**. Runs capsule + impact + memory in 1 call.
   Auto-detects intent. Includes file content. Example: `run_pipeline({ "task": "fix auth bug" })`
 - `get_context_capsule` — lightweight, for simple questions only
@@ -21,15 +23,19 @@ vexp returns pre-indexed, graph-ranked context in a single call.
 - `save_observation` — persist insights (prefer run_pipeline's observation param)
 
 ### Agentic search
+
 - Do NOT use built-in file search, grep, or codebase indexing — always call `run_pipeline` first
 - If you spawn sub-agents or background tasks, pass them the context from `run_pipeline`
   rather than letting them search the codebase independently
 
 ### Smart Features
+
 Intent auto-detection, hybrid ranking, session memory, auto-expanding budget.
 
 ### Multi-Repo
+
 `run_pipeline` auto-queries all indexed repos. Use `repos: ["alias"]` to scope. Run `index_status` to see aliases.
+
 <!-- /vexp -->
 
 ---
@@ -58,10 +64,12 @@ for hybrid search and a wikilink graph index for link-aware context expansion.
 
 ### Workflow integration
 
+The `vault` parameter is required on all calls. There is no default vault — always pass `vault="tda"` for TDA-Research or `vault="cl"` for Counting Lives.
+
 1. **Session start:** Call `vault_get("CONVENTIONS", vault="tda")` to load locked rules
-2. **Paper work:** Call `vault_get("03-Papers/P01-A/_project.md")` before writing
-3. **Methodology questions:** Call `vault_query("your question")` — expands via wikilinks
-4. **After decisions:** Call `vault_observe("decision text", page="CONVENTIONS")`
+2. **Paper work:** Call `vault_get("03-Papers/P01-A/_project.md", vault="tda")` before writing
+3. **Methodology questions:** Call `vault_query("your question", vault="tda")` — expands via wikilinks
+4. **After decisions:** Call `vault_observe("decision text", page="CONVENTIONS", vault="tda")`
 
 ### Key vault pages to know
 

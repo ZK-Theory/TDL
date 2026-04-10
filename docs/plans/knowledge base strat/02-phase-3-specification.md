@@ -232,6 +232,9 @@ import re
 from pathlib import Path
 from datetime import datetime
 
+# Files excluded from orphan detection (always-present index/nav files)
+EXCLUDED_FILES: set[str] = {"INDEX", "VAULT-MAP", "README"}
+
 def scan_papers(vault_root: Path) -> list[dict]:
     """Read all _project.md files and extract status."""
     papers_dir = vault_root / "03-Papers"

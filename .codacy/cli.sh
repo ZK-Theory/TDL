@@ -114,9 +114,14 @@ download_cli() {
         echo "📥 Downloading CLI version $version..."
 
         if [ "$suffix" = "windows" ]; then
+            local remote_file
             remote_file="codacy-cli-v2_${version}_${suffix}_${arch}.zip"
             url="https://github.com/codacy/codacy-cli-v2/releases/download/${version}/${remote_file}"
             download "$url" "$bin_folder"
+            if ! command -v unzip >/dev/null 2>&1; then
+                echo "Error: unzip is required to extract the Windows CLI package but was not found." >&2
+                exit 1
+            fi
             unzip -o "${bin_folder}/${remote_file}" -d "${bin_folder}"
         else
             remote_file="codacy-cli-v2_${version}_${suffix}_${arch}.tar.gz"

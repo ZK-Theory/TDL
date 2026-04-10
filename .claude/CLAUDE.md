@@ -90,10 +90,12 @@ for hybrid search and a wikilink graph index for link-aware context expansion.
 
 ### Workflow integration
 
+The `vault` parameter is required on all calls. There is no default vault — always pass `vault="tda"` for TDA-Research or `vault="cl"` for Counting Lives.
+
 1. **Session start:** Call `vault_get("CONVENTIONS", vault="tda")` to load locked rules
-2. **Paper work:** Call `vault_get("03-Papers/P01-A/_project.md")` before writing
-3. **Methodology questions:** Call `vault_query("your question")` — expands via wikilinks
-4. **After decisions:** Call `vault_observe("decision text", page="CONVENTIONS")`
+2. **Paper work:** Call `vault_get("03-Papers/P01-A/_project.md", vault="tda")` before writing
+3. **Methodology questions:** Call `vault_query("your question", vault="tda")` — expands via wikilinks
+4. **After decisions:** Call `vault_observe("decision text", page="CONVENTIONS", vault="tda")`
 
 ### Key vault pages to know
 
