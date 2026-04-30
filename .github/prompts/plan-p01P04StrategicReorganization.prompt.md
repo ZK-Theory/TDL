@@ -200,6 +200,8 @@ It does NOT discuss: regime profiles, escape rates, gender stratification, pover
 
 **Readiness: HIGH.** P01 v8 + P02 v5 both mature. Can start immediately after Phase 0.
 
+**Phase 1 status (2026-04-30):** Not yet started. No v1 draft exists (`papers/P01-A-JRSSA/drafts/` is empty). Directory scaffolding and `_outline.md` are in place. Source materials confirmed ready: `papers/P01-VR-PH-Core/drafts/v8-2026-03.md` (P01 applied content) and `papers/P02-Mapper/drafts/v5-2026-04.md` (Mapper content). Next action: write the integrated argument-arc outline and begin v1 draft assembly.
+
 ### Word budget
 
 JRSS-A typical: 8,000–12,000 main-text words + supplement. Raw merged P01 (~17k) + P02 (~12k) = ~29k. Target: ~10,000 main text. Requires ~65% cut.
@@ -262,17 +264,21 @@ JRSS-A typical: 8,000–12,000 main-text words + supplement. Raw merged P01 (~17
 
 **Readiness: MODERATE.** P01 methodology mature (v8), P03 at v2. Core tools computed; maturation is formalisation and writing, not new discovery.
 
+**Phase 2 status (2026-04-30):** Not yet started. No v1 draft exists (`papers/P01-B-JRSSB/drafts/` is empty). Directory scaffolding and `_outline.md` are in place. The W2 audit notes (`papers/P01-B-JRSSB/notes/`) are ready to fold into the first draft. P03 pre-requisite computations are all done (see below); what remains is writing-level formalisation only. Next action: formalise the spanning-individual decomposition and pool-draw null model into text, then begin v1 draft assembly.
+
 ### Pre-requisite: P03 maturation (start immediately, parallel with Phase 1)
 
-1. **Formalise spanning-individual decomposition** — P03 v2 §3.7: formal statement, explicit algorithm, connection to survey methodology (~2 weeks)
+**Pre-req status (2026-04-30):** All computations complete in `results/trajectory_tda_zigzag/`. P03 is at v2. Items 3–5 below are verified done; items 1–2 require writing-level formalisation only, not new computation.
 
-2. **Formalise pool-draw null model** — P03 v2 §3.6: explicit null hypothesis, relationship to bootstrap methods (~1 week)
+1. **Formalise spanning-individual decomposition** — P03 v2 §3.7: formal statement, explicit algorithm, connection to survey methodology (~2 weeks). *Computation done; writing pending.*
 
-3. **Complete macroeconomic correlation** — GDP/unemployment/Gini correlation with topological measures. Needed to show toolkit separates survey artefacts from genuine macro effects (~1 week computation + writing)
+2. **Formalise pool-draw null model** — P03 v2 §3.6: explicit null hypothesis, relationship to bootstrap methods (~1 week). *Computation done (null_model_results.json); writing pending.*
 
-4. **Verify sensitivity grid** — 2D grid ($\varepsilon \times L$, 44 configs). Check computation status (~days if done, ~1 week if not)
+3. **Complete macroeconomic correlation** — GDP/unemployment/Gini correlation with topological measures. Needed to show toolkit separates survey artefacts from genuine macro effects. **DONE** — 7 indicators × 6 measures, 4 specifications, BH-FDR corrected; results in `results/trajectory_tda_zigzag/macro_correlations/`.
 
-5. **Verify sub-sampled Betti comparison** — BHPS-subsample vs USoc: killer evidence for survey-design confound (~days)
+4. **Verify sensitivity grid** — 2D grid ($\varepsilon \times L$, 44 configs). **DONE** — 11 × 4 grid computed and documented; results in `results/trajectory_tda_zigzag/sensitivity_2d/`.
+
+5. **Verify sub-sampled Betti comparison** — BHPS-subsample vs USoc: killer evidence for survey-design confound. **DONE** — sub-sampled results confirm survey-coverage interpretation; results in `results/trajectory_tda_zigzag/era_robustness/`.
 
 ### Steps (after P03 reaches ~v3–v4)
 
@@ -322,6 +328,8 @@ JRSS-A typical: 8,000–12,000 main-text words + supplement. Raw merged P01 (~17
 ## Phase 3: P04 (AoAS) — Reframing
 
 **Readiness: MODERATE.** v4 with exploratory computation. Independent timeline but sequenced after P01-A/B arXiv posting.
+
+**Phase 3 status (2026-04-30):** Draft v4 exists (`papers/P04-Multipers-Poverty/drafts/v4-2026-04.md`). Core computation complete: 2,000-landmark bifiltration, permutation null tests (999 perms, p<0.001), quartile decomposition, Hilbert function heatmaps, rank invariant (Appendix B), LaTeX pipeline builds to 23 pages. Two items remain explicitly open in `_project.md`: (1) income-proxy endogeneity regression on PC1–PC20 — still blocking; (2) AoAS reframing (IMS `.ims` class, separate supplement, reproducibility statement) — pending after endogeneity check and P01-A/B arXiv posting.
 
 ### Steps
 

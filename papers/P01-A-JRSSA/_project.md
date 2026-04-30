@@ -35,10 +35,16 @@ Primary: *Journal of the Royal Statistical Society Series A*
 - `papers/P02-Mapper/` — within-regime anatomy, outcome geography,
   Mapper robustness analyses
 
+## Draft History
+
+**v1** — 2026-04-30 — ~9,800 words
+Path: `papers/P01-A-JRSSA/drafts/v1-2026-04.md`
+Assembled from P01-VR-PH-Core v8 and P02-Mapper v5; ~65% cut from ~29k source words.
+
 ## Open Items
 
 - [ ] Write the integrated JRSS-A outline and argument arc
-- [ ] Assemble v1 from P01 v8 and P02 v5
+- [x] Assemble v1 from P01 v8 and P02 v5 — done 2026-04-30; v1 at ~9,800 words
 - [ ] Generate Supplementary A imputation balance by regime
 - [ ] Generate Figure S1 from `embeddings_umap16.npy`
 - [ ] Move Mapper sensitivity grid and heavy pipeline detail to the supplement

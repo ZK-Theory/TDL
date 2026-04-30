@@ -42,10 +42,10 @@ Primary: *Journal of the Royal Statistical Society Series B*
 
 ## Open Items
 
-- [ ] Formalise the spanning-individual decomposition and pool-draw null model
-- [ ] Insert the post-audit W2 table and paragraph from `notes/2026-04-07-post-audit-w2-insert.md` into Section 4 of the first full draft
-- [ ] Update the draft text to reflect the resolved W2 audit and replay caveat
-- [ ] Assemble v1 from P01 v8 and P03 v2+
+- [x] Formalise the spanning-individual decomposition and pool-draw null model — completed 2026-04-30; see `papers/P01-B-JRSSB/notes/formalised-survey-toolkit.md`
+- [x] Insert the post-audit W2 table and paragraph from `notes/2026-04-07-post-audit-w2-insert.md` into Section 4 of the first full draft — folded into §4.2.1–4.2.3 of v1
+- [x] Update the draft text to reflect the resolved W2 audit and replay caveat — addressed in §4.2.1 of v1
+- [x] Assemble v1 from P01 v8 and P03 v2+ — completed 2026-04-30; draft at `papers/P01-B-JRSSB/drafts/v1-2026-04.md`, ~9,100 words
 - [ ] Keep zigzag exposition brief and explicitly subordinate to the testing framework
 - [ ] Use `notes/2026-04-07-post-audit-w2-repo-note.md` when building the standalone paper repo so the `post_audit` W2 JSONs are treated as authoritative artifacts
 - [ ] Prepare JRSS-B submission package and arXiv metadata
