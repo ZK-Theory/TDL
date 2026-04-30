@@ -329,7 +329,7 @@ JRSS-A typical: 8,000–12,000 main-text words + supplement. Raw merged P01 (~17
 
 **Readiness: MODERATE.** v4 with exploratory computation. Independent timeline but sequenced after P01-A/B arXiv posting.
 
-**Phase 3 status (2026-04-30):** Draft v4 exists (`papers/P04-Multipers-Poverty/drafts/v4-2026-04.md`). Core computation complete: 2,000-landmark bifiltration, permutation null tests (999 perms, p<0.001), quartile decomposition, Hilbert function heatmaps, rank invariant (Appendix B), LaTeX pipeline builds to 23 pages. Two items remain explicitly open in `_project.md`: (1) income-proxy endogeneity regression on PC1–PC20 — still blocking; (2) AoAS reframing (IMS `.ims` class, separate supplement, reproducibility statement) — pending after endogeneity check and P01-A/B arXiv posting.
+**Phase 3 status (2026-04-30):** Draft v4 exists (`papers/P04-Multipers-Poverty/drafts/v4-2026-04.md`). Core computation complete: 2,000-landmark bifiltration, permutation null tests (999 perms, p<0.001), quartile decomposition, Hilbert function heatmaps, rank invariant (Appendix B), LaTeX pipeline builds to 23 pages. Step 1 (endogeneity check) now complete: R²=0.9426, HIGH tier — income is encoded in PCA by construction (income band is part of state code). The §3 argument is that the bifiltration unmixes income-stratified topology that single-parameter PH conflates, not that it discovers a new income-geometry correlation. Required §3 insert documented in `_project.md`. Remaining blocking items: write §3 insert into v5 draft, then AoAS reframing (IMS class, supplement, reproducibility statement) — sequenced after P01-A/B arXiv.
 
 ### Steps
 
