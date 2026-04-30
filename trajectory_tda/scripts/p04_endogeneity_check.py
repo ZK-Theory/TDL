@@ -28,13 +28,24 @@ OUTPUT_FILE = ROOT / "results" / "p04_exploration" / "endogeneity_check.json"
 def load_data() -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Load PCA embedding and income proxy.
 
+    Income score = 1 + high_income_rate - low_income_rate, which is the mean
+    of L=0, M=1, H=2 across all trajectory years — equivalent to what
+    load_embeddings_and_income() computes from state sequences, derived here
+    from the pre-computed trajectory_outcomes.npz (sequences file absent from
+    integration checkpoint).
+
     Returns:
         embeddings: (N, 20) array — PC1-PC20 scores.
-        income_scores: (N,) array — mean income band per trajectory.
+        income_scores: (N,) array — mean income band per trajectory (range [0, 2]).
     """
-    from trajectory_tda.topology.multipers_bifiltration import load_embeddings_and_income
-
-    return load_embeddings_and_income(checkpoint_dir=CHECKPOINT_DIR)
+    embeddings = np.load(CHECKPOINT_DIR / "embeddings.npy")
+    outcomes = np.load(CHECKPOINT_DIR / "trajectory_outcomes.npz")
+    # mean income = 2*P(H) + 1*P(M) + 0*P(L) = 1 + P(H) - P(L)
+    income_scores = 1.0 + outcomes["high_income_rate"] - outcomes["low_income_rate"]
+    assert len(income_scores) == embeddings.shape[0], (
+        f"Shape mismatch: {len(income_scores)} outcomes vs {embeddings.shape[0]} embeddings"
+    )
+    return embeddings, income_scores
 
 
 def run_endogeneity_check(

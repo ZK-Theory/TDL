@@ -17,10 +17,34 @@ current-draft: papers/P04-Multipers-Poverty/drafts/v4-2026-04.md
 
 Target updated to *Annals of Applied Statistics* during the P01-P04 strategic
 reorganisation. Draft v4 remains the current source draft, and authorship is now
-fixed as single-author Stephen Dorman (The Open University, UK); endogeneity
-checks and AoAS-specific reframing are still pending.
+fixed as single-author Stephen Dorman (The Open University, UK). Endogeneity check
+complete (2026-04-30); AoAS-specific reframing pending.
 
 Active computation. v4 draft integrates Appendix B (Hilbert function + rank invariant) results and LaTeX pipeline.
+
+### Income-proxy endogeneity check (2026-04-30)
+
+- **Script:** `trajectory_tda/scripts/p04_endogeneity_check.py`
+- **Results:** `results/p04_exploration/endogeneity_check.json`
+- **R² = 0.9426** (adjusted R² = 0.9426); OLS of mean income band on PC1–PC20 (n=27,280)
+- **Top PCs by |r|:** PC3 r=+0.744, PC2 r=−0.408, PC1 r=−0.310
+- **Interpretation tier:** HIGH — income is substantially encoded in PCA geometry
+
+**Why this is expected and not a fatal flaw:** The state codes already embed income bands
+(e.g., 'EH' = Employed High, 'IL' = Inactive Low). PCA on state n-grams necessarily
+encodes income as a dominant axis. Single-parameter Rips PH mixes all income levels and
+the single-parameter baseline confirms H1 density is nearly identical across income
+subsets (0.95 low vs 0.88 high per point). The bifiltration does not claim to discover
+that income correlates with careers — it unmixes the topology by income level
+simultaneously with geometric scale. The permutation null (p<0.001) confirms the
+income-stratified structure is not a distributional artefact.
+
+**Required §3 insert for v5 draft:** Add ~150-word paragraph after the bifiltration
+motivation explaining: (a) income is intentionally encoded in the state representation
+and therefore in Rips distances; (b) the bifiltration decomposes joint topology
+(distance × income threshold simultaneously), not just a projection onto an income axis;
+(c) the contrast with single-parameter PH is not that PH misses income, but that it
+cannot resolve topology AT specific income thresholds while controlling for Rips scale.
 
 ### Pre-computation validation (2026-04-02)
 
@@ -126,8 +150,10 @@ Single-parameter VR persistent homology (P01) captures global topological struct
 
 ## Open Items
 
-- [ ] Run the income-proxy endogeneity regression of the income proxy on PC1-PC20
-  and report $R^2$
+- [x] Run the income-proxy endogeneity regression of the income proxy on PC1-PC20
+  and report $R^2$ — done 2026-04-30; R²=0.9426 (HIGH tier); see Status section
+  for interpretation and required §3 insert
+- [ ] Write the §3 endogeneity paragraph for v5 draft (see Status section for content)
 - [ ] Reframe the draft and submission materials for AoAS (IMS class,
   separate supplement, reproducibility statement)
 
