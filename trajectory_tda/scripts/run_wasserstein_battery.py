@@ -206,6 +206,38 @@ def load_checkpoint(
     return embeddings, trajectories, embed_kwargs
 
 
+def load_regime_labels(analysis_json_path: Path) -> np.ndarray:
+    """Load per-trajectory regime labels from a pipeline analysis JSON.
+
+    Reads ``gmm_labels`` from the file produced by the main pipeline.  This is
+    the authoritative source for regime assignments — it avoids reloading the
+    saved GMM object and the sklearn version-mismatch risk that caused the
+    original stratified-Markov run to collapse to 2 regimes.
+
+    Args:
+        analysis_json_path: Path to ``05_analysis.json`` (or equivalent).
+
+    Returns:
+        Integer array of shape (N,) — one regime label per trajectory.
+
+    Raises:
+        KeyError: If ``gmm_labels`` is absent from the JSON.
+    """
+    with open(analysis_json_path) as f:
+        analysis = json.load(f)
+    labels = analysis.get("gmm_labels")
+    if labels is None:
+        raise KeyError(f"No 'gmm_labels' key in {analysis_json_path}")
+    arr = np.array(labels, dtype=int)
+    logger.info(
+        "Loaded %d regime labels (%d unique regimes) from %s",
+        len(arr),
+        len(np.unique(arr)),
+        analysis_json_path,
+    )
+    return arr
+
+
 def load_cohort_metadata(
     checkpoint_dir: Path,
     data_dir: str | Path | None = None,
@@ -276,6 +308,7 @@ def run_battery(
     output_name: str = "04_nulls_wasserstein.json",
     overwrite_output: bool = False,
     data_dir: str | Path | None = None,
+    regime_labels_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Run Wasserstein null tests and merge with existing results.
 
@@ -291,6 +324,9 @@ def run_battery(
         output_name: Output JSON path, relative to checkpoint_dir unless absolute.
         overwrite_output: If true, ignore any existing output file and rerun all keys.
         data_dir: Optional raw data directory override for cohort metadata recovery.
+        regime_labels_path: Path to a pipeline ``05_analysis.json`` containing
+            ``gmm_labels``.  Required when ``stratified_markov1`` is in
+            ``null_types``.
 
     Returns:
         Merged results dict.
@@ -301,6 +337,18 @@ def run_battery(
 
     embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
     metadata = load_cohort_metadata(checkpoint_dir, data_dir=data_dir)
+
+    # Pre-load regime labels once if needed — avoids repeated JSON reads per null
+    _regime_labels: np.ndarray | None = None
+    if "stratified_markov1" in null_types:
+        if regime_labels_path is None:
+            raise ValueError(
+                "null_type='stratified_markov1' requires --regime-labels-path "
+                "pointing to a pipeline 05_analysis.json with 'gmm_labels'. "
+                "For USoc: results/trajectory_tda_integration/05_analysis.json. "
+                "For BHPS: results/trajectory_tda_bhps/05_analysis.json."
+            )
+        _regime_labels = load_regime_labels(Path(regime_labels_path))
 
     out_path = Path(output_name)
     if not out_path.is_absolute():
@@ -340,10 +388,16 @@ def run_battery(
 
         t0 = time.time()
         try:
+            # For stratified_markov1, inject regime labels into a fresh metadata dict
+            call_metadata: dict[str, Any] | None = metadata
+            if null_type == "stratified_markov1" and _regime_labels is not None:
+                call_metadata = dict(metadata) if metadata else {}
+                call_metadata["regime_labels"] = _regime_labels
+
             result = permutation_test_trajectories(
                 embeddings=embeddings,
                 trajectories=trajectories,
-                metadata=metadata,
+                metadata=call_metadata,
                 null_type=null_type,
                 n_permutations=n_permutations,
                 max_dim=max_dim,
@@ -421,6 +475,17 @@ def main() -> None:
             "Defaults to TRAJECTORY_TDA_DATA_DIR or the packaged trajectory_tda/data directory."
         ),
     )
+    parser.add_argument(
+        "--regime-labels-path",
+        type=str,
+        default=None,
+        help=(
+            "Path to a pipeline 05_analysis.json containing 'gmm_labels'. "
+            "Required when --null-types includes stratified_markov1. "
+            "USoc: results/trajectory_tda_integration/05_analysis.json. "
+            "BHPS: results/trajectory_tda_bhps/05_analysis.json."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -441,6 +506,7 @@ def main() -> None:
         output_name=args.output_name,
         overwrite_output=args.overwrite_output,
         data_dir=args.data_dir,
+        regime_labels_path=args.regime_labels_path,
     )
 
     logger.info(f"\nComplete. Result keys: {list(results.keys())}")
