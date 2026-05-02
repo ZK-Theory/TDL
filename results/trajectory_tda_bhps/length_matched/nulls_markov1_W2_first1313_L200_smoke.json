@@ -1,0 +1,42 @@
+{
+  "H0": {
+    "mean_wasserstein_obs_null": 10.676912473488468,
+    "std_wasserstein_obs_null": 0.6120697860523601,
+    "median_wasserstein_obs_null": 10.676912473488468,
+    "mean_wasserstein_null_null": 3.361857151554151,
+    "std_wasserstein_null_null": 0.0,
+    "p_value": 0.0,
+    "significant_at_005": true,
+    "obs_null_distribution": [
+      11.288982259540827,
+      10.064842687436107
+    ],
+    "n_null_null_pairs": 1
+  },
+  "H1": {
+    "mean_wasserstein_obs_null": 43.107195179709265,
+    "std_wasserstein_obs_null": 1.842192787611701,
+    "median_wasserstein_obs_null": 43.107195179709265,
+    "mean_wasserstein_null_null": 35.6769577693653,
+    "std_wasserstein_null_null": 0.0,
+    "p_value": 0.0,
+    "significant_at_005": true,
+    "obs_null_distribution": [
+      41.265002392097564,
+      44.949387967320966
+    ],
+    "n_null_null_pairs": 1
+  },
+  "null_type": "markov",
+  "n_permutations": 2,
+  "statistic": "wasserstein",
+  "elapsed_seconds": 1.8823683261871338,
+  "strategy": "first13",
+  "target_years": 13,
+  "n_trajectories": 5363,
+  "mean_length": 13.0,
+  "length_distribution": {
+    "13": 5363
+  },
+  "total_elapsed_seconds": 1.9527552127838135
+}

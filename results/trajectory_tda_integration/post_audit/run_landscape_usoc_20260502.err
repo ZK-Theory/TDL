@@ -1,0 +1,53 @@
+2026-05-02 12:18:29,906 trajectory_tda.scripts.run_wasserstein_battery INFO Loaded checkpoint: 27280 trajectories, 20D embeddings
+2026-05-02 12:18:53,937 poverty_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+2026-05-02 12:18:53,945 poverty_tda.topology.multidim_ph INFO   Auto thresh = 16.996 (75th percentile)
+2026-05-02 12:19:14,035 poverty_tda.topology.multidim_ph INFO   Completed in 20.1s
+2026-05-02 12:19:14,039 poverty_tda.topology.multidim_ph INFO   H0: 4999 finite + 1 infinite, top lifetimes: [15.809, 15.496, 14.902, 14.403, 14.161]
+2026-05-02 12:19:14,041 poverty_tda.topology.multidim_ph INFO   H1: 5961 finite + 1 infinite, top lifetimes: [3.213, 2.322, 2.286, 2.223, 2.214]
+2026-05-02 12:19:14,099 __main__ INFO Observed H0 landscape: grid [0.0000, 15.8087], k_max=5
+2026-05-02 12:19:14,127 __main__ INFO Observed H1 landscape: grid [2.6701, 15.7598], k_max=5
+2026-05-02 12:19:14,127 __main__ INFO ============================================================
+2026-05-02 12:19:14,128 __main__ INFO Landscape L² null: label_shuffle
+2026-05-02 12:19:14,128 __main__ INFO ============================================================
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\steph\TDL\trajectory_tda\scripts\run_landscape_battery.py", line 434, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\steph\TDL\trajectory_tda\scripts\run_landscape_battery.py", line 418, in main
+    run_landscape_battery(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        checkpoint_dir=Path(args.checkpoint_dir),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<9 lines>...
+        regime_labels_path=args.regime_labels_path,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\steph\TDL\trajectory_tda\scripts\run_landscape_battery.py", line 294, in run_landscape_battery
+    null_landscapes_per_perm: list[dict[str, np.ndarray]] = Parallel(
+                                                            ~~~~~~~~~
+        n_jobs=n_jobs, verbose=0
+        ~~~~~~~~~~~~~~~~~~~~~~~~
+    )(
+    ~^
+        delayed(_single_landscape_perm)(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<10 lines>...
+        for s in seeds
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python313\Lib\site-packages\joblib\parallel.py", line 1986, in __call__
+    return output if self.return_generator else list(output)
+                                                ~~~~^^^^^^^^
+  File "C:\Users\steph\AppData\Local\Programs\Python\Python313\Lib\site-packages\joblib\parallel.py", line 1914, in _get_sequential_output
+    res = func(*args, **kwargs)
+  File "C:\Users\steph\TDL\trajectory_tda\scripts\run_landscape_battery.py", line 173, in _single_landscape_perm
+    X_null = _null_embedding(
+        null_type, embeddings, trajectories, metadata, rng, markov_order, embed_kwargs
+    )
+  File "C:\Users\steph\TDL\trajectory_tda\scripts\run_landscape_battery.py", line 144, in _null_embedding
+    return _label_shuffle(embeddings, metadata, rng, embed_kwargs=embed_kwargs)
+TypeError: _label_shuffle() got an unexpected keyword argument 'embed_kwargs'

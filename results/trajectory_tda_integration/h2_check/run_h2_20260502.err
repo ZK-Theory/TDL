@@ -1,0 +1,8 @@
+2026-05-02 12:18:29,895 __main__ INFO Loaded checkpoint: 27280 trajectories, 20D embeddings
+2026-05-02 12:18:30,005 __main__ INFO 
+============================================================
+2026-05-02 12:18:30,008 __main__ INFO Wasserstein null: markov (markov_order=1)
+2026-05-02 12:18:30,011 __main__ INFO ============================================================
+2026-05-02 12:18:30,014 trajectory_tda.topology.permutation_nulls INFO Permutation test: markov, 50 perms, H0-H2, statistic=wasserstein
+2026-05-02 12:18:40,232 poverty_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 2000 points, 20 dims, max_dim=2
+2026-05-02 12:18:40,238 poverty_tda.topology.multidim_ph INFO   Auto thresh = 19.920 (75th percentile)

@@ -1,0 +1,18 @@
+2026-05-02 12:18:30,700 __main__ INFO BHPS checkpoint: n=8509 sequences, mean_len=14.5, target=13 years
+2026-05-02 12:18:30,705 __main__ INFO 
+============================================================
+Strategy: first13
+============================================================
+2026-05-02 12:18:30,712 __main__ INFO Strategy 'first13': n=5363, mean_len=13.0, length_dist={13: 5363}
+2026-05-02 12:18:30,715 __main__ INFO Re-embedding 5363 sequences (pca_dim=20)...
+2026-05-02 12:18:30,718 trajectory_tda.embedding.ngram_embed INFO Embedding 5363 trajectories...
+2026-05-02 12:18:30,739 trajectory_tda.embedding.ngram_embed INFO   Unigrams: (5363, 9)
+2026-05-02 12:18:30,780 trajectory_tda.embedding.ngram_embed INFO   Bigrams: (5363, 81)
+2026-05-02 12:18:30,781 trajectory_tda.embedding.ngram_embed INFO   Raw embedding: (5363, 90)
+2026-05-02 12:18:30,807 trajectory_tda.embedding.ngram_embed INFO   PCA reduction: (5363, 20) (explained variance: 0.494)
+2026-05-02 12:18:30,808 trajectory_tda.embedding.ngram_embed INFO   Final: 5363 points × 20 dims (method=pca)
+2026-05-02 12:18:30,808 __main__ INFO   Embedded in 0.1s, shape (5363, 20)
+2026-05-02 12:18:30,809 __main__ INFO Running W\u2082 Markov-1 test: n_perms=100, L=5000, seed=42
+2026-05-02 12:18:30,809 trajectory_tda.topology.permutation_nulls INFO Permutation test: markov, 100 perms, H0-H1, statistic=wasserstein
+2026-05-02 12:18:32,333 poverty_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 5000 points, 20 dims, max_dim=1
+2026-05-02 12:18:32,340 poverty_tda.topology.multidim_ph INFO   Auto thresh = 12.545 (75th percentile)

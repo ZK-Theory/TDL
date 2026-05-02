@@ -1,0 +1,50 @@
+{
+  "markov": {
+    "H0": {
+      "mean_wasserstein_obs_null": 7.9770971000716795,
+      "std_wasserstein_obs_null": 1.3482079159149496,
+      "median_wasserstein_obs_null": 7.9770971000716795,
+      "mean_wasserstein_null_null": 3.8049889045057306,
+      "std_wasserstein_null_null": 0.0,
+      "p_value": 0.0,
+      "significant_at_005": true,
+      "obs_null_distribution": [
+        6.62888918415673,
+        9.325305015986629
+      ],
+      "n_null_null_pairs": 1
+    },
+    "H1": {
+      "mean_wasserstein_obs_null": 32.94358368220801,
+      "std_wasserstein_obs_null": 0.252628912511625,
+      "median_wasserstein_obs_null": 32.94358368220801,
+      "mean_wasserstein_null_null": 33.93557021698374,
+      "std_wasserstein_null_null": 0.0,
+      "p_value": 1.0,
+      "significant_at_005": false,
+      "obs_null_distribution": [
+        33.19621259471963,
+        32.69095476969638
+      ],
+      "n_null_null_pairs": 1
+    },
+    "H2": {
+      "mean_wasserstein_obs_null": 27.710594977517864,
+      "std_wasserstein_obs_null": 0.2375767705067222,
+      "median_wasserstein_obs_null": 27.710594977517864,
+      "mean_wasserstein_null_null": 21.998322445503252,
+      "std_wasserstein_null_null": 0.0,
+      "p_value": 0.0,
+      "significant_at_005": true,
+      "obs_null_distribution": [
+        27.948171748024585,
+        27.47301820701114
+      ],
+      "n_null_null_pairs": 1
+    },
+    "null_type": "markov",
+    "n_permutations": 2,
+    "statistic": "wasserstein",
+    "elapsed_seconds": 10.405158758163452
+  }
+}
