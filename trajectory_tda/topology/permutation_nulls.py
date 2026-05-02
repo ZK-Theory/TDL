@@ -51,6 +51,7 @@ def _normalise_cohort_label(value: object) -> str:
 def _label_shuffle(
     embeddings: np.ndarray,
     rng: np.random.RandomState,
+    embed_kwargs: dict | None = None,
 ) -> np.ndarray:
     """Randomly permute rows of the embedding matrix.
 
@@ -675,7 +676,7 @@ def permutation_test_trajectories(
                 "std_wasserstein_obs_null": float(obs_null_dists.std()),
                 "median_wasserstein_obs_null": float(np.median(obs_null_dists)),
                 "mean_wasserstein_null_null": float(null_null_arr.mean()),
-                "std_wasserstein_null_null": float(null_null_arr.std()),
+                "std_wasserstein_null_null": None if len(null_null_dists) <= 1 else float(null_null_arr.std()),
                 "p_value": p_value,
                 "significant_at_005": p_value < 0.05,
                 "obs_null_distribution": obs_null_dists.tolist(),

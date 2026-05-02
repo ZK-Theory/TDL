@@ -237,6 +237,6 @@ def ngram_embed(
         },
     }
 
-    logger.info(f"  Final: {embeddings.shape[0]} points × {embeddings.shape[1]} dims (method={method})")
+    logger.info(f"  Final: {embeddings.shape[0]} points x {embeddings.shape[1]} dims (method={method})")
 
     return embeddings, info

@@ -1,0 +1,45 @@
+2026-05-02 13:52:54,611 __main__ INFO Loaded checkpoint: 27280 trajectories, 20D embeddings
+2026-05-02 13:52:54,688 __main__ INFO 
+============================================================
+2026-05-02 13:52:54,691 __main__ INFO Wasserstein null: markov (markov_order=1)
+2026-05-02 13:52:54,694 __main__ INFO ============================================================
+2026-05-02 13:52:54,696 trajectory_tda.topology.permutation_nulls INFO Permutation test: markov, 50 perms, H0-H2, statistic=wasserstein
+2026-05-02 13:52:58,268 trajectory_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 1000 points, 20 dims, max_dim=2
+2026-05-02 13:52:58,276 trajectory_tda.topology.multidim_ph INFO   Auto thresh = 22.550 (75th percentile)
+2026-05-02 13:54:09,971 trajectory_tda.topology.multidim_ph INFO   Completed in 71.7s
+2026-05-02 13:54:09,971 trajectory_tda.topology.multidim_ph INFO   H0: 999 finite + 1 infinite, top lifetimes: [16.563, 15.809, 14.902, 14.403, 14.161]
+2026-05-02 13:54:09,972 trajectory_tda.topology.multidim_ph INFO   H1: 1379 finite + 0 infinite, top lifetimes: [3.213, 3.212, 3.039, 2.736, 2.46]
+2026-05-02 13:54:09,972 trajectory_tda.topology.multidim_ph INFO   H2: 1124 finite + 0 infinite, top lifetimes: [1.242, 1.198, 1.195, 1.122, 1.109]
+2026-05-02 13:54:09,973 trajectory_tda.topology.permutation_nulls INFO   Wasserstein mode: computing W(null, observed) for each permutation
+2026-05-02 13:54:13,207 trajectory_tda.embedding.ngram_embed INFO Embedding 27280 trajectories...
+2026-05-02 13:54:13,266 trajectory_tda.embedding.ngram_embed INFO   Unigrams: (27280, 9)
+2026-05-02 13:54:13,384 trajectory_tda.embedding.ngram_embed INFO   Bigrams: (27280, 81)
+2026-05-02 13:54:13,384 trajectory_tda.embedding.ngram_embed INFO   Raw embedding: (27280, 90)
+2026-05-02 13:54:13,442 trajectory_tda.embedding.ngram_embed INFO   PCA reduction: (27280, 20) (explained variance: 0.436)
+2026-05-02 13:54:13,442 trajectory_tda.embedding.ngram_embed INFO   Final: 27280 points x 20 dims (method=pca)
+2026-05-02 13:54:16,543 trajectory_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 1000 points, 20 dims, max_dim=2
+2026-05-02 13:54:16,546 trajectory_tda.topology.multidim_ph INFO   Auto thresh = 19.657 (75th percentile)
+2026-05-02 13:55:19,167 trajectory_tda.topology.multidim_ph INFO   Completed in 62.6s
+2026-05-02 13:55:19,168 trajectory_tda.topology.multidim_ph INFO   H0: 999 finite + 1 infinite, top lifetimes: [16.237, 14.942, 14.436, 13.884, 13.874]
+2026-05-02 13:55:19,168 trajectory_tda.topology.multidim_ph INFO   H1: 1403 finite + 0 infinite, top lifetimes: [2.395, 2.392, 2.283, 2.056, 2.054]
+2026-05-02 13:55:19,169 trajectory_tda.topology.multidim_ph INFO   H2: 1241 finite + 0 infinite, top lifetimes: [1.118, 1.085, 1.082, 1.058, 1.019]
+2026-05-02 13:55:22,734 trajectory_tda.embedding.ngram_embed INFO Embedding 27280 trajectories...
+2026-05-02 13:55:22,795 trajectory_tda.embedding.ngram_embed INFO   Unigrams: (27280, 9)
+2026-05-02 13:55:22,922 trajectory_tda.embedding.ngram_embed INFO   Bigrams: (27280, 81)
+2026-05-02 13:55:22,924 trajectory_tda.embedding.ngram_embed INFO   Raw embedding: (27280, 90)
+2026-05-02 13:55:22,975 trajectory_tda.embedding.ngram_embed INFO   PCA reduction: (27280, 20) (explained variance: 0.436)
+2026-05-02 13:55:22,976 trajectory_tda.embedding.ngram_embed INFO   Final: 27280 points x 20 dims (method=pca)
+2026-05-02 13:55:26,724 trajectory_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 1000 points, 20 dims, max_dim=2
+2026-05-02 13:55:26,728 trajectory_tda.topology.multidim_ph INFO   Auto thresh = 20.032 (75th percentile)
+2026-05-02 13:56:40,520 trajectory_tda.topology.multidim_ph INFO   Completed in 73.8s
+2026-05-02 13:56:40,520 trajectory_tda.topology.multidim_ph INFO   H0: 999 finite + 1 infinite, top lifetimes: [16.864, 14.279, 12.887, 12.446, 12.216]
+2026-05-02 13:56:40,521 trajectory_tda.topology.multidim_ph INFO   H1: 1360 finite + 0 infinite, top lifetimes: [2.432, 2.431, 2.42, 2.379, 2.131]
+2026-05-02 13:56:40,525 trajectory_tda.topology.multidim_ph INFO   H2: 1240 finite + 0 infinite, top lifetimes: [1.394, 1.269, 1.024, 0.998, 0.973]
+2026-05-02 13:56:50,363 trajectory_tda.embedding.ngram_embed INFO Embedding 27280 trajectories...
+2026-05-02 13:56:50,486 trajectory_tda.embedding.ngram_embed INFO   Unigrams: (27280, 9)
+2026-05-02 13:56:50,717 trajectory_tda.embedding.ngram_embed INFO   Bigrams: (27280, 81)
+2026-05-02 13:56:50,717 trajectory_tda.embedding.ngram_embed INFO   Raw embedding: (27280, 90)
+2026-05-02 13:56:50,790 trajectory_tda.embedding.ngram_embed INFO   PCA reduction: (27280, 20) (explained variance: 0.436)
+2026-05-02 13:56:50,791 trajectory_tda.embedding.ngram_embed INFO   Final: 27280 points x 20 dims (method=pca)
+2026-05-02 13:56:54,028 trajectory_tda.topology.multidim_ph INFO Computing Rips PH (ripser): 1000 points, 20 dims, max_dim=2
+2026-05-02 13:56:54,031 trajectory_tda.topology.multidim_ph INFO   Auto thresh = 19.233 (75th percentile)

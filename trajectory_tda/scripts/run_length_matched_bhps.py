@@ -49,15 +49,14 @@ def _load_sequences(checkpoint_dir: Path) -> tuple[list[list[str]], dict[str, An
     with open(seq_path) as f:
         sequences = json.load(f)
 
-    embed_kwargs: dict[str, Any] = {"pca_dim": 20, "include_bigrams": True, "tfidf": False}
+    embed_kwargs: dict[str, Any] = {"pca_dim": 20, "include_bigrams": False, "tfidf": False}
     if info_path.exists():
         with open(info_path) as f:
             info = json.load(f)
         ei = info.get("info", {})
         embed_kwargs["pca_dim"] = ei.get("final_dims", 20)
         embed_kwargs["tfidf"] = ei.get("tfidf", False)
-        if ei.get("n_bigram_dims", 0) > 0:
-            embed_kwargs["include_bigrams"] = True
+        embed_kwargs["include_bigrams"] = ei.get("n_bigram_dims", 0) > 0
 
     return sequences, embed_kwargs
 
@@ -125,7 +124,7 @@ def _run_one_strategy(
     )
     elapsed = time.time() - t_test
     result["elapsed_seconds"] = elapsed
-    result["strategy"] = strategy
+    result["strategy"] = f"{strategy}{target_years}"
     result["target_years"] = target_years
     result["n_trajectories"] = len(sub_seqs)
     result["mean_length"] = float(np.mean(lengths))

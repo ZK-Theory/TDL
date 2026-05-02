@@ -33,7 +33,7 @@ import pandas as pd
 import ripser
 from sklearn.preprocessing import StandardScaler
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("trajectory_tda.topology.multidim_ph")
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent

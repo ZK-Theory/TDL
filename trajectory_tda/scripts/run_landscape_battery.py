@@ -141,7 +141,7 @@ def _null_embedding(
     embed_kwargs: dict,
 ) -> np.ndarray:
     if null_type == "label_shuffle":
-        return _label_shuffle(embeddings, metadata, rng)
+        return _label_shuffle(embeddings, rng, embed_kwargs=embed_kwargs)
     if null_type == "cohort_shuffle":
         return _cohort_shuffle(embeddings, metadata, rng)
     if null_type == "order_shuffle":
@@ -272,8 +272,12 @@ def run_landscape_battery(
         )
 
     for null_type in null_types:
-        result_key = "markov2" if (null_type == "markov" and markov_order == 2) else null_type
-        current_markov_order = 2 if result_key == "markov2" else 1
+        if null_type == "markov":
+            result_key = f"markov{markov_order}"
+            current_markov_order = markov_order
+        else:
+            result_key = null_type
+            current_markov_order = 1
 
         if result_key in existing:
             logger.info("Skipping %s — already in results", result_key)
