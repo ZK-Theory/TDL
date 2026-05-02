@@ -32,5 +32,8 @@
     "**/.vexp/.gitattributes": true,
     "**/.vexp/daemon.pipe": true,
     "**/.vexp/mcp.token": true
+  },
+  "chat.tools.terminal.autoApprove": {
+    "uv": true
   }
 }
