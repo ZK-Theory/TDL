@@ -1,8 +1,11 @@
 # P01-B v1 Reviewer-Response Plan
 
-**Drafted:** 2026-05-01
+**Drafted:** 2026-05-01 | **Updated:** 2026-05-03 (R2 data/empirical reviewer integrated)
 **Target draft to revise:** [v1-2026-04.md](../drafts/v1-2026-04.md)
-**Reviewer:** External TDA methodological reviewer (round 0, pre-submission)
+**Reviewers:**
+- **R1** — External TDA methodological reviewer (round 0, pre-submission). Issues C1–C2, H1–H4, M1–M5, L1.
+- **R2** — Survey data & empirical claims reviewer (round 0, pre-submission). Issues D1–D11. Full decomposition: [2026-05-03-reviewer2-data-empirical-issues.md](2026-05-03-reviewer2-data-empirical-issues.md).
+
 **Status:** Planning only — no code changes or revisions executed.
 **Companion plan:** [P01-A reviewer-response plan](../../P01-A-JRSSA/notes/2026-05-01-reviewer-response-plan.md). The two papers must be revised in lockstep — many computations serve both.
 
@@ -10,15 +13,17 @@
 
 ## 0. Document Purpose
 
-The reviewer raised twelve numbered issues in §Summary plus several embedded concerns. Severity ratings used by the reviewer: **Critical** (×2), **High** (×4), **Medium** (×4), **Low–Medium** (×1), **Low** (×1).
+**R1** raised twelve numbered issues in §Summary plus several embedded concerns. Severity ratings: **Critical** (×2), **High** (×4), **Medium** (×4), **Low–Medium** (×1), **Low** (×1).
 
-This document plans a comprehensive response to every issue — without exception — before producing v2. For each issue we record: (i) what the reviewer said, (ii) the current state in the v1 draft and the codebase / results store, (iii) whether the gap is **prose-only**, **needs new computation**, or **both**, (iv) the concrete strategy to close it, (v) the artefacts and locations expected, and (vi) a verification check.
+**R2** raised eleven issues (D1–D11) focused on data infrastructure, sample construction, and empirical claims. Severity ratings: **Critical** (×3), **High** (×4), **Medium** (×4). R2's key framing: because P01-B positions the UK application as *validation* of the methods framework, data-handling problems are *methodological validation failures*, not merely applied-findings concerns. Three issues are at the Critical level: the annual sub-cloud construction may violate pool-draw independence (D1), the 99.4% BHPS/spanning overlap may render the decomposition trivial (D2), and the income variable identification may invalidate cross-era comparisons (D3).
 
-Two reviewer findings are *worse* than the reviewer realised, after we audited the code:
+This document plans a comprehensive response to every issue from both reviewers — without exception — before producing v2. For each issue we record: (i) what the reviewer said, (ii) the current state in the v1 draft and the codebase / results store, (iii) whether the gap is **prose-only**, **needs new computation**, or **both**, (iv) the concrete strategy to close it, (v) the artefacts and locations expected, and (vi) a verification check.
+
+Two R1 findings are *worse* than the reviewer realised, after we audited the code:
 - The Markov-2 null in `permutation_nulls.py` (lines 168–234) does **no Laplace smoothing**. It uses uniform-distribution fallback only for unseen bigrams. The paper's §3.2 prose ("Laplace smoothing for the $|\mathcal{S}|^2 = 81$ two-step conditioning cells") does not match the implementation. This is more than a "smoothing parameter not stated" — it is a methods-vs-code inconsistency.
 - The canonical scale $\varepsilon^* = 0.70$ used in §4.3.2 does **not** match `results/trajectory_tda_zigzag/sensitivity_2d/knee_analysis.json`, which reports median knee = 0.54, mean knee = 0.51, with 5 of 32 years giving degenerate knees ($\varepsilon = 0.05$). The 0.70 value approximates the post-2010 USoc-era median; this is justifiable but currently undocumented.
 
-A consolidated work list with sequencing, blocking dependencies, and resource estimates is in §13. Acceptance criteria for v2 are in §14.
+A consolidated work list with sequencing, blocking dependencies, and resource estimates is in §14. Acceptance criteria for v2 are in §15.
 
 This plan is deliberately exhaustive. Every reviewer claim is itemised below so that nothing is silently dropped.
 
@@ -610,9 +615,160 @@ Table 5 reports five very strong correlations ($|r| > 0.76$, $p < 0.001$) on $n 
 
 ---
 
-## 14. Sequencing, Dependencies, and Resource Estimates
+## 14. R2 ISSUES — Survey Data & Empirical Claims Reviewer (D1–D11)
 
-### 14.1 Dependency graph (combined with P01-A)
+Full decomposition: [2026-05-03-reviewer2-data-empirical-issues.md](2026-05-03-reviewer2-data-empirical-issues.md). Below are planning-level summaries with cross-references to overlapping R1 issues.
+
+### 14.1 ISSUE D1 — Annual sub-cloud $X_t$ undefined; pool-draw independence violated [CRITICAL]
+
+**Problem:** §3.4.1 never defines which individuals appear in which $X_t$. If individuals with multi-year trajectories appear in multiple annual sub-clouds, the pooled population $\mathcal{X}$ contains repeated individuals and the pool-draw null's exchangeability assumption is violated.
+
+**Resolution: three designs analysed; Design 3 (window slicing) is the primary.**
+- **Design 1 (entry cohort):** disjoint partition; pool-draw valid. **Zigzag incompatible** (no shared individuals across consecutive years; answers wrong question).
+- **Design 2 (anchor year):** disjoint partition; pool-draw valid; calendar-time indexed. **Zigzag incompatible** (bimodal artefact at BHPS-USoc boundary).
+- **Design 3 (window slicing):** embed trailing sub-trajectories of length $w = 5$; each $v_{i,t}$ is a distinct point. Pool-draw valid (shuffle individuals, not observations). **Zigzag structurally correct** (consecutive sub-clouds share individuals; cross-simplices capture topological continuity through population replacement). Calendar-time indexed. Spanning decomposition works naturally.
+
+**Design 3 is the only construction simultaneously valid for pool-draw, zigzag, spanning decomposition, and macro-correlations.** Designs 1 and 2 serve as robustness checks for the pool-draw block-ratio.
+
+**Window length $w = 5$:** derived from four competing constraints (bigram estimation variance, temporal sensitivity, state-space coverage, sociological interpretability). $w_{\min} \approx 4\text{–}5$ from PCA stability; $w_{\max} \approx 7\text{–}8$ from temporal sensitivity ceiling. Sensitivity analysis required across $w \in \{3, 5, 7, 10\}$.
+
+**Boundary correction (three components):** (1) Survey-aware bigram masking — exclude cross-survey transitions from bigram counts; reduce denominator accordingly. (2) Length-variance standardisation for newcomers with short windows ($w_{i,t} < w$). (3) Three-version boundary diagnostic — compare uncorrected, corrected, and spanning-only $X_{2009}$ to decompose the boundary discontinuity into measurement ($W_2(\text{A},\text{B})$) and compositional ($W_2(\text{B},\text{C})$) components. This converts the boundary from a confound into an identification result.
+**Filtration scale $\varepsilon^*$:** derived from persistence gap of the $H_0$ diagram of $K_\varepsilon(X_{2008} \cup X_{2009})$. Set $\varepsilon^* = (\varepsilon_{\text{intra}} + \varepsilon_{\text{cross}}) / 2$, where $\varepsilon_{\text{intra}}$ = within-era cluster connection scale, $\varepsilon_{\text{cross}}$ = cross-boundary merge scale. The gap persistence $\ell_{\text{gap}} = \varepsilon_{\text{cross}} - \varepsilon_{\text{intra}}$ is a direct frame-expansion statistic (near zero under pool-draw null). $\varepsilon^*$ is a derived quantity, not analyst-chosen, removing kneepoint-detection ambiguity.
+
+**Strategy:** (1) Audit codebase. (2) Implement Design 3 ($w = 5$ trailing window) with survey-aware bigram masking and length standardisation. (3) Run $w$-sensitivity ($w \in \{3, 5, 7, 10\}$). (4) Run three-version boundary diagnostic. (5) Derive $\varepsilon^*$ from persistence gap; report $\ell_{\text{gap}}$ under observed data and pool-draw null. (6) Re-run pool-draw with individual-level shuffling on corrected embeddings. (7) Implement Designs 1/2 as robustness checks. (8) Document in §3.4.1 with full derivation. (9) Report corrected and uncorrected block ratios.
+
+**Interaction:** Affects ISSUE M3 (knee algorithm). Reframes D2 (spanning-individual overlap). Interacts with D3 (income harmonisation determines magnitude of $W_2(\text{A},\text{B})$ measurement component).
+
+### 14.2 ISSUE D2 — 99.4% BHPS/spanning overlap collapses the key decomposition [CRITICAL]
+
+**Problem:** 8,459 of 8,509 BHPS-era individuals are spanning individuals. The BHPS reference and spanning populations are nearly identical by construction. The finding that "spanning individuals maintain BHPS-like topology" may be tautological.
+
+**Strategy:** (1) Acknowledge the overlap explicitly. (2) Reframe: the informative comparison is newcomers vs reference, not spanning vs reference. (3) Discuss selection implication (spanning = most stable respondents). (4) **Under Design 3 (primary):** the overlap persists but is reframed — spanning individuals' *sub-trajectory embeddings* can differ across eras (a 5-year window centred on 2006 ≠ one centred on 2012 for the same person), so their presence in both eras is informative, not tautological. (5) **Under Designs 1/2 (robustness):** overlap dissolves by construction.
+
+**Classification:** Prose + analysis. Cross-references D4 and D11.
+
+### 14.3 ISSUE D3 — Income variable harmonisation: three compounding problems [CRITICAL] [P01-A SHARED]
+
+**Problem (three layers):** (1) §5.3 names `fihhmnnet1_dv` (individual net labour income), but `fihhmn` (BHPS) is household income — incommensurable constructs. (2) BHPS uses point-in-time annual recall; USoc uses annualised monthly — different timing responses to income volatility. (3) Income band thresholds anchored to the internal sample median rather than HBAI national median — thresholds float with sample composition, not the national distribution.
+
+**Resolution: five-step harmonisation protocol.**
+1. Align income concept: `fihhmnnet3_dv` (USoc) and `fihhmn` (BHPS), both total net monthly household income.
+2. Re-derive equivalisation from raw household composition using identical modified OECD formula in both surveys (do not import pre-computed `eq_moecd` / `ieqmoecd_dv`).
+3. Anchor thresholds to HBAI annual equivalised median (external reference), not internal sample median.
+4. Document measurement-timing difference transparently.
+5. Run spanning-individual income-band balance test at 2008–2009 boundary as pre-TDA data quality check.
+
+**Strategy:** (1) Audit `trajectory_tda/data/income_band.py`. (2) If `fihhmnnet1_dv` genuinely used, implement full protocol + re-run pipeline. (3) If typo for `fihhmnnet3_dv`, still implement Steps 2–5. (4) State variable and protocol in §4.1, not §5.3. (5) Acknowledge irreducible measurement-timing limitation with directional effect assessment.
+
+**Cost:** Potentially the highest-cost fix in the revision. If re-extraction required, HBAI median data must be obtained (publicly available from DWP), equivalisation re-derived, thresholds recalculated, and full pipeline re-run.
+
+### 14.4 ISSUE D4 — Spanning vs newcomer demographics untested [HIGH]
+
+**Covered by R1 ISSUE M4 (§10).** R2 adds the framing that this is a *methodological validation* failure, not just an applied concern. The demographic balance check should be presented as a *required component* of the spanning-individual decomposition (§3.4.2), not an optional applied check.
+
+### 14.5 ISSUE D5 — Sub-sampling algorithm unspecified; may bias against newcomers [HIGH]
+
+**Problem:** Sub-sampling at $n = 8{,}000$ removes 17% of BHPS but 71% of USoc observations. Algorithm (random? stratified?) not stated. Random sub-sampling may under-represent newcomers in annual diagrams.
+
+**Strategy:** (1) Audit codebase for algorithm. (2) Document in §4.3.1. (3) If random, run stratified sensitivity check (proportional spanning/newcomer representation). (4) Justify $n = 8{,}000$ choice.
+
+### 14.6 ISSUE D6 — Macro-correlation analysis: ecological fallacy + autocorrelation + spurious trends [HIGH]
+
+**Problem:** Three sub-issues in §4.4: (a) ecological correlation at $n = 18$ presented as structural; (b) no autocorrelation correction (DW/Newey-West); (c) first-difference null equally consistent with spurious shared trends. Partially overlaps R1 §13.5 (multiple-testing accounting) but substantially extends it.
+
+**Strategy:** (1) Test stationarity (ADF/KPSS). (2) Report Durbin-Watson statistics. (3) Apply HAC-robust SEs. (4) Acknowledge ecological fallacy. (5) Interpret first-difference null symmetrically. (6) Soften interpretive claims.
+
+### 14.7 ISSUE D7 — Methods paper not self-contained on data [HIGH]
+
+**Problem:** §4.1 defers all data construction to the companion paper. JRSS-B reviewers won't have access to the companion. All P01-A data concerns propagate silently.
+
+**Strategy:** Expand §4.1 to ~1 page: selection criteria, income variable, `jbstat` harmonisation, embedding procedure, survey weight treatment. Add a data construction supplement section (§S1).
+
+### 14.8 ISSUE D8 — Transportability claims without second-dataset validation [MEDIUM]
+
+**Problem:** §5.1 claims transportability to SOEP/PSID/CNEF without using any of these. JRSS-B requires demonstration or rigorous boundary-conditions analysis.
+
+**Strategy:** Reframe §5.1 as methodological discussion with explicit boundary conditions (minimum spanning fraction, comparable sub-cloud sizes, direction of sample-size change at transition). Drop unqualified "transportable to" language. Optionally obtain a small SOEP demonstration.
+
+### 14.9 ISSUE D9 — 71% USoc discard from sub-sampling [MEDIUM]
+
+**Strategy:** Run pool-draw at $n \in \{5{,}000, 8{,}000, 15{,}000\}$ to show block-ratio stability. Report in supplement.
+
+### 14.10 ISSUE D10 — Continuity-filter selection bias inherited [MEDIUM]
+
+**Strategy:** Conditional on P01-A S1 outcome. If gap-tolerant sample implemented, re-run Markov-1 and pool-draw as sensitivity checks. Otherwise, explicitly acknowledge in §4.1 and §5.3.
+
+### 14.11 ISSUE D11 — Sample overlap arithmetic and Markov estimation [MEDIUM]
+
+**Strategy:** Report 8,459/8,509 overlap explicitly in §4.1. Note selection implication for Markov transition matrix estimation. Cross-reference D2 and D10.
+
+---
+
+## 14a. R3 Biostatistical Review — Issue Summaries
+
+**Full decomposition:** `papers/P01-B-JRSSB/notes/2026-05-03-reviewer3-biostatistical-issues.md`
+
+R3 assesses the paper as a **methods contribution** — tests, multiple comparisons, effect sizes, and uncertainty quantification must meet the standard of a reusable methodology.
+
+### 14a.1 ISSUE B1 — W₂ test construction anti-conservative; published as methodology [CRITICAL]
+
+**Same as ISSUE H1 (§3)** but elevated severity: §3.3 publishes the anti-conservative construction as a recommendation that will propagate to all users. Fix: rewrite §3.3 with the corrected $T_{\text{ratio}}$ construction. [P01-A SHARED]
+
+### 14a.2 ISSUE B2 — No type I/II error simulation study [CRITICAL]
+
+**Problem:** No simulation study reports empirical rejection rates under the null or power under known alternatives. Mandatory for a JRSS-B testing framework paper.
+
+**Strategy:** Minimal simulation with three DGPs: DGP-0 (Markov-1 null true, using estimated USoc $\hat{P}$), DGP-1 (Markov-2 alternative), DGP-2 (observed data subsamples). Grid: 4 $(N, T)$ conditions (500/10, 2000/10, 8509/14, 27280/13) × 3 DGPs = 12 conditions × $S = 500$ replicates. Run both v1 and v2 test constructions. **Four outputs:** (1) Type I error table, (2) power curve, (3) ladder consistency check (all 5 levels), (4) BHPS label-shuffle diagnosis (resolves B3). Placement: §3.5, ~600 words + 2 tables. **Compute: 100–500 CPU-hours full grid; 50–250 CPU-hours minimal (3 conditions). Estimated: 2–3 days human design + 1–2 days compute on 16-core.**
+
+### 14a.3 ISSUE B3 — BHPS label-shuffle negative control fails ($p = 0.036$) [CRITICAL]
+
+**Overlaps ISSUE M5/H4.** R3 requires *resolution*, not just explanation. Two competing explanations: (1) anti-conservative test construction (B1), (2) global shuffle destroys between-individual heterogeneity. **Strategy:** (1) Run **within-individual shuffle** (permute each person's states independently; preserves per-person frequency) alongside global shuffle. (2) PC1 variance diagnostic: if $\text{Var}_{\text{PC1}}(\text{global}) \ll \text{Var}_{\text{PC1}}(\text{within}) \approx \text{Var}_{\text{PC1}}(\text{observed})$, Explanation 2 confirmed (~10 min compute). (3) Trajectory-length truncation experiment. (4) Report v2-corrected p-value. (5) Reframe §3.2 to report *both* shuffle types and interpret the pattern. Cross-references B2 Output 4. **Implementation:** Refactor ladder to `NullStrategy` abstraction with `LadderConfig.survey` selecting Level 1 variant. BHPS comparison diagnostic runs both variants (~30–60 min on i7/32 GB). Output files use survey-specific naming to prevent silent overwriting.
+
+### 14a.4 ISSUE B4 — $\text{BR}^{\text{span}}$ has no null distribution or permutation test [HIGH]
+
+**Strategy:** Implement permutation test — randomly split combined population into groups of sizes $|\mathcal{I}^*|$ and $|\mathcal{I}_2|$, compute $\text{BR}^{\text{span}}$ for each draw. Report p-value, null mean, null SD, CI. **Cost: 1 day compute.**
+
+### 14a.5 ISSUE B5 — Table 2 reports only p-values; no effect sizes [HIGH]
+
+**Strategy:** Expand Table 2 to match Table 1 format: observed $\bar{W}$, null mean, null SD, $T_{\text{ratio}}$, 95% CI, $d$. Data exists; restructure the table. **Overlaps H1 fix.**
+
+### 14a.6 ISSUE B6 — $\varepsilon^* = 0.70$ sensitivity not examined [HIGH]
+
+**Partially addressed by D1 persistence-gap $\varepsilon^*$.** Additionally: report Table 4 results across $\varepsilon \in \{0.50, 0.60, 0.70, 0.80, 0.90, 1.00\}$ in supplement. **Cost: 2–4 h compute.**
+
+### 14a.7 ISSUE B7 — Macro correlations: CIs not reported; BH-FDR family size unstated [HIGH]
+
+**Strategy:** (1) Add Fisher z-transform 95% CIs to every $r$. (2) State full family size ($M \times K \times S$ tests). (3) Full table (all tests, including non-significant) in supplement. **Overlaps D6.**
+
+### 14a.8 ISSUE B8 — Mantel test serial dependence not acknowledged [HIGH]
+
+**Strategy:** Apply Dutilleul (1993) correction for autocorrelated spatial data. Report corrected and uncorrected p-values. State exchangeability assumption and its violation. **Cost: 1 day human + compute.**
+
+### 14a.9 ISSUE B9 — Pool-draw 10-repetition variance not reported [MEDIUM]
+
+**Strategy:** Report $\hat{\text{BR}} \pm \text{SD}$ from 10 repetitions. Compute $t$-interval CI.
+
+### 14a.10 ISSUE B10 — One-sided test direction not pre-specified [MEDIUM]
+
+**Strategy:** Specify two-sided tests throughout §3.3 unless justified. State direction for block ratio. Report Markov-1 TP as two-sided with correct tail interpretation.
+
+### 14a.11 ISSUE B11 — Replay drift p-value implications not quantified [MEDIUM]
+
+**Strategy:** Compute ratios under both stored and replay values. State "neither changes the qualitative conclusion." Document drift source.
+
+### 14a.12 ISSUE B12 — Table 3 tests five statistics without multiplicity correction [MEDIUM]
+
+**Strategy:** Apply Bonferroni correction ($m = 5$). All Table 3 results survive ($p < 0.001$). State correction explicitly.
+
+### 14a.13 ISSUE B13 — Practitioner guidance lacks calibrated thresholds [MEDIUM]
+
+**Strategy:** Define inconclusive zone ($p \in [0.02, 0.10]$). Specify $B_{\min} \geq 10/\alpha$. Ground in simulation study (B2). Decision flowchart in supplement.
+
+---
+
+## 15. Sequencing, Dependencies, and Resource Estimates
+
+### 15.1 Dependency graph (combined with P01-A, including R2 and R3 issues)
 
 ```
 [ISSUE C1: matched-L W2]                ─┐
@@ -621,23 +777,40 @@ Table 5 reports five very strong correlations ($|r| > 0.76$, $p < 0.001$) on $n 
 [ISSUE M5: Laplace smoothing]           ─┤
 [ISSUE M1: landscape L²]                ─┘
 
-[ISSUE H1: ground metric fix]           ── prose + small sensitivity check
-[ISSUE H3: replay drift / lockfile]    ── must complete before any rerun (sets the environment for ALL reruns)
-[ISSUE H4: BHPS negative-control diag] ── three small computations + prose
+[ISSUE H1/B1: W₂ test fix]             ── code + §3.3 rewrite [P01-A SHARED] (BLOCKS B2, B3, B5)
+[ISSUE H3: replay drift / lockfile]    ── must complete before any rerun
+[ISSUE H4/B3: BHPS negative-control]   ── truncation experiment + corrected p-value
 [ISSUE M2: filtration threshold]       ── shared sweep with P01-A
 [ISSUE M3: knee algorithm]             ── prose + small robustness check
-[ISSUE M4: spanning demographics]      ── prose + matched-subset rerun
+[ISSUE M4/D4: spanning demographics]   ── prose + matched-subset rerun
 [ISSUE L1: H₂ check]                   ── single computation (shared with P01-A)
 [ISSUE 13.x embedded]                  ── prose + small reruns (Mantel, embedding stability)
+
+[ISSUE B2: simulation study]           ── NEW: 3–5 days (BLOCKED BY B1; BLOCKS B13)
+[ISSUE B4: BR^span permutation test]   ── NEW: 1 day compute
+[ISSUE B8: Mantel Dutilleul correction]── NEW: 1 day
+
+[ISSUE D1: sub-cloud definition]       ── code audit + pool-draw redesign (BLOCKS D5, D9)
+[ISSUE D2: overlap acknowledgment]     ── prose (depends on D4 outcome)
+[ISSUE D3: income variable audit]      ── code audit [P01-A SHARED] (BLOCKS all cross-era comparisons)
+[ISSUE D5: sub-sampling algorithm]     ── code audit + sensitivity check (BLOCKED BY D1)
+[ISSUE D6/B7: macro-correlation fixes] ── computation + prose + CIs
+[ISSUE D7: self-contained data §4.1]   ── prose expansion
+[ISSUE D8: transportability reframing] ── prose
+[ISSUE D9: sub-sampling sensitivity]   ── computation (BLOCKED BY D1, D5)
+[ISSUE D10: continuity filter]         ── prose + optional sensitivity
+[ISSUE D11: overlap arithmetic]        ── prose
 ```
 
-### 14.2 Critical path
+### 15.2 Critical path
 
-Two parallel critical paths:
-1. **Lockfile & rerun:** ISSUE H3 (lock environment) → ISSUE C1 (matched-L W₂ rerun) + ISSUE H2 (stratified Markov rerun) + ISSUE M5 (Laplace re-implementation) + ISSUE M1 (landscape L² battery). **Estimate: 4–6 working days** (most of which is unattended compute).
-2. **Decision rewrite:** ISSUE C1 outcome → ISSUE C2 abstract reconciliation → §4.2 / §6 rewrite. **Estimate: 2 working days** *after* the rerun completes.
+Four parallel critical paths (was three before R3):
+1. **Lockfile & rerun:** ISSUE H3 → ISSUE C1 + H2 + M5 + M1. **Estimate: 4–6 working days.**
+2. **Decision rewrite:** C1 outcome → C2 → §4.2/§6 rewrite. **Estimate: 2 working days.**
+3. **Data infrastructure audit:** D3 + D1 → D5 → D9. **Estimate: 1–2 working days** + compute.
+4. **Simulation study (NEW):** B1 fix → B2 simulation → B13 practitioner guidance. **Estimate: 2–3 working days human + 1–2 days compute (50–500 CPU-hours on 16-core).** This is the new longest path.
 
-### 14.3 Wall-clock estimates (i7 / 32 GB / no GPU per CONVENTIONS)
+### 15.3 Wall-clock estimates (i7 / 32 GB / no GPU per CONVENTIONS)
 
 | Task | Estimate | Shared with P01-A? |
 |---|---|---|
@@ -655,39 +828,57 @@ Two parallel critical paths:
 | Permutation Mantel test (§13.3) | <1 h compute | no |
 | Embedding stability check (§13.6) | 1–2 h compute | no |
 | Ground-metric sensitivity (§3 ISSUE H1 step 4) | 1 h compute | no |
-| **Total compute (mostly parallelisable)** | **~70–110 h** | |
-| **Total human time** | **~10–14 working days** | |
+| D3 + D1 + D5: data infrastructure audits (§14.1–14.5) | 1–2 days human | yes (D3 shared with P01-A) |
+| D3: income harmonisation protocol (Steps 1–5) if re-extraction needed | 2–3 days human + 4–8 h compute | yes (P01-A SHARED) |
+| D6: macro-correlation autocorrelation + stationarity tests | 1–2 h compute | no |
+| D9: sub-sampling sensitivity ($n \in \{5k, 8k, 15k\}$) | 2–4 h compute | no |
+| D1: window-length sensitivity ($w \in \{3, 5, 7, 10\}$) | 4–8 h compute | no |
+| B2: type I/II error simulation study | 2–3 days human + 1–2 days compute (50–500 CPU-hours) | no |
+| B3: BHPS truncation experiment | 0.5 days compute | no |
+| B4: $\text{BR}^{\text{span}}$ permutation test | 1 day compute | no |
+| B6: $\varepsilon$ sensitivity table | 2–4 h compute | no |
+| B8: Mantel Dutilleul correction | 1 day human + compute | no |
+| D7: §4.1 expansion + data supplement | 1 day human | no |
+| B5, B7, B9–B13, D2, D8, D10, D11: table/prose fixes | 2 days human | no |
+| **Total compute (mostly parallelisable)** | **~140–220 h** | |
+| **Total human time** | **~20–28 working days** | |
 
-### 14.4 Suggested execution order (combined with P01-A)
+### 15.4 Suggested execution order (combined with P01-A)
 
-1. **Day 1 — environment.** Lock the dependency environment (ISSUE H3). Set up reproducible compute. Audit unseeded RNGs in `permutation_nulls.py` and `trajectory_ph.py`.
-2. **Day 2 — bug fixes & smoothing.** Diagnose and fix the stratified-Markov regime-label bug. Implement Laplace smoothing (ISSUE M5). Push code changes; tag the repo at this commit ("v2-prep-environment-frozen").
-3. **Days 3–5 — primary reruns in parallel.** Kick off (in 2–3 concurrent terminals): matched-$L$ W₂ ladder (USoc + BHPS), stratified Markov-1 (USoc + BHPS), positive-control (P01-A 10.2). All on the locked environment.
-4. **Days 6–7 — secondary reruns in parallel.** Landscape $L^2$ battery, Laplace $\alpha$ sweep, threshold sensitivity, BHPS negative-control diagnostic, spanning-individual demographic balance + matched subset, knee robustness.
-5. **Days 8–9 — H₂ + small computations.** H₂ check at $L = 2{,}000$ (longest single job, run unattended). Permutation Mantel, embedding stability, ground-metric sensitivity (small, ~ 4 hours total).
-6. **Day 10 — outcome compilation.** Decide ISSUE C2 outcome; compile all numerical results into a single results-summary table for both papers. Make the final decision on the abstract for P01-B and §4.3 for P01-A.
-7. **Days 11–13 — rewrite.** P01-A v2 and P01-B v2 in lockstep. Specific P01-B rewrites:
+1. **Day 1 — environment + data audits.** Lock the dependency environment (ISSUE H3). Audit unseeded RNGs. **Simultaneously:** audit income variable (D3), sub-cloud definition (D1), sub-sampling algorithm (D5). These are code-reading tasks, not compute.
+2. **Day 2 — bug fixes, smoothing, & refactor.** Diagnose and fix the stratified-Markov regime-label bug. Implement Laplace smoothing (ISSUE M5). **Refactor ladder to `NullStrategy` abstraction** (B3): add `base.py`, `WithinIndividualLabelShuffle`, config-driven `build_ladder`, unit tests. If D3 reveals wrong income variable, begin re-extraction. Push code changes; tag the repo ("v2-prep-environment-frozen").
+3. **Days 3–5 — primary reruns in parallel.** Matched-$L$ W₂ ladder (USoc + BHPS), stratified Markov-1 (USoc + BHPS), positive-control (P01-A 10.2). If D1 requires pool-draw redesign, implement and re-run pool-draw.
+4. **Days 6–7 — secondary reruns in parallel.** Landscape $L^2$ battery, Laplace $\alpha$ sweep, threshold sensitivity, BHPS negative-control diagnostic, spanning-individual demographic balance + matched subset, knee robustness. **R2 additions:** D6 autocorrelation/stationarity tests, D9 sub-sampling sensitivity.
+5. **Days 8–9 — H₂ + small computations.** H₂ check at $L = 2{,}000$. Permutation Mantel, embedding stability, ground-metric sensitivity. **R3 additions:** $\text{BR}^{\text{span}}$ permutation test (B4), $\varepsilon$ sensitivity table (B6), BHPS truncation experiment (B3), Mantel Dutilleul correction (B8), **BHPS Level 1 comparison diagnostic** (B3: global vs within-individual, ~30–60 min).
+6. **Day 10 — outcome compilation.** Decide ISSUE C2 outcome. Compile all numerical results. Final decision on abstract and §4.3.
+7. **Days 11–13 — simulation study (B2).** Design DGPs from estimated USoc $\hat{P}$ and $\hat{P}^{(2)}$. Run 12-condition grid ($S = 500$ replicates each) with v1 and v2 constructions. Four outputs: type I error table, power curve, ladder consistency, BHPS label-shuffle diagnosis.
+8. **Days 14–18 — rewrite.** P01-A v2 and P01-B v2 in lockstep. Specific P01-B rewrites:
    - §3.1 (ground metric fix; threshold paragraph; H₂ justification).
    - §3.2 (stratified Markov-1 rung; Laplace smoothing parameter).
-   - §3.3 (landscape $L^2$ commitment, MMD paragraph tightening).
-   - §3.4.2 (knee algorithm; identification check).
-   - §4.2.1 (replace replay-drift disclosure with reproducibility statement).
-   - §4.2.3 (Tables 1 and 2 with new columns; BHPS negative-control diagnostic paragraph).
-   - §4.3.2 (Table 4 with three test statistics; demographic balance Table 4a; soften "unambiguous").
-   - §4.4 (clarify multiple-testing accounting).
-   - §5.2 (add demographic balance practitioner guidance).
-   - §5.3 (move replay-drift to a project-history note; state matched-$L$ result).
+   - §3.3 (corrected W₂ test construction — B1/H1; test directionality — B10; landscape $L^2$ commitment).
+   - §3.4.1 (sub-cloud $X_t$ definition — D1; boundary correction procedure).
+   - §3.4.2 (knee algorithm; $\text{BR}^{\text{span}}$ with permutation test — B4; demographic balance — D4).
+   - §3.5 (NEW: simulation study results — B2).
+   - §4.1 (expand to self-contained data section — D7; report overlap — D2/D11; income variable — D3).
+   - §4.2.1 (replace replay-drift disclosure with reproducibility statement + ratio quantification — B11).
+   - §4.2.3 (Tables 1 and 2 with effect size columns — B5; BHPS negative-control resolution — B3).
+   - §4.3.1 (sub-sampling algorithm — D5; sub-sampling variance — B9; Mantel Dutilleul — B8; multiplicity correction — B12).
+   - §4.3.2 (Table 4 with three test statistics + $\varepsilon$ sensitivity — B6; $\text{BR}^{\text{span}}$ with CI and null — B4; reframe decomposition — D2).
+   - §4.4 (ecological fallacy; autocorrelation diagnostics — D6; CIs for correlations — B7; BH family accounting — B7).
+   - §5.1 (transportability boundary conditions — D8).
+   - §5.2 (practitioner guidance with calibrated thresholds — B13; demographic balance guidance).
+   - §5.3 (replay-drift; continuity filter — D10; income variable — D3).
    - §6 (rewrite to match the new headline).
    - Abstract.
-8. **Day 14 — internal review.** /humanizer pass. Notation cross-check against `papers/shared/notation.md`. CONVENTIONS compliance audit. Prepare v2.
+9. **Days 19–20 — internal review.** /humanizer pass. Notation cross-check against `papers/shared/notation.md`. CONVENTIONS compliance audit. Prepare v2.
 
 ---
 
-## 15. Acceptance Criteria for v2
+## 16. Acceptance Criteria for v2
 
 The v2 draft is ready to circulate (pre-submission) only when **every** item below holds.
 
-### 15.1 Numerical correctness
+### 16.1 Numerical correctness
 
 - [ ] The abstract, every results table, and the conclusion cite a single $W_2$ Markov-1 USoc H₀ p-value (no "legacy" vs "post-audit" duality).
 - [ ] All results in §4 are derived from a single locked-environment rerun, reproducible from the stated lockfile and seed.
@@ -697,7 +888,7 @@ The v2 draft is ready to circulate (pre-submission) only when **every** item bel
 - [ ] Markov-2 results are computed with explicit Laplace smoothing and the parameter is stated.
 - [ ] Mantel test p-value in Table 3 is permutation-based.
 
-### 15.2 Methodological completeness
+### 16.2 Methodological completeness
 
 - [ ] §3.1 $W_p$ formula uses the same ground metric as the implementation (recommended: $\ell^2$).
 - [ ] §3.1 contains a filtration-threshold sub-paragraph (75th percentile + justification).
@@ -708,7 +899,7 @@ The v2 draft is ready to circulate (pre-submission) only when **every** item bel
 - [ ] §3.4.2 includes an "Identification check" sub-section requiring demographic balance.
 - [ ] §4.2.1 is a reproducibility statement, not a drift disclosure.
 
-### 15.3 Framing fixes
+### 16.3 Framing fixes
 
 - [ ] §4.2.3 BHPS negative-control paragraph cites a tested explanation, not a post-hoc one.
 - [ ] §4.3.2 includes single-$\varepsilon$, AUC, and $W_2$ versions of the spanning ratio.
@@ -717,7 +908,41 @@ The v2 draft is ready to circulate (pre-submission) only when **every** item bel
 - [ ] §6 conclusion uses the matched-$L$ headline number; "unambiguous" language about survey-frame artefact is calibrated to the matched-subset outcome.
 - [ ] §5.3 limitations no longer contains the "circular dependency" framing for stratified Markov.
 
-### 15.4 CONVENTIONS compliance
+### 16.4 R2 data/empirical criteria (NEW)
+
+- [ ] §3.4.1 defines $X_t$ membership explicitly and the pool-draw null is valid under the stated definition (D1).
+- [ ] §3.4.1 includes $w = 5$ derivation from competing constraints and $w$-sensitivity table (D1).
+- [ ] §4.3 reports three-version boundary diagnostic decomposing the 2008–2009 discontinuity into measurement and compositional components (D1).
+- [ ] Zigzag barcode at the 2008–2009 boundary reported under three conditions (uncorrected, corrected, spanning-only) with cross-simplex analysis (D1).
+- [ ] Three-barcode comparison figure uses 3×2 panel grid with three-layer bar selection, null comparison band, and $\varepsilon^*$ marker; calendar year on x-axis (D1).
+- [ ] Filtration scale $\varepsilon^*$ is derived from the persistence gap, not analyst-chosen; $\ell_{\text{gap}}$ reported under observed data and pool-draw null (D1).
+- [ ] Corrected and uncorrected block ratios are both reported (D1).
+- [ ] §4.1 acknowledges the 99.4% BHPS/spanning overlap and the decomposition is reframed (D2).
+- [ ] §4.1 names the exact USoc income variable and it matches the codebase (D3).
+- [ ] §4.1 documents the income harmonisation protocol (equivalisation, HBAI anchoring) (D3).
+- [ ] §4.1 is self-contained: a reviewer can evaluate the methods validation without reading P01-A (D7).
+- [ ] §4.3.1 names the sub-sampling algorithm and justifies $n = 8{,}000$ (D5).
+- [ ] §4.4 acknowledges ecological fallacy and reports autocorrelation diagnostics (D6).
+- [ ] §5.1 transportability claims are qualified with boundary conditions (D8).
+- [ ] §4.1 or §5.3 acknowledges continuity-filter selection (D10).
+
+### 16.5 R3 biostatistical criteria (NEW)
+
+- [ ] §3.3 specifies the corrected W₂ test construction ($T_{\text{ratio}}$ or mean-vs-mean) — anti-conservative v1 construction removed (B1).
+- [ ] §3.3 specifies test directionality (one-sided or two-sided) for every test; direction is pre-specified, not post-hoc (B10).
+- [ ] §3.5 (or supplement) reports type I error calibration and power curves from simulation study (B2).
+- [ ] §4.2.3 reports both global and within-individual label-shuffle $W_2$ results for BHPS; PC1 variance diagnostic confirms mechanism; §3.2 reframes label shuffle to interpret the pattern (B3).
+- [ ] $\text{BR}^{\text{span}}$ has a permutation p-value, null distribution summary, and CI (B4).
+- [ ] Table 2 includes observed $\bar{W}$, null mean, null SD, $T_{\text{ratio}}$, CI, and effect size $d$ (B5).
+- [ ] Table 4 results reported across $\varepsilon \in \{0.50, \ldots, 1.00\}$ in supplement (B6).
+- [ ] Table 5 includes Fisher z-transform 95% CIs; BH-FDR family size stated; full table in supplement (B7).
+- [ ] Mantel test reports Dutilleul-corrected p-value alongside uncorrected; serial dependence acknowledged (B8).
+- [ ] Block ratio reported with $\pm$ SD from 10 repetitions and 95% CI (B9).
+- [ ] Replay drift quantified as ratio impact: stored and replay $T_{\text{ratio}}$ both reported (B11).
+- [ ] Table 3 applies Bonferroni correction ($m = 5$) and states it explicitly (B12).
+- [ ] §5.2 practitioner guidance includes calibrated $B$ recommendations, inconclusive zone, and decision flowchart (B13).
+
+### 16.6 CONVENTIONS compliance
 
 - [ ] $W_2$ used throughout — no bare "Wasserstein" without order.
 - [ ] Landscape $L^2$ included as a complementary metric in every table that has $W_2$.
@@ -726,7 +951,7 @@ The v2 draft is ready to circulate (pre-submission) only when **every** item bel
 - [ ] Random seeds reported wherever new computations are described.
 - [ ] `papers/shared/notation.md` updated to lock the new ground-metric and threshold conventions.
 
-### 15.5 Reproducibility
+### 16.7 Reproducibility
 
 - [ ] Repository contains a frozen lockfile (`uv.lock` or equivalent).
 - [ ] All new results files exist under `results/` with date-suffixed names.
@@ -735,7 +960,7 @@ The v2 draft is ready to circulate (pre-submission) only when **every** item bel
 
 ---
 
-## 16. Open questions to resolve before execution begins
+## 17. Open questions to resolve before execution begins
 
 1. **Ground-metric option (A) vs (B) for §3 ISSUE H1.** Recommendation: option (A) ($\ell^2$, fix the formula). Confirm with the author / co-thinker before starting the lockfile rerun, since switching the implementation is the single biggest extra-cost decision in this plan.
 2. **Lockfile pinning depth.** Pin Python patch version + all top-level packages, or also pin BLAS / numerical-determinism settings? Recommendation: pin both. The 11.5% replay drift is large enough that BLAS variation is a plausible co-cause; better to over-pin than to debug platform-specific drift later.
@@ -743,10 +968,14 @@ The v2 draft is ready to circulate (pre-submission) only when **every** item bel
 4. **What to do if the matched-$L$ $W_2$ Markov-1 USoc p-value is borderline (0.05 ≤ p < 0.10)?** Pre-commit: if so, increase $B$ to 200 perms, $n_{\text{nullnull}} = 2000$ pairs, on USoc only, to reduce Monte Carlo noise. If still borderline, report as borderline and frame the methodological lesson conditionally ("scalar test gives $p = 1.000$; $W_2$ shifts the conclusion sharply but does not cross conventional significance — the order-of-magnitude shift is itself the methodological lesson, even when it does not produce a significance-level rejection.").
 5. **Does "Laplace smoothing" with $\alpha = 1$ change the v1 Markov-2 conclusion ($p_{W_2} = 0.546$)?** Cannot know in advance. If the conclusion changes (e.g., Markov-2 becomes rejected), the entire "second-order memory accounts for the diagram structure" thesis must be reframed. This is a real outcome risk and the author should be aware before executing.
 6. **Knee algorithm — formal vs operational.** Should the v2 paper present the knee algorithm as a formal contribution (with its own pseudocode and citation as a methods choice) or as a pragmatic operational rule? Recommendation: operational rule, with pointer to the supplement's robustness analysis. The methods paper's formal contributions are the Markov ladder and the survey-design diagnostics — adding a fourth contribution dilutes the framing.
+7. **[R2] Income variable (D3): three compounding problems.** The audit must determine: (a) is `fihhmnnet1_dv` genuinely used or a typo for `fihhmnnet3_dv`? (b) Regardless, are equivalisation scales imported from pre-computed derived variables or re-derived? (c) Are thresholds anchored to HBAI or internal sample median? Even if (a) is a typo, (b) and (c) may require re-extraction. The five-step harmonisation protocol should be implemented regardless of the (a) outcome — the question is scope, not whether to do it. **Must be resolved on Day 1; if full re-extraction needed, it sits on the critical path before any pipeline re-run.**
+8. **[R2] Sub-cloud definition (D1): what is the current implementation?** The three-design resolution is settled (Design 1 for pool-draw, Design 2 for macro-correlations, Design 3 for zigzag). The audit question is which design is currently implemented — if span-based, Designs 1 and 2 must be built from scratch; if already cohort-based, less implementation work needed. **Must be resolved on Day 1.**
+9. **[R2] How far to go on macro-correlation fixes (D6)?** Stationarity tests + DW statistics are minimum. Full HAC-robust SEs are better. Dropping the macro-correlation section entirely is also an option — it's not a core contribution. Recommendation: keep but caveat heavily.
+10. **[R2] Second dataset for transportability (D8)?** Obtaining SOEP data would substantially strengthen §5.1 but adds weeks. Recommendation: reframe as boundary-conditions discussion for v2; pursue SOEP for the revision response if required by journal.
 
 ---
 
-## 17. References to add to v2 if not already cited
+## 18. References to add to v2 if not already cited
 
 - **Carrière, M., Cuturi, M., & Oudot, S. (2017).** Sliced Wasserstein kernel for persistence diagrams. *ICML.* — backstop for $W_2$ with $\ell^2$ ground metric (§3.1).
 - **Skraba, P., & Turner, K. (2020).** Wasserstein stability for persistence diagrams. *arXiv:2006.16824.* — stability constant for $W_p$ under $\ell^q$ ground metrics (§3.1).
