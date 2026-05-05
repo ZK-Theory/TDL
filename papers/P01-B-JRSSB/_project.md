@@ -40,12 +40,73 @@ Primary: *Journal of the Royal Statistical Society Series B*
 - `papers/P03-Zigzag/` — survey-design diagnostics, pool-draw nulls,
   spanning-individual decomposition
 
+## v2 revision under APM v1.0.1 management (locked 2026-05-05)
+
+Comprehensive reviewer-response scope across three independent reviewers:
+
+- **R1** (TDA methodologist): 12 issues C1–C2 (Critical), H1–H4, M1–M5, L1
+- **R2** (data/empirical reviewer): 11 issues D1–D11
+- **R3** (biostatistician): 13 issues B1–B13 — shared with P01-A; many [P01-A
+  SHARED] computations execute once and feed both papers
+
+Plus two prose-vs-code mismatches identified during code audit:
+
+- `permutation_nulls.py:168–234` does no Laplace smoothing on Markov-2 (uniform
+  fallback only) — §3.2 prose says it does. Fix in APM Stage 0 Task 0.4.
+- ε*=0.70 used in §4.3.2 does not match `knee_analysis.json` (median=0.54,
+  mean=0.51). Knee algorithm formalised in APM Stage 0 Task 0.6.
+
+**Authoritative documents.** All issues itemised with strategy, artefacts, and
+verification at:
+
+- `notes/2026-05-01-reviewer-response-plan.md` — master integration
+- `notes/2026-05-03-reviewer2-data-empirical-issues.md` — D1–D11 detail
+- companion P01-A reviewer plans for shared R3 issues
+
+**APM execution.** Decomposed by the Planner into 4 Workers (TDA, Panel
+Statistics, Reproducibility, Academic Writing), 5 Stages, 74 Tasks (most P01-B
+issues are shared with P01-A; standalone P01-B coverage in Stage 2 §3.1–§3.4
+methods rewrites + §4.2/§4.3 results + §5 reproducibility + supplement). Spec
+and Plan at `.apm/spec.md` and `.apm/plan.md`; APM_RULES block in workspace
+`CLAUDE.md`; Message Bus at `.apm/bus/`.
+
+**JRSS-B repo + Zenodo.** Standalone repo extraction is APM Plan Stage 3
+Task 3.2; Zenodo DOI applied at submission, post-v2 (or v3) draft. JRSS-B's
+"public archived code with persistent DOI before acceptance" requirement is met
+by Stage 3 + DOI registration at submission.
+
 ## Open Items
 
-- [x] Formalise the spanning-individual decomposition and pool-draw null model — completed 2026-04-30; see `papers/P01-B-JRSSB/notes/formalised-survey-toolkit.md`
-- [x] Insert the post-audit W2 table and paragraph from `notes/2026-04-07-post-audit-w2-insert.md` into Section 4 of the first full draft — folded into §4.2.1–4.2.3 of v1
-- [x] Update the draft text to reflect the resolved W2 audit and replay caveat — addressed in §4.2.1 of v1
-- [x] Assemble v1 from P01 v8 and P03 v2+ — completed 2026-04-30; draft at `papers/P01-B-JRSSB/drafts/v1-2026-04.md`, ~9,100 words
-- [ ] Keep zigzag exposition brief and explicitly subordinate to the testing framework
-- [ ] Use `notes/2026-04-07-post-audit-w2-repo-note.md` when building the standalone paper repo so the `post_audit` W2 JSONs are treated as authoritative artifacts
-- [ ] Prepare JRSS-B submission package and arXiv metadata
+Detailed checklists are in the response plans (P01-B §15 acceptance criteria,
+per-issue verification sub-sections) and in `.apm/plan.md` Tasks 0.x–4.x.
+Headline categories:
+
+- [x] Formalise the spanning-individual decomposition and pool-draw null model
+      — completed 2026-04-30; see `notes/formalised-survey-toolkit.md`
+- [x] Insert the post-audit W2 table and paragraph — folded into §4.2.1–4.2.3
+      of v1 (will be regenerated under locked environment in v2 per APM Plan)
+- [x] Update the draft text to reflect the resolved W2 audit and replay caveat
+      — §4.2.1 of v1 (replaced by reproducibility statement in v2 per APM
+      Plan Task 2.18)
+- [x] Assemble v1 from P01 v8 and P03 v2+ — completed 2026-04-30; v1 at ~9,100
+      words
+- [ ] Stage 0: P01-B H3 reproducibility lock-in — pinned `uv.lock`,
+      two-machine bit-for-bit determinism, deterministic seed propagation
+- [ ] Stage 0: code-side prose-vs-code fixes (Markov-2 Laplace smoothing α=1;
+      ε* knee algorithm formalisation; W₂ test construction mean-vs-mean BCa)
+- [ ] Stage 1: matched-L W₂, stratified Markov-1, landscape L², Markov-2 α
+      sensitivity, BHPS H4 negative-control three-hypothesis diagnostics, all
+      under locked environment (shared with P01-A)
+- [ ] Stage 2: v2 §3.1–§3.4 methods rewrites (ground-metric formula correction,
+      stratified rung formal definition, W₂ test construction + landscape +
+      effect sizes, knee algorithm + spanning AUC/W₂ + identification check),
+      §4.2/§4.3 results, §5 reproducibility, abstract reframing per C2 outcome
+- [ ] Stage 3: standalone P01-B repo extraction with locked env, code subset,
+      data pointer, replication script, headline-number provenance table
+- [ ] Keep zigzag exposition brief and explicitly subordinate to the testing
+      framework
+- [ ] Use `notes/2026-04-07-post-audit-w2-repo-note.md` when building the
+      standalone paper repo (treats `post_audit` W2 JSONs as authoritative —
+      will be superseded by locked-env JSONs in v2)
+- [ ] Prepare JRSS-B submission package and arXiv metadata (LaTeX class
+      `papers/style_guides/JRSS/statsoc.cls`)

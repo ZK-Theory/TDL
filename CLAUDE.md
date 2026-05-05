@@ -371,3 +371,56 @@ Replace `<your-model-id>` with your active model:
 - GPT-4o / GPT-5 / o1 / Llama → use the model id as printed by your runner
 
 The `model=` parameter rides on the existing `plan_turn` call — it does **not** add a separate tool invocation. If `plan_turn` is not appropriate for a non-code task, call `announce_model(model="...")` once instead.
+
+---
+
+APM_RULES {
+
+## Empiricism-first ordering
+
+- Data analysis precedes prose for the same section. Do not draft prose against expected, predicted, or partial results — wait for the result to land in `results/...` and a vault `[RESULT]` entry to be filed before any prose work for the dependent section begins.
+- Outcome-contingent prose direction is locked by a vault `[DECISION]` entry recording the outcome (e.g., A/B/C, a/b/c) against the pre-registered decision rule. Do not draft prose for an outcome-contingent section until the lock is on file.
+- When a Task relies on an inferred property of an external resource — a harmonised dataset's coding rule, a library's behaviour, a checkpoint's expected schema — verify the property before relying on it. Do not assume.
+
+## No speculative paths
+
+This project's history includes large costs from work pursued on speculative or assumptive foundations. Do not pursue analyses, prose, or implementation directions whose foundation is "this is probably true" or "this should hold" without verification. When uncertain, surface the uncertainty as a User-decision point or as a verification step in the same Task; do not proceed past it.
+
+## Vault discipline
+
+- Every Task ends with the appropriate vault entry written via the `vault-engine` MCP server using `vault_observe`. Computational Tasks write `[RESULT]`; parameter or method locks write `[DECISION]`; informative null findings write `[NEGATIVE]`; pipeline changes write `[PIPELINE]`; data-processing changes write `[DATA]`. See "Commit Message Conventions" and "After-Session Sync (Repo → Vault)" above for entry format and prefix mapping.
+- Pre-registration entries are written *before* outcome-contingent runs, not after. Each pre-registration records: parameter values, decision rule, prose-direction rule per outcome, and a timestamp. The post-run `[RESULT]` entry references the pre-registration.
+- Vault access is MCP-only via the `vault-engine` server (see `.claude/CLAUDE.md` § "Vault-Engine MCP Server" for the tool list — `vault_get`, `vault_query`, `vault_observe`, `vault_skeleton`, `vault_status`, `vault_graph`, `cross_vault`). Do not attempt direct filesystem reads of the vault path.
+
+## Output file management
+
+- Numerical results are written under `results/...` with date-suffixed filenames (`<basename>_<YYYY-MM-DD>.json`). Never overwrite an existing results file: if a re-run is needed, the new file receives a new date-suffix and the previous file is preserved as historical record.
+- Paper drafts are versioned `vN-YYYY-MM.md` in `papers/PXX/drafts/`. Never overwrite a previous draft; create the next version (see "Papers Structure" → "Draft naming convention" above).
+- When a Task completes work referenced in a paper's `papers/PXX/_project.md` open-items list, update `_project.md` (mark items closed; append to draft history if a new draft was produced).
+- Locked notational decisions go into `papers/shared/notation.md`; never let two papers use divergent notation for the same object.
+
+## Prose work — notation, voice, completion
+
+- After every prose change, run the `/notation-check` skill against `papers/shared/notation.md`. Do not batch notation checks across multiple section edits; check at every change to prevent compounding inconsistency.
+- Before any draft is considered ready for review at v2 (or v3) completion, run the `/humanizer` skill on it. `/humanizer` is a final-pass gate, not a per-section pass.
+- Writing voice across both papers and supplements is academic, professional, and mathematical. Avoid colloquialisms, hedge-stacking, contribution inflation, and the AI-tells the `/humanizer` skill targets.
+- For prose Tasks, User per-section review is a validation step — surface the section to the User before marking the Task complete.
+
+## Cross-Worker output consumption
+
+- When a Task depends on another Worker's output (a results JSON, a vault entry, a code-side fix, a verified property), read that output directly rather than re-running the producing computation. The Task description names the producing Task and the deliverable at the boundary.
+- If a producing Task's output is missing, malformed, or contradicts what the consuming Task needs, surface the issue rather than fabricating or guessing a substitute. Do not proceed past the inconsistency.
+
+## Surfacing User-decision points
+
+When a Task encounters a question requiring User input — a journal-formatting decision, a methodological judgement call, a data-availability constraint, a contradiction between an inferred property and observed behaviour — surface it as an explicit User-facing prompt within the Task. Tasks are designed to embed such prompts; do not guess and do not block.
+
+## Code exploration
+
+See "Code Exploration Policy" and "Session-Aware Routing" above, and `.claude/CLAUDE.md` § "vexp" — `jcodemunch-mcp` and `vexp` tools (especially `run_pipeline` and `get_skeleton`) are mandatory for code navigation, with `Read` reserved for files about to be edited. Do not fall back to `Grep`, `Glob`, or `Bash` for code search.
+
+## Methodological mandates
+
+See "Code Conventions" and "What NOT to Do" above, and `.claude/CLAUDE.md` § "Methodological Mandates (enforced in all Python code)". These define locked rules — Python 3.13, W₂ for persistence-diagram comparison with persistence landscape L² as mandatory complement, Markov-order *k* always specified explicitly, never raw-trajectory persistent homology (always embed first), BHPS/USoc variable coding never assumed shared without verification, type hints with `numpy.typing.NDArray`, Google-style docstrings, research-context comment header on every new script, random seeds specified and recorded for every stochastic process. They apply to every Task touching the relevant material; reference, do not re-derive.
+
+} //APM_RULES
