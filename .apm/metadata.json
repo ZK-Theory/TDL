@@ -1,9 +1,38 @@
 {
-  "cliVersion": "0.5.3",
-  "templateVersion": "v0.5.3+templates.1",
+  "source": "official",
+  "repository": "sdi2200262/agentic-project-management",
+  "releaseVersion": "v1.0.1",
+  "cliVersion": "1.0.1",
   "assistants": [
-    "GitHub Copilot"
+    "claude"
   ],
-  "installedAt": "2025-12-13T15:56:07.954Z",
-  "lastUpdated": "2025-12-13T15:56:07.954Z"
+  "installedFiles": {
+    "claude": [
+      ".claude/agents/apm-archive-explorer.md",
+      ".claude/apm-guides/context-gathering.md",
+      ".claude/apm-guides/task-assignment.md",
+      ".claude/apm-guides/task-execution.md",
+      ".claude/apm-guides/task-logging.md",
+      ".claude/apm-guides/task-review.md",
+      ".claude/apm-guides/work-breakdown.md",
+      ".claude/commands/apm-1-initiate-planner.md",
+      ".claude/commands/apm-2-initiate-manager.md",
+      ".claude/commands/apm-3-initiate-worker.md",
+      ".claude/commands/apm-4-check-tasks.md",
+      ".claude/commands/apm-5-check-reports.md",
+      ".claude/commands/apm-6-handoff-manager.md",
+      ".claude/commands/apm-7-handoff-worker.md",
+      ".claude/commands/apm-8-summarize-session.md",
+      ".claude/commands/apm-9-recover.md",
+      ".claude/skills/apm-communication/SKILL.md",
+      ".claude/skills/apm-communication/bus-integration.md"
+    ],
+    "_apm": [
+      ".apm/memory/index.md",
+      ".apm/plan.md",
+      ".apm/spec.md",
+      ".apm/tracker.md"
+    ]
+  },
+  "installedAt": "2026-05-05T14:03:36.576Z"
 }
