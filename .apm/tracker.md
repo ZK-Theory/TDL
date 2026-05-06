@@ -11,13 +11,13 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | Task | Status | Agent | Branch |
 |------|--------|-------|--------|
 | 0.1 | Done | reproducibility-agent | |
-| 0.2 | Active | reproducibility-agent | pipe/rng-audit |
-| 0.3 | Waiting: 0.2 | reproducibility-agent | |
-| 0.4 | Waiting: 0.2 | tda-agent | |
-| 0.5 | Waiting: 0.2 | tda-agent | |
-| 0.6 | Waiting: 0.2 | tda-agent | |
-| 0.7 | Waiting: 0.2 | tda-agent | |
-| 0.8 | Waiting: 0.2 | tda-agent | |
+| 0.2 | Done | reproducibility-agent | |
+| 0.3 | Active | reproducibility-agent | pipe/two-machine-check |
+| 0.4 | Active | tda-agent | pipe/tda-code-fixes |
+| 0.5 | Active | tda-agent | pipe/tda-code-fixes |
+| 0.6 | Active | tda-agent | pipe/tda-code-fixes |
+| 0.7 | Ready | tda-agent | |
+| 0.8 | Ready | tda-agent | |
 | 0.9 | Active | panel-statistics-agent | pipe/panel-data-harmonisation |
 | 0.10 | Active | panel-statistics-agent | pipe/panel-data-harmonisation |
 | 0.11 | Active | panel-statistics-agent | pipe/panel-data-harmonisation |
@@ -26,8 +26,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 | Agent | Instance | Notes |
 |-------|----------|-------|
-| reproducibility-agent | 1 | active (T0.2) |
-| tda-agent | 1 | uninitialized |
+| reproducibility-agent | 1 | active (T0.3) |
+| tda-agent | 1 | active (T0.4–T0.6 batch, first dispatch) |
 | panel-statistics-agent | 1 | active (T0.9–T0.11 batch, first dispatch) |
 | academic-writing-agent | 1 | uninitialized |
 
@@ -49,4 +49,6 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 - numpy 2.x now in use: deprecated `np.bool`, `np.int`, `np.float` aliases raise errors; T0.2 RNG audit should flag any such usage encountered. TDA Agent Tasks 0.4–0.8 should be aware.
 - BLAS env loading is manual: `uv run --env-file .env python script.py`; `[tool.uv] env-file` not supported in the installed uv version.
 - No GMM checkpoint files (.pkl/.joblib/.pickle) found in the repo; T0.5 must locate the checkpoint outside the repo before any loadability check.
+- T0.2 Done (commit `b8ef1cb`): 1 unseeded production-path call fixed (`markov_ladder.simulate_markov_trajectories`); 2 entry-point scripts threaded (`run_pipeline.py --seed`, `bhps_tda_pipeline.py MASTER_SEED=42`). Canary reference values: H0=1138.24331880, H1=78.97751522 (L=500, n_perms=20, seed=42) — used as reference for T0.3 two-machine comparison.
+- T0.3 (reproducibility-agent) + T0.4/T0.5/T0.6 batch (tda-agent) dispatched in parallel to worktrees `pipe-two-machine-check` and `pipe-tda-code-fixes` respectively. T0.7 and T0.8 (tda-agent) are Ready — will dispatch after T0.4–T0.6 batch review.
 - T0.2 (reproducibility-agent) + T0.9/T0.10/T0.11 batch (panel-statistics-agent) dispatched in parallel to worktrees `pipe-rng-audit` and `pipe-panel-harmonisation` respectively.
