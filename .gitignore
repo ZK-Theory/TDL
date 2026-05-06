@@ -38,6 +38,8 @@ env/
 *.pickle
 *.h5
 *.hdf5
+data/guides
+data/UKDA-6614-tab
 data/raw/
 data/processed/
 financial_tda/data/raw/
