@@ -223,6 +223,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
             tfidf=args.tfidf,
             pca_dim=pca_dim,
             umap_dim=umap_dim,
+            random_state=args.seed,
         )
 
         results["embedding"] = {k: v for k, v in embed_info.items() if k != "fitted_models"}
@@ -259,6 +260,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
             n_landmarks=args.landmarks,
             method="maxmin_vr",
             validate=True,
+            seed=args.seed,
         )
 
         results["ph"] = {
@@ -327,6 +329,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
                     n_landmarks=args.landmarks,
                     statistic="total_persistence",
                     markov_order=args.markov_order,
+                    seed=args.seed,
                     embed_kwargs=embed_kwargs,
                 )
                 null_results[null_type] = nr
@@ -348,7 +351,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         logger.info("=" * 60)
 
         # Regime discovery
-        regimes = discover_regimes(embeddings, trajectories, ph_result=ph_result)
+        regimes = discover_regimes(embeddings, trajectories, ph_result=ph_result, random_state=args.seed)
         results["regimes"] = {
             "k_optimal": regimes["k_optimal"],
             "profiles": {
@@ -408,7 +411,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
     logger.info("=" * 60)
     logger.info(f"Pipeline complete in {elapsed:.1f}s")
     if "regimes" in results:
-        logger.info(f"  Trajectories: {len(trajectories)}, " f"Regimes: {results['regimes']['k_optimal']}")
+        logger.info(f"  Trajectories: {len(trajectories)}, Regimes: {results['regimes']['k_optimal']}")
     logger.info("=" * 60)
 
     if checkpoint_dir:
@@ -499,6 +502,12 @@ def main():
         default=1,
         choices=[1, 2, 3, 4, 5, 6],
         help="Resume from this step, loading prior checkpoints (default: 1)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Master RNG seed for all stochastic steps (default: 42)",
     )
     parser.add_argument(
         "--verbose",

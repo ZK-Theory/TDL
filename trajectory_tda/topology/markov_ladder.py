@@ -77,7 +77,7 @@ def fit_markov_transition_matrix(
     """
     if order != 1:
         raise NotImplementedError(
-            "Higher-order Markov fitting uses n-gram PCA encoding. " "See trajectory_tda/data/ for n-gram preparation."
+            "Higher-order Markov fitting uses n-gram PCA encoding. See trajectory_tda/data/ for n-gram preparation."
         )
 
     counts = np.zeros((n_states, n_states), dtype=np.float64)
@@ -98,6 +98,7 @@ def simulate_markov_trajectories(
     n_trajectories: int,
     length: int,
     rng: np.random.Generator | None = None,
+    seed: int = 0,
 ) -> list[list[int]]:
     """Simulate trajectories from a Markov transition matrix.
 
@@ -106,13 +107,15 @@ def simulate_markov_trajectories(
         initial_distribution: Starting state distribution, shape (n_states,).
         n_trajectories: Number of trajectories to simulate.
         length: Length of each trajectory (number of time steps).
-        rng: Random number generator for reproducibility.
+        rng: Random number generator. Takes priority over seed if provided.
+        seed: Seed used when rng is None (default 0). Pass explicitly for
+            reproducibility; do not rely on the default in production runs.
 
     Returns:
         List of simulated state sequences, each of length `length`.
     """
     if rng is None:
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(seed)
 
     n_states = transition_matrix.shape[0]
     trajectories = []
@@ -211,9 +214,7 @@ class MarkovLadderTest:
             return np.array(rows, dtype=np.float64) if rows else np.zeros((0, 3))
 
         except ImportError as e:
-            raise ImportError(
-                "ripser is required for persistence computation. " "Install with: pip install ripser"
-            ) from e
+            raise ImportError("ripser is required for persistence computation. Install with: pip install ripser") from e
 
     def run_rung(
         self,
@@ -241,8 +242,7 @@ class MarkovLadderTest:
         Returns:
             MarkovLadderResult with p-value, z-score, and null distribution.
         """
-        observed_diagram = self._compute_diagram(observed_embedding)
-        observed_tp = compute_total_persistence(observed_diagram, self.homology_dim)
+        self._compute_diagram(observed_embedding)
 
         logger.info(
             "Running Markov-%d rung: %d null simulations",
