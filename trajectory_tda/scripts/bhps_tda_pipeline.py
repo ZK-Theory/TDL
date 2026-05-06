@@ -33,6 +33,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+MASTER_SEED = 42
+
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
 CHECKPOINT_DIR = Path("results/trajectory_tda_bhps")
@@ -65,6 +67,7 @@ embeddings, embed_info = ngram_embed(
     include_bigrams=True,
     tfidf=False,
     pca_dim=20,
+    random_state=MASTER_SEED,
 )
 logger.info(f"Embeddings shape: {embeddings.shape}")
 
@@ -94,6 +97,7 @@ ph_result = compute_trajectory_ph(
     n_landmarks=5000,
     method="maxmin_vr",
     validate=True,
+    seed=MASTER_SEED,
 )
 logger.info(f"PH computed in {ph_result['elapsed_seconds']:.1f}s")
 
@@ -143,6 +147,7 @@ for null_type in null_types:
             n_landmarks=5000,
             statistic="total_persistence",
             markov_order=1,
+            seed=MASTER_SEED,
             embed_kwargs=embed_kwargs,
         )
         null_results[null_type] = nr
@@ -173,7 +178,7 @@ logger.info("=" * 60)
 logger.info("Step 6: Analysis (regimes, cycles)")
 logger.info("=" * 60)
 
-regimes = discover_regimes(embeddings, trajectories, ph_result=ph_result)
+regimes = discover_regimes(embeddings, trajectories, ph_result=ph_result, random_state=MASTER_SEED)
 logger.info(f"Optimal k={regimes['k_optimal']}")
 
 # Regime exemplars
