@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: Spec creation by the Planner.
+modified: "Locked Python environment" and "Stratified Markov-1" sections updated after T0.1: sklearn 1.8.0 confirmed (1.3.2 unavailable for Python 3.13); giotto-tda removed (no cp313 wheels); scikit-tda not resolvable; BLAS env is manual (--env-file); no GMM checkpoint in repo. Modified by the Manager.
 ---
 
 # APM Spec
@@ -73,7 +73,7 @@ The two papers are revised together because they share computational and methodo
 
 **Canonical landmark count: L = 5,000.** Single value across total-persistence and W₂ headline statistics in both papers. Cross-landmark sensitivity (L ∈ {2500, 5000, 8000}) reported in supplement for both metrics. Reference: P01-A response plan §1 (H1); P01-B §1 (C1).
 
-**Stratified Markov-1 ladder rung.** Inserted between Markov-1 and Markov-2 in the ladder as Level 4b. Diagnoses and fixes the regime-label loading bug (likely sklearn 1.8.0/1.3.2 mismatch; possibly checkpoint-field provenance or embedding/GMM misalignment). Run at L=5000, n_perms=100, all seven regimes represented, both H₀ and H₁, on USoc and BHPS checkpoints. Outcome-contingent prose direction is **pre-registered** before the run. Reference: P01-A response plan §2 (H2); P01-B §4 (H2).
+**Stratified Markov-1 ladder rung.** Inserted between Markov-1 and Markov-2 in the ladder as Level 4b. Diagnoses and fixes the regime-label loading bug. Root-cause candidates: (1) sklearn version mismatch — sklearn 1.3.x has no Python 3.13 cp313 wheels; the locked environment uses sklearn 1.8.0, so T0.5 must determine whether the collapse persists under 1.8.0 or is resolved; (2) checkpoint-field provenance (which field carries regime labels); (3) embedding/GMM misalignment (was GMM fit on the same embedding used by the null run). No GMM checkpoint files exist in the repo; T0.5 must locate the checkpoint before any loadability check. Run at L=5000, n_perms=100, all seven regimes represented, both H₀ and H₁, on USoc and BHPS checkpoints. Outcome-contingent prose direction is **pre-registered** before the run. Reference: P01-A response plan §2 (H2); P01-B §4 (H2).
 
 **Markov-2 null with explicit Laplace smoothing.** Code change to `permutation_nulls.py:168–234` to add α=1 Laplace smoothing matching the prose intent. Sensitivity sweep over α ∈ {0, 0.5, 1, 5} reported in supplement. Reference: P01-B response plan §11 (M5).
 
@@ -147,7 +147,7 @@ The two papers are revised together because they share computational and methodo
 
 ## Reproducibility Framework
 
-**Locked Python environment.** A `uv.lock` (and `pyproject.toml` snapshot) is captured at the start of the canonical re-run and committed to the repo. Pinned: Python 3.13.X (specific patch), gudhi, ripser, scikit-learn (resolves the sklearn 1.8.0 / 1.3.2 mismatch implicated in the stratified-Markov regime-label collapse), persim, scikit-tda, all dependencies. `MKL_NUM_THREADS=1` and `OMP_NUM_THREADS=1` set for BLAS determinism. Reference: P01-B response plan §5 (H3).
+**Locked Python environment.** A `uv.lock` (and `pyproject.toml` snapshot) committed to the repo at commit `214586e` on branch `pipe/lock-python-env`. Confirmed pins: Python 3.13.5, numpy 2.3.2, scipy 1.16.1, scikit-learn 1.8.0, gudhi 3.11.0, ripser 0.6.14, persim 0.3.8 — 103 packages total. Notes: (a) sklearn 1.3.x has no Python 3.13 cp313 wheels; 1.8.0 is the actual locked version; T0.5 diagnoses whether the GMM regime-label collapse is resolved under 1.8.0 or requires refitting. (b) giotto-tda removed — no cp313 wheels exist; TDA pipeline operates on gudhi/ripser/persim directly; any `gtda.*` imports in downstream code will fail and must be removed. (c) scikit-tda meta-package not resolvable for Python 3.13; its components ripser and persim are pinned directly. (d) BLAS thread pins are in `.env` (gitignored) and `.env.example` (committed); loading is manual: `uv run --env-file .env python script.py`. (e) No GMM checkpoint files (`.pkl`, `.joblib`, `.pickle`) exist in the repo; the checkpoint presumably lives outside the repo in a gitignored location; T0.5 must locate it before any loadability check. `MKL_NUM_THREADS=1` and `OMP_NUM_THREADS=1` set for BLAS determinism. Reference: P01-B response plan §5 (H3).
 
 **Two-machine bit-for-bit determinism.** The locked-environment run is executed on two machines; numerical outputs must match exactly. Where they do not, the cause is documented and pinned (BLAS variant, RNG propagation, etc.). The second machine is provisioned at the appropriate time. Reference: P01-B response plan §5 (H3).
 

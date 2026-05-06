@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). Modified by the Manager.
+modified: "Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). TDA Agent Workers table updated after T0.1: giotto-tda removed (no cp313 wheels), scikit-tda not resolvable, gtda.* imports need replacement. Modified by the Manager."
 ---
 
 # APM Plan
@@ -9,7 +9,7 @@ modified: Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). Modifie
 
 | Worker | Domain | Description |
 |---|---|---|
-| TDA Agent | Persistent homology, null batteries, diagram-level statistics, Mapper, code-side fixes to topology pipeline | All persistence-diagram computation (W₂, landscape L², stratified Markov-1, threshold/intrinsic-dim, H₂, KDE H₀, ε* knee, Mapper threshold), plus code-level fixes to `permutation_nulls.py`, `vectorisation.py`, `spanning_pipeline.py`, `run_wasserstein_battery.py`. Python 3.13 + `gudhi`/`ripser`/`giotto-tda`/`persim`/`scikit-tda`. |
+| TDA Agent | Persistent homology, null batteries, diagram-level statistics, Mapper, code-side fixes to topology pipeline | All persistence-diagram computation (W₂, landscape L², stratified Markov-1, threshold/intrinsic-dim, H₂, KDE H₀, ε* knee, Mapper threshold), plus code-level fixes to `permutation_nulls.py`, `vectorisation.py`, `spanning_pipeline.py`, `run_wasserstein_battery.py`. Python 3.13 + `gudhi`/`ripser`/`persim`. Note: `giotto-tda` removed from the locked environment (no cp313 wheels); `scikit-tda` meta-package not resolvable (components `ripser` and `persim` pinned directly); any `gtda.*` imports in pipeline code must be replaced with direct `gudhi`/`ripser` equivalents. |
 | Panel Statistics Agent | Sample construction, weighting, MICE, GLMM, Firth, mediation, ARI/null-test, demographic balance | All R2 + R3 issues that operate on the analytical sample or the regression model: Tier 1/2/3 cross-classified GLMM with Firth, sibling-consistent MICE for parental NS-SEC, MICE for income, two-stage IPW, Manski bounds, BIC curve, ARI normalisation, demographic balance, sparse-U sensitivity, harmonised-dataset verification (S4 jbstat, S12 income), sibling-cluster construction from `xhhrel`. R-driven with thin Python wrappers; libraries `lme4`, `glmmTMB`, `logistf`, `mice`, `survey`, `igraph`. |
 | Reproducibility Agent | Locked environment, deterministic seed propagation, two-machine determinism, repo extraction | `uv.lock` pinning, BLAS thread pinning, RNG audit across the pipeline, two-machine bit-for-bit verification, headline-number provenance tables, standalone repo extraction with locked env + code subset + data pointer + replication script + README. |
 | Academic Writing Agent | v2 drafts, supplements, figures to JRSS spec, notation-check at every change, humanizer | All prose rewrites of P01-A and P01-B sections, supplements, figures regenerated to `statsoc.cls` specifications, `papers/shared/notation.md` updates, `_project.md` updates, `/notation-check` step embedded in every prose Task, `/humanizer` pass at draft completion. |
