@@ -10,7 +10,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 | Task | Status | Agent | Branch |
 |------|--------|-------|--------|
-| 0.1 | Ready | reproducibility-agent | |
+| 0.1 | Active | reproducibility-agent | pipe/lock-python-env |
 | 0.2 | Waiting: 0.1 | reproducibility-agent | |
 | 0.3 | Waiting: 0.1, 0.2 | reproducibility-agent | |
 | 0.4 | Waiting: 0.2 | tda-agent | |
