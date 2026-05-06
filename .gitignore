@@ -117,3 +117,10 @@ nul
 
 # Submission guidelines (journal-specific, not tracked)
 papers/submission guidelines/
+
+# APM runtime artifacts — Option B policy
+# Track planning documents and Stage summaries (.apm/plan.md, spec.md, tracker.md, memory/index.md, metadata.json).
+# Gitignore runtime traffic and Worker Task Logs to keep main free of coordination churn.
+.apm/bus/
+.apm/memory/stage-*/
+.apm/worktrees/

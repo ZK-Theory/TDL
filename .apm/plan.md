@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: Plan creation by the Planner.
+modified: Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). Modified by the Manager.
 ---
 
 # APM Plan
@@ -19,7 +19,7 @@ modified: Plan creation by the Planner.
 | Stage | Name | Tasks | Agents |
 |---|---|---|---|
 | 0 | Foundation | 11 | TDA, Panel Statistics, Reproducibility |
-| 1 | Locked numerical and statistical results | 27 | TDA, Panel Statistics |
+| 1 | Locked numerical and statistical results | 28 | TDA, Panel Statistics |
 | 2 | v2 drafting | 22 | Academic Writing |
 | 3 | Reproducibility extraction | 4 | Reproducibility |
 | 4 | Option A full re-extraction | 10 | Panel Statistics, TDA, Academic Writing, Reproducibility |

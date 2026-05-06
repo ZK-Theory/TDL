@@ -415,6 +415,14 @@ This project's history includes large costs from work pursued on speculative or 
 
 When a Task encounters a question requiring User input — a journal-formatting decision, a methodological judgement call, a data-availability constraint, a contradiction between an inferred property and observed behaviour — surface it as an explicit User-facing prompt within the Task. Tasks are designed to embed such prompts; do not guess and do not block.
 
+## Version control
+
+- Repository at `c:\Users\steph\TDL`; base branch `main`. Each dispatched Task gets its own feature branch off `main`. Branch types: `pipe/<desc>` for topology pipeline code-side fixes (Stage 0 TDA/Reproducibility infrastructure), `run/<desc>` for computational Tasks (Stage 1, Stage 4 numerical work), `paper/<desc>` for prose Tasks (Stage 2, Stage 4 prose), `repo/<desc>` for repo-extraction Tasks (Stage 3, Stage 4.10). Branch names describe the work, not Task IDs.
+- Commit messages use the `[PREFIX] PXX: <description>` pattern with `PREFIX ∈ {RESULT, DECISION, NEGATIVE, PIPELINE, DATA, EXPLORE}` per the vault-action mapping in "Commit Message Conventions" above. Workers append the Co-Authored-By trailer per Claude Code defaults. Never use `--no-verify` — pre-commit hooks (Ruff lint/format) must run.
+- Workers commit on their own feature branches and do not merge. The Manager performs all merges to `main` after Task Review per the APM merge protocol.
+- Parallel dispatch uses worktrees under `.apm/worktrees/` (concurrency cap 3–4); the main working directory remains on `main` for merge operations. With User-confirmed multi-terminal compute, parallel TDA + Panel-Statistics dispatch in Stage 1 is the expected pattern.
+- `.apm/` git-tracking policy is Option B: planning artefacts (`plan.md`, `spec.md`, `tracker.md`, `memory/index.md`, `metadata.json`) are tracked; runtime artefacts (`bus/`, Worker Task Logs in `memory/stage-NN/`, `worktrees/`) are gitignored to keep `main` free of coordination churn.
+
 ## Code exploration
 
 See "Code Exploration Policy" and "Session-Aware Routing" above, and `.claude/CLAUDE.md` § "vexp" — `jcodemunch-mcp` and `vexp` tools (especially `run_pipeline` and `get_skeleton`) are mandatory for code navigation, with `Read` reserved for files about to be edited. Do not fall back to `Grep`, `Glob`, or `Bash` for code search.
