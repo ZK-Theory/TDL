@@ -274,6 +274,24 @@ def _stratified_markov_shuffle(
     if markov_order != 1:
         raise ValueError("Stratified Markov null only supports order 1")
 
+    # Guard against the two most common collapse causes:
+    # 1. regime_labels passed as a scalar (k_optimal int) instead of a label array.
+    # 2. regime_labels length not aligned with trajectories (index-reset mismatch).
+    regime_labels = np.asarray(regime_labels)
+    if regime_labels.ndim != 1:
+        raise ValueError(
+            f"regime_labels must be a 1-D array of per-trajectory integers, "
+            f"got shape {regime_labels.shape}. "
+            "Pass gmm_labels from 05_analysis.json, not the cluster count k."
+        )
+    if len(regime_labels) != len(trajectories):
+        raise ValueError(
+            f"regime_labels length ({len(regime_labels)}) does not match "
+            f"trajectories length ({len(trajectories)}). "
+            "Ensure the label array is row-aligned with the trajectory list "
+            "(no index resets between embedding and null steps)."
+        )
+
     state_to_idx = {s: i for i, s in enumerate(STATES)}
     n_states = len(STATES)
     n_traj = len(trajectories)
