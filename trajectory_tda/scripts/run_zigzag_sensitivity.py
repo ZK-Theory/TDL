@@ -59,6 +59,96 @@ def _convert(obj: object) -> object:
 
 
 # ---------------------------------------------------------------------------
+# Per-year β₀ knee detection
+# ---------------------------------------------------------------------------
+
+_KNEE_DECREASE_THRESHOLD: float = 0.05
+
+
+def detect_eps_star_knee(
+    values: NDArray[np.float64],
+    epsilon_grid: NDArray[np.float64],
+    decrease_threshold: float,
+    degeneracy_threshold: float = 0.1,
+) -> tuple[float, bool]:
+    """Detect the ε* knee for a single year's β₀(ε) curve.
+
+    Locates the filtration threshold ε at which the Betti-0 curve β₀(ε)
+    has maximum Menger curvature, restricted to the structural descent
+    region where ``β₀ > decrease_threshold × max(β₀)``.  This excludes
+    the flat tail at large ε where curvature arises from numerical noise
+    rather than topological structure.
+
+    **Empirical results — BHPS/USoc (1991–2022):**
+
+    Applying this function with ``decrease_threshold = 0.05`` to each of
+    the 32 per-year H₀ diagrams from the full BHPS/USoc trajectory
+    dataset (n = 27,280 trajectories, ε grid 0.05–2.00 step 0.01) gives:
+
+    - Median knee ε* = 0.54  (``knee_analysis.json``, all 32 years)
+    - 4 degenerate years (2003, 2005, 2011, 2019) return ``eps_grid[0]``
+    - Q25 = 0.46, Q75 = 0.63, range [0.05, 0.83]
+
+    The value ε = 0.70 appearing elsewhere in the codebase is the
+    threshold used in the *original* main zigzag run (predating this
+    sensitivity analysis); it is not the median from this dataset.  See
+    ``run_zigzag_sensitivity.py`` line 466 comment ``# original H1 run``.
+
+    The ``decrease_threshold = 0.05`` structural floor is equivalent to
+    the original hard-coded ``curve > 5`` guard when per-year max β₀
+    ≈ 100.  For years with max β₀ in [80, 200], the effective floor
+    ranges from 4 to 10.
+
+    Args:
+        values: β₀(ε) curve for a single year, shape ``(n_eps,)``.
+            Must align element-wise with ``epsilon_grid``.
+        epsilon_grid: Sorted filtration thresholds, shape ``(n_eps,)``.
+        decrease_threshold: Fraction of ``max(β₀)`` used as the
+            structural floor.  Only ε where
+            ``β₀ > decrease_threshold × max(β₀)`` qualify as knee
+            candidates.  A year whose total variation
+            ``max(β₀) − min(β₀) < decrease_threshold × max(β₀)``
+            is flagged as degenerate.
+        degeneracy_threshold: Normalised β₀ below which the detected
+            knee is considered to lie in the flat tail rather than the
+            active descent.  If ``y_n[knee] < degeneracy_threshold``
+            the year is flagged degenerate.  Default 0.1.
+
+    Returns:
+        ``(knee_eps, is_degenerate)``:
+
+        - ``knee_eps``: Filtration threshold at maximum curvature.
+        - ``is_degenerate``: ``True`` if the knee is unreliable.
+    """
+    curve = np.asarray(values, dtype=np.float64)
+    eps_arr = np.asarray(epsilon_grid, dtype=np.float64)
+
+    x_norm = (eps_arr - eps_arr.min()) / (eps_arr.max() - eps_arr.min())
+    y_range = float(curve.max() - curve.min())
+
+    # Degenerate: curve doesn't vary meaningfully relative to its scale
+    if y_range < decrease_threshold * float(curve.max()):
+        return float(eps_arr[0]), True
+
+    y_n = (curve - curve.min()) / y_range
+    dy = np.gradient(y_n, x_norm)
+    d2y = np.gradient(dy, x_norm)
+    curvature = np.abs(d2y) / (1 + dy**2) ** 1.5
+
+    # Descent region: β₀ above the structural floor
+    descent_mask = curve > decrease_threshold * float(curve.max())
+    if descent_mask.any():
+        valid_idx = np.where(descent_mask)[0]
+        knee_idx = int(valid_idx[np.argmax(curvature[valid_idx])])
+    else:
+        knee_idx = int(np.argmax(curvature))
+
+    # Flag if knee found in flat tail (low normalised β₀)
+    is_degenerate = bool(y_n[knee_idx] < degeneracy_threshold)
+    return float(eps_arr[knee_idx]), is_degenerate
+
+
+# ---------------------------------------------------------------------------
 # Knee detection from per-year VR diagrams
 # ---------------------------------------------------------------------------
 
@@ -69,9 +159,10 @@ def compute_per_year_knee(
 ) -> dict:
     """Derive data-driven ε from per-year H₀ persistence diagrams.
 
-    For each year, computes β₀(ε) and locates the knee via maximum
-    curvature in the descent region (β₀ > 5).  Returns summary
-    statistics across all years plus per-year detail.
+    For each year, computes β₀(ε) and locates the knee via
+    :func:`detect_eps_star_knee` (maximum Menger curvature restricted to
+    the structural descent region).  Returns summary statistics across
+    all years plus per-year detail.
 
     Args:
         per_year_diagrams_path: Path to ``02_annual_diagrams.json``.
@@ -80,7 +171,7 @@ def compute_per_year_knee(
 
     Returns:
         Dict with ``median_knee_eps``, ``per_year_knees``,
-        ``beta0_summary``, and ``knee_diagnostics``.
+        ``degenerate_years``, ``beta0_at_eps``, and related statistics.
     """
     with open(per_year_diagrams_path) as f:
         data = json.load(f)
@@ -94,8 +185,7 @@ def compute_per_year_knee(
     beta0_matrix = np.zeros((len(years), len(eps_grid)))
     year_knees: dict[str, float] = {}
     max_h0_deaths: dict[str, float] = {}
-
-    x_norm = (eps_grid - eps_grid.min()) / (eps_grid.max() - eps_grid.min())
+    degenerate_years: list[str] = []
 
     for i, yr in enumerate(years):
         h0 = np.array(data["diagrams"][yr]["diagram_h0"])
@@ -109,26 +199,12 @@ def compute_per_year_knee(
             alive = np.sum((births <= eps) & ((deaths > eps) | np.isinf(deaths)))
             beta0_matrix[i, j] = alive
 
-        # Knee via maximum curvature in descent region
-        curve = beta0_matrix[i].astype(np.float64)
-        y_range = curve.max() - curve.min()
-        if y_range < 1e-12:
-            year_knees[yr] = float(eps_grid[0])
-            continue
-
-        y_n = (curve - curve.min()) / y_range
-        dy = np.gradient(y_n, x_norm)
-        d2y = np.gradient(dy, x_norm)
-        curvature = np.abs(d2y) / (1 + dy**2) ** 1.5
-
-        descent_mask = curve > 5
-        if descent_mask.any():
-            valid_idx = np.where(descent_mask)[0]
-            knee_idx = valid_idx[np.argmax(curvature[valid_idx])]
-        else:
-            knee_idx = int(np.argmax(curvature))
-
-        year_knees[yr] = float(eps_grid[knee_idx])
+        knee_eps, is_deg = detect_eps_star_knee(
+            beta0_matrix[i], eps_grid, _KNEE_DECREASE_THRESHOLD
+        )
+        year_knees[yr] = knee_eps
+        if is_deg:
+            degenerate_years.append(yr)
 
     # Aggregate
     knee_values = np.array(list(year_knees.values()))
@@ -153,6 +229,7 @@ def compute_per_year_knee(
         "min_knee_eps": float(knee_values.min()),
         "max_knee_eps": float(knee_values.max()),
         "per_year_knees": year_knees,
+        "degenerate_years": degenerate_years,
         "max_h0_deaths": max_h0_deaths,
         "beta0_at_eps": beta0_at_eps,
         "n_landmarks_per_year": data.get("n_landmarks", "unknown"),
