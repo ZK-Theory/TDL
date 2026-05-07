@@ -116,12 +116,26 @@ def _markov_shuffle(
     rng: np.random.RandomState,
     markov_order: int = 1,
     embed_kwargs: dict | None = None,
+    alpha: float = 1.0,
 ) -> np.ndarray:
     """Generate synthetic trajectories from fitted Markov chain, then embed.
 
     Estimates the transition matrix (or higher-order) from all trajectories,
     then generates synthetic trajectories of the same lengths. Tests whether
     observed topology exceeds what a memoryless process produces.
+
+    For Markov-2, conditional probabilities are smoothed with Laplace smoothing:
+    P(s_t | s_{t-2}, s_{t-1}) = (count(s_{t-2}, s_{t-1}, s_t) + alpha) /
+                                  (sum_s count(s_{t-2}, s_{t-1}, s) + alpha * n_states)
+    Unobserved bigrams receive uniform probability (alpha / alpha * n_states = 1/n_states).
+
+    Args:
+        trajectories: Raw state sequences.
+        rng: Random state for reproducibility.
+        markov_order: Markov chain order (1 or 2).
+        embed_kwargs: Kwargs passed to ngram_embed.
+        alpha: Laplace smoothing parameter for Markov-2 conditional probabilities.
+            Default 1 (add-one smoothing). Use alpha=0 to recover raw MLE.
     """
     state_to_idx = {s: i for i, s in enumerate(STATES)}
     n_states = len(STATES)
@@ -187,29 +201,17 @@ def _markov_shuffle(
                         bigram_counts[key] = np.zeros(n_states)
                     bigram_counts[key][k] += 1
 
-        # Normalise
+        # Laplace-smoothed conditional probabilities for all observed bigrams.
+        # Unobserved bigrams fall through to uniform (alpha / alpha*n_states).
         bigram_probs = {}
         for key, counts in bigram_counts.items():
             total = counts.sum()
-            if total > 0:
-                bigram_probs[key] = counts / total
-            else:
-                bigram_probs[key] = np.ones(n_states) / n_states
+            bigram_probs[key] = (counts + alpha) / (total + alpha * n_states)
 
         init_sum = initial_counts.sum()
         initial_probs = initial_counts / init_sum if init_sum > 0 else np.ones(n_states) / n_states
 
-        # First-order fallback for unseen bigrams
-        tm_fallback = np.zeros((n_states, n_states), dtype=np.float64)
-        for traj in trajectories:
-            for t in range(len(traj) - 1):
-                i = state_to_idx.get(traj[t])
-                j = state_to_idx.get(traj[t + 1])
-                if i is not None and j is not None:
-                    tm_fallback[i, j] += 1
-        row_sums = tm_fallback.sum(axis=1, keepdims=True)
-        row_sums[row_sums == 0] = 1
-        tm_fallback /= row_sums
+        uniform_fallback = np.ones(n_states) / n_states
 
         synthetic = []
         for traj in trajectories:
@@ -218,14 +220,12 @@ def _markov_shuffle(
             prev = rng.choice(n_states, p=initial_probs)
             synth.append(STATES[prev])
             if length > 1:
-                current = rng.choice(n_states, p=tm_fallback[prev])
+                current = rng.choice(n_states, p=uniform_fallback)
                 synth.append(STATES[current])
                 for _ in range(length - 2):
                     key = (prev, current)
-                    if key in bigram_probs:
-                        nxt = rng.choice(n_states, p=bigram_probs[key])
-                    else:
-                        nxt = rng.choice(n_states, p=tm_fallback[current])
+                    probs = bigram_probs.get(key, uniform_fallback)
+                    nxt = rng.choice(n_states, p=probs)
                     synth.append(STATES[nxt])
                     prev = current
                     current = nxt
