@@ -4,7 +4,11 @@
 
 library(jsonlite)
 
-DATA_ROOT <- "c:/Users/steph/TDL/data/UKDA-6614-tab/tab"
+DATA_ROOT <- Sys.getenv("TDL_DATA_ROOT", "")
+if (!nzchar(DATA_ROOT)) {
+  script_dir <- if (!is.null(sys.frame(1)$ofile)) dirname(normalizePath(sys.frame(1)$ofile)) else normalizePath(".")
+  DATA_ROOT <- normalizePath(file.path(script_dir, "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
+}
 TODAY <- format(Sys.Date(), "%Y-%m-%d")
 
 # ---- Helper: read jbstat from a single indresp.tab file ----
@@ -15,19 +19,25 @@ read_jbstat <- function(filepath, wave) {
   header <- trimws(header)
   target_col <- paste0(wave, "_jbstat")
   col_idx <- which(header == target_col)
-  if (length(col_idx) == 0) return(NULL)
+  if (length(col_idx) == 0) {
+    return(NULL)
+  }
 
   # Build colClasses: only read jbstat column
   col_classes <- rep("NULL", length(header))
   col_classes[col_idx] <- "integer"
 
   df <- tryCatch(
-    read.delim(filepath, header = TRUE, sep = "\t",
-               colClasses = col_classes, stringsAsFactors = FALSE,
-               quote = "", fill = TRUE, na.strings = ""),
+    read.delim(filepath,
+      header = TRUE, sep = "\t",
+      colClasses = col_classes, stringsAsFactors = FALSE,
+      quote = "", fill = TRUE, na.strings = ""
+    ),
     error = function(e) NULL
   )
-  if (is.null(df)) return(NULL)
+  if (is.null(df)) {
+    return(NULL)
+  }
   df[[1]]
 }
 
@@ -49,14 +59,16 @@ read_jbstat <- function(filepath, wave) {
 # Negative codes: missing/inapplicable
 
 assign_bin <- function(code) {
-  employed  <- c(1L, 2L, 5L)     # Self-emp, employed, mat/pat leave
-  unemployed <- c(3L, 9L)        # ILO unemployed, govt training
-  inactive  <- c(4L, 6L, 7L, 8L, 10L, 11L, 97L)
+  employed <- c(1L, 2L, 5L) # Self-emp, employed, mat/pat leave
+  unemployed <- c(3L, 9L) # ILO unemployed, govt training
+  inactive <- c(4L, 6L, 7L, 8L, 10L, 11L, 97L)
   dplyr_like <- function(x, choices) x %in% choices
 
-  ifelse(code %in% employed,   "E",
-  ifelse(code %in% unemployed, "U",
-  ifelse(code %in% inactive,   "I", NA_character_)))
+  ifelse(code %in% employed, "E",
+    ifelse(code %in% unemployed, "U",
+      ifelse(code %in% inactive, "I", NA_character_)
+    )
+  )
 }
 
 # ---- Process all waves ----
@@ -67,17 +79,21 @@ bhps_waves <- paste0("b", letters[1:18])
 for (w in bhps_waves) {
   fname <- file.path(DATA_ROOT, "bhps", paste0(w, "_indresp.tab"))
   if (!file.exists(fname)) {
-    results[[w]] <- list(wave = w, survey = "BHPS", n = 0, codes = NULL,
-                         note = "file not found")
+    results[[w]] <- list(
+      wave = w, survey = "BHPS", n = 0, codes = NULL,
+      note = "file not found"
+    )
     next
   }
   vals <- read_jbstat(fname, w)
   if (is.null(vals)) {
-    results[[w]] <- list(wave = w, survey = "BHPS", n = NA, codes = NULL,
-                         note = "jbstat not found in file")
+    results[[w]] <- list(
+      wave = w, survey = "BHPS", n = NA, codes = NULL,
+      note = "jbstat not found in file"
+    )
     next
   }
-  pos_vals <- vals[vals > 0]  # exclude missing/inapplicable
+  pos_vals <- vals[vals > 0] # exclude missing/inapplicable
   tab <- sort(table(pos_vals), decreasing = TRUE)
   code_vec <- as.integer(names(tab))
   results[[w]] <- list(
@@ -98,14 +114,18 @@ ukhls_waves <- letters[1:15]
 for (w in ukhls_waves) {
   fname <- file.path(DATA_ROOT, "ukhls", paste0(w, "_indresp.tab"))
   if (!file.exists(fname)) {
-    results[[w]] <- list(wave = w, survey = "UKHLS", n = 0, codes = NULL,
-                         note = "file not found")
+    results[[w]] <- list(
+      wave = w, survey = "UKHLS", n = 0, codes = NULL,
+      note = "file not found"
+    )
     next
   }
   vals <- read_jbstat(fname, w)
   if (is.null(vals)) {
-    results[[w]] <- list(wave = w, survey = "UKHLS", n = NA, codes = NULL,
-                         note = "jbstat not found in file")
+    results[[w]] <- list(
+      wave = w, survey = "UKHLS", n = NA, codes = NULL,
+      note = "jbstat not found in file"
+    )
     next
   }
   pos_vals <- vals[vals > 0]
@@ -126,7 +146,9 @@ for (w in ukhls_waves) {
 # ---- Build per-wave coding map ----
 wave_summaries <- lapply(names(results), function(w) {
   r <- results[[w]]
-  if (is.null(r$unique_pos) || length(r$unique_pos) == 0) return(r)
+  if (is.null(r$unique_pos) || length(r$unique_pos) == 0) {
+    return(r)
+  }
 
   # Map each observed positive code to E/U/I bin
   bins <- setNames(assign_bin(r$unique_pos), as.character(r$unique_pos))
@@ -158,8 +180,10 @@ for (w in names(wave_summaries)) {
   if (is.null(r$unique_pos)) next
   unexpected <- setdiff(r$unique_pos, expected_positive_codes)
   if (length(unexpected) > 0) {
-    inconsistencies[[w]] <- paste0("Wave ", w, ": unexpected jbstat codes: ",
-                                   paste(unexpected, collapse = ", "))
+    inconsistencies[[w]] <- paste0(
+      "Wave ", w, ": unexpected jbstat codes: ",
+      paste(unexpected, collapse = ", ")
+    )
   }
 }
 
@@ -173,15 +197,15 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 out_json <- file.path(out_dir, paste0("jbstat_coding_", TODAY, ".json"))
 
 output_list <- list(
-  audit_date         = TODAY,
-  waves_processed    = names(wave_summaries),
-  wave_details       = wave_summaries,
-  code10_waves       = code10_waves,
-  code11_waves       = code11_waves,
-  unexpected_codes   = inconsistencies,
-  e_codes_standard   = c(1L, 2L, 5L),
-  u_codes_standard   = c(3L, 9L),
-  i_codes_standard   = c(4L, 6L, 7L, 8L, 10L, 11L, 97L),
+  audit_date = TODAY,
+  waves_processed = names(wave_summaries),
+  wave_details = wave_summaries,
+  code10_waves = code10_waves,
+  code11_waves = code11_waves,
+  unexpected_codes = inconsistencies,
+  e_codes_standard = c(1L, 2L, 5L),
+  u_codes_standard = c(3L, 9L),
+  i_codes_standard = c(4L, 6L, 7L, 8L, 10L, 11L, 97L),
   notes = paste0(
     "Code 10 (unpaid voluntary work) and code 11 (waiting to take up a job) ",
     "appear in UKHLS only. The harmonised BHPS user guide example code recodes ",
@@ -194,8 +218,10 @@ cat("JSON written to:", out_json, "\n")
 
 # ---- Print summary table ----
 cat("\n=== Per-Wave jbstat Coding Summary ===\n")
-cat(sprintf("%-8s %-20s %-12s %-12s %-12s %-6s %-6s\n",
-            "Wave", "Survey", "N_valid", "E_codes", "U_codes", "c10", "c11"))
+cat(sprintf(
+  "%-8s %-20s %-12s %-12s %-12s %-6s %-6s\n",
+  "Wave", "Survey", "N_valid", "E_codes", "U_codes", "c10", "c11"
+))
 cat(paste(rep("-", 80), collapse = ""), "\n")
 for (w in names(wave_summaries)) {
   r <- wave_summaries[[w]]
@@ -203,7 +229,8 @@ for (w in names(wave_summaries)) {
     cat(sprintf("%-8s %-20s %-12s\n", w, r$survey, r$note))
     next
   }
-  cat(sprintf("%-8s %-20s %-12d %-12s %-12s %-6s %-6s\n",
+  cat(sprintf(
+    "%-8s %-20s %-12d %-12s %-12s %-6s %-6s\n",
     w,
     r$survey,
     r$n_valid,

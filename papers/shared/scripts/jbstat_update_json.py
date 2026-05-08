@@ -1,12 +1,14 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Update jbstat coding JSON with document-verified labels and corrected bins
-import json, os
+import json
+import os
 from datetime import date
+from pathlib import Path
 
 TODAY = date.today().isoformat()
-out_dir = r"C:\Users\steph\TDL\results\panel_methodology\harmonisation"
-os.makedirs(out_dir, exist_ok=True)
-out_path = os.path.join(out_dir, f"jbstat_coding_{TODAY}.json")
+out_dir = Path(os.getenv("OUT_DIR", Path(__file__).resolve().parents[3] / "results" / "panel_methodology" / "harmonisation"))
+out_dir.mkdir(parents = True, exist_ok = True)
+out_path = out_dir / f"jbstat_coding_{TODAY}.json"
 
 # Document-verified labels from UKDA wave-level RTF data dictionaries
 # Source: ukda_data_dictionaries/ukhls/{wave}_indresp_ukda_data_dictionary.rtf
@@ -105,6 +107,6 @@ output = {
     ),
 }
 
-with open(out_path, "w") as f:
+with open(out_path, "w", encoding="utf-8") as f:
     json.dump(output, f, indent=2)
 print(f"Written: {out_path}")

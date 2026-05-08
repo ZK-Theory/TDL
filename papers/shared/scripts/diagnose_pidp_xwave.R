@@ -2,17 +2,48 @@
 # Purpose: Check BHPS br pidp against xwavedat (all UKHLS waves) to confirm
 # pidp crosswalk works, then find earliest UKHLS wave for each spanning individual.
 
-DATA_ROOT <- "c:/Users/steph/TDL/data/UKDA-6614-tab/tab"
+get_script_dir <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    return(dirname(normalizePath(sub("^--file=", "", file_arg[1]))))
+  }
+  if (!is.null(sys.frame(1)$ofile)) {
+    return(dirname(normalizePath(sys.frame(1)$ofile)))
+  }
+  return(normalizePath("."))
+}
+
+DATA_ROOT <- Sys.getenv("TDL_DATA_ROOT", unset = "")
+if (!nzchar(DATA_ROOT)) {
+  DATA_ROOT <- normalizePath(file.path(get_script_dir(), "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
+}
 
 read_cols_char <- function(fpath, cols) {
+  if (!file.exists(fpath)) {
+    stop(sprintf("Required file not found: %s", fpath))
+  }
   header <- trimws(strsplit(readLines(fpath, n = 1), "\t")[[1]])
+  missing_cols <- cols[!cols %in% header]
+  if (length(missing_cols) > 0) {
+    stop(sprintf("missing column(s) in %s: %s", basename(fpath), paste(missing_cols, collapse = ", ")))
+  }
+  for (col in cols) {
+    if (sum(header == col) > 1) {
+      warning(sprintf("duplicate column name: %s; using first occurrence", col))
+    }
+  }
   idx <- match(cols, header)
-  ok  <- !is.na(idx)
   col_classes <- rep("NULL", length(header))
-  col_classes[idx[ok]] <- "character"
-  df <- read.delim(fpath, header = TRUE, sep = "\t",
-                   colClasses = col_classes, stringsAsFactors = FALSE,
-                   quote = "", fill = TRUE, na.strings = "")
+  col_classes[idx] <- "character"
+  df <- tryCatch(
+    read.delim(fpath,
+      header = TRUE, sep = "\t",
+      colClasses = col_classes, stringsAsFactors = FALSE,
+      quote = "", fill = TRUE, na.strings = ""
+    ),
+    error = function(e) stop(sprintf("Failed to read %s: %s", fpath, e$message))
+  )
   for (col in names(df)) df[[col]] <- trimws(df[[col]])
   df
 }
@@ -39,12 +70,15 @@ cat("\nBHPS br ∩ xwavedat (any UKHLS wave):", length(overlap_xwave), "\n")
 
 # ---- 4. Check across individual UKHLS waves ----
 cat("\nChecking BHPS br pidp against each UKHLS wave a_indresp – o_indresp:\n")
-ukhls_waves <- c("a","b","c","d","e","f","g","h","i","j","k","l","m","n","o")
+ukhls_waves <- c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o")
 wave_counts <- integer(length(ukhls_waves))
 names(wave_counts) <- ukhls_waves
 for (w in ukhls_waves) {
   fpath <- file.path(DATA_ROOT, "ukhls", paste0(w, "_indresp.tab"))
-  if (!file.exists(fpath)) { wave_counts[w] <- NA; next }
+  if (!file.exists(fpath)) {
+    wave_counts[w] <- NA
+    next
+  }
   dat <- read_cols_char(fpath, "pidp")
   wave_pidp <- unique(dat$pidp[nchar(dat$pidp) > 0])
   wave_counts[w] <- length(intersect(bhps_pidp, wave_pidp))

@@ -1,8 +1,14 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Identify harmonised household income variables in UKHLS/BHPS data dictionaries
-import re, os
+import os
+import re
+from pathlib import Path
 
-DICT_ROOT = r"C:\Users\steph\TDL\data\UKDA-6614-tab\mrdoc\ukda_data_dictionaries"
+DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
+if not DICT_ROOT:
+    DICT_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
+else:
+    DICT_ROOT = Path(DICT_ROOT)
 
 def strip_rtf(raw):
     text = raw.decode("latin-1", errors="replace")
@@ -18,8 +24,8 @@ def find_vars(text, keywords):
 
 # Check hhresp files (household-level derived income)
 for wave, survey in [("a", "ukhls"), ("br", "bhps")]:
-    fpath = os.path.join(DICT_ROOT, survey, f"{wave}_hhresp_ukda_data_dictionary.rtf")
-    if not os.path.exists(fpath):
+    fpath = DICT_ROOT / survey / f"{wave}_hhresp_ukda_data_dictionary.rtf"
+    if not fpath.exists():
         print(f"{survey}/{wave}_hhresp: NOT FOUND")
         continue
     with open(fpath, "rb") as f:
@@ -31,8 +37,8 @@ for wave, survey in [("a", "ukhls"), ("br", "bhps")]:
         print(f"  {name}: {label[:100]}")
 
 # Also check if there's a specific harmonised income variable via xwavedat
-fpath = os.path.join(DICT_ROOT, "ukhls", "xwavedat_ukda_data_dictionary.rtf")
-if os.path.exists(fpath):
+fpath = DICT_ROOT / "ukhls" / "xwavedat_ukda_data_dictionary.rtf"
+if fpath.exists():
     with open(fpath, "rb") as f:
         raw = f.read()
     text = strip_rtf(raw)
@@ -45,8 +51,8 @@ if os.path.exists(fpath):
 print("\n\n=== Searching for fihhmn / fihhmnnet3_dv specifically ===")
 for wave, survey in [("br", "bhps"), ("a", "ukhls")]:
     for ftype in ["hhresp", "indresp"]:
-        fpath = os.path.join(DICT_ROOT, survey, f"{wave}_{ftype}_ukda_data_dictionary.rtf")
-        if not os.path.exists(fpath):
+        fpath = DICT_ROOT / survey / f"{wave}_{ftype}_ukda_data_dictionary.rtf"
+        if not fpath.exists():
             continue
         with open(fpath, "rb") as f:
             raw = f.read()

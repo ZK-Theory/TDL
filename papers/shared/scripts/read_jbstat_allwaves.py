@@ -1,18 +1,32 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Extract jbstat value labels from all UKHLS wave RTF data dictionaries
-import re, os
+import os
+import re
+from pathlib import Path
 
-DICT_ROOT = r"C:\Users\steph\TDL\data\UKDA-6614-tab\mrdoc\ukda_data_dictionaries"
+DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
+if not DICT_ROOT:
+    DICT_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
+else:
+    DICT_ROOT = Path(DICT_ROOT)
 
-def strip_rtf(rtf_bytes):
+def strip_rtf(rtf_bytes: bytes) -> str:
     text = rtf_bytes.decode("latin-1", errors="replace")
     text = re.sub(r"\\[a-z]+\d*\s?", " ", text)
     text = re.sub(r"[{}]", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text
 
-def extract_jbstat_labels(text, wave):
-    """Extract value labels for jbstat from stripped RTF text."""
+def extract_jbstat_labels(text: str, wave: str) -> dict[int, str]:
+    """Extract jbstat value labels from stripped RTF text.
+
+    Args:
+        text: Plain text obtained by stripping RTF control codes.
+        wave: UKHLS wave prefix (a-o) used in the variable name.
+
+    Returns:
+        Mapping from numeric jbstat code to its label.
+    """
     var_name = f"Variable = {wave}_jbstat "
     idx = text.find(var_name)
     if idx == -1:
@@ -30,8 +44,8 @@ waves = list("abcdefghijklmno")
 
 print("=== jbstat positive-code labels by wave ===\n")
 for wave in waves:
-    fpath = os.path.join(DICT_ROOT, "ukhls", f"{wave}_indresp_ukda_data_dictionary.rtf")
-    if not os.path.exists(fpath):
+    fpath = DICT_ROOT / "ukhls" / f"{wave}_indresp_ukda_data_dictionary.rtf"
+    if not fpath.exists():
         print(f"Wave {wave}: file not found")
         continue
     with open(fpath, "rb") as f:

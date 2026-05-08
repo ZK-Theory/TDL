@@ -1,20 +1,31 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Find equivalised / net income vars across BHPS and UKHLS
+import os
 import re
+from pathlib import Path
+from typing import List
 
-DATA_ROOT = r"C:\Users\steph\TDL\data\UKDA-6614-tab\tab"
+DATA_ROOT = os.getenv("DATA_ROOT", "")
+if not DATA_ROOT:
+    DATA_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "tab"
+else:
+    DATA_ROOT = Path(DATA_ROOT)
 
-def get_header(fname):
+def get_header(fname: Path) -> List[str]:
+    """Read the first line of a tab-delimited file and return stripped header fields."""
     with open(fname, "r", encoding="latin-1") as f:
         return [h.strip() for h in f.readline().strip().split("\t")]
 
 # Look for equivalised income in UKHLS hhresp
 print("=== UKHLS hhresp: equivalised + net income vars ===")
 for wave in ["a", "b", "k"]:
-    fname = f"{DATA_ROOT}/ukhls/{wave}_hhresp.tab"
+    fname = DATA_ROOT / "ukhls" / f"{wave}_hhresp.tab"
     try:
         header = get_header(fname)
-        hits = [h for h in header if "equ" in h.lower() or ("net" in h.lower() and "dv" in h.lower())]
+        hits = [
+            h for h in header
+            if "equ" in h.lower() or ("net" in h.lower() and "dv" in h.lower())
+        ]
         if hits:
             print(f"  Wave {wave}: {hits}")
         else:
@@ -25,9 +36,14 @@ for wave in ["a", "b", "k"]:
         print(f"  Wave {wave}: not found")
 
 # Check the UKDA data dictionary for exact fihhmnnet1_dv description
-DICT_ROOT = r"C:\Users\steph\TDL\data\UKDA-6614-tab\mrdoc\ukda_data_dictionaries"
+DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
+if not DICT_ROOT:
+    DICT_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
+else:
+    DICT_ROOT = Path(DICT_ROOT)
 
-def strip_rtf(raw):
+def strip_rtf(raw: bytes) -> str:
+    """Convert RTF bytes to plain text by stripping control words and braces."""
     text = raw.decode("latin-1", errors="replace")
     text = re.sub(r"\\[a-z]+\d*\s?", " ", text)
     text = re.sub(r"[{}]", " ", text)
@@ -35,7 +51,7 @@ def strip_rtf(raw):
     return text
 
 # Get full description of the main net income variable from UKHLS wave a
-fpath = f"{DICT_ROOT}/ukhls/a_hhresp_ukda_data_dictionary.rtf"
+fpath = DICT_ROOT / "ukhls" / "a_hhresp_ukda_data_dictionary.rtf"
 with open(fpath, "rb") as f:
     raw = f.read()
 text = strip_rtf(raw)
@@ -47,7 +63,7 @@ if idx >= 0:
     print(text[idx:idx+500])
 
 # Find fihhmngrs_dv full description for BHPS
-fpath = f"{DICT_ROOT}/bhps/br_hhresp_ukda_data_dictionary.rtf"
+fpath = DICT_ROOT / "bhps" / "br_hhresp_ukda_data_dictionary.rtf"
 with open(fpath, "rb") as f:
     raw = f.read()
 text = strip_rtf(raw)
@@ -64,7 +80,7 @@ if idx >= 0:
 
 # Check what "hhneti" is
 for wave in ["bq", "br"]:
-    fname = f"{DATA_ROOT}/bhps/{wave}_hhresp.tab"
+    fname = DATA_ROOT / "bhps" / f"{wave}_hhresp.tab"
     header = get_header(fname)
     net_vars = [h for h in header if "hhnet" in h.lower()]
     print(f"\nBHPS {wave} hhnet vars: {net_vars}")

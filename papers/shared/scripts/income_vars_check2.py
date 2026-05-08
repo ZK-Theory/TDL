@@ -1,10 +1,25 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Check actual hhresp column headers for income variables
-import re
+import os
+from pathlib import Path
+from typing import List, Sequence
 
-DATA_ROOT = r"C:\Users\steph\TDL\data\UKDA-6614-tab\tab"
+DATA_ROOT = os.getenv("DATA_ROOT", "")
+if not DATA_ROOT:
+    DATA_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "tab"
+else:
+    DATA_ROOT = Path(DATA_ROOT)
 
-def get_matching_cols(fname, keywords):
+def get_matching_cols(fname: Path, keywords: Sequence[str]) -> List[str]:
+    """Return header columns matching any keyword in the given file.
+
+    Args:
+        fname: Path to a tab-delimited file.
+        keywords: Sequence of keyword substrings to search for.
+
+    Returns:
+        List of matching header strings.
+    """
     with open(fname, "r", encoding="latin-1") as f:
         header = f.readline().strip().split("\t")
     header = [h.strip() for h in header]
@@ -14,7 +29,7 @@ keywords = ["fihhm", "fihhn", "net3", "hhnet", "fihhynl", "equi"]
 
 # UKHLS waves a and k
 for wave in ["a", "k"]:
-    fname = f"{DATA_ROOT}/ukhls/{wave}_hhresp.tab"
+    fname = DATA_ROOT / "ukhls" / f"{wave}_hhresp.tab"
     try:
         cols = get_matching_cols(fname, keywords)
         print(f"UKHLS {wave} hhresp income cols: {cols}")
@@ -23,7 +38,7 @@ for wave in ["a", "k"]:
 
 # BHPS waves br (last BHPS) and bq
 for wave in ["bq", "br"]:
-    fname = f"{DATA_ROOT}/bhps/{wave}_hhresp.tab"
+    fname = DATA_ROOT / "bhps" / f"{wave}_hhresp.tab"
     try:
         cols = get_matching_cols(fname, keywords)
         print(f"BHPS {wave} hhresp income cols: {cols}")
@@ -31,7 +46,7 @@ for wave in ["bq", "br"]:
         print(f"BHPS {wave} hhresp: not found")
 
 # Also check for fihhmn specifically in BHPS indresp
-fname = f"{DATA_ROOT}/bhps/br_hhresp.tab"
+fname = DATA_ROOT / "bhps" / "br_hhresp.tab"
 try:
     with open(fname, "r", encoding="latin-1") as f:
         header = f.readline().strip().split("\t")
@@ -42,7 +57,7 @@ except Exception as e:
     print(f"Error: {e}")
 
 # Check UKHLS wave a for net3
-fname = f"{DATA_ROOT}/ukhls/a_hhresp.tab"
+fname = DATA_ROOT / "ukhls" / "a_hhresp.tab"
 try:
     with open(fname, "r", encoding="latin-1") as f:
         header = f.readline().strip().split("\t")

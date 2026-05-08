@@ -1,11 +1,41 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Extract jbstat value labels from UKHLS wave k data dictionary RTF
-import zipfile, re
+import re
+import zipfile
+import os
+from pathlib import Path
+from typing import Dict
 
-zip_path = r"C:\Users\steph\TDL\data\UKDA-6614-tab\mrdoc\ukda_data_dictionaries.zip"
+DATA_DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
+if DATA_DICT_ROOT:
+    DATA_DICT_ROOT = Path(DATA_DICT_ROOT)
+else:
+    DATA_DICT_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab"
 
-def strip_rtf(rtf_bytes):
-    """Rough RTF -> plain text for pattern matching."""
+if DATA_DICT_ROOT.is_dir():
+    candidates = [
+        DATA_DICT_ROOT / "ukda_data_dictionaries.zip",
+        DATA_DICT_ROOT.parent / "ukda_data_dictionaries.zip",
+        DATA_DICT_ROOT / "mrdoc" / "ukda_data_dictionaries.zip",
+        DATA_DICT_ROOT.parent / "mrdoc" / "ukda_data_dictionaries.zip",
+        DATA_DICT_ROOT / "ukda_data_dictionaries" / "ukda_data_dictionaries.zip",
+    ]
+    zip_path = next((p for p in candidates if p.exists()), candidates[0])
+else:
+    zip_path = DATA_DICT_ROOT
+
+if not zip_path.exists():
+    raise FileNotFoundError(f"ZIP archive not found: {zip_path}")
+
+def strip_rtf(rtf_bytes: bytes) -> str:
+    """Convert raw RTF bytes to a plain-text string.
+
+    Args:
+        rtf_bytes: Raw bytes read from an RTF file.
+
+    Returns:
+        Plain-text string with RTF control words and braces removed.
+    """
     text = rtf_bytes.decode("latin-1", errors="replace")
     # Remove RTF control words and groups
     text = re.sub(r"\\[a-z]+\d*\s?", " ", text)
@@ -34,12 +64,15 @@ if matches:
 
 # Also search specifically for codes 10-15 in numeric context near jbstat
 print("\n\n=== Searching for value labels 10-15 ===")
-# Look for patterns like "12 " or "12=" near jbstat section
-jbstat_region_start = matches[0][0] if matches else 0
-jbstat_region = text[jbstat_region_start:jbstat_region_start + 5000]
-# Find lines with "12" "13" "14" "15"
-for code in [10, 11, 12, 13, 14, 15]:
-    pattern = rf"\b{code}\b.{{0,80}}"
-    hits = re.findall(pattern, jbstat_region)
-    for h in hits[:3]:
-        print(f"  code {code}: {h.strip()}")
+if matches:
+    # Look for patterns like "12 " or "12=" near jbstat section
+    jbstat_region_start = matches[0][0]
+    jbstat_region = text[jbstat_region_start:jbstat_region_start + 5000]
+    # Find lines with "12" "13" "14" "15"
+    for code in [10, 11, 12, 13, 14, 15]:
+        pattern = rf"\b{code}\b.{{0,80}}"
+        hits = re.findall(pattern, jbstat_region)
+        for h in hits[:3]:
+            print(f"  code {code}: {h.strip()}")
+else:
+    print("No jbstat section found; skipping code-specific search.")

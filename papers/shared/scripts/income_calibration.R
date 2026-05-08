@@ -10,25 +10,62 @@
 
 library(jsonlite)
 
-DATA_ROOT <- "c:/Users/steph/TDL/data/UKDA-6614-tab/tab"
+get_script_dir <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    return(dirname(normalizePath(sub("^--file=", "", file_arg[1]))))
+  }
+  if (!is.null(sys.frame(1)$ofile)) {
+    return(dirname(normalizePath(sys.frame(1)$ofile)))
+  }
+  return(normalizePath("."))
+}
+
+DATA_ROOT <- Sys.getenv("DATA_ROOT", unset = "")
+if (!nzchar(DATA_ROOT)) {
+  DATA_ROOT <- normalizePath(file.path(get_script_dir(), "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
+}
 TODAY <- format(Sys.Date(), "%Y-%m-%d")
 
-read_cols <- function(fpath, cols) {
-  header <- trimws(strsplit(readLines(fpath, n = 1), "\t")[[1]])
-  idx <- match(cols, header)
-  missing <- cols[is.na(idx)]
-  if (length(missing) > 0) {
-    cat("WARNING: missing columns in", basename(fpath), ":", paste(missing, collapse = ", "), "\n")
+check_file <- function(fpath) {
+  if (!file.exists(fpath)) {
+    stop(sprintf("Required file not found: %s", fpath))
   }
-  idx <- idx[!is.na(idx)]
+}
+
+read_cols <- function(fpath, cols) {
+  check_file(fpath)
+  header <- trimws(strsplit(readLines(fpath, n = 1), "\t")[[1]])
+  missing <- cols[!cols %in% header]
+  if (length(missing) > 0) {
+    stop(sprintf("Missing column(s) in %s: %s", basename(fpath), paste(missing, collapse = ", ")))
+  }
   col_classes <- rep("NULL", length(header))
-  col_classes[idx] <- NA  # NA = default (character, then coerce)
-  df <- read.delim(fpath, header = TRUE, sep = "\t",
-                   colClasses = col_classes, stringsAsFactors = FALSE,
-                   quote = "", fill = TRUE, na.strings = "")
-  # Coerce numeric columns
+  for (col in cols) {
+    idx <- match(col, header)
+    if (sum(header == col) > 1) {
+      warning(sprintf("duplicate column name: %s; using first occurrence", col))
+    }
+    col_classes[idx] <- NA # NA = default (character, then coerce)
+  }
+  df <- read.delim(fpath,
+    header = TRUE, sep = "\t",
+    colClasses = col_classes, stringsAsFactors = FALSE,
+    quote = "", fill = TRUE, na.strings = ""
+  )
+  # Coerce numeric columns with explicit NA checks
   for (col in names(df)) {
-    suppressWarnings(df[[col]] <- as.numeric(df[[col]]))
+    temp <- suppressWarnings(as.numeric(df[[col]]))
+    na_before <- sum(is.na(df[[col]]))
+    na_after <- sum(is.na(temp))
+    if (na_after > na_before) {
+      stop(sprintf(
+        "Numeric coercion introduced %d new NAs in column %s of %s",
+        na_after - na_before, col, basename(fpath)
+      ))
+    }
+    df[[col]] <- temp
   }
   df
 }
@@ -61,8 +98,10 @@ cat("  N rows:", nrow(ukhls_ind), "\n")
 
 # ---- 4. Read UKHLS wave b: hidp + income from hhresp ----
 cat("Reading UKHLS b hhresp...\n")
+ukhls_hh_path <- file.path(DATA_ROOT, "ukhls", "b_hhresp.tab")
+check_file(ukhls_hh_path)
 ukhls_hh <- read_cols(
-  file.path(DATA_ROOT, "ukhls", "b_hhresp.tab"),
+  ukhls_hh_path,
   c("b_hidp", "b_fihhmngrs_dv", "b_fihhmnnet1_dv")
 )
 cat("  N rows:", nrow(ukhls_hh), "\n")
@@ -87,7 +126,7 @@ cat("UKHLS b valid income obs:", sum(!is.na(ukhls_merged$ukhls_grs)), "\n")
 bhps_small <- bhps_merged[, c("pidp", "bhps_grs")]
 ukhls_small <- ukhls_merged[, c("pidp", "ukhls_grs", "ukhls_net1"), drop = FALSE]
 spanning <- merge(bhps_small, ukhls_small, by = "pidp")
-cat("\nSpanning individuals (in both br and wave a):", nrow(spanning), "\n")
+cat("\nSpanning individuals (in both br and wave b):", nrow(spanning), "\n")
 
 # Filter to those with valid income in both waves
 spanning_valid <- spanning[!is.na(spanning$bhps_grs) & !is.na(spanning$ukhls_grs), ]
@@ -95,22 +134,24 @@ cat("Spanning with valid income both waves:", nrow(spanning_valid), "\n")
 
 # ---- 8. Tercile concordance ----
 # Compute terciles within each wave's distribution of spanning individuals
-bhps_q <- quantile(spanning_valid$bhps_grs, probs = c(1/3, 2/3), na.rm = TRUE)
-ukhls_q <- quantile(spanning_valid$ukhls_grs, probs = c(1/3, 2/3), na.rm = TRUE)
+bhps_q <- quantile(spanning_valid$bhps_grs, probs = c(1 / 3, 2 / 3), na.rm = TRUE)
+ukhls_q <- quantile(spanning_valid$ukhls_grs, probs = c(1 / 3, 2 / 3), na.rm = TRUE)
 
 cat("\nBHPS gross income tercile cutoffs:", round(bhps_q, 0), "\n")
 cat("UKHLS gross income tercile cutoffs:", round(ukhls_q, 0), "\n")
 
 spanning_valid$bhps_tercile <- cut(spanning_valid$bhps_grs,
-                                    breaks = c(-Inf, bhps_q, Inf),
-                                    labels = c("L", "M", "H"))
+  breaks = c(-Inf, bhps_q, Inf),
+  labels = c("L", "M", "H")
+)
 spanning_valid$ukhls_tercile <- cut(spanning_valid$ukhls_grs,
-                                     breaks = c(-Inf, ukhls_q, Inf),
-                                     labels = c("L", "M", "H"))
+  breaks = c(-Inf, ukhls_q, Inf),
+  labels = c("L", "M", "H")
+)
 
 concordance_exact <- mean(spanning_valid$bhps_tercile == spanning_valid$ukhls_tercile, na.rm = TRUE)
 concordance_adj <- mean(abs(as.integer(spanning_valid$bhps_tercile) -
-                               as.integer(spanning_valid$ukhls_tercile)) <= 1, na.rm = TRUE)
+  as.integer(spanning_valid$ukhls_tercile)) <= 1, na.rm = TRUE)
 
 cat("\nTercile concordance (exact same bin):", round(concordance_exact * 100, 1), "%\n")
 cat("Tercile concordance (within 1 bin):", round(concordance_adj * 100, 1), "%\n")
@@ -118,11 +159,13 @@ cat("Tercile concordance (within 1 bin):", round(concordance_adj * 100, 1), "%\n
 # Cross-tabulation
 cat("\nCross-tabulation BHPS tercile x UKHLS tercile:\n")
 print(table(spanning_valid$bhps_tercile, spanning_valid$ukhls_tercile,
-            dnn = c("BHPS_tercile", "UKHLS_tercile")))
+  dnn = c("BHPS_tercile", "UKHLS_tercile")
+))
 
 # ---- 9. Spearman correlation ----
 spearman_rho <- cor(spanning_valid$bhps_grs, spanning_valid$ukhls_grs,
-                    method = "spearman", use = "complete.obs")
+  method = "spearman", use = "complete.obs"
+)
 cat("\nSpearman rho (gross income):", round(spearman_rho, 4), "\n")
 
 # ---- 10. Mean absolute log-ratio ----
@@ -132,14 +175,17 @@ log_ratio <- log(spanning_valid$ukhls_grs[pos_mask]) - log(spanning_valid$bhps_g
 malr <- mean(abs(log_ratio), na.rm = TRUE)
 med_log_ratio <- median(log_ratio, na.rm = TRUE)
 cat("Mean absolute log-ratio:", round(malr, 4), "\n")
-cat("Median log-ratio (USoc/BHPS):", round(med_log_ratio, 4),
-    " (exp:", round(exp(med_log_ratio), 3), "x)\n")
+cat(
+  "Median log-ratio (USoc/BHPS):", round(med_log_ratio, 4),
+  " (exp:", round(exp(med_log_ratio), 3), "x)\n"
+)
 
 # ---- 11. Net income Spearman (UKHLS net1 vs BHPS gross as proxy) ----
 spanning_net <- spanning[!is.na(spanning$bhps_grs) & !is.na(spanning$ukhls_net1), ]
 if (nrow(spanning_net) > 100) {
   rho_net <- cor(spanning_net$bhps_grs, spanning_net$ukhls_net1,
-                 method = "spearman", use = "complete.obs")
+    method = "spearman", use = "complete.obs"
+  )
   cat("Spearman rho (BHPS br gross vs UKHLS b net1):", round(rho_net, 4), "\n")
 }
 
@@ -152,7 +198,7 @@ cat("Spearman rho:", round(spearman_rho, 4), "\n")
 cat("Mean absolute log-ratio:", round(malr, 4), "\n")
 
 # ---- 13. Save JSON results ----
-out_dir <- "c:/Users/steph/TDL/results/panel_methodology/harmonisation"
+out_dir <- Sys.getenv("RESULTS_DIR", file.path(get_script_dir(), "..", "..", "..", "results", "panel_methodology", "harmonisation"))
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 out_json <- file.path(out_dir, paste0("income_calibration_", TODAY, ".json"))
 
@@ -179,8 +225,9 @@ result <- list(
   median_log_ratio_ukhls_over_bhps = round(med_log_ratio, 4),
   median_income_ratio_ukhls_over_bhps = round(exp(med_log_ratio), 4),
   s12_verdict = ifelse(concordance_exact >= 0.80,
-                       "RESOLVED: concordance >= 80%",
-                       "FLAG: concordance < 80% — requires calibration review")
+    "RESOLVED: concordance >= 80%",
+    "FLAG: concordance < 80% — requires calibration review"
+  )
 )
 
 write(toJSON(result, pretty = TRUE, auto_unbox = TRUE), out_json)

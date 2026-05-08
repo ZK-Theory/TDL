@@ -37,6 +37,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |-----------|-------------|-------------------|-------------------|
 | `c:\Users\steph\TDL` | `main` | `pipe/<desc>` for pipeline code-side fixes; `run/<desc>` for computational Tasks; `paper/<desc>` for prose Tasks; `repo/<desc>` for repo-extraction Tasks | `[PREFIX] PXX: <description>` with PREFIX ∈ `{RESULT, DECISION, NEGATIVE, PIPELINE, DATA, EXPLORE}`; Co-Authored-By trailer; pre-commit hooks run (no `--no-verify`) |
 
+> Note: worktree directory names are derived from branch names by replacing `/` with `-`. Branch names remain slash-form for git semantics, while the corresponding `.apm/worktrees` folder uses the hyphenated slug.
+
 ## Working Notes
 
 - `.apm/` git-tracking is Option B: planning artefacts tracked, runtime (`bus/`, `memory/stage-NN/`, `worktrees/`) gitignored. Pre-existing tracked bus files were untracked via `git rm --cached`.

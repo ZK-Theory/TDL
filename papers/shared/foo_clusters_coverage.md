@@ -31,11 +31,11 @@ Missing/inapplicable value code: -8 (per user guide §2 "Missing values and data
 | Deduplicated biological edges | 150,086 |
 | Graph vertices (linked individuals) | 114,946 |
 | Graph connected components | 27,972 |
-| Singleton individuals | 53,340 |
-| Total FOO-assigned | 168,286 |
+| Singleton individuals | 53,335 |
+| Total FOO-assigned | 168,281 |
 | xwavedat N (denominator) | 168,377 |
-| xwavedat members with FOO assignment | 168,283 (99.94%) |
-| xwavedat members in cluster size > 1 | 114,943 (68.27%) |
+| xwavedat members with FOO assignment | 168,281 (99.94%) |
+| xwavedat members in cluster size > 1 | 114,946 (68.29%) |
 
 **Coverage verdict: 99.94% — full-sample coverage.**
 
@@ -45,15 +45,15 @@ Missing/inapplicable value code: -8 (per user guide §2 "Missing values and data
 
 | Cluster size | N individuals |
 |---|---|
-| 1 (singleton) | 53,340 |
+| 1 (singleton) | 53,335 |
 | 2 | 9,652 |
 | 3 | 21,579 |
 | 4 | 31,740 |
 | 5 | 18,190 |
 | 6 | 11,268 |
 | 7–10 | 15,977 |
-| 11–20 | 5,070 |
-| >20 | 566 |
+| 11–20 | 5,772 |
+| >20 | 768 |
 | **Max** | **48** |
 | **Median** | **3** |
 
