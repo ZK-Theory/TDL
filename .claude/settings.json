@@ -1,5 +1,46 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "serena-hooks remind --client=claude-code"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__serena__*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "serena-hooks auto-approve --client=claude-code"
+          }
+        ]
+      },
+      {
+        "matcher": "Grep|Glob|Regex",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/jcodemunch-guard.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notation-guard.sh",
+            "timeout": 10,
+            "statusMessage": "Checking notation conventions..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
@@ -30,25 +71,24 @@
         ]
       }
     ],
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Grep|Glob|Regex",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/jcodemunch-guard.sh",
-            "timeout": 3000
+            "command": "serena-hooks activate --client=claude-code"
           }
         ]
-      },
+      }
+    ],
+    "Stop": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/notation-guard.sh",
-            "timeout": 10,
-            "statusMessage": "Checking notation conventions..."
+            "command": "serena-hooks cleanup --client=claude-code"
           }
         ]
       }

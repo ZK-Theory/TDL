@@ -15,3 +15,13 @@ Key files:
 - `.claude/instructions/hook-enforcement.instructions.md` — enforcement hook rules
 - `.cursor/rules/jcodemunch.mdc` — global code exploration policy
 - `.claude/hooks/jcodemunch-guard.sh` — PreToolUse guard for Grep/Glob/Regex
+- `.claude/hooks/install-git-hooks.py` — installs repository Git hooks
+
+### Git hook installation
+
+To enable commit prefix enforcement, run:
+
+```bash
+python .claude/hooks/install-git-hooks.py
+```
+

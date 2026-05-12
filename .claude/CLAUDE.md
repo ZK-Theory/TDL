@@ -15,12 +15,15 @@ See `.claude/instructions/hook-enforcement.instructions.md` for:
 - PostToolUse linting and formatting
 - research-context and results-vault hooks
 
+It also includes Serena lifecycle support in `.claude/settings.json` for session activation, pretool reminders, and cleanup.
+
 ## Repository Workflow
 
 Long-form workflow and research convention guidance has been moved out of the root policy.
 See:
 - `.claude/instructions/workflow.instructions.md`
 - `.claude/instructions/research-context.instructions.md`
+- `.claude/instructions/git.instructions.md`
 
 ## Related files
 - Global code exploration policy: `.cursor/rules/jcodemunch.mdc`
@@ -29,3 +32,5 @@ See:
 - Notation guard: `.claude/hooks/notation-guard.sh`
 - Research context check: `.claude/hooks/research-context-check.sh`
 - Vault reminder: `.claude/hooks/results-vault-reminder.sh`
+- Git policy guidance: `.claude/instructions/git.instructions.md`
+- Git commit-msg helper: `.claude/hooks/git-commit-msg.sh`
