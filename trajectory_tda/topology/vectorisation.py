@@ -272,8 +272,8 @@ def compute_w2_ratio_bca_ci(
     null draws) and Case B (1D array of pre-computed pairwise distances).
     2D inputs are flattened before computing the ratio.
 
-    BCa corrects for bias and skewness in the bootstrap distribution using the
-    bias-correction constant z0 and jackknife-estimated acceleration a.
+    Uses ``scipy.stats.bootstrap`` with ``method='BCa'``, which handles the
+    bias-correction constant z0 and jackknife acceleration a correctly.
 
     Args:
         w_obs: W₂ distances between observed and null draws. Shape (n_obs,) or
@@ -288,10 +288,10 @@ def compute_w2_ratio_bca_ci(
         Tuple (T_ratio, ci_lower, ci_upper).
 
     Raises:
-        ValueError: If either array is empty or contains non-positive values
-            that would make the ratio undefined.
+        ValueError: If either array is empty or has fewer than 2 elements,
+            or if mean(w_null_null) is zero.
     """
-    from scipy.stats import norm
+    from scipy.stats import bootstrap
 
     w_obs_1d = np.asarray(w_obs, dtype=np.float64).ravel()
     w_nn_1d = np.asarray(w_null_null, dtype=np.float64).ravel()
@@ -304,63 +304,26 @@ def compute_w2_ratio_bca_ci(
             f"got n_obs={len(w_obs_1d)}, n_null={len(w_nn_1d)}."
         )
 
-    mean_obs = w_obs_1d.mean()
     mean_nn = w_nn_1d.mean()
     if mean_nn == 0.0:
         raise ValueError("mean(w_null_null) is zero; T_ratio is undefined.")
 
-    t_obs = mean_obs / mean_nn
+    t_obs = float(w_obs_1d.mean() / mean_nn)
 
-    # Bootstrap distribution
-    rng = np.random.default_rng(seed)
-    n_o, n_n = len(w_obs_1d), len(w_nn_1d)
-    boot_ratios = np.empty(n_boot)
-    for b in range(n_boot):
-        b_obs = rng.choice(w_obs_1d, size=n_o, replace=True)
-        b_nn = rng.choice(w_nn_1d, size=n_n, replace=True)
-        denom = b_nn.mean()
-        boot_ratios[b] = b_obs.mean() / denom if denom > 0 else np.nan
+    def _ratio_stat(x: np.ndarray, y: np.ndarray) -> float:
+        return float(x.mean() / y.mean())
 
-    valid = boot_ratios[~np.isnan(boot_ratios)]
-    if len(valid) < n_boot // 2:
-        raise ValueError("Too many degenerate bootstrap replicates (mean_null≈0).")
-
-    # Bias-correction constant z0
-    z0 = float(norm.ppf(np.mean(valid < t_obs) or 1e-10))
-
-    # Jackknife acceleration constant a (combined over both samples)
-    jack_obs = np.array(
-        [(np.delete(w_obs_1d, i).mean() / mean_nn) for i in range(n_o)]
+    res = bootstrap(
+        (w_obs_1d, w_nn_1d),
+        statistic=_ratio_stat,
+        n_resamples=n_boot,
+        method="BCa",
+        random_state=seed,
+        paired=False,
+        confidence_level=1 - alpha,
+        vectorized=False,
     )
-    jack_nn = np.array(
-        [(mean_obs / np.delete(w_nn_1d, j).mean()) for j in range(n_n)]
-    )
-    deltas = np.concatenate([jack_obs, jack_nn])
-    delta_mean = deltas.mean()
-    d = delta_mean - deltas
-    denom_a = 6.0 * (np.sum(d**2) ** 1.5)
-    a = float(np.sum(d**3) / denom_a) if denom_a > 0 else 0.0
-
-    # BCa-adjusted percentiles
-    z_alpha_lo = norm.ppf(alpha / 2)
-    z_alpha_hi = norm.ppf(1 - alpha / 2)
-
-    def _bca_pct(z_a: float) -> float:
-        num = z0 + z_a
-        adj = z0 + num / (1.0 - a * num)
-        return float(norm.cdf(adj))
-
-    p_lo = _bca_pct(z_alpha_lo)
-    p_hi = _bca_pct(z_alpha_hi)
-    p_lo = np.clip(p_lo, 0.001, 0.999)
-    p_hi = np.clip(p_hi, 0.001, 0.999)
-
-    sorted_boot = np.sort(valid)
-    n_v = len(sorted_boot)
-    ci_lower = float(sorted_boot[int(p_lo * n_v)])
-    ci_upper = float(sorted_boot[min(int(p_hi * n_v), n_v - 1)])
-
-    return t_obs, ci_lower, ci_upper
+    return t_obs, float(res.confidence_interval.low), float(res.confidence_interval.high)
 
 
 def compute_w2_ratio_delta_ci(
