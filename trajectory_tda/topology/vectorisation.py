@@ -225,11 +225,11 @@ def wasserstein_distance(
 
     # Use gudhi if available for exact computation
     try:
-        import gudhi
+        from gudhi.wasserstein import wasserstein_distance as _gudhi_wd
 
         dgm1 = np.column_stack([f1[:, 0], f1[:, 1]])
         dgm2 = np.column_stack([f2[:, 0], f2[:, 1]])
-        return float(gudhi.wasserstein.wasserstein_distance(dgm1, dgm2, order=p, internal_p=2))
+        return float(_gudhi_wd(dgm1, dgm2, order=p, internal_p=2))
     except (ImportError, AttributeError):
         pass
 
@@ -252,6 +252,147 @@ def wasserstein_distance(
         total_cost += (pers2[idx2[i]] / 2) ** p * 2
 
     return float(total_cost ** (1 / p))
+
+
+# ─────────────────────────────────────────────────────────────────────
+# W₂ test construction: mean-vs-mean T_ratio with BCa and delta-method CI
+# ─────────────────────────────────────────────────────────────────────
+
+
+def compute_w2_ratio_bca_ci(
+    w_obs: np.ndarray,
+    w_null_null: np.ndarray,
+    n_boot: int = 9999,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """BCa bootstrap CI for T_ratio = mean(W_obs_null) / mean(W_null_null).
+
+    Supports Case A (2D matrix input: rows are obs/null diagrams, columns are
+    null draws) and Case B (1D array of pre-computed pairwise distances).
+    2D inputs are flattened before computing the ratio.
+
+    BCa corrects for bias and skewness in the bootstrap distribution using the
+    bias-correction constant z0 and jackknife-estimated acceleration a.
+
+    Args:
+        w_obs: W₂ distances between observed and null draws. Shape (n_obs,) or
+            (n_obs, n_null) for Case A matrix input.
+        w_null_null: W₂ distances between pairs of null draws. Shape (n_null,)
+            or (n_null, n_null) for Case A matrix input.
+        n_boot: Number of bootstrap replicates (default 9999).
+        alpha: Two-sided significance level (default 0.05 → 95% CI).
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Tuple (T_ratio, ci_lower, ci_upper).
+
+    Raises:
+        ValueError: If either array is empty or contains non-positive values
+            that would make the ratio undefined.
+    """
+    from scipy.stats import norm
+
+    w_obs_1d = np.asarray(w_obs, dtype=np.float64).ravel()
+    w_nn_1d = np.asarray(w_null_null, dtype=np.float64).ravel()
+
+    if len(w_obs_1d) == 0 or len(w_nn_1d) == 0:
+        raise ValueError("w_obs and w_null_null must be non-empty arrays.")
+    if len(w_obs_1d) == 1 or len(w_nn_1d) == 1:
+        raise ValueError(
+            "BCa CI requires at least 2 observations in each array; "
+            f"got n_obs={len(w_obs_1d)}, n_null={len(w_nn_1d)}."
+        )
+
+    mean_obs = w_obs_1d.mean()
+    mean_nn = w_nn_1d.mean()
+    if mean_nn == 0.0:
+        raise ValueError("mean(w_null_null) is zero; T_ratio is undefined.")
+
+    t_obs = mean_obs / mean_nn
+
+    # Bootstrap distribution
+    rng = np.random.default_rng(seed)
+    n_o, n_n = len(w_obs_1d), len(w_nn_1d)
+    boot_ratios = np.empty(n_boot)
+    for b in range(n_boot):
+        b_obs = rng.choice(w_obs_1d, size=n_o, replace=True)
+        b_nn = rng.choice(w_nn_1d, size=n_n, replace=True)
+        denom = b_nn.mean()
+        boot_ratios[b] = b_obs.mean() / denom if denom > 0 else np.nan
+
+    valid = boot_ratios[~np.isnan(boot_ratios)]
+    if len(valid) < n_boot // 2:
+        raise ValueError("Too many degenerate bootstrap replicates (mean_null≈0).")
+
+    # Bias-correction constant z0
+    z0 = float(norm.ppf(np.mean(valid < t_obs) or 1e-10))
+
+    # Jackknife acceleration constant a (combined over both samples)
+    jack_obs = np.array(
+        [(np.delete(w_obs_1d, i).mean() / mean_nn) for i in range(n_o)]
+    )
+    jack_nn = np.array(
+        [(mean_obs / np.delete(w_nn_1d, j).mean()) for j in range(n_n)]
+    )
+    deltas = np.concatenate([jack_obs, jack_nn])
+    delta_mean = deltas.mean()
+    d = delta_mean - deltas
+    denom_a = 6.0 * (np.sum(d**2) ** 1.5)
+    a = float(np.sum(d**3) / denom_a) if denom_a > 0 else 0.0
+
+    # BCa-adjusted percentiles
+    z_alpha_lo = norm.ppf(alpha / 2)
+    z_alpha_hi = norm.ppf(1 - alpha / 2)
+
+    def _bca_pct(z_a: float) -> float:
+        num = z0 + z_a
+        adj = z0 + num / (1.0 - a * num)
+        return float(norm.cdf(adj))
+
+    p_lo = _bca_pct(z_alpha_lo)
+    p_hi = _bca_pct(z_alpha_hi)
+    p_lo = np.clip(p_lo, 0.001, 0.999)
+    p_hi = np.clip(p_hi, 0.001, 0.999)
+
+    sorted_boot = np.sort(valid)
+    n_v = len(sorted_boot)
+    ci_lower = float(sorted_boot[int(p_lo * n_v)])
+    ci_upper = float(sorted_boot[min(int(p_hi * n_v), n_v - 1)])
+
+    return t_obs, ci_lower, ci_upper
+
+
+def compute_w2_ratio_delta_ci(
+    t_ratio: float,
+    se_obs: float,
+    se_null: float,
+    alpha: float = 0.05,
+) -> tuple[float, float]:
+    """Delta-method CI for T_ratio using log-normal approximation.
+
+    Fallback for when only summary statistics (not the full null matrix) are
+    stored. Uses a first-order delta-method log-normal approximation:
+    SE(log T) ≈ sqrt(cv_obs² + cv_null²), where cv = SE/mean.
+
+    Args:
+        t_ratio: T_ratio = mean(W_obs_null) / mean(W_null_null).
+        se_obs: Relative SE of mean(W_obs_null): std_obs / (sqrt(n) * mean_obs).
+            This is the coefficient of variation of the numerator estimator.
+        se_null: Relative SE of mean(W_null_null): std_null / (sqrt(n) * mean_null).
+            This is the coefficient of variation of the denominator estimator.
+        alpha: Two-sided significance level (default 0.05 → 95% CI).
+
+    Returns:
+        Tuple (ci_lower, ci_upper).
+    """
+    from scipy.stats import norm
+
+    z = float(norm.ppf(1 - alpha / 2))
+    se_log_t = float(np.sqrt(se_obs**2 + se_null**2))
+    ci_lower = float(t_ratio * np.exp(-z * se_log_t))
+    ci_upper = float(t_ratio * np.exp(z * se_log_t))
+    return ci_lower, ci_upper
 
 
 # ─────────────────────────────────────────────────────────────────────

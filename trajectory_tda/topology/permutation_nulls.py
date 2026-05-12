@@ -26,7 +26,10 @@ from poverty_tda.topology.multidim_ph import (
 )
 from trajectory_tda.embedding.ngram_embed import STATES, ngram_embed
 from trajectory_tda.topology.trajectory_ph import maxmin_landmarks
-from trajectory_tda.topology.vectorisation import wasserstein_distance as compute_wasserstein
+from trajectory_tda.topology.vectorisation import (
+    compute_w2_ratio_bca_ci,
+    wasserstein_distance as compute_wasserstein,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -683,6 +686,21 @@ def permutation_test_trajectories(
 
             null_null_arr = np.array(null_null_dists) if null_null_dists else np.array([0.0])
             mean_obs_null = float(obs_null_dists.mean())
+            mean_null_null = float(null_null_arr.mean())
+
+            # T_ratio = mean(W_obs_null) / mean(W_null_null) (mean-vs-mean construction)
+            t_ratio = mean_obs_null / mean_null_null if mean_null_null > 0 else float("nan")
+
+            # BCa CI on T_ratio (requires ≥2 obs in each array)
+            bca_ci_lower: float | None = None
+            bca_ci_upper: float | None = None
+            if len(obs_null_dists) >= 2 and len(null_null_arr) >= 2:
+                try:
+                    _, bca_ci_lower, bca_ci_upper = compute_w2_ratio_bca_ci(
+                        obs_null_dists, null_null_arr, seed=seed
+                    )
+                except Exception as exc:
+                    logger.warning(f"  BCa CI failed for {key}: {exc}")
 
             # p-value: fraction of null-null W distances >= mean(obs-null W)
             # If observed is typical of nulls, obs-null W ~ null-null W, p ~ 0.5
@@ -693,8 +711,11 @@ def permutation_test_trajectories(
                 "mean_wasserstein_obs_null": mean_obs_null,
                 "std_wasserstein_obs_null": float(obs_null_dists.std()),
                 "median_wasserstein_obs_null": float(np.median(obs_null_dists)),
-                "mean_wasserstein_null_null": float(null_null_arr.mean()),
+                "mean_wasserstein_null_null": mean_null_null,
                 "std_wasserstein_null_null": None if len(null_null_dists) <= 1 else float(null_null_arr.std()),
+                "t_ratio": t_ratio,
+                "bca_ci_lower": bca_ci_lower,
+                "bca_ci_upper": bca_ci_upper,
                 "p_value": p_value,
                 "significant_at_005": p_value < 0.05,
                 "obs_null_distribution": obs_null_dists.tolist(),
@@ -702,7 +723,8 @@ def permutation_test_trajectories(
             }
             logger.info(
                 f"  {key}: mean_W(obs,null)={mean_obs_null:.4f}, "
-                f"mean_W(null,null)={float(null_null_arr.mean()):.4f}, p={p_value:.4f}"
+                f"mean_W(null,null)={mean_null_null:.4f}, "
+                f"T_ratio={t_ratio:.4f}, p={p_value:.4f}"
             )
     else:
         for dim in range(max_dim + 1):
