@@ -28,7 +28,9 @@ The project produces academic papers tracked in `papers/` directory:
 - FIN-01: Market Regime Detection (financial domain)
 
 ## Integration with Obsidian Vault
-Research record lives in separate Obsidian vault at `C:\Users\steph\Documents\TDA-Research\` containing:
+Research record lives in a separate Obsidian vault at `{LOCAL_VAULT_PATH}` containing:
+
+Collaborators should set `LOCAL_VAULT_PATH` or configure their local vault path in the project README/setup guide.
 - Theory, methodology, literature
 - Project management and status tracking
 - Computational logs and decisions

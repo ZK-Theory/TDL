@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import List, Sequence
 
 DATA_ROOT = os.getenv("DATA_ROOT", "")
+base_path = Path(__file__).resolve().parents[3]
 if not DATA_ROOT:
-    DATA_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "tab"
+    DATA_ROOT = base_path / "data" / "UKDA-6614-tab" / "tab"
 else:
     DATA_ROOT = Path(DATA_ROOT)
 

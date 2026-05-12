@@ -6,7 +6,9 @@ library(jsonlite)
 
 DATA_ROOT <- Sys.getenv("TDL_DATA_ROOT", "")
 if (!nzchar(DATA_ROOT)) {
-  script_dir <- if (!is.null(sys.frame(1)$ofile)) dirname(normalizePath(sys.frame(1)$ofile)) else normalizePath(".")
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("--file=", args, value = TRUE)
+  script_dir <- if (length(file_arg) > 0) dirname(normalizePath(sub("^--file=", "", file_arg[1]))) else normalizePath(".")
   DATA_ROOT <- normalizePath(file.path(script_dir, "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
 }
 TODAY <- format(Sys.Date(), "%Y-%m-%d")

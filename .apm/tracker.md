@@ -16,8 +16,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 0.4 | Done | tda-agent | |
 | 0.5 | Done | tda-agent | |
 | 0.6 | Done | tda-agent | |
-| 0.7 | Active | tda-agent | pipe/w2-fixes |
-| 0.8 | Active | tda-agent | pipe/w2-fixes |
+| 0.7 | Done | tda-agent | |
+| 0.8 | Done | tda-agent | |
 | 0.9 | Done | panel-statistics-agent | |
 | 0.10 | Done | panel-statistics-agent | |
 | 0.11 | Done | panel-statistics-agent | |
@@ -27,7 +27,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | Agent | Instance | Notes |
 |-------|----------|-------|
 | reproducibility-agent | 1 | active (T0.3) |
-| tda-agent | 1 | active (T0.7–T0.8 batch, second dispatch) |
+| tda-agent | 1 | idle — awaiting Stage 1 dispatch |
 | panel-statistics-agent | 1 | idle — awaiting Stage 1 dispatch |
 | academic-writing-agent | 1 | uninitialized |
 

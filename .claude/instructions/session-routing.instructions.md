@@ -11,13 +11,15 @@ Detailed guidance for confidence-driven code exploration workflows.
 
 **For any task, always start with:**
 ```
+resolve_repo { "path": "." }
 plan_turn { 
-  "repo": "C:\\Users\\steph\\TDL", 
+  "repo": "<your-repo-path>", 
   "query": "your task description", 
   "model": "claude-sonnet-4-20250514" 
 }
 ```
 
+Run `resolve_repo` first so the repository is indexed before `plan_turn` limits tools.
 The `model` parameter narrows the exposed tool list to match your capabilities with zero extra requests.
 
 ### Confidence-Level Workflows

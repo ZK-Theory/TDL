@@ -13,8 +13,16 @@
 from numpy.typing import NDArray
 import numpy as np
 
-def compute_persistence(point_cloud: NDArray[np.float64], max_dim: int = 2) -> list[tuple]:
-    """Compute persistent homology of a point cloud."""
+def compute_persistence(point_cloud: NDArray[np.float64], max_dim: int = 2) -> list[tuple[float, float]]:
+    """Compute the persistent homology of a point cloud.
+
+    Args:
+        point_cloud: Shape (n_points, n_dims) input point cloud.
+        max_dim: Maximum homology dimension to compute.
+
+    Returns:
+        List of persistence pairs as (birth, death) tuples.
+    """
     pass
 ```
 

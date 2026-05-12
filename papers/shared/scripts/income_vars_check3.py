@@ -11,7 +11,14 @@ else:
     DATA_ROOT = Path(DATA_ROOT)
 
 def get_header(fname: Path) -> List[str]:
-    """Read the first line of a tab-delimited file and return stripped headers."""
+    """Read the first line of a tab-delimited file and return stripped headers.
+
+    Args:
+        fname: Path to a tab-delimited file.
+
+    Returns:
+        List of stripped header names from the first line.
+    """
     with open(fname, "r", encoding="latin-1") as f:
         return [h.strip() for h in f.readline().strip().split("\t")]
 

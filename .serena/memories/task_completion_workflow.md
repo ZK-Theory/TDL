@@ -26,13 +26,13 @@ uv run pytest tests/financial_tda/
 uv run pytest tests/poverty_tda/
 
 # If working in trajectory_tda
-uv run pytest tests/trajectory/
+uv run pytest tests/trajectory_tda/
 
 # If working in shared utilities
 uv run pytest tests/shared/
 ```
 
-### 3. Mathematical Validation (TDA Work)
+### 3. Mathematical Validation (Mandatory for TDA Work)
 For any TDA-related changes, run validation tests:
 ```bash
 uv run pytest -m validation
@@ -43,6 +43,8 @@ Use the TDL-specific commit format with research prefixes:
 ```bash
 git commit -m "[PREFIX] PXX: description"
 ```
+
+Here, `PXX` is the paper/project identifier such as `P01`, `P02`, etc.
 
 Where PREFIX is one of:
 - `[RESULT]` - Quantitative result worth logging

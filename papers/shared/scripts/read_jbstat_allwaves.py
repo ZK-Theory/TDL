@@ -4,13 +4,22 @@ import os
 import re
 from pathlib import Path
 
+base_path = Path(__file__).resolve().parents[3]
 DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
 if not DICT_ROOT:
-    DICT_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
+    DICT_ROOT = base_path / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
 else:
     DICT_ROOT = Path(DICT_ROOT)
 
 def strip_rtf(rtf_bytes: bytes) -> str:
+    """Strip RTF markup from bytes and return plain text.
+
+    Args:
+        rtf_bytes: Raw RTF content read from a dictionary file.
+
+    Returns:
+        Plain text with control words, braces, and extra whitespace removed.
+    """
     text = rtf_bytes.decode("latin-1", errors="replace")
     text = re.sub(r"\\[a-z]+\d*\s?", " ", text)
     text = re.sub(r"[{}]", " ", text)

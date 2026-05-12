@@ -37,7 +37,7 @@ read_col <- function(fpath, col) {
     colClasses = col_classes, stringsAsFactors = FALSE,
     quote = "", fill = TRUE, na.strings = ""
   )
-  suppressWarnings(as.numeric(df[[idx]]))
+  suppressWarnings(as.numeric(df[[1]]))
 }
 
 # xwavedat full column list

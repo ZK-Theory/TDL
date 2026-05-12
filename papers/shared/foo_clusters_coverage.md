@@ -35,7 +35,7 @@ Missing/inapplicable value code: -8 (per user guide §2 "Missing values and data
 | Total FOO-assigned | 168,281 |
 | xwavedat N (denominator) | 168,377 |
 | xwavedat members with FOO assignment | 168,281 (99.94%) |
-| xwavedat members in cluster size > 1 | 114,946 (68.29%) |
+| xwavedat members in cluster size > 1 | 114,946 (68.27%) |
 
 **Coverage verdict: 99.94% — full-sample coverage.**
 

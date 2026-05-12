@@ -8,9 +8,6 @@ get_script_dir <- function() {
   if (length(file_arg) > 0) {
     return(dirname(normalizePath(sub("^--file=", "", file_arg[1]))))
   }
-  if (!is.null(sys.frame(1)$ofile)) {
-    return(dirname(normalizePath(sys.frame(1)$ofile)))
-  }
   return(normalizePath("."))
 }
 

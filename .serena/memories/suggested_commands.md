@@ -83,11 +83,20 @@ git status
 # Create feature branch
 git checkout -b feature/description
 
+# Commit with required research prefix
+git commit -m "[RESULT] Add new experiment results"
+
+# Do not skip pre-commit hooks
+git commit -m "[PIPELINE] Fix build script"  # do not use --no-verify
+
 # View project structure
 Get-ChildItem -Directory     # List directories only
 ```
 
+Commit prefixes are mandatory: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, `[EXPLORE]`.
+Pre-commit hooks enforce ruff linting and formatting, so do not bypass them with `--no-verify`.
+
 ## Code Navigation (jCodemunch/Serena)
 - Use Serena symbol tools for code exploration rather than manual file reading
-- jcodemunch-MCP tools provide advanced code search and navigation
+- jCodemunch-MCP tools provide advanced code search and navigation
 - See `.claude/CLAUDE.md` for detailed code exploration policies

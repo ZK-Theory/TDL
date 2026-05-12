@@ -5,7 +5,7 @@ alwaysApply: true
 
 ## Code Exploration Policy
 
-Always use jcodemunch MCP tools for code navigation. Never use grep, glob, Bash, or direct filesystem search for code exploration.
+Always use jCodemunch MCP tools for code navigation. Never use grep, glob, Bash, or direct filesystem search for code exploration.
 
 ### Session-Aware Routing
 

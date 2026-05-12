@@ -76,8 +76,8 @@ The post-run `[RESULT]` entry references the pre-registration.
 When finishing a session that produced results, decisions, or insights:
 
 1. **In Cowork:** Say "repo bridge" or "log results" to trigger the `tda-repo-bridge` skill
-2. **In Claude Code / Copilot:** Produce the vault entry text and write it directly to `04-Methods/Computational-Log.md`
-3. **Manually:** Add an entry to `04-Methods/Computational-Log.md` in the vault
+2. **In Claude Code / Copilot:** Produce the vault entry text and submit it via `vault_observe` or the `vault-engine` API; do not rely on direct filesystem writes to the vault when MCP access is available
+3. **Manually:** Use the vault-engine tools if direct filesystem access is unavailable
 
 **Format for Computational-Log entries:**
 ```

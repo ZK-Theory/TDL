@@ -6,7 +6,7 @@ import shutil
 import stat
 import sys
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
 GIT_HOOKS_DIR = REPO_ROOT / ".git" / "hooks"
 

@@ -9,7 +9,8 @@ DATA_DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
 if DATA_DICT_ROOT:
     DATA_DICT_ROOT = Path(DATA_DICT_ROOT)
 else:
-    DATA_DICT_ROOT = Path(__file__).resolve().parents[3] / "data" / "UKDA-6614-tab" / "mrdoc"
+    base_path = Path(__file__).resolve().parents[3]
+    DATA_DICT_ROOT = base_path / "data" / "UKDA-6614-tab" / "mrdoc"
 
 if DATA_DICT_ROOT.is_dir():
     candidate = DATA_DICT_ROOT / "ukda_data_dictionaries.zip"
