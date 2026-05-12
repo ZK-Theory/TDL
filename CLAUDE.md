@@ -5,6 +5,9 @@
 Research platform applying **Topological Data Analysis (TDA)**, **topological deep learning**, and **geometric deep learning** to social science datasets. Produces novel insights for academic research papers. Primary domains:
 
 - **financial_tda** — Market regime detection and crisis identification via persistent homology on time series
+
+> Active Claude Code policy is anchored in `.claude/CLAUDE.md`; this file is the broader project handbook.
+
 - **poverty_tda** — UK poverty trap detection via Morse-Smale complex analysis on socioeconomic mobility landscapes
 - **trajectory_tda** — Employment/income career trajectory analysis via persistent homology on BHPS/UKHLS panel data
 
