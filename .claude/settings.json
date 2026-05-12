@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/vexp-guard.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/jcodemunch-guard.sh",
             "timeout": 3000
           }
         ]
