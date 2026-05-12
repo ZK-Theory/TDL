@@ -1,0 +1,42 @@
+{
+  "audit_parameters": {
+    "internal_p": "inf",
+    "order": 2,
+    "n_perms": 50,
+    "n_landmarks": 2000,
+    "max_dim": 1,
+    "seed": 42,
+    "null_type": "markov",
+    "markov_order": 1
+  },
+  "l2_reference": {
+    "H0": {
+      "mean_obs_null": 11.4224,
+      "mean_null_null": 5.9919,
+      "p_value": 0.002,
+      "significant": true
+    },
+    "H1": {
+      "mean_obs_null": 126.851,
+      "mean_null_null": 121.3941,
+      "p_value": 0.086,
+      "significant": false
+    }
+  },
+  "H0": {
+    "mean_wasserstein_obs_null": 10.167797729542576,
+    "std_wasserstein_obs_null": 1.873975198672319,
+    "mean_wasserstein_null_null": 6.01002493905339,
+    "p_value": 0.008,
+    "significant_at_005": true,
+    "n_null_null_pairs": 500
+  },
+  "H1": {
+    "mean_wasserstein_obs_null": 4.616133566018792,
+    "std_wasserstein_obs_null": 0.35544936351378587,
+    "mean_wasserstein_null_null": 4.215623425230921,
+    "p_value": 0.224,
+    "significant_at_005": false,
+    "n_null_null_pairs": 500
+  }
+}
