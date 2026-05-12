@@ -21,9 +21,11 @@ It also includes Serena lifecycle support in `.claude/settings.json` for session
 
 Long-form workflow and research convention guidance has been moved out of the root policy.
 See:
-- `.claude/instructions/workflow.instructions.md`
-- `.claude/instructions/research-context.instructions.md`
-- `.claude/instructions/git.instructions.md`
+- `.claude/instructions/workflow.instructions.md` — testing, experiments, paper workflows
+- `.claude/instructions/session-routing.instructions.md` — confidence-level code exploration
+- `.claude/instructions/vault-integration.instructions.md` — Obsidian vault sync workflows
+- `.claude/instructions/research-context.instructions.md` — script headers and metadata
+- `.claude/instructions/git.instructions.md` — git workflow and branching
 
 ## Related files
 - Global code exploration policy: `.cursor/rules/jcodemunch.mdc`

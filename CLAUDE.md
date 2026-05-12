@@ -369,7 +369,7 @@ Your jcodemunch-mcp server narrows the exposed tool list based on the model you 
 
 Replace `<your-model-id>` with your active model:
 - Claude Opus variants → `claude-opus-4-7` (or any `claude-opus-*`)
-- Claude Sonnet variants → `claude-sonnet-4-6`
+- Claude Sonnet variants → `claude-sonnet-4-20250514`
 - Claude Haiku variants → `claude-haiku-4-5`
 - GPT-4o / GPT-5 / o1 / Llama → use the model id as printed by your runner
 

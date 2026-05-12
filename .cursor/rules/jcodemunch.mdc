@@ -7,30 +7,71 @@ alwaysApply: true
 
 Always use jcodemunch MCP tools for code navigation. Never use grep, glob, Bash, or direct filesystem search for code exploration.
 
-### Start any session
-1. `resolve_repo { "path": "." }`
-2. `suggest_queries`
-3. `search_symbols(...)` to locate symbols by name
-4. `search_text(...)` to find strings or config values
-5. `get_skeleton(...)` for compact file inspection
-6. `get_context_bundle(...)` for symbol context and imports
-7. `read_file(...)` only when editing a specific file
+### Session-Aware Routing
 
-### Tool hierarchy
-- Primary: `plan_turn` for task planning and recommended files
-- Supplementary: `search_symbols`, `search_text`, `get_skeleton`, `get_context_bundle`
-- Use `run_in_terminal` for implementation tasks only, not for code discovery
+**Opening move for any task:**
+1. `plan_turn { "repo": "...", "query": "your task description", "model": "claude-sonnet-4-20250514" }`
+2. Obey the confidence level:
+   - `high` → go directly to recommended symbols, max 2 supplementary reads
+   - `medium` → explore recommended files, max 5 supplementary reads
+   - `low` → the feature likely doesn't exist. Report the gap to the user.
 
-### Disallowed exploration
-- grep
-- glob
-- Bash search
-- manual file system traversal
+### Complete Tool Hierarchy
+
+**Primary Workflow:**
+1. `resolve_repo { "path": "." }` — confirm project indexed
+2. `suggest_queries` — when repo unfamiliar
+3. `plan_turn(...)` — task planning with confidence levels
+
+**Discovery Tools:**
+- `search_symbols(...)` — find by name, decorator, kind, language
+- `search_text(...)` — full-text with regex support  
+- `get_repo_outline` — dirs, languages, symbol counts
+- `get_file_tree` — file layout with path filtering
+
+**Reading Tools:**
+- `get_file_outline(...)` — symbol overview before reading
+- `get_skeleton(...)` — compact symbol signatures
+- `get_symbol_source(...)` — full symbol source
+- `get_context_bundle(...)` — symbol + imports in one call
+- `Read(...)` — only when editing specific file
+
+**Relationship Analysis:**
+- `find_importers` — what imports this file
+- `find_references` — where is identifier used  
+- `check_references` — is identifier used anywhere
+- `get_dependency_graph` — file dependencies
+- `get_blast_radius` — impact analysis
+- `get_class_hierarchy` — inheritance relationships
+
+**Advanced Analysis:**
+- `get_call_hierarchy` — caller/callee relationships
+- `get_impact_preview` — deletion impact analysis
+- `find_implementations` — interface implementations
+- `find_dead_code` — unreachable code detection
+- `get_changed_symbols` — git diff symbol analysis
+
+### Model-Driven Tool Tiering
+
+Include `model="claude-sonnet-4-20250514"` in opening `plan_turn` call to narrow exposed tool list and optimize for your capabilities.
+
+### Token Efficiency Guidelines
+
+- Stop exploring if `_meta` contains `budget_warning`
+- Use `get_session_context` to avoid re-reading same files
+- Prefer `get_skeleton` over full `Read` for understanding code structure
+
+### Disallowed Exploration
+- grep, glob, Bash search
+- manual file system traversal  
 - direct `cat`/`less` for code discovery
+- Using `Read` before identifying target file via jcodemunch tools
 
-## Session-aware routing
-- Start with `plan_turn` and follow its confidence guidance
-- Use `read_file` only after the target file has been identified and you are about to edit it
+### Search Result Interpretation
 
-## Hook enforcement
-- The repository uses `.claude/settings.json` and `.claude/hooks/jcodemunch-guard.sh` to enforce this policy.
+- `negative_evidence` with `no_implementation_found` → feature doesn't exist
+- `low_confidence_matches` → examine critically before assuming implementation
+- Always check `related_existing` files for context, not implementation
+
+## Hook Enforcement
+Repository uses `.claude/settings.json` and `.claude/hooks/jcodemunch-guard.sh` to enforce this policy.
