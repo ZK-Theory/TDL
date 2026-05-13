@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: "Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). TDA Agent Workers table updated after T0.1: giotto-tda removed (no cp313 wheels), scikit-tda not resolvable, gtda.* imports need replacement. Modified by the Manager."
+modified: "Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). TDA Agent Workers table updated after T0.1: giotto-tda removed (no cp313 wheels), scikit-tda not resolvable, gtda.* imports need replacement. T1.12 guidance updated with BIC result: k=14 global min, k=7 locally optimal, disclosure required in prose. T1.13 lwtresp transcription error corrected to wave-prefixed longitudinal weight variables. Modified by the Manager."
 ---
 
 # APM Plan
@@ -616,9 +616,9 @@ style T4_10 fill:#a8dadc,color:#000
 ### Task 1.12: BIC curve + ΔBIC interpretation - Panel Statistics Agent
 
 * **Objective:** Compute the BIC curve over k ∈ {3, ..., 15} GMM components on the USoc PCA-20D embedding; report ΔBIC between k=7 and nearest competitors with Kass-Raftery interpretation.
-* **Output:** `results/panel_methodology/bic_curve/bic_k3to15_<date>.json`; figure `papers/P01-A-JRSSA/figures/bic_curve.pdf` (JRSS-spec); vault `[RESULT]` entry.
+* **Output:** `results/trajectory_tda_integration/stage1/bic_curve_<date>.json`; vault `[RESULT]` entry.
 * **Validation:** All k values run with reproducible seeds; ΔBIC reported; Kass-Raftery interpretation in JSON metadata; if ΔBIC(k=7, k=8) < 6, ARI(k=7, k=8) regime stability reported as a sensitivity note.
-* **Guidance:** See P01-A response plan §B6.
+* **Guidance:** See P01-A response plan §B6. **Completed 2026-05-13 (commit 9e6fb67). RESULT: global BIC min at k=14 (BIC=−2,097,774); k=7 is locally optimal (ΔBIC(k=7,k=6)=−312,392 [very strong]; ΔBIC(k=7,k=8)=−813 [very strong]) but not globally optimal (ΔBIC(k=7,k=14)=+504,751 [very strong evidence against k=7 as global min]). k=7 is defended by local optimality + regime interpretability. Any paper section discussing k-selection MUST include this BIC disclosure.**
 * **Dependencies:** Task 0.1.
 
 1. Fit GMM at each k with reproducible seeds.
@@ -630,17 +630,17 @@ style T4_10 fill:#a8dadc,color:#000
 
 ### Task 1.13: Two-stage IPW weights - Panel Statistics Agent
 
-* **Objective:** Construct the wave-level response propensity weight (`lwtresp` × observation-propensity) and the trajectory-level continuity propensity weight (probability of satisfying the 10-of-14 rule given wave-1 observables); combine and trim at 1st/99th percentile.
-* **Output:** `results/panel_methodology/ipw/wave_propensity_<date>.json`; `..._trajectory_propensity_<date>.json`; combined weights at `data/derived/ipw_weights_<date>.csv`; weighted descriptive table; vault `[RESULT]` entry.
-* **Validation:** Weights sum to roughly the analytical sample size; trimming caps reported; weighted regime proportions reported alongside unweighted (R2/R6 expected to expand, R1 expected to contract).
-* **Guidance:** See P01-A response plan §S1.5 Component 2 and Spec §"Survey-weight handling for TDA".
+* **Objective:** Construct the two-stage IPW: base longitudinal survey weight × inverse continuity-propensity (probability of satisfying the 10-of-14 rule given wave-1 observables); combine and trim at 1st/99th percentile.
+* **Output:** `results/panel_methodology/weights/ipw_diagnostics_<date>.json`; vault `[PIPELINE]` entry.
+* **Validation:** AUC reported; ESS post-trim reported; weighted regime proportions reported alongside unweighted.
+* **Guidance:** See P01-A response plan §S1.5 Component 2 and Spec §"Survey-weight handling for TDA". Base weight variables: `{wave}_indinub_lw` (UKHLS waves c+), `{wave}_indin91_lw` (BHPS waves bb+); wave `ba` has no longitudinal weight (lw_base=1 fallback, documented in UKDA weighting guide). Note: `lwtresp` does not exist in UKDA-6614; use wave-prefixed variables above. **Completed 2026-05-13 (commit 6d6fd65). AUC=0.714, ESS=57,035.**
 * **Dependencies:** Task 0.1, Task 0.9.
 
-1. Build wave-level propensity model in R using `lwtresp` and `indscub_xw` covariates.
+1. Build wave-level propensity model in R using base longitudinal weight variables and continuity predictors.
 2. Build trajectory-level continuity propensity model.
-3. Combine: `w_i = w_i^USoc × w_i^continuity`; trim at 1st/99th percentile.
+3. Combine: `w_i = lw_base / propensity_score`; trim at 1st/99th percentile.
 4. Compute weighted regime proportions and compare to unweighted.
-5. Write vault `[RESULT]` entry.
+5. Write vault `[PIPELINE]` entry.
 
 ### Task 1.14: MICE for income within observed waves - Panel Statistics Agent
 

@@ -311,8 +311,10 @@ def compute_w2_ratio_bca_ci(
     t_obs = float(w_obs_1d.mean() / mean_nn)
 
     def _ratio_stat(x: np.ndarray, y: np.ndarray) -> float:
-        return float(x.mean() / y.mean())
-
+        denom = y.mean()
+        if denom == 0.0:
+            return np.inf  # or np.nan, depending on desired behavior
+        return float(x.mean() / denom)
     res = bootstrap(
         (w_obs_1d, w_nn_1d),
         statistic=_ratio_stat,

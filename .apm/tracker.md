@@ -37,23 +37,23 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 1.9 | Pending | tda-agent | |
 | 1.10 | Pending | tda-agent | |
 | 1.11 | Pending | tda-agent | |
-| 1.12 | Active | panel-statistics-agent | run/bic-ipw-mice-income |
-| 1.13 | Active | panel-statistics-agent | run/bic-ipw-mice-income |
-| 1.14 | Active | panel-statistics-agent | run/bic-ipw-mice-income |
-| 1.15 | Pending | panel-statistics-agent | |
-| 1.16 | Pending | panel-statistics-agent | |
-| 1.17 | Pending | panel-statistics-agent | |
-| 1.18 | Pending | panel-statistics-agent | |
-| 1.19 | Pending | panel-statistics-agent | |
-| 1.20 | Pending | panel-statistics-agent | |
-| 1.21 | Pending | panel-statistics-agent | |
-| 1.22 | Pending | panel-statistics-agent | |
-| 1.23 | Pending | panel-statistics-agent | |
-| 1.24 | Pending | panel-statistics-agent | |
-| 1.25 | Pending | panel-statistics-agent | |
-| 1.26 | Pending | panel-statistics-agent | |
-| 1.27 | Pending | panel-statistics-agent | |
-| 1.28 | Pending | panel-statistics-agent | |
+| 1.12 | Done | panel-statistics-agent | |
+| 1.13 | Done | panel-statistics-agent | |
+| 1.14 | Done | panel-statistics-agent | |
+| 1.15 | Active | panel-statistics-agent | run/regression-manski-nssec |
+| 1.16 | Ready | panel-statistics-agent | |
+| 1.17 | Ready | panel-statistics-agent | |
+| 1.18 | Active | panel-statistics-agent | run/regression-manski-nssec |
+| 1.19 | Active | panel-statistics-agent | run/regression-manski-nssec |
+| 1.20 | Waiting: 1.19 | panel-statistics-agent | |
+| 1.21 | Waiting: 1.20, 1.18 | panel-statistics-agent | |
+| 1.22 | Waiting: 1.21 | panel-statistics-agent | |
+| 1.23 | Ready | panel-statistics-agent | |
+| 1.24 | Ready | panel-statistics-agent | |
+| 1.25 | Ready | panel-statistics-agent | |
+| 1.26 | Waiting: 1.2 | panel-statistics-agent | |
+| 1.27 | Ready | panel-statistics-agent | |
+| 1.28 | Waiting: 1.2 | panel-statistics-agent | |
 
 ## Worker Tracking
 
@@ -61,7 +61,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |-------|----------|-------|
 | reproducibility-agent | 1 | active (T0.3) |
 | tda-agent | 1 | active (T1.1–T1.3 batch) — worktree run-core-tda-battery |
-| panel-statistics-agent | 1 | active (T1.12–T1.14 batch) — worktree run-bic-ipw-mice-income |
+| panel-statistics-agent | 1 | active (T1.15/T1.18/T1.19 batch) — worktree run-regression-manski-nssec |
 | academic-writing-agent | 1 | uninitialized |
 
 ## Version Control
@@ -86,6 +86,9 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 - T0.2 Done (commit `b8ef1cb`): 1 unseeded production-path call fixed (`markov_ladder.simulate_markov_trajectories`); 2 entry-point scripts threaded (`run_pipeline.py --seed`, `bhps_tda_pipeline.py MASTER_SEED=42`). Canary reference values: H0=1138.24331880, H1=78.97751522 (L=500, n_perms=20, seed=42) — used as reference for T0.3 two-machine comparison.
 - T0.3 Blocked at second-machine coordination step (commit `1991de2` on `pipe/two-machine-check`). Local canary matches T0.2 reference exactly (H0=1138.24331880, H1=78.97751522). Awaiting `canary_machine2_2026-05-07.json` placed at `results/trajectory_tda_integration/repro/` in the worktree. T0.3 only blocks T2.18 (Stage 2 prose); Stage 1 is unaffected. Resume via `/apm-4-check-tasks` once file is placed.
 - T0.4/T0.5/T0.6 batch Done (commits 15fa9a3/043f0b0/4c73a1a). Key findings: (a) Markov-2 Laplace smoothing implemented (alpha=1 default, 13 tests in tests/trajectory/). (b) T0.5 root cause confirmed: sklearn 1.3.2 pkl corrupt under 1.8.0; fix already in codebase — `load_regime_labels` reads from `05_analysis.json` (27,280 labels, 7 regimes, v1 Table 2 match); input validation guards added. (c) T0.6: `detect_eps_star_knee()` extracted; median ε*=0.54 from knee_analysis.json (LOCKED: Option A, data-driven); 4 degenerate years (2003/2005/2011/2019).
+- T0.7/T0.8 batch Done (commits 2bed613/4bda7ef+335dbf9, branch `pipe/w2-fixes` merged). Key findings: (a) T0.7 W₂ ground-metric audit: canonical call locked as `gudhi.wasserstein.wasserstein_distance(dgm1, dgm2, order=2, internal_p=2)`; ℓ∞ sensitivity confirmed qualitative agreement with ℓ² (H0: ℓ∞ p=0.008, ℓ² p=0.002 — both reject; H1: ℓ∞ p=0.224, ℓ² p=0.086 — both fail to reject); DECISION vault entry filed pre-run. (b) T0.8 W₂ test construction: `compute_w2_ratio_bca_ci()` added to `vectorisation.py` using `scipy.stats.bootstrap(method='BCa')`; `t_ratio`, `bca_ci_lower`, `bca_ci_upper` now recorded in per-dimension wasserstein results; 16 unit tests pass; latent `gudhi.wasserstein` import bug fixed (was silently falling to greedy approximation via bare `import gudhi`). `pot` optional-extras gap surfaced by both tasks.
 - T0.9/T0.10/T0.11 batch Done (commits ea6f657/de724f6/74e147d). Key findings: (a) jbstat locked recoding: E={1,2,5,11,12,13,14,15}, U={3,9}, I={4,6,7,8,10,97}; codes 11/13/14/15 corrected from initial guesses. (b) Canonical income variable `fihhmngrs_dv`; BHPS cohort enrolls from wave b; 10,992 spanning individuals; tercile concordance 68.9% (FLAG <80%); TERCILE BOUNDARY LOCKED: Option A (within-era). (c) FOO clusters: 27,972 components, 99.94% coverage, ICC=0.899 upper bound; CSV at `data/derived/foo_clusters_2026-05-06.csv` (gitignored, on disk).
 - Stage 1 parallel dispatch completed 2026-05-13. TDA Agent: T1.1–T1.3 batch on branch `run/core-tda-battery` (worktree `.apm/worktrees/run-core-tda-battery`). Panel-Statistics Agent: T1.12–T1.14 batch on branch `run/bic-ipw-mice-income` (worktree `.apm/worktrees/run-bic-ipw-mice-income`). `.env` copied to both worktrees. Stage-01 memory directory created at `.apm/memory/stage-01/`.
 - `pot` optional extras gap: `pot>=0.9.0` is under `[project.optional-dependencies] wasserstein` in pyproject.toml; `uv sync` alone does not install it. Main venv fixed with `uv sync --extra wasserstein` (pot==0.9.6.post1 installed). Worktrees require `uv pip install pot` separately. Consider moving to core deps to avoid recurrence.
+- T1.12/T1.13/T1.14 Done (commits 9e6fb67/6d6fd65/4d4861c, merged 2026-05-13). Key findings: (a) BIC global minimum k=14 (ΔBIC=504,751 vs k=7, very strong); k=7 is locally optimal in k=6–8 neighbourhood; paper sections on k-selection MUST include this BIC disclosure. (b) `lwtresp` does not exist in UKDA-6614 data — corrected to `{wave}_indinub_lw` (UKHLS c+) / `{wave}_indin91_lw` (BHPS bb+); wave ba has no longitudinal weight (lw_base=1). AUC=0.714, ESS=57,035. (c) MICE FMI 2–5% throughout; strong income-regime alignment: R1=72.7% H, R2=63.9% L, R6=77.0% L (external validation of GMM regimes). T1.14 deduplication fix: first non-NA row per (pidp, wave) before dcast.
+- panel-statistics-agent task log protocol deviation: T1.12/T1.13/T1.14 logs not written by agent; Manager wrote them from batch report content. Task logs verified against committed result files. Resolved — no action needed from agent.

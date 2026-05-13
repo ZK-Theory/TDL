@@ -8,8 +8,7 @@ DATA_ROOT <- Sys.getenv("TDL_DATA_ROOT", "")
 if (!nzchar(DATA_ROOT)) {
   args <- commandArgs(trailingOnly = FALSE)
   file_arg <- grep("--file=", args, value = TRUE)
-  script_dir <- if (length(file_arg) > 0) dirname(normalizePath(sub("^--file=", "", file_arg[1]))) else normalizePath(".")
-  DATA_ROOT <- normalizePath(file.path(script_dir, "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
+  script_dir <- if (length(file_arg) > 0) dirname(normalizePath(sub("^--file=", "", file_arg[1]), mustWork = FALSE)) else normalizePath(".") DATA_ROOT <- normalizePath(file.path(script_dir, "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
 }
 TODAY <- format(Sys.Date(), "%Y-%m-%d")
 
@@ -99,15 +98,15 @@ for (w in bhps_waves) {
   tab <- sort(table(pos_vals), decreasing = TRUE)
   code_vec <- as.integer(names(tab))
   results[[w]] <- list(
-    wave       = w,
-    survey     = "BHPS_harmonised",
-    n_total    = length(vals),
-    n_valid    = length(pos_vals),
-    codes      = as.list(tab),
+    wave = w,
+    survey = "BHPS_harmonised",
+    n_total = length(vals),
+    n_valid = length(pos_vals),
+    codes = as.list(tab),
     unique_pos = sort(unique(pos_vals)),
     has_code10 = 10L %in% pos_vals,
     has_code11 = 11L %in% pos_vals,
-    note       = ""
+    note = ""
   )
 }
 
@@ -133,15 +132,15 @@ for (w in ukhls_waves) {
   pos_vals <- vals[vals > 0]
   tab <- sort(table(pos_vals), decreasing = TRUE)
   results[[w]] <- list(
-    wave       = w,
-    survey     = "UKHLS",
-    n_total    = length(vals),
-    n_valid    = length(pos_vals),
-    codes      = as.list(tab),
+    wave = w,
+    survey = "UKHLS",
+    n_total = length(vals),
+    n_valid = length(pos_vals),
+    codes = as.list(tab),
     unique_pos = sort(unique(pos_vals)),
     has_code10 = 10L %in% pos_vals,
     has_code11 = 11L %in% pos_vals,
-    note       = ""
+    note = ""
   )
 }
 
@@ -162,11 +161,11 @@ wave_summaries <- lapply(names(results), function(w) {
   unclassified <- r$unique_pos[is.na(bins)]
 
   c(r, list(
-    E_codes        = E_codes,
-    U_codes        = U_codes,
-    I_codes        = I_codes,
-    unclassified   = unclassified,
-    code_bin_map   = as.list(bins)
+    E_codes = E_codes,
+    U_codes = U_codes,
+    I_codes = I_codes,
+    unclassified = unclassified,
+    code_bin_map = as.list(bins)
   ))
 })
 names(wave_summaries) <- names(results)
@@ -247,7 +246,8 @@ cat("\nCode 10 present in waves:", paste(code10_waves, collapse = ", "), "\n")
 cat("Code 11 present in waves:", paste(code11_waves, collapse = ", "), "\n")
 if (length(inconsistencies) > 0) {
   cat("\nUnexpected codes:\n")
-  for (msg in inconsistencies) cat(" ", msg, "\n")
+  for (msg in inconsistencies)
+    cat(" ", msg, "\n")
 } else {
   cat("\nNo unexpected codes beyond {1-11, 97} found.\n")
 }

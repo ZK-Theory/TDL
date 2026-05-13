@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
@@ -22,8 +23,12 @@ from trajectory_tda.topology.vectorisation import PHResult
 
 logger = logging.getLogger(__name__)
 
+# Compute checkpoint directory from environment or project-relative path
 _CHECKPOINT_DIR = Path(
-    r"c:\Users\steph\TDL\results\trajectory_tda_integration"
+    os.getenv(
+        "TDA_CHECKPOINT_DIR",
+        str(Path(__file__).parent.parent / "results" / "trajectory_tda_integration")
+    )
 )
 _OUTPUT_DIR = _CHECKPOINT_DIR / "post_audit"
 _OUTPUT_PATH = _OUTPUT_DIR / "w2_internal_p_sensitivity_2026-05-12.json"
@@ -52,13 +57,15 @@ def _extract_dgm(ph: PHResult, dim: int) -> np.ndarray:
 
 
 def run_sensitivity() -> dict:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-    )
     logger.info("Loading checkpoint …")
-    embeddings, trajectories, embed_kwargs = load_checkpoint(_CHECKPOINT_DIR)
-
+    try:
+        embeddings, trajectories, embed_kwargs = load_checkpoint(_CHECKPOINT_DIR)
+    except FileNotFoundError as e:
+        logger.error(f"Checkpoint not found: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to load checkpoint: {e}")
+        raise
     n = embeddings.shape[0]
     actual_lm = min(_N_LANDMARKS, n)
     logger.info(f"n={n}, landmarks={actual_lm}, n_perms={_N_PERMS}, seed={_SEED}")
@@ -94,16 +101,23 @@ def run_sensitivity() -> dict:
             obs_null_dists[dim].append(_w2_inf(obs_dgms[dim], null_dgm[dim]))
 
     # Null-null baseline
-    n_null_pairs = min(500, _N_PERMS * (_N_PERMS - 1) // 2)
-    rng_pairs = np.random.RandomState(_SEED)
     null_null_dists: dict[int, list[float]] = {dim: [] for dim in range(_MAX_DIM + 1)}
-    logger.info(f"Computing {n_null_pairs} null-null pairs …")
-    for _ in range(n_null_pairs):
-        i, j = rng_pairs.choice(_N_PERMS, size=2, replace=False)
-        for dim in range(_MAX_DIM + 1):
-            null_null_dists[dim].append(
-                _w2_inf(null_dgms_store[i][dim], null_dgms_store[j][dim])
-            )
+    
+    if _N_PERMS < 2:
+        logger.warning(
+            f"Insufficient permutations for null-null sampling: _N_PERMS={_N_PERMS} < 2. "
+            "Skipping null-null baseline computation."
+        )
+    else:
+        n_null_pairs = min(500, _N_PERMS * (_N_PERMS - 1) // 2)
+        rng_pairs = np.random.RandomState(_SEED)
+        logger.info(f"Computing {n_null_pairs} null-null pairs …")
+        for _ in range(n_null_pairs):
+            i, j = rng_pairs.choice(_N_PERMS, size=2, replace=False)
+            for dim in range(_MAX_DIM + 1):
+                null_null_dists[dim].append(
+                    _w2_inf(null_dgms_store[i][dim], null_dgms_store[j][dim])
+                )
 
     results: dict = {
         "audit_parameters": {
@@ -118,8 +132,16 @@ def run_sensitivity() -> dict:
         },
         "l2_reference": {
             "H0": {"mean_obs_null": 11.4224, "mean_null_null": 5.9919, "p_value": 0.002, "significant": True},
-            "H1": {"mean_obs_null": 126.8510, "mean_null_null": 121.3941, "p_value": 0.086, "significant": False},
-        },
+        for dim in range(_MAX_DIM + 1):
+            key = f"H{dim}"
+            on = np.array(obs_null_dists[dim])
+            nn = np.array(null_null_dists[dim])
+            if len(nn) == 0:
+                logger.warning(f"{key}: No null-null distances computed")
+                results[key] = {"error": "Insufficient null-null samples"}
+                continue
+            mean_on = float(on.mean())
+            mean_nn = float(nn.mean())        },
     }
 
     for dim in range(_MAX_DIM + 1):
@@ -145,13 +167,25 @@ def run_sensitivity() -> dict:
     return results
 
 
+def setup_logging() -> None:
+    """Configure logging for the script."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+
+
 def main() -> None:
+    setup_logging()
     _OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     results = run_sensitivity()
-    with open(_OUTPUT_PATH, "w") as f:
-        json.dump(results, f, indent=2)
-    logger.info(f"Saved to {_OUTPUT_PATH}")
-
+    try:
+        with open(_OUTPUT_PATH, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2)
+        logger.info(f"Saved to {_OUTPUT_PATH}")
+    except IOError as e:
+        logger.error(f"Failed to write results: {e}")
+        raise
 
 if __name__ == "__main__":
     main()
