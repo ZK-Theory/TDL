@@ -8,7 +8,12 @@ DATA_ROOT <- Sys.getenv("TDL_DATA_ROOT", "")
 if (!nzchar(DATA_ROOT)) {
   args <- commandArgs(trailingOnly = FALSE)
   file_arg <- grep("--file=", args, value = TRUE)
-  script_dir <- if (length(file_arg) > 0) dirname(normalizePath(sub("^--file=", "", file_arg[1]), mustWork = FALSE)) else normalizePath(".") DATA_ROOT <- normalizePath(file.path(script_dir, "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
+  script_dir <- if (length(file_arg) > 0) {
+    dirname(normalizePath(sub("^--file=", "", file_arg[1]), mustWork = FALSE))
+  } else {
+    normalizePath(".")
+  }
+  DATA_ROOT <- normalizePath(file.path(script_dir, "..", "..", "..", "data", "UKDA-6614-tab", "tab"), mustWork = FALSE)
 }
 TODAY <- format(Sys.Date(), "%Y-%m-%d")
 
@@ -63,8 +68,6 @@ assign_bin <- function(code) {
   employed <- c(1L, 2L, 5L) # Self-emp, employed, mat/pat leave
   unemployed <- c(3L, 9L) # ILO unemployed, govt training
   inactive <- c(4L, 6L, 7L, 8L, 10L, 11L, 97L)
-  dplyr_like <- function(x, choices) x %in% choices
-
   ifelse(code %in% employed, "E",
     ifelse(code %in% unemployed, "U",
       ifelse(code %in% inactive, "I", NA_character_)
@@ -81,7 +84,7 @@ for (w in bhps_waves) {
   fname <- file.path(DATA_ROOT, "bhps", paste0(w, "_indresp.tab"))
   if (!file.exists(fname)) {
     results[[w]] <- list(
-      wave = w, survey = "BHPS", n = 0, codes = NULL,
+      wave = w, survey = "BHPS", n_total = 0, n_valid = 0, codes = NULL,
       note = "file not found"
     )
     next
@@ -89,7 +92,7 @@ for (w in bhps_waves) {
   vals <- read_jbstat(fname, w)
   if (is.null(vals)) {
     results[[w]] <- list(
-      wave = w, survey = "BHPS", n = NA, codes = NULL,
+      wave = w, survey = "BHPS", n_total = NA, n_valid = NA, codes = NULL,
       note = "jbstat not found in file"
     )
     next
@@ -116,7 +119,7 @@ for (w in ukhls_waves) {
   fname <- file.path(DATA_ROOT, "ukhls", paste0(w, "_indresp.tab"))
   if (!file.exists(fname)) {
     results[[w]] <- list(
-      wave = w, survey = "UKHLS", n = 0, codes = NULL,
+      wave = w, survey = "UKHLS", n_total = 0, n_valid = 0, codes = NULL,
       note = "file not found"
     )
     next
@@ -124,7 +127,7 @@ for (w in ukhls_waves) {
   vals <- read_jbstat(fname, w)
   if (is.null(vals)) {
     results[[w]] <- list(
-      wave = w, survey = "UKHLS", n = NA, codes = NULL,
+      wave = w, survey = "UKHLS", n_total = NA, n_valid = NA, codes = NULL,
       note = "jbstat not found in file"
     )
     next

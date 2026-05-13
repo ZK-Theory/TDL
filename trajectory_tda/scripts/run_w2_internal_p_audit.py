@@ -132,22 +132,23 @@ def run_sensitivity() -> dict:
         },
         "l2_reference": {
             "H0": {"mean_obs_null": 11.4224, "mean_null_null": 5.9919, "p_value": 0.002, "significant": True},
-        for dim in range(_MAX_DIM + 1):
-            key = f"H{dim}"
-            on = np.array(obs_null_dists[dim])
-            nn = np.array(null_null_dists[dim])
-            if len(nn) == 0:
-                logger.warning(f"{key}: No null-null distances computed")
-                results[key] = {"error": "Insufficient null-null samples"}
-                continue
-            mean_on = float(on.mean())
-            mean_nn = float(nn.mean())        },
+        },
     }
-
     for dim in range(_MAX_DIM + 1):
         key = f"H{dim}"
         on = np.array(obs_null_dists[dim])
-        nn = np.array(null_null_dists[dim]) if null_null_dists[dim] else np.array([0.0])
+        if not null_null_dists[dim]:
+            logger.warning(f"{key}: No null-null distances available — result marked invalid")
+            results[key] = {
+                "mean_wasserstein_obs_null": float(on.mean()),
+                "std_wasserstein_obs_null": float(on.std()),
+                "mean_wasserstein_null_null": None,
+                "p_value": None,
+                "significant_at_005": None,
+                "n_null_null_pairs": 0,
+            }
+            continue
+        nn = np.array(null_null_dists[dim])
         mean_on = float(on.mean())
         mean_nn = float(nn.mean())
         p_val = float(np.mean(nn >= mean_on))

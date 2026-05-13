@@ -76,8 +76,8 @@ class TestBCaCI:
         t_ratio, ci_lo, ci_hi = compute_w2_ratio_bca_ci(w_obs, w_null, n_boot=999, seed=42)
         assert ci_lo < t_ratio < ci_hi
 
-    def test_bca_ci_wider_than_delta_ci(self):
-        """BCa CI is wider than the delta-method CI on the same inputs (expected)."""
+    def test_bca_ci_width_reasonable_vs_delta_ci(self):
+        """BCa CI width should be at least 50% of delta-method CI width."""
         w_obs, w_null = _make_arrays(n_obs=50, n_null=200)
         t_ratio, bca_lo, bca_hi = compute_w2_ratio_bca_ci(w_obs, w_null, n_boot=999, seed=42)
 
@@ -91,7 +91,6 @@ class TestBCaCI:
         assert bca_width >= delta_width * 0.5, (
             f"BCa width={bca_width:.4f} should be ≥ 50% of delta width={delta_width:.4f}"
         )
-
 
 # ── Test 3: Case A (2D) and Case B (1D) consistency ─────────────────────────
 

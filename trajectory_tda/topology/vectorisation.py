@@ -304,16 +304,17 @@ def compute_w2_ratio_bca_ci(
             f"got n_obs={len(w_obs_1d)}, n_null={len(w_nn_1d)}."
         )
 
+    _EPS = 1e-12
     mean_nn = w_nn_1d.mean()
-    if mean_nn == 0.0:
+    if mean_nn < _EPS:
         raise ValueError("mean(w_null_null) is zero; T_ratio is undefined.")
 
     t_obs = float(w_obs_1d.mean() / mean_nn)
 
     def _ratio_stat(x: np.ndarray, y: np.ndarray) -> float:
         denom = y.mean()
-        if denom == 0.0:
-            return np.inf  # or np.nan, depending on desired behavior
+        if denom < _EPS:
+            return np.nan  # NaN is safer; scipy bootstrap handles NaN gracefully
         return float(x.mean() / denom)
     res = bootstrap(
         (w_obs_1d, w_nn_1d),
@@ -353,12 +354,16 @@ def compute_w2_ratio_delta_ci(
     """
     from scipy.stats import norm
 
+    if t_ratio <= 0:
+        raise ValueError("t_ratio must be positive for log-normal CI.")
+    if se_obs < 0 or se_null < 0:
+        raise ValueError("se_obs and se_null must be non-negative.")
+
     z = float(norm.ppf(1 - alpha / 2))
     se_log_t = float(np.sqrt(se_obs**2 + se_null**2))
     ci_lower = float(t_ratio * np.exp(-z * se_log_t))
     ci_upper = float(t_ratio * np.exp(z * se_log_t))
     return ci_lower, ci_upper
-
 
 # ─────────────────────────────────────────────────────────────────────
 # Convenience: vectorise multiple diagrams

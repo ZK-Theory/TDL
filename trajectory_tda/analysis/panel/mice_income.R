@@ -23,8 +23,8 @@ suppressPackageStartupMessages({
 
 set.seed(42)
 
-PROJ_ROOT   <- "C:/Users/steph/TDL"
 WORKTREE    <- normalizePath(getwd(), mustWork = FALSE)
+PROJ_ROOT   <- Sys.getenv("TDL_ROOT", unset = WORKTREE)
 DATA_TAB    <- file.path(PROJ_ROOT, "data/UKDA-6614-tab/tab")
 BHPS_DIR    <- file.path(DATA_TAB, "bhps")
 UKHLS_DIR   <- file.path(DATA_TAB, "ukhls")
@@ -261,7 +261,7 @@ pool_regime_stats <- function(stats_list, era) {
     L_mean <- mean(L_prop, na.rm=TRUE)
     M_mean <- mean(M_prop, na.rm=TRUE)
     H_mean <- mean(H_prop, na.rm=TRUE)
-    # Within-imputation variance (assumed ~p(1-p)/n, approximated from m reps)
+    # Between-imputation variance (within-imputation variance not computed; SE = sqrt((1+1/m)*B))
     L_var_b <- var(L_prop, na.rm=TRUE)
     M_var_b <- var(M_prop, na.rm=TRUE)
     H_var_b <- var(H_prop, na.rm=TRUE)

@@ -216,8 +216,7 @@ inc_combined[, income_tercile_init := fifelse(
     fifelse(fihhmngrs_dv <= ukhls_cuts[2], "M", "H"))
 )]
 
-inc_tercile <- unique(inc_combined[!is.na(income_tercile_init), .(pidp, income_tercile_init)])
-
+inc_tercile <- inc_combined[!is.na(income_tercile_init)][order(pidp, wave_label), .SD[1L], by = pidp][, .(pidp, income_tercile_init)]
 # ---------------------------------------------------------------------------
 # 7. Assemble modelling dataset
 # ---------------------------------------------------------------------------

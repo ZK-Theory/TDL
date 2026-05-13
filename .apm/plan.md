@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: "Stage 1 Task count corrected from 27 to 28 (Tasks 1.1–1.28). TDA Agent Workers table updated after T0.1: giotto-tda removed (no cp313 wheels), scikit-tda not resolvable, gtda.* imports need replacement. T1.12 guidance updated with BIC result: k=14 global min, k=7 locally optimal, disclosure required in prose. T1.13 lwtresp transcription error corrected to wave-prefixed longitudinal weight variables. Modified by the Manager."
+modified: "Stage 1 Task count updated to 29 (Tasks 1.1–1.29). T1.29 added: IPW structural eligibility sensitivity — rerun IPW with eligible population restricted to individuals enrolled early enough to have ≥10 waves available; motivated by CodeRabbit audit finding raw max weight 535.89 explained by birth-cohort mechanism. T1.13 guidance updated with weight distribution findings. T2.4 and T2.10 guidance updated with IPW documentation requirements. Modified by the Manager."
 ---
 
 # APM Plan
@@ -72,6 +72,7 @@ subgraph S1["Stage 1: Locked numerical and statistical results"]
   T1_26["1.26 BHPS non-overlap<br/><i>Panel Statistics Agent</i>"]
   T1_27["1.27 10-of-14 sensitivity GMM<br/><i>Panel Statistics Agent</i>"]
   T1_28["1.28 FDR families redefine<br/><i>Panel Statistics Agent</i>"]
+  T1_13 --> T1_29["1.29 IPW structural eligibility<br/><i>Panel Statistics Agent</i>"]
 end
 
 subgraph S2["Stage 2: v2 drafting"]
@@ -172,6 +173,8 @@ T1_23 -.-> T2_5
 T1_24 -.-> T2_5
 T1_26 -.-> T2_8
 T1_28 -.-> T2_7
+T1_12 -.-> T2_10
+T1_12 -.-> T2_11
 T0_1 -.-> T2_18
 T0_3 -.-> T2_18
 T2_10 -.-> T3_1
@@ -631,16 +634,16 @@ style T4_10 fill:#a8dadc,color:#000
 ### Task 1.13: Two-stage IPW weights - Panel Statistics Agent
 
 * **Objective:** Construct the two-stage IPW: base longitudinal survey weight × inverse continuity-propensity (probability of satisfying the 10-of-14 rule given wave-1 observables); combine and trim at 1st/99th percentile.
-* **Output:** `results/panel_methodology/weights/ipw_diagnostics_<date>.json`; vault `[PIPELINE]` entry.
+* **Output:** `results/panel_methodology/weights/ipw_diagnostics_<date>.json`; vault `[RESULT]` entry.
 * **Validation:** AUC reported; ESS post-trim reported; weighted regime proportions reported alongside unweighted.
-* **Guidance:** See P01-A response plan §S1.5 Component 2 and Spec §"Survey-weight handling for TDA". Base weight variables: `{wave}_indinub_lw` (UKHLS waves c+), `{wave}_indin91_lw` (BHPS waves bb+); wave `ba` has no longitudinal weight (lw_base=1 fallback, documented in UKDA weighting guide). Note: `lwtresp` does not exist in UKDA-6614; use wave-prefixed variables above. **Completed 2026-05-13 (commit 6d6fd65). AUC=0.714, ESS=57,035.**
+* **Guidance:** See P01-A response plan §S1.5 Component 2 and Spec §"Survey-weight handling for TDA". Base weight variables: `{wave}_indinub_lw` (UKHLS waves c+), `{wave}_indin91_lw` (BHPS waves bb+); wave `ba` has no longitudinal weight (lw_base=1 fallback, documented in UKDA weighting guide). Note: `lwtresp` does not exist in UKDA-6614; use wave-prefixed variables above. **Completed 2026-05-13 (commit 6d6fd65). AUC=0.714, ESS=57,035. Weight distribution: raw max=535.89, trimmed max=42.78 (p1–p99 trim), CV raw=1.36→trimmed=0.99. Extreme weights are structurally explained by birth cohort: `birth_cohort_group1990+` coefficient=−6.196 (log-odds) → propensity≈0.002 for recent entrants who cannot satisfy the 10-year continuity criterion by construction. Including recent entrants in the eligible population (n=113,411) conflates structural impossibility with differential attrition. Trimming at p1–p99 is correct per reviewer spec; primary result stands. T1.29 adds structural-eligibility sensitivity with restricted eligible population (enrolled by wave ≤5).**
 * **Dependencies:** Task 0.1, Task 0.9.
 
 1. Build wave-level propensity model in R using base longitudinal weight variables and continuity predictors.
 2. Build trajectory-level continuity propensity model.
 3. Combine: `w_i = lw_base / propensity_score`; trim at 1st/99th percentile.
 4. Compute weighted regime proportions and compare to unweighted.
-5. Write vault `[PIPELINE]` entry.
+5. Write vault `[RESULT]` entry.
 
 ### Task 1.14: MICE for income within observed waves - Panel Statistics Agent
 
@@ -850,6 +853,21 @@ style T4_10 fill:#a8dadc,color:#000
 4. Effect sizes alongside.
 5. Write vault `[RESULT]` entry.
 
+### Task 1.29: IPW structural eligibility sensitivity - Panel Statistics Agent
+
+* **Objective:** Rerun the T1.13 IPW with the eligible population restricted to individuals who had a structural opportunity to satisfy the 10-of-14 rule — enrolled early enough in USoc/BHPS that at least 10 waves were available before the data cutoff. Compare ESS, weight distributions, and weighted regime proportions to T1.13 primary results.
+* **Output:** `results/panel_methodology/weights/ipw_structural_eligible_sensitivity_<date>.json` containing: n_structural_eligible, n_excluded_recent_entrants, cutoff rule used, ESS (restricted), raw and trimmed weight distributions, weighted regime proportions (restricted vs T1.13 primary); vault `[RESULT]` entry.
+* **Validation:** n_structural_eligible < 113,411 (T1.13 eligible); max raw weight substantially lower; ESS and weighted proportions compared to T1.13.
+* **Guidance:** Motivated by CodeRabbit audit of `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json`: raw max weight 535.89 entirely explained by `birth_cohort_group1990+` coefficient=−6.196 → propensity≈0.002 for recent entrants. Structural cutoff: for USoc, an individual enrolled at wave K is structurally eligible only if (14 − K + 1) ≥ 10, i.e. K ≤ 5 (enrolled by approximately 2013–14). Apply the equivalent logic for BHPS harmonised waves. Retain the same propensity model predictors as T1.13; only the eligible population denominator changes. Read `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json` for primary comparison values.
+* **Dependencies:** Task 1.13.
+
+1. Determine structural eligibility cutoff: latest enrolment wave at which (max_wave − enrolment_wave + 1) ≥ 10.
+2. Restrict eligible population to structurally eligible individuals.
+3. Refit the propensity model on the restricted population.
+4. Combine with base weights, trim at p1–p99.
+5. Compare ESS, weight distributions, and weighted regime proportions to T1.13.
+6. Write vault `[RESULT]` entry.
+
 ## Stage 2: v2 drafting
 
 ### Task 2.1: P01-A §3.2 + §3.3 methods rewrite - Academic Writing Agent
@@ -899,8 +917,8 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Rewrite §4.5 with Tier 1/2/3 regression build-up, Firth, sibling-consistent MICE for NS-SEC, MICE for income, mediation framing, IPW + Manski bounds, demographic-balance qualifications.
 * **Output:** Updated §4.5 prose; full coefficient table; mediation decomposition table.
 * **Validation:** Mediation structure named; non-significance of NS-SEC (if it remains non-significant under Tier 3 + MI) appropriately qualified; `/notation-check` clean; **User per-section review approves**.
-* **Guidance:** See P01-A response plan §S5–§S9, §B7.
-* **Dependencies:** **Task 1.21 by Panel Statistics Agent**, **Task 1.22 by Panel Statistics Agent**, **Task 1.13 by Panel Statistics Agent**, **Task 1.14 by Panel Statistics Agent**, **Task 1.15 by Panel Statistics Agent**.
+* **Guidance:** See P01-A response plan §S5–§S9, §B7. **IPW weight documentation required in §4.5:** state the birth-cohort mechanism for the extreme raw weights (raw max=535.89; `birth_cohort_group1990+` coefficient=−6.196 → propensity≈0.002 for recent entrants who cannot satisfy the 10-year continuity criterion by construction), confirm p1–p99 trimming (trimmed max=42.78, CV drops from 1.36 to 0.99), and note the structural eligibility limitation. Reference the T1.29 restricted-eligibility sensitivity comparison. Read `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json` for primary values.
+* **Dependencies:** **Task 1.21 by Panel Statistics Agent**, **Task 1.22 by Panel Statistics Agent**, **Task 1.13 by Panel Statistics Agent**, **Task 1.14 by Panel Statistics Agent**, **Task 1.15 by Panel Statistics Agent**, **Task 1.29 by Panel Statistics Agent**.
 
 1. Compile regression + mediation + weighting results.
 2. Build coefficient table.
@@ -983,8 +1001,8 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Compile all P01-A supplement sections — S0 null specification, S2 attrition analysis, S4 landmark robustness, threshold sensitivity, intrinsic dimension, Markov-2 α sensitivity, landscape L² resolution sensitivity, BIC curve, demographic balance, knee-detection robustness, doubled-n W₂, BHPS H4 diagnostics, full coefficient table, ARI null + max, Markov-2 prose-vs-code project history.
 * **Output:** `papers/P01-A-JRSSA/drafts/v2-supplement-YYYY-MM.md` with all sections.
 * **Validation:** Every supplement reference in the main text is satisfied; null-spec is reproducible from supplement alone; `/notation-check` clean; **User review**.
-* **Guidance:** See P01-A response plan §11.5, §12, plus the per-issue artefact lists. **JRSS formatting questions for User during this Task:** supplement page-limit policy, citation style for grey literature.
-* **Dependencies:** All Stage 1 Tasks.
+* **Guidance:** See P01-A response plan §11.5, §12, plus the per-issue artefact lists. **JRSS formatting questions for User during this Task:** supplement page-limit policy, citation style for grey literature. **BIC disclosure (mandatory):** The BIC curve section must state that the global BIC minimum is k=14 (ΔBIC=504,751 vs k=7 on the Kass-Raftery scale) and that k=7 is defended by local BIC optimality in the k=6–8 neighbourhood plus regime interpretability. Read `results/trajectory_tda_integration/stage1/bic_curve_2026-05-13.json` for the exact values. **IPW supplement section (mandatory):** Document the full weight distribution (raw and trimmed) from T1.13 and T1.29: raw max=535.89, trimmed max=42.78 (p1–p99), CV raw=1.36→trimmed=0.99. State the birth-cohort explanation (recent entrants cannot satisfy the 10-year continuity criterion → `birth_cohort_group1990+` coefficient=−6.196). Document the structural eligibility limitation and present the T1.29 restricted-eligibility sensitivity comparison. Read `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json` and `results/panel_methodology/weights/ipw_structural_eligible_sensitivity_<date>.json` for the values.
+* **Dependencies:** All Stage 1 Tasks; **in particular Task 1.12 by Panel Statistics Agent** (BIC curve values and disclosure requirement).
 
 1. Section-by-section compilation, drawing from Stage 1 results.
 2. Cross-references resolved against main-text Tasks.
@@ -997,8 +1015,8 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Regenerate every P01-A figure to JRSS submission specifications — vector PDF, journal-prescribed dimensions and typography per `statsoc.cls` and `statsoc.pdf`; new figures (intrinsic-dim plot, KDE H₀, BIC curve, predicted-probability histogram, Mapper threshold sensitivity, demographic balance) added; Figure 14 verified as actual landscape overlays (regenerate or relabel).
 * **Output:** All `papers/P01-A-JRSSA/figures/*.pdf` at JRSS spec; figure-caption file.
 * **Validation:** Figures compile cleanly under `statsoc.cls`; dimensions match journal spec; captions are accurate (Figure 14 is what its caption says).
-* **Guidance:** See `papers/style_guides/JRSS/statsoc.pdf`. **JRSS formatting questions for User during this Task:** preferred figure size constants (single-column width, two-column width), preferred font family, preferred line-weights for axes, colour vs greyscale policy.
-* **Dependencies:** All Stage 1 Tasks producing figure data.
+* **Guidance:** See `papers/style_guides/JRSS/statsoc.pdf`. **JRSS formatting questions for User during this Task:** preferred figure size constants (single-column width, two-column width), preferred font family, preferred line-weights for axes, colour vs greyscale policy. **BIC curve figure:** Read `results/trajectory_tda_integration/stage1/bic_curve_2026-05-13.json` for k=3..15 BIC values. The figure must show k=7 as the local minimum with an annotation indicating the global minimum is k=14 (ΔBIC=504,751).
+* **Dependencies:** All Stage 1 Tasks producing figure data; **in particular Task 1.12 by Panel Statistics Agent** (BIC curve data at `results/trajectory_tda_integration/stage1/bic_curve_2026-05-13.json`).
 
 1. Inventory figures needed.
 2. Surface JRSS formatting questions to User.

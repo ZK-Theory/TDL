@@ -45,9 +45,18 @@ def kass_raftery(delta: float) -> str:
 
 
 def main() -> None:
+    if not EMBEDDING_PATH.exists():
+        log.error("Embedding file not found: %s", EMBEDDING_PATH)
+        raise FileNotFoundError(f"Required embedding file missing: {EMBEDDING_PATH}")
     log.info("Loading PCA-20D embedding from %s", EMBEDDING_PATH)
     embedding: np.ndarray = np.load(EMBEDDING_PATH)
     log.info("Embedding shape: %s", embedding.shape)
+    if embedding.ndim != 2 or embedding.shape[1] != 20:
+        log.error("Expected 2D array with 20 features, got shape %s", embedding.shape)
+        raise ValueError(f"Invalid embedding shape: {embedding.shape}")
+    if len(embedding) == 0:
+        log.error("Embedding array is empty")
+        raise ValueError("Cannot fit GMM on empty embedding")
 
     bic_by_k: dict[int, float] = {}
     for k in K_RANGE:

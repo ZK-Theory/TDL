@@ -24,6 +24,5 @@
     "n_init": 5,
     "random_state": 42
   },
-  "embedding_source": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-bic-ipw-mice-income\\results\\trajectory_tda_integration\\embeddings.npy",
-  "note_original_pipeline": "Original regime_discovery.py used n_init=3; this BIC curve uses n_init=5 per task spec."
+  "embedding_source": "results/trajectory_tda_integration/embeddings.npy",  "note_original_pipeline": "Original regime_discovery.py used n_init=3; this BIC curve uses n_init=5 per task spec."
 }

@@ -37,14 +37,13 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 1.9 | Pending | tda-agent | |
 | 1.10 | Pending | tda-agent | |
 | 1.11 | Pending | tda-agent | |
-| 1.12 | Done | panel-statistics-agent | |
-| 1.13 | Done | panel-statistics-agent | |
-| 1.14 | Done | panel-statistics-agent | |
-| 1.15 | Active | panel-statistics-agent | run/regression-manski-nssec |
+| 1.12 | Done | panel-statistics-agent | run/bic-ipw-mice-income |
+| 1.13 | Done | panel-statistics-agent | run/bic-ipw-mice-income |
+| 1.14 | Done | panel-statistics-agent | run/bic-ipw-mice-income || 1.15 | Active (supplement) | panel-statistics-agent | run/regression-manski-nssec |
 | 1.16 | Ready | panel-statistics-agent | |
 | 1.17 | Ready | panel-statistics-agent | |
-| 1.18 | Active | panel-statistics-agent | run/regression-manski-nssec |
-| 1.19 | Active | panel-statistics-agent | run/regression-manski-nssec |
+| 1.18 | Done (proxy confirmed) | panel-statistics-agent | run/regression-manski-nssec |
+| 1.19 | Active (rerun) | panel-statistics-agent | run/regression-manski-nssec |
 | 1.20 | Waiting: 1.19 | panel-statistics-agent | |
 | 1.21 | Waiting: 1.20, 1.18 | panel-statistics-agent | |
 | 1.22 | Waiting: 1.21 | panel-statistics-agent | |
@@ -54,6 +53,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 1.26 | Waiting: 1.2 | panel-statistics-agent | |
 | 1.27 | Ready | panel-statistics-agent | |
 | 1.28 | Waiting: 1.2 | panel-statistics-agent | |
+| 1.29 | Waiting: 1.13 | panel-statistics-agent | |
 
 ## Worker Tracking
 
@@ -92,3 +92,6 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 - `pot` optional extras gap: `pot>=0.9.0` is under `[project.optional-dependencies] wasserstein` in pyproject.toml; `uv sync` alone does not install it. Main venv fixed with `uv sync --extra wasserstein` (pot==0.9.6.post1 installed). Worktrees require `uv pip install pot` separately. Consider moving to core deps to avoid recurrence.
 - T1.12/T1.13/T1.14 Done (commits 9e6fb67/6d6fd65/4d4861c, merged 2026-05-13). Key findings: (a) BIC global minimum k=14 (ΔBIC=504,751 vs k=7, very strong); k=7 is locally optimal in k=6–8 neighbourhood; paper sections on k-selection MUST include this BIC disclosure. (b) `lwtresp` does not exist in UKDA-6614 data — corrected to `{wave}_indinub_lw` (UKHLS c+) / `{wave}_indin91_lw` (BHPS bb+); wave ba has no longitudinal weight (lw_base=1). AUC=0.714, ESS=57,035. (c) MICE FMI 2–5% throughout; strong income-regime alignment: R1=72.7% H, R2=63.9% L, R6=77.0% L (external validation of GMM regimes). T1.14 deduplication fix: first non-NA row per (pidp, wave) before dcast.
 - panel-statistics-agent task log protocol deviation: T1.12/T1.13/T1.14 logs not written by agent; Manager wrote them from batch report content. Task logs verified against committed result files. Resolved — no action needed from agent.
+- T1.13 vault entry type error: agent filed `[PIPELINE]` but correct type is `[RESULT]` (AUC=0.714, ESS=57,035 are citable numerical results). Plan corrected to `[RESULT]`. Vault entry already filed as `[PIPELINE]` — supplementary `[RESULT]` entry filed 2026-05-13 via vault_observe.
+- T1.15/T1.18/T1.19 batch reviewed 2026-05-13. T1.18 (sibling MICE NS-SEC): Done — proxy is dominant parental class: `pasoc90_cc` (father's SOC90) falling back to `masoc90_cc` (mother's SOC90) when father missing; agent correctly implemented this (76.3% → 83.3% combined → 91.5% post-propagation); no direct parental NS-SEC in UKDA-6614 confirmed via documentation search; proxy approach confirmed acceptable by Manager. T1.19 (Tier 1 regression): rerun required — outcome was applied to all 27,280 individuals (72.6% "escape" = regime prevalence) not conditional on starting in R2/R6 (5.6% conditional escape in v1). T1.15 (Manski bounds): regime share bounds correct; conditional escape rate bounds (5.6% → pessimistic lower bound) missing — supplement required. T1.19 rerun + T1.15 supplement dispatched as follow-up batch on same branch.
+- T1.13 IPW extreme weight (raw max=535.89) explained by birth cohort structure: `birth_cohort_group1990+` coefficient=−6.196 → propensity≈0.002 for recent entrants who cannot satisfy the 10-year continuity criterion by construction. This conflates structural impossibility with differential attrition in the eligible population (n=113,411). p1–p99 trimming is correct per reviewer spec (trimmed max=42.78, CV 1.36→0.99). T1.29 added as structural-eligibility sensitivity (restrict eligible population to individuals enrolled early enough to have ≥10 waves available). Vault `[RESULT]` and `[DECISION]` entries filed 2026-05-13.
