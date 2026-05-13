@@ -1,0 +1,29 @@
+{
+  "bic_by_k": {
+    "3": -565236.6117412345,
+    "4": -1080789.2816815411,
+    "5": -1067088.8393390207,
+    "6": -1280631.505637473,
+    "7": -1593023.263905828,
+    "8": -1592210.3099210307,
+    "9": -1616719.4242194882,
+    "10": -1814519.0418163731,
+    "11": -1936683.9114346486,
+    "12": -1900426.2123004263,
+    "13": -1874530.1114812738,
+    "14": -2097774.2428060547,
+    "15": -2082769.8245903857
+  },
+  "best_k": 14,
+  "delta_bic_vs_best": 504750.97890022676,
+  "delta_bic_k6": -312391.7582683549,
+  "delta_bic_k8": -812.9539847972337,
+  "kass_raftery_interpretation": "best_k=14 (BIC=-2097774.2). \u0394BIC(k=7, k=14)=504751.0 [very strong evidence against k=7]. \u0394BIC(k=7, k=6)=-312391.8 [very strong], \u0394BIC(k=7, k=8)=-813.0 [very strong].",
+  "gmm_params": {
+    "covariance_type": "full",
+    "n_init": 5,
+    "random_state": 42
+  },
+  "embedding_source": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-bic-ipw-mice-income\\results\\trajectory_tda_integration\\embeddings.npy",
+  "note_original_pipeline": "Original regime_discovery.py used n_init=3; this BIC curve uses n_init=5 per task spec."
+}
