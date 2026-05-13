@@ -65,7 +65,7 @@ Include `model="claude-sonnet-4-20250514"` in opening `plan_turn` call to narrow
 - grep, glob, Bash search
 - manual file system traversal  
 - direct `cat`/`less` for code discovery
-- Using `Read` before identifying target file via jcodemunch tools
+- Using `Read` before identifying target file via jCodemunch tools
 
 ### Search Result Interpretation
 
