@@ -1,0 +1,71 @@
+{
+  "run_params": {
+    "working_age_filter": "age_at_entry <= 59",
+    "jbstat4_note": "jbstat=4 (retired at entry) exclusion approximated by age_at_entry <= 59. Precise per-person jbstat=4 exclusion is applied in T1.19 via first-wave indresp data.",
+    "escape_definition": "last observed sequence state first char == 'E' (employed); consistent with T1.19",
+    "disadv_regimes": [2, 6],
+    "n_analytical": 27280,
+    "n_eligible": 113411,
+    "n_attritors": 86131,
+    "source_sequences": "results/trajectory_tda_integration/01_trajectories_sequences.json",
+    "source_05_analysis": "results/trajectory_tda_integration/05_analysis.json",
+    "source_ipw": "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json",
+    "source_orig_t115": "results/panel_methodology/manski_bounds/regime_escape_bounds_2026-05-13.json"
+  },
+  "conditional_escape_rate": {
+    "n_r2r6_all_ages": 7479,
+    "n_starters_disadv": 2774,
+    "n_escaped_conditional": 841,
+    "n_last_state_na": 0,
+    "conditional_escape_rate_observed": 0.3032,
+    "first_state_distribution": {
+      "E": 1116,
+      "I": 1340,
+      "U": 318
+    },
+    "conditional_escape_rate_bounds": {
+      "pessimistic_lower": 0.0095,
+      "observed": 0.3032
+    },
+    "attritor_worst_case_note": "Pessimistic lower bound assumes all 86131 permanent attritors are R2/R6 working-age starters who fail to escape. This is the Manski non-parametric bound — no assumption about selection direction."
+  },
+  "regime_share_bounds": {
+    "note": "Copied from original T1.15 output (regime_escape_bounds_2026-05-13.json); unconditional bounds unchanged.",
+    "observed_regime_proportions": {
+      "R0": 0.1388,
+      "R1": 0.2697,
+      "R2": 0.1985,
+      "R3": 0.1222,
+      "R4": 0.1287,
+      "R5": 0.0665,
+      "R6": 0.0757
+    },
+    "pessimistic_bounds": {
+      "R6_share": {
+        "observed": 0.0757,
+        "pessimistic_upper": 0.7777
+      },
+      "R2_share": {
+        "observed": 0.1985,
+        "pessimistic_upper": 0.8072
+      },
+      "disadvantaged_share": {
+        "observed": 0.2742,
+        "pessimistic_upper": 0.8254
+      },
+      "escape_rate_overall": {
+        "observed": 0.7258,
+        "pessimistic_lower": 0.1746
+      },
+      "R1_share": {
+        "observed": 0.2697,
+        "pessimistic_lower": 0.0649
+      },
+      "escape_rate_workingage": {
+        "observed": 0.7884,
+        "pessimistic_lower": 0.1896,
+        "n_wa_attritors_estimated": 58565
+      }
+    }
+  }
+}
