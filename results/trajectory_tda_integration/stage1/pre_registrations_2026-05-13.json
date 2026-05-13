@@ -1,0 +1,49 @@
+{
+  "pre_registration_date": "2026-05-13",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "tda-agent",
+  "entries": [
+    {
+      "name": "Matched-L W2 + Landscape L2 Battery",
+      "outcome_contingent": false,
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"L": 5000, "B": 1000, "null": "markov-1", "seed": 42, "k_max": 5, "n_points": 200}
+    },
+    {
+      "name": "Stratified Markov-1 Battery",
+      "outcome_contingent": true,
+      "decision_rule": "A/B/C per BH-FDR significance",
+      "papers": ["P01-A"],
+      "key_params": {"L": 5000, "B": 100, "null": "stratified-markov-1", "seed": 42, "n_regimes": 7}
+    },
+    {
+      "name": "H2 Check",
+      "outcome_contingent": true,
+      "decision_rule": "reject -> expand to H2; fail -> restriction stands",
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"L": 2000, "B": 50, "maxdim": 2, "null": "markov-1", "seed": 42}
+    },
+    {
+      "name": "BHPS H4 Negative-Control Diagnostics",
+      "outcome_contingent": true,
+      "decision_rule": "a/b/c joint diagnostic outcome",
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"null": "label-shuffle + double-null", "seed": 42, "n_calibration_trials": 100}
+    },
+    {
+      "name": "BHPS H1 Length-Matched Analysis",
+      "outcome_contingent": true,
+      "decision_rule": "non-significant -> era-specific; significant -> robust to length",
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"strategies": ["truncation-12.9yr", "first-13-wave"], "null": "markov-1", "seed": 42}
+    },
+    {
+      "name": "epsilon-star Robustness Check",
+      "outcome_contingent": true,
+      "decision_rule": "consistent -> report as robust; divergent -> escalate",
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"eps_star_locked": 0.54, "robustness_set": [0.54, 0.65, 0.70, 0.80], "seed": 42}
+    }
+  ],
+  "not_re_registered": "l-inf ground-metric sensitivity check (pre-registered 2026-05-12, completed 2026-05-12)"
+}
