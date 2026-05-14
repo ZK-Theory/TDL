@@ -397,11 +397,48 @@ This project's history includes large costs from work pursued on speculative or 
 
 ## Output file management
 
-- Numerical results are written under `results/...` with date-suffixed filenames (`<basename>_<YYYY-MM-DD>.json`). Never overwrite an existing results file: if a re-run is needed, the new file receives a new date-suffix and the previous file is preserved as historical record.
-- **All deliverable output files must be committed on the Task branch.** Before committing, explicitly `git add` every result JSON listed in the Task Output section. Do not assume files written to absolute paths in the main working tree will be preserved across Manager merge operations — they must be tracked in the branch commit.
-- **`*.csv` and `*.pkl` files are globally gitignored** (UKDA T&C compliance and size). If a Task produces a CSV or pickle deliverable, note this in the Task Log and confirm the producing script is committed so the file can be regenerated on demand. Do not attempt to commit these file types.
-- **GMM and model checkpoints (pkl/joblib):** When a Task refits a model, the correct deliverable set is: (1) the refit script committed on the Task branch; (2) a timestamped results JSON at `results/<domain>/<model>/refit_<YYYY-MM-DD>.json` containing key metrics (k, silhouette score, regime counts, seed, script path) — this IS committed; (3) the pkl checkpoint written locally to the same directory for immediate use — NOT committed. Log the pkl path and reproduce-from-scratch command in the Task Log so the checkpoint can be regenerated on any machine.
-- **Gitignored ≠ inaccessible.** Files in `data/`, `data/raw/`, `data/processed/`, `data/UKDA-6614-tab/`, and other gitignored directories are physically present on disk. Agents can read them with the `Read` tool using absolute paths (e.g., `c:\Users\steph\TDL\data\raw\...`) or list them with `Get-ChildItem`. Git only prevents committing these files — it does not delete or hide them. Never assume data is missing because it is gitignored; always verify by checking the filesystem first.
+### Two-path rule — mandatory for all scripts running in worktrees
+
+Every script defines two root paths and uses them strictly:
+
+```python
+PROJ_ROOT = Path("C:/Users/steph/TDL")   # absolute — main working tree, never changes
+WORKTREE  = Path.cwd()                    # current worktree working directory
+```
+
+```r
+PROJ_ROOT <- "C:/Users/steph/TDL"        # absolute — main working tree, never changes
+WORKTREE  <- normalizePath(getwd())       # current worktree working directory
+```
+
+**Rule:** Use `WORKTREE` as the base for files that will be committed to git (result JSONs, scripts). Use `PROJ_ROOT` as the base for all gitignored files (pkl, rds, csv, npy, or any non-JSON data output). Never write a gitignored file to the worktree path.
+
+**Why:** Committed files survive worktree removal because git tracks them and the Manager merges them to `main`. Gitignored files written to a worktree path are permanently and silently lost the moment `git worktree remove` is called. Writing them to `PROJ_ROOT` guarantees they exist in the main working tree independent of worktree lifecycle.
+
+**This rule is non-negotiable.** A gitignored file written only to a worktree path and needed by any downstream task is a task failure. The discovering agent must re-run the producing script to regenerate the file at `PROJ_ROOT` before proceeding.
+
+### Downstream data guarantee
+
+Every task that produces a gitignored intermediate consumed by a downstream task must:
+
+1. List the file with its full `PROJ_ROOT`-based absolute path in its Output section.
+2. Write it to that `PROJ_ROOT` path (not the worktree path).
+3. Note the regeneration command in the Task Log so the file can be reproduced from scratch.
+
+Every task that consumes a gitignored intermediate must:
+
+1. Verify the file exists at its expected `PROJ_ROOT` path before doing any computation.
+2. If missing: run the committed producing script to regenerate it. Escalate only if the script is missing or regeneration fails.
+
+The Manager verifies all cross-task gitignored file dependencies are present in `PROJ_ROOT` before dispatching any consuming task, and before removing any worktree.
+
+### General output rules
+
+- Numerical results use date-suffixed filenames (`<basename>_<YYYY-MM-DD>.json`). Never overwrite an existing results file — new date suffix, old file preserved as historical record.
+- **All deliverable JSON files must be committed on the Task branch.** Before committing, explicitly `git add` every result JSON listed in the Task Output section.
+- **`*.csv` and `*.pkl` files are globally gitignored** (UKDA T&C compliance and size). Write them to `PROJ_ROOT` per the two-path rule. Commit the producing script so they are regenerable. Do not attempt to commit these file types.
+- **GMM and model checkpoints (pkl/joblib):** deliverable set is: (1) producing script committed on Task branch; (2) timestamped metrics JSON committed at `WORKTREE/results/...`; (3) pkl checkpoint written to `PROJ_ROOT/results/...` — not committed, regenerable. Log both paths in the Task Log.
+- **Gitignored ≠ inaccessible.** Any file written to `PROJ_ROOT` is on disk regardless of gitignore status. Never assume a file is missing because it is gitignored — verify by checking the filesystem at the absolute path.
 - **UKDA user guides** are available as plain-text conversions (via `pdftotext`) at two locations (both gitignored, on disk — use `Read` tool at absolute path; PDF Viewer MCP cannot access local files):
   - `c:\Users\steph\TDL\data\guides\6614\` — four curated guides: `6614_main_survey_bhps_harmonised_user_guide.md`, `6614_main_survey_user_guide_family_matrix_xhhrel.md`, `6614_Understanding_Society_and_its_income_data.md`, `6614_main_survey_user_guide_weighting_variables.md`
   - `c:\Users\steph\TDL\data\UKDA-6614-tab\mrdoc\pdf\` — all 86 UKDA documentation PDFs converted to `.md` (wave questionnaires, technical reports, user guides, fieldwork docs). The main methodological guides are `6614_bhps_harmonised_user_guide.md`, `6614_main_survey_user_guide.md`, `6614_bhps_user_manual_volume_a.md`, and wave-specific technical reports.
@@ -419,7 +456,8 @@ This project's history includes large costs from work pursued on speculative or 
 ## Cross-Worker output consumption
 
 - When a Task depends on another Worker's output (a results JSON, a vault entry, a code-side fix, a verified property), read that output directly rather than re-running the producing computation. The Task description names the producing Task and the deliverable at the boundary.
-- If a producing Task's output is missing, malformed, or contradicts what the consuming Task needs, surface the issue rather than fabricating or guessing a substitute. Do not proceed past the inconsistency.
+- If a producing Task's committed JSON output is missing or malformed, surface the issue rather than fabricating a substitute. Do not proceed past the inconsistency.
+- If a producing Task's gitignored intermediate (pkl, rds, csv) is missing: first check whether the committed producing script exists, then regenerate the file by re-running that script. Escalate only if the script is absent or regeneration fails. Do not treat a missing gitignored file as a hard blocker without attempting regeneration.
 
 ## Surfacing User-decision points
 
@@ -432,6 +470,7 @@ When a Task encounters a question requiring User input — a journal-formatting 
 - Workers commit on their own feature branches and do not merge. The Manager performs all merges to `main` after Task Review per the APM merge protocol.
 - Parallel dispatch uses worktrees under `.apm/worktrees/` (concurrency cap 3–4); the main working directory remains on `main` for merge operations. With User-confirmed multi-terminal compute, parallel TDA + Panel-Statistics dispatch in Stage 1 is the expected pattern.
 - **Worktree `.env` setup (mandatory):** After `git worktree add`, immediately copy `.env` from the main working tree: `Copy-Item "c:\Users\steph\TDL\.env" "<worktree-path>\.env"`. The `.env` file is gitignored and never copied automatically; without it, `uv run --env-file .env` calls fail silently or hunt for the file. Workers should not need to locate `.env` — it must already be present when the worktree is created.
+- **Worktree pre-removal checklist (mandatory):** Before `git worktree remove`, the Manager must verify: (1) all committed result files on the branch have been merged to `main`; (2) all gitignored intermediate files needed by downstream tasks are present at their `PROJ_ROOT` paths. If any downstream-needed gitignored file is missing from `PROJ_ROOT`, regenerate it before removing the worktree.
 - `.apm/` git-tracking policy is Option B: planning artefacts (`plan.md`, `spec.md`, `tracker.md`, `memory/index.md`, `metadata.json`) are tracked; runtime artefacts (`bus/`, Worker Task Logs in `memory/stage-NN/`, `worktrees/`) are gitignored to keep `main` free of coordination churn.
 
 ## Code exploration

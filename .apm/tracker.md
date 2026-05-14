@@ -39,21 +39,22 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 1.11 | Pending | tda-agent | |
 | 1.12 | Done | panel-statistics-agent | run/bic-ipw-mice-income |
 | 1.13 | Done | panel-statistics-agent | run/bic-ipw-mice-income |
-| 1.14 | Done | panel-statistics-agent | run/bic-ipw-mice-income || 1.15 | Active (supplement) | panel-statistics-agent | run/regression-manski-nssec |
-| 1.16 | Ready | panel-statistics-agent | |
-| 1.17 | Ready | panel-statistics-agent | |
-| 1.18 | Done (proxy confirmed) | panel-statistics-agent | run/regression-manski-nssec |
-| 1.19 | Active (rerun) | panel-statistics-agent | run/regression-manski-nssec |
-| 1.20 | Waiting: 1.19 | panel-statistics-agent | |
-| 1.21 | Waiting: 1.20, 1.18 | panel-statistics-agent | |
+| 1.14 | Done | panel-statistics-agent | run/bic-ipw-mice-income |
+| 1.15 | Done | panel-statistics-agent | |
+| 1.16 | Active | panel-statistics-agent | run/sensitivity-independence |
+| 1.17 | Active | panel-statistics-agent | run/sensitivity-independence |
+| 1.18 | Done | panel-statistics-agent | |
+| 1.19 | Done | panel-statistics-agent | |
+| 1.20 | Done | panel-statistics-agent | run/tier2-regression |
+| 1.21 | Active | panel-statistics-agent | run/tier3-regression |
 | 1.22 | Waiting: 1.21 | panel-statistics-agent | |
-| 1.23 | Ready | panel-statistics-agent | |
-| 1.24 | Ready | panel-statistics-agent | |
-| 1.25 | Ready | panel-statistics-agent | |
+| 1.23 | Active | panel-statistics-agent | run/sensitivity-independence |
+| 1.24 | Active | panel-statistics-agent | run/sensitivity-independence |
+| 1.25 | Active | panel-statistics-agent | run/sensitivity-independence |
 | 1.26 | Waiting: 1.2 | panel-statistics-agent | |
-| 1.27 | Ready | panel-statistics-agent | |
+| 1.27 | Active | panel-statistics-agent | run/sensitivity-independence |
 | 1.28 | Waiting: 1.2 | panel-statistics-agent | |
-| 1.29 | Waiting: 1.13 | panel-statistics-agent | |
+| 1.29 | Active | panel-statistics-agent | run/sensitivity-independence |
 
 ## Worker Tracking
 
@@ -61,7 +62,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |-------|----------|-------|
 | reproducibility-agent | 1 | active (T0.3) |
 | tda-agent | 1 | active (T1.1–T1.3 batch) — worktree run-core-tda-battery |
-| panel-statistics-agent | 1 | active (T1.15/T1.18/T1.19 batch) — worktree run-regression-manski-nssec |
+| panel-statistics-agent | 1 | active (T1.21) — worktree run-tier3-regression |
+| panel-statistics-agent | 2 | active (T1.16/T1.17/T1.23/T1.24/T1.25/T1.27/T1.29 batch) — worktree run-sensitivity-independence |
 | academic-writing-agent | 1 | uninitialized |
 
 ## Version Control
@@ -95,3 +97,9 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 - T1.13 vault entry type error: agent filed `[PIPELINE]` but correct type is `[RESULT]` (AUC=0.714, ESS=57,035 are citable numerical results). Plan corrected to `[RESULT]`. Vault entry already filed as `[PIPELINE]` — supplementary `[RESULT]` entry filed 2026-05-13 via vault_observe.
 - T1.15/T1.18/T1.19 batch reviewed 2026-05-13. T1.18 (sibling MICE NS-SEC): Done — proxy is dominant parental class: `pasoc90_cc` (father's SOC90) falling back to `masoc90_cc` (mother's SOC90) when father missing; agent correctly implemented this (76.3% → 83.3% combined → 91.5% post-propagation); no direct parental NS-SEC in UKDA-6614 confirmed via documentation search; proxy approach confirmed acceptable by Manager. T1.19 (Tier 1 regression): rerun required — outcome was applied to all 27,280 individuals (72.6% "escape" = regime prevalence) not conditional on starting in R2/R6 (5.6% conditional escape in v1). T1.15 (Manski bounds): regime share bounds correct; conditional escape rate bounds (5.6% → pessimistic lower bound) missing — supplement required. T1.19 rerun + T1.15 supplement dispatched as follow-up batch on same branch.
 - T1.13 IPW extreme weight (raw max=535.89) explained by birth cohort structure: `birth_cohort_group1990+` coefficient=−6.196 → propensity≈0.002 for recent entrants who cannot satisfy the 10-year continuity criterion by construction. This conflates structural impossibility with differential attrition in the eligible population (n=113,411). p1–p99 trimming is correct per reviewer spec (trimmed max=42.78, CV 1.36→0.99). T1.29 added as structural-eligibility sensitivity (restrict eligible population to individuals enrolled early enough to have ≥10 waves available). Vault `[RESULT]` and `[DECISION]` entries filed 2026-05-13.
+- T1.15-supplement/T1.19-rerun follow-up batch reviewed 2026-05-13. Root-cause confirmed (two compounding errors in Manager's prior clarification): (1) escape was defined as last-observed jbstat ∈ E — WRONG; v1 escape is window-based (first window ∈ {R2,R6} → any subsequent window ∉ {R2,R6}), implemented in `run_priority2.py::run_age_stratified()`; (2) n=4,832 regression sample was attributed to an age_at_entry<60 filter — WRONG; it is the complete-case (NS-SEC observed) subset of 7,453 first-window R2/R6 starters. v1 source-of-record confirmed: `results/trajectory_tda_priority2/p2_5_age_stratified.json` (n_starters=7,453, n_escaped=416, escape_rate=5.59%, regression n_obs=4,832, OR(R6)=20.56). Additional complication: `05_gmm.joblib` unreadable under sklearn 1.8.0 (T0.5 known) — agent must refit GMM (k=7, full covariance, n_init=5, seed=42) before window prediction. Corrected guidance dispatched 2026-05-13; task bus fully rewritten with window-based methodology and explicit reference to `run_priority2.py`.
+- T1.15-supplement/T1.19-rerun (second follow-up) reviewed 2026-05-14 (commit 5c06be2, merged to main). Key outcomes: (a) T1.15-supplement DONE — Manski conditional escape bounds: full-pessimism 0.44%, partial-pessimism 1.3% overall; (b) T1.19-rerun DONE — 5 bugs fixed by agent; critical finding: GOOD_REGIMES={1,4} not just "any ∉ {R2,R6}" — v1 escape requires reaching R1 or R4 specifically (from run_priority2.py); T1.20 must use window_escape_assignments_2026-05-14.json for the escape indicator; ESC-1 ACCEPTED (irrecoverable pkl causes 10% escape_rate boundary deviation); ESC-2 ACCEPTED Option B (n_cc=6,173 vs 4,832 — T1.18 proxy has better coverage, correct v2 improvement); GMM refit pkl at 05_gmm_refit_2026-05-14.pkl. PCA artifacts (02_scaler.joblib, 02_pca.joblib) permanently lost — all downstream tasks requiring GMM prediction must use svd_solver='full' refit approach. Pipe/w2-fixes worktree cleaned up (was merged but not removed). Two new worktrees created: run-tier2-regression (T1.20) and run-sensitivity-independence (T1.16/17/23/24/25/27/29). Second panel-statistics-agent instance (instance 2) dispatched to sensitivity worktree via bus panel-statistics-agent-2.
+- T1.27 and T1.25 both require PCA re-embedding: use svd_solver='full' (deterministic LAPACK) to match T1.19 rerun approach. Original PCA pkl unrecoverable — document in each task's output. T1.27 "frozen PCA loadings" means the T1.19-refit PCA (not the original), maintaining comparability within v2.
+- T1.20 Done (commit 0ae5398, merged 68f0513): σ²_u=0.208, ICC=0.060, marginal McFadden R²=0.486. regime_6 OR=21.3 dominates (vs T1 Firth OR=18.6). Conditional R²=−0.176 (artefact; paper cites marginal only). All 11 key predictors direction-consistent T1→T2. T1.21 dispatched to run/tier3-regression.
+- IPW individual weights gap (2026-05-14): ipw_construction.R only saves diagnostics JSON — no individual weights RDS ever written. Fix: add saveRDS block to ipw_construction.R, re-run, commit on run/sensitivity-independence. Required before T1.16 can run. Clarification added to panel-statistics-agent-2 bus.
+- H0 tree-cut labels gap (2026-05-14): H0 components at eps*=0.54 not pre-computed anywhere. T1.23 derives them from embeddings.npy via sklearn radius_neighbors_graph + connected_components (or AgglomerativeClustering linkage=single). GMM labels in 05_analysis.json[gmm_labels][27280]. Clarification in agent-2 bus.
