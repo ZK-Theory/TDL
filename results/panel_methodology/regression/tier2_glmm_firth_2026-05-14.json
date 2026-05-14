@@ -1,0 +1,556 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-14",
+    "methodology": "Tier 2 GLMM: Tier 1 fixed-effect structure + household random intercept (1|hh_group). hh_group = paste0(survey_origin, '_', hidp_first) where hidp_first is the household ID at the individual's first observed BHPS/UKHLS wave (composite key avoids BHPS/UKHLS integer collision). Estimator: glmmTMB ML, binomial logit. No Firth penalisation (unavailable for GLMMs); quasi-separation handled via RE shrinkage. regime_6 included for build-up consistency with Tier 1.",
+    "source_assignments": "C:/Users/steph/TDL/results/trajectory_tda_priority2/window_escape_assignments_2026-05-14.json",
+    "tier1_reference": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-tier2-regression/results/panel_methodology/regression/tier1_clustered_firth_2026-05-14.json",
+    "n_starters_all_ages": 7286,
+    "escape_rate_all": 0.0502,
+    "n_obs": 6173,
+    "n_excluded_cc": 1113,
+    "n_escapers": 301,
+    "n_remainers": 5872,
+    "escape_rate": 0.0488,
+    "n_clusters_hidp": 5313,
+    "hidp_definition": "hidp at first observed BHPS/UKHLS wave (not hidp_last); composite key",
+    "optimizer_used": "default (nlminb)",
+    "glmmTMB_version": "1.1.14",
+    "regime_6_included": true,
+    "ci_note": "Wald CIs (estimate ± 1.96*SE); profile CIs unavailable for GLMM"
+  },
+  "convergence": {
+    "convergence_code": 0,
+    "convergence_msg": "relative convergence (4)",
+    "gradient_max": {},
+    "converged": true,
+    "singular_fit": false,
+    "warnings": []
+  },
+  "random_effects": {
+    "grouping_factor": "hh_group (survey_origin + '_' + hidp_first)",
+    "sigma2_u": 0.2082,
+    "sigma_u": 0.4563,
+    "ICC": 0.0595,
+    "ICC_formula": "sigma2_u / (sigma2_u + pi^2/3)",
+    "singular_fit": false
+  },
+  "quasi_separation_diagnostic": {
+    "n_separation_cells": 11,
+    "cohort_x_nssec": {
+      "n_cells": 15,
+      "n_sep": 2
+    },
+    "cohort_x_survey": {
+      "n_cells": 10,
+      "n_sep": 0
+    },
+    "gor_x_cohort": {
+      "n_cells": 60,
+      "n_sep": 9
+    },
+    "tier1_n_sep": 11,
+    "note": "Tier 1 used Firth penalisation (n_sep=11: 9 gor x cohort, 2 cohort x nssec). Tier 2 standard GLMM ML; quasi-separation handled via RE shrinkage. Large directional reversals vs Tier 1 would warrant follow-up."
+  },
+  "coefficient_table": [
+    {
+      "term": "(Intercept)",
+      "estimate": -4.4063,
+      "SE": 2.2765,
+      "z_value": -1.9356,
+      "p_value": 0.0529,
+      "OR": 0.0122,
+      "CI_lo_OR": 0.0001,
+      "CI_hi_OR": 1.0572,
+      "CI_lo_log": -8.8682,
+      "CI_hi_log": 0.0556
+    },
+    {
+      "term": "age_first_window",
+      "estimate": 0.1051,
+      "SE": 0.0961,
+      "z_value": 1.0941,
+      "p_value": 0.2739,
+      "OR": 1.1108,
+      "CI_lo_OR": 0.9202,
+      "CI_hi_OR": 1.3409,
+      "CI_lo_log": -0.0832,
+      "CI_hi_log": 0.2934
+    },
+    {
+      "term": "age2",
+      "estimate": -0.0021,
+      "SE": 0.0011,
+      "z_value": -1.922,
+      "p_value": 0.0546,
+      "OR": 0.9979,
+      "CI_lo_OR": 0.9958,
+      "CI_hi_OR": 1,
+      "CI_lo_log": -0.0043,
+      "CI_hi_log": 0
+    },
+    {
+      "term": "sexfemale",
+      "estimate": -0.3828,
+      "SE": 0.1562,
+      "z_value": -2.4503,
+      "p_value": 0.0143,
+      "OR": 0.6819,
+      "CI_lo_OR": 0.502,
+      "CI_hi_OR": 0.9263,
+      "CI_lo_log": -0.6891,
+      "CI_hi_log": -0.0766
+    },
+    {
+      "term": "hiqual_dv2",
+      "estimate": -0.2853,
+      "SE": 0.2896,
+      "z_value": -0.9851,
+      "p_value": 0.3246,
+      "OR": 0.7518,
+      "CI_lo_OR": 0.4262,
+      "CI_hi_OR": 1.3262,
+      "CI_lo_log": -0.8528,
+      "CI_hi_log": 0.2823
+    },
+    {
+      "term": "hiqual_dv3",
+      "estimate": -0.3347,
+      "SE": 0.2521,
+      "z_value": -1.3276,
+      "p_value": 0.1843,
+      "OR": 0.7155,
+      "CI_lo_OR": 0.4365,
+      "CI_hi_OR": 1.1728,
+      "CI_lo_log": -0.8289,
+      "CI_hi_log": 0.1594
+    },
+    {
+      "term": "hiqual_dv4",
+      "estimate": -0.3729,
+      "SE": 0.2439,
+      "z_value": -1.5289,
+      "p_value": 0.1263,
+      "OR": 0.6888,
+      "CI_lo_OR": 0.427,
+      "CI_hi_OR": 1.1109,
+      "CI_lo_log": -0.8509,
+      "CI_hi_log": 0.1051
+    },
+    {
+      "term": "hiqual_dv5",
+      "estimate": -0.0992,
+      "SE": 0.2845,
+      "z_value": -0.3488,
+      "p_value": 0.7273,
+      "OR": 0.9055,
+      "CI_lo_OR": 0.5184,
+      "CI_hi_OR": 1.5816,
+      "CI_lo_log": -0.6569,
+      "CI_hi_log": 0.4584
+    },
+    {
+      "term": "hiqual_dv9",
+      "estimate": -0.7207,
+      "SE": 0.3232,
+      "z_value": -2.2298,
+      "p_value": 0.0258,
+      "OR": 0.4864,
+      "CI_lo_OR": 0.2582,
+      "CI_hi_OR": 0.9165,
+      "CI_lo_log": -1.3542,
+      "CI_hi_log": -0.0872
+    },
+    {
+      "term": "jbstat_binU",
+      "estimate": 0.6604,
+      "SE": 0.2231,
+      "z_value": 2.9597,
+      "p_value": 0.0031,
+      "OR": 1.9356,
+      "CI_lo_OR": 1.2499,
+      "CI_hi_OR": 2.9975,
+      "CI_lo_log": 0.2231,
+      "CI_hi_log": 1.0978
+    },
+    {
+      "term": "jbstat_binI",
+      "estimate": -0.0342,
+      "SE": 0.2425,
+      "z_value": -0.1409,
+      "p_value": 0.888,
+      "OR": 0.9664,
+      "CI_lo_OR": 0.6008,
+      "CI_hi_OR": 1.5546,
+      "CI_lo_log": -0.5095,
+      "CI_hi_log": 0.4412
+    },
+    {
+      "term": "income_tercile_initM",
+      "estimate": -0.0098,
+      "SE": 0.2128,
+      "z_value": -0.0462,
+      "p_value": 0.9632,
+      "OR": 0.9902,
+      "CI_lo_OR": 0.6525,
+      "CI_hi_OR": 1.5028,
+      "CI_lo_log": -0.427,
+      "CI_hi_log": 0.4074
+    },
+    {
+      "term": "income_tercile_initH",
+      "estimate": 0.2429,
+      "SE": 0.2566,
+      "z_value": 0.9465,
+      "p_value": 0.3439,
+      "OR": 1.2749,
+      "CI_lo_OR": 0.771,
+      "CI_hi_OR": 2.1084,
+      "CI_lo_log": -0.2601,
+      "CI_hi_log": 0.7459
+    },
+    {
+      "term": "nssec_proxyM",
+      "estimate": 0.0476,
+      "SE": 0.1953,
+      "z_value": 0.2436,
+      "p_value": 0.8076,
+      "OR": 1.0487,
+      "CI_lo_OR": 0.7152,
+      "CI_hi_OR": 1.5377,
+      "CI_lo_log": -0.3351,
+      "CI_hi_log": 0.4303
+    },
+    {
+      "term": "nssec_proxyL",
+      "estimate": 0.209,
+      "SE": 0.2027,
+      "z_value": 1.0309,
+      "p_value": 0.3026,
+      "OR": 1.2324,
+      "CI_lo_OR": 0.8283,
+      "CI_hi_OR": 1.8336,
+      "CI_lo_log": -0.1883,
+      "CI_hi_log": 0.6063
+    },
+    {
+      "term": "birth_cohort1950s",
+      "estimate": 0.3605,
+      "SE": 0.7118,
+      "z_value": 0.5064,
+      "p_value": 0.6126,
+      "OR": 1.434,
+      "CI_lo_OR": 0.3553,
+      "CI_hi_OR": 5.7872,
+      "CI_lo_log": -1.0347,
+      "CI_hi_log": 1.7557
+    },
+    {
+      "term": "birth_cohort1960s",
+      "estimate": 0.9783,
+      "SE": 0.9319,
+      "z_value": 1.0498,
+      "p_value": 0.2938,
+      "OR": 2.66,
+      "CI_lo_OR": 0.4282,
+      "CI_hi_OR": 16.5249,
+      "CI_lo_log": -0.8482,
+      "CI_hi_log": 2.8049
+    },
+    {
+      "term": "birth_cohort1970s",
+      "estimate": 0.7584,
+      "SE": 1.0965,
+      "z_value": 0.6917,
+      "p_value": 0.4891,
+      "OR": 2.1348,
+      "CI_lo_OR": 0.2489,
+      "CI_hi_OR": 18.3102,
+      "CI_lo_log": -1.3907,
+      "CI_hi_log": 2.9075
+    },
+    {
+      "term": "birth_cohortpost-1980",
+      "estimate": 0.4506,
+      "SE": 1.1979,
+      "z_value": 0.3761,
+      "p_value": 0.7068,
+      "OR": 1.5692,
+      "CI_lo_OR": 0.15,
+      "CI_hi_OR": 16.4205,
+      "CI_lo_log": -1.8973,
+      "CI_hi_log": 2.7985
+    },
+    {
+      "term": "gor_dv2",
+      "estimate": -0.0602,
+      "SE": 0.4297,
+      "z_value": -0.1401,
+      "p_value": 0.8886,
+      "OR": 0.9416,
+      "CI_lo_OR": 0.4056,
+      "CI_hi_OR": 2.1859,
+      "CI_lo_log": -0.9024,
+      "CI_hi_log": 0.782
+    },
+    {
+      "term": "gor_dv3",
+      "estimate": -0.0682,
+      "SE": 0.4301,
+      "z_value": -0.1586,
+      "p_value": 0.874,
+      "OR": 0.9341,
+      "CI_lo_OR": 0.4021,
+      "CI_hi_OR": 2.17,
+      "CI_lo_log": -0.9111,
+      "CI_hi_log": 0.7747
+    },
+    {
+      "term": "gor_dv4",
+      "estimate": -0.1255,
+      "SE": 0.4499,
+      "z_value": -0.2791,
+      "p_value": 0.7802,
+      "OR": 0.882,
+      "CI_lo_OR": 0.3652,
+      "CI_hi_OR": 2.1302,
+      "CI_lo_log": -1.0073,
+      "CI_hi_log": 0.7562
+    },
+    {
+      "term": "gor_dv5",
+      "estimate": -0.6193,
+      "SE": 0.4652,
+      "z_value": -1.3313,
+      "p_value": 0.1831,
+      "OR": 0.5383,
+      "CI_lo_OR": 0.2163,
+      "CI_hi_OR": 1.3397,
+      "CI_lo_log": -1.5311,
+      "CI_hi_log": 0.2925
+    },
+    {
+      "term": "gor_dv6",
+      "estimate": -0.2373,
+      "SE": 0.4583,
+      "z_value": -0.5178,
+      "p_value": 0.6046,
+      "OR": 0.7887,
+      "CI_lo_OR": 0.3212,
+      "CI_hi_OR": 1.9366,
+      "CI_lo_log": -1.1356,
+      "CI_hi_log": 0.6609
+    },
+    {
+      "term": "gor_dv7",
+      "estimate": -0.0569,
+      "SE": 0.4226,
+      "z_value": -0.1347,
+      "p_value": 0.8928,
+      "OR": 0.9447,
+      "CI_lo_OR": 0.4127,
+      "CI_hi_OR": 2.1626,
+      "CI_lo_log": -0.8851,
+      "CI_hi_log": 0.7713
+    },
+    {
+      "term": "gor_dv8",
+      "estimate": -0.3471,
+      "SE": 0.4357,
+      "z_value": -0.7965,
+      "p_value": 0.4258,
+      "OR": 0.7068,
+      "CI_lo_OR": 0.3009,
+      "CI_hi_OR": 1.6603,
+      "CI_lo_log": -1.2011,
+      "CI_hi_log": 0.507
+    },
+    {
+      "term": "gor_dv9",
+      "estimate": -0.6659,
+      "SE": 0.4897,
+      "z_value": -1.3598,
+      "p_value": 0.1739,
+      "OR": 0.5138,
+      "CI_lo_OR": 0.1968,
+      "CI_hi_OR": 1.3417,
+      "CI_lo_log": -1.6258,
+      "CI_hi_log": 0.2939
+    },
+    {
+      "term": "gor_dv10",
+      "estimate": -0.1401,
+      "SE": 0.4539,
+      "z_value": -0.3088,
+      "p_value": 0.7575,
+      "OR": 0.8692,
+      "CI_lo_OR": 0.3571,
+      "CI_hi_OR": 2.1159,
+      "CI_lo_log": -1.0298,
+      "CI_hi_log": 0.7495
+    },
+    {
+      "term": "gor_dv11",
+      "estimate": -0.8133,
+      "SE": 0.4627,
+      "z_value": -1.7577,
+      "p_value": 0.0788,
+      "OR": 0.4434,
+      "CI_lo_OR": 0.179,
+      "CI_hi_OR": 1.0981,
+      "CI_lo_log": -1.7203,
+      "CI_hi_log": 0.0936
+    },
+    {
+      "term": "gor_dv12",
+      "estimate": -0.5636,
+      "SE": 0.5259,
+      "z_value": -1.0717,
+      "p_value": 0.2839,
+      "OR": 0.5691,
+      "CI_lo_OR": 0.203,
+      "CI_hi_OR": 1.5955,
+      "CI_lo_log": -1.5945,
+      "CI_hi_log": 0.4672
+    },
+    {
+      "term": "survey_originUKHLS",
+      "estimate": -0.1927,
+      "SE": 0.2194,
+      "z_value": -0.8784,
+      "p_value": 0.3797,
+      "OR": 0.8247,
+      "CI_lo_OR": 0.5365,
+      "CI_hi_OR": 1.2678,
+      "CI_lo_log": -0.6227,
+      "CI_hi_log": 0.2373
+    },
+    {
+      "term": "regime_6",
+      "estimate": 3.0583,
+      "SE": 0.3715,
+      "z_value": 8.2315,
+      "p_value": 0,
+      "OR": 21.2916,
+      "CI_lo_OR": 10.2789,
+      "CI_hi_OR": 44.1029,
+      "CI_lo_log": 2.3301,
+      "CI_hi_log": 3.7865
+    }
+  ],
+  "pseudo_r2": {
+    "mcfadden_conditional": -0.1756,
+    "mcfadden_marginal": 0.4858,
+    "note": "Conditional: null model includes (1|hh_group). Marginal: null is intercept-only GLM."
+  },
+  "buildup_comparison": [
+    {
+      "term": "nssec_proxyM",
+      "T1_OR": 1.0455,
+      "T1_p_firth": 0.8106,
+      "T2_OR": 1.0487,
+      "T2_p_wald": 0.8076,
+      "OR_ratio_T2_T1": 1.0031,
+      "direction_consistent": true
+    },
+    {
+      "term": "nssec_proxyL",
+      "T1_OR": 1.2161,
+      "T1_p_firth": 0.3073,
+      "T2_OR": 1.2324,
+      "T2_p_wald": 0.3026,
+      "OR_ratio_T2_T1": 1.0134,
+      "direction_consistent": true
+    },
+    {
+      "term": "birth_cohort1950s",
+      "T1_OR": 1.3647,
+      "T1_p_firth": 0.6418,
+      "T2_OR": 1.434,
+      "T2_p_wald": 0.6126,
+      "OR_ratio_T2_T1": 1.0508,
+      "direction_consistent": true
+    },
+    {
+      "term": "birth_cohort1960s",
+      "T1_OR": 2.4539,
+      "T1_p_firth": 0.3081,
+      "T2_OR": 2.66,
+      "T2_p_wald": 0.2938,
+      "OR_ratio_T2_T1": 1.084,
+      "direction_consistent": true
+    },
+    {
+      "term": "birth_cohort1970s",
+      "T1_OR": 1.9663,
+      "T1_p_firth": 0.5175,
+      "T2_OR": 2.1348,
+      "T2_p_wald": 0.4891,
+      "OR_ratio_T2_T1": 1.0857,
+      "direction_consistent": true
+    },
+    {
+      "term": "birth_cohortpost-1980",
+      "T1_OR": 1.4831,
+      "T1_p_firth": 0.7299,
+      "T2_OR": 1.5692,
+      "T2_p_wald": 0.7068,
+      "OR_ratio_T2_T1": 1.0581,
+      "direction_consistent": true
+    },
+    {
+      "term": "income_tercile_initM",
+      "T1_OR": 0.9935,
+      "T1_p_firth": 0.9744,
+      "T2_OR": 0.9902,
+      "T2_p_wald": 0.9632,
+      "OR_ratio_T2_T1": 0.9967,
+      "direction_consistent": true
+    },
+    {
+      "term": "income_tercile_initH",
+      "T1_OR": 1.2529,
+      "T1_p_firth": 0.3519,
+      "T2_OR": 1.2749,
+      "T2_p_wald": 0.3439,
+      "OR_ratio_T2_T1": 1.0176,
+      "direction_consistent": true
+    },
+    {
+      "term": "sexfemale",
+      "T1_OR": 0.6949,
+      "T1_p_firth": 0.013,
+      "T2_OR": 0.6819,
+      "T2_p_wald": 0.0143,
+      "OR_ratio_T2_T1": 0.9813,
+      "direction_consistent": true
+    },
+    {
+      "term": "regime_6",
+      "T1_OR": 18.5954,
+      "T1_p_firth": 0,
+      "T2_OR": 21.2916,
+      "T2_p_wald": 0,
+      "OR_ratio_T2_T1": 1.145,
+      "direction_consistent": true
+    },
+    {
+      "term": "jbstat_binU",
+      "T1_OR": 1.8567,
+      "T1_p_firth": 0.0023,
+      "T2_OR": 1.9356,
+      "T2_p_wald": 0.0031,
+      "OR_ratio_T2_T1": 1.0425,
+      "direction_consistent": true
+    },
+    {
+      "term": "jbstat_binI",
+      "T1_OR": 0.9687,
+      "T1_p_firth": 0.8901,
+      "T2_OR": 0.9664,
+      "T2_p_wald": 0.888,
+      "OR_ratio_T2_T1": 0.9976,
+      "direction_consistent": true
+    }
+  ]
+}
