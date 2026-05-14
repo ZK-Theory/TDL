@@ -1,0 +1,40 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-14",
+    "n_analytical": 27280,
+    "method": "spanning=first_wave_in_BHPS_WAVES AND appears_in_UKHLS; newcomer=first_wave_in_UKHLS_WAVES"
+  },
+  "population_counts": {
+    "spanning": 5895,
+    "newcomer": 21385,
+    "bhps_only": 0
+  },
+  "balance_table": {
+    "age_first": {
+      "variable": "age_first",
+      "mean_spanning": 35.2633,
+      "mean_newcomer": 44.6567,
+      "smd": -0.6174
+    },
+    "sex_female": {
+      "variable": "sex_female",
+      "mean_spanning": 0.5596,
+      "mean_newcomer": 0.5586,
+      "smd": 0.002
+    },
+    "hiqual_dv": {
+      "variable": "hiqual_dv",
+      "mean_spanning": 4.2663,
+      "mean_newcomer": 3.515,
+      "smd": 0.3003
+    },
+    "employed": {
+      "variable": "employed",
+      "mean_spanning": 0.686,
+      "mean_newcomer": 0.594,
+      "smd": 0.1927
+    }
+  },
+  "betti_escalation": "The Betti comparison for spanning vs newcomer in P01-B §7 requires TDA pipeline rerun on matched and age-stratified subsets. This is outside panel-statistics-agent scope. Escalate to TDA Agent with: (a) matched spanning pidps (n=5627), (b) matched newcomer pidps (n=5627), (c) age-stratified spanning pidps (n=3010), (d) age-stratified newcomer pidps (n=10629)."
+}
