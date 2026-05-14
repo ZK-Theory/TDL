@@ -29,8 +29,9 @@ Follow the repository branch naming conventions:
 
 ### Hook enforcement
 
-This repository recommends using a git hook to enforce commit prefixes.
-A `commit-msg` hook can validate prefixes for this repository.
++This repository requires commit prefixes on all commits and provides a git hook to enforce them.
++A `commit-msg` hook validates commit prefixes automatically.
++Branch naming conventions are recommended but not enforced by hooks.
 Install the provided helper script with:
 
 ```bash

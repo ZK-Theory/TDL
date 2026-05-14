@@ -46,7 +46,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 1.18 | Done | panel-statistics-agent | |
 | 1.19 | Done | panel-statistics-agent | |
 | 1.20 | Done | panel-statistics-agent | run/tier2-regression |
-| 1.21 | Active | panel-statistics-agent | run/tier3-regression |
+| 1.21 | Ready (held) | panel-statistics-agent | run/tier3-regression |
 | 1.22 | Waiting: 1.21 | panel-statistics-agent | |
 | 1.23 | Active | panel-statistics-agent | run/sensitivity-independence |
 | 1.24 | Active | panel-statistics-agent | run/sensitivity-independence |
@@ -62,8 +62,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |-------|----------|-------|
 | reproducibility-agent | 1 | active (T0.3) |
 | tda-agent | 1 | active (T1.1–T1.3 batch) — worktree run-core-tda-battery |
-| panel-statistics-agent | 1 | active (T1.21) — worktree run-tier3-regression |
-| panel-statistics-agent | 2 | active (T1.16/T1.17/T1.23/T1.24/T1.25/T1.27/T1.29 batch) — worktree run-sensitivity-independence |
+| panel-statistics-agent | 1 | idle (T1.21 dispatched but not started; HOLD issued 2026-05-14 deferring T1.21 until post-fix-batch) — worktree run-tier3-regression |
+| panel-statistics-agent | 2 | active (T1.16/T1.17/T1.23/T1.24/T1.25/T1.27/T1.29 batch) — worktree run-sensitivity-independence — **HALT after current batch issued 2026-05-14 pending code-review fix batch** |
 | academic-writing-agent | 1 | uninitialized |
 
 ## Version Control
@@ -76,6 +76,10 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 ## Working Notes
 
+- **2026-05-14 (afternoon): panel-stats workers held pending coordinated code-review fix batch.** panel-statistics-agent-1 is idle (T1.21 dispatched to bus but not yet started; HOLD issued); panel-statistics-agent-2 is mid-batch on `run/sensitivity-independence` and will pause after current dispatch (HALT-after-batch in bus). T1.21 deferred until post-fix because it consumes T1.18 NS-SEC proxy values that B4 fixes may alter. Workers stay idle/halted until both have reported and User has reviewed the fix-batch dispatch plan.
+- **2026-05-14 (afternoon): Three-batches-by-file-domain fix plan (User-confirmed structure).** Batches branch off main as separate dispatch units to keep merges clean. Detailed task scoping deferred until dispatch time. High-level batch composition: **Batch 1 (`pipe/coderabbit-manski`)** — A3 undefined `%||%` in `manski_bounds.R`; B1 WA full-pessimism allocation + portability + JSON-load safety in `manski_bounds_conditional.R`. **Batch 2 (`pipe/coderabbit-mice`)** — B2 Rubin's-rules SE/FMI in `mice_income.R`; B4(a)/B4(b) NS-SEC field rename + per-cluster heterogeneity diagnostic in `nssec_sibling_mice.R`; B4(c) L imputed/observed divergence is a User-decision point surfaced after the per-cluster diagnostic lands (may force MICE respec). **Batch 3 (`pipe/coderabbit-ipw-port`)** — B3 zero-income tercile inclusion + B5 SMD-before/after + propensity-density overlap by cohort × analytical-status in `ipw_construction.R`; cosmetic p-value display in regression JSONs; Python-script style fixes (assert→raise, max_iter centralisation, repo-marker path walks). Each batch ends with re-run + new dated JSONs + commit on its branch; Manager merges sequentially after Task Review.
+- **2026-05-14 (afternoon): Working-tree contamination identified and triaged.** Four files modified locally without commit: `manski_bounds_conditional.R`, `regression_tier1.R`, `check_pidp_crosswalk.R`, `run_w2_internal_p_audit.py`. Source confirmed by User: CodeRabbit IDE-plugin "apply suggestion" clicks against the bundle being processed. Two parse errors introduced in `manski_bounds_conditional.R` (lines 16 and 82 — newline lost between substitution and following statement). Decision: discard working-tree edits via `git checkout --` (User will execute); CodeRabbit suggestions to be re-applied properly through the three batches above with full review. Committed reproducibility at HEAD is intact; only the dirty working tree was affected.
+- **2026-05-14 (afternoon): Working-tree contamination identified and triaged.** Four files modified locally without commit: `manski_bounds_conditional.R`, `regression_tier1.R`, `check_pidp_crosswalk.R`, `run_w2_internal_p_audit.py`. Source confirmed by User: CodeRabbit IDE-plugin "apply suggestion" clicks against the bundle being processed. Two parse errors introduced in `manski_bounds_conditional.R` (lines 16 and 82 — newline lost between substitution and following statement). Decision: discard working-tree edits via `git checkout --`; CodeRabbit suggestions to be re-applied properly through the `pipe/coderabbit-fixes` batch with full review. Committed reproducibility at HEAD is intact; only the dirty working tree was affected.
 - `.apm/` git-tracking is Option B: planning artefacts tracked, runtime (`bus/`, `memory/stage-NN/`, `worktrees/`) gitignored. Pre-existing tracked bus files were untracked via `git rm --cached`.
 - Multi-terminal compute is User-confirmed; expect Stage 1 to dispatch parallel TDA + Panel-Statistics work in worktrees.
 - Vault access is MCP-only via `vault-engine`; never attempt direct filesystem reads of `C:\Users\steph\Documents\TDA-Research\`.

@@ -1,0 +1,17 @@
+[mcp_servers.github]
+args = [
+    "-y",
+    "@modelcontextprotocol/server-github",
+]
+command = "npx"
+env_vars = ["GITHUB_PERSONAL_ACCESS_TOKEN"]
+
+[mcp_servers.vault-engine]
+args = ['C:\Users\steph\TDL\scripts\vault\mcp_server.py']
+command = "python"
+
+[mcp_servers.vault-engine.env]
+CL_VAULT_PATH = 'C:\Users\steph\Documents\Counting Lives\Counting Lives'
+LLAMA_CUDA = "0"
+NODE_LLAMA_CPP_GPU = "false"
+TDA_VAULT_PATH = 'C:\Users\steph\Documents\TDA-Research'
