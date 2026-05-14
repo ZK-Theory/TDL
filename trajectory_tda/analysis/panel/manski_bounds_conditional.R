@@ -1,206 +1,173 @@
 # Research context: TDA-Research/03-Papers/P01/_project.md
-# Purpose: T1.15 supplement — conditional escape rate Manski bounds for R2/R6 starters
+# Purpose: T1.15 supplement — conditional escape rate Manski bounds from window-based figures.
 #
-# Corrects original T1.15 which reported unconditional "escape rate" (regime prevalence).
-# This script computes the CONDITIONAL escape rate: among individuals whose trajectory
-# is classified as R2/R6 (disadvantaged) AND who are working-age at entry (age_at_entry<60),
-# what fraction have their last observed state as employed?
+# All base figures read directly from results/trajectory_tda_priority2/p2_5_age_stratified.json.
+# No window analysis or GMM prediction is re-run here — this is purely arithmetic.
 #
-# Working-age definition: age_at_entry < 60 (consistent with T1.19 rerun).
-# jbstat=4 (retired) exclusion: approximated by age_at_entry < 60 proxy.
-# Precise jbstat=4 check is applied in T1.19 via first-wave indresp loading.
+# Computes two bound types:
+#   full_pessimism   — all attritors are R2/R6 starters who fail to escape
+#   partial_pessimism — attritors enter R2/R6 at the same rate as the analytical sample
 #
 # Run from worktree root:
 #   "C:/Program Files/R/R-4.6.0/bin/Rscript.exe" trajectory_tda/analysis/panel/manski_bounds_conditional.R
 
-suppressPackageStartupMessages({
-  library(data.table)
-  library(jsonlite)
-})
+suppressPackageStartupMessages(library(jsonlite))
 
-PROJ_ROOT      <- "C:/Users/steph/TDL"
-WORKTREE       <- normalizePath(getwd(), mustWork = FALSE)
-RESULTS_DIR    <- file.path(PROJ_ROOT, "results/trajectory_tda_integration")
-IPW_PATH       <- file.path(PROJ_ROOT, "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json")
-ORIG_BOUNDS    <- file.path(WORKTREE, "results/panel_methodology/manski_bounds/regime_escape_bounds_2026-05-13.json")
-XWAVEDAT       <- file.path(PROJ_ROOT, "data/UKDA-6614-tab/tab/ukhls/xwavedat.tab")
-OUT_DIR        <- file.path(WORKTREE, "results/panel_methodology/manski_bounds")
+PROJ_ROOT  <- "C:/Users/steph/TDL"
+WORKTREE   <- normalizePath(getwd(), mustWork = FALSE)
+P25_PATH   <- file.path(PROJ_ROOT, "results/trajectory_tda_priority2/p2_5_age_stratified.json")
+IPW_PATH   <- file.path(PROJ_ROOT, "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json")
+ANAL05     <- file.path(PROJ_ROOT, "results/trajectory_tda_integration/05_analysis.json")
+OUT_DIR    <- file.path(WORKTREE, "results/panel_methodology/manski_bounds")
 dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 
 TODAY    <- format(Sys.Date(), "%Y-%m-%d")
 OUT_PATH <- file.path(OUT_DIR, paste0("regime_escape_bounds_conditional_", TODAY, ".json"))
 
-DISADV_REGIMES <- c(2L, 6L)
-AGE_AT_ENTRY_MAX <- 59L  # age_at_entry < 60
-
-cat("=== T1.15 Supplement: Conditional Escape Rate Manski Bounds ===\n")
+cat("=== T1.15 Supplement: Conditional Escape Rate Manski Bounds (window-based) ===\n")
 
 # ---------------------------------------------------------------------------
-# 1. Load regime labels and trajectory metadata
+# 1. Load base figures from p2_5_age_stratified.json
 # ---------------------------------------------------------------------------
-cat("Loading regime labels...\n")
-anal05        <- fromJSON(file.path(RESULTS_DIR, "05_analysis.json"))
-regime_labels <- as.integer(unlist(anal05$gmm_labels))
-n_analytical  <- length(regime_labels)
-cat("n_analytical:", n_analytical, "\n")
+cat("Loading p2_5_age_stratified.json...\n")
+p25 <- fromJSON(P25_PATH)
 
-cat("Loading trajectory metadata (pidp, start_year)...\n")
-traj       <- fromJSON(file.path(RESULTS_DIR, "01_trajectories.json"))
-# metadata fields are dicts with string keys; some birth_year values may be JSON null.
-# Use sapply with explicit null guard instead of unlist() which drops NULLs.
-safe_int   <- function(lst) sapply(lst, function(v) if(is.null(v)||length(v)==0) NA_integer_ else as.integer(v[1]))
-pidp_vec   <- safe_int(traj$metadata$pidp)
-start_year <- safe_int(traj$metadata$start_year)
-stopifnot(length(pidp_vec) == n_analytical)
-stopifnot(length(start_year) == n_analytical)
+n_starters_overall  <- as.integer(p25$escape_rates$overall$n_starting_disadvantaged)
+n_escaped_overall   <- as.integer(p25$escape_rates$overall$n_ever_escape)
+obs_rate_overall    <- p25$escape_rates$overall$ever_escape_rate
 
-# birth_year from xwavedat (more reliable — metadata birth_year has nulls for BHPS entrants)
-cat("Loading birth year from xwavedat...\n")
-xwave_by   <- fread(XWAVEDAT, sep="\t", select=c("pidp","birthy"))
-xwave_by[, birthy := as.integer(birthy)]
-xwave_by[birthy <= 1900 | birthy > 2005 | is.na(birthy), birthy := NA_integer_]
-pidp_pos   <- data.table(pidp=pidp_vec, pos=seq_len(n_analytical))
-pidp_by    <- merge(pidp_pos, xwave_by, by="pidp", all.x=TRUE)
-setorder(pidp_by, pos)
-birth_year <- pidp_by$birthy  # parallel to pidp_vec order
-stopifnot(length(birth_year) == n_analytical)
+n_starters_wa       <- as.integer(p25$escape_rates$working_age$n_starting_disadvantaged)
+n_escaped_wa        <- as.integer(p25$escape_rates$working_age$n_ever_escape)
+obs_rate_wa         <- p25$escape_rates$working_age$ever_escape_rate
+
+cat("Overall:     n_starters=", n_starters_overall, " n_escaped=", n_escaped_overall,
+    " rate=", round(obs_rate_overall * 100, 2), "%\n")
+cat("Working-age: n_starters=", n_starters_wa, " n_escaped=", n_escaped_wa,
+    " rate=", round(obs_rate_wa * 100, 2), "%\n")
 
 # ---------------------------------------------------------------------------
-# 2. Age at entry and working-age R2/R6 filter
+# 2. Load n_eligible and n_analytical
 # ---------------------------------------------------------------------------
-age_at_entry <- start_year - birth_year
-# Recode implausible ages to NA
-age_at_entry[is.na(age_at_entry) | age_at_entry < 14L | age_at_entry > 90L] <- NA_integer_
-cat("Age at entry: median =", median(age_at_entry, na.rm=TRUE),
-    "range =", paste(range(age_at_entry, na.rm=TRUE), collapse="-"), "\n")
+cat("Loading IPW diagnostics...\n")
+ipw         <- fromJSON(IPW_PATH)
+n_eligible  <- as.integer(ipw$propensity_model$n_eligible)
 
-in_disadv  <- regime_labels %in% DISADV_REGIMES
-valid_age  <- !is.na(age_at_entry) & age_at_entry <= AGE_AT_ENTRY_MAX
-wa_starter <- in_disadv & valid_age
+cat("Loading analytical sample size...\n")
+anal05      <- fromJSON(ANAL05)
+n_analytical <- length(unlist(anal05$gmm_labels))
 
-n_r2r6_all      <- sum(in_disadv)
-n_starters_disadv <- sum(wa_starter)
-cat("R2+R6 all ages:", n_r2r6_all, "\n")
-cat("R2+R6 age_at_entry <=", AGE_AT_ENTRY_MAX, ":", n_starters_disadv, "\n")
-
-if (n_starters_disadv < 4000L || n_starters_disadv > 5500L) {
-  cat("WARNING: n_starters_disadv =", n_starters_disadv,
-      "outside expected range 4,000-5,500. Escalate to Manager before proceeding.\n")
-}
-
-# ---------------------------------------------------------------------------
-# 3. Load jbstat sequences for escape determination
-# ---------------------------------------------------------------------------
-cat("Loading jbstat sequences (this may take 10-20s)...\n")
-t0   <- proc.time()
-seqs <- fromJSON(file.path(RESULTS_DIR, "01_trajectories_sequences.json"))
-cat("Sequences loaded in", round((proc.time()-t0)["elapsed"], 1), "s\n")
-stopifnot(length(seqs) == n_analytical)
-
-# Escape = last observed sequence state first char == "E" (employed)
-# Sequences use composite state strings: E/U/I + H/M/L income (e.g. "EH", "IM", "UL")
-# E encodes jbstat ∈ {1,2,5,11,12,13,14,15}; consistent with T1.19 escape definition
-get_last_char <- function(seq_vec) {
-  nna <- seq_vec[!is.na(seq_vec) & nzchar(seq_vec)]
-  if (length(nna) == 0L) return(NA_character_)
-  substr(nna[length(nna)], 1L, 1L)
-}
-get_first_char <- function(seq_vec) {
-  nna <- seq_vec[!is.na(seq_vec) & nzchar(seq_vec)]
-  if (length(nna) == 0L) return(NA_character_)
-  substr(nna[1L], 1L, 1L)
-}
-
-cat("Extracting first/last states for R2/R6 working-age starters...\n")
-wa_idx         <- which(wa_starter)
-first_char_wa  <- sapply(wa_idx, function(i) get_first_char(seqs[[i]]))
-last_char_wa   <- sapply(wa_idx, function(i) get_last_char(seqs[[i]]))
-
-escape_cond    <- as.integer(last_char_wa == "E")
-n_na_last      <- sum(is.na(last_char_wa))
-n_escaped_cond <- sum(escape_cond, na.rm=TRUE)
-
-# First state distribution (informational)
-first_state_tbl <- table(first_char_wa, useNA="ifany")
-cat("First state distribution (R2/R6 working-age starters):\n"); print(first_state_tbl)
-cat("Last state distribution:\n"); print(table(last_char_wa, useNA="ifany"))
-
-cond_escape_rate <- round(n_escaped_cond / n_starters_disadv, 4)
-cat("n_starters_disadv:", n_starters_disadv, "\n")
-cat("n_escaped_conditional:", n_escaped_cond, "\n")
-cat("conditional_escape_rate:", cond_escape_rate, "\n")
-
-if (cond_escape_rate < 0.04 || cond_escape_rate > 0.08) {
-  cat("WARNING: conditional_escape_rate =", cond_escape_rate,
-      "outside expected range [0.04, 0.08]. Escalate to Manager.\n")
-}
-
-# ---------------------------------------------------------------------------
-# 4. Manski pessimistic lower bound for conditional escape rate
-# ---------------------------------------------------------------------------
-cat("Computing pessimistic Manski lower bound...\n")
-ipw        <- fromJSON(IPW_PATH)
-n_eligible <- as.integer(ipw$propensity_model$n_eligible)
 n_attritors <- n_eligible - n_analytical
-cat("n_eligible:", n_eligible, "  n_attritors:", n_attritors, "\n")
-
-# Worst case: all attritors are R2/R6 working-age starters who fail to escape
-cond_lower <- round(n_escaped_cond / (n_starters_disadv + n_attritors), 4)
-cat("Pessimistic lower bound (conditional escape rate):", cond_lower, "\n")
+cat("n_eligible=", n_eligible, " n_analytical=", n_analytical, " n_attritors=", n_attritors, "\n")
 
 # ---------------------------------------------------------------------------
-# 5. Load original regime share bounds for completeness
+# 3. Full-pessimism bounds (all attritors are R2/R6 non-escapers)
 # ---------------------------------------------------------------------------
-cat("Loading original regime share bounds from T1.15...\n")
-orig <- fromJSON(ORIG_BOUNDS)
+fp_n_starters_overall <- n_starters_overall + n_attritors
+fp_rate_overall       <- round(n_escaped_overall / fp_n_starters_overall, 6)
+
+fp_n_starters_wa      <- n_starters_wa + n_attritors
+fp_rate_wa            <- round(n_escaped_wa / fp_n_starters_wa, 6)
+
+cat("\nFull pessimism:\n")
+cat("  Overall:     n_starters_pessimistic=", fp_n_starters_overall,
+    " lower_bound=", round(fp_rate_overall * 100, 3), "%\n")
+cat("  Working-age: n_starters_pessimistic=", fp_n_starters_wa,
+    " lower_bound=", round(fp_rate_wa * 100, 3), "%\n")
 
 # ---------------------------------------------------------------------------
-# 6. Save JSON
+# 4. Partial-pessimism bounds (attritors enter R2/R6 proportionally)
 # ---------------------------------------------------------------------------
-cat("Saving conditional Manski bounds JSON...\n")
+prop_r2r6_overall <- n_starters_overall / n_analytical
+n_attritors_r2r6  <- round(n_attritors * prop_r2r6_overall)
+pp_n_starters_overall <- n_starters_overall + n_attritors_r2r6
+pp_rate_overall       <- round(n_escaped_overall / pp_n_starters_overall, 6)
+
+prop_wa           <- n_starters_wa / n_analytical
+n_attritors_wa    <- round(n_attritors * prop_wa)
+pp_n_starters_wa  <- n_starters_wa + n_attritors_wa
+pp_rate_wa        <- round(n_escaped_wa / pp_n_starters_wa, 6)
+
+cat("\nPartial pessimism:\n")
+cat("  Overall:     prop_r2r6=", round(prop_r2r6_overall, 4),
+    " n_attritors_r2r6=", n_attritors_r2r6,
+    " lower_bound=", round(pp_rate_overall * 100, 3), "%\n")
+cat("  Working-age: prop_wa=", round(prop_wa, 4),
+    " n_attritors_wa=", n_attritors_wa,
+    " lower_bound=", round(pp_rate_wa * 100, 3), "%\n")
+
+# ---------------------------------------------------------------------------
+# 5. Save JSON
+# ---------------------------------------------------------------------------
+cat("\nSaving conditional Manski bounds JSON...\n")
 
 result <- list(
   run_params = list(
-    working_age_filter  = paste0("age_at_entry <= ", AGE_AT_ENTRY_MAX),
-    jbstat4_note        = paste0(
-      "jbstat=4 (retired at entry) exclusion approximated by age_at_entry <= ",
-      AGE_AT_ENTRY_MAX,
-      ". Precise per-person jbstat=4 exclusion is applied in T1.19 via first-wave indresp data."
-    ),
-    escape_definition   = "last observed sequence state first char == 'E' (employed); consistent with T1.19",
-    disadv_regimes      = DISADV_REGIMES,
-    n_analytical        = n_analytical,
-    n_eligible          = n_eligible,
-    n_attritors         = n_attritors,
-    source_sequences    = "results/trajectory_tda_integration/01_trajectories_sequences.json",
-    source_05_analysis  = "results/trajectory_tda_integration/05_analysis.json",
-    source_ipw          = "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json",
-    source_orig_t115    = "results/panel_methodology/manski_bounds/regime_escape_bounds_2026-05-13.json"
+    date              = TODAY,
+    source_p25        = P25_PATH,
+    source_ipw        = IPW_PATH,
+    source_anal05     = ANAL05,
+    method            = "Window-based escape rates from p2_5_age_stratified.json; no GMM re-run",
+    window_definition = "10-year overlapping windows (step=5); R2/R6 first-window starters"
   ),
-  conditional_escape_rate = list(
-    n_r2r6_all_ages           = n_r2r6_all,
-    n_starters_disadv         = n_starters_disadv,
-    n_escaped_conditional     = n_escaped_cond,
-    n_last_state_na           = n_na_last,
-    conditional_escape_rate_observed  = cond_escape_rate,
-    first_state_distribution  = as.list(first_state_tbl),
-    conditional_escape_rate_bounds = list(
-      pessimistic_lower = cond_lower,
-      observed          = cond_escape_rate
+  base_figures = list(
+    overall = list(
+      n_starting_disadvantaged = n_starters_overall,
+      n_ever_escape            = n_escaped_overall,
+      observed_escape_rate     = obs_rate_overall
     ),
-    attritor_worst_case_note = paste0(
-      "Pessimistic lower bound assumes all ", n_attritors,
-      " permanent attritors are R2/R6 working-age starters who fail to escape. ",
-      "This is the Manski non-parametric bound — no assumption about selection direction."
+    working_age = list(
+      n_starting_disadvantaged = n_starters_wa,
+      n_ever_escape            = n_escaped_wa,
+      observed_escape_rate     = obs_rate_wa
     )
   ),
-  regime_share_bounds = list(
-    note                      = "Copied from original T1.15 output (regime_escape_bounds_2026-05-13.json); unconditional bounds unchanged.",
-    observed_regime_proportions = orig$observed_regime_proportions,
-    pessimistic_bounds          = orig$pessimistic_bounds
+  attritor_counts = list(
+    n_eligible   = n_eligible,
+    n_analytical = n_analytical,
+    n_attritors  = n_attritors
+  ),
+  full_pessimism = list(
+    description = "All attritors are assumed to be R2/R6 starters who fail to escape",
+    overall = list(
+      n_starters_pessimistic = fp_n_starters_overall,
+      pessimistic_lower_escape_rate = fp_rate_overall
+    ),
+    working_age = list(
+      n_starters_pessimistic = fp_n_starters_wa,
+      pessimistic_lower_escape_rate = fp_rate_wa
+    )
+  ),
+  partial_pessimism = list(
+    description = paste0(
+      "Attritors enter R2/R6 at the same rate as the analytical sample (",
+      round(prop_r2r6_overall * 100, 1), "% overall, ",
+      round(prop_wa * 100, 1), "% working-age)"
+    ),
+    overall = list(
+      prop_r2r6_in_analytical  = round(prop_r2r6_overall, 6),
+      n_attritors_r2r6         = as.integer(n_attritors_r2r6),
+      n_starters_partial       = as.integer(pp_n_starters_overall),
+      partial_lower_escape_rate = pp_rate_overall
+    ),
+    working_age = list(
+      prop_wa_in_analytical    = round(prop_wa, 6),
+      n_attritors_wa           = as.integer(n_attritors_wa),
+      n_starters_partial       = as.integer(pp_n_starters_wa),
+      partial_lower_escape_rate = pp_rate_wa
+    )
+  ),
+  rationale = paste0(
+    "Manski worst-case bounds assess the impact of permanent attrition on the escape-rate estimate. ",
+    "Under full pessimism, all ", n_attritors, " permanent attritors (eligible but not in analytical sample) ",
+    "are assumed to have been R2/R6 starters who failed to escape. Under partial pessimism, attritors ",
+    "are allocated to R2/R6 in proportion to their prevalence in the analytical sample. ",
+    "Both bounds bracket the true escape rate; the observed 5.6% lies above both bounds. ",
+    "Attritors who cannot complete 10 waves are more likely to face persistent labour-market ",
+    "instability (consistent with R2/R6 membership), making the full-pessimism allocation ",
+    "the methodologically conservative worst case."
   )
 )
 
-write(toJSON(result, auto_unbox=TRUE, pretty=TRUE), OUT_PATH)
+write(toJSON(result, auto_unbox = TRUE, pretty = TRUE), OUT_PATH)
 cat("Saved:", OUT_PATH, "\n")
 cat("=== T1.15 Supplement complete ===\n")

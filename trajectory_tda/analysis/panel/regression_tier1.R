@@ -1,20 +1,23 @@
 # Research context: TDA-Research/03-Papers/P01/_project.md
-# Purpose: Tier 1 regression — escape from disadvantage, Firth penalisation + clustered SEs
+# Purpose: T1.19 rerun — Tier 1 Firth regression on window-based R2/R6 starters.
 #
-# CORRECTED T1.19 (2026-05-13 rerun): restricted to R2/R6 working-age starters only.
-# Original run (tier1_clustered_firth_2026-05-13.json) used full analytical sample with
-# escape=1 if regime NOT in {2,6}, producing 72.6% unconditional escape rate.
-# Corrected: sample restricted to gmm_label ∈ {2,6} AND age_at_entry < 60 AND
-# first observed jbstat ≠ 4 (not retired at entry). Escape defined from last observed
-# sequence state (last state first char == "E"). Expected escape rate ≈ 5.6%.
+# The v1 escape analysis is WINDOW-BASED: overlapping 10-year windows (step=5) of
+# each person's jbstat sequence are embedded and assigned a GMM regime. "Starter" =
+# first window in regime {2,6}. "Escape" = any subsequent window in regime ∉ {2,6}.
+# Source of escape outcome and starter set: window_escape_assignments_<date>.json
+# produced by build_window_assignments.py.
 #
-# logistf v1.26.1 does not support cluster= natively; cluster-robust SEs computed
-# post-hoc via sandwich::vcovCL() clustered on hidp (final observed wave).
-# Profile-likelihood CIs from logistf(pl=TRUE) are the primary inferential CIs.
-# Clustered SEs supplement for heteroskedasticity-robust Wald inference.
+# IMPORTANT: No age<60 filter; no jbstat=4 exclusion filter. These were artefacts of
+# the previous (wrong) trajectory-label approach. The regression includes all starters
+# regardless of age; age_first_window is a PREDICTOR, not a filter.
+# Complete-case n expected ≈ 4,832 (driven by parental NS-SEC missingness ~35%).
 #
-# Parental NS-SEC proxy: pasoc90_cc (father's SOC90, xwavedat) falling back to
-# masoc90_cc (mother's SOC90); recoded H/M/L. Complete-case for Tier 1.
+# logistf v1.26.1 does not support cluster= natively; clustered SEs post-hoc via
+# sandwich::vcovCL() clustered on hidp (last observed wave).
+# Profile-likelihood CIs from logistf(pl=TRUE) are primary inferential CIs.
+#
+# Reference values (from p2_5_age_stratified.json / v1 Python run):
+#   n_starters = 7,453 | escape_rate = 5.58% | n_obs ≈ 4,832 | pseudo_r2 ≈ 0.479
 #
 # Run from worktree root:
 #   "C:/Program Files/R/R-4.6.0/bin/Rscript.exe" trajectory_tda/analysis/panel/regression_tier1.R
@@ -32,6 +35,7 @@ set.seed(42)
 PROJ_ROOT   <- "C:/Users/steph/TDL"
 WORKTREE    <- normalizePath(getwd(), mustWork = FALSE)
 RESULTS_DIR <- file.path(PROJ_ROOT, "results/trajectory_tda_integration")
+PRIORITY2   <- file.path(PROJ_ROOT, "results/trajectory_tda_priority2")
 DATA_TAB    <- file.path(PROJ_ROOT, "data/UKDA-6614-tab/tab")
 BHPS_DIR    <- file.path(DATA_TAB, "bhps")
 UKHLS_DIR   <- file.path(DATA_TAB, "ukhls")
@@ -40,18 +44,15 @@ OUT_DIR     <- file.path(WORKTREE, "results/panel_methodology/regression")
 dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 
 TODAY    <- format(Sys.Date(), "%Y-%m-%d")
-OUT_PATH <- file.path(OUT_DIR, paste0("tier1_clustered_firth_conditional_", TODAY, ".json"))
+OUT_PATH <- file.path(OUT_DIR, paste0("tier1_clustered_firth_", TODAY, ".json"))
 
-DISADV_REGIMES <- c(2L, 6L)
 BHPS_WAVES     <- paste0("b", letters[1:18])
 BHPS_YEARS     <- 1991:2008
 UKHLS_WAVES    <- letters[1:15]
 UKHLS_YEARS    <- 2009:2023
-AGE_AT_ENTRY_MAX <- 59L   # age_at_entry < 60
 
 # Locked jbstat recoding (T0.9)
 E_CODES <- c(1L,2L,5L,11L,12L,13L,14L,15L); U_CODES <- c(3L,9L); I_CODES <- c(4L,6L,7L,8L,10L,97L)
-RETIRED_CODE <- 4L
 
 recode_jbstat <- function(x) {
   r <- rep(NA_character_, length(x))
@@ -66,90 +67,51 @@ recode_jbstat <- function(x) {
 BHPS_CUTS  <- c(1282, 2437)
 UKHLS_CUTS <- c(2153, 4139)
 
-cat("=== T1.19 Corrected: Tier 1 Firth Regression (R2/R6 Starters, Working-Age) ===\n")
+cat("=== T1.19 Rerun: Tier 1 Firth Regression (Window-Based R2/R6 Starters) ===\n")
 
 # ---------------------------------------------------------------------------
-# 1. Load regime labels and trajectory metadata
+# 1. Load window escape assignments from Python output
 # ---------------------------------------------------------------------------
-cat("Loading regime labels and trajectory metadata...\n")
-traj    <- fromJSON(file.path(RESULTS_DIR, "01_trajectories.json"))
-anal05  <- fromJSON(file.path(RESULTS_DIR, "05_analysis.json"))
+cat("Locating window_escape_assignments JSON...\n")
+wa_files <- list.files(PRIORITY2, pattern="^window_escape_assignments_.*\\.json$", full.names=TRUE)
+if (length(wa_files) == 0L) {
+  stop("No window_escape_assignments JSON found in ", PRIORITY2,
+       ". Run build_window_assignments.py first.")
+}
+wa_path <- wa_files[which.max(file.info(wa_files)$mtime)]  # most recent
+cat("Using:", wa_path, "\n")
 
-# metadata dicts have string keys; some birth_year values may be JSON null — use safe parse
-safe_int         <- function(lst) sapply(lst, function(v) if(is.null(v)||length(v)==0) NA_integer_ else as.integer(v[1]))
-analytical_pidps <- safe_int(traj$metadata$pidp)
-start_year_vec   <- safe_int(traj$metadata$start_year)
-regime_labels    <- as.integer(unlist(anal05$gmm_labels))
-n_analytical     <- length(analytical_pidps)
-stopifnot(length(regime_labels) == n_analytical)
-stopifnot(length(start_year_vec) == n_analytical)
+wa_json <- fromJSON(wa_path)
+cat("Window assignments source date:", wa_json$run_params$date, "\n")
 
-# Load xwavedat once — used for both birth_year (age_at_entry) and nssec_proxy
-cat("Loading xwavedat (birth_year, sex, parental SOC)...\n")
+# Extract starters only
+asgn    <- as.data.table(wa_json$assignments)
+starters <- asgn[is_disadvantaged_starter == TRUE]
+n_starters_all <- nrow(starters)
+n_escaped_all  <- sum(starters$escape)
+cat("n_starters_all_ages:", n_starters_all,
+    "  escape_rate:", round(n_escaped_all/n_starters_all, 4), "\n")
+
+# Escalation check
+REF_N   <- 7453L; REF_RATE <- 0.05581
+if (abs(n_starters_all - REF_N) / REF_N > 0.10) {
+  cat("WARNING: n_starters =", n_starters_all, "deviates >10% from expected", REF_N, "ESCALATE.\n")
+}
+esc_rate_obs <- n_escaped_all / n_starters_all
+if (abs(esc_rate_obs - REF_RATE) / REF_RATE > 0.10) {
+  cat("WARNING: escape_rate =", round(esc_rate_obs,4),
+      "deviates >10% from expected", REF_RATE, "ESCALATE.\n")
+}
+
+# Core regression columns: pidp, escape, age_first_window, first_window_regime
+starter_dt <- starters[, .(pidp, escape, age_first_window, first_window_regime)]
+starter_pidps <- starter_dt$pidp
+
+cat("Loading xwavedat covariates...\n")
 xwave_full <- fread(XWAVEDAT, sep="\t",
                     select=c("pidp","birthy","sex_dv","pasoc90_cc","masoc90_cc"))
 xwave_full[, birthy := as.integer(birthy)]
 xwave_full[birthy <= 1900 | birthy > 2005 | is.na(birthy), birthy := NA_integer_]
-
-# Align birth_year to analytical_pidps order
-pidp_pos   <- data.table(pidp=analytical_pidps, pos=seq_len(n_analytical))
-pidp_by    <- merge(pidp_pos, xwave_full[, .(pidp, birthy)], by="pidp", all.x=TRUE)
-setorder(pidp_by, pos)
-birth_year_vec <- pidp_by$birthy  # parallel to analytical_pidps
-stopifnot(length(birth_year_vec) == n_analytical)
-
-# ---------------------------------------------------------------------------
-# 2. Compute age at entry and apply R2/R6 + working-age filter
-# ---------------------------------------------------------------------------
-age_at_entry_vec <- start_year_vec - birth_year_vec
-age_at_entry_vec[is.na(age_at_entry_vec) | age_at_entry_vec < 14L | age_at_entry_vec > 90L] <- NA_integer_
-
-in_disadv  <- regime_labels %in% DISADV_REGIMES
-valid_age  <- !is.na(age_at_entry_vec) & age_at_entry_vec <= AGE_AT_ENTRY_MAX
-wa_starter_mask <- in_disadv & valid_age
-
-n_r2r6_all      <- sum(in_disadv)
-n_wa_starters   <- sum(wa_starter_mask)
-candidate_pidps <- analytical_pidps[wa_starter_mask]
-cat("R2+R6 all ages:", n_r2r6_all, "\n")
-cat("R2+R6 age_at_entry <=", AGE_AT_ENTRY_MAX, "(candidate starters):", n_wa_starters, "\n")
-
-# ---------------------------------------------------------------------------
-# 3. Load jbstat sequences for escape outcome determination
-# ---------------------------------------------------------------------------
-cat("Loading jbstat sequences (this may take 10-20s)...\n")
-t0   <- proc.time()
-seqs <- fromJSON(file.path(RESULTS_DIR, "01_trajectories_sequences.json"))
-cat("Sequences loaded in", round((proc.time()-t0)["elapsed"], 1), "s\n")
-stopifnot(length(seqs) == n_analytical)
-
-# Escape = last observed state first char == "E"
-get_last_char <- function(seq_vec) {
-  nna <- seq_vec[!is.na(seq_vec) & nzchar(seq_vec)]
-  if (length(nna) == 0L) return(NA_character_)
-  substr(nna[length(nna)], 1L, 1L)
-}
-
-wa_idx      <- which(wa_starter_mask)
-last_char   <- sapply(wa_idx, function(i) get_last_char(seqs[[i]]))
-escape_from_seq <- as.integer(last_char == "E")
-
-# Build candidate dt (before jbstat=4 exclusion)
-candidate_dt <- data.table(
-  pidp          = candidate_pidps,
-  regime        = regime_labels[wa_starter_mask],
-  age_at_entry  = age_at_entry_vec[wa_starter_mask],
-  escape        = escape_from_seq
-)
-
-n_na_escape <- sum(is.na(candidate_dt$escape))
-cat("Escape NAs (no valid last state):", n_na_escape, "\n")
-
-# ---------------------------------------------------------------------------
-# 4. Extract xwavedat covariates for candidate sample (already loaded above)
-# ---------------------------------------------------------------------------
-cat("Extracting xwavedat covariates for candidate sample...\n")
-xwave_an <- xwave_full[pidp %in% candidate_pidps]
 
 soc_to_class <- function(soc) {
   s <- as.integer(soc); major <- s %/% 10L
@@ -161,38 +123,44 @@ soc_to_class <- function(soc) {
   cls
 }
 
+xwave_an <- xwave_full[pidp %in% starter_pidps]
 xwave_an[, nssec_proxy := soc_to_class(pasoc90_cc)]
 xwave_an[is.na(nssec_proxy), nssec_proxy := soc_to_class(masoc90_cc)]
 xwave_an[, birth_year := as.integer(birthy)]
 xwave_an[birth_year <= 1900 | birth_year > 2005, birth_year := NA_integer_]
-xwave_an[, sex := factor(as.integer(sex_dv))]
-xwave_an[sex_dv <= 0, sex := NA]
+xwave_an[, sex := fifelse(as.integer(sex_dv) == 2L, "female",
+                  fifelse(as.integer(sex_dv) == 1L, "male", NA_character_))]
 
-candidate_dt <- merge(candidate_dt,
-                      xwave_an[, .(pidp, nssec_proxy, birth_year, sex)],
-                      by="pidp", all.x=TRUE)
+# Merge xwavedat covariates
+starter_dt <- merge(starter_dt,
+                    xwave_an[, .(pidp, nssec_proxy, birth_year, sex)],
+                    by="pidp", all.x=TRUE)
 
-# Birth cohort groups
-candidate_dt[, birth_cohort := fcase(
-  birth_year < 1950,                       "1940s",
+# Birth cohort (using birth_year from xwavedat)
+starter_dt[, birth_cohort := fcase(
+  birth_year < 1950,                       "pre-1950",
   birth_year >= 1950 & birth_year < 1960,  "1950s",
   birth_year >= 1960 & birth_year < 1970,  "1960s",
   birth_year >= 1970 & birth_year < 1980,  "1970s",
-  birth_year >= 1980 & birth_year < 1990,  "1980s",
-  birth_year >= 1990,                      "1990+",
+  birth_year >= 1980,                      "post-1980",
   default = NA_character_
 )]
 
+# Use age_first_window from JSON; fill from xwavedat if NULL
+# (Python script uses xwavedat birth_year so these should match)
+starter_dt[is.na(age_first_window) & !is.na(birth_year),
+           age_first_window := NA_integer_]  # already NA; no xwavedat recompute needed here
+
 # ---------------------------------------------------------------------------
-# 5. Load first-wave covariates: hiqual_dv, jbstat, gor_dv, hidp
+# 2. Load first-wave covariates: hiqual_dv, jbstat_bin, gor_dv, hidp
 # ---------------------------------------------------------------------------
 cat("Loading first-wave covariates from BHPS and UKHLS indresp files...\n")
 
 load_wave_data <- function(dir_path, waves, wave_years, target_pidps) {
-  first_dt  <- data.table(pidp=integer(0), hiqual_dv=integer(0), jbstat=integer(0),
-                           gor_dv=integer(0), hidp=integer(0), wave=character(0),
-                           wave_year=integer(0))
-  last_dt   <- first_dt
+  first_dt   <- data.table(pidp=integer(0), hiqual_dv=integer(0), jbstat=integer(0),
+                            gor_dv=integer(0), hidp=integer(0), wave=character(0),
+                            wave_year=integer(0), survey_origin=character(0))
+  last_hidp_dt <- first_dt
   seen_first <- integer(0)
 
   for (wi in seq_along(waves)) {
@@ -204,34 +172,35 @@ load_wave_data <- function(dir_path, waves, wave_years, target_pidps) {
     hidp_col <- paste0(wave, "_hidp")
     gor_col  <- paste0(wave, "_gor_dv")
     hq_col   <- paste0(wave, "_hiqual_dv")
-    jb_col   <- if(paste0(wave,"_jbstat_bh") %in% hdr) paste0(wave,"_jbstat_bh")
-                else if(paste0(wave,"_jbstat") %in% hdr) paste0(wave,"_jbstat")
+    jb_col   <- if (paste0(wave, "_jbstat_bh") %in% hdr) paste0(wave, "_jbstat_bh")
+                else if (paste0(wave, "_jbstat") %in% hdr) paste0(wave, "_jbstat")
                 else NA_character_
 
     needed <- c("pidp", hidp_col)
-    opt    <- intersect(c(gor_col, hq_col, if(!is.na(jb_col)) jb_col), hdr)
+    opt    <- intersect(c(gor_col, hq_col, if (!is.na(jb_col)) jb_col), hdr)
     wdt    <- fread(fpath, sep="\t", select=c(needed, opt))
     wdt    <- wdt[pidp %in% target_pidps]
     if (nrow(wdt) == 0L) next
 
     wdt[, wave := wave][, wave_year := wyear]
+    wdt[, survey_origin := fifelse(wave %in% BHPS_WAVES, "BHPS", "UKHLS")]
     if (hidp_col %in% names(wdt)) setnames(wdt, hidp_col, "hidp", skip_absent=TRUE)
     if (!is.na(jb_col) && jb_col %in% names(wdt)) setnames(wdt, jb_col, "jbstat", skip_absent=TRUE)
-    if (hq_col %in% names(wdt))  setnames(wdt, hq_col, "hiqual_dv", skip_absent=TRUE)
-    if (gor_col %in% names(wdt)) setnames(wdt, gor_col, "gor_dv", skip_absent=TRUE)
+    if (hq_col  %in% names(wdt)) setnames(wdt, hq_col,  "hiqual_dv", skip_absent=TRUE)
+    if (gor_col %in% names(wdt)) setnames(wdt, gor_col, "gor_dv",    skip_absent=TRUE)
 
     new_pidps <- setdiff(wdt$pidp, seen_first)
     if (length(new_pidps) > 0L) {
       first_dt <- rbindlist(list(first_dt, wdt[pidp %in% new_pidps]), fill=TRUE)
       seen_first <- c(seen_first, new_pidps)
     }
-    last_dt <- rbindlist(list(last_dt[!pidp %in% wdt$pidp], wdt), fill=TRUE)
+    last_hidp_dt <- rbindlist(list(last_hidp_dt[!pidp %in% wdt$pidp], wdt), fill=TRUE)
   }
-  list(first=first_dt, last=last_dt)
+  list(first=first_dt, last=last_hidp_dt)
 }
 
-bhps_res  <- load_wave_data(BHPS_DIR,  BHPS_WAVES,  BHPS_YEARS,  candidate_pidps)
-ukhls_res <- load_wave_data(UKHLS_DIR, UKHLS_WAVES, UKHLS_YEARS, candidate_pidps)
+bhps_res  <- load_wave_data(BHPS_DIR,  BHPS_WAVES,  BHPS_YEARS,  starter_pidps)
+ukhls_res <- load_wave_data(UKHLS_DIR, UKHLS_WAVES, UKHLS_YEARS, starter_pidps)
 
 first_all <- rbindlist(list(bhps_res$first, ukhls_res$first), fill=TRUE, use.names=TRUE)
 setorder(first_all, pidp, wave_year)
@@ -241,33 +210,10 @@ last_all  <- rbindlist(list(bhps_res$last, ukhls_res$last), fill=TRUE, use.names
 setorder(last_all, pidp, -wave_year)
 last_hidp <- last_all[, .SD[1L], by=pidp][, .(pidp, hidp_last=hidp, survey_last=wave)]
 
-first_cov[, survey_origin := fifelse(wave %in% BHPS_WAVES, "BHPS", "UKHLS")]
-
-cat("First-wave coverage:", nrow(first_cov), "/", n_wa_starters, "\n")
+cat("First-wave coverage:", nrow(first_cov), "/", n_starters_all, "\n")
 
 # ---------------------------------------------------------------------------
-# 6. Exclude jbstat=4 (already retired at survey entry)
-# ---------------------------------------------------------------------------
-cat("Applying jbstat=4 (retired at entry) exclusion...\n")
-first_cov[, jbstat_raw := as.integer(jbstat)]
-n_retired_at_entry <- sum(first_cov$jbstat_raw == RETIRED_CODE, na.rm=TRUE)
-cat("Excluded (jbstat=4, retired at entry):", n_retired_at_entry, "\n")
-
-active_pidps <- first_cov[is.na(jbstat_raw) | jbstat_raw != RETIRED_CODE, pidp]
-first_cov    <- first_cov[pidp %in% active_pidps]
-last_hidp    <- last_hidp[pidp %in% active_pidps]
-
-# Filter candidate_dt to active pidps
-reg_dt <- candidate_dt[pidp %in% active_pidps]
-n_r2r6_starters <- nrow(reg_dt)
-cat("n_r2r6_starters (after age + jbstat=4 filters):", n_r2r6_starters, "\n")
-
-if (n_r2r6_starters < 4000L || n_r2r6_starters > 5500L) {
-  cat("WARNING: n_r2r6_starters =", n_r2r6_starters, "outside expected 4,000-5,500. Escalate.\n")
-}
-
-# ---------------------------------------------------------------------------
-# 7. Load first income for income_tercile_init
+# 3. Load first income for income_tercile_init
 # ---------------------------------------------------------------------------
 cat("Loading first income observation...\n")
 
@@ -297,20 +243,21 @@ setorder(first_inc, pidp, wave_year)
 first_inc <- first_inc[income > 0L & !is.na(income)][, .SD[1L], by=pidp]
 
 first_inc[, income_tercile_init := fcase(
-  survey_origin == "BHPS"  & income <= BHPS_CUTS[1],   "L",
-  survey_origin == "BHPS"  & income <= BHPS_CUTS[2],   "M",
-  survey_origin == "BHPS"  & income  > BHPS_CUTS[2],   "H",
-  survey_origin == "UKHLS" & income <= UKHLS_CUTS[1],  "L",
-  survey_origin == "UKHLS" & income <= UKHLS_CUTS[2],  "M",
-  survey_origin == "UKHLS" & income  > UKHLS_CUTS[2],  "H"
+  survey_origin == "BHPS"  & income <= BHPS_CUTS[1],  "L",
+  survey_origin == "BHPS"  & income <= BHPS_CUTS[2],  "M",
+  survey_origin == "BHPS"  & income  > BHPS_CUTS[2],  "H",
+  survey_origin == "UKHLS" & income <= UKHLS_CUTS[1], "L",
+  survey_origin == "UKHLS" & income <= UKHLS_CUTS[2], "M",
+  survey_origin == "UKHLS" & income  > UKHLS_CUTS[2], "H"
 )]
 
 # ---------------------------------------------------------------------------
-# 8. Assemble analytical dataset
+# 4. Assemble analytical dataset
 # ---------------------------------------------------------------------------
 cat("Assembling regression dataset...\n")
 
-reg_dt <- merge(reg_dt, first_cov[, .(pidp, hiqual_dv, jbstat, gor_dv, wave_year, survey_origin)],
+reg_dt <- merge(starter_dt,
+                first_cov[, .(pidp, hiqual_dv, jbstat, gor_dv, wave_year, survey_origin)],
                 by="pidp", all.x=TRUE)
 reg_dt <- merge(reg_dt, last_hidp[, .(pidp, hidp_last)], by="pidp", all.x=TRUE)
 reg_dt <- merge(reg_dt, first_inc[, .(pidp, income_tercile_init)], by="pidp", all.x=TRUE)
@@ -319,39 +266,44 @@ reg_dt[, jbstat_bin := recode_jbstat(jbstat)]
 reg_dt[hiqual_dv <= 0 | is.na(hiqual_dv), hiqual_dv := NA_integer_]
 reg_dt[gor_dv    <= 0 | is.na(gor_dv),    gor_dv    := NA_integer_]
 
-reg_dt[, hiqual_dv    := factor(hiqual_dv)]
-reg_dt[, gor_dv       := factor(gor_dv)]
-reg_dt[, jbstat_bin   := factor(jbstat_bin, levels=c("E","U","I"))]
+# regime_6 binary indicator (R6 vs R2 starters)
+reg_dt[, regime_6 := as.integer(first_window_regime == 6L)]
+
+reg_dt[, hiqual_dv           := factor(hiqual_dv)]
+reg_dt[, gor_dv              := factor(gor_dv)]
+reg_dt[, jbstat_bin          := factor(jbstat_bin, levels=c("E","U","I"))]
 reg_dt[, income_tercile_init := factor(income_tercile_init, levels=c("L","M","H"))]
-reg_dt[, nssec_proxy  := factor(nssec_proxy, levels=c("H","M","L"))]
-reg_dt[, birth_cohort := factor(birth_cohort, levels=c("1950s","1940s","1960s","1970s","1980s","1990+"))]
-reg_dt[, survey_origin := factor(survey_origin, levels=c("BHPS","UKHLS"))]
-reg_dt[, sex          := factor(sex, levels=c("1","2"), labels=c("male","female"))]
+reg_dt[, nssec_proxy         := factor(nssec_proxy, levels=c("H","M","L"))]
+reg_dt[, birth_cohort        := factor(birth_cohort,
+                                       levels=c("pre-1950","1950s","1960s","1970s","post-1980"))]
+reg_dt[, survey_origin       := factor(survey_origin, levels=c("BHPS","UKHLS"))]
+reg_dt[, sex                 := factor(sex, levels=c("male","female"))]
 
-cat("Total rows before complete-case:", nrow(reg_dt), "\n")
+cat("Total starter rows before complete-case:", nrow(reg_dt), "\n")
 
-pred_cols <- c("age_at_entry","sex","hiqual_dv","jbstat_bin",
+# Complete-case on core predictors (includes age_first_window and nssec_proxy)
+pred_cols <- c("age_first_window","sex","hiqual_dv","jbstat_bin",
                "income_tercile_init","nssec_proxy","birth_cohort","gor_dv","survey_origin")
 cc_mask <- complete.cases(reg_dt[, ..pred_cols]) & !is.na(reg_dt$escape)
 reg_cc  <- reg_dt[cc_mask]
 n_cc    <- nrow(reg_cc)
-n_escapers_cc   <- sum(reg_cc$escape == 1L)
-n_remainers_cc  <- sum(reg_cc$escape == 0L)
-escape_rate_cc  <- round(mean(reg_cc$escape), 4)
+n_esc_cc  <- sum(reg_cc$escape == 1L)
+n_rem_cc  <- sum(reg_cc$escape == 0L)
+esc_rate_cc <- round(mean(reg_cc$escape), 4)
 
-cat("Complete-case n:", n_cc, "(excluded:", n_r2r6_starters - n_cc, ")\n")
-cat("Escapers:", n_escapers_cc, sprintf("(%.1f%%)", 100*escape_rate_cc), "\n")
-cat("Remainers:", n_remainers_cc, "\n")
+cat("Complete-case n:", n_cc, "(excluded:", n_starters_all - n_cc, ")\n")
+cat("Escapers:", n_esc_cc, sprintf("(%.1f%%)", 100*esc_rate_cc), "\n")
+cat("Remainers:", n_rem_cc, "\n")
 
-if (escape_rate_cc < 0.04 || escape_rate_cc > 0.08) {
-  cat("WARNING: escape_rate_cc =", escape_rate_cc, "outside expected range [0.04, 0.08]. Escalate.\n")
+if (abs(n_cc - 4832L) / 4832L > 0.10) {
+  cat("WARNING: n_cc =", n_cc, "deviates >10% from expected 4,832. Note for report.\n")
 }
 
-# age2 after complete-case filter (age_at_entry already in reg_cc)
-reg_cc[, age2 := age_at_entry^2]
+# age² after complete-case
+reg_cc[, age2 := age_first_window^2]
 
 # ---------------------------------------------------------------------------
-# 9. Quasi-separation diagnostic
+# 5. Quasi-separation diagnostic
 # ---------------------------------------------------------------------------
 cat("Running quasi-separation diagnostic...\n")
 
@@ -359,7 +311,7 @@ check_sep <- function(dt2, var1, var2=NULL) {
   by_vars <- if (is.null(var2)) var1 else c(var1, var2)
   tbl <- dt2[, .(n=.N, n_escape=sum(escape)), by=by_vars]
   tbl[, n_no_escape := n - n_escape]
-  tbl[, has_sep := (n_escape==0 | n_no_escape==0)]
+  tbl[, has_sep := (n_escape==0L | n_no_escape==0L)]
   tbl
 }
 
@@ -369,7 +321,7 @@ sep3 <- check_sep(reg_cc, "gor_dv",       "birth_cohort")
 
 n_sep_cells <- sum(c(sep1$has_sep, sep2$has_sep, sep3$has_sep))
 cat("Quasi-separation cells found:", n_sep_cells, "\n")
-if (n_sep_cells > 0) {
+if (n_sep_cells > 0L) {
   sparse <- rbindlist(list(
     sep1[has_sep==TRUE][, check := "cohort x nssec"],
     sep2[has_sep==TRUE][, check := "cohort x survey"],
@@ -387,12 +339,12 @@ sep_summary <- list(
 )
 
 # ---------------------------------------------------------------------------
-# 10. Fit Firth logistic regression
+# 6. Fit Firth logistic regression
 # ---------------------------------------------------------------------------
 cat("Fitting Firth logistic regression (pl=TRUE, may take several minutes)...\n")
 
-formula_t1 <- escape ~ age_at_entry + age2 + sex + hiqual_dv + jbstat_bin +
-  income_tercile_init + nssec_proxy + birth_cohort + gor_dv + survey_origin
+formula_t1 <- escape ~ age_first_window + age2 + sex + hiqual_dv + jbstat_bin +
+  income_tercile_init + nssec_proxy + birth_cohort + gor_dv + survey_origin + regime_6
 
 reg_df <- as.data.frame(reg_cc)
 fit <- logistf(formula_t1, data=reg_df, pl=TRUE, firth=TRUE,
@@ -400,17 +352,18 @@ fit <- logistf(formula_t1, data=reg_df, pl=TRUE, firth=TRUE,
 cat("Convergence:", fit$conv, "\n")
 
 # ---------------------------------------------------------------------------
-# 11. Cluster-robust SEs via sandwich::vcovCL (clustered on hidp_last)
+# 7. Cluster-robust SEs via sandwich::vcovCL (clustered on hidp_last)
 # ---------------------------------------------------------------------------
 cat("Computing cluster-robust SEs...\n")
 fit_glm <- glm(formula_t1, data=reg_df, family=binomial(link="logit"))
 vcov_cl  <- vcovCL(fit_glm, cluster=~hidp_last, data=reg_df)
 ct       <- coeftest(fit_glm, vcov=vcov_cl)
+n_clusters <- length(unique(reg_cc$hidp_last))
 cat("Cluster-robust SE computation complete.\n")
-cat("Number of clusters (unique hidp_last):", length(unique(reg_cc$hidp_last)), "\n")
+cat("Number of clusters (unique hidp_last):", n_clusters, "\n")
 
 # ---------------------------------------------------------------------------
-# 12. Extract coefficient table
+# 8. Extract coefficient table
 # ---------------------------------------------------------------------------
 cat("Extracting coefficient table...\n")
 
@@ -422,85 +375,85 @@ cl_se       <- ct[, 2]
 cl_p        <- ct[, 4]
 
 coef_names <- names(firth_coefs)
-stopifnot(all(coef_names == names(cl_se)))
 
 coef_table <- lapply(seq_along(coef_names), function(i) {
   list(
     term         = coef_names[i],
     estimate     = round(firth_coefs[i], 4),
     OR           = round(exp(firth_coefs[i]), 4),
-    CI_lo_pl     = round(exp(firth_ci_lo[i]), 4),
-    CI_hi_pl     = round(exp(firth_ci_hi[i]), 4),
-    CI_lo_raw    = round(firth_ci_lo[i], 4),
-    CI_hi_raw    = round(firth_ci_hi[i], 4),
+    CI_lo_OR     = round(exp(firth_ci_lo[i]), 4),
+    CI_hi_OR     = round(exp(firth_ci_hi[i]), 4),
+    CI_lo_log    = round(firth_ci_lo[i], 4),
+    CI_hi_log    = round(firth_ci_hi[i], 4),
     p_firth      = round(firth_p[i], 4),
-    SE_clustered = round(cl_se[i], 4),
-    p_clustered  = round(cl_p[i], 4)
+    SE_clustered = if (coef_names[i] %in% rownames(ct)) round(ct[coef_names[i], 2], 4) else NA_real_,
+    p_clustered  = if (coef_names[i] %in% rownames(ct)) round(ct[coef_names[i], 4], 4) else NA_real_
   )
 })
 cat("Coefficient table:", length(coef_table), "terms\n")
 
 # ---------------------------------------------------------------------------
-# 13. Pseudo-R²
+# 9. Pseudo-R²
 # ---------------------------------------------------------------------------
 cat("Computing pseudo-R²...\n")
 fitted_vals  <- fitted(fit_glm)
-tjur_D       <- round(mean(fitted_vals[reg_df$escape==1]) - mean(fitted_vals[reg_df$escape==0]), 4)
+tjur_D       <- round(mean(fitted_vals[reg_df$escape==1L]) - mean(fitted_vals[reg_df$escape==0L]), 4)
 null_dev     <- fit_glm$null.deviance
 resid_dev    <- fit_glm$deviance
 mcfadden_r2  <- round(1 - resid_dev/null_dev, 4)
 cat("Tjur's D:", tjur_D, "| McFadden R²:", mcfadden_r2, "\n")
 
 # ---------------------------------------------------------------------------
-# 14. Predicted-probability histogram by regime
+# 10. Predicted-probability histogram by first_window_regime
 # ---------------------------------------------------------------------------
 cat("Building predicted probability histogram data...\n")
 reg_cc[, pred_prob := fitted_vals]
-hist_data <- lapply(unique(reg_cc$regime), function(r) {
-  probs <- reg_cc[regime == r, pred_prob]
+hist_data <- lapply(unique(reg_cc$first_window_regime), function(r) {
+  probs <- reg_cc[first_window_regime == r, pred_prob]
   if (length(probs) == 0L) return(NULL)
   bks  <- seq(0, 1, by=0.05)
   cnts <- hist(probs, breaks=bks, plot=FALSE)$counts
   list(regime=r, n=length(probs),
-       escape_rate=round(mean(reg_cc[regime==r, escape]), 4),
+       escape_rate=round(mean(reg_cc[first_window_regime==r, escape]), 4),
        histogram_counts=cnts, histogram_breaks=bks)
 })
-names(hist_data) <- paste0("R", unique(reg_cc$regime))
+names(hist_data) <- paste0("R", unique(reg_cc$first_window_regime))
 
 # ---------------------------------------------------------------------------
-# 15. Save JSON
+# 11. Save JSON
 # ---------------------------------------------------------------------------
 cat("Saving JSON...\n")
 
 result <- list(
   run_params = list(
-    seed                 = 42L,
-    correction_note      = "Corrected T1.19 rerun: restricted to gmm_label in {2,6} AND age_at_entry <= 59 AND first observed jbstat != 4. See tier1_clustered_firth_2026-05-13.json for original (misspecified) run.",
-    n_r2r6_all_ages      = n_r2r6_all,
-    n_candidate_wa       = n_wa_starters,
-    n_retired_excluded   = n_retired_at_entry,
-    n_r2r6_starters      = n_r2r6_starters,
-    n_complete_case      = n_cc,
-    n_excluded_cc        = n_r2r6_starters - n_cc,
-    n_escapers_conditional = n_escapers_cc,
-    n_remainers_conditional = n_remainers_cc,
-    escape_rate_conditional = escape_rate_cc,
-    outcome_definition   = "escape=1 if last observed sequence state first char == 'E' (employed); escape=0 otherwise",
-    sample_definition    = "gmm_label in {2,6} AND age_at_entry <= 59 AND first-wave jbstat != 4 (retired)",
-    nssec_proxy          = "pasoc90_cc falling back to masoc90_cc; recoded H/M/L; complete-case",
-    clustering           = "hidp_last (final observed wave household); vcovCL post-hoc",
-    ci_note              = "Profile-likelihood CIs from Firth (primary); clustered Wald SEs from vcovCL (supplementary reference)",
-    firth                = TRUE,
-    pl_ci                = TRUE,
-    logistf_version      = as.character(packageVersion("logistf"))
+    seed               = 42L,
+    date               = TODAY,
+    methodology        = "Window-based escape (10-year overlapping windows, step=5). Starter = first window in R{2,6}. Escape = any subsequent window not in R{2,6}.",
+    source_assignments = wa_path,
+    n_starters_all_ages  = n_starters_all,
+    escape_rate_all_ages = round(esc_rate_obs, 6),
+    n_complete_case    = n_cc,
+    n_excluded_cc      = n_starters_all - n_cc,
+    n_escapers_cc      = n_esc_cc,
+    n_remainers_cc     = n_rem_cc,
+    escape_rate_cc     = esc_rate_cc,
+    ref_n_starters     = 7453L,
+    ref_escape_rate    = 0.05581644975177781,
+    ref_n_obs          = 4832L,
+    nssec_proxy        = "pasoc90_cc falling back to masoc90_cc; recoded H/M/L; complete-case",
+    clustering         = "hidp_last (last observed wave household); vcovCL post-hoc",
+    ci_note            = "Profile-likelihood CIs from Firth (primary); clustered Wald SEs from vcovCL (supplementary)",
+    firth              = TRUE,
+    pl_ci              = TRUE,
+    logistf_version    = as.character(packageVersion("logistf"))
   ),
   quasi_separation_diagnostic = sep_summary,
   coefficient_table    = coef_table,
   pseudo_r2            = list(tjur_D=tjur_D, mcfadden=mcfadden_r2),
-  n_clusters_hidp      = length(unique(reg_cc$hidp_last)),
+  n_clusters_hidp      = n_clusters,
   predicted_probability_histogram = hist_data
 )
 
 write(toJSON(result, auto_unbox=TRUE, pretty=TRUE), OUT_PATH)
 cat("Saved:", OUT_PATH, "\n")
-cat("=== T1.19 Corrected Rerun complete ===\n")
+cat("=== T1.19 Window-Based Rerun complete ===\n")
