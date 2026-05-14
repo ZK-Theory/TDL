@@ -1,0 +1,67 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-14",
+    "structural_cutoff": {
+      "bhps_max_entry_wave": "bi",
+      "bhps_max_entry_year": 1999,
+      "ukhls_max_entry_wave": "f",
+      "ukhls_max_entry_year": 2014,
+      "min_waves_available": 10,
+      "rationale": "Restricts to individuals who enrolled early enough to have had ≥10 panel waves available: BHPS enrolment ≤ wave bi (1999) gives waves bi..br = 10 waves; UKHLS enrolment ≤ wave f (2014-15) gives waves f..o = 10 waves."
+    }
+  },
+  "population_counts": {
+    "full_eligible": 119834,
+    "structurally_eligible": 91174,
+    "pct_structurally_elig": 76.08,
+    "analytical_total": 27280,
+    "analytical_in_struct": 25372,
+    "pct_analytical_in_struct": 93.01
+  },
+  "propensity_model": {
+    "n_model_rows": 87002,
+    "n_analytical": 24948,
+    "auc": 0.6862,
+    "formula": "in_analytical_sample ~ age_at_first + sex + hiqual_dv + jbstat_bin + income_tercile_init + gor_dv + birth_cohort_group + survey_origin"
+  },
+  "ipw_distribution": {
+    "raw": {
+      "min": 0.3331,
+      "p1": 1.655,
+      "p5": 1.9013,
+      "p25": 2.5787,
+      "p50": 3.63,
+      "p75": 5.2532,
+      "p95": 13.2976,
+      "p99": 38.4404,
+      "max": 200,
+      "mean": 5.581,
+      "cv": 1.9668
+    },
+    "trimmed": {
+      "min": 1.655,
+      "p1": 1.655,
+      "p5": 1.9013,
+      "p25": 2.5787,
+      "p50": 3.63,
+      "p75": 5.2532,
+      "p95": 13.2976,
+      "p99": 38.4404,
+      "max": 38.4404,
+      "mean": 5.0719,
+      "cv": 1.0359
+    },
+    "trim_bounds": {
+      "lower": 1.655,
+      "upper": 38.4404
+    }
+  },
+  "effective_sample_size": 41965.61,
+  "baseline_comparison": {
+    "t1_13_ess": 57035.45,
+    "t1_29_ess": 41965.61,
+    "ess_change_absolute": -15069.84,
+    "ess_pct_change": -26.42
+  }
+}
