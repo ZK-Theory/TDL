@@ -1,0 +1,475 @@
+{
+  "run_params": {
+    "seed": 42,
+    "n_analytical": 27280,
+    "n_complete_case": 22531,
+    "n_excluded_cc": 4749,
+    "n_escapers": 19801,
+    "n_remainers": 7479,
+    "escape_rate": 0.7172,
+    "outcome_definition": "escape=1 if regime NOT in {2,6}; 0 if regime in {2,6}",
+    "nssec_proxy": "pasoc90_cc (father's SOC90) recoded H/M/L; complete-case for Tier 1",
+    "clustering": "hidp_last (final observed wave household); vcovCL post-hoc",
+    "firth": true,
+    "pl_ci": true,
+    "logistf_version": "1.26.1"
+  },
+  "quasi_separation_diagnostic": {
+    "n_separation_cells": 1,
+    "cohort_x_nssec": {
+      "n_cells": 18,
+      "n_sep": 0
+    },
+    "cohort_x_survey": {
+      "n_cells": 12,
+      "n_sep": 0
+    },
+    "gor_x_cohort": {
+      "n_cells": 72,
+      "n_sep": 1
+    },
+    "note": "Firth penalisation handles quasi-separation; all specifications converge"
+  },
+  "coefficient_table": [
+    {
+      "term": "(Intercept)",
+      "estimate": 6.8558,
+      "OR": 949.4076,
+      "CI_lo_pl": 416.8897,
+      "CI_hi_pl": 2185.5377,
+      "CI_lo_raw": 6.0328,
+      "CI_hi_raw": 7.6896,
+      "p_firth": 0,
+      "SE_clustered": 0.4368,
+      "p_clustered": 0
+    },
+    {
+      "term": "age_at_first",
+      "estimate": -0.2154,
+      "OR": 0.8062,
+      "CI_lo_pl": 0.783,
+      "CI_hi_pl": 0.8298,
+      "CI_lo_raw": -0.2446,
+      "CI_hi_raw": -0.1865,
+      "p_firth": 0,
+      "SE_clustered": 0.0151,
+      "p_clustered": 0
+    },
+    {
+      "term": "age2",
+      "estimate": 0.0014,
+      "OR": 1.0014,
+      "CI_lo_pl": 1.0011,
+      "CI_hi_pl": 1.0016,
+      "CI_lo_raw": 0.0011,
+      "CI_hi_raw": 0.0016,
+      "p_firth": 0,
+      "SE_clustered": 0.0001,
+      "p_clustered": 0
+    },
+    {
+      "term": "sexfemale",
+      "estimate": -0.0626,
+      "OR": 0.9393,
+      "CI_lo_pl": 0.8611,
+      "CI_hi_pl": 1.0246,
+      "CI_lo_raw": -0.1496,
+      "CI_hi_raw": 0.0243,
+      "p_firth": 0.1581,
+      "SE_clustered": 0.0427,
+      "p_clustered": 0.1416
+    },
+    {
+      "term": "hiqual_dv2",
+      "estimate": -0.2709,
+      "OR": 0.7627,
+      "CI_lo_pl": 0.654,
+      "CI_hi_pl": 0.8898,
+      "CI_lo_raw": -0.4246,
+      "CI_hi_raw": -0.1168,
+      "p_firth": 0.0006,
+      "SE_clustered": 0.0763,
+      "p_clustered": 0.0004
+    },
+    {
+      "term": "hiqual_dv3",
+      "estimate": -0.2093,
+      "OR": 0.8112,
+      "CI_lo_pl": 0.7038,
+      "CI_hi_pl": 0.9349,
+      "CI_lo_raw": -0.3512,
+      "CI_hi_raw": -0.0673,
+      "p_firth": 0.0039,
+      "SE_clustered": 0.0734,
+      "p_clustered": 0.0043
+    },
+    {
+      "term": "hiqual_dv4",
+      "estimate": -0.2363,
+      "OR": 0.7895,
+      "CI_lo_pl": 0.69,
+      "CI_hi_pl": 0.9032,
+      "CI_lo_raw": -0.371,
+      "CI_hi_raw": -0.1018,
+      "p_firth": 0.0006,
+      "SE_clustered": 0.0693,
+      "p_clustered": 0.0006
+    },
+    {
+      "term": "hiqual_dv5",
+      "estimate": -0.2408,
+      "OR": 0.786,
+      "CI_lo_pl": 0.6684,
+      "CI_hi_pl": 0.9246,
+      "CI_lo_raw": -0.4029,
+      "CI_hi_raw": -0.0784,
+      "p_firth": 0.0037,
+      "SE_clustered": 0.0841,
+      "p_clustered": 0.0042
+    },
+    {
+      "term": "hiqual_dv9",
+      "estimate": -0.288,
+      "OR": 0.7498,
+      "CI_lo_pl": 0.6448,
+      "CI_hi_pl": 0.8718,
+      "CI_lo_raw": -0.4388,
+      "CI_hi_raw": -0.1372,
+      "p_firth": 0.0002,
+      "SE_clustered": 0.0749,
+      "p_clustered": 0.0001
+    },
+    {
+      "term": "jbstat_binU",
+      "estimate": -0.9724,
+      "OR": 0.3782,
+      "CI_lo_pl": 0.3175,
+      "CI_hi_pl": 0.4512,
+      "CI_lo_raw": -1.1472,
+      "CI_hi_raw": -0.7958,
+      "p_firth": 0,
+      "SE_clustered": 0.0992,
+      "p_clustered": 0
+    },
+    {
+      "term": "jbstat_binI",
+      "estimate": -2.0633,
+      "OR": 0.127,
+      "CI_lo_pl": 0.1147,
+      "CI_hi_pl": 0.1407,
+      "CI_lo_raw": -2.1658,
+      "CI_hi_raw": -1.9613,
+      "p_firth": 0,
+      "SE_clustered": 0.0551,
+      "p_clustered": 0
+    },
+    {
+      "term": "income_tercile_initM",
+      "estimate": 0.8751,
+      "OR": 2.3991,
+      "CI_lo_pl": 2.1717,
+      "CI_hi_pl": 2.651,
+      "CI_lo_raw": 0.7755,
+      "CI_hi_raw": 0.9749,
+      "p_firth": 0,
+      "SE_clustered": 0.0522,
+      "p_clustered": 0
+    },
+    {
+      "term": "income_tercile_initH",
+      "estimate": 1.4903,
+      "OR": 4.4384,
+      "CI_lo_pl": 3.9456,
+      "CI_hi_pl": 4.9964,
+      "CI_lo_raw": 1.3726,
+      "CI_hi_raw": 1.6087,
+      "p_firth": 0,
+      "SE_clustered": 0.0599,
+      "p_clustered": 0
+    },
+    {
+      "term": "nssec_proxyM",
+      "estimate": -0.1802,
+      "OR": 0.8351,
+      "CI_lo_pl": 0.7519,
+      "CI_hi_pl": 0.9274,
+      "CI_lo_raw": -0.2851,
+      "CI_hi_raw": -0.0754,
+      "p_firth": 0.0008,
+      "SE_clustered": 0.0527,
+      "p_clustered": 0.0006
+    },
+    {
+      "term": "nssec_proxyL",
+      "estimate": -0.1111,
+      "OR": 0.8949,
+      "CI_lo_pl": 0.8021,
+      "CI_hi_pl": 0.9983,
+      "CI_lo_raw": -0.2205,
+      "CI_hi_raw": -0.0017,
+      "p_firth": 0.0466,
+      "SE_clustered": 0.0554,
+      "p_clustered": 0.0443
+    },
+    {
+      "term": "birth_cohort1940s",
+      "estimate": -0.8263,
+      "OR": 0.4377,
+      "CI_lo_pl": 0.3767,
+      "CI_hi_pl": 0.5083,
+      "CI_lo_raw": -0.9763,
+      "CI_hi_raw": -0.6767,
+      "p_firth": 0,
+      "SE_clustered": 0.0748,
+      "p_clustered": 0
+    },
+    {
+      "term": "birth_cohort1960s",
+      "estimate": 0.1867,
+      "OR": 1.2052,
+      "CI_lo_pl": 1.0288,
+      "CI_hi_pl": 1.4125,
+      "CI_lo_raw": 0.0284,
+      "CI_hi_raw": 0.3453,
+      "p_firth": 0.0207,
+      "SE_clustered": 0.083,
+      "p_clustered": 0.0246
+    },
+    {
+      "term": "birth_cohort1970s",
+      "estimate": -0.2264,
+      "OR": 0.7974,
+      "CI_lo_pl": 0.6128,
+      "CI_hi_pl": 1.0383,
+      "CI_lo_raw": -0.4897,
+      "CI_hi_raw": 0.0376,
+      "p_firth": 0.0927,
+      "SE_clustered": 0.137,
+      "p_clustered": 0.0969
+    },
+    {
+      "term": "birth_cohort1980s",
+      "estimate": -0.925,
+      "OR": 0.3965,
+      "CI_lo_pl": 0.2676,
+      "CI_hi_pl": 0.587,
+      "CI_lo_raw": -1.3183,
+      "CI_hi_raw": -0.5327,
+      "p_firth": 0,
+      "SE_clustered": 0.2032,
+      "p_clustered": 0
+    },
+    {
+      "term": "birth_cohort1990+",
+      "estimate": -0.6983,
+      "OR": 0.4974,
+      "CI_lo_pl": 0.2827,
+      "CI_hi_pl": 0.8813,
+      "CI_lo_raw": -1.2633,
+      "CI_hi_raw": -0.1263,
+      "p_firth": 0.0169,
+      "SE_clustered": 0.293,
+      "p_clustered": 0.018
+    },
+    {
+      "term": "gor_dv2",
+      "estimate": 0.0178,
+      "OR": 1.018,
+      "CI_lo_pl": 0.7963,
+      "CI_hi_pl": 1.2984,
+      "CI_lo_raw": -0.2277,
+      "CI_hi_raw": 0.2611,
+      "p_firth": 0.8864,
+      "SE_clustered": 0.1217,
+      "p_clustered": 0.8891
+    },
+    {
+      "term": "gor_dv3",
+      "estimate": -0.0692,
+      "OR": 0.9331,
+      "CI_lo_pl": 0.7258,
+      "CI_hi_pl": 1.1973,
+      "CI_lo_raw": -0.3205,
+      "CI_hi_raw": 0.1801,
+      "p_firth": 0.5874,
+      "SE_clustered": 0.1265,
+      "p_clustered": 0.579
+    },
+    {
+      "term": "gor_dv4",
+      "estimate": -0.0003,
+      "OR": 0.9997,
+      "CI_lo_pl": 0.7719,
+      "CI_hi_pl": 1.2926,
+      "CI_lo_raw": -0.259,
+      "CI_hi_raw": 0.2566,
+      "p_firth": 0.9981,
+      "SE_clustered": 0.1289,
+      "p_clustered": 0.994
+    },
+    {
+      "term": "gor_dv5",
+      "estimate": 0.1515,
+      "OR": 1.1636,
+      "CI_lo_pl": 0.9014,
+      "CI_hi_pl": 1.4993,
+      "CI_lo_raw": -0.1038,
+      "CI_hi_raw": 0.405,
+      "p_firth": 0.2441,
+      "SE_clustered": 0.1264,
+      "p_clustered": 0.2318
+    },
+    {
+      "term": "gor_dv6",
+      "estimate": 0.0731,
+      "OR": 1.0759,
+      "CI_lo_pl": 0.837,
+      "CI_hi_pl": 1.3802,
+      "CI_lo_raw": -0.1779,
+      "CI_hi_raw": 0.3222,
+      "p_firth": 0.5669,
+      "SE_clustered": 0.1223,
+      "p_clustered": 0.5531
+    },
+    {
+      "term": "gor_dv7",
+      "estimate": 0.2213,
+      "OR": 1.2477,
+      "CI_lo_pl": 0.9728,
+      "CI_hi_pl": 1.597,
+      "CI_lo_raw": -0.0276,
+      "CI_hi_raw": 0.4681,
+      "p_firth": 0.0812,
+      "SE_clustered": 0.1248,
+      "p_clustered": 0.0769
+    },
+    {
+      "term": "gor_dv8",
+      "estimate": 0.1142,
+      "OR": 1.121,
+      "CI_lo_pl": 0.8809,
+      "CI_hi_pl": 1.4231,
+      "CI_lo_raw": -0.1268,
+      "CI_hi_raw": 0.3528,
+      "p_firth": 0.3518,
+      "SE_clustered": 0.1181,
+      "p_clustered": 0.3366
+    },
+    {
+      "term": "gor_dv9",
+      "estimate": 0.2421,
+      "OR": 1.2739,
+      "CI_lo_pl": 0.9877,
+      "CI_hi_pl": 1.6401,
+      "CI_lo_raw": -0.0123,
+      "CI_hi_raw": 0.4947,
+      "p_firth": 0.0621,
+      "SE_clustered": 0.1267,
+      "p_clustered": 0.0563
+    },
+    {
+      "term": "gor_dv10",
+      "estimate": 0.387,
+      "OR": 1.4725,
+      "CI_lo_pl": 1.1338,
+      "CI_hi_pl": 1.9095,
+      "CI_lo_raw": 0.1256,
+      "CI_hi_raw": 0.6468,
+      "p_firth": 0.0038,
+      "SE_clustered": 0.132,
+      "p_clustered": 0.0034
+    },
+    {
+      "term": "gor_dv11",
+      "estimate": 0.1676,
+      "OR": 1.1825,
+      "CI_lo_pl": 0.921,
+      "CI_hi_pl": 1.5152,
+      "CI_lo_raw": -0.0823,
+      "CI_hi_raw": 0.4156,
+      "p_firth": 0.1881,
+      "SE_clustered": 0.1241,
+      "p_clustered": 0.1778
+    },
+    {
+      "term": "gor_dv12",
+      "estimate": 0.0064,
+      "OR": 1.0064,
+      "CI_lo_pl": 0.7336,
+      "CI_hi_pl": 1.3813,
+      "CI_lo_raw": -0.3097,
+      "CI_hi_raw": 0.323,
+      "p_firth": 0.9682,
+      "SE_clustered": 0.1672,
+      "p_clustered": 0.969
+    },
+    {
+      "term": "survey_originUKHLS",
+      "estimate": 1.9214,
+      "OR": 6.8306,
+      "CI_lo_pl": 5.6525,
+      "CI_hi_pl": 8.2605,
+      "CI_lo_raw": 1.7321,
+      "CI_hi_raw": 2.1115,
+      "p_firth": 0,
+      "SE_clustered": 0.0968,
+      "p_clustered": 0
+    }
+  ],
+  "pseudo_r2": {
+    "tjur_D": 0.5207,
+    "mcfadden": 0.455
+  },
+  "n_clusters_hidp": 17561,
+  "predicted_probability_histogram": {
+    "R0": {
+      "regime": 0,
+      "n": 2701,
+      "escape_rate": 1,
+      "histogram_counts": [2, 20, 4, 25, 33, 26, 29, 47, 71, 61, 69, 71, 99, 112, 137, 145, 191, 318, 432, 809],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    },
+    "R1": {
+      "regime": 1,
+      "n": 6353,
+      "escape_rate": 1,
+      "histogram_counts": [1, 1, 4, 9, 4, 6, 8, 13, 7, 17, 17, 28, 51, 52, 86, 172, 210, 463, 1359, 3845],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    },
+    "R2": {
+      "regime": 2,
+      "n": 4643,
+      "escape_rate": 0,
+      "histogram_counts": [433, 1753, 425, 485, 279, 213, 148, 144, 121, 121, 111, 96, 58, 48, 55, 47, 40, 30, 25, 11],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    },
+    "R3": {
+      "regime": 3,
+      "n": 2580,
+      "escape_rate": 1,
+      "histogram_counts": [4, 55, 18, 19, 25, 20, 44, 79, 58, 47, 54, 86, 112, 131, 123, 129, 207, 292, 440, 637],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    },
+    "R4": {
+      "regime": 4,
+      "n": 2981,
+      "escape_rate": 1,
+      "histogram_counts": [0, 1, 3, 3, 1, 3, 5, 9, 10, 14, 12, 11, 27, 53, 99, 98, 185, 398, 724, 1325],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    },
+    "R5": {
+      "regime": 5,
+      "n": 1544,
+      "escape_rate": 1,
+      "histogram_counts": [1, 12, 15, 9, 13, 8, 11, 20, 26, 20, 34, 74, 97, 61, 86, 104, 148, 196, 371, 238],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    },
+    "R6": {
+      "regime": 6,
+      "n": 1729,
+      "escape_rate": 0,
+      "histogram_counts": [9, 28, 9, 20, 37, 32, 42, 74, 57, 48, 49, 55, 88, 130, 104, 99, 135, 220, 236, 257],
+      "histogram_breaks": [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1]
+    }
+  }
+}
