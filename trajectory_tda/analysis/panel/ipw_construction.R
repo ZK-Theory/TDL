@@ -42,8 +42,9 @@ RESULTS_DIR <- file.path(PROJ_ROOT, "results/trajectory_tda_integration")
 OUT_DIR     <- file.path(WORKTREE, "results/panel_methodology/weights")
 dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 
-TODAY    <- format(Sys.Date(), "%Y-%m-%d")
-OUT_PATH <- file.path(OUT_DIR, paste0("ipw_diagnostics_", TODAY, ".json"))
+TODAY        <- format(Sys.Date(), "%Y-%m-%d")
+OUT_PATH     <- file.path(OUT_DIR, paste0("ipw_diagnostics_", TODAY, ".json"))
+WEIGHTS_RDS  <- file.path(OUT_DIR, paste0("ipw_individual_weights_", TODAY, ".rds"))
 
 cat("=== T1.13: IPW Construction ===\n")
 
@@ -285,6 +286,11 @@ trim_hi     <- quantile(ipw_raw, 0.99, na.rm = TRUE)
 ipw_trimmed <- pmax(pmin(ipw_raw, trim_hi), trim_lo)
 ess         <- (sum(ipw_trimmed))^2 / sum(ipw_trimmed^2)
 cat("ESS:", round(ess, 1), "\n")
+
+weights_df <- data.table(pidp = mdf$pidp, ipw_trimmed = ipw_trimmed,
+                         in_analytical_sample = mdf$in_analytical_sample)
+saveRDS(weights_df, WEIGHTS_RDS)
+cat("Saved individual weights RDS:", WEIGHTS_RDS, "\n")
 
 dist_stats <- function(x) list(
   min  = round(min(x,  na.rm=TRUE), 4),
