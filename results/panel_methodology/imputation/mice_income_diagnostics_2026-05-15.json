@@ -1,0 +1,121 @@
+{
+  "run_params": {
+    "m": 20,
+    "method": "pmm",
+    "seed": 42
+  },
+  "missingness_by_wave": {
+    "bhps": {
+      "ba": 0.0005,
+      "bb": 0.0004,
+      "bc": 0.0094,
+      "bd": 0.0046,
+      "be": 0.0036,
+      "bf": 0.0027,
+      "bg": 0.0034,
+      "bh": 0.0037,
+      "bi": 0.0046,
+      "bj": 0.0073,
+      "bk": 0.0081,
+      "bl": 0.011,
+      "bm": 0.0113,
+      "bn": 0.0167,
+      "bo": 0.017,
+      "bp": 0.0178,
+      "bq": 0.0217,
+      "br": 0.0256
+    },
+    "ukhls": {
+      "a": 0.0046,
+      "b": 0.0025,
+      "c": 0.0018,
+      "d": 0.0019,
+      "e": 0.0024,
+      "f": 0.0088,
+      "g": 0.0064,
+      "h": 0.0103,
+      "i": 0.0172,
+      "j": 0.0133,
+      "k": 0.0131,
+      "l": 0.0173,
+      "m": 0.0218,
+      "n": 0.0304,
+      "o": 0.0158
+    }
+  },
+  "convergence": {
+    "bhps_rhat_proxy": 0.0134,
+    "ukhls_rhat_proxy": 0.0029,
+    "note": "R-hat proxy = max between-imputation SD of L_prop across regimes"
+  },
+  "fraction_missing_information_by_regime": {
+    "R3": 0.0926,
+    "R4": 0.1221,
+    "R1": 0.2803,
+    "R5": 0.0515,
+    "R2": 0.0321,
+    "R6": 0.0699,
+    "R0": 0.072
+  },
+  "pooled_tercile_proportions_by_regime": {
+    "R0": {
+      "L_prop": 0.4158,
+      "M_prop": 0.3177,
+      "H_prop": 0.2665,
+      "L_se": 0.0083,
+      "M_se": 0.0084,
+      "H_se": 0.0077
+    },
+    "R1": {
+      "L_prop": 0.0056,
+      "M_prop": 0.2677,
+      "H_prop": 0.7267,
+      "L_se": 0.001,
+      "M_se": 0.0055,
+      "H_se": 0.0055
+    },
+    "R2": {
+      "L_prop": 0.6394,
+      "M_prop": 0.2655,
+      "H_prop": 0.0952,
+      "L_se": 0.0066,
+      "M_se": 0.0062,
+      "H_se": 0.0041
+    },
+    "R3": {
+      "L_prop": 0.3421,
+      "M_prop": 0.4202,
+      "H_prop": 0.2378,
+      "L_se": 0.0086,
+      "M_se": 0.0092,
+      "H_se": 0.0077
+    },
+    "R4": {
+      "L_prop": 0.3357,
+      "M_prop": 0.3925,
+      "H_prop": 0.2718,
+      "L_se": 0.0085,
+      "M_se": 0.0087,
+      "H_se": 0.0079
+    },
+    "R5": {
+      "L_prop": 0.1378,
+      "M_prop": 0.4276,
+      "H_prop": 0.4346,
+      "L_se": 0.0083,
+      "M_se": 0.0122,
+      "H_se": 0.0121
+    },
+    "R6": {
+      "L_prop": 0.7701,
+      "M_prop": 0.1573,
+      "H_prop": 0.0726,
+      "L_se": 0.0096,
+      "M_se": 0.0084,
+      "H_se": 0.006
+    }
+  },
+  "note_rubins_rules": "Pooled SEs follow Rubin's rules: Total Var = W_bar + (1 + 1/m) * B, where W_bar is the within-imputation variance (mean across m imputations of p*(1-p)/n_regime for binomial proportions) and B is the between-imputation variance. FMI = (1 + 1/m) * B / (W_bar + (1 + 1/m) * B).",
+  "note_tercile": "Within-era tercile boundaries computed per imputed dataset; BHPS and UKHLS eras imputed separately. UKHLS pooled estimates reported as primary.",
+  "note_imputed_datasets": "20 imputed datasets are NOT committed (gitignored). Reproduce via mice_income.R with seed=42."
+}

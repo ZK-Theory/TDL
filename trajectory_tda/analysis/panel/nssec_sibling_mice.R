@@ -33,6 +33,11 @@ dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
 TODAY    <- format(Sys.Date(), "%Y-%m-%d")
 OUT_PATH <- file.path(OUT_DIR, paste0("nssec_sibling_diagnostics_", TODAY, ".json"))
 M_IMPUTATIONS <- 20L
+# Modal-fraction threshold for the per-cluster heterogeneity diagnostic (Fix 4).
+# Clusters with modal_fraction < threshold AND >1 distinct observed value are flagged
+# as high-heterogeneity. Propagation logic still uses the mode; this is data for
+# Manager review of whether to introduce a propagation-skip rule.
+MODAL_FRACTION_THRESHOLD <- 0.6
 
 cat("=== T1.18: Sibling-Consistent MICE for Parental NS-SEC Proxy ===\n")
 
@@ -102,15 +107,26 @@ cat("In multi-individual FOO clusters:", n_in_families, "\n")
 cat("Applying sibling propagation...\n")
 
 # Identify multi-individual clusters with >=1 observed NS-SEC
+# Fix 4: also compute per-cluster heterogeneity diagnostic
+#   - n_distinct: number of distinct H/M/L levels among observed siblings
+#   - modal_count: count of observed siblings agreeing with the mode
+#   - modal_fraction: modal_count / n_obs (NA when n_obs == 0)
 multi_clusters <- work[foo_size > 1L, .(
-  n_obs    = sum(!is.na(nssec_proxy)),
-  n_total  = .N,
-  mode_val = {
+  n_obs        = sum(!is.na(nssec_proxy)),
+  n_total      = .N,
+  n_distinct   = length(unique(nssec_proxy[!is.na(nssec_proxy)])),
+  mode_val     = {
     obs <- nssec_proxy[!is.na(nssec_proxy)]
     if (length(obs) == 0) NA_character_
     else as.character(names(sort(table(obs), decreasing=TRUE))[1L])
+  },
+  modal_count  = {
+    obs <- nssec_proxy[!is.na(nssec_proxy)]
+    if (length(obs) == 0) 0L
+    else max(table(obs))
   }
 ), by=foo_cluster]
+multi_clusters[, modal_fraction := ifelse(n_obs > 0, modal_count / n_obs, NA_real_)]
 
 clusters_with_obs    <- multi_clusters[n_obs > 0]
 n_propagatable       <- sum(work$foo_size > 1L & !is.na(work$nssec_proxy) |
@@ -149,7 +165,7 @@ for (cl in clusters_with_obs$foo_cluster) {
 if (consistency_ok) {
   cat("Within-cluster consistency: PASS (all propagated clusters have identical NS-SEC proxy)\n")
 } else {
-  cat("Within-cluster consistency: FAIL (", inconsistent_n, "clusters have mixed values)\n")
+  cat("Within-cluster consistency: FAIL (", inconsistent_n, " clusters have mixed values)\n")
 }
 
 # ---------------------------------------------------------------------------
@@ -205,8 +221,9 @@ names(method_vec) <- names(mice_df)
 method_vec["nssec_proxy"] <- "pmm"
 
 pred_mat <- make.predictorMatrix(mice_df)
-pred_mat["nssec_proxy", ] <- c(0, 1, 1, 1)  # predict nssec from hiqual, birthy, sex
-pred_mat[c("hiqual_dv","birthy","sex_dv"), ] <- 0  # no imputation for predictors
+pred_mat["nssec_proxy", ] <- 0L
+pred_mat["nssec_proxy", c("hiqual_dv", "birthy", "sex_dv")] <- 1L
+pred_mat[c("hiqual_dv", "birthy", "sex_dv"), ] <- 0L
 
 cat(sprintf("Running MICE m=%d (PMM) for remaining missing nssec_proxy...\n", M_IMPUTATIONS))
 imp <- mice(mice_df, m=M_IMPUTATIONS, method=method_vec, predictorMatrix=pred_mat,
@@ -236,10 +253,13 @@ cat("Observed NS-SEC proxy distribution (after propagation):\n"); print(obs_dist
 imp_distributions <- lapply(seq_len(imp$m), function(i) {
   comp <- complete(imp, i)
   vals <- comp$nssec_proxy[is.na(mice_df$nssec_proxy)]
-  vals_mapped <- c("H","M","L")[pmax(1, pmin(3, round(vals)))]
+  vals_chr <- c("H","M","L")[pmax(1, pmin(3, round(vals)))]
+  vals_mapped <- factor(vals_chr, levels = c("H","M","L"))
   prop.table(table(vals_mapped))
 })
-imp_dist_mean <- round(rowMeans(sapply(imp_distributions, as.numeric)), 4)
+imp_dist_matrix <- do.call(rbind, lapply(imp_distributions, as.numeric))
+imp_dist_mean   <- round(colMeans(imp_dist_matrix), 4)
+names(imp_dist_mean) <- c("H","M","L")
 cat("Imputed NS-SEC proxy mean distribution:\n"); print(imp_dist_mean)
 
 # ---------------------------------------------------------------------------
@@ -267,14 +287,29 @@ result <- list(
     n_clusters_with_obs       = nrow(clusters_with_obs)
   ),
   within_cluster_consistency = list(
-    result = if(consistency_ok) "PASS" else "FAIL",
+    result                  = if(consistency_ok) "PASS" else "FAIL",
     n_inconsistent_clusters = inconsistent_n,
-    note = "Propagation uses mode NS-SEC proxy within each FOO cluster"
+    note                    = "Propagation uses mode NS-SEC proxy within each FOO cluster. See per_cluster_diagnostic for heterogeneity detail.",
+    per_cluster_diagnostic = list(
+      threshold_modal_fraction              = MODAL_FRACTION_THRESHOLD,
+      n_clusters_with_obs                   = nrow(clusters_with_obs),
+      n_clusters_inconsistent               = inconsistent_n,
+      n_clusters_flagged_high_heterogeneity = sum(multi_clusters$modal_fraction < MODAL_FRACTION_THRESHOLD &
+                                                    multi_clusters$n_distinct > 1, na.rm=TRUE),
+      summary_modal_fraction = list(
+        median = round(median(multi_clusters$modal_fraction, na.rm=TRUE), 4),
+        mean   = round(mean(multi_clusters$modal_fraction, na.rm=TRUE), 4),
+        min    = round(min(multi_clusters$modal_fraction, na.rm=TRUE), 4),
+        q25    = round(quantile(multi_clusters$modal_fraction, 0.25, na.rm=TRUE), 4)
+      ),
+      flagged_clusters_sample = head(multi_clusters[modal_fraction < MODAL_FRACTION_THRESHOLD &
+                                                      n_distinct > 1, foo_cluster], 20)
+    )
   ),
   convergence = list(
-    rhat_proxy = rhat,
-    mice_logged_events = nrow(imp$loggedEvents),
-    note = "R-hat proxy = SD of mean imputed nssec_proxy across m imputations"
+    sd_of_imputed_means = rhat,
+    mice_logged_events  = nrow(imp$loggedEvents),
+    note = "SD of mean imputed nssec_proxy across m imputations (not Gelman-Rubin R-hat — categorical outcome makes Gelman-Rubin inapplicable)."
   ),
   nssec_distribution_comparison = list(
     observed_post_propagation = as.list(obs_dist),
