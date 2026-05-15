@@ -241,9 +241,10 @@ compute_regime_stats_per_m <- function(imp, wave_cols, pidps, era_label) {
 
     dt <- data.table(pidp=pidps, tercile=mode_tercile)
     dt <- merge(dt, regime_map, by="pidp", all.x=TRUE)
-    # Proportions per regime
+    # Proportions per regime (Fix 1: add n_regime for within-imputation variance)
     dt[!is.na(tercile) & !is.na(regime),
-       .(L_prop = mean(tercile=="L"), M_prop = mean(tercile=="M"), H_prop = mean(tercile=="H")),
+       .(L_prop = mean(tercile=="L"), M_prop = mean(tercile=="M"), H_prop = mean(tercile=="H"),
+         n_regime = .N),
        by=regime]
   })
 }
@@ -253,23 +254,28 @@ ukhls_stats <- compute_regime_stats_per_m(ukhls_res$imp, ukhls_res$wave_cols, uk
 
 # Combine: take UKHLS if available (more waves), else BHPS
 pool_regime_stats <- function(stats_list, era) {
-  # Each element is a data.table with (regime, L_prop, M_prop, H_prop)
+  # Each element is a data.table with (regime, L_prop, M_prop, H_prop, n_regime)
   all_m   <- rbindlist(stats_list, idcol="m_idx")
-  # Rubin's rules: point estimate = mean, variance = within + (1+1/m) between
+  # Fix 2: Rubin's rules with within-imputation variance
   m <- length(stats_list)
   pooled <- all_m[, {
-    L_mean <- mean(L_prop, na.rm=TRUE)
-    M_mean <- mean(M_prop, na.rm=TRUE)
-    H_mean <- mean(H_prop, na.rm=TRUE)
-    # Between-imputation variance (within-imputation variance not computed; SE = sqrt((1+1/m)*B))
-    L_var_b <- var(L_prop, na.rm=TRUE)
-    M_var_b <- var(M_prop, na.rm=TRUE)
-    H_var_b <- var(H_prop, na.rm=TRUE)
-    L_se <- sqrt((1 + 1/m) * L_var_b)
-    M_se <- sqrt((1 + 1/m) * M_var_b)
-    H_se <- sqrt((1 + 1/m) * H_var_b)
+    m_n      <- length(L_prop)
+    L_mean   <- mean(L_prop, na.rm=TRUE)
+    M_mean   <- mean(M_prop, na.rm=TRUE)
+    H_mean   <- mean(H_prop, na.rm=TRUE)
+    L_var_b  <- var(L_prop, na.rm=TRUE)
+    M_var_b  <- var(M_prop, na.rm=TRUE)
+    H_var_b  <- var(H_prop, na.rm=TRUE)
+    # Within-imputation variance (W_bar) per regime
+    L_w_bar  <- mean(L_prop * (1 - L_prop) / n_regime, na.rm=TRUE)
+    M_w_bar  <- mean(M_prop * (1 - M_prop) / n_regime, na.rm=TRUE)
+    H_w_bar  <- mean(H_prop * (1 - H_prop) / n_regime, na.rm=TRUE)
+    L_se     <- sqrt(L_w_bar + (1 + 1/m_n) * L_var_b)
+    M_se     <- sqrt(M_w_bar + (1 + 1/m_n) * M_var_b)
+    H_se     <- sqrt(H_w_bar + (1 + 1/m_n) * H_var_b)
     .(L_prop=round(L_mean,4), M_prop=round(M_mean,4), H_prop=round(H_mean,4),
-      L_se=round(L_se,4), M_se=round(M_se,4), H_se=round(H_se,4))
+      L_se=round(L_se,4), M_se=round(M_se,4), H_se=round(H_se,4),
+      L_var_b=round(L_var_b,6), L_w_bar=round(L_w_bar,6))
   }, by=regime]
   pooled
 }
@@ -282,9 +288,13 @@ ukhls_pooled <- pool_regime_stats(ukhls_stats, "UKHLS")
 compute_fmi <- function(stats_list) {
   m <- length(stats_list)
   all_m <- rbindlist(stats_list, idcol="m_idx")
-  all_m[, .(fmi = round((1 + 1/m) * var(L_prop, na.rm=TRUE) /
-                         (var(L_prop, na.rm=TRUE) + mean(L_prop*(1-L_prop), na.rm=TRUE)/1000), 4)),
-         by=regime]
+  # Fix 2: Proper Rubin formula using per-regime n
+  all_m[, {
+    L_var_b <- var(L_prop, na.rm=TRUE)
+    L_w_bar <- mean(L_prop * (1 - L_prop) / n_regime, na.rm=TRUE)
+    fmi     <- (1 + 1/m) * L_var_b / (L_w_bar + (1 + 1/m) * L_var_b)
+    .(fmi = round(fmi, 4))
+  }, by=regime]
 }
 
 bhps_fmi  <- compute_fmi(bhps_stats)
@@ -335,6 +345,7 @@ result <- list(
                      note="R-hat proxy = max between-imputation SD of L_prop across regimes"),
   fraction_missing_information_by_regime = fmi_by_regime,
   pooled_tercile_proportions_by_regime   = pooled_list,
+  note_rubins_rules = "Pooled SEs follow Rubin's rules: Total Var = W_bar + (1 + 1/m) * B, where W_bar is the within-imputation variance (mean across m imputations of p*(1-p)/n_regime for binomial proportions) and B is the between-imputation variance. FMI = (1 + 1/m) * B / (W_bar + (1 + 1/m) * B).",
   note_tercile = "Within-era tercile boundaries computed per imputed dataset; BHPS and UKHLS eras imputed separately. UKHLS pooled estimates reported as primary.",
   note_imputed_datasets = "20 imputed datasets are NOT committed (gitignored). Reproduce via mice_income.R with seed=42."
 )
