@@ -1,0 +1,39 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-14",
+    "n_analytical": 27280,
+    "k": 7,
+    "covariance_type": "full",
+    "n_init": 5,
+    "method": "Weighted bootstrap resample (with replacement) of analytical embeddings using trimmed IPW weights as sampling probabilities. Refit GMM(k=7) on bootstrap sample. Predict labels on original embeddings. ARI vs original.",
+    "n_missing_weights": 425,
+    "missing_weight_imputation": "mean trimmed IPW weight"
+  },
+  "gmm_convergence": {
+    "converged": true,
+    "n_iter": 37
+  },
+  "ari_original_vs_weighted": 0.656769,
+  "regime_counts": {
+    "original": {
+      "0": 3787,
+      "1": 7358,
+      "2": 5415,
+      "3": 3333,
+      "4": 3510,
+      "5": 1813,
+      "6": 2064
+    },
+    "weighted_gmm": {
+      "0": 3590,
+      "1": 2619,
+      "2": 10598,
+      "3": 5450,
+      "4": 1766,
+      "5": 2073,
+      "6": 1184
+    }
+  },
+  "interpretation": "ARI close to 1.0 indicates IPW weighting does not materially alter regime structure. ARI > 0.8 is considered high agreement for 7-component GMM clustering."
+}

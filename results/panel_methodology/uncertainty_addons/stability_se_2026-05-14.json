@@ -1,0 +1,96 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-14",
+    "method": "Stability = proportion of consecutive same-state pairs within each individual's trajectory sequence for individuals in that regime. SE = sqrt(p*(1-p)/n_transitions). 95% CI = Normal approx.",
+    "source_analysis": "C:/Users/steph/TDL/results/trajectory_tda_integration/05_analysis.json",
+    "source_sequences": "C:/Users/steph/TDL/results/trajectory_tda_integration/01_trajectories_sequences.json",
+    "n_total": 27280
+  },
+  "stability_by_regime": {
+    "R0": {
+      "regime": 0,
+      "n_members": 3787,
+      "n_transitions": 44694,
+      "n_stays": 23007,
+      "stability_from_seqs": 0.5148,
+      "stability_stored": 0.2341,
+      "SE": 0.0024,
+      "CI95_lo": 0.5101,
+      "CI95_hi": 0.5194,
+      "CI95_note": "Normal approximation 95% CI"
+    },
+    "R1": {
+      "regime": 1,
+      "n_members": 7358,
+      "n_transitions": 88364,
+      "n_stays": 74552,
+      "stability_from_seqs": 0.8437,
+      "stability_stored": 0.7795,
+      "SE": 0.0012,
+      "CI95_lo": 0.8413,
+      "CI95_hi": 0.8461,
+      "CI95_note": "Normal approximation 95% CI"
+    },
+    "R2": {
+      "regime": 2,
+      "n_members": 5415,
+      "n_transitions": 63304,
+      "n_stays": 47465,
+      "stability_from_seqs": 0.7498,
+      "stability_stored": 0.3865,
+      "SE": 0.0017,
+      "CI95_lo": 0.7464,
+      "CI95_hi": 0.7532,
+      "CI95_note": "Normal approximation 95% CI"
+    },
+    "R3": {
+      "regime": 3,
+      "n_members": 3333,
+      "n_transitions": 39944,
+      "n_stays": 22097,
+      "stability_from_seqs": 0.5532,
+      "stability_stored": 0.2797,
+      "SE": 0.0025,
+      "CI95_lo": 0.5483,
+      "CI95_hi": 0.5581,
+      "CI95_note": "Normal approximation 95% CI"
+    },
+    "R4": {
+      "regime": 4,
+      "n_members": 3510,
+      "n_transitions": 42286,
+      "n_stays": 26712,
+      "stability_from_seqs": 0.6317,
+      "stability_stored": 0.4075,
+      "SE": 0.0023,
+      "CI95_lo": 0.6271,
+      "CI95_hi": 0.6363,
+      "CI95_note": "Normal approximation 95% CI"
+    },
+    "R5": {
+      "regime": 5,
+      "n_members": 1813,
+      "n_transitions": 21996,
+      "n_stays": 15018,
+      "stability_from_seqs": 0.6828,
+      "stability_stored": 0.4003,
+      "SE": 0.0031,
+      "CI95_lo": 0.6766,
+      "CI95_hi": 0.6889,
+      "CI95_note": "Normal approximation 95% CI"
+    },
+    "R6": {
+      "regime": 6,
+      "n_members": 2064,
+      "n_transitions": 24984,
+      "n_stays": 16233,
+      "stability_from_seqs": 0.6497,
+      "stability_stored": 0.2891,
+      "SE": 0.003,
+      "CI95_lo": 0.6438,
+      "CI95_hi": 0.6557,
+      "CI95_note": "Normal approximation 95% CI"
+    }
+  }
+}

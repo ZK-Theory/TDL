@@ -1,0 +1,22 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-14"
+  },
+  "matching": {
+    "n_spanning_unmatched": 5712,
+    "n_newcomer_unmatched": 20827,
+    "n_spanning_matched": 5627,
+    "n_newcomer_matched": 5627,
+    "method": "nearest-neighbour 1:1 logit propensity, caliper=0.2",
+    "seed": 42
+  },
+  "age_stratified": {
+    "age_band": "30-55",
+    "n_spanning": 3010,
+    "n_newcomer": 10629,
+    "mean_age_spanning": 41.1,
+    "mean_age_newcomer": 42.71,
+    "betti_rerun_escalation": "Betti comparison on age-stratified subset requires TDA pipeline rerun. n_spanning=3010, n_newcomer=10629 — escalate to TDA Agent with subset pidp lists."
+  }
+}
