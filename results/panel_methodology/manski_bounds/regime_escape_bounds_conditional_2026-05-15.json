@@ -1,0 +1,57 @@
+{
+  "run_params": {
+    "date": "2026-05-15",
+    "source_p25": "results/trajectory_tda_priority2/p2_5_age_stratified.json",
+    "source_ipw": "results/panel_methodology/weights/ipw_diagnostics_2026-05-14.json",
+    "source_anal05": "results/trajectory_tda_integration/05_analysis.json",
+    "paths_relative_to": "PROJ_ROOT (C:/Users/steph/TDL on this machine)",
+    "method": "Window-based escape rates from p2_5_age_stratified.json; no GMM re-run",
+    "window_definition": "10-year overlapping windows (step=5); R2/R6 first-window starters"
+  },
+  "base_figures": {
+    "overall": {
+      "n_starting_disadvantaged": 7453,
+      "n_ever_escape": 416,
+      "observed_escape_rate": 0.0558
+    },
+    "working_age": {
+      "n_starting_disadvantaged": 2163,
+      "n_ever_escape": 386,
+      "observed_escape_rate": 0.1785
+    }
+  },
+  "attritor_counts": {
+    "n_eligible": 113411,
+    "n_analytical": 27280,
+    "n_attritors": 86131
+  },
+  "full_pessimism": {
+    "description": "Overall block: all attritors allocated to R2/R6 starters who fail to escape (true worst case). Working-age block: attritors allocated at the working-age share of the analytical sample (not all attritors), reflecting that working-age R2/R6 starters are a subset of all R2/R6 starters.",
+    "overall": {
+      "n_starters_pessimistic": 93584,
+      "pessimistic_lower_escape_rate": 0.0044
+    },
+    "working_age": {
+      "n_starters_pessimistic": 8992,
+      "pessimistic_lower_escape_rate": 0.0429,
+      "wa_share_in_analytical": 0.0793,
+      "n_attritors_to_wa": 6829
+    }
+  },
+  "partial_pessimism": {
+    "description": "Attritors allocated proportionally to R2/R6 status: overall block uses prop_r2r6_in_analytical = 27.3% (R2/R6 share in analytical sample); working_age block uses prop_wa_in_analytical = 7.9% (working-age R2/R6 share in analytical sample). See overall and working_age sub-keys.",
+    "overall": {
+      "prop_r2r6_in_analytical": 0.2732,
+      "n_attritors_r2r6": 23531,
+      "n_starters_partial": 30984,
+      "partial_lower_escape_rate": 0.0134
+    },
+    "working_age": {
+      "prop_wa_in_analytical": 0.0793,
+      "n_attritors_wa": 6829,
+      "n_starters_partial": 8992,
+      "partial_lower_escape_rate": 0.0429
+    }
+  },
+  "rationale": "Manski worst-case bounds assess the impact of permanent attrition on the escape-rate estimate. Under full pessimism, all 86131 permanent attritors (eligible but not in analytical sample) are assumed to have been R2/R6 starters who failed to escape. Under partial pessimism, attritors are allocated to R2/R6 in proportion to their prevalence in the analytical sample. Both bounds bracket the true escape rate; the observed 5.6% lies above both bounds. Attritors who cannot complete 10 waves are more likely to face persistent labour-market instability (consistent with R2/R6 membership), making the full-pessimism allocation the methodologically conservative worst case."
+}

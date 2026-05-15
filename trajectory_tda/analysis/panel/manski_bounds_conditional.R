@@ -16,7 +16,7 @@ suppressPackageStartupMessages(library(jsonlite))
 PROJ_ROOT  <- "C:/Users/steph/TDL"
 WORKTREE   <- normalizePath(getwd(), mustWork = FALSE)
 P25_PATH   <- file.path(PROJ_ROOT, "results/trajectory_tda_priority2/p2_5_age_stratified.json")
-IPW_PATH   <- file.path(PROJ_ROOT, "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json")
+IPW_PATH   <- file.path(PROJ_ROOT, "results/panel_methodology/weights/ipw_diagnostics_2026-05-14.json")
 ANAL05     <- file.path(PROJ_ROOT, "results/trajectory_tda_integration/05_analysis.json")
 OUT_DIR    <- file.path(WORKTREE, "results/panel_methodology/manski_bounds")
 dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
@@ -30,7 +30,21 @@ cat("=== T1.15 Supplement: Conditional Escape Rate Manski Bounds (window-based) 
 # 1. Load base figures from p2_5_age_stratified.json
 # ---------------------------------------------------------------------------
 cat("Loading p2_5_age_stratified.json...\n")
-p25 <- fromJSON(P25_PATH)
+p25 <- tryCatch(
+  fromJSON(P25_PATH),
+  error = function(e) stop(sprintf("Failed to parse %s: %s", P25_PATH, conditionMessage(e)))
+)
+if (is.null(p25$escape_rates) ||
+    is.null(p25$escape_rates$overall) ||
+    is.null(p25$escape_rates$overall$n_starting_disadvantaged) ||
+    is.null(p25$escape_rates$overall$n_ever_escape) ||
+    is.null(p25$escape_rates$overall$ever_escape_rate) ||
+    is.null(p25$escape_rates$working_age) ||
+    is.null(p25$escape_rates$working_age$n_starting_disadvantaged) ||
+    is.null(p25$escape_rates$working_age$n_ever_escape) ||
+    is.null(p25$escape_rates$working_age$ever_escape_rate)) {
+  stop(sprintf("Missing required key in %s: escape_rates.{overall,working_age}.{n_starting_disadvantaged,n_ever_escape,ever_escape_rate}", P25_PATH))
+}
 
 n_starters_overall  <- as.integer(p25$escape_rates$overall$n_starting_disadvantaged)
 n_escaped_overall   <- as.integer(p25$escape_rates$overall$n_ever_escape)
@@ -49,24 +63,43 @@ cat("Working-age: n_starters=", n_starters_wa, " n_escaped=", n_escaped_wa,
 # 2. Load n_eligible and n_analytical
 # ---------------------------------------------------------------------------
 cat("Loading IPW diagnostics...\n")
-ipw         <- fromJSON(IPW_PATH)
+ipw <- tryCatch(
+  fromJSON(IPW_PATH),
+  error = function(e) stop(sprintf("Failed to parse %s: %s", IPW_PATH, conditionMessage(e)))
+)
+if (is.null(ipw$propensity_model) || is.null(ipw$propensity_model$n_eligible)) {
+  stop(sprintf("Missing required key in %s: propensity_model.n_eligible", IPW_PATH))
+}
 n_eligible  <- as.integer(ipw$propensity_model$n_eligible)
 
 cat("Loading analytical sample size...\n")
-anal05      <- fromJSON(ANAL05)
+anal05 <- tryCatch(
+  fromJSON(ANAL05),
+  error = function(e) stop(sprintf("Failed to parse %s: %s", ANAL05, conditionMessage(e)))
+)
+if (is.null(anal05$gmm_labels)) {
+  stop(sprintf("Missing required key in %s: gmm_labels", ANAL05))
+}
 n_analytical <- length(unlist(anal05$gmm_labels))
 
 n_attritors <- n_eligible - n_analytical
+stopifnot(n_attritors >= 0)
 cat("n_eligible=", n_eligible, " n_analytical=", n_analytical, " n_attritors=", n_attritors, "\n")
 
 # ---------------------------------------------------------------------------
 # 3. Full-pessimism bounds (all attritors are R2/R6 non-escapers)
 # ---------------------------------------------------------------------------
+# Overall: all attritors allocated to disadvantaged starters (worst case)
 fp_n_starters_overall <- n_starters_overall + n_attritors
 fp_rate_overall       <- round(n_escaped_overall / fp_n_starters_overall, 6)
 
-fp_n_starters_wa      <- n_starters_wa + n_attritors
-fp_rate_wa            <- round(n_escaped_wa / fp_n_starters_wa, 6)
+# Working-age full pessimism: attritors allocated at the WA share of analytical sample.
+# Reason: "all attritors are working-age R2/R6 starters" is implausible — the WA worst case
+# allocates the WA share, not the full population, of attritors to WA disadvantaged starters.
+wa_share_in_analytical <- n_starters_wa / n_analytical
+n_attritors_to_wa      <- as.integer(round(n_attritors * wa_share_in_analytical))
+fp_n_starters_wa       <- n_starters_wa + n_attritors_to_wa
+fp_rate_wa             <- round(n_escaped_wa / fp_n_starters_wa, 6)
 
 cat("\nFull pessimism:\n")
 cat("  Overall:     n_starters_pessimistic=", fp_n_starters_overall,
@@ -78,12 +111,12 @@ cat("  Working-age: n_starters_pessimistic=", fp_n_starters_wa,
 # 4. Partial-pessimism bounds (attritors enter R2/R6 proportionally)
 # ---------------------------------------------------------------------------
 prop_r2r6_overall <- n_starters_overall / n_analytical
-n_attritors_r2r6  <- round(n_attritors * prop_r2r6_overall)
+n_attritors_r2r6  <- as.integer(round(n_attritors * prop_r2r6_overall))
 pp_n_starters_overall <- n_starters_overall + n_attritors_r2r6
 pp_rate_overall       <- round(n_escaped_overall / pp_n_starters_overall, 6)
 
 prop_wa           <- n_starters_wa / n_analytical
-n_attritors_wa    <- round(n_attritors * prop_wa)
+n_attritors_wa    <- as.integer(round(n_attritors * prop_wa))
 pp_n_starters_wa  <- n_starters_wa + n_attritors_wa
 pp_rate_wa        <- round(n_escaped_wa / pp_n_starters_wa, 6)
 
@@ -103,9 +136,10 @@ cat("\nSaving conditional Manski bounds JSON...\n")
 result <- list(
   run_params = list(
     date              = TODAY,
-    source_p25        = P25_PATH,
-    source_ipw        = IPW_PATH,
-    source_anal05     = ANAL05,
+    source_p25        = "results/trajectory_tda_priority2/p2_5_age_stratified.json",
+    source_ipw        = "results/panel_methodology/weights/ipw_diagnostics_2026-05-14.json",
+    source_anal05     = "results/trajectory_tda_integration/05_analysis.json",
+    paths_relative_to = "PROJ_ROOT (C:/Users/steph/TDL on this machine)",
     method            = "Window-based escape rates from p2_5_age_stratified.json; no GMM re-run",
     window_definition = "10-year overlapping windows (step=5); R2/R6 first-window starters"
   ),
@@ -127,21 +161,30 @@ result <- list(
     n_attritors  = n_attritors
   ),
   full_pessimism = list(
-    description = "All attritors are assumed to be R2/R6 starters who fail to escape",
+    description = paste0(
+      "Overall block: all attritors allocated to R2/R6 starters who fail to escape (true worst case). ",
+      "Working-age block: attritors allocated at the working-age share of the analytical sample ",
+      "(not all attritors), reflecting that working-age R2/R6 starters are a subset of all R2/R6 starters."
+    ),
     overall = list(
       n_starters_pessimistic = fp_n_starters_overall,
       pessimistic_lower_escape_rate = fp_rate_overall
     ),
     working_age = list(
       n_starters_pessimistic = fp_n_starters_wa,
-      pessimistic_lower_escape_rate = fp_rate_wa
+      pessimistic_lower_escape_rate = fp_rate_wa,
+      wa_share_in_analytical = round(wa_share_in_analytical, 6),
+      n_attritors_to_wa = n_attritors_to_wa
     )
   ),
   partial_pessimism = list(
     description = paste0(
-      "Attritors enter R2/R6 at the same rate as the analytical sample (",
-      round(prop_r2r6_overall * 100, 1), "% overall, ",
-      round(prop_wa * 100, 1), "% working-age)"
+      "Attritors allocated proportionally to R2/R6 status: ",
+      "overall block uses prop_r2r6_in_analytical = ",
+      round(prop_r2r6_overall * 100, 1), "% (R2/R6 share in analytical sample); ",
+      "working_age block uses prop_wa_in_analytical = ",
+      round(prop_wa * 100, 1), "% (working-age R2/R6 share in analytical sample). ",
+      "See overall and working_age sub-keys."
     ),
     overall = list(
       prop_r2r6_in_analytical  = round(prop_r2r6_overall, 6),
