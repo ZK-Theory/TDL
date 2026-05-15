@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Install repository git hooks from .claude/hooks into .git/hooks."""
+"""Install repository git hooks from .codex/hooks into .git/hooks."""
 
 from pathlib import Path
 import shutil
 import stat
 import sys
 
-REPO_ROOT = Path(__file__).resolve().parents[2]  # .claude/hooks/ -> .claude/ -> repo root
-HOOKS_DIR = REPO_ROOT / ".claude" / "hooks"
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[1]  # .codex/hooks/ -> .codex/ -> repo root
+HOOKS_DIR = SCRIPT_DIR
 GIT_HOOKS_DIR = REPO_ROOT / ".git" / "hooks"
 
 HOOKS = {

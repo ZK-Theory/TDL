@@ -74,7 +74,7 @@ The post-run `[RESULT]` entry references the pre-registration.
 - Vault access is MCP-only via the `vault-engine` server
 - Do not attempt direct filesystem reads of the vault path
 - Use vault tools consistently for all vault interactions
-- Use Write tools for any vault updates or new entries,if necessary,never direct filesystem writes
+- Use Write tools for any vault updates or new entries, if necessary, never direct filesystem writes
 
 ### After-Session Sync Workflow
 

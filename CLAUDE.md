@@ -401,22 +401,6 @@ This project's history includes large costs from work pursued on speculative or 
 
 Every script defines two root paths and uses them strictly:
 
-```python
-PROJ_ROOT = Path("C:/Users/steph/TDL")   # absolute — main working tree, never changes
-WORKTREE  = Path.cwd()                    # current worktree working directory
-```
-
-```r
-PROJ_ROOT <- "C:/Users/steph/TDL"        # absolute — main working tree, never changes
-WORKTREE  <- normalizePath(getwd())       # current worktree working directory
-```
-
-**Rule:** Use `WORKTREE` as the base for files that will be committed to git (result JSONs, scripts). Use `PROJ_ROOT` as the base for all gitignored files (pkl, rds, csv, npy, or any non-JSON data output). Never write a gitignored file to the worktree path.
-
-**Why:** Committed files survive worktree removal because git tracks them and the Manager merges them to `main`. Gitignored files written to a worktree path are permanently and silently lost the moment `git worktree remove` is called. Writing them to `PROJ_ROOT` guarantees they exist in the main working tree independent of worktree lifecycle.
-
-**This rule is non-negotiable.** A gitignored file written only to a worktree path and needed by any downstream task is a task failure. The discovering agent must re-run the producing script to regenerate the file at `PROJ_ROOT` before proceeding.
-
 ### Downstream data guarantee
 
 Every task that produces a gitignored intermediate consumed by a downstream task must:

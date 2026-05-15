@@ -57,6 +57,22 @@ def _extract_dgm(ph: PHResult, dim: int) -> np.ndarray:
 
 
 def run_sensitivity() -> dict:
+    """Run W₂ ground-metric sensitivity audit comparing ℓ² vs ℓ∞.
+
+    Loads checkpoint embeddings/trajectories, computes observed persistence diagram,
+    generates Markov-shuffled permutation nulls, and computes W₂ distances with ℓ∞
+    ground metric. Compares obs-null and null-null distance distributions to assess
+    whether the metric choice affects hypothesis-test conclusions.
+
+    Returns:
+        Dictionary containing audit parameters, ℓ² reference results, and per-dimension
+        W₂(ℓ∞) statistics including mean obs-null/null-null distances, p-values, and
+        significance flags.
+
+    Raises:
+        FileNotFoundError: If checkpoint files are not found.
+        Exception: If checkpoint loading fails.
+    """
     logger.info("Loading checkpoint …")
     try:
         embeddings, trajectories, embed_kwargs = load_checkpoint(_CHECKPOINT_DIR)
@@ -165,8 +181,22 @@ def run_sensitivity() -> dict:
             f"mean_W(null,null)={mean_nn:.4f}, p={p_val:.4f}"
         )
 
-    return results
+    return results        mean_nn = float(nn.mean())
+        p_val = float(np.mean(nn >= mean_on))
+        results[key] = {
+            "mean_wasserstein_obs_null": mean_on,
+            "std_wasserstein_obs_null": float(on.std()),
+            "mean_wasserstein_null_null": mean_nn,
+            "p_value": p_val,
+            "significant_at_005": p_val < 0.05,
+            "n_null_null_pairs": len(null_null_dists[dim]),
+        }
+        logger.info(
+            f"  ℓ∞ {key}: mean_W(obs,null)={mean_on:.4f}, "
+            f"mean_W(null,null)={mean_nn:.4f}, p={p_val:.4f}"
+        )
 
+    return results
 
 def setup_logging() -> None:
     """Configure logging for the script."""

@@ -537,9 +537,11 @@ buildup_comparison <- lapply(key_terms, function(trm) {
     T2_p_wald           = t2_p,
     OR_ratio_T2_T1      = if (!is.na(t1_or) && !is.na(t2_or) && t1_or > 0)
                             round(t2_or / t1_or, 4) else NA_real_,
-    direction_consistent = if (!is.na(t1_or) && !is.na(t2_or))
-                            sign(log(t1_or)) == sign(log(t2_or)) else NA
-  )
+    direction_consistent = if (!is.na(t1_or) && !is.na(t2_or) && t1_or != 1 && t2_or != 1)
+                            sign(log(t1_or)) == sign(log(t2_or)) 
+                           else if (!is.na(t1_or) && !is.na(t2_or) && (t1_or == 1 || t2_or == 1))
+                            TRUE  # Null effect is direction-consistent with any effect
+                           else NA  )
 })
 
 # Flag large directional reversals (log-OR difference > 0.5 and direction flips)
