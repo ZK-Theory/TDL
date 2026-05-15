@@ -1,0 +1,58 @@
+{
+  "run_params": {
+    "n_eligible": 113411,
+    "n_analytical": 27280,
+    "n_attritors": 86131,
+    "disadv_regimes": [2, 6],
+    "working_age_definition": "born 1945–1980",
+    "n_working_age_analytical": 18549,
+    "source_05_analysis": "results/trajectory_tda_integration/05_analysis.json",
+    "source_ipw": "results/panel_methodology/weights/ipw_diagnostics_2026-05-14.json",
+    "paths_relative_to": "PROJ_ROOT (C:/Users/steph/TDL on this machine)"
+  },
+  "observed_regime_proportions": {
+    "R0": 0.1388,
+    "R1": 0.2697,
+    "R2": 0.1985,
+    "R3": 0.1222,
+    "R4": 0.1287,
+    "R5": 0.0665,
+    "R6": 0.0757
+  },
+  "observed_summary": {
+    "escape_rate_overall": 0.7258,
+    "escape_rate_workingage": 0.7884,
+    "R1_share": 0.2697,
+    "R2_share": 0.1985,
+    "R6_share": 0.0757,
+    "disadvantaged_share": 0.2742
+  },
+  "pessimistic_bounds": {
+    "R6_share": {
+      "observed": 0.0757,
+      "pessimistic_upper": 0.7777
+    },
+    "R2_share": {
+      "observed": 0.1985,
+      "pessimistic_upper": 0.8072
+    },
+    "disadvantaged_share": {
+      "observed": 0.2742,
+      "pessimistic_upper": 0.8254
+    },
+    "escape_rate_overall": {
+      "observed": 0.7258,
+      "pessimistic_lower": 0.1746
+    },
+    "R1_share": {
+      "observed": 0.2697,
+      "pessimistic_lower": 0.0649
+    },
+    "escape_rate_workingage": {
+      "observed": 0.7884,
+      "pessimistic_lower": 0.1896,
+      "n_wa_attritors_estimated": 58565
+    }
+  },
+  "rationale_pessimistic_allocation": "Permanent attritors are individuals who entered the BHPS/USoc frame (>=1 valid jbstat) but did not complete the 10-wave threshold required for trajectory inclusion. These individuals are more likely to face labour-market instability, long-term inactivity, or ill-health — the defining features of regimes R2 (employment trap) and R6 (long-term inactive). Allocating all n=86131 attritors to R2 or R6 under the Manski worst-case assumption yields conservative upper bounds on disadvantaged-regime shares and lower bounds on escape rates. These are not expected values but the worst-case counterfactuals under maximum informative attrition."
+}

@@ -12,7 +12,7 @@ suppressPackageStartupMessages({
 PROJ_ROOT   <- "C:/Users/steph/TDL"
 WORKTREE    <- normalizePath(getwd(), mustWork = FALSE)
 RESULTS_DIR <- file.path(PROJ_ROOT, "results/trajectory_tda_integration")
-IPW_PATH    <- file.path(PROJ_ROOT, "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json")
+IPW_PATH    <- file.path(PROJ_ROOT, "results/panel_methodology/weights/ipw_diagnostics_2026-05-14.json")
 XWAVEDAT    <- file.path(PROJ_ROOT, "data/UKDA-6614-tab/tab/ukhls/xwavedat.tab")
 OUT_DIR     <- file.path(WORKTREE, "results/panel_methodology/manski_bounds")
 dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
@@ -27,7 +27,10 @@ cat("=== T1.15: Manski Bounds for Permanent Attritors ===\n")
 # ---------------------------------------------------------------------------
 cat("Loading regime labels...\n")
 anal05           <- fromJSON(file.path(RESULTS_DIR, "05_analysis.json"))
-analytical_pidps <- as.integer(unlist(anal05$gmm_labels_pidp %||% seq_along(anal05$gmm_labels)))
+analytical_pidps <- as.integer(unlist(
+  if (is.null(anal05$gmm_labels_pidp)) seq_along(anal05$gmm_labels)
+  else anal05$gmm_labels_pidp
+))
 regime_labels    <- as.integer(unlist(anal05$gmm_labels))
 n_analytical     <- length(regime_labels)
 cat("n_analytical:", n_analytical, "\n")
@@ -171,7 +174,8 @@ result <- list(
     working_age_definition = paste0("born ", WORK_AGE_LO, "–", WORK_AGE_HI),
     n_working_age_analytical = n_wa,
     source_05_analysis = "results/trajectory_tda_integration/05_analysis.json",
-    source_ipw = "results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json"
+    source_ipw = "results/panel_methodology/weights/ipw_diagnostics_2026-05-14.json",
+    paths_relative_to = "PROJ_ROOT (C:/Users/steph/TDL on this machine)"
   ),
   observed_regime_proportions = obs_regime_props,
   observed_summary = list(
