@@ -131,7 +131,10 @@ def main() -> None:
     with open(CP_DIR / "01_trajectories.json") as f:
         meta_raw = json.load(f)
     metadata = pd.DataFrame(meta_raw["metadata"])
-    assert len(trajectories) == len(metadata), "Trajectory/metadata count mismatch"
+    if len(trajectories) != len(metadata):
+        raise ValueError(
+            f"Trajectory/metadata count mismatch: trajectories={len(trajectories)}, metadata={len(metadata)}"
+        )
 
     # ------------------------------------------------------------------
     # Step 3: Compute 90-dim raw features for all trajectories

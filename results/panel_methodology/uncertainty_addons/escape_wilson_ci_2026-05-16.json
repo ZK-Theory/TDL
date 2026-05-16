@@ -1,0 +1,28 @@
+{
+  "overall": {
+    "n_starters": 7453,
+    "n_escaped": 416,
+    "estimate": 0.0558,
+    "CI_lower": 0.0508,
+    "CI_upper": 0.0613,
+    "CI_note": "Wilson 95% CI"
+  },
+  "working_age": {
+    "n_starters": 2163,
+    "n_escaped": 386,
+    "estimate": 0.1785,
+    "CI_lower": 0.1629,
+    "CI_upper": 0.1952,
+    "CI_note": "Wilson 95% CI"
+  },
+  "retirement_age": {
+    "n_starters": 5978,
+    "n_escaped": 6,
+    "estimate": 0.001,
+    "CI_lower": 0.0005,
+    "CI_upper": 0.0022,
+    "CI_note": "Wilson 95% CI"
+  },
+  "source": "results/trajectory_tda_priority2/p2_5_age_stratified.json",
+  "paths_relative_to": "PROJ_ROOT"
+}

@@ -5,13 +5,10 @@ import re
 from pathlib import Path
 from typing import List
 
-base_data_root = Path(__file__).resolve().parents[3]
-DATA_ROOT: Path
+PROJ_ROOT = Path("C:/Users/steph/TDL")
+WORKTREE  = Path.cwd()
 DATA_ROOT_ENV = os.getenv("DATA_ROOT", "")
-if not DATA_ROOT_ENV:
-    DATA_ROOT = base_data_root / "data" / "UKDA-6614-tab" / "tab"
-else:
-    DATA_ROOT = Path(DATA_ROOT_ENV)
+DATA_ROOT = Path(DATA_ROOT_ENV) if DATA_ROOT_ENV else PROJ_ROOT / "data" / "UKDA-6614-tab" / "tab"
 
 def get_header(fname: Path) -> List[str]:
     """Read the first line of a tab-delimited file and return stripped header fields."""
@@ -39,11 +36,7 @@ for wave in ["a", "b", "k"]:
 
 # Check the UKDA data dictionary for exact fihhmnnet1_dv description
 DICT_ROOT_ENV = os.getenv("DATA_DICT_ROOT", "")
-DICT_ROOT: Path
-if not DICT_ROOT_ENV:
-    DICT_ROOT = base_data_root / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
-else:
-    DICT_ROOT = Path(DICT_ROOT_ENV)
+DICT_ROOT = Path(DICT_ROOT_ENV) if DICT_ROOT_ENV else PROJ_ROOT / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
 
 def strip_rtf(raw: bytes) -> str:
     """Convert RTF bytes to plain text by stripping control words and braces."""

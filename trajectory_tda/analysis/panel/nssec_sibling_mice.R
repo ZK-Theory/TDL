@@ -38,6 +38,7 @@ M_IMPUTATIONS <- 20L
 # as high-heterogeneity. Propagation logic still uses the mode; this is data for
 # Manager review of whether to introduce a propagation-skip rule.
 MODAL_FRACTION_THRESHOLD <- 0.6
+DIVERGENCE_WARN_THRESHOLD_REL <- 0.15  # 15% relative difference triggers warning
 
 cat("=== T1.18: Sibling-Consistent MICE for Parental NS-SEC Proxy ===\n")
 
@@ -132,15 +133,23 @@ clusters_with_obs    <- multi_clusters[n_obs > 0]
 n_propagatable       <- sum(work$foo_size > 1L & !is.na(work$nssec_proxy) |
                               work$foo_cluster %in% clusters_with_obs$foo_cluster, na.rm=TRUE)
 
-# Propagate: for each cluster with >=1 observed, fill missing members with mode value
+# Identify clusters eligible for propagation (consistent enough to mode-propagate)
+propagation_eligible <- clusters_with_obs[
+  is.na(modal_fraction) | modal_fraction >= MODAL_FRACTION_THRESHOLD | n_distinct == 1L,
+  foo_cluster
+]
+n_skipped_high_heterogeneity <- nrow(clusters_with_obs) - length(propagation_eligible)
+cat("Skipped propagation for", n_skipped_high_heterogeneity, "high-heterogeneity clusters\n")
+
+# Propagate only within eligible clusters
 work_out <- copy(work)
 propagated_count <- 0L
-for (cl in clusters_with_obs$foo_cluster) {
-  mode_val <- clusters_with_obs[foo_cluster==cl, mode_val]
+for (cl in propagation_eligible) {
+  mode_val <- clusters_with_obs[foo_cluster == cl, mode_val]
   if (is.na(mode_val)) next
   missing_in_cl <- which(work_out$foo_cluster == cl & is.na(work_out$nssec_proxy))
   if (length(missing_in_cl) > 0) {
-    work_out[missing_in_cl, nssec_proxy := factor(mode_val, levels=c("H","M","L"))]
+    work_out[missing_in_cl, nssec_proxy := factor(mode_val, levels = c("H","M","L"))]
     propagated_count <- propagated_count + length(missing_in_cl)
   }
 }
@@ -262,6 +271,22 @@ imp_dist_mean   <- round(colMeans(imp_dist_matrix), 4)
 names(imp_dist_mean) <- c("H","M","L")
 cat("Imputed NS-SEC proxy mean distribution:\n"); print(imp_dist_mean)
 
+divergence <- lapply(c("H","M","L"), function(cat_lbl) {
+  obs      <- as.numeric(obs_dist[cat_lbl])
+  imp_val  <- imp_dist_mean[[cat_lbl]]
+  abs_diff <- imp_val - obs
+  rel_diff <- if (!is.na(obs) && obs > 0) abs_diff / obs else NA_real_
+  list(
+    observed_post_propagation = obs,
+    imputed_mean              = imp_val,
+    abs_diff                  = round(abs_diff, 4),
+    rel_diff                  = round(rel_diff, 4),
+    exceeds_threshold         = !is.na(rel_diff) && abs(rel_diff) >= DIVERGENCE_WARN_THRESHOLD_REL
+  )
+})
+names(divergence) <- c("H","M","L")
+n_categories_exceed <- sum(sapply(divergence, function(x) isTRUE(x$exceeds_threshold)))
+
 # ---------------------------------------------------------------------------
 # 9. Save diagnostics JSON
 # ---------------------------------------------------------------------------
@@ -284,12 +309,20 @@ result <- list(
     n_still_missing           = n_still_missing,
     n_singleton               = n_singletons,
     n_in_multi_foo_cluster    = n_in_families,
-    n_clusters_with_obs       = nrow(clusters_with_obs)
+    n_clusters_with_obs                   = nrow(clusters_with_obs),
+    n_skipped_high_heterogeneity_clusters = n_skipped_high_heterogeneity,
+    n_propagated_after_skip_rule          = propagated_count
   ),
   within_cluster_consistency = list(
     result                  = if(consistency_ok) "PASS" else "FAIL",
     n_inconsistent_clusters = inconsistent_n,
     note                    = "Propagation uses mode NS-SEC proxy within each FOO cluster. See per_cluster_diagnostic for heterogeneity detail.",
+    propagation_rule        = paste0(
+      "Mode-propagation applied only when modal_fraction >= ",
+      MODAL_FRACTION_THRESHOLD,
+      " OR n_distinct == 1. High-heterogeneity clusters skip propagation; ",
+      "missing members enter standard MICE imputation."
+    ),
     per_cluster_diagnostic = list(
       threshold_modal_fraction              = MODAL_FRACTION_THRESHOLD,
       n_clusters_with_obs                   = nrow(clusters_with_obs),
@@ -312,8 +345,17 @@ result <- list(
     note = "SD of mean imputed nssec_proxy across m imputations (not Gelman-Rubin R-hat — categorical outcome makes Gelman-Rubin inapplicable)."
   ),
   nssec_distribution_comparison = list(
-    observed_post_propagation = as.list(obs_dist),
-    imputed_mean = list(H=imp_dist_mean[1], M=imp_dist_mean[2], L=imp_dist_mean[3])
+    observed_post_propagation     = as.list(obs_dist),
+    imputed_mean                  = list(H=imp_dist_mean[1], M=imp_dist_mean[2], L=imp_dist_mean[3]),
+    divergence                    = divergence,
+    divergence_threshold_rel      = DIVERGENCE_WARN_THRESHOLD_REL,
+    n_categories_exceed_threshold = n_categories_exceed,
+    divergence_note = paste0(
+      "Per-category absolute and relative differences (imputed_mean - observed_post_propagation). ",
+      "exceeds_threshold flags when |rel_diff| >= ", DIVERGENCE_WARN_THRESHOLD_REL, ". ",
+      "Material divergence may indicate MNAR pattern or imputation-model misspecification; ",
+      "downstream analyses should treat imputed-only individuals as a sensitivity not a primary."
+    )
   )
 )
 

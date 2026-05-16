@@ -120,7 +120,14 @@ stability_results <- lapply(regime_ids, function(r) {
     SE                = round(se_seq, 6),
     CI95_lo           = round(max(0, ci_lo), 6),
     CI95_hi           = round(min(1, ci_hi), 6),
-    CI95_note         = "Normal approximation 95% CI"
+    CI95_note         = "Normal approximation 95% CI",
+    stability_note    = paste0(
+      "Two stability metrics reported for regime R", r, ":\n",
+      "  - stability_from_seqs: proportion of consecutive same-state pairs within ",
+      "individual trajectory sequences (within-trajectory state stickiness).\n",
+      "  - stability_stored: proportion of window-pair transitions in the same GMM regime ",
+      "(across-window regime stickiness; v1 paper Table 2 metric)."
+    )
   )
 })
 names(stability_results) <- paste0("R", regime_ids)
@@ -192,7 +199,8 @@ wilson_results <- list(
     CI_upper   = wi_ra$upper,
     CI_note    = "Wilson 95% CI"
   ),
-  source = P2_JSON
+  source           = "results/trajectory_tda_priority2/p2_5_age_stratified.json",
+  paths_relative_to = "PROJ_ROOT"
 )
 
 # ---------------------------------------------------------------------------
@@ -208,9 +216,17 @@ stability_out <- list(
       "individual's trajectory sequence for individuals in that regime. ",
       "SE = sqrt(p*(1-p)/n_transitions). 95% CI = Normal approx."
     ),
-    source_analysis  = ANALYSIS_JSON,
-    source_sequences = SEQS_JSON,
+    source_analysis  = "results/trajectory_tda_integration/05_analysis.json",
+    source_sequences = "results/trajectory_tda_integration/01_trajectories_sequences.json",
+    paths_relative_to = "PROJ_ROOT (C:/Users/steph/TDL on this machine)",
     n_total          = n_total
+  ),
+  use_stability = "stability_stored",
+  use_stability_note = paste0(
+    "Canonical metric for paper Table 2 is stability_stored (window-pair regime stickiness), ",
+    "preserving v1 continuity. SE computable for stored values as sqrt(p*(1-p)/n_transitions). ",
+    "stability_from_seqs (within-trajectory state stickiness) is a different concept and reported ",
+    "for diagnostic comparison only — not for headline reporting."
   ),
   stability_by_regime = stability_results
 )

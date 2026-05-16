@@ -1,0 +1,86 @@
+{
+  "run_params": {
+    "m": 20,
+    "method": "pmm",
+    "seed": 42,
+    "proxy_variable": "pasoc90_cc (father's SOC90, xwavedat) recoded to 3-class H/M/L",
+    "proxy_note": "No direct parental NS-SEC variable in BHPS/UKHLS. pasoc90_cc (father's SOC90 from xwavedat) is the most defensible parental social origin proxy (76.3% base coverage). Recoded: SOC major groups 1-3=H, 4-6=M, 7-9=L. See escalation note in task log.",
+    "foo_clusters_source": "data/derived/foo_clusters_2026-05-06.csv"
+  },
+  "coverage": {
+    "n_analytical": 27280,
+    "n_with_observed_pre_prop": 22730,
+    "pct_observed_pre_prop": 83.32,
+    "n_propagated": 1773,
+    "n_with_observed_post_prop": 24503,
+    "pct_observed_post_prop": 89.82,
+    "n_still_missing": 2777,
+    "n_singleton": 8750,
+    "n_in_multi_foo_cluster": 18530,
+    "n_clusters_with_obs": 8900,
+    "n_skipped_high_heterogeneity_clusters": 2228,
+    "n_propagated_after_skip_rule": 1773
+  },
+  "within_cluster_consistency": {
+    "result": "FAIL",
+    "n_inconsistent_clusters": 2845,
+    "note": "Propagation uses mode NS-SEC proxy within each FOO cluster. See per_cluster_diagnostic for heterogeneity detail.",
+    "propagation_rule": "Mode-propagation applied only when modal_fraction >= 0.6 OR n_distinct == 1. High-heterogeneity clusters skip propagation; missing members enter standard MICE imputation.",
+    "per_cluster_diagnostic": {
+      "threshold_modal_fraction": 0.6,
+      "n_clusters_with_obs": 8900,
+      "n_clusters_inconsistent": 2845,
+      "n_clusters_flagged_high_heterogeneity": 2228,
+      "summary_modal_fraction": {
+        "median": 1,
+        "mean": 0.8504,
+        "min": 0.3333,
+        "q25": 0.5536
+      },
+      "flagged_clusters_sample": [14966, 10567, 3035, 3041, 3043, 3049, 3052, 3055, 3075, 3080, 3083, 191, 3088, 3090, 3096, 3106, 3113, 3117, 3119, 3124]
+    }
+  },
+  "convergence": {
+    "sd_of_imputed_means": 0.0262,
+    "mice_logged_events": {},
+    "note": "SD of mean imputed nssec_proxy across m imputations (not Gelman-Rubin R-hat — categorical outcome makes Gelman-Rubin inapplicable)."
+  },
+  "nssec_distribution_comparison": {
+    "observed_post_propagation": {
+      "H": 0.3362,
+      "M": 0.3566,
+      "L": 0.3072
+    },
+    "imputed_mean": {
+      "H": 0.3019,
+      "M": 0.3591,
+      "L": 0.339
+    },
+    "divergence": {
+      "H": {
+        "observed_post_propagation": 0.3362,
+        "imputed_mean": 0.3019,
+        "abs_diff": -0.0343,
+        "rel_diff": -0.102,
+        "exceeds_threshold": false
+      },
+      "M": {
+        "observed_post_propagation": 0.3566,
+        "imputed_mean": 0.3591,
+        "abs_diff": 0.0025,
+        "rel_diff": 0.007,
+        "exceeds_threshold": false
+      },
+      "L": {
+        "observed_post_propagation": 0.3072,
+        "imputed_mean": 0.339,
+        "abs_diff": 0.0318,
+        "rel_diff": 0.1035,
+        "exceeds_threshold": false
+      }
+    },
+    "divergence_threshold_rel": 0.15,
+    "n_categories_exceed_threshold": 0,
+    "divergence_note": "Per-category absolute and relative differences (imputed_mean - observed_post_propagation). exceeds_threshold flags when |rel_diff| >= 0.15. Material divergence may indicate MNAR pattern or imputation-model misspecification; downstream analyses should treat imputed-only individuals as a sensitivity not a primary."
+  }
+}

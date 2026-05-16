@@ -367,6 +367,12 @@ cat("Number of clusters (unique hidp_last):", n_clusters, "\n")
 # ---------------------------------------------------------------------------
 cat("Extracting coefficient table...\n")
 
+fmt_pval <- function(p) {
+  if (is.na(p)) return(NA_character_)
+  if (p < 1e-4) return("< 1e-4")
+  format(round(p, 5), nsmall = 5)
+}
+
 firth_coefs <- coef(fit)
 firth_ci_lo <- fit$ci.lower
 firth_ci_hi <- fit$ci.upper
@@ -385,9 +391,9 @@ coef_table <- lapply(seq_along(coef_names), function(i) {
     CI_hi_OR     = round(exp(firth_ci_hi[i]), 4),
     CI_lo_log    = round(firth_ci_lo[i], 4),
     CI_hi_log    = round(firth_ci_hi[i], 4),
-    p_firth      = round(firth_p[i], 4),
+    p_firth      = fmt_pval(firth_p[i]),
     SE_clustered = if (coef_names[i] %in% rownames(ct)) round(ct[coef_names[i], 2], 4) else NA_real_,
-    p_clustered  = if (coef_names[i] %in% rownames(ct)) round(ct[coef_names[i], 4], 4) else NA_real_
+    p_clustered  = if (coef_names[i] %in% rownames(ct)) fmt_pval(ct[coef_names[i], 4]) else NA_character_
   )
 })
 cat("Coefficient table:", length(coef_table), "terms\n")
@@ -445,7 +451,8 @@ result <- list(
     ci_note            = "Profile-likelihood CIs from Firth (primary); clustered Wald SEs from vcovCL (supplementary)",
     firth              = TRUE,
     pl_ci              = TRUE,
-    logistf_version    = as.character(packageVersion("logistf"))
+    logistf_version    = as.character(packageVersion("logistf")),
+    pvalue_format_note = "p-values below 1e-4 displayed as '< 1e-4' string; do not parse as numeric without handling."
   ),
   quasi_separation_diagnostic = sep_summary,
   coefficient_table    = coef_table,
