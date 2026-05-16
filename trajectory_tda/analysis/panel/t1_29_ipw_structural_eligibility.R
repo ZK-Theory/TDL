@@ -334,8 +334,17 @@ result <- list(
   baseline_comparison = list(
     t1_13_ess           = baseline_ess,
     t1_29_ess           = round(ess, 2),
-    ess_change_absolute = round(ess - baseline_ess, 2),
-    ess_pct_change      = round(100 * (ess - baseline_ess) / baseline_ess, 2)
+    ess_change_absolute = (if (is.na(baseline_ess) || baseline_ess == 0) NA_real_
+                           else round(ess - baseline_ess, 2)),
+    ess_pct_change      = (if (is.na(baseline_ess) || baseline_ess == 0) NA_real_
+                           else round(100 * (ess - baseline_ess) / baseline_ess, 2)),
+    baseline_note       = (if (is.na(baseline_ess)) {
+      "baseline_ess unavailable; comparison not computed"
+    } else if (baseline_ess == 0) {
+      "baseline_ess is zero; pct change undefined"
+    } else {
+      paste0("baseline_ess from ", BASELINE_IPW)
+    })
   )
 )
 

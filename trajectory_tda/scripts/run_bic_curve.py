@@ -29,7 +29,7 @@ OUT_DIR = ROOT / "results" / "trajectory_tda_integration" / "stage1"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 OUT_PATH = OUT_DIR / f"bic_curve_{date.today()}.json"
 
-GMM_PARAMS = {"covariance_type": "full", "n_init": 5, "random_state": 42}
+GMM_PARAMS = {"covariance_type": "full", "n_init": 5, "random_state": 42, "max_iter": 200}
 K_RANGE = range(3, 16)
 
 
@@ -60,7 +60,7 @@ def main() -> None:
     bic_by_k: dict[int, float] = {}
     for k in K_RANGE:
         log.info("Fitting GMM k=%d …", k)
-        gmm = GaussianMixture(n_components=k, max_iter=200, **GMM_PARAMS)
+        gmm = GaussianMixture(n_components=k, **GMM_PARAMS)
         gmm.fit(embedding)
         bic_by_k[k] = float(gmm.bic(embedding))
         log.info("  k=%d  BIC=%.2f", k, bic_by_k[k])

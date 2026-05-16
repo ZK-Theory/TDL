@@ -36,6 +36,7 @@ env/
 *.parquet
 *.pkl
 *.pickle
+*.rds
 *.h5
 *.hdf5
 data/guides

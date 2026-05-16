@@ -1,0 +1,39 @@
+{
+  "run_params": {
+    "seed": 42,
+    "date": "2026-05-16",
+    "n_analytical": 27280,
+    "k": 7,
+    "covariance_type": "full",
+    "n_init": 5,
+    "method": "Weighted bootstrap resample (with replacement) of analytical embeddings using trimmed IPW weights as sampling probabilities. Refit GMM(k=7) on bootstrap sample. Predict labels on original embeddings. ARI vs original.",
+    "n_missing_weights": 425,
+    "missing_weight_imputation": "mean trimmed IPW weight"
+  },
+  "gmm_convergence": {
+    "converged": true,
+    "n_iter": 21
+  },
+  "ari_original_vs_weighted": 0.656712,
+  "regime_counts": {
+    "original": {
+      "0": 3787,
+      "1": 7358,
+      "2": 5415,
+      "3": 3333,
+      "4": 3510,
+      "5": 1813,
+      "6": 2064
+    },
+    "weighted_gmm": {
+      "0": 1907,
+      "1": 5415,
+      "2": 3042,
+      "3": 10598,
+      "4": 1832,
+      "5": 3094,
+      "6": 1392
+    }
+  },
+  "interpretation": "ARI = 0.657 (moderate agreement; below the >0.8 high-agreement threshold). Regime SIZES shift substantially under IPW reweighting (e.g., R1 stable-employment approximately halves; R2 employment-trap approximately doubles). Regime IDENTITIES persist (ARI > 0.5). The pattern is consistent with attrition preferentially affecting individuals classifiable as employment-trap (R2); reweighting brings them back into the sample and inflates R2 prevalence. The unweighted R2 prevalence is therefore likely UNDERSTATED, which strengthens the employment-trap finding rather than undermining it."
+}

@@ -23,7 +23,11 @@ suppressPackageStartupMessages({
 })
 
 if (!requireNamespace("glmmTMB", quietly = TRUE)) {
-  install.packages("glmmTMB", repos = "https://cran.r-project.org")
+  stop(
+    "glmmTMB is not installed. Add it to the locked R environment (renv.lock or ",
+    "the project's R package manifest) and restore dependencies before running this script. ",
+    "Do not install at runtime — runtime installation breaks reproducibility."
+  )
 }
 suppressPackageStartupMessages(library(glmmTMB))
 

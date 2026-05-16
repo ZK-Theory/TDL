@@ -133,7 +133,7 @@ def main() -> None:
     metadata = pd.DataFrame(meta_raw["metadata"])
     if len(trajectories) != len(metadata):
         raise ValueError(
-            f"Trajectory/metadata count mismatch: {len(trajectories)} vs {len(metadata)}"
+            f"Trajectory/metadata count mismatch: trajectories={len(trajectories)}, metadata={len(metadata)}"
         )
     # ------------------------------------------------------------------
     # Step 3: Compute 90-dim raw features for all trajectories

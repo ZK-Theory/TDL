@@ -201,7 +201,8 @@ ukhls_inc <- merge(
 inc_combined <- rbindlist(list(bhps_inc, ukhls_inc), fill = TRUE)
 
 # Within-era tercile cut-points
-inc_valid <- inc_combined[!is.na(fihhmngrs_dv) & fihhmngrs_dv > 0]
+inc_valid <- inc_combined[!is.na(fihhmngrs_dv) & fihhmngrs_dv >= 0]
+cat("Tercile cuts computed including zero-income households (CR fix: prior `> 0` filter excluded legitimate zeros).\n")
 bhps_cuts  <- quantile(inc_valid[era == "BHPS",  fihhmngrs_dv], c(1/3, 2/3), na.rm = TRUE)
 ukhls_cuts <- quantile(inc_valid[era == "UKHLS", fihhmngrs_dv], c(1/3, 2/3), na.rm = TRUE)
 cat("  BHPS income tercile cuts: L/M=", round(bhps_cuts[1]),
@@ -292,6 +293,87 @@ weights_df <- data.table(pidp = mdf$pidp, ipw_trimmed = ipw_trimmed,
 saveRDS(weights_df, WEIGHTS_RDS)
 cat("Saved individual weights RDS:", WEIGHTS_RDS, "\n")
 
+# ---------------------------------------------------------------------------
+# 10. SMD diagnostics (pre/post weighting) and propensity overlap by cohort (A2)
+# ---------------------------------------------------------------------------
+cat("Computing SMD diagnostics and propensity overlap...\n")
+
+compute_smd_val <- function(x, group, wts = NULL) {
+  xa <- x[group == 1L]; xb <- x[group == 0L]
+  if (is.null(wts)) {
+    ma <- mean(xa, na.rm=TRUE); mb <- mean(xb, na.rm=TRUE)
+    va <- var(xa, na.rm=TRUE);  vb <- var(xb, na.rm=TRUE)
+  } else {
+    wa <- wts[group == 1L]; wb <- wts[group == 0L]
+    ma <- weighted.mean(xa, wa, na.rm=TRUE)
+    mb <- weighted.mean(xb, wb, na.rm=TRUE)
+    va <- sum(wa * (xa - ma)^2, na.rm=TRUE) / sum(wa, na.rm=TRUE)
+    vb <- sum(wb * (xb - mb)^2, na.rm=TRUE) / sum(wb, na.rm=TRUE)
+  }
+  denom <- sqrt((va + vb) / 2)
+  if (is.na(denom) || denom == 0) return(NA_real_)
+  (ma - mb) / denom
+}
+
+smd_vars <- c("age_at_first","sex","hiqual_dv","jbstat_bin","income_tercile_init",
+              "gor_dv","birth_cohort_group","survey_origin")
+smd_pre <- list(); smd_post <- list()
+grp_vec <- mdf$in_analytical_sample
+
+for (vn in smd_vars) {
+  if (!vn %in% names(mdf)) next
+  vv <- mdf[[vn]]
+  if (is.factor(vv) || is.character(vv)) {
+    lvls <- levels(as.factor(vv))
+    for (lv in lvls) {
+      ind <- as.integer(as.character(vv) == lv)
+      key <- paste0(vn, "_", lv)
+      smd_pre[[key]]  <- round(compute_smd_val(ind, grp_vec),              4)
+      smd_post[[key]] <- round(compute_smd_val(ind, grp_vec, ipw_trimmed), 4)
+    }
+  } else {
+    smd_pre[[vn]]  <- round(compute_smd_val(as.numeric(vv), grp_vec),              4)
+    smd_post[[vn]] <- round(compute_smd_val(as.numeric(vv), grp_vec, ipw_trimmed), 4)
+  }
+}
+
+smd_diagnostics <- list(
+  pre_weight  = smd_pre,
+  post_weight = smd_post,
+  note = "SMD = (mean_analytical - mean_non_analytical) / sqrt((var_anal + var_other)/2). Post-weight uses trimmed IPW. Conventional balance threshold |SMD| < 0.1."
+)
+
+cohort_levels <- levels(mdf$birth_cohort_group)
+prop_overlap_by_cohort <- setNames(lapply(cohort_levels, function(cg) {
+  idx  <- as.character(mdf$birth_cohort_group) == cg
+  p_a  <- propensity[idx & mdf$in_analytical_sample == 1L]
+  p_b  <- propensity[idx & mdf$in_analytical_sample == 0L]
+  bins <- seq(0, 1, by = 0.05)
+  h_a  <- hist(p_a, breaks = bins, plot = FALSE)$counts
+  h_b  <- hist(p_b, breaks = bins, plot = FALSE)$counts
+  pos_warn <- length(p_a) > 0 && (mean(p_a < 0.1, na.rm=TRUE) > 0.7 ||
+                                    mean(p_a > 0.9, na.rm=TRUE) > 0.7)
+  list(
+    n_analytical     = length(p_a),
+    n_non_analytical = length(p_b),
+    propensity_hist_analytical     = as.list(h_a),
+    propensity_hist_non_analytical = as.list(h_b),
+    summary_analytical = list(
+      mean   = round(mean(p_a, na.rm=TRUE), 4),
+      median = round(median(p_a, na.rm=TRUE), 4),
+      q25    = round(quantile(p_a, 0.25, na.rm=TRUE)[[1]], 4),
+      q75    = round(quantile(p_a, 0.75, na.rm=TRUE)[[1]], 4)
+    ),
+    summary_non_analytical = list(
+      mean   = round(mean(p_b, na.rm=TRUE), 4),
+      median = round(median(p_b, na.rm=TRUE), 4),
+      q25    = round(quantile(p_b, 0.25, na.rm=TRUE)[[1]], 4),
+      q75    = round(quantile(p_b, 0.75, na.rm=TRUE)[[1]], 4)
+    ),
+    positivity_warning = pos_warn
+  )
+}), cohort_levels)
+
 dist_stats <- function(x) list(
   min  = round(min(x,  na.rm=TRUE), 4),
   p1   = round(quantile(x, 0.01, na.rm=TRUE), 4),
@@ -312,11 +394,12 @@ dist_stats <- function(x) list(
 cat("Saving diagnostics JSON...\n")
 result <- list(
   propensity_model = list(
-    n_eligible   = nrow(mdf),
-    n_analytical = sum(mdf$in_analytical_sample),
-    auc          = round(auc_val, 6),
-    formula      = formula_str,
-    coefficients = coef_list,
+    n_eligible      = nrow(mdf),
+    n_analytical    = sum(mdf$in_analytical_sample),
+    auc             = round(auc_val, 6),
+    formula         = formula_str,
+    coefficients    = coef_list,
+    tercile_filter  = "fihhmngrs_dv >= 0 (zero-income included)",
     note_lw_variable = paste(
       "Base longitudinal weight fallback order: {wave}_indinub_lw (UKHLS c+, BHPS+GPS+EMBS)",
       "> {wave}_indin01_lw (BHPS-UK) > {wave}_indin91_lw (BHPS-GB).",
@@ -329,7 +412,9 @@ result <- list(
     trimmed     = dist_stats(ipw_trimmed),
     trim_bounds = list(lower = round(trim_lo, 4), upper = round(trim_hi, 4))
   ),
-  effective_sample_size = round(ess, 2),
+  effective_sample_size       = round(ess, 2),
+  smd_diagnostics             = smd_diagnostics,
+  propensity_overlap_by_cohort = prop_overlap_by_cohort,
   lwtresp_wave = "most_recent_available_per_individual_indinub_or_indin01"
 )
 

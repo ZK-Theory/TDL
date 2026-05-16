@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import date as _date
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +32,7 @@ _CHECKPOINT_DIR = Path(
     )
 )
 _OUTPUT_DIR = _CHECKPOINT_DIR / "post_audit"
-_OUTPUT_PATH = _OUTPUT_DIR / "w2_internal_p_sensitivity_2026-05-12.json"
+_OUTPUT_PATH = _OUTPUT_DIR / f"w2_internal_p_sensitivity_{_date.today().isoformat()}.json"
 _N_PERMS = 50
 _N_LANDMARKS = 2000
 _MAX_DIM = 1

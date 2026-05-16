@@ -301,17 +301,17 @@ bhps_fmi  <- compute_fmi(bhps_stats)
 ukhls_fmi <- compute_fmi(ukhls_stats)
 
 # ---------------------------------------------------------------------------
-# 7. Convergence check (R-hat proxy from between-chain variance)
+# 7. Convergence check (max between-imputation SD of L_prop across regimes)
 # ---------------------------------------------------------------------------
-# MICE convergence monitored via max between-imputation SD of pooled mean estimates
-rhat_proxy <- function(stats_list) {
+# Not Gelman-Rubin R-hat — proportions on imputed PMM draws have no chain structure.
+between_imputation_sd_L <- function(stats_list) {
   all_m <- rbindlist(stats_list, idcol="m_idx")
   max(all_m[, .(sd_L=sd(L_prop,na.rm=TRUE)), by=regime]$sd_L, na.rm=TRUE)
 }
-bhps_rhat  <- round(rhat_proxy(bhps_stats),  4)
-ukhls_rhat <- round(rhat_proxy(ukhls_stats), 4)
-cat("  BHPS R-hat proxy (max between-m SD):", bhps_rhat, "\n")
-cat("  UKHLS R-hat proxy (max between-m SD):", ukhls_rhat, "\n")
+bhps_between_sd  <- round(between_imputation_sd_L(bhps_stats),  4)
+ukhls_between_sd <- round(between_imputation_sd_L(ukhls_stats), 4)
+cat("  BHPS between-imputation SD (max):", bhps_between_sd, "\n")
+cat("  UKHLS between-imputation SD (max):", ukhls_between_sd, "\n")
 
 # ---------------------------------------------------------------------------
 # 8. Save diagnostics JSON
@@ -341,8 +341,15 @@ pooled_list <- setNames(
 result <- list(
   run_params = list(m=M_IMPUTATIONS, method="pmm", seed=42L),
   missingness_by_wave = list(bhps=miss_bhps_list, ukhls=miss_ukhls_list),
-  convergence = list(bhps_rhat_proxy=bhps_rhat, ukhls_rhat_proxy=ukhls_rhat,
-                     note="R-hat proxy = max between-imputation SD of L_prop across regimes"),
+  convergence = list(
+    bhps_between_imputation_sd  = bhps_between_sd,
+    ukhls_between_imputation_sd = ukhls_between_sd,
+    note = paste0(
+      "Maximum between-imputation SD of L_prop across regimes. ",
+      "Not Gelman-Rubin R-hat — proportions on imputed PMM draws have no chain structure. ",
+      "Small SD (<0.05) indicates stable pooled estimates across imputations."
+    )
+  ),
   fraction_missing_information_by_regime = fmi_by_regime,
   pooled_tercile_proportions_by_regime   = pooled_list,
   note_rubins_rules = "Pooled SEs follow Rubin's rules: Total Var = W_bar + (1 + 1/m) * B, where W_bar is the within-imputation variance (mean across m imputations of p*(1-p)/n_regime for binomial proportions) and B is the between-imputation variance. FMI = (1 + 1/m) * B / (W_bar + (1 + 1/m) * B).",
