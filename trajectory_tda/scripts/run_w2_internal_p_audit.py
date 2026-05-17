@@ -20,7 +20,7 @@ from trajectory_tda.topology.permutation_nulls import (
     compute_rips_ph,
     maxmin_landmarks,
 )
-from trajectory_tda.topology.vectorisation import PHResult
+from poverty_tda.topology.multidim_ph import PHResult
 
 logger = logging.getLogger(__name__)
 
