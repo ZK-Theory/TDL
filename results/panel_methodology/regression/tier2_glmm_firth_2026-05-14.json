@@ -2,7 +2,7 @@
   "run_params": {
     "seed": 42,
     "date": "2026-05-14",
-    "methodology": "Tier 2 GLMM: Tier 1 fixed-effect structure + household random intercept (1|hh_group). hh_group = paste0(survey_origin, '_', hidp_first) where hidp_first is the household ID at the individual's first observed BHPS/UKHLS wave (composite key avoids BHPS/UKHLS integer collision). Estimator: glmmTMB ML, binomial logit. No Firth penalisation (unavailable for GLMMs); quasi-separation handled via RE shrinkage. regime_6 included for build-up consistency with Tier 1.",
+    "methodology": "Tier 2 GLMM: Tier 1 fixed-effect structure + household random intercept (1|hh_group). Outcome: binary escape (1 = any subsequent window in {R1,R4} after first window in {R2,R6}; same definition as Tier 1). Lower escape rate than Tier 1 (0.0488 vs 0.7172) reflects complete-case restriction (n_excluded_cc=1113) and household-ID availability filter, not a different outcome. hh_group = paste0(survey_origin, '_', hidp_first) where hidp_first is the household ID at the individual's first observed BHPS/UKHLS wave (composite key avoids BHPS/UKHLS integer collision). Estimator: glmmTMB ML, binomial logit. No Firth penalisation (unavailable for GLMMs); quasi-separation handled via RE shrinkage. regime_6 is a predictor (first_window_regime==6 vs ==2), not the outcome; included for build-up consistency with Tier 1.",
     "source_assignments": "C:/Users/steph/TDL/results/trajectory_tda_priority2/window_escape_assignments_2026-05-14.json",
     "tier1_reference": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-tier2-regression/results/panel_methodology/regression/tier1_clustered_firth_2026-05-14.json",
     "n_starters_all_ages": 7286,

@@ -571,11 +571,15 @@ result <- list(
     date                = TODAY,
     methodology         = paste0(
       "Tier 2 GLMM: Tier 1 fixed-effect structure + household random intercept (1|hh_group). ",
+      "Outcome: binary escape (1 = any subsequent window in {R1,R4} after first window in {R2,R6}; ",
+      "same definition as Tier 1). Lower escape rate than Tier 1 reflects complete-case restriction ",
+      "and household-ID availability filter, not a different outcome. ",
       "hh_group = paste0(survey_origin, '_', hidp_first) where hidp_first is the household ID ",
       "at the individual's first observed BHPS/UKHLS wave (composite key avoids BHPS/UKHLS ",
       "integer collision). Estimator: glmmTMB ML, binomial logit. No Firth penalisation ",
       "(unavailable for GLMMs); quasi-separation handled via RE shrinkage. ",
-      "regime_6 included for build-up consistency with Tier 1."
+      "regime_6 is a predictor (first_window_regime==6 vs ==2), not the outcome; ",
+      "included for build-up consistency with Tier 1."
     ),
     source_assignments  = wa_path,
     tier1_reference     = TIER1_JSON,
