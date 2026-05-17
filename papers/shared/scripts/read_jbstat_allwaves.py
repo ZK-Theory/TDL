@@ -4,10 +4,14 @@ import os
 import re
 from pathlib import Path
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
-WORKTREE  = Path.cwd()
-DICT_ROOT_ENV = os.getenv("DATA_DICT_ROOT", "")
-DICT_ROOT = Path(DICT_ROOT_ENV) if DICT_ROOT_ENV else WORKTREE / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
+PROJ_ROOT: Path = Path("C:/Users/steph/TDL")
+WORKTREE: Path = Path.cwd()
+DICT_ROOT_ENV: str = os.getenv("DATA_DICT_ROOT", "")
+DICT_ROOT: Path = (
+    Path(DICT_ROOT_ENV)
+    if DICT_ROOT_ENV
+    else WORKTREE / "data" / "UKDA-6614-tab" / "mrdoc" / "ukda_data_dictionaries"
+)
 
 def strip_rtf(rtf_bytes: bytes) -> str:
     """Strip RTF markup from bytes and return plain text.

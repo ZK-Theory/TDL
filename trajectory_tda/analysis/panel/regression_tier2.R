@@ -394,7 +394,7 @@ if (!isTRUE(convergence_code == 0L)) {
   )
   if (!is.null(fit_retry)) {
     conv_retry <- tryCatch(fit_retry$fit$convergence, error = function(e) NA_integer_)
-    if (isTRUE(conv_retry == 0L) || (!isTRUE(convergence_code == 0L))) {
+    if (isTRUE(conv_retry == 0L) && !isTRUE(convergence_code == 0L)) {
       fit_t2         <- fit_retry
       convergence_code <- conv_retry
       convergence_msg  <- tryCatch(fit_retry$fit$message, error = function(e) "unavailable")
@@ -542,10 +542,9 @@ buildup_comparison <- lapply(key_terms, function(trm) {
     OR_ratio_T2_T1      = if (!is.na(t1_or) && !is.na(t2_or) && t1_or > 0)
                             round(t2_or / t1_or, 4) else NA_real_,
     direction_consistent = if (!is.na(t1_or) && !is.na(t2_or) && t1_or != 1 && t2_or != 1)
-                            sign(log(t1_or)) == sign(log(t2_or)) 
-                           else if (!is.na(t1_or) && !is.na(t2_or) && (t1_or == 1 || t2_or == 1))
-                            TRUE  # Null effect is direction-consistent with any effect
-                           else NA  )
+                            sign(log(t1_or)) == sign(log(t2_or))
+                           else NA
+  )
 })
 
 # Flag large directional reversals (log-OR difference > 0.5 and direction flips)

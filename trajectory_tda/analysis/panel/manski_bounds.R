@@ -27,10 +27,10 @@ cat("=== T1.15: Manski Bounds for Permanent Attritors ===\n")
 # ---------------------------------------------------------------------------
 cat("Loading regime labels...\n")
 anal05           <- fromJSON(file.path(RESULTS_DIR, "05_analysis.json"))
-analytical_pidps <- as.integer(unlist(
-  if (is.null(anal05$gmm_labels_pidp)) seq_along(anal05$gmm_labels)
-  else anal05$gmm_labels_pidp
-))
+if (is.null(anal05$gmm_labels_pidp)) {
+  stop("gmm_labels_pidp missing from 05_analysis.json; cannot match PIDs to regime labels.")
+}
+analytical_pidps <- as.integer(unlist(anal05$gmm_labels_pidp))
 regime_labels    <- as.integer(unlist(anal05$gmm_labels))
 n_analytical     <- length(regime_labels)
 cat("n_analytical:", n_analytical, "\n")
@@ -62,8 +62,11 @@ xwave   <- fread(XWAVEDAT, sep="\t", select=x_cols)
 # Use birthy as primary, doby_dv as fallback
 if ("birthy" %in% names(xwave)) {
   xwave[, birth_year := as.integer(birthy)]
-} else {
+} else if ("doby_dv" %in% names(xwave)) {
   xwave[, birth_year := as.integer(doby_dv)]
+} else {
+  warning("Neither 'birthy' nor 'doby_dv' in xwave; birth_year set to NA.")
+  xwave[, birth_year := NA_integer_]
 }
 xwave <- xwave[, .(pidp, birth_year)]
 

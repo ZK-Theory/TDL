@@ -34,6 +34,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
@@ -88,7 +89,7 @@ def load_birth_years(pidps: list[int]) -> dict[int, int | None]:
 
 
 def build_label_map(
-    new_labels: np.ndarray, orig_labels: np.ndarray, n_components: int
+    new_labels: NDArray[np.intp], orig_labels: NDArray[np.intp], n_components: int
 ) -> dict[int, int]:
     """Map new GMM label indices to original label indices by majority vote."""
     label_map: dict[int, int] = {}

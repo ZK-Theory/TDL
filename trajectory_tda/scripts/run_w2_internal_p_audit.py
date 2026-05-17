@@ -182,21 +182,6 @@ def run_sensitivity() -> dict:
             f"mean_W(null,null)={mean_nn:.4f}, p={p_val:.4f}"
         )
 
-    return results        mean_nn = float(nn.mean())
-        p_val = float(np.mean(nn >= mean_on))
-        results[key] = {
-            "mean_wasserstein_obs_null": mean_on,
-            "std_wasserstein_obs_null": float(on.std()),
-            "mean_wasserstein_null_null": mean_nn,
-            "p_value": p_val,
-            "significant_at_005": p_val < 0.05,
-            "n_null_null_pairs": len(null_null_dists[dim]),
-        }
-        logger.info(
-            f"  ℓ∞ {key}: mean_W(obs,null)={mean_on:.4f}, "
-            f"mean_W(null,null)={mean_nn:.4f}, p={p_val:.4f}"
-        )
-
     return results
 
 def setup_logging() -> None:

@@ -192,7 +192,7 @@ ukhls_inc <- merge(eligible_hidp[era == "UKHLS"], ukhls_income,
                    by = c("hidp", "wave_label"), all.x = TRUE)
 inc_combined <- rbindlist(list(bhps_inc, ukhls_inc), fill = TRUE)
 
-inc_valid <- inc_combined[!is.na(fihhmngrs_dv) & fihhmngrs_dv > 0]
+inc_valid <- inc_combined[!is.na(fihhmngrs_dv) & fihhmngrs_dv >= 0]
 bhps_cuts  <- quantile(inc_valid[era == "BHPS",  fihhmngrs_dv], c(1/3, 2/3), na.rm = TRUE)
 ukhls_cuts <- quantile(inc_valid[era == "UKHLS", fihhmngrs_dv], c(1/3, 2/3), na.rm = TRUE)
 

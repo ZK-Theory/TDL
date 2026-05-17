@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 from sklearn.mixture import GaussianMixture
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -45,11 +46,23 @@ def kass_raftery(delta: float) -> str:
 
 
 def main() -> None:
+    """Fit GMM BIC curve over k=3..15 and save results.
+
+    Loads PCA-20D trajectory embeddings from EMBEDDING_PATH, fits
+    GaussianMixture(covariance_type='full', n_init=5, random_state=42)
+    for each k in {3,...,15}, computes BIC, and writes the results JSON
+    to OUT_DIR with Kass-Raftery interpretation.
+
+    Raises:
+        FileNotFoundError: If the embedding file is not found.
+        ValueError: If the embedding array has unexpected shape or is empty.
+    """
     if not EMBEDDING_PATH.exists():
         log.error("Embedding file not found: %s", EMBEDDING_PATH)
         raise FileNotFoundError(f"Required embedding file missing: {EMBEDDING_PATH}")
     log.info("Loading PCA-20D embedding from %s", EMBEDDING_PATH)
-    embedding: NDArray[np.float64] = np.load(EMBEDDING_PATH)    log.info("Embedding shape: %s", embedding.shape)
+    embedding: NDArray[np.float64] = np.load(EMBEDDING_PATH)
+    log.info("Embedding shape: %s", embedding.shape)
     if embedding.ndim != 2 or embedding.shape[1] != 20:
         log.error("Expected 2D array with 20 features, got shape %s", embedding.shape)
         raise ValueError(f"Invalid embedding shape: {embedding.shape}")
