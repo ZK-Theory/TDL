@@ -1,7 +1,8 @@
 # Research context: TDA-Research/03-Papers/P01-A/_project.md
 # Purpose: Shared core utilities for the Stage 1 matched-L W2 + landscape L2 battery,
 #   phase-split package. Houses the W2 + landscape L2 aggregator (identical numerical
-#   behaviour to the legacy monolith) and the two-path output roots.
+#   behaviour to the legacy monolith), the null-diagram cache I/O, and the
+#   two-path output roots.
 """Stage 1 battery — shared core utilities.
 
 The phase scripts under ``trajectory_tda/scripts/stage1/`` are intentionally
@@ -164,9 +165,7 @@ def _null_null_w2_worker(d_i: NDArray[np.float64], d_j: NDArray[np.float64], dim
 def _obs_finite_dgm(ph_obs: Any, dim: int) -> NDArray[np.float64]:
     """Extract the observed PH diagram at ``dim``, filtering infinite bars."""
     dgm = ph_obs.dgms.get(dim, np.empty((0, 2)))
-    dgm_arr: NDArray[np.float64] = (
-        np.array(dgm, dtype=np.float64) if len(dgm) > 0 else np.empty((0, 2))
-    )
+    dgm_arr: NDArray[np.float64] = np.array(dgm, dtype=np.float64) if len(dgm) > 0 else np.empty((0, 2))
     if dgm_arr.shape[0] > 0:
         dgm_arr = dgm_arr[np.isfinite(dgm_arr).all(axis=1)]
     return dgm_arr
@@ -203,7 +202,12 @@ def aggregate_combined(
     tag = f"[{phase_label} AGG]" if phase_label else "[AGG]"
     logger.info(
         "%s starting: B=%d, n_null_pairs=%d, max_dim=%d, k_max=%d, n_points=%d",
-        tag, n_permutations, n_null_pairs, max_dim, k_max, n_points,
+        tag,
+        n_permutations,
+        n_null_pairs,
+        max_dim,
+        k_max,
+        n_points,
     )
 
     output: dict[str, Any] = {}
@@ -231,9 +235,7 @@ def aggregate_combined(
         null_dgms: list[NDArray[np.float64]] = []
         for r in null_results:
             dgm_j = r.get(f"{key}_dgm", [])
-            d_j: NDArray[np.float64] = (
-                np.array(dgm_j, dtype=np.float64) if len(dgm_j) > 0 else np.empty((0, 2))
-            )
+            d_j: NDArray[np.float64] = np.array(dgm_j, dtype=np.float64) if len(dgm_j) > 0 else np.empty((0, 2))
             null_dgms.append(d_j)
             land_j = landscape_on_grid(d_j, t_vals, k_max)
             null_lands.append(land_j)
@@ -244,8 +246,7 @@ def aggregate_combined(
         # Pair sampling — re-seed deterministically per dim (matches legacy)
         rng_pairs.seed(seed)
         pair_indices = [
-            tuple(int(x) for x in rng_pairs.choice(n_permutations, size=2, replace=False))
-            for _ in range(n_null_pairs)
+            tuple(int(x) for x in rng_pairs.choice(n_permutations, size=2, replace=False)) for _ in range(n_null_pairs)
         ]
 
         # Null-null W2 — parallel n_jobs=-1
@@ -253,21 +254,15 @@ def aggregate_combined(
         logger.info("%s   dim=%d null-null W2 n_pairs=%d...", tag, dim, n_null_pairs)
         null_null_w2 = list(
             Parallel(n_jobs=-1, verbose=10)(
-                delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim)
-                for (i, j) in pair_indices
+                delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim) for (i, j) in pair_indices
             )
         )
         logger.info("%s   dim=%d null-null W2 done in %.1fs", tag, dim, time.time() - t_w2)
 
-        null_null_l2_list = [
-            landscape_l2_distance(null_lands[i], null_lands[j], dx)
-            for (i, j) in pair_indices
-        ]
+        null_null_l2_list = [landscape_l2_distance(null_lands[i], null_lands[j], dx) for (i, j) in pair_indices]
 
         null_null_w2_arr = np.array(null_null_w2) if null_null_w2 else np.array([0.0])
-        null_null_l2_arr = (
-            np.array(null_null_l2_list) if null_null_l2_list else np.array([0.0])
-        )
+        null_null_l2_arr = np.array(null_null_l2_list) if null_null_l2_list else np.array([0.0])
         mean_null_null_w2 = float(null_null_w2_arr.mean())
         mean_null_null_land = float(null_null_l2_arr.mean())
 
@@ -276,9 +271,7 @@ def aggregate_combined(
         bca_ci_upper: float | None = None
         if len(obs_null_w2) >= 2 and len(null_null_w2_arr) >= 2:
             try:
-                _, bca_ci_lower, bca_ci_upper = compute_w2_ratio_bca_ci(
-                    obs_null_w2, null_null_w2_arr, seed=seed
-                )
+                _, bca_ci_lower, bca_ci_upper = compute_w2_ratio_bca_ci(obs_null_w2, null_null_w2_arr, seed=seed)
             except Exception as exc:
                 logger.warning("BCa CI failed for W2 %s: %s", key, exc)
 
@@ -288,13 +281,9 @@ def aggregate_combined(
         _r_lower = int(np.sum(null_null_w2_arr <= mean_obs_null_w2))
         lower_tail_pvalue = (_r_lower + 1) / (_n_w2 + 1)
         _std_w2 = float(null_null_w2_arr.std()) if len(null_null_w2) > 1 else float("nan")
-        d_perm_w2 = (
-            (mean_obs_null_w2 - mean_null_null_w2) / _std_w2 if _std_w2 > 0 else float("nan")
-        )
+        d_perm_w2 = (mean_obs_null_w2 - mean_null_null_w2) / _std_w2 if _std_w2 > 0 else float("nan")
 
-        t_ratio_land = (
-            mean_obs_null_land / mean_null_null_land if mean_null_null_land > 0 else float("nan")
-        )
+        t_ratio_land = mean_obs_null_land / mean_null_null_land if mean_null_null_land > 0 else float("nan")
         bca_ci_lower_land: float | None = None
         bca_ci_upper_land: float | None = None
         if len(obs_null_land) >= 2 and len(null_null_l2_arr) >= 2:
@@ -308,18 +297,18 @@ def aggregate_combined(
         _r_land = int(np.sum(null_null_l2_arr >= mean_obs_null_land))
         _n_land = len(null_null_l2_arr)
         land_pvalue = (_r_land + 1) / (_n_land + 1)
-        _std_land = (
-            float(null_null_l2_arr.std()) if len(null_null_l2_list) > 1 else float("nan")
-        )
-        d_perm_land = (
-            (mean_obs_null_land - mean_null_null_land) / _std_land
-            if _std_land > 0
-            else float("nan")
-        )
+        _std_land = float(null_null_l2_arr.std()) if len(null_null_l2_list) > 1 else float("nan")
+        d_perm_land = (mean_obs_null_land - mean_null_null_land) / _std_land if _std_land > 0 else float("nan")
 
         logger.info(
             "  %s: W2 p=%.4f T=%.4f d=%.4f | land L2 p=%.4f T=%.4f d=%.4f",
-            key, w2_pvalue, t_ratio_w2, d_perm_w2, land_pvalue, t_ratio_land, d_perm_land,
+            key,
+            w2_pvalue,
+            t_ratio_w2,
+            d_perm_w2,
+            land_pvalue,
+            t_ratio_land,
+            d_perm_land,
         )
         logger.info("%s   dim=%d done in %.1fs", tag, dim, time.time() - t_dim)
 
@@ -379,7 +368,10 @@ def run_headline(
     logger.info("=" * 70)
     logger.info(
         "[PHASE %s] start (L=%d, B=%d, n_jobs=%d)",
-        label, n_landmarks, n_permutations, n_jobs,
+        label,
+        n_landmarks,
+        n_permutations,
+        n_jobs,
     )
     logger.info("=" * 70)
 
@@ -387,7 +379,10 @@ def run_headline(
     embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
     logger.info(
         "[PHASE %s] checkpoint loaded in %.1fs: %d trajectories, %dD embeddings",
-        label, time.time() - t_load, embeddings.shape[0], embeddings.shape[1],
+        label,
+        time.time() - t_load,
+        embeddings.shape[0],
+        embeddings.shape[1],
     )
 
     n = embeddings.shape[0]
@@ -400,13 +395,18 @@ def run_headline(
     ph_obs = compute_rips_ph(obs_landmarks, max_dim=1)
     logger.info(
         "[PHASE %s] obs landmarks + PH built in %.1fs (L=%d)",
-        label, time.time() - t_lm, actual_lm,
+        label,
+        time.time() - t_lm,
+        actual_lm,
     )
 
     write_status(f"PHASE {label} PERMUTATIONS", f"B={n_permutations} n_jobs={n_jobs}")
     logger.info(
         "[PHASE %s] running %d Markov-%d permutations (n_jobs=%d)...",
-        label, n_permutations, markov_order, n_jobs,
+        label,
+        n_permutations,
+        markov_order,
+        n_jobs,
     )
     t0 = time.time()
     seeds_list = [seed + i + 1 for i in range(n_permutations)]
@@ -428,9 +428,7 @@ def run_headline(
             for s in seeds_list
         )
     )
-    logger.info(
-        "[PHASE %s] %d permutations done in %.1fs", label, n_permutations, time.time() - t0
-    )
+    logger.info("[PHASE %s] %d permutations done in %.1fs", label, n_permutations, time.time() - t0)
 
     write_status(f"PHASE {label} AGGREGATION", f"perms done in {time.time() - t0:.0f}s")
     out = aggregate_combined(
@@ -534,4 +532,142 @@ def run_lm_sensitivity_single_L(
         },
     }
     write_status(f"LM {label} L={L} DONE", "")
+    return out
+
+
+# --- Cache I/O (.npz) for landscape sensitivity reuse -----------------------
+
+CACHE_DTYPE_OBJECT = np.dtype("O")
+
+
+def write_null_diagram_cache(
+    cache_path: Path,
+    null_results: list[dict],
+    ph_obs: Any,
+    metadata: dict[str, Any],
+) -> Path:
+    """Persist null + observed diagrams to a gitignored ``.npz`` for downstream reuse.
+
+    Schema:
+        h0_diagrams: ragged ``(B,)`` object array of ``(n_i, 2)`` float64
+        h1_diagrams: ragged ``(B,)`` object array of ``(m_i, 2)`` float64
+        obs_h0_diagram: ``(n_obs, 2)`` float64
+        obs_h1_diagram: ``(m_obs, 2)`` float64
+        metadata: 0-D object array carrying a dict ``{B, L, seed, dataset, ...}``
+
+    ``run_landscape_sensitivity.py`` is the sole consumer.
+    """
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    B = len(null_results)
+    h0_arr = np.empty(B, dtype=CACHE_DTYPE_OBJECT)
+    h1_arr = np.empty(B, dtype=CACHE_DTYPE_OBJECT)
+    for i, r in enumerate(null_results):
+        h0_arr[i] = np.array(r.get("H0_dgm", []), dtype=np.float64).reshape(-1, 2)
+        h1_arr[i] = np.array(r.get("H1_dgm", []), dtype=np.float64).reshape(-1, 2)
+
+    obs_h0 = _obs_finite_dgm(ph_obs, 0)
+    obs_h1 = _obs_finite_dgm(ph_obs, 1)
+
+    np.savez_compressed(
+        cache_path,
+        h0_diagrams=h0_arr,
+        h1_diagrams=h1_arr,
+        obs_h0_diagram=obs_h0,
+        obs_h1_diagram=obs_h1,
+        metadata=np.array(metadata, dtype=CACHE_DTYPE_OBJECT),
+    )
+    logger.info("Null-diagram cache: %s (B=%d)", cache_path, B)
+    return cache_path
+
+
+def read_null_diagram_cache(cache_path: Path) -> dict[str, Any]:
+    """Load a null-diagram cache ``.npz`` written by ``write_null_diagram_cache``.
+
+    Returns a dict with the same keys as the cache schema, with ragged arrays
+    materialised as Python lists of float64 arrays.
+    """
+    with np.load(cache_path, allow_pickle=True) as data:
+        h0_arr = data["h0_diagrams"]
+        h1_arr = data["h1_diagrams"]
+        obs_h0 = np.array(data["obs_h0_diagram"], dtype=np.float64)
+        obs_h1 = np.array(data["obs_h1_diagram"], dtype=np.float64)
+        metadata = data["metadata"].item()
+        h0_list = [np.array(x, dtype=np.float64).reshape(-1, 2) for x in h0_arr]
+        h1_list = [np.array(x, dtype=np.float64).reshape(-1, 2) for x in h1_arr]
+    return {
+        "h0_diagrams": h0_list,
+        "h1_diagrams": h1_list,
+        "obs_h0_diagram": obs_h0,
+        "obs_h1_diagram": obs_h1,
+        "metadata": metadata,
+    }
+
+
+# --- Landscape sensitivity (cache-driven) -----------------------------------
+
+
+def sweep_landscape_from_cache(
+    cache_data: dict[str, Any],
+    k_max_values: list[int],
+    n_points_values: list[int],
+    seed: int,
+    label: str,
+    n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
+) -> dict[str, Any]:
+    """Sweep ``(k_max, n_points)`` against a cached set of null + obs diagrams.
+
+    No Rips PH, no Markov simulation. Loads diagrams from the cache and
+    evaluates landscapes per (k_max, n_points), producing the same
+    ``h0_landscape_l2_pvalue`` / ``h1_landscape_l2_pvalue`` schema as legacy.
+    """
+    h0_list = cache_data["h0_diagrams"]
+    h1_list = cache_data["h1_diagrams"]
+    obs_h0 = cache_data["obs_h0_diagram"]
+    obs_h1 = cache_data["obs_h1_diagram"]
+    B = len(h0_list)
+    n_null_pairs = min(n_null_pairs_cap, B * (B - 1) // 2)
+
+    out: dict[str, Any] = {}
+    rng_pairs = np.random.RandomState(seed)
+
+    for k_max in k_max_values:
+        for n_pts in n_points_values:
+            run_key = f"k{k_max}_np{n_pts}"
+            write_status(f"LAND-SENS {label} {run_key}", f"k_max={k_max} n_points={n_pts}")
+            logger.info("[LAND-SENS %s %s] k_max=%d n_points=%d", label, run_key, k_max, n_pts)
+
+            cell: dict[str, Any] = {"k_max": k_max, "n_points": n_pts}
+            for dim, obs_dgm, null_dgms in (
+                (0, obs_h0, h0_list),
+                (1, obs_h1, h1_list),
+            ):
+                if obs_dgm.shape[0] > 0:
+                    t_min = float(obs_dgm[:, 0].min())
+                    t_max = float(obs_dgm[:, 1].max())
+                else:
+                    t_min, t_max = 0.0, 1.0
+                t_vals = np.linspace(t_min, t_max, n_pts)
+                dx = (t_vals[-1] - t_vals[0]) / n_pts if n_pts > 1 else 1.0
+
+                obs_land = landscape_on_grid(obs_dgm, t_vals, k_max)
+                null_lands = [landscape_on_grid(d, t_vals, k_max) for d in null_dgms]
+                obs_null_l2 = np.array([landscape_l2_distance(obs_land, lnd, dx) for lnd in null_lands])
+
+                rng_pairs.seed(seed)
+                pair_indices = [
+                    tuple(int(x) for x in rng_pairs.choice(B, size=2, replace=False)) for _ in range(n_null_pairs)
+                ]
+                null_null_l2 = np.array(
+                    [landscape_l2_distance(null_lands[i], null_lands[j], dx) for (i, j) in pair_indices]
+                )
+
+                mean_obs_null = float(obs_null_l2.mean())
+                _r = int(np.sum(null_null_l2 >= mean_obs_null))
+                _n = len(null_null_l2)
+                p_value = (_r + 1) / (_n + 1)
+                cell[f"h{dim}_landscape_l2_pvalue"] = p_value
+
+            out[run_key] = cell
+
     return out
