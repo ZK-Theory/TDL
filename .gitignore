@@ -125,3 +125,11 @@ papers/submission guidelines/
 .apm/bus/
 .apm/memory/stage-*/
 .apm/worktrees/
+
+# Stage-1 battery gitignored intermediates (T0.12 two-path rule)
+# - launches/ : PID markers written before any heavy work (launch ground truth)
+# - cache/    : permutation-diagram .npz cache shared headline → sensitivity
+# - .partial/ : sub-phase partial JSON writes for halt resilience
+results/trajectory_tda_integration/stage1/launches/
+results/trajectory_tda_integration/stage1/cache/
+results/**/.partial/
