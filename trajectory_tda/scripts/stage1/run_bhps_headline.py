@@ -25,17 +25,33 @@ from trajectory_tda.scripts.stage1 import _battery_core as core
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 1 BHPS headline phase")
     parser.add_argument("--bhps-dir", type=str, default="results/trajectory_tda_bhps")
-    parser.add_argument("--L", type=int, default=core.DEFAULT_L)
-    parser.add_argument("--B", type=int, default=core.DEFAULT_B)
+    parser.add_argument("--L", type=int, default=core.DEFAULT_L, help="Landmarks (default 5000)")
+    parser.add_argument("--B", type=int, default=core.DEFAULT_B, help="Permutations (default 1000)")
     parser.add_argument("--seed", type=int, default=core.DEFAULT_SEED)
     parser.add_argument("--k-max", type=int, default=core.DEFAULT_K_MAX)
     parser.add_argument("--n-points", type=int, default=core.DEFAULT_N_POINTS)
-    parser.add_argument("--n-null-pairs", type=int, default=core.DEFAULT_N_NULL_PAIRS)
-    parser.add_argument("--n-jobs", type=int, default=4)
+    parser.add_argument(
+        "--n-null-pairs",
+        type=int,
+        default=core.DEFAULT_N_NULL_PAIRS,
+        help="Cap on null-null pairs (default 500)",
+    )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=4,
+        help="Permutation parallelism (locked to 4 at L>=2000 per OOM finding)",
+    )
     parser.add_argument("--smoke", action="store_true", help="Smoke-test mode.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    phase_tag = "bhps_headline"
+    core.write_launch_marker(
+        phase_tag,
+        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke},
+    )
 
     out, null_results, ph_obs = core.run_headline(
         checkpoint_dir=Path(args.bhps_dir),
@@ -45,6 +61,7 @@ def main() -> None:
         n_points=args.n_points,
         seed=args.seed,
         label="BHPS",
+        phase_tag=phase_tag,
         n_jobs=args.n_jobs,
         n_null_pairs_cap=args.n_null_pairs,
     )
@@ -72,7 +89,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"bhps_headline{smoke_tag}_{today}.json"
     payload = {
-        "phase": "bhps_headline",
+        "phase": phase_tag,
         "run_params": {
             "L": args.L,
             "B": args.B,

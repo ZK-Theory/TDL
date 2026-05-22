@@ -65,6 +65,11 @@ def main() -> None:
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache not found: {cache_path}")
 
+    core.write_launch_marker(
+        phase_tag,
+        {"cache": str(cache_path), "seed": args.seed, "smoke": args.smoke},
+    )
+
     cache_data = core.read_null_diagram_cache(cache_path)
     meta = cache_data["metadata"]
     logging.info(

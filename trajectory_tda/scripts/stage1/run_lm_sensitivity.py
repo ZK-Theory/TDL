@@ -26,16 +26,23 @@ from trajectory_tda.scripts.stage1 import _battery_core as core
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 1 USoc landmark sensitivity (single L)")
     parser.add_argument("--usoc-dir", type=str, default="results/trajectory_tda_integration")
-    parser.add_argument("--L", type=int, required=True, help="Landmark count for this sub-phase")
+    parser.add_argument("--L", type=int, required=True, help="Landmark count for this sub-phase (variable)")
     parser.add_argument("--B", type=int, default=core.DEFAULT_B)
     parser.add_argument("--seed", type=int, default=core.DEFAULT_SEED)
     parser.add_argument("--k-max", type=int, default=core.DEFAULT_K_MAX)
     parser.add_argument("--n-points", type=int, default=core.DEFAULT_N_POINTS)
     parser.add_argument("--n-null-pairs", type=int, default=core.DEFAULT_N_NULL_PAIRS)
     parser.add_argument("--n-jobs", type=int, default=4)
+    parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    phase_tag = f"lm_sens_L{args.L}"
+    core.write_launch_marker(
+        phase_tag,
+        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke},
+    )
 
     cell = core.run_lm_sensitivity_single_L(
         checkpoint_dir=Path(args.usoc_dir),
@@ -43,6 +50,7 @@ def main() -> None:
         n_permutations=args.B,
         seed=args.seed,
         label="USoc_lm_sens",
+        phase_tag=phase_tag,
         n_jobs=args.n_jobs,
         n_null_pairs_cap=args.n_null_pairs,
         k_max=args.k_max,
@@ -50,11 +58,12 @@ def main() -> None:
     )
 
     today = date.today().isoformat()
+    smoke_tag = "_smoke" if args.smoke else ""
     out_dir = core.worktree_root() / "results/trajectory_tda_integration/stage1"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"lm_sensitivity_L{args.L}_{today}.json"
+    out_path = out_dir / f"lm_sensitivity_L{args.L}{smoke_tag}_{today}.json"
     payload = {
-        "phase": f"lm_sens_L{args.L}",
+        "phase": phase_tag,
         "run_params": {
             "L": args.L,
             "B": args.B,

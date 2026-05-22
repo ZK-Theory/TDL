@@ -9,6 +9,9 @@ Usage::
     uv run --env-file .env python trajectory_tda/scripts/stage1/run_usoc_headline.py \\
         --usoc-dir results/trajectory_tda_integration \\
         --L 5000 --B 1000 --seed 42
+
+Pre-registration: 2026-05-13 vault entry
+PRE-REGISTRATION — Matched-L W2 + Landscape L2 Battery.
 """
 
 from __future__ import annotations
@@ -51,6 +54,12 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
+    phase_tag = "usoc_headline"
+    core.write_launch_marker(
+        phase_tag,
+        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke},
+    )
+
     out, null_results, ph_obs = core.run_headline(
         checkpoint_dir=Path(args.usoc_dir),
         n_permutations=args.B,
@@ -59,6 +68,7 @@ def main() -> None:
         n_points=args.n_points,
         seed=args.seed,
         label="USoc",
+        phase_tag=phase_tag,
         n_jobs=args.n_jobs,
         n_null_pairs_cap=args.n_null_pairs,
     )
@@ -86,7 +96,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"usoc_headline{smoke_tag}_{today}.json"
     payload = {
-        "phase": "usoc_headline",
+        "phase": phase_tag,
         "run_params": {
             "L": args.L,
             "B": args.B,
