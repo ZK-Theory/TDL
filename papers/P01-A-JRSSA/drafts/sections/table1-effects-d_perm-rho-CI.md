@@ -87,6 +87,17 @@ The BCa-bootstrap CI on $\hat\rho$ (computed in
 `compute_w2_ratio_bca_ci`, `trajectory_tda/topology/vectorisation.py`)
 is reported as a sensitivity check in Supplement §S1.
 
+*Effect-size statistics vs. $p$-value formula.* The $d_{\text{perm}}$
+and $\hat\rho$ columns are derived from the stored obs-null and null-null
+$W_2$ *distance arrays* and are therefore unaffected by the choice of
+$p$-value formula (Edgington vs. empirical fraction; cf. §S0.8). The
+$p$-values reported alongside them in the table cells below come from
+the legacy post-audit JSONs (empirical fraction form) and will be
+re-reported under the canonical Edgington form once the headline
+$B = 1{,}000$ relaunch (T1.2, in progress) lands. Above the
+$1 / (1 + N_{\text{pairs}}) \approx 0.002$ resolution floor the two
+formulas agree to three decimals; only the floor itself changes.
+
 ## §4.3 Table 1 — replacement specification
 
 Replace the v1 Markov-memory ladder table (v1-2026-04.md lines 110–120) with
