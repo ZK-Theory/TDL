@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" | { read -r f; [[ \"$f\" == *.py ]] && uv run ruff check --fix \"$f\" && uv run ruff format \"$f\"; } 2>/dev/null || true",
+            "command": "python \"c:\\Users\\steph\\TDL\\.codex\\hooks\\ruff_fix.py\"",
             "timeout": 30,
             "statusMessage": "Linting and formatting..."
           }
