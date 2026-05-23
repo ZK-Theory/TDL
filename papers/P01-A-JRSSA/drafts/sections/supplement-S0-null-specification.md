@@ -229,24 +229,46 @@ The four cross-cutting policies that apply to every rung above:
 
 ## §S0.8 Permutation budget and $p$-value computation
 
-Each null type is run for $B$ permutations. The post-audit canonical runs
-deposited in `results/trajectory_tda_integration/post_audit/` and
-`results/trajectory_tda_bhps/post_audit/` use $B = 100$ permutations and
-$N_{\text{pairs}} = 500$ null-null pairs (`L = 5{,}000` landmarks, May
-2026); the pre-registration locks $B = 1{,}000$ for the headline relaunch
-when the resumed phase-split pipeline emits the next round of diagrams.
-All $p$-values below the headline relaunch are computed identically by
+Each null type is run for $B$ permutations and $N_{\text{pairs}}$ null-null
+pairs. The pre-registration (T1.1, 2026-05-13) locks $B = 1{,}000$ and
+$N_{\text{pairs}} = 500$ for the headline relaunch when the resumed
+phase-split pipeline (T0.12) emits the next round of diagrams. The headline
+$p$-value uses the Edgington form
 
 $$
-\hat p \;=\; \frac{1}{N_{\text{pairs}}}\, \Big|\big\{(j, j') :
+\hat p \;=\; \frac{1 + \big|\big\{(j, j') :
 W_2\big(D^{(j)}_{\text{null}}, D^{(j')}_{\text{null}}\big)
 \;\ge\;
 \overline{W_2}\big(D_{\text{obs}}, D^{(j)}_{\text{null}}\big)
-\big\}\Big|,
+\big\}\big|}{1 + N_{\text{pairs}}},
 $$
 
 with $\overline{W_2}(\cdot, \cdot)$ the mean across the $B$ stored
-obs-null distances. The implementation
-(`permutation_test_trajectories`, lines 571–752) writes the full
+obs-null distances. The headline implementation
+(`trajectory_tda/scripts/run_stage1_battery.py`, line 466 for $W_2$ and
+line 486 for the companion landscape $L^2$ statistic) writes the full
 `obs_null_distribution` array and the null-null summary statistics to JSON
-for downstream effect-size and CI computation (Tables 1 and S1).
+for downstream effect-size and CI computation (Tables 1 and S1). The
+resolution floor of $1 / (1 + N_{\text{pairs}}) \approx 0.002$ at
+$N_{\text{pairs}} = 500$ replaces the strict-zero floor that the raw
+empirical fraction produces when all null-null distances fall below the
+obs-null mean.
+
+> *Note on legacy data.* Some figures and tables consume post-audit JSON
+> output computed under the legacy code path
+> (`trajectory_tda/topology/permutation_nulls.py` lines 571–752,
+> `permutation_test_trajectories`), which used the empirical-fraction form
+> $\hat p_{\text{legacy}} = N_{\text{pairs}}^{-1} \,|\{\ldots\}|$ rather
+> than the Edgington form $(1 + |\{\ldots\}|) / (1 + N_{\text{pairs}})$.
+> Above the resolution floor the two formulas agree to within
+> $1 / (1 + N_{\text{pairs}}) \approx 0.002$; the only practical
+> difference is the floor itself ($0$ vs $\approx 0.002$). The headline
+> $B = 1{,}000$ results currently in production (T1.2) use the Edgington
+> form; legacy values are labelled in the supplement where they appear and
+> will be re-reported under Edgington once the headline relaunch lands.
+> The post-audit canonical runs deposited in
+> `results/trajectory_tda_integration/post_audit/` and
+> `results/trajectory_tda_bhps/post_audit/` (May 2026; $L = 5{,}000$,
+> $B = 100$, $N_{\text{pairs}} = 500$) are the legacy-formula values
+> consumed by the Supplement §S1 and Table 1 cells that label themselves
+> *post-audit canonical*.
