@@ -12,7 +12,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |------|--------|-------|--------|
 | 0.1 | Done | reproducibility-agent | |
 | 0.2 | Done | reproducibility-agent | |
-| 0.3 | Active | reproducibility-agent | pipe/two-machine-check |
+| 0.3 | Paused — bus overwritten by T0.12; awaiting User canary_machine2 file. Only gates T2.18 prose, not Stage 1. | reproducibility-agent | pipe/two-machine-check |
 | 0.4 | Done | tda-agent | |
 | 0.5 | Done | tda-agent | |
 | 0.6 | Done | tda-agent | |
@@ -21,14 +21,30 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 0.9 | Done | panel-statistics-agent | |
 | 0.10 | Done | panel-statistics-agent | |
 | 0.11 | Done | panel-statistics-agent | |
+| 0.12 | Done — merged 2026-05-22 (commit c3a0be2 pre-rewrite / 285075e post-rewrite) | reproducibility-agent | pipe/stage1-phase-split |
+
+**Stage 2:**
+
+| Task | Status | Agent | Branch |
+|------|--------|-------|--------|
+| 2.1 | Done — merged 2026-05-22 (commit 0a91d94) | academic-writing-agent | paper/p01a-v2-evidenced |
+| 2.2 | Done — merged 2026-05-22 (commit 0a91d94) | academic-writing-agent | paper/p01a-v2-evidenced |
 
 **Stage 1:**
 
 | Task | Status | Agent | Branch |
 |------|--------|-------|--------|
-| 1.1 | Active | tda-agent | run/core-tda-battery |
-| 1.2 | Active | tda-agent | run/core-tda-battery |
-| 1.3 | Active | tda-agent | run/core-tda-battery |
+| 1.1 | Done — 6 pre-reg vault entries filed | tda-agent | run/core-tda-battery (artefacts cherry-picked to main) |
+| 1.2 | Halted; resumed as 1.2a–h batch on run/stage1-headline-batch | tda-agent | run/stage1-headline-batch |
+| 1.2a | Active — USoc headline @ L=5000, B=1000 | tda-agent | run/stage1-headline-batch |
+| 1.2b | Queued — BHPS headline @ L=5000, B=1000 | tda-agent | run/stage1-headline-batch |
+| 1.2c | Queued — USoc LM sensitivity L=2500, B=1000 | tda-agent | run/stage1-headline-batch |
+| 1.2d | Queued — USoc LM sensitivity L=8000, B=1000 | tda-agent | run/stage1-headline-batch |
+| 1.2e | Queued — landscape sensitivity from cache | tda-agent | run/stage1-headline-batch |
+| 1.2f | Queued — BHPS length-matched Strategy a truncate (Entry 5) | tda-agent | run/stage1-headline-batch |
+| 1.2g | Queued — BHPS length-matched Strategy b first13 (Entry 5) | tda-agent | run/stage1-headline-batch |
+| 1.2h | Queued — assembly + Entry 5 outcome lock | tda-agent | run/stage1-headline-batch |
+| 1.3 | Done — Outcome A locked (USoc 5/7, BHPS 8/8 regimes BH-significant) | tda-agent | run/core-tda-battery (artefacts cherry-picked to main) |
 | 1.4 | Pending | tda-agent | |
 | 1.5 | Pending | tda-agent | |
 | 1.6 | Pending | tda-agent | |
@@ -63,11 +79,11 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 | Agent | Instance | Notes |
 |-------|----------|-------|
-| reproducibility-agent | 1 | active (T0.3) |
-| tda-agent | 1 | active (T1.1–T1.3 batch) — worktree run-core-tda-battery |
+| reproducibility-agent | 1 | idle — T0.12 Done + merged 2026-05-22; T0.3 paused on bus awaiting canary_machine2 file |
+| tda-agent | 1 | active — T1.2a–h batch dispatched 2026-05-22 (USoc/BHPS headlines + LM sensitivity + Entry 5 length-match + assembly; ~60h sequential overnight); worktree run-stage1-headline-batch |
 | panel-statistics-agent | 1 | idle (T1.30 Done + merged 2026-05-15) — awaiting next dispatch; T1.21 deferred pending all fix batches |
 | panel-statistics-agent | 2 | active (T1.32 Batch 3 — IPW SMD+overlap, NSSEC propagation-skip, ~15 script/style fixes) — worktree pipe-coderabbit-batch3 |
-| academic-writing-agent | 1 | uninitialized |
+| academic-writing-agent | 1 | idle — T2.1 + T2.2 Done + merged 2026-05-22 (commit 0a91d94); 8 evidenced-now P01-A v2 section files on main; awaiting T1.2 outcomes for gated sections (§4.3/§6.2/§7.1/abstract) |
 
 ## Version Control
 
@@ -108,3 +124,6 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 - T1.20 Done (commit 0ae5398, merged 68f0513): σ²_u=0.208, ICC=0.060, marginal McFadden R²=0.486. regime_6 OR=21.3 dominates (vs T1 Firth OR=18.6). Conditional R²=−0.176 (artefact; paper cites marginal only). All 11 key predictors direction-consistent T1→T2. T1.21 dispatched to run/tier3-regression.
 - IPW individual weights gap (2026-05-14): ipw_construction.R only saves diagnostics JSON — no individual weights RDS ever written. Fix: add saveRDS block to ipw_construction.R, re-run, commit on run/sensitivity-independence. Required before T1.16 can run. Clarification added to panel-statistics-agent-2 bus.
 - H0 tree-cut labels gap (2026-05-14): H0 components at eps*=0.54 not pre-computed anywhere. T1.23 derives them from embeddings.npy via sklearn radius_neighbors_graph + connected_components (or AgglomerativeClustering linkage=single). GMM labels in 05_analysis.json[gmm_labels][27280]. Clarification in agent-2 bus.
+- **2026-05-22 (afternoon): T0.12 phase-split merged to main + T2.1/T2.2 evidenced-prose merged to main + T1.2 resumed batch dispatched.** Three merges to main today: (1) `pipe/stage1-phase-split` (T0.12) — 5 phase scripts under trajectory_tda/scripts/stage1/ + permutation cache .npz schema + partial-JSON writes + launch-PID markers + smoke-test equivalence with legacy at L=200/B=10 (1e-10 tolerance) + .gitignore patch for launches/cache/.partial; (2) `paper/p01a-v2-evidenced` — T2.1 8 evidenced section files (R1-M5/M1/H3/10.1/10.3/10.5 + R3-B2 Tier 1 + R3-B5) + T2.2 §3.3 Edgington formula correction + §S0 footnote + Table 1 caveat; (3) cherry-picked from run/core-tda-battery: T1.1 pre-reg JSON + T1.3 stratified result JSON + run_stratified_battery.py producing script. T1.2 resumed batch (T1.2a–h, 8 sub-tasks) dispatched to tda-agent on new branch run/stage1-headline-batch — symmetric B=1000 throughout per User mandate; Entry 5 length-match bundled (Strategies (a) truncate + (b) first13). ~60h sequential overnight execution; uses new phase-split pipeline (halt-resilient via .partial/ writes + launch-PID markers + cache-driven landscape sensitivity).
+- **2026-05-22 (afternoon): repomix-output.xml history rewrite + force-push.** Push to origin/main rejected by GitHub 100MB pre-receive hook because commit 52af787 added repomix-output.xml at 108MB. User authorized history rewrite (option a — file is regenerable derivative artefact, no archival value). git-filter-repo via uvx removed the file from all 323 commits across all refs in 3.39s. Backup tag pre-filter-repo-backup retained at pre-rewrite main HEAD. Force-pushed main with --force-with-lease (after fetch to refresh stale origin/main ref following origin re-add). Working trees on three branches showed stale index entries staging the file (`A repomix-output.xml`); resolved via `git reset HEAD` then physical file delete (~336MB disk freed across 3 worktrees). All 6 worktree branches rewritten consistently by filter-repo. Side effect: every worktree branch SHA changed (paper/p01a-v2-evidenced dc1d2a1→a88cfa6, pipe/stage1-phase-split f905965→cbc5d7e, pipe/two-machine-check 1991de2→57684e3, run/core-tda-battery 275c16b→65bf477, run/tier3-regression e4f40cb→6cc390b). repomix-output.xml + repomix-output.* added to .gitignore to prevent re-introduction. Final main HEAD on origin after both Stage 0 and Stage 2 merges: 0a91d94.
+- **2026-05-22 (afternoon): vault [DECISION] filed — BHPS L=5000 clean negative controls.** L=5000 BHPS post-audit shows label-shuffle H₀ p=0.512/H₁ p=0.558, cohort-shuffle H₀ p=0.554/H₁ p=0.634 — all clean. L=2000 finding (label p=0.036, cohort p=0.034) that founded the CONVENTIONS "NEVER treat BHPS shuffles as assumed negative controls" rule was a landmark-budget artefact. Order-shuffle and Markov-1 rejections at L=5000 BHPS unchanged (both p=0.000) — headline finding intact. CONVENTIONS.md rule manually replaced by User following the Manager's suggested replacement text. P01-A §4.3 worker section already reflects the new finding (L=5000 clean + L=2000 outlier preserved in Supplement §S4 landmark-budget sensitivity).
