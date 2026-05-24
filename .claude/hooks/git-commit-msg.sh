@@ -17,7 +17,7 @@ case "$prefix" in
     ;;
   *)
     echo "ERROR: Commit message must start with one of: [RESULT], [DECISION], [NEGATIVE], [PIPELINE], [DATA], [EXPLORE]" >&2
-    echo "Example: [PIPELINE] Migrate code navigation policy to jcodemunch" >&2
+    echo "Example: [PIPELINE] P01: Stage-1 phase-script PROJ_ROOT defaults" >&2
     exit 1
     ;;
 esac

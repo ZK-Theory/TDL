@@ -27,14 +27,14 @@ This project produces v2 drafts of two companion academic papers — **P01-A** (
 
 **Authoritative documents (read locations).**
 - Reviewer-response plans, reviewer-issue decompositions, and supporting notes under `papers/P01-A-JRSSA/notes/` and `papers/P01-B-JRSSB/notes/` per the source-documents table in §11
-- Project standards: workspace-root `CLAUDE.md` (methodological mandates, code conventions, commit prefixes, after-session sync) and `.claude/CLAUDE.md` (vexp policy, vault-engine MCP server)
+- Project standards: workspace-root `CLAUDE.md` (methodological mandates, code conventions, commit prefixes, after-session sync) and `.claude/CLAUDE.md` (code navigation policy, vault-engine MCP server)
 - Per-paper status: `papers/P01-{A,B}*/[_project.md, _outline.md]`
 - Locked notation: `papers/shared/notation.md`
 - Data documentation: `data/UKDA-6614-tab/mrdoc/pdf/` (40+ user guides; the family-matrix guide and harmonised-BHPS user guide are particularly load-bearing)
 
 **Vault access.** Obsidian research vault at `C:\Users\steph\Documents\TDA-Research`, accessed only through the `vault-engine` MCP server (`vault_get`, `vault_query`, `vault_observe`, `vault_skeleton`, `vault_status`, `vault_graph`, `cross_vault`). Authoritative for `CONVENTIONS.md`, `04-Methods/Computational-Log.md`, `04-Methods/Pipeline-Overview.md`, `02-Notes/Permanent/`, `03-Papers/PXX/_project.md`. Not accessible by direct filesystem read.
 
-**Existing `CLAUDE.md` content** to preserve and reference rather than duplicate: project purpose and 10-paper programme overview; Obsidian vault integration workflow; key TDA concepts and library list; code conventions (Python 3.13, 88-char lines, Ruff E/F/I/W, type hints with `numpy.typing.NDArray`, Google docstrings, research-context comment header on new scripts, random seed logging); commit prefixes ([RESULT]/[DECISION]/[NEGATIVE]/[PIPELINE]/[DATA]/[EXPLORE] with vault-action mapping); after-session vault sync; common workflows (test, lint, run pipeline, paper-start sequence); APM workflow placeholder; methodological mandates (W₂ + landscape L²; Markov-order-k; never raw-trajectory PH; never assume BHPS/USoc share variable coding); vexp/jcodemunch code-exploration policy; `vault-engine` MCP usage. The APM_RULES block layered into `CLAUDE.md` during the Rules step adds APM-specific execution patterns without duplicating these.
+**Existing `CLAUDE.md` content** to preserve and reference rather than duplicate: project purpose and 10-paper programme overview; Obsidian vault integration workflow; key TDA concepts and library list; code conventions (Python 3.13, 88-char lines, Ruff E/F/I/W, type hints with `numpy.typing.NDArray`, Google docstrings, research-context comment header on new scripts, random seed logging); commit prefixes ([RESULT]/[DECISION]/[NEGATIVE]/[PIPELINE]/[DATA]/[EXPLORE] with vault-action mapping); after-session vault sync; common workflows (test, lint, run pipeline, paper-start sequence); APM workflow placeholder; methodological mandates (W₂ + landscape L²; Markov-order-k; never raw-trajectory PH; never assume BHPS/USoc share variable coding); Serena code-exploration policy; `vault-engine` MCP usage. The APM_RULES block layered into `CLAUDE.md` during the Rules step adds APM-specific execution patterns without duplicating these.
 
 ---
 

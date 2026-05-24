@@ -6,15 +6,13 @@ GitHub Actions CI Badge (uncomment when workflow is active):
 
 ## Repository policy
 
-This repository uses the `jcodemunch` MCP toolchain for code navigation and enforces code exploration policy through `.claude/settings.json` and hook scripts.
+This repository uses the Serena MCP toolchain for code navigation and enforces quality checks through `.claude/settings.json` and hook scripts.
 
 Key files:
 
 - `.claude/CLAUDE.md` — root policy file for active guidance
-- `.claude/instructions/tool-usage.instructions.md` — tool usage workflow
+- `.claude/instructions/tool-usage.instructions.md` — Serena tool usage workflow
 - `.claude/instructions/hook-enforcement.instructions.md` — enforcement hook rules
-- `.cursor/rules/jcodemunch.mdc` — global code exploration policy
-- `.claude/hooks/jcodemunch-guard.sh` — PreToolUse guard for Grep/Glob/Regex
 - `.claude/hooks/install-git-hooks.py` — installs repository Git hooks
 
 ### Git hook installation

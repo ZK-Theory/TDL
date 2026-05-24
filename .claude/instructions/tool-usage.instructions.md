@@ -1,92 +1,45 @@
 ---
-description: jcodemunch MCP tool usage for code exploration and repository navigation.
+description: Serena MCP tool usage for code exploration and repository navigation.
 alwaysApply: true
 ---
 
-## jcodemunch Tool Usage
+## Serena Tool Usage
 
-Use jcodemunch MCP tools for all code navigation in this repository.
+Use Serena's MCP tools for code navigation in this repository. Reserve `Read` for files about to be edited, and `Grep`/`Glob` for non-symbol text or filesystem inventory.
 
-### Session-Aware Routing
+### Tool routing
 
-**Opening move for any task:**
-1. `plan_turn { "repo": "...", "query": "your task description", "model": "claude-sonnet-4-20250514" }`
-2. Obey the confidence level:
-   - `high` → go directly to recommended symbols, max 2 supplementary reads
-   - `medium` → explore recommended files, max 5 supplementary reads  
-   - `low` → the feature likely doesn't exist. Report the gap to the user.
+| Need | Tool |
+|---|---|
+| Symbol by name / kind | `mcp__serena__find_symbol` |
+| Overview of a file's symbols | `mcp__serena__get_symbols_overview` |
+| Substring or regex inside source files | `mcp__serena__search_for_pattern` |
+| Where a symbol is referenced | `mcp__serena__find_referencing_symbols` |
+| Insert before / after a symbol | `mcp__serena__insert_before_symbol` / `insert_after_symbol` |
+| Replace a symbol's body | `mcp__serena__replace_symbol_body` |
+| Replace file contents (regex) | `mcp__serena__replace_content` |
+| LSP-level diagnostics for a file | `mcp__serena__get_diagnostics_for_file` |
+| Rename a symbol across the codebase | `mcp__serena__rename_symbol` |
+| Find symbol implementations | `mcp__serena__find_implementations` |
+| Find symbol declaration | `mcp__serena__find_declaration` |
 
-### Primary Workflow
+### Discovery flow
 
-1. `resolve_repo { "path": "." }` — confirm project is indexed
-2. `suggest_queries` — when repo is unfamiliar
-3. `plan_turn(...)` — get confidence + recommended files
-4. `search_symbols(...)` — symbol by name (add `kind=`, `language=`, `file_pattern=`, `decorator=`)
-5. `search_text(...)` — string, comment, config value (supports regex, `context_lines`)
-6. `get_file_outline(...)` — before opening any file
-7. `get_skeleton(...)` — compact file inspection 
-8. `get_context_bundle(...)` — symbol + its imports
-9. `Read(...)` — only when editing a specific file
+1. Unfamiliar repo → `mcp__serena__check_onboarding_performed`; if `false`, run `mcp__serena__onboarding`.
+2. New file → `mcp__serena__get_symbols_overview` first.
+3. Specific symbol → `mcp__serena__find_symbol` (use `name_path_pattern` like `Class/method` for nested symbols; `include_body=true` to fetch source).
+4. Cross-symbol relationships → `find_referencing_symbols` / `find_implementations`.
 
-### Complete Tool Inventory
+### Read / Grep / Glob — fallback discipline
 
-**Discovery & Planning:**
-- `resolve_repo` — confirm project indexed
-- `suggest_queries` — get orientation suggestions
-- `plan_turn` — task planning with confidence levels
-- `get_repo_outline` — dirs, languages, symbol counts
-- `get_file_tree` — file layout, filter with `path_prefix`
+- `Read` is permitted **only after** the target file has been identified — typically just before `Edit`/`Write`. The agent harness requires a prior `Read` for `Edit`/`Write` to succeed.
+- `Grep` and `Glob` remain available for: non-symbol text (config values, comments, markdown, notation), filesystem inventories, and as a fallback when Serena returns empty for a query you have strong reason to believe should match.
+- `Bash` for code search (`grep`/`find`/`rg`) is **not** appropriate — use the typed tools above instead.
 
-**Symbol Search:**
-- `search_symbols` — find symbols by name, decorator, kind, language
-- `search_text` — full-text search with regex support
-- `search_columns` — database columns (dbt/SQLMesh)
+### When Serena is unavailable
 
-**Code Reading:**
-- `get_file_outline` — symbol overview before reading
-- `get_skeleton` — compact symbol signatures 
-- `get_symbol_source` — full symbol source code
-- `get_context_bundle` — symbol + imports in one call
-- `get_file_content` — specific line ranges only
+Inside a worktree where the language server has not indexed the branch's files, or during a transient MCP-disconnected state, fall back to `Read` + `Grep` and note the gap in the Task Log so the tooling can be brought back into shape.
 
-**Relationships & Impact:**
-- `find_importers` — what imports this file
-- `find_references` — where is this identifier used
-- `check_references` — is this identifier used anywhere
-- `get_dependency_graph` — file dependency relationships
-- `get_blast_radius` — what breaks if I change X
-- `get_changed_symbols` — what symbols changed since last commit
-- `find_dead_code` — find unreachable/unused code
-- `get_class_hierarchy` — inheritance relationships
+### After editing
 
-**Analysis & Validation:**
-- `get_call_hierarchy` — caller/callee relationships
-- `get_impact_preview` — what breaks if symbol removed
-- `find_implementations` — concrete implementations of interface/abstract
-
-### After Editing Files
-
-- If PostToolUse hooks are installed, edited files are auto-reindexed
-- Otherwise, call `register_edit` with edited file paths to invalidate caches
-- For bulk edits (5+ files), always use `register_edit` with all paths
-
-### Token Efficiency
-
-- If `_meta` contains `budget_warning`: stop exploring, work with what you have
-- If `auto_compacted: true`: results were compressed due to turn budget
-- Use `get_session_context` to check what you've already read
-
-### Disallowed Exploration
-
-- grep
-- glob  
-- Bash search
-- manual file system traversal
-- direct `cat`/`less` for code discovery
-
-### Interpreting Search Results
-
-- If `search_symbols` returns `negative_evidence` with `verdict: "no_implementation_found"`:
-  - Do NOT re-search with different terms
-  - DO report: "No existing implementation found for X. This would need to be created."
-- If `verdict: "low_confidence_matches"`: examine matches critically
+If a file's symbol structure changes substantially (function added, signature changed, class moved), the next `find_symbol` call on that name path picks up the change without manual reindex. No `register_edit` step is required.

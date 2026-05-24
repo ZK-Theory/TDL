@@ -1,8 +1,8 @@
 ## GitHub Copilot Policy
 
-This repository uses jcodemunch MCP tools for all code navigation.
-Do not use grep, glob, Bash, or manual filesystem search to explore the codebase.
+This repository uses Serena MCP tools for code navigation.
+Reserve `Read` for files about to be edited; use `Grep`/`Glob` only for non-symbol text or filesystem inventory.
 
-Use the active toolchain documented in `.claude/instructions/tool-usage.instructions.md`.
+See `.claude/instructions/tool-usage.instructions.md` for the tool routing table and fallback rules.
 
-`Read` is allowed only when the target file is known and you are editing it.
+`Read` is permitted only after the target file has been identified — typically just before `Edit`/`Write`.

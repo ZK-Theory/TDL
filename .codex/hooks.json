@@ -20,16 +20,6 @@
         ]
       },
       {
-        "matcher": "Grep|Glob|Regex",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "'c:\\Users\\steph\\TDL\\.codex\\hooks\\jcodemunch-guard.sh'",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {

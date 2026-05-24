@@ -43,5 +43,4 @@
 - `pre-commit>=4.0.0` - Git pre-commit hooks
 
 ## Code Navigation
-- **jcodemunch-MCP**: Advanced code exploration tools
-- **Serena**: Symbol-level code intelligence and editing
+- **Serena MCP**: Symbol-level code intelligence and editing (primary tool for code navigation)
