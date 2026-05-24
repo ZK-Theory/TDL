@@ -1,0 +1,45 @@
+{
+  "phase": "usoc_headline",
+  "run_params": {
+    "L": 5000,
+    "B": 1000,
+    "null_model": "markov-1",
+    "seed": 42,
+    "landscape_k_max": 5,
+    "landscape_n_points": 200,
+    "pvalue_formula": "(r+1)/(B+1)",
+    "null_diagram_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_B1000_L5000_seed42_2026-05-24.npz"
+  },
+  "dataset": "usoc",
+  "result": {
+    "h0": {
+      "w2_pvalue": 0.001996007984031936,
+      "landscape_l2_pvalue": 0.08183632734530938,
+      "t_ratio": 3.873835086646045,
+      "bca_ci_lower": 3.761872543541538,
+      "bca_ci_upper": 3.990984559091816,
+      "d_perm": 8.839896463274433,
+      "mean_obs_null": 27.992595606369584,
+      "mean_null_null": 7.2260679611442855,
+      "landscape_t_ratio": 1.793828859153962,
+      "landscape_bca_ci_lower": 1.7110433274915215,
+      "landscape_bca_ci_upper": 1.881831634647251,
+      "landscape_d_perm": 1.6583736746702678,
+      "lower_tail_pvalue": 1.0
+    },
+    "h1": {
+      "w2_pvalue": 0.001996007984031936,
+      "landscape_l2_pvalue": 0.015968063872255488,
+      "t_ratio": 1.0794350635930159,
+      "bca_ci_lower": 1.0770242615663288,
+      "bca_ci_upper": 1.0818455735800525,
+      "d_perm": 3.421403271031472,
+      "mean_obs_null": 247.50848933462916,
+      "mean_null_null": 229.294468636928,
+      "landscape_t_ratio": 1.5503440443219483,
+      "landscape_bca_ci_lower": 1.5211409149765702,
+      "landscape_bca_ci_upper": 1.5785248285606193,
+      "landscape_d_perm": 2.758670550579888
+    }
+  }
+}
