@@ -30,7 +30,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |------|--------|-------|--------|
 | 2.1 | Done — merged 2026-05-22 (commit 0a91d94) | academic-writing-agent | paper/p01a-v2-evidenced |
 | 2.2 | Done — merged 2026-05-22 (commit 0a91d94) | academic-writing-agent | paper/p01a-v2-evidenced |
-| 2.3 | Dispatched 2026-05-24 — §3 intrinsic-d methods paragraph (T1.4 evidence; ~30min); awaits User per-section review | academic-writing-agent | paper/p01a-v2-section3-intrinsic-d |
+| 2.3 | Done — merged 2026-05-24 (commit 4cdab52 → merge 46d591e). New methods-embedding-dimensionality.md section (§3.2 addendum). Important Finding caught by Worker: T1.4 longer-variant prose claim "both landmark d-estimates below D/2" was numerically wrong — USoc landmark d_TwoNN=10.06 sits *at* D/2=10. Rewritten accurately; OVER-DIMENSIONAL verdict preserved via broader D/d framing. User per-section review approved both gating items. | academic-writing-agent | paper/p01a-v2-section3-intrinsic-d |
 
 **Stage 1:**
 
@@ -83,7 +83,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 |-------|----------|-------|
 | reproducibility-agent | 1 | idle — T0.13 Done + merged 2026-05-24 (~25min walltime, well under estimate); T0.3 still paused awaiting canary_machine2 file on pipe/two-machine-check |
 | tda-agent | 1 | active — T1.2b–h dispatched 2026-05-24 (resume batch, ~60h sequential overnight) on run/stage1-headline-batch worktree. T1.2a + T1.4 Done + merged earlier today. Pre-reg #1 amendment + #5 redo filed in vault as Manager-side artefacts. Worker must pull main into worktree before launching (T0.13 fix merged). |
-| academic-writing-agent | 1 | active — T2.3 dispatched 2026-05-24 (§3 intrinsic-d methods paragraph, ~30min) on paper/p01a-v2-section3-intrinsic-d worktree. Uses tda-agent's pre-drafted longer-variant prose from T1.4 report. Per-section User review required before marking complete. |
+| academic-writing-agent | 1 | idle — T2.3 Done + merged 2026-05-24 (User-approved). New §3.2 addendum paragraph (intrinsic-d). 9 evidenced P01-A v2 section files on main (T2.1+T2.2+T2.3). Awaiting next dispatch (likely §4.3 once T1.2h [DECISION] lands). |
 | panel-statistics-agent | 1 | idle (T1.30 Done + merged 2026-05-15) — awaiting next dispatch; T1.21 deferred pending all fix batches |
 | panel-statistics-agent | 2 | active (T1.32 Batch 3 — IPW SMD+overlap, NSSEC propagation-skip, ~15 script/style fixes) — worktree pipe-coderabbit-batch3 |
 | academic-writing-agent | 1 | idle — T2.1 + T2.2 Done + merged 2026-05-22 (commit 0a91d94); 8 evidenced-now P01-A v2 section files on main; awaiting T1.2 outcomes for gated sections (§4.3/§6.2/§7.1/abstract) |
