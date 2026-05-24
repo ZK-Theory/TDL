@@ -374,19 +374,22 @@ prop_overlap_by_cohort <- setNames(lapply(cohort_levels, function(cg) {
   )
 }), cohort_levels)
 
-dist_stats <- function(x) list(
-  min  = round(min(x,  na.rm=TRUE), 4),
-  p1   = round(quantile(x, 0.01, na.rm=TRUE), 4),
-  p5   = round(quantile(x, 0.05, na.rm=TRUE), 4),
-  p25  = round(quantile(x, 0.25, na.rm=TRUE), 4),
-  p50  = round(median(x, na.rm=TRUE), 4),
-  p75  = round(quantile(x, 0.75, na.rm=TRUE), 4),
-  p95  = round(quantile(x, 0.95, na.rm=TRUE), 4),
-  p99  = round(quantile(x, 0.99, na.rm=TRUE), 4),
-  max  = round(max(x,  na.rm=TRUE), 4),
-  mean = round(mean(x, na.rm=TRUE), 4),
-  cv   = round(sd(x, na.rm=TRUE) / mean(x, na.rm=TRUE), 4)
-)
+dist_stats <- function(x) {
+  m <- mean(x, na.rm=TRUE)
+  list(
+    min  = round(min(x,  na.rm=TRUE), 4),
+    p1   = round(quantile(x, 0.01, na.rm=TRUE), 4),
+    p5   = round(quantile(x, 0.05, na.rm=TRUE), 4),
+    p25  = round(quantile(x, 0.25, na.rm=TRUE), 4),
+    p50  = round(median(x, na.rm=TRUE), 4),
+    p75  = round(quantile(x, 0.75, na.rm=TRUE), 4),
+    p95  = round(quantile(x, 0.95, na.rm=TRUE), 4),
+    p99  = round(quantile(x, 0.99, na.rm=TRUE), 4),
+    max  = round(max(x,  na.rm=TRUE), 4),
+    mean = round(m, 4),
+    cv   = round(if (abs(m) > .Machine$double.eps) sd(x, na.rm=TRUE) / m else NA_real_, 4)
+  )
+}
 
 # ---------------------------------------------------------------------------
 # 10. Save diagnostics JSON

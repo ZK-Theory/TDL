@@ -50,6 +50,13 @@ poverty_tda/data/processed/
 trajectory_tda/data/UKDA-5151-tab/
 trajectory_tda/data/UKDA-6614-tab/
 
+# Documentation
+docs/
+docs/notebooks
+docs/Research Papers
+docs/plans
+docs/ttk_installers
+
 # Jupyter checkpoints
 .ipynb_checkpoints/
 *.ipynb_checkpoints/

@@ -1169,6 +1169,21 @@ wheels = [
 ]
 
 [[package]]
+name = "scikit-dimension"
+version = "0.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numba" },
+    { name = "numpy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/51/4f/b6afc9fd5d9571e46b0d99bae2cdca5f05dab95f2cc5a87e32063f9b306b/scikit-dimension-0.3.4.tar.gz", hash = "sha256:cd9f52e698cad7abfca8127e5d24e30afa7ef8a7b38bcbd5ca117035af60cc64", size = 9174261 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ad/2e/8168da51fb50b44909a9f13d9bf831ca8256dd2f36d105db51873b273e2f/scikit_dimension-0.3.4-py3-none-any.whl", hash = "sha256:dd60cb7c7f922934a5a6653b05d20f51046efc434c6872b03b5025915e3eb7c5", size = 66385 },
+]
+
+[[package]]
 name = "scikit-learn"
 version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1315,6 +1330,7 @@ dependencies = [
     { name = "pyvista" },
     { name = "requests" },
     { name = "ripser" },
+    { name = "scikit-dimension" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "shapely" },
@@ -1362,6 +1378,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.28.0" },
     { name = "ripser", specifier = "==0.6.14" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
+    { name = "scikit-dimension", specifier = ">=0.3.4" },
     { name = "scikit-learn", specifier = "==1.8.0" },
     { name = "scipy", specifier = "==1.16.1" },
     { name = "shapely", specifier = ">=2.0.0" },

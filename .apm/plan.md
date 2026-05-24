@@ -310,10 +310,10 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Identify and fix every unseeded RNG call in the pipeline so a master seed deterministically propagates to all stochastic steps (maxmin landmark selection, surrogate generation, null-null pair sampling, GMM initialisation, MICE iterations).
 * **Output:** Audit report listing each RNG call site (file:line, current state, fix applied); patches to `permutation_nulls.py`, `trajectory_ph.py`, `run_wasserstein_battery.py`, and any other scripts containing unseeded `np.random.default_rng()` or equivalent calls; vault `[PIPELINE]` entry.
 * **Validation:** A search for unseeded `np.random` or `numpy.random` calls in `trajectory_tda/` and `shared/` returns no occurrences in production code paths; a canary script run twice produces bit-identical output for both H₀ and H₁ persistence values at L=500.
-* **Guidance:** Use `vexp run_pipeline` or jcodemunch `search_text` to locate RNG calls; the project policy is to use vexp tooling for code exploration, not direct grep. The fix pattern is to thread a `seed` parameter through function signatures and use `np.random.default_rng(seed)` exclusively rather than module-level state. See Spec §"Deterministic seed propagation".
+* **Guidance:** Use Serena's `mcp__serena__search_for_pattern` to locate RNG calls; the project policy is to use Serena's MCP tools for code exploration. The fix pattern is to thread a `seed` parameter through function signatures and use `np.random.default_rng(seed)` exclusively rather than module-level state. See Spec §"Deterministic seed propagation".
 * **Dependencies:** Task 0.1.
 
-1. Run `run_pipeline({"task": "audit RNG calls in trajectory_tda topology and scripts"})` to locate all RNG sites.
+1. Run `mcp__serena__search_for_pattern({"substring_pattern": "np\\.random|numpy\\.random|default_rng", "relative_path": "trajectory_tda"})` (and again for `shared/`) to locate all RNG sites.
 2. For each site, classify: production path (must be seeded) vs test/scratch (lower priority).
 3. Patch each unseeded production-path call to accept a seed parameter and use `np.random.default_rng(seed)`.
 4. Run a small canary script (L=500 Markov-1 W₂ at n_perms=20) twice and diff the outputs to confirm bit-identical results.
@@ -342,7 +342,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Guidance:** See Spec §"Markov-2 null with explicit Laplace smoothing". The α-sensitivity sweep over {0, 0.5, 1, 5} is performed in Task 1.8.
 * **Dependencies:** Task 0.2.
 
-1. Use `vexp get_skeleton` to inspect `permutation_nulls.py` lines 168–234.
+1. Use `mcp__serena__get_symbols_overview` on `permutation_nulls.py` (lines 168–234 region).
 2. Read the relevant section of `permutation_nulls.py` for editing.
 3. Edit the bigram-probability assignment to use the smoothed formula, with `alpha` as a parameter.
 4. Add unit tests covering smoothed transition matrix, observed vs unobserved cells, edge cases.
@@ -354,7 +354,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Identify why `_stratified_markov_shuffle()` collapsed to 2 effective regimes in the legacy run; fix the root cause; confirm the corrected pipeline produces a regime distribution matching the v1 P01-A Table 2.
 * **Output:** `papers/P01-A-JRSSA/notes/2026-XX-XX-stratified-markov-diagnosis.md` documenting the bug and fix; corrected GMM regime-label artefact (refit under the locked environment if checkpoint loading fails); corrected stratified-Markov surrogate generator; vault `[PIPELINE]` entry.
 * **Validation:** Loading the GMM produces 7 regimes (USoc) / 8 regimes (BHPS) with counts approximately matching v1 Table 2 (R1: 7,358; R2: 5,415; R0: 3,787; R4: 3,510; R3: 3,333; R6: 2,064; R5: 1,813); a stratified-Markov surrogate run at small n_perms=10 shows all regimes represented in the surrogate trajectories.
-* **Guidance:** See P01-A response plan §2 (H2). Likely root cause is sklearn version mismatch (resolved in Task 0.1) but verify; alternative causes are wrong checkpoint field provenance or embedding/GMM misalignment. Use `vexp` to inspect `_stratified_markov_shuffle()` in `permutation_nulls.py:246–362`.
+* **Guidance:** See P01-A response plan §2 (H2). Likely root cause is sklearn version mismatch (resolved in Task 0.1) but verify; alternative causes are wrong checkpoint field provenance or embedding/GMM misalignment. Use `mcp__serena__find_symbol({"name_path_pattern": "_stratified_markov_shuffle", "include_body": true})` to inspect the function (`permutation_nulls.py:246–362`).
 * **Dependencies:** Task 0.1, Task 0.2.
 
 1. Reproduce the legacy bug under the unlocked environment to confirm symptom.
@@ -374,7 +374,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Guidance:** See P01-B response plan §9 (M3) and Spec §"ε* knee detection".
 * **Dependencies:** Task 0.2.
 
-1. Use `vexp get_skeleton` to locate the existing implementation.
+1. Use `mcp__serena__get_symbols_overview` to locate the existing implementation.
 2. Read `spanning_pipeline.py` and the knee-related sections of `run_zigzag_sensitivity.py`.
 3. Rewrite as a named function: discrete grid scan over precomputed values, identify smallest ε such that β₀ has decreased by ≥X% from maximum, exclude degenerate cases.
 4. Verify reproduction of `knee_analysis.json`.
@@ -389,7 +389,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Guidance:** See Spec §"W₂ ground metric: ℓ²". The implementation does not change in this Task; the Task only confirms consistency and runs the empirical safety net.
 * **Dependencies:** Task 0.1, Task 0.2.
 
-1. Use `vexp` to read `vectorisation.py:232` and confirm the implementation.
+1. Use `mcp__serena__find_symbol` on `vectorisation.py` (around line 232) and confirm the implementation.
 2. Write pre-registration to vault Computational-Log via `vault_observe` with timestamp, parameters, and the qualitative-agreement decision rule.
 3. Run `internal_p=inf` sensitivity comparison at L=2000, n=50 on USoc Markov-1 H₀.
 4. Compare to the ℓ² result.
@@ -404,7 +404,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Guidance:** See Spec §"W₂ test construction" and P01-A response plan §B2 (B2.5, B2.8, B2.9).
 * **Dependencies:** Task 0.2.
 
-1. Use `vexp get_skeleton` to read `run_wasserstein_battery.py`.
+1. Use `mcp__serena__get_symbols_overview` on `run_wasserstein_battery.py`.
 2. Implement `compute_w2_ratio_bca_ci()` supporting Case A (full B×B matrix) and Case B (unindexed pairs).
 3. Modify the test driver to use the new construction.
 4. Add unit tests covering both Case A and Case B.
@@ -948,7 +948,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Guidance:** See P01-A response plan §10.3, §B12.
 * **Dependencies:** **Task 1.10 by TDA Agent**.
 
-1. Audit current §5 vocabulary using `vexp search_text` or `notation-check`.
+1. Audit current §5 vocabulary using `mcp__serena__search_for_pattern` or `notation-check`.
 2. Replace with appropriate Mapper-graph terms.
 3. Add threshold-sensitivity sub-section.
 4. Run `/notation-check`.
