@@ -22,6 +22,7 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 0.10 | Done | panel-statistics-agent | |
 | 0.11 | Done | panel-statistics-agent | |
 | 0.12 | Done — merged 2026-05-22 (commit c3a0be2 pre-rewrite / 285075e post-rewrite) | reproducibility-agent | pipe/stage1-phase-split |
+| 0.13 | Active — dispatched 2026-05-24; fixes Stage-1 phase-script --usoc-dir/--bhps-dir relative-path defaults; blocking T1.2b/c/d/f/g | reproducibility-agent | pipe/phase-script-projroot-defaults |
 
 **Stage 2:**
 
@@ -35,17 +36,17 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | Task | Status | Agent | Branch |
 |------|--------|-------|--------|
 | 1.1 | Done — 6 pre-reg vault entries filed | tda-agent | run/core-tda-battery (artefacts cherry-picked to main) |
-| 1.2 | Halted; resumed as 1.2a–h batch on run/stage1-headline-batch | tda-agent | run/stage1-headline-batch |
-| 1.2a | Active — USoc headline @ L=5000, B=1000 | tda-agent | run/stage1-headline-batch |
-| 1.2b | Queued — BHPS headline @ L=5000, B=1000 | tda-agent | run/stage1-headline-batch |
-| 1.2c | Queued — USoc LM sensitivity L=2500, B=1000 | tda-agent | run/stage1-headline-batch |
-| 1.2d | Queued — USoc LM sensitivity L=8000, B=1000 | tda-agent | run/stage1-headline-batch |
-| 1.2e | Queued — landscape sensitivity from cache | tda-agent | run/stage1-headline-batch |
-| 1.2f | Queued — BHPS length-matched Strategy a truncate (Entry 5) | tda-agent | run/stage1-headline-batch |
-| 1.2g | Queued — BHPS length-matched Strategy b first13 (Entry 5) | tda-agent | run/stage1-headline-batch |
-| 1.2h | Queued — assembly + Entry 5 outcome lock | tda-agent | run/stage1-headline-batch |
+| 1.2 | Partial — 1.2a Done; 1.2b–h blocked on T0.13 + pre-reg amendments | tda-agent | run/stage1-headline-batch |
+| 1.2a | Done — USoc headline 2026-05-24 (commit cb5eb3e). H₀ W₂ p=0.0020/Land L² p=0.0818 (metric divergence); H₁ W₂ p=0.0020/Land L² p=0.0160 (both reject). | tda-agent | run/stage1-headline-batch |
+| 1.2b | Blocked — awaiting T0.13 merge + pre-reg #1 amendment file | tda-agent | run/stage1-headline-batch |
+| 1.2c | Blocked — awaiting T0.13 merge + pre-reg #1 amendment file (LM sensitivity confirmatory scope) | tda-agent | run/stage1-headline-batch |
+| 1.2d | Blocked — awaiting T0.13 merge + pre-reg #1 amendment file | tda-agent | run/stage1-headline-batch |
+| 1.2e | Blocked — awaiting T1.2b cache produced | tda-agent | run/stage1-headline-batch |
+| 1.2f | Blocked — awaiting T0.13 merge + pre-reg #5 redo file | tda-agent | run/stage1-headline-batch |
+| 1.2g | Blocked — awaiting T0.13 merge + pre-reg #5 redo file | tda-agent | run/stage1-headline-batch |
+| 1.2h | Blocked — awaiting T1.2f/g + pre-reg #5 redo file | tda-agent | run/stage1-headline-batch |
 | 1.3 | Done — Outcome A locked (USoc 5/7, BHPS 8/8 regimes BH-significant) | tda-agent | run/core-tda-battery (artefacts cherry-picked to main) |
-| 1.4 | Pending | tda-agent | |
+| 1.4 | Active — dispatched 2026-05-24; intrinsic-d estimate (TwoNN + MLE) on USoc/BHPS 20-D embeddings; diagnoses Damrich/Hiraoka curse-of-dim exposure for P01-A §3 methods paragraph | tda-agent | run/intrinsic-dimensionality-estimate |
 | 1.5 | Pending | tda-agent | |
 | 1.6 | Pending | tda-agent | |
 | 1.7 | Pending | tda-agent | |
@@ -79,8 +80,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 | Agent | Instance | Notes |
 |-------|----------|-------|
-| reproducibility-agent | 1 | idle — T0.12 Done + merged 2026-05-22; T0.3 paused on bus awaiting canary_machine2 file |
-| tda-agent | 1 | active — T1.2a–h batch dispatched 2026-05-22 (USoc/BHPS headlines + LM sensitivity + Entry 5 length-match + assembly; ~60h sequential overnight); worktree run-stage1-headline-batch |
+| reproducibility-agent | 1 | active — T0.13 dispatched 2026-05-24 (pipe/phase-script-projroot-defaults; ~30-60min; blocking T1.2b/c/d/f/g); T0.3 still paused awaiting canary_machine2 file on pipe/two-machine-check |
+| tda-agent | 1 | active — T1.4 dispatched 2026-05-24 (intrinsic-d estimate on 20-D embeddings; ~1h; worktree run-intrinsic-dim). T1.2a Done 2026-05-24 (commit cb5eb3e); T1.2b–h blocked on T0.13 + pre-reg amendments (worktree run-stage1-headline-batch retained for batch resumption) |
 | panel-statistics-agent | 1 | idle (T1.30 Done + merged 2026-05-15) — awaiting next dispatch; T1.21 deferred pending all fix batches |
 | panel-statistics-agent | 2 | active (T1.32 Batch 3 — IPW SMD+overlap, NSSEC propagation-skip, ~15 script/style fixes) — worktree pipe-coderabbit-batch3 |
 | academic-writing-agent | 1 | idle — T2.1 + T2.2 Done + merged 2026-05-22 (commit 0a91d94); 8 evidenced-now P01-A v2 section files on main; awaiting T1.2 outcomes for gated sections (§4.3/§6.2/§7.1/abstract) |
@@ -127,3 +128,4 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 - **2026-05-22 (afternoon): T0.12 phase-split merged to main + T2.1/T2.2 evidenced-prose merged to main + T1.2 resumed batch dispatched.** Three merges to main today: (1) `pipe/stage1-phase-split` (T0.12) — 5 phase scripts under trajectory_tda/scripts/stage1/ + permutation cache .npz schema + partial-JSON writes + launch-PID markers + smoke-test equivalence with legacy at L=200/B=10 (1e-10 tolerance) + .gitignore patch for launches/cache/.partial; (2) `paper/p01a-v2-evidenced` — T2.1 8 evidenced section files (R1-M5/M1/H3/10.1/10.3/10.5 + R3-B2 Tier 1 + R3-B5) + T2.2 §3.3 Edgington formula correction + §S0 footnote + Table 1 caveat; (3) cherry-picked from run/core-tda-battery: T1.1 pre-reg JSON + T1.3 stratified result JSON + run_stratified_battery.py producing script. T1.2 resumed batch (T1.2a–h, 8 sub-tasks) dispatched to tda-agent on new branch run/stage1-headline-batch — symmetric B=1000 throughout per User mandate; Entry 5 length-match bundled (Strategies (a) truncate + (b) first13). ~60h sequential overnight execution; uses new phase-split pipeline (halt-resilient via .partial/ writes + launch-PID markers + cache-driven landscape sensitivity).
 - **2026-05-22 (afternoon): repomix-output.xml history rewrite + force-push.** Push to origin/main rejected by GitHub 100MB pre-receive hook because commit 52af787 added repomix-output.xml at 108MB. User authorized history rewrite (option a — file is regenerable derivative artefact, no archival value). git-filter-repo via uvx removed the file from all 323 commits across all refs in 3.39s. Backup tag pre-filter-repo-backup retained at pre-rewrite main HEAD. Force-pushed main with --force-with-lease (after fetch to refresh stale origin/main ref following origin re-add). Working trees on three branches showed stale index entries staging the file (`A repomix-output.xml`); resolved via `git reset HEAD` then physical file delete (~336MB disk freed across 3 worktrees). All 6 worktree branches rewritten consistently by filter-repo. Side effect: every worktree branch SHA changed (paper/p01a-v2-evidenced dc1d2a1→a88cfa6, pipe/stage1-phase-split f905965→cbc5d7e, pipe/two-machine-check 1991de2→57684e3, run/core-tda-battery 275c16b→65bf477, run/tier3-regression e4f40cb→6cc390b). repomix-output.xml + repomix-output.* added to .gitignore to prevent re-introduction. Final main HEAD on origin after both Stage 0 and Stage 2 merges: 0a91d94.
 - **2026-05-22 (afternoon): vault [DECISION] filed — BHPS L=5000 clean negative controls.** L=5000 BHPS post-audit shows label-shuffle H₀ p=0.512/H₁ p=0.558, cohort-shuffle H₀ p=0.554/H₁ p=0.634 — all clean. L=2000 finding (label p=0.036, cohort p=0.034) that founded the CONVENTIONS "NEVER treat BHPS shuffles as assumed negative controls" rule was a landmark-budget artefact. Order-shuffle and Markov-1 rejections at L=5000 BHPS unchanged (both p=0.000) — headline finding intact. CONVENTIONS.md rule manually replaced by User following the Manager's suggested replacement text. P01-A §4.3 worker section already reflects the new finding (L=5000 clean + L=2000 outlier preserved in Supplement §S4 landmark-budget sensitivity).
+- **2026-05-24: T1.2a Done; T0.13 + T1.4 dispatched in parallel.** T1.2a USoc headline (Markov-1, L=5000, B=1000, n_null_pairs=500) completed in 2h58 on `run/stage1-headline-batch` (commit cb5eb3e). Result: H₀ W₂ p=0.0020 (floor)/Land L² p=0.0818 — **informative metric divergence** validating the T0.7 dual-metric lock; H₁ W₂ p=0.0020/Land L² p=0.0160 — both reject. Worker stopped batch early after diagnosing relative-default `--usoc-dir`/`--bhps-dir` defect (FileNotFoundError under worktree CWD). Manager response: (a) approved T1.2a with substantive note on H₀ metric divergence to be addressed in P01-A §4 prose once T1.2b lands; (b) dispatched **T0.13** (reproducibility-agent, `pipe/phase-script-projroot-defaults`, ~30-60min) to fix the three Stage-1 phase scripts' defaults via `core.proj_root()`; (c) dispatched **T1.4** (tda-agent, `run/intrinsic-dimensionality-estimate`, ~1h) to estimate intrinsic-d via TwoNN + MLE on the 20-D PCA-projected USoc/BHPS embeddings (raw=90D bigram counts, PCA-cut to D=20 capturing 48.96%/49.02% of variance). T1.4 directly addresses Damrich-Berens-Kobak (2024 arXiv:2311.03087) curse-of-dim concern for VR-PH on noisy high-D Euclidean point clouds + Hiraoka et al. (2024) PCA-preprocessing critique; diagnostic decision rule embedded (≤10 over-dim safe / 10–18 borderline / >18 triggers D-sweep T1.5). Both new worktrees `.env`-copied. Two pre-reg housekeeping items also outstanding for User: pre-reg #1 amendment (LM sensitivity L∈{2500,8000} confirmatory scope) and pre-reg #5 redo from scratch (BHPS length-match polarity; new Outcome A/B/C labels eliminate prior ambiguity).
