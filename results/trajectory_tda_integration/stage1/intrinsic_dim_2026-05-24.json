@@ -1,0 +1,41 @@
+{
+  "dataset": "usoc",
+  "n_trajectories": 27280,
+  "D_ambient": 20,
+  "raw_dims": 90,
+  "explained_variance_at_D": 0.48963724715080603,
+  "n_unique_embeddings": 15968,
+  "duplicate_rate": 0.4146627565982405,
+  "full_embedding": {
+    "d_twonn": 3.588177628476245,
+    "d_mle": 5.8006634600344995,
+    "mle_k": 10,
+    "n_points": 15968,
+    "walltime_twonn_seconds": 1.3724089000024833,
+    "walltime_mle_seconds": 2.7334138000005623
+  },
+  "landmark_L5000": {
+    "d_twonn": 10.059775822406092,
+    "d_mle": 9.164173024156778,
+    "mle_k": 10,
+    "n_points": 5000,
+    "walltime_twonn_seconds": 0.24625519999972312,
+    "walltime_mle_seconds": 0.25913340000261087,
+    "maxmin_seed": 42,
+    "n_unique_landmarks": 5000,
+    "n_duplicate_landmarks": 0
+  },
+  "diagnostic_verdict": "OVER-DIMENSIONAL",
+  "twonn_mle_abs_gap_full": 2.2124858315582543,
+  "scikit_dimension_version": "0.3.4",
+  "random_seed": 42,
+  "script_commit_at_runtime": "2fd27d42f0472324476e0a32e25d83f16a53f742",
+  "date": "2026-05-24",
+  "citations": [
+    "Damrich, Berens, Kobak (2024, arXiv:2311.03087v3, NeurIPS) \u2014 VR-PH fails in high ambient D",
+    "Hiraoka et al. (2024) \u2014 PCA preprocessing critique for VR-PH",
+    "Facco, Rodriguez, Cestelli Guidi, Laio (2017) \u2014 TwoNN estimator",
+    "Levina, Bickel (2004) \u2014 MLE estimator"
+  ],
+  "walltime_seconds_total": 37.61040849999699
+}
