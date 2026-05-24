@@ -7,8 +7,14 @@
 Usage::
 
     uv run --env-file .env python trajectory_tda/scripts/stage1/run_usoc_headline.py \\
-        --usoc-dir results/trajectory_tda_integration \\
         --L 5000 --B 1000 --seed 42
+
+``--usoc-dir`` defaults to the absolute canonical PROJ_ROOT path
+(``<PROJ_ROOT>/results/trajectory_tda_integration``) via
+``_battery_core.proj_root()``, so the script resolves the upstream
+trajectory checkpoint correctly regardless of CWD — including when launched
+from a ``git worktree`` directory. Override with ``--usoc-dir`` only for
+explicit cross-machine or non-standard layouts.
 
 Pre-registration: 2026-05-13 vault entry
 PRE-REGISTRATION — Matched-L W2 + Landscape L2 Battery.
@@ -27,7 +33,16 @@ from trajectory_tda.scripts.stage1 import _battery_core as core
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 1 USoc headline phase")
-    parser.add_argument("--usoc-dir", type=str, default="results/trajectory_tda_integration")
+    parser.add_argument(
+        "--usoc-dir",
+        type=str,
+        default=str(core.proj_root() / "results/trajectory_tda_integration"),
+        help=(
+            "Upstream USoc trajectory checkpoint directory. Defaults to the "
+            "canonical PROJ_ROOT path so worktree execution works without an "
+            "override (default: %(default)s)."
+        ),
+    )
     parser.add_argument("--L", type=int, default=core.DEFAULT_L, help="Landmarks (default 5000)")
     parser.add_argument("--B", type=int, default=core.DEFAULT_B, help="Permutations (default 1000)")
     parser.add_argument("--seed", type=int, default=core.DEFAULT_SEED)

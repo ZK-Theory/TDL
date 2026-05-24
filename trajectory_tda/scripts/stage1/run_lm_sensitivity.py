@@ -9,7 +9,14 @@ One invocation = one sub-phase. Run once per L in the sensitivity sweep.
 Usage::
 
     uv run --env-file .env python trajectory_tda/scripts/stage1/run_lm_sensitivity.py \\
-        --usoc-dir results/trajectory_tda_integration --L 2500 --B 1000 --seed 42
+        --L 2500 --B 1000 --seed 42
+
+``--usoc-dir`` defaults to the absolute canonical PROJ_ROOT path
+(``<PROJ_ROOT>/results/trajectory_tda_integration``) via
+``_battery_core.proj_root()``, so the script resolves the upstream
+trajectory checkpoint correctly regardless of CWD — including when launched
+from a ``git worktree`` directory. Override with ``--usoc-dir`` only for
+explicit cross-machine or non-standard layouts.
 """
 
 from __future__ import annotations
@@ -25,7 +32,16 @@ from trajectory_tda.scripts.stage1 import _battery_core as core
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 1 USoc landmark sensitivity (single L)")
-    parser.add_argument("--usoc-dir", type=str, default="results/trajectory_tda_integration")
+    parser.add_argument(
+        "--usoc-dir",
+        type=str,
+        default=str(core.proj_root() / "results/trajectory_tda_integration"),
+        help=(
+            "Upstream USoc trajectory checkpoint directory. Defaults to the "
+            "canonical PROJ_ROOT path so worktree execution works without an "
+            "override (default: %(default)s)."
+        ),
+    )
     parser.add_argument("--L", type=int, required=True, help="Landmark count for this sub-phase (variable)")
     parser.add_argument("--B", type=int, default=core.DEFAULT_B)
     parser.add_argument("--seed", type=int, default=core.DEFAULT_SEED)
