@@ -223,7 +223,7 @@ Vault entries are written **directly via the `vault-engine` MCP** at the end of 
 | R2 P01-B decomposition | [papers/P01-B-JRSSB/notes/2026-05-03-reviewer2-data-empirical-issues.md](papers/P01-B-JRSSB/notes/2026-05-03-reviewer2-data-empirical-issues.md) | D1–D11 details: data infrastructure, sub-cloud independence, BHPS overlap concerns, income identification across eras |
 | Per-paper status | `papers/P01-{A,B}*/_project.md`, `_outline.md` | Paper status, open items, draft history |
 | Locked notation | [papers/shared/notation.md](papers/shared/notation.md) | Notation across both papers |
-| Methodological mandates | `CLAUDE.md`, `.claude/CLAUDE.md` | W₂ + landscape L² mandate, Markov order k, never raw-trajectory PH, never assume BHPS/USoc share variable coding, vexp policy, vault-engine MCP |
+| Methodological mandates | `CLAUDE.md`, `.claude/CLAUDE.md` | W₂ + landscape L² mandate, Markov order k, never raw-trajectory PH, never assume BHPS/USoc share variable coding, code navigation policy, vault-engine MCP |
 | Vault — convention | `CONVENTIONS.md` (via `vault_get`) | Locked methodological rules |
 | Vault — log | `04-Methods/Computational-Log.md` (via `vault_get`) | Logged results and decisions |
 | Vault — pipeline | `04-Methods/Pipeline-Overview.md` (via `vault_get`) | Pipeline architecture |
