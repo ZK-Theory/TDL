@@ -1,0 +1,78 @@
+{
+  "phase": "landscape_sensitivity",
+  "run_params": {
+    "cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_B1000_L5000_seed42_2026-05-24.npz",
+    "k_max_values": [
+      3,
+      5,
+      10
+    ],
+    "n_points_values": [
+      100,
+      200,
+      500
+    ],
+    "seed": 42,
+    "n_null_pairs_cap": 500,
+    "pvalue_formula": "(r+1)/(B+1)",
+    "B_from_cache": 1000,
+    "L_from_cache": 5000,
+    "dataset_from_cache": "usoc"
+  },
+  "result": {
+    "k3_np100": {
+      "k_max": 3,
+      "n_points": 100,
+      "h0_landscape_l2_pvalue": 0.0998003992015968,
+      "h1_landscape_l2_pvalue": 0.01996007984031936
+    },
+    "k3_np200": {
+      "k_max": 3,
+      "n_points": 200,
+      "h0_landscape_l2_pvalue": 0.0998003992015968,
+      "h1_landscape_l2_pvalue": 0.01996007984031936
+    },
+    "k3_np500": {
+      "k_max": 3,
+      "n_points": 500,
+      "h0_landscape_l2_pvalue": 0.0998003992015968,
+      "h1_landscape_l2_pvalue": 0.01996007984031936
+    },
+    "k5_np100": {
+      "k_max": 5,
+      "n_points": 100,
+      "h0_landscape_l2_pvalue": 0.08183632734530938,
+      "h1_landscape_l2_pvalue": 0.017964071856287425
+    },
+    "k5_np200": {
+      "k_max": 5,
+      "n_points": 200,
+      "h0_landscape_l2_pvalue": 0.08183632734530938,
+      "h1_landscape_l2_pvalue": 0.015968063872255488
+    },
+    "k5_np500": {
+      "k_max": 5,
+      "n_points": 500,
+      "h0_landscape_l2_pvalue": 0.08183632734530938,
+      "h1_landscape_l2_pvalue": 0.015968063872255488
+    },
+    "k10_np100": {
+      "k_max": 10,
+      "n_points": 100,
+      "h0_landscape_l2_pvalue": 0.04790419161676647,
+      "h1_landscape_l2_pvalue": 0.011976047904191617
+    },
+    "k10_np200": {
+      "k_max": 10,
+      "n_points": 200,
+      "h0_landscape_l2_pvalue": 0.04790419161676647,
+      "h1_landscape_l2_pvalue": 0.011976047904191617
+    },
+    "k10_np500": {
+      "k_max": 10,
+      "n_points": 500,
+      "h0_landscape_l2_pvalue": 0.04790419161676647,
+      "h1_landscape_l2_pvalue": 0.011976047904191617
+    }
+  }
+}

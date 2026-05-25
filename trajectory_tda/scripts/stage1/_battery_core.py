@@ -410,8 +410,10 @@ def _obs_finite_dgm_for_landscape(ph_obs: Any, dim: int) -> NDArray[np.float64]:
 # --- Run a single headline dataset (USoc or BHPS) ----------------------------
 
 
-def run_headline(
-    checkpoint_dir: Path,
+def run_headline_from_embeddings(
+    embeddings: NDArray[np.float64],
+    trajectories: list[list[str]],
+    embed_kwargs: dict[str, Any],
     n_permutations: int,
     n_landmarks: int,
     k_max: int,
@@ -423,18 +425,38 @@ def run_headline(
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
 ) -> tuple[dict[str, Any], list[dict], Any]:
-    """Run a headline dataset W2 + landscape L2 battery.
+    """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
+
+    Behaviourally identical to ``run_headline`` from the maxmin-landmarks step
+    onward; the only difference is that the caller supplies the embeddings,
+    trajectories, and ``embed_kwargs`` directly instead of loading them from a
+    checkpoint directory. Length-matched and other re-embedding sub-tasks call
+    this helper after applying their length-control strategy and re-embedding.
+
+    Args:
+        embeddings: (n_trajectories, n_dims) embedding array.
+        trajectories: List of state sequences (one per row of ``embeddings``).
+        embed_kwargs: Dict matching the ``ngram_embed`` signature used to produce
+            ``embeddings`` (carried through the Markov-k permutation null because
+            each permuted trajectory is re-embedded with the same kwargs).
+        n_permutations: Number of Markov-k null permutations (``B``).
+        n_landmarks: Maxmin-landmark count (``L``).
+        k_max, n_points: Persistence-landscape vectorisation parameters.
+        seed: Master RNG seed; per-permutation seeds derive as ``seed + i + 1``.
+        label: Short dataset label for log lines (e.g. ``"BHPS LM-truncate"``).
+        phase_tag: Phase tag for status files and partial-JSON writes.
+        n_jobs: Permutation parallelism (locked to 4 at L >= 2000 per OOM finding).
+        n_null_pairs_cap: Cap on null-null symmetric pairs (default 500).
+        markov_order: Markov order ``k`` of the permutation null (default 1).
 
     Returns:
-        Tuple of:
-          - result dict (h0/h1 cells, ready for JSON dump)
-          - null_results list (per-permutation dict with H{dim} and H{dim}_dgm)
-          - observed PHResult (for cache writing)
+        Tuple of (result dict ready for JSON dump, per-permutation null_results
+        list, observed PHResult for cache writing) — same return shape as
+        ``run_headline``.
     """
     from joblib import Parallel, delayed
 
     from poverty_tda.topology.multidim_ph import compute_rips_ph
-    from trajectory_tda.scripts.run_wasserstein_battery import load_checkpoint
     from trajectory_tda.topology.permutation_nulls import (
         _single_permutation,
         maxmin_landmarks,
@@ -445,16 +467,6 @@ def run_headline(
     logger.info("=" * 70)
     logger.info("[PHASE %s] start (L=%d, B=%d, n_jobs=%d)", label, n_landmarks, n_permutations, n_jobs)
     logger.info("=" * 70)
-
-    t_load = time.time()
-    embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
-    logger.info(
-        "[PHASE %s] checkpoint loaded in %.1fs: %d trajectories, %dD embeddings",
-        label,
-        time.time() - t_load,
-        embeddings.shape[0],
-        embeddings.shape[1],
-    )
 
     n = embeddings.shape[0]
     actual_lm = min(n_landmarks, n)
@@ -501,7 +513,6 @@ def run_headline(
     )
     logger.info("[PHASE %s] %d permutations done in %.1fs", label, n_permutations, time.time() - t0)
 
-    # Defensive partial: permutations done, before aggregation
     write_partial(
         phase_tag,
         "after_perms",
@@ -527,13 +538,66 @@ def run_headline(
         phase_label=label,
     )
 
-    # Defensive partial after aggregation
     write_partial(phase_tag, "after_agg", {"phase": phase_tag, "result": out})
 
     logger.info("[PHASE %s] TOTAL elapsed %.1fs", label, time.time() - t_phase)
     logger.info("=" * 70)
     write_status(f"PHASE {label} DONE", f"total {time.time() - t_phase:.0f}s")
     return out, null_results, ph_obs
+
+
+def run_headline(
+    checkpoint_dir: Path,
+    n_permutations: int,
+    n_landmarks: int,
+    k_max: int,
+    n_points: int,
+    seed: int,
+    label: str,
+    phase_tag: str,
+    n_jobs: int = 4,
+    n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
+    markov_order: int = DEFAULT_MARKOV_ORDER,
+) -> tuple[dict[str, Any], list[dict], Any]:
+    """Run a headline dataset W2 + landscape L2 battery.
+
+    Thin wrapper: loads ``embeddings``/``trajectories``/``embed_kwargs`` from
+    ``checkpoint_dir`` via the canonical checkpoint loader, then delegates the
+    full battery (maxmin landmarks → PH → permutations → aggregation) to
+    ``run_headline_from_embeddings``.
+
+    Returns:
+        Tuple of:
+          - result dict (h0/h1 cells, ready for JSON dump)
+          - null_results list (per-permutation dict with H{dim} and H{dim}_dgm)
+          - observed PHResult (for cache writing)
+    """
+    from trajectory_tda.scripts.run_wasserstein_battery import load_checkpoint
+
+    t_load = time.time()
+    embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
+    logger.info(
+        "[PHASE %s] checkpoint loaded in %.1fs: %d trajectories, %dD embeddings",
+        label,
+        time.time() - t_load,
+        embeddings.shape[0],
+        embeddings.shape[1],
+    )
+    return run_headline_from_embeddings(
+        embeddings=embeddings,
+        trajectories=trajectories,
+        embed_kwargs=embed_kwargs,
+        n_permutations=n_permutations,
+        n_landmarks=n_landmarks,
+        k_max=k_max,
+        n_points=n_points,
+        seed=seed,
+        label=label,
+        phase_tag=phase_tag,
+        n_jobs=n_jobs,
+        n_null_pairs_cap=n_null_pairs_cap,
+        markov_order=markov_order,
+    )
 
 
 # --- Cache I/O (.npz) for landscape sensitivity reuse -----------------------

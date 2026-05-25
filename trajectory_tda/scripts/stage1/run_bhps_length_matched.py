@@ -1,0 +1,288 @@
+# Research context: TDA-Research/03-Papers/P01-A/_project.md
+# Purpose: Stage 1 BHPS length-matched W2 + landscape L2 battery — tests whether
+#   the BHPS topological signal persists when trajectory length is matched to
+#   USoc's observation horizon (mean ~12.9 waves). One strategy per launch,
+#   selected by --strategy {truncate, first13}. Methodologically parity-matched
+#   to run_bhps_headline.py (same B, L, seed, n_null_pairs, vectorisation, and
+#   W2 + landscape L2 pair); the only differences are the length-control step
+#   and the re-embedding step before the maxmin landmarks.
+"""Stage 1 BHPS length-matched phase script.
+
+Sub-phases T1.2f (``--strategy truncate``) and T1.2g (``--strategy first13``)
+of the resumed batch on ``run/stage1-headline-batch``.
+
+Both strategies are length-matched against ``--target-years`` (default 13,
+matching USoc mean length of ~12.9 waves):
+
+- ``truncate``: every BHPS trajectory is truncated to the first
+  ``target_years`` waves; trajectories shorter than ``target_years`` are kept
+  at their original length (no padding).
+- ``first13``: only BHPS trajectories of length >= ``target_years`` are kept,
+  each truncated to exactly ``target_years`` waves.
+
+The sub-sampled / truncated sequences are then re-embedded via
+``ngram_embed`` with the same ``embed_kwargs`` as the BHPS headline checkpoint
+and fed into ``core.run_headline_from_embeddings`` for the full W2 + landscape
+L2 battery. Output JSON is committed at the worktree path; the null-diagram
+cache is written to PROJ_ROOT (gitignored, two-path rule).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+from collections import Counter
+from datetime import date
+from pathlib import Path
+
+from typing import Any
+
+import numpy as np
+
+from trajectory_tda.embedding.ngram_embed import ngram_embed
+from trajectory_tda.scripts.stage1 import _battery_core as core
+
+logger = logging.getLogger(__name__)
+
+# --- Strategy implementation ------------------------------------------------
+
+# Maps the canonical CLI strategy name to the internal label written into the
+# output JSON / phase tag / filename. ``truncate`` is the canonical name in
+# the resumed batch task prompt; we keep the JSON/filename label consistent
+# so the T1.2h assembler can locate both files by their strategy suffix.
+STRATEGIES = {"truncate", "first13"}
+
+
+def apply_length_strategy(
+    sequences: list[list[str]],
+    strategy: str,
+    target_years: int,
+) -> list[list[str]]:
+    """Apply a length-control strategy and return the sub-sampled sequences.
+
+    Args:
+        sequences: Raw BHPS state sequences (variable length).
+        strategy: Either ``"truncate"`` (truncate everything to <= target_years)
+            or ``"first13"`` (drop shorter sequences; truncate the rest to
+            exactly target_years).
+        target_years: Truncation length in waves/states.
+
+    Returns:
+        Sub-sampled sequences ready for re-embedding.
+    """
+    if strategy == "first13":
+        return [seq[:target_years] for seq in sequences if len(seq) >= target_years]
+    if strategy == "truncate":
+        return [seq[:target_years] for seq in sequences]
+    raise ValueError(f"Unknown strategy: {strategy!r}. Use 'truncate' or 'first13'.")
+
+
+# --- Checkpoint loading -----------------------------------------------------
+
+
+def load_bhps_sequences(checkpoint_dir: Path) -> tuple[list[list[str]], dict[str, Any]]:
+    """Load raw BHPS sequences and embed_kwargs from the checkpoint dir.
+
+    Mirrors ``run_wasserstein_battery.load_checkpoint`` minus the
+    ``embeddings.npy`` load (since we re-embed after applying the strategy).
+
+    Args:
+        checkpoint_dir: BHPS checkpoint directory (default
+            ``<PROJ_ROOT>/results/trajectory_tda_bhps``).
+
+    Returns:
+        Tuple of (raw sequences, embed_kwargs dict matching ``ngram_embed``).
+    """
+    seq_path = checkpoint_dir / "01_trajectories_sequences.json"
+    info_path = checkpoint_dir / "02_embedding.json"
+
+    if not seq_path.exists():
+        raise FileNotFoundError(f"Sequences not found: {seq_path}")
+
+    with open(seq_path) as f:
+        sequences = json.load(f)
+
+    embed_kwargs: dict[str, Any] = {
+        "pca_dim": 20,
+        "include_bigrams": True,
+        "tfidf": False,
+    }
+    if info_path.exists():
+        with open(info_path) as f:
+            info = json.load(f)
+        ei = info.get("info", {})
+        embed_kwargs["pca_dim"] = ei.get("final_dims", 20)
+        embed_kwargs["tfidf"] = ei.get("tfidf", False)
+        if ei.get("n_bigram_dims", 0) > 0:
+            embed_kwargs["include_bigrams"] = True
+
+    return sequences, embed_kwargs
+
+
+# --- Main -------------------------------------------------------------------
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Stage 1 BHPS length-matched phase")
+    parser.add_argument(
+        "--bhps-dir",
+        type=str,
+        default=str(core.proj_root() / "results/trajectory_tda_bhps"),
+        help=(
+            "Upstream BHPS trajectory checkpoint directory. Defaults to the "
+            "canonical PROJ_ROOT path so worktree execution works without an "
+            "override (default: %(default)s)."
+        ),
+    )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        required=True,
+        choices=sorted(STRATEGIES),
+        help="Length-control strategy. 'truncate' truncates all sequences; "
+        "'first13' keeps only sequences of length >= target_years.",
+    )
+    parser.add_argument(
+        "--target-years",
+        type=int,
+        default=13,
+        help=("Truncation target in waves/states (default 13, matching USoc mean of ~12.9 waves)."),
+    )
+    parser.add_argument("--L", type=int, default=core.DEFAULT_L, help="Landmarks (default 5000)")
+    parser.add_argument("--B", type=int, default=core.DEFAULT_B, help="Permutations (default 1000)")
+    parser.add_argument("--seed", type=int, default=core.DEFAULT_SEED)
+    parser.add_argument("--k-max", type=int, default=core.DEFAULT_K_MAX)
+    parser.add_argument("--n-points", type=int, default=core.DEFAULT_N_POINTS)
+    parser.add_argument(
+        "--n-null-pairs",
+        type=int,
+        default=core.DEFAULT_N_NULL_PAIRS,
+        help="Cap on null-null pairs (default 500)",
+    )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=4,
+        help="Permutation parallelism (locked to 4 at L>=2000 per OOM finding)",
+    )
+    parser.add_argument("--smoke", action="store_true", help="Smoke-test mode.")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    phase_tag = f"bhps_length_matched_{args.strategy}"
+    core.write_launch_marker(
+        phase_tag,
+        {
+            "strategy": args.strategy,
+            "target_years": args.target_years,
+            "L": args.L,
+            "B": args.B,
+            "seed": args.seed,
+            "smoke": args.smoke,
+        },
+    )
+
+    sequences, embed_kwargs = load_bhps_sequences(Path(args.bhps_dir))
+    logger.info(
+        "BHPS checkpoint: n=%d sequences, mean_len=%.2f, target=%d",
+        len(sequences),
+        float(np.mean([len(s) for s in sequences])),
+        args.target_years,
+    )
+
+    sub_seqs = apply_length_strategy(sequences, args.strategy, args.target_years)
+    lengths = [len(s) for s in sub_seqs]
+    length_dist = dict(sorted(Counter(lengths).items()))
+    logger.info(
+        "Strategy '%s': n=%d, mean_len=%.2f, length_dist=%s",
+        args.strategy,
+        len(sub_seqs),
+        float(np.mean(lengths)) if lengths else 0.0,
+        length_dist,
+    )
+
+    logger.info(
+        "Re-embedding %d sequences (pca_dim=%s, include_bigrams=%s, tfidf=%s)...",
+        len(sub_seqs),
+        embed_kwargs.get("pca_dim"),
+        embed_kwargs.get("include_bigrams"),
+        embed_kwargs.get("tfidf"),
+    )
+    embeddings, _ = ngram_embed(sub_seqs, **embed_kwargs)
+    logger.info("Re-embedded shape: %s", embeddings.shape)
+
+    label = f"BHPS LM-{args.strategy}"
+    out, null_results, ph_obs = core.run_headline_from_embeddings(
+        embeddings=embeddings,
+        trajectories=sub_seqs,
+        embed_kwargs=embed_kwargs,
+        n_permutations=args.B,
+        n_landmarks=args.L,
+        k_max=args.k_max,
+        n_points=args.n_points,
+        seed=args.seed,
+        label=label,
+        phase_tag=phase_tag,
+        n_jobs=args.n_jobs,
+        n_null_pairs_cap=args.n_null_pairs,
+    )
+
+    today = date.today().isoformat()
+    smoke_tag = "_smoke" if args.smoke else ""
+
+    cache_dir = core.proj_root() / "results/trajectory_tda_integration/stage1/cache"
+    cache_name = (
+        f"null_diagrams_bhps_length_matched_{args.strategy}_B{args.B}_L{args.L}_seed{args.seed}{smoke_tag}_{today}.npz"
+    )
+    cache_path = core.write_null_diagram_cache(
+        cache_dir / cache_name,
+        null_results,
+        ph_obs,
+        {
+            "B": args.B,
+            "L": args.L,
+            "seed": args.seed,
+            "dataset": "bhps",
+            "phase": phase_tag,
+            "strategy": args.strategy,
+            "target_years": args.target_years,
+            "n_trajectories": len(sub_seqs),
+            "timestamp": today,
+            "smoke": args.smoke,
+        },
+    )
+
+    out_dir = core.worktree_root() / "results/trajectory_tda_bhps/stage1"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"bhps_length_matched_{args.strategy}{smoke_tag}_{today}.json"
+    payload = {
+        "phase": phase_tag,
+        "run_params": {
+            "L": args.L,
+            "B": args.B,
+            "null_model": f"markov-{core.DEFAULT_MARKOV_ORDER}",
+            "seed": args.seed,
+            "landscape_k_max": args.k_max,
+            "landscape_n_points": args.n_points,
+            "n_null_pairs_cap": args.n_null_pairs,
+            "pvalue_formula": "(r+1)/(B+1)",
+            "null_diagram_cache": str(cache_path),
+            "strategy": args.strategy,
+            "target_years": args.target_years,
+            "n_trajectories_after_strategy": len(sub_seqs),
+            "mean_length_after_strategy": (float(np.mean(lengths)) if lengths else 0.0),
+            "length_distribution_after_strategy": length_dist,
+        },
+        "dataset": "bhps",
+        "result": out,
+    }
+    with open(out_path, "w") as f:
+        json.dump(core.convert_numpy(payload), f, indent=2)
+    print(f"BHPS length-matched ({args.strategy}) JSON: {out_path}")
+    print(f"Null-diagram cache: {cache_path}")
+
+
+if __name__ == "__main__":
+    main()
