@@ -49,6 +49,11 @@ def main() -> None:
     parser.add_argument("--n-points", type=int, default=core.DEFAULT_N_POINTS)
     parser.add_argument("--n-null-pairs", type=int, default=core.DEFAULT_N_NULL_PAIRS)
     parser.add_argument("--n-jobs", type=int, default=4)
+    parser.add_argument(
+        "--frozen-loadings",
+        action="store_true",
+        help="Reuse the observed embedding scaler/PCA basis for Markov-null embeddings.",
+    )
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
 
@@ -57,7 +62,7 @@ def main() -> None:
     phase_tag = f"lm_sens_L{args.L}"
     core.write_launch_marker(
         phase_tag,
-        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke},
+        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke, "frozen_loadings": args.frozen_loadings},
     )
 
     cell = core.run_lm_sensitivity_single_L(
@@ -71,6 +76,7 @@ def main() -> None:
         n_null_pairs_cap=args.n_null_pairs,
         k_max=args.k_max,
         n_points=args.n_points,
+        frozen_loadings=args.frozen_loadings,
     )
 
     today = date.today().isoformat()
@@ -88,6 +94,7 @@ def main() -> None:
             "landscape_k_max": args.k_max,
             "landscape_n_points": args.n_points,
             "pvalue_formula": "(r+1)/(B+1)",
+            "frozen_loadings": args.frozen_loadings,
         },
         "dataset": "usoc",
         "result": {f"L{args.L}": cell},

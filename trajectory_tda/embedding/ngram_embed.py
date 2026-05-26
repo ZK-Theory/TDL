@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from typing import Any
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -78,13 +79,10 @@ def _compute_trigrams(trajectory: list[str]) -> np.ndarray:
     """
     n_triples = len(trajectory) - 2
     if n_triples <= 0:
-        return np.zeros(N_STATES ** 3, dtype=np.float64)
+        return np.zeros(N_STATES**3, dtype=np.float64)
 
-    counts = Counter(
-        (trajectory[t], trajectory[t + 1], trajectory[t + 2])
-        for t in range(n_triples)
-    )
-    vec = np.zeros(N_STATES ** 3, dtype=np.float64)
+    counts = Counter((trajectory[t], trajectory[t + 1], trajectory[t + 2]) for t in range(n_triples))
+    vec = np.zeros(N_STATES**3, dtype=np.float64)
     for (s1, s2, s3), count in counts.items():
         i = STATE_TO_IDX.get(s1)
         j = STATE_TO_IDX.get(s2)
@@ -122,6 +120,9 @@ def ngram_embed(
     umap_dim: int | None = None,
     standardize: bool = True,
     random_state: int = 42,
+    frozen_scaler: StandardScaler | None = None,
+    frozen_pca: PCA | None = None,
+    frozen_umap: Any | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Embed state trajectories as fixed-dimension vectors.
 
@@ -136,6 +137,12 @@ def ngram_embed(
                   If both pca_dim and umap_dim are set, UMAP takes precedence.
         standardize: Z-score standardise before reduction
         random_state: Random seed for reproducibility
+        frozen_scaler: Pre-fitted StandardScaler to transform raw n-gram
+            features. When supplied, no new scaler is fitted.
+        frozen_pca: Pre-fitted PCA reducer to transform standardised features.
+            When supplied, no new PCA basis is fitted.
+        frozen_umap: Pre-fitted UMAP reducer to transform standardised features.
+            When supplied, no new UMAP model is fitted.
 
     Returns:
         embeddings: (N, K) array — one row per trajectory
@@ -148,6 +155,8 @@ def ngram_embed(
             - final_dims: final embedding dimensionality
             - method: 'raw', 'pca', or 'umap'
             - explained_variance: (PCA only) cumulative explained variance
+            - fitted_models: the scaler and reducer actually used. These are
+              either freshly fitted models or the supplied frozen models.
     """
     n = len(trajectories)
     if n == 0:
@@ -182,7 +191,10 @@ def ngram_embed(
     # Standardise (center for PCA; scale variance only if not using TF-IDF,
     # since variance scaling would exactly cancel out the TF-IDF column weights)
     fitted_scaler = None
-    if standardize:
+    if frozen_scaler is not None:
+        embeddings = frozen_scaler.transform(embeddings)
+        fitted_scaler = frozen_scaler
+    elif standardize:
         scaler = StandardScaler(with_std=not tfidf)
         embeddings = scaler.fit_transform(embeddings)
         fitted_scaler = scaler
@@ -192,7 +204,12 @@ def ngram_embed(
     explained_var = None
     fitted_reducer = None
 
-    if umap_dim is not None:
+    if frozen_umap is not None:
+        embeddings = frozen_umap.transform(embeddings)
+        fitted_reducer = frozen_umap
+        method = "umap"
+        logger.info(f"  Frozen UMAP transform: {embeddings.shape}")
+    elif umap_dim is not None:
         try:
             import umap
 
@@ -211,7 +228,13 @@ def ngram_embed(
             if pca_dim is None:
                 pca_dim = umap_dim
 
-    if method != "umap" and pca_dim is not None:
+    if method != "umap" and frozen_pca is not None:
+        embeddings = frozen_pca.transform(embeddings)
+        explained_var = float(np.sum(frozen_pca.explained_variance_ratio_))
+        fitted_reducer = frozen_pca
+        method = "pca"
+        logger.info(f"  Frozen PCA transform: {embeddings.shape} (explained variance: {explained_var:.3f})")
+    elif method != "umap" and pca_dim is not None:
         n_components = min(pca_dim, raw_dims, n)
         pca = PCA(n_components=n_components, random_state=random_state)
         embeddings = pca.fit_transform(embeddings)
@@ -224,7 +247,7 @@ def ngram_embed(
         "state_to_idx": STATE_TO_IDX.copy(),
         "n_unigram_dims": N_STATES,
         "n_bigram_dims": N_STATES * N_STATES if include_bigrams else 0,
-        "n_trigram_dims": N_STATES ** 3 if include_trigrams else 0,
+        "n_trigram_dims": N_STATES**3 if include_trigrams else 0,
         "raw_dims": raw_dims,
         "final_dims": embeddings.shape[1],
         "method": method,

@@ -57,6 +57,11 @@ def main() -> None:
         default=4,
         help="Permutation parallelism (locked to 4 at L>=2000 per OOM finding)",
     )
+    parser.add_argument(
+        "--frozen-loadings",
+        action="store_true",
+        help="Reuse the observed embedding scaler/PCA basis for Markov-null embeddings.",
+    )
     parser.add_argument("--smoke", action="store_true", help="Smoke-test mode.")
     args = parser.parse_args()
 
@@ -65,7 +70,7 @@ def main() -> None:
     phase_tag = "bhps_headline"
     core.write_launch_marker(
         phase_tag,
-        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke},
+        {"L": args.L, "B": args.B, "seed": args.seed, "smoke": args.smoke, "frozen_loadings": args.frozen_loadings},
     )
 
     out, null_results, ph_obs = core.run_headline(
@@ -79,6 +84,7 @@ def main() -> None:
         phase_tag=phase_tag,
         n_jobs=args.n_jobs,
         n_null_pairs_cap=args.n_null_pairs,
+        frozen_loadings=args.frozen_loadings,
     )
 
     today = date.today().isoformat()
@@ -97,6 +103,7 @@ def main() -> None:
             "dataset": "bhps",
             "timestamp": today,
             "smoke": args.smoke,
+            "frozen_loadings": args.frozen_loadings,
         },
     )
 
@@ -113,6 +120,7 @@ def main() -> None:
             "landscape_k_max": args.k_max,
             "landscape_n_points": args.n_points,
             "pvalue_formula": "(r+1)/(B+1)",
+            "frozen_loadings": args.frozen_loadings,
             "null_diagram_cache": str(cache_path),
         },
         "dataset": "bhps",

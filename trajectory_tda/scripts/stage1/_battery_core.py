@@ -424,6 +424,7 @@ def run_headline_from_embeddings(
     n_jobs: int = 4,
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
+    frozen_models: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
 
@@ -448,6 +449,7 @@ def run_headline_from_embeddings(
         n_jobs: Permutation parallelism (locked to 4 at L >= 2000 per OOM finding).
         n_null_pairs_cap: Cap on null-null symmetric pairs (default 500).
         markov_order: Markov order ``k`` of the permutation null (default 1).
+        frozen_models: Optional fitted-model bundle forwarded into trajectory-level null embeddings.
 
     Returns:
         Tuple of (result dict ready for JSON dump, per-permutation null_results
@@ -506,6 +508,7 @@ def run_headline_from_embeddings(
                 "wasserstein",
                 markov_order,
                 embed_kwargs,
+                frozen_models=frozen_models,
                 ph_observed=ph_obs,
             )
             for s in seeds_list
@@ -558,6 +561,7 @@ def run_headline(
     n_jobs: int = 4,
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
+    frozen_loadings: bool = False,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Run a headline dataset W2 + landscape L2 battery.
 
@@ -572,6 +576,7 @@ def run_headline(
           - null_results list (per-permutation dict with H{dim} and H{dim}_dgm)
           - observed PHResult (for cache writing)
     """
+    from trajectory_tda.embedding.ngram_embed import ngram_embed
     from trajectory_tda.scripts.run_wasserstein_battery import load_checkpoint
 
     t_load = time.time()
@@ -583,6 +588,16 @@ def run_headline(
         embeddings.shape[0],
         embeddings.shape[1],
     )
+    frozen_models = None
+    if frozen_loadings:
+        embeddings, embedding_info = ngram_embed(trajectories, **embed_kwargs)
+        frozen_models = embedding_info["fitted_models"]
+        logger.info(
+            "[PHASE %s] recomputed observed embedding for frozen loadings: %d trajectories, %dD",
+            label,
+            embeddings.shape[0],
+            embeddings.shape[1],
+        )
     return run_headline_from_embeddings(
         embeddings=embeddings,
         trajectories=trajectories,
@@ -597,6 +612,7 @@ def run_headline(
         n_jobs=n_jobs,
         n_null_pairs_cap=n_null_pairs_cap,
         markov_order=markov_order,
+        frozen_models=frozen_models,
     )
 
 
@@ -684,6 +700,7 @@ def run_lm_sensitivity_single_L(
     markov_order: int = DEFAULT_MARKOV_ORDER,
     k_max: int = DEFAULT_K_MAX,
     n_points: int = DEFAULT_N_POINTS,
+    frozen_loadings: bool = False,
 ) -> dict[str, Any]:
     """Cross-landmark sensitivity at a single L (one invocation = one sub-phase).
 
@@ -692,6 +709,7 @@ def run_lm_sensitivity_single_L(
     from joblib import Parallel, delayed
 
     from poverty_tda.topology.multidim_ph import compute_rips_ph
+    from trajectory_tda.embedding.ngram_embed import ngram_embed
     from trajectory_tda.scripts.run_wasserstein_battery import load_checkpoint
     from trajectory_tda.topology.permutation_nulls import (
         _single_permutation,
@@ -701,6 +719,10 @@ def run_lm_sensitivity_single_L(
     write_status(f"LM {label} L={L} START", f"B={n_permutations}")
     logger.info("[LM %s L=%d] starting (B=%d)", label, L, n_permutations)
     embeddings, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
+    frozen_models = None
+    if frozen_loadings:
+        embeddings, embedding_info = ngram_embed(trajectories, **embed_kwargs)
+        frozen_models = embedding_info["fitted_models"]
     n = embeddings.shape[0]
     actual_lm = min(L, n)
     if actual_lm < n:
@@ -724,6 +746,7 @@ def run_lm_sensitivity_single_L(
                 "wasserstein",
                 markov_order,
                 embed_kwargs,
+                frozen_models=frozen_models,
                 ph_observed=ph_obs,
             )
             for s in seeds_list
