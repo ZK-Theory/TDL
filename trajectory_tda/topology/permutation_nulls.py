@@ -46,6 +46,27 @@ def _normalise_cohort_label(value: object) -> str:
     return str(value)
 
 
+def _ngram_kwargs_with_frozen_models(
+    embed_kwargs: dict | None,
+    frozen_models: dict | None,
+) -> dict:
+    """Merge frozen fitted models into kwargs for ngram_embed()."""
+    kwargs = dict(embed_kwargs or {})
+    if not frozen_models:
+        return kwargs
+
+    scaler = frozen_models.get("scaler")
+    reducer = frozen_models.get("reducer")
+    if scaler is not None:
+        kwargs["frozen_scaler"] = scaler
+    if reducer is not None:
+        if hasattr(reducer, "components_"):
+            kwargs["frozen_pca"] = reducer
+        else:
+            kwargs["frozen_umap"] = reducer
+    return kwargs
+
+
 # ───────────────────────────────────────────────────────────────────
 # Null model generators
 # ───────────────────────────────────────────────────────────────────
@@ -97,6 +118,7 @@ def _order_shuffle(
     trajectories: list[list[str]],
     rng: np.random.RandomState,
     embed_kwargs: dict | None = None,
+    frozen_models: dict | None = None,
 ) -> np.ndarray:
     """Permute temporal order within each trajectory, then re-embed.
 
@@ -109,7 +131,7 @@ def _order_shuffle(
         perm = rng.permutation(len(traj))
         shuffled.append([traj[i] for i in perm])
 
-    kwargs = embed_kwargs or {}
+    kwargs = _ngram_kwargs_with_frozen_models(embed_kwargs, frozen_models)
     embeddings, _ = ngram_embed(shuffled, **kwargs)
     return embeddings
 
@@ -120,6 +142,7 @@ def _markov_shuffle(
     markov_order: int = 1,
     embed_kwargs: dict | None = None,
     alpha: float = 1.0,
+    frozen_models: dict | None = None,
 ) -> np.ndarray:
     """Generate synthetic trajectories from fitted Markov chain, then embed.
 
@@ -139,6 +162,7 @@ def _markov_shuffle(
         embed_kwargs: Kwargs passed to ngram_embed.
         alpha: Laplace smoothing parameter for Markov-2 conditional probabilities.
             Default 1 (add-one smoothing). Use alpha=0 to recover raw MLE.
+        frozen_models: Optional fitted-model bundle from ngram_embed()[1]["fitted_models"].
     """
     state_to_idx = {s: i for i, s in enumerate(STATES)}
     n_states = len(STATES)
@@ -237,7 +261,7 @@ def _markov_shuffle(
     else:
         raise ValueError(f"Unsupported Markov order: {markov_order}")
 
-    kwargs = embed_kwargs or {}
+    kwargs = _ngram_kwargs_with_frozen_models(embed_kwargs, frozen_models)
     embeddings, _ = ngram_embed(synthetic, **kwargs)
     return embeddings
 
@@ -254,6 +278,7 @@ def _stratified_markov_shuffle(
     markov_order: int = 1,
     embed_kwargs: dict | None = None,
     min_regime_n: int = 30,
+    frozen_models: dict | None = None,
 ) -> np.ndarray:
     """Generate synthetic trajectories using per-regime Markov chains.
 
@@ -272,6 +297,7 @@ def _stratified_markov_shuffle(
         markov_order: Markov chain order (only 1 supported for stratified).
         embed_kwargs: Kwargs passed to ngram_embed.
         min_regime_n: Minimum trajectories per regime for reliable estimation.
+        frozen_models: Optional fitted-model bundle from ngram_embed()[1]["fitted_models"].
                       Regimes below this threshold use the global transition matrix.
     """
     if markov_order != 1:
@@ -331,7 +357,7 @@ def _stratified_markov_shuffle(
 
         if n_regime < min_regime_n:
             logger.warning(
-                "Regime %s: only %d trajectories (< %d), " "using global transition matrix",
+                "Regime %s: only %d trajectories (< %d), using global transition matrix",
                 k,
                 n_regime,
                 min_regime_n,
@@ -379,7 +405,7 @@ def _stratified_markov_shuffle(
             synth.append(STATES[current])
         synthetic[i] = synth
 
-    kwargs = embed_kwargs or {}
+    kwargs = _ngram_kwargs_with_frozen_models(embed_kwargs, frozen_models)
     embeddings, _ = ngram_embed(synthetic, **kwargs)
     return embeddings
 
@@ -507,6 +533,7 @@ def _single_permutation(
     statistic: str,
     markov_order: int,
     embed_kwargs: dict | None,
+    frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
 ) -> dict:
     """Execute one permutation and return statistic values."""
@@ -517,9 +544,9 @@ def _single_permutation(
     elif null_type == "cohort_shuffle":
         X_perm = _cohort_shuffle(embeddings, metadata or {}, rng)
     elif null_type == "order_shuffle":
-        X_perm = _order_shuffle(trajectories or [], rng, embed_kwargs)
+        X_perm = _order_shuffle(trajectories or [], rng, embed_kwargs, frozen_models)
     elif null_type == "markov":
-        X_perm = _markov_shuffle(trajectories or [], rng, markov_order, embed_kwargs)
+        X_perm = _markov_shuffle(trajectories or [], rng, markov_order, embed_kwargs, frozen_models=frozen_models)
     elif null_type == "stratified_markov1":
         regime_labels = (metadata or {}).get("regime_labels")
         if regime_labels is None:
@@ -530,6 +557,7 @@ def _single_permutation(
             rng,
             markov_order=1,
             embed_kwargs=embed_kwargs,
+            frozen_models=frozen_models,
         )
     else:
         raise ValueError(f"Unknown null_type: {null_type}")
@@ -588,6 +616,7 @@ def permutation_test_trajectories(
     n_jobs: int = -1,
     seed: int = 42,
     embed_kwargs: dict | None = None,
+    frozen_models: dict | None = None,
 ) -> dict:
     """Trajectory-aware permutation test for topological significance.
 
@@ -604,6 +633,7 @@ def permutation_test_trajectories(
         n_jobs: Number of parallel jobs (-1 = all cores)
         seed: Random seed base
         embed_kwargs: Kwargs passed to ngram_embed for re-embedding nulls
+        frozen_models: Optional fitted-model bundle from ngram_embed()[1]["fitted_models"].
 
     Returns:
         Dict with per-dimension results. For scalar statistics:
@@ -656,6 +686,7 @@ def permutation_test_trajectories(
             statistic,
             markov_order,
             embed_kwargs,
+            frozen_models=frozen_models,
             ph_observed=ph_obs if statistic == "wasserstein" else None,
         )
         for s in seeds
@@ -696,9 +727,7 @@ def permutation_test_trajectories(
             bca_ci_upper: float | None = None
             if len(obs_null_dists) >= 2 and len(null_null_arr) >= 2:
                 try:
-                    _, bca_ci_lower, bca_ci_upper = compute_w2_ratio_bca_ci(
-                        obs_null_dists, null_null_arr, seed=seed
-                    )
+                    _, bca_ci_lower, bca_ci_upper = compute_w2_ratio_bca_ci(obs_null_dists, null_null_arr, seed=seed)
                 except Exception as exc:
                     logger.warning(f"  BCa CI failed for {key}: {exc}")
 

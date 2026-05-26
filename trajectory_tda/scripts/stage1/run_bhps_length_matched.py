@@ -166,6 +166,11 @@ def main() -> None:
         default=4,
         help="Permutation parallelism (locked to 4 at L>=2000 per OOM finding)",
     )
+    parser.add_argument(
+        "--frozen-loadings",
+        action="store_true",
+        help="Reuse the length-matched observed embedding scaler/PCA basis for Markov-null embeddings.",
+    )
     parser.add_argument("--smoke", action="store_true", help="Smoke-test mode.")
     args = parser.parse_args()
 
@@ -181,6 +186,7 @@ def main() -> None:
             "B": args.B,
             "seed": args.seed,
             "smoke": args.smoke,
+            "frozen_loadings": args.frozen_loadings,
         },
     )
 
@@ -210,7 +216,8 @@ def main() -> None:
         embed_kwargs.get("include_bigrams"),
         embed_kwargs.get("tfidf"),
     )
-    embeddings, _ = ngram_embed(sub_seqs, **embed_kwargs)
+    embeddings, embedding_info = ngram_embed(sub_seqs, **embed_kwargs)
+    frozen_models = embedding_info["fitted_models"] if args.frozen_loadings else None
     logger.info("Re-embedded shape: %s", embeddings.shape)
 
     label = f"BHPS LM-{args.strategy}"
@@ -227,6 +234,7 @@ def main() -> None:
         phase_tag=phase_tag,
         n_jobs=args.n_jobs,
         n_null_pairs_cap=args.n_null_pairs,
+        frozen_models=frozen_models,
     )
 
     today = date.today().isoformat()
@@ -251,6 +259,7 @@ def main() -> None:
             "n_trajectories": len(sub_seqs),
             "timestamp": today,
             "smoke": args.smoke,
+            "frozen_loadings": args.frozen_loadings,
         },
     )
 
@@ -268,6 +277,7 @@ def main() -> None:
             "landscape_n_points": args.n_points,
             "n_null_pairs_cap": args.n_null_pairs,
             "pvalue_formula": "(r+1)/(B+1)",
+            "frozen_loadings": args.frozen_loadings,
             "null_diagram_cache": str(cache_path),
             "strategy": args.strategy,
             "target_years": args.target_years,
