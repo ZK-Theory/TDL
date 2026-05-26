@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: "Stage 1 Task count updated to 29 (Tasks 1.1–1.29). T1.29 added: IPW structural eligibility sensitivity — rerun IPW with eligible population restricted to individuals enrolled early enough to have ≥10 waves available; motivated by CodeRabbit audit finding raw max weight 535.89 explained by birth-cohort mechanism. T1.13 guidance updated with weight distribution findings. T2.4 and T2.10 guidance updated with IPW documentation requirements. Modified by the Manager."
+modified: "2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
 ---
 
 # APM Plan
@@ -73,6 +73,14 @@ subgraph S1["Stage 1: Locked numerical and statistical results"]
   T1_27["1.27 10-of-14 sensitivity GMM<br/><i>Panel Statistics Agent</i>"]
   T1_28["1.28 FDR families redefine<br/><i>Panel Statistics Agent</i>"]
   T1_13 --> T1_29["1.29 IPW structural eligibility<br/><i>Panel Statistics Agent</i>"]
+  T1_33["1.33 Topological FOO signature<br/><i>TDA Agent</i>"]
+  T1_34["1.34 Regression refit + svyglm sensitivity<br/><i>Panel Statistics Agent</i>"]
+  T1_35["1.35 T1.21 transparency supplement<br/><i>Panel Statistics Agent</i>"]
+  T1_36["1.36 ngram_embed frozen-loadings + null threading<br/><i>TDA Agent</i>"] --> T1_37["1.37 Post-fix headline rerun + comparison<br/><i>TDA Agent</i>"]
+  T1_21 --> T1_35
+  T1_13 --> T1_34
+  T1_18 --> T1_34
+  T1_20 --> T1_34
 end
 
 subgraph S2["Stage 2: v2 drafting"]
@@ -169,6 +177,17 @@ T1_17 -.-> T2_15
 T1_17 -.-> T2_17
 T1_21 -.-> T2_4
 T1_22 -.-> T2_4
+T0_11 -.-> T1_33
+T0_11 -.-> T1_35
+T1_14 -.-> T1_34
+T1_33 -.-> T2_4
+T1_34 -.-> T2_4
+T1_33 -.-> T2_10
+T1_35 -.-> T2_10
+T1_37 -.-> T2_3
+T1_37 -.-> T2_8
+T1_37 -.-> T2_10
+T1_37 -.-> T2_20
 T1_23 -.-> T2_5
 T1_24 -.-> T2_5
 T1_26 -.-> T2_8
@@ -229,6 +248,11 @@ style T1_25 fill:#f4a261,color:#000
 style T1_26 fill:#f4a261,color:#000
 style T1_27 fill:#f4a261,color:#000
 style T1_28 fill:#f4a261,color:#000
+style T1_33 fill:#2d6a4f,color:#000
+style T1_34 fill:#f4a261,color:#000
+style T1_35 fill:#f4a261,color:#000
+style T1_36 fill:#2d6a4f,color:#000
+style T1_37 fill:#2d6a4f,color:#000
 style T2_1 fill:#cdb4db,color:#000
 style T2_2 fill:#cdb4db,color:#000
 style T2_3 fill:#cdb4db,color:#000
@@ -747,7 +771,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Refit with cross-classified random intercepts (current household + family of origin) + Firth + sibling-consistent MICE-imputed parental NS-SEC; this is the canonical v2 specification.
 * **Output:** `results/panel_methodology/regression/tier3_xclassified_firth_<date>.json` with full coefficient table; comparison table for Tiers 1/2/3; vault `[RESULT]` entry plus `[DECISION]` lock on Tier 3 as canonical.
 * **Validation:** Convergence achieved; FOO `σ²_u` reported alongside household `σ²_u`; coefficient table includes all NS-SEC levels; comparison to Tier 1/2 reported as build-up; the §4.5 prose direction (parental NS-SEC retains direct effect, or remains non-significant after the corrected model) is decided.
-* **Guidance:** See Spec §"Final regression specification" Tier 3 and P01-A response plan §S5.6/§S5.9. Use `glmmTMB` for cross-classified random effects.
+* **Guidance:** **STATUS UPDATE (2026-05-25):** The original specification (Tier 3 cross-classified GLMM with FOO + Firth) was structurally non-estimable on the disadvantaged-starter (R2/R6) subsample (~92% FOO singleton dominance; full diagnosis in `.apm/memory/stage-01/task-01-21.log.md`, commit `ddc7efb` on `run/tier3-regression`). The Spec was amended on 2026-05-25 (§"Final regression specification", §"Topological FOO Signature") to abandon the cross-classified specification and replace it with: (a) Tier 2 + IPW + svyglm sensitivity as the §4.5 headline (new T1.34); (b) per-individual local persistence + sibling-pair geometric coherence as the topology-side FOO test (new T1.33); (c) T1.21 transparency supplement covering power, singleton decomposition, and sibling-pair concordance (new T1.35). T1.21 is closed as "diagnostic complete"; the original implementation is preserved on `run/tier3-regression` as historical record; a `[NEGATIVE]` vault entry documents the structural non-estimability finding. The original Guidance is retained below for historical reference. See Spec §"Final regression specification" Tier 3 and P01-A response plan §S5.6/§S5.9. Use `glmmTMB` for cross-classified random effects.
 * **Dependencies:** Task 1.20, Task 1.18.
 
 1. Build cross-classified model.
@@ -761,7 +785,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Estimate total / direct / indirect effects of parental NS-SEC on escape via initial regime placement using Baron-Kenny + causal mediation analysis.
 * **Output:** `results/panel_methodology/mediation/baron_kenny_<date>.json`; `..._causal_mediation_<date>.json`; vault `[RESULT]` entry.
 * **Validation:** Total / direct / indirect effects reported with bootstrap CIs; the §7.1 mediation framing is supportable from the result.
-* **Guidance:** See P01-A response plan §S8.
+* **Guidance:** **STATUS UPDATE (2026-05-25):** Formal mediation decomposition (Baron-Kenny + causal mediation, or Imai-Keele-Tingley counterfactual) is out of scope for this paper per the 2026-05-25 Spec amendment (§"Endogeneity / mediation framework"). The §S8 mediation framing has been reverted to descriptive: parental NS-SEC × first-window regime cross-tab (delivered by T1.34) plus narrative observation in prose. Formal counterfactual decomposition is deferred to a follow-up methodological treatment. T1.22 is closed as "deferred — descriptive framing adopted." The original Guidance is retained below for historical reference. See P01-A response plan §S8.
 * **Dependencies:** Task 1.21.
 
 1. Baron-Kenny decomposition.
@@ -868,6 +892,110 @@ style T4_10 fill:#a8dadc,color:#000
 5. Compare ESS, weight distributions, and weighted regime proportions to T1.13.
 6. Write vault `[RESULT]` entry.
 
+### Task 1.33: Topological FOO signature - per-individual local persistence + sibling-pair coherence - TDA Agent
+
+* **Objective:** Compute per-individual local persistence features on the 90-D bigram embedding via k-nearest-neighbour sub-cloud PH; test sibling-pair geometric coherence against a constrained-shuffle permutation null on the full-sample foo_clusters. This is the substantive FOO finding of the paper, answered via the paper's own TDA methodology.
+* **Output:**
+  - `results/trajectory_tda_integration/foo_topology/per_individual_local_features_<date>.json`: per-person max H₀ persistence, total H₁ persistence, persistence-landscape integral at k=1, for each of ~27,280 individuals, at the pre-registered k value(s).
+  - `results/trajectory_tda_integration/foo_topology/sibling_pair_permutation_<date>.json`: observed sibling-pair mean feature-vector distance; constrained-shuffle null distribution (B=5000); permutation p-value; per-feature ICC with bootstrap CI.
+  - Pre-registration vault entry filed before run with parameters, decision rule, prose-direction rule per outcome.
+  - Post-run vault `[RESULT]` entry referencing the pre-registration; if positive, vault `[DECISION]` entry locking the §4.5.x prose direction.
+* **Validation:** Per-individual feature JSON covers full analytical sample N; sensitivity sweep at pre-registered k grid completes; sibling-pair permutation test reports a p-value and an effect size (mean within-sibling-pair distance / mean within-random-pair distance); per-feature ICCs reported with bootstrap CIs strictly above zero (positive case) or with CIs including zero (null case); the §4.5.x prose direction is decided against the pre-registration.
+* **Guidance:** See Spec §"Topological FOO Signature" T1.33. Per-individual local PH: for each individual i, take k nearest neighbours of i in the 90-D bigram embedding (ℓ₂ metric), compute the persistent homology of that (k+1)-point sub-cloud via `ripser` or `gudhi`, extract the three scalar features. Propose k = 20 as primary with sensitivity sweep at k ∈ {10, 20, 50} in the pre-registration. Constrained-shuffle null: shuffle foo_cluster IDs across individuals while preserving the cluster-size structure (i.e. re-assign individuals to clusters of the same sizes as the observed clusters). For each shuffle, compute the mean within-sibling-pair distance, repeat B=5000 times to build the null distribution. Bootstrap ICC CIs: resample foo_clusters with replacement, recompute ICC, B=1000. Read `results/trajectory_tda_integration/01_trajectories_sequences.json` for trajectory data and `data/derived/foo_clusters_2026-05-06.csv` for FOO assignments. **Methodological mandate (CLAUDE.md):** seed every stochastic step (kNN tie-breaking if any, permutation null, bootstrap); log seeds in the script header and in the output JSON.
+* **Dependencies:** Task 0.5, **Task 0.11 by Panel Statistics Agent**.
+
+1. File pre-registration vault entry via `vault_observe` with parameters (k grid, B, ICC bootstrap B), decision rule, and prose-direction rule per outcome.
+2. Build per-individual k-NN sub-clouds in the 90-D bigram space.
+3. Compute PH on each sub-cloud; extract three scalar features per person.
+4. Repeat at sensitivity-sweep k values; record per-k results.
+5. Build constrained-shuffle null distribution (B=5000); compute permutation p-value on mean within-pair feature-vector distance.
+6. Bootstrap per-feature ICC CIs (B=1000).
+7. Decide outcome against pre-registration.
+8. Write vault `[RESULT]` entry; write `[DECISION]` entry if outcome is positive.
+
+### Task 1.34: Regression refit with design-based sensitivity + descriptive FOO sensitivity - Panel Statistics Agent
+
+* **Objective:** Refit the §4.5 escape regression as Tier 2 (household-RE + normalised IPW + MICE-pooled NSSEC proxy) — supersedes the abandoned Tier 3 cross-classified spec; add `svyglm` + cluster-robust SE column as design-based sensitivity to address the IPW pseudo-likelihood concern; deliver descriptive parental NS-SEC × first-window regime cross-tab for §S8; one-paragraph full-sample FOO sensitivity at end of §S8.
+* **Output:**
+  - `results/panel_methodology/regression/tier2_ipw_mice_svyglm_<date>.json`: Tier 2 + IPW + MICE-pooled fixed effects (with Rubin-pooled SEs); svyglm + cluster-robust SE sensitivity column; coefficient table includes both columns.
+  - `results/panel_methodology/regression/nssec_regime_crosstab_<date>.json`: descriptive cross-tab of parental NS-SEC × first-window regime placement (cell counts and row/column proportions).
+  - `results/panel_methodology/regression/foo_sensitivity_fullsample_<date>.json`: full-sample `escape ~ baseline_covariates + (1|foo_cluster)` Tier-2-style fit on the broader analytical sample; σ²_foo point estimate + 95% bootstrap CI; one-sentence narrative for §S8.
+  - Three pre-registration vault entries filed before run (T1.34a Tier 2 refit + svyglm sensitivity, T1.34b NS-SEC × regime cross-tab, T1.34c full-sample FOO sensitivity); each with decision rule and prose-direction rule.
+  - Post-run vault `[RESULT]` entries referencing the pre-registrations.
+* **Validation:** Tier 2 + IPW + MICE-pooled converges across all m=20 imputations; svyglm runs and reports cluster-robust SEs; coefficient direction (regime_6 OR > 1, NSSEC effects consistent with Tier 2 baseline) preserved; cross-tab cells > 5 for major cells; full-sample FOO σ²_foo CI either strictly above zero or including zero (decision rule recorded); JSONs date-suffixed.
+* **Guidance:** See Spec §"Final regression specification" and §"Topological FOO Signature" T1.34. The Tier 2 refit uses the same data assembly as T1.20 (commit `0ae5398`) — `escape ~ regime_init + nssec_proxy + birth_cohort + sex + region + (1|hh_group)`, normalised IPW weights, Rubin pooling across m=20 nssec_sibling_mice imputations. svyglm: `svyglm(escape ~ ..., design = svydesign(ids = ~foo_cluster, weights = ~ipw_trimmed, data = ...))`. Cross-tab: use `xtabs` or `table()`. Full-sample FOO sensitivity: do NOT restrict to disadvantaged starters (R2/R6); use the full ~27,280 sample with escape defined per `window_escape_assignments_2026-05-14.json`. Read T1.20 results at `results/panel_methodology/regression/tier2_2026-05-13.json` for reference values. Read `data/derived/foo_clusters_2026-05-06.csv` for FOO assignments. **R compute environment:** Rscript via `"C:/Program Files/R/R-4.6.0/bin/Rscript.exe"`; libraries `glmmTMB`, `survey`, `mice`.
+* **Dependencies:** Task 1.13, Task 1.14, Task 1.18, Task 1.20.
+
+1. File three pre-registration vault entries via `vault_observe` (T1.34a/b/c).
+2. Refit Tier 2 + normalised IPW + MICE-pooled NSSEC proxy (m=20 imputations + Rubin pool); record fixed-effect and RE estimates.
+3. Run svyglm + cluster-robust SEs on the same model; add as sensitivity column.
+4. Build parental NS-SEC × first-window regime cross-tab.
+5. Run full-sample `escape ~ ... + (1|foo_cluster)` Tier-2-style fit; bootstrap σ²_foo CI (B=1000).
+6. Decide outcomes against pre-registrations.
+7. Write three vault `[RESULT]` entries.
+
+### Task 1.35: T1.21 transparency supplement - power, singleton decomposition, sibling-pair concordance - Panel Statistics Agent
+
+* **Objective:** Three transparency-on-limitation analyses on the original T1.21 R2/R6 disadvantaged-starter subsample, to support the §"T1.21 cross-classified GLMM diagnosis" supplement section: minimum detectable ICC at 80% power on the n=735 multi-FOO subsample; decomposition of the 6,363 singletons into true singletons vs filtered singletons; sibling-pair concordance OR + Cohen's κ on the 353 multi-member clusters.
+* **Output:**
+  - `results/panel_methodology/foo_transparency/power_analysis_<date>.json`: simulation-based power curve at ICC grid points {0.01, 0.025, 0.05, 0.10, 0.20}, B=1000 simulation iterations per grid point on n=735 / 353-cluster structure; minimum detectable ICC at 80% power; bootstrap 95% CI on σ²_foo from the multi-member-only fit; LRT p-value against ICC=0.
+  - `results/panel_methodology/foo_transparency/singleton_decomposition_<date>.json`: among the 6,363 disadvantaged-starter singletons, count and fraction of (a) true singletons (no sibling in `xwavedat`) vs (b) filtered singletons (sibling exists in `xwavedat` but excluded by IPW + first-window R2/R6 + 10-of-14 filters); list filter-exclusion reasons per filtered-singleton.
+  - `results/panel_methodology/foo_transparency/sibling_concordance_<date>.json`: McNemar test statistic + p-value; Cohen's κ; sibling-pair concordance OR on escape binary; bootstrap 95% CIs.
+  - Three pre-registration vault entries (T1.35a power, T1.35b singleton decomp, T1.35c sibling concordance) with decision rules.
+  - Post-run vault `[RESULT]` entries.
+* **Validation:** Power simulation completes for all five ICC grid points with B=1000 iterations each; minimum detectable ICC reported; singleton decomposition fractions sum to 100% (or reported partition is exhaustive); McNemar / κ / OR all reported with CIs; JSONs date-suffixed.
+* **Guidance:** See Spec §"Topological FOO Signature" T1.35. Power analysis: simulate sibling-pair binary escape outcomes under varying ICCs (latent-variable representation), fit `glmmTMB(escape ~ 1 + (1|foo_cluster))` on each simulated dataset, count rejections of LRT against ICC=0. Singleton decomposition: cross-reference `xwavedat.tab` to determine whether each "singleton" in the T1.21 sample has any sibling in xwavedat at all; if yes, identify why that sibling was filtered (does not start in R2/R6, IPW=0 due to ineligibility, dropped by 10-of-14 rule, etc.). Sibling concordance: on the 353 multi-member clusters from T1.21, compute McNemar's test on the 2×2 sibling-pair escape table, Cohen's κ on pair concordance, and the within-pair OR. Read T1.21 sample assembly from `.apm/memory/stage-01/task-01-21.log.md` and the worktree's `run/tier3-regression` branch (commit `ddc7efb`) for the analytical sample structure.
+* **Dependencies:** Task 1.21, **Task 0.11 by Panel Statistics Agent**.
+
+1. File three pre-registration vault entries via `vault_observe`.
+2. Run power simulation across the ICC grid; report minimum detectable ICC at 80% power.
+3. Build singleton decomposition by cross-referencing xwavedat sibling records against T1.21 filter exclusions.
+4. Compute McNemar / κ / concordance OR on the 353 multi-member clusters.
+5. Write three vault `[RESULT]` entries.
+
+### Task 1.36: `ngram_embed()` frozen-loadings parameters + null-function threading - TDA Agent
+
+* **Objective:** Add optional `frozen_scaler`, `frozen_pca`, and `frozen_umap` parameters to `ngram_embed()` in `trajectory_tda/embedding/ngram_embed.py`; thread these through `_order_shuffle`, `_markov_shuffle`, and `_stratified_markov_shuffle` in `trajectory_tda/topology/permutation_nulls.py` (and through `_single_permutation` as the integration point) so null draws live in the same PCA coordinate frame as the observed embedding. This closes the P1-5 null-layer audit finding and unblocks T1.37 rerun.
+* **Output:** Patched `ngram_embed.py` accepting (and continuing to return) fitted scaler / PCA / UMAP; patched `permutation_nulls.py` threading these through the three trajectory-level null functions and through `_single_permutation`; patched headline driver(s) (`run_wasserstein_battery.py` and/or the Stage-1 phase scripts under `trajectory_tda/scripts/stage1/`) so the observed embedding is computed once and its fitted models are forwarded into the null calls; new unit tests in `tests/trajectory_tda/test_frozen_loadings.py` covering (a) bit-identical output when frozen kwargs are not supplied vs current behaviour; (b) small-N synthetic test showing frozen-loadings reduces null-vs-null PCA basis rotation variance; (c) shape/dtype invariants. Vault `[PIPELINE]` entry at top of `04-Methods/Computational-Log.md` documenting the fix + scope + downstream tasks unblocked.
+* **Validation:** Unit tests pass; backward-compatibility verified (default behaviour with no frozen kwargs reproduces current output bit-for-bit on a canary L=500 / B=10 run); type hints + Google-style docstrings on new parameters; pre-commit Ruff hooks clean; smoke-test the patched headline driver at L=500 / B=10 / Markov-1 to confirm end-to-end wiring.
+* **Guidance:** See the 2026-05-25 [NEGATIVE] entry at the top of `04-Methods/Computational-Log.md` for the full rationale and affected function list. The fitted scaler / PCA / UMAP are already returned in `info["fitted_models"]` (per `ngram_embed.py:228-231`) — the *return* side of the API exists; only the *input* side needs work. Pattern: when `frozen_scaler is not None`, replace `scaler.fit_transform()` with `frozen_scaler.transform()`; when `frozen_pca is not None`, replace `pca.fit_transform()` with `frozen_pca.transform()`; same for UMAP. Thread the frozen-models bundle (dict with keys `scaler`, `reducer`) through `_single_permutation` in `permutation_nulls.py:498-568` (it already receives `embed_kwargs`; extend or add a `frozen_models` parameter). Driver pattern: compute observed embedding once with `embeddings, info = ngram_embed(trajectories, ...)`, then pass `info["fitted_models"]` (or equivalent) into the null call. **DO NOT** redesign `_label_shuffle` or `_cohort_shuffle` in this Task — they need a separate person-year-level shuffle approach (shuffle state labels BEFORE embedding, re-build trajectories, then re-embed); that redesign is a parallel audit work-stream scheduled after T1.37 lands. **Methodological mandate (CLAUDE.md):** seed propagation must remain intact; no random-state changes to existing behaviour. **Vault entry format:** per the 2026-05-25 vault-discipline [DECISION] at the top of `04-Methods/Computational-Log.md`, insert the [PIPELINE] entry at the top of the page in reverse-chronological order via direct Write/Edit; do NOT use `vault_observe` as the canonical write path.
+* **Dependencies:** None (code-side; cross-references 2026-05-25 [NEGATIVE]). Gates T1.37.
+
+1. Read `ngram_embed.py:115-241` and `permutation_nulls.py:53-568` to confirm the current function signatures + invocation pattern.
+2. Patch `ngram_embed.py`: add `frozen_scaler: StandardScaler | None = None`, `frozen_pca: PCA | None = None`, `frozen_umap: UMAP | None = None` to the signature; conditionally use `.transform()` instead of `.fit_transform()` when provided; verify `info["fitted_models"]` still reflects the actual fitted (or passed-through) models.
+3. Patch `permutation_nulls.py`: extend `_order_shuffle`, `_markov_shuffle`, `_stratified_markov_shuffle` to accept an optional `frozen_models` dict and forward to `ngram_embed`; extend `_single_permutation` to receive and forward.
+4. Patch headline drivers (Stage-1 phase scripts and/or `run_wasserstein_battery.py`) to compute observed embedding once and pass `info["fitted_models"]` into null calls. Add a `--frozen-loadings` CLI flag if needed to opt in (default-off in T1.36; T1.37 will use it).
+5. Add unit tests in `tests/trajectory_tda/test_frozen_loadings.py`.
+6. Run `uv run pytest tests/trajectory_tda/test_frozen_loadings.py` and a canary smoke-test at L=500 / B=10.
+7. Commit on `pipe/ngram-embed-frozen-loadings`.
+8. Write vault `[PIPELINE]` entry at the top of `04-Methods/Computational-Log.md` via direct Write/Edit (per locked vault-discipline convention).
+
+### Task 1.37: Re-run T1.2 headline + LM sensitivity + length-matched with frozen loadings (post-fix headlines) - TDA Agent
+
+* **Objective:** Re-run the affected T1.2 sub-tasks (T1.2a USoc headline, T1.2b BHPS headline, T1.2c USoc L=2500, T1.2d USoc L=8000, T1.2f BHPS length-matched truncate) with the T1.36 frozen-loadings null layer to produce the post-fix headline values; produce a side-by-side comparison table (pre-fix PROVISIONAL vs post-fix) for the P01-A / P01-B methodological-disclosure section in §3.3 / §3.4. Re-run T1.3 stratified-Markov-1 with frozen loadings to confirm whether Outcome A lock survives.
+* **Output:**
+  - `results/trajectory_tda_integration/stage1/usoc_headline_frozen_<date>.json` and BHPS counterpart at `results/trajectory_tda_bhps/stage1/bhps_headline_frozen_<date>.json`.
+  - LM sensitivity frozen counterparts at `results/trajectory_tda_integration/stage1/lm_sensitivity_L{2500,8000}_frozen_<date>.json`.
+  - BHPS length-matched truncate frozen counterpart at `results/trajectory_tda_bhps/stage1/bhps_length_matched_truncate_frozen_<date>.json`.
+  - Stratified Markov-1 frozen counterpart at `results/trajectory_tda_integration/stratified_markov/stratified_markov1_W2_L5000_frozen_<date>.json` (USoc + BHPS).
+  - Comparison table JSON `results/trajectory_tda_integration/stage1/frozen_vs_provisional_comparison_<date>.json` with per-cell pre-fix p, post-fix p, delta, and rejection-direction-preserved flag.
+  - Vault `[RESULT]` entries at top of `04-Methods/Computational-Log.md` for each rerun (or one consolidated batch entry); final `[DECISION]` entry locking whether the post-fix outcomes confirm or revise the T1.2h §4 prose direction and the T1.3 Outcome A lock.
+  - Methodological-disclosure paragraph draft (~150 words) for P01-A §3.3 / P01-B §3.4 surfacing the pre-fix vs post-fix comparison as transparency text.
+* **Validation:** All reruns complete; new caches written under `_frozen_` suffix at PROJ_ROOT; comparison table reports per-cell metrics; T1.3 stratified rerun completes; per-§4 prose direction is upheld or re-locked against the pre-fix outcome with explicit decision rule. Bit-identical reproducibility verified at L=500 canary level via re-run with same seed.
+* **Guidance:** Use the same Stage-1 phase scripts (`run_usoc_headline.py`, `run_bhps_headline.py`, `run_landmark_sensitivity_*.py`, `run_bhps_length_matched.py`) — with the T1.36 patch they should accept a `--frozen-loadings` flag and otherwise behave identically. The pre-fix caches at `PROJ_ROOT/results/trajectory_tda_integration/stage1/cache/null_diagrams_{usoc,bhps,bhps_length_matched_truncate}_*_2026-05-24/25.npz` (~150MB total, 3 files) are preserved as the pre-fix baseline for direct W₂ / landscape L² comparison. T1.2g (BHPS length-matched first13) is OUT OF SCOPE here — it was killed for walltime reasons (~22× per-perm wall vs truncate at L=5000), and the frozen-loadings fix does not alter per-perm walltime; first13 rerun requires a separate Pre-reg #5 amendment for asymmetric L. T1.2e landscape vectorisation sensitivity is also OUT OF SCOPE — it operates on cached null diagrams (cache consumer) and does not exercise the null layer directly; its results are unaffected by the frozen-loadings fix. **Vault entry format:** per locked vault-discipline convention, insert [RESULT] / [DECISION] entries at top of `04-Methods/Computational-Log.md` via direct Write/Edit; reference the 2026-05-25 [NEGATIVE] entry as the predicate. **Methodological mandate:** record seeds in every output JSON; expect ~comparable wall-time to the original T1.2 batch (similar number of permutations × similar per-perm wall, less the T1.2g first13 sub-task).
+* **Dependencies:** Task 1.36 (same agent; sequenced). Pre-fix caches at PROJ_ROOT (already on disk, verified 2026-05-25). Indirectly references the 2026-05-25 [NEGATIVE] entry as the gating provenance.
+
+1. Verify T1.36 patch is on `main`; create worktree `.apm/worktrees/run-headline-batch-frozen-pca-rerun` off branch `run/headline-batch-frozen-pca-rerun`; copy `.env` from main.
+2. Smoke-test the patched headline driver at L=500 / B=10 / Markov-1 with `--frozen-loadings` to confirm wiring.
+3. Re-run T1.2a USoc headline with frozen loadings; commit JSON.
+4. Re-run T1.2b BHPS headline with frozen loadings; commit JSON.
+5. Re-run T1.2c, T1.2d USoc LM sensitivity with frozen loadings; commit JSONs.
+6. Re-run T1.2f BHPS length-matched truncate with frozen loadings; commit JSON.
+7. Re-run T1.3 stratified Markov-1 (USoc + BHPS) with frozen loadings; commit JSONs.
+8. Build comparison table JSON; commit.
+9. Draft methodological-disclosure paragraph; commit.
+10. Write vault [RESULT] entries + final [DECISION] entry at top of Computational-Log.md via direct Write/Edit.
+
 ## Stage 2: v2 drafting
 
 ### Task 2.1: P01-A §3.2 + §3.3 methods rewrite - Academic Writing Agent
@@ -917,8 +1045,8 @@ style T4_10 fill:#a8dadc,color:#000
 * **Objective:** Rewrite §4.5 with Tier 1/2/3 regression build-up, Firth, sibling-consistent MICE for NS-SEC, MICE for income, mediation framing, IPW + Manski bounds, demographic-balance qualifications.
 * **Output:** Updated §4.5 prose; full coefficient table; mediation decomposition table.
 * **Validation:** Mediation structure named; non-significance of NS-SEC (if it remains non-significant under Tier 3 + MI) appropriately qualified; `/notation-check` clean; **User per-section review approves**.
-* **Guidance:** See P01-A response plan §S5–§S9, §B7. **IPW weight documentation required in §4.5:** state the birth-cohort mechanism for the extreme raw weights (raw max=535.89; `birth_cohort_group1990+` coefficient=−6.196 → propensity≈0.002 for recent entrants who cannot satisfy the 10-year continuity criterion by construction), confirm p1–p99 trimming (trimmed max=42.78, CV drops from 1.36 to 0.99), and note the structural eligibility limitation. Reference the T1.29 restricted-eligibility sensitivity comparison. Read `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json` for primary values.
-* **Dependencies:** **Task 1.21 by Panel Statistics Agent**, **Task 1.22 by Panel Statistics Agent**, **Task 1.13 by Panel Statistics Agent**, **Task 1.14 by Panel Statistics Agent**, **Task 1.15 by Panel Statistics Agent**, **Task 1.29 by Panel Statistics Agent**.
+* **Guidance:** **STATUS UPDATE (2026-05-25):** T1.21 (Tier 3 cross-classified GLMM) and T1.22 (formal mediation) are superseded by the 2026-05-25 Spec amendment — T1.21 cross-classified spec was structurally non-estimable; T1.22 formal mediation deferred to follow-up paper. §4.5 headline regression now comes from T1.34 (Tier 2 + IPW + MICE-pooled NSSEC + svyglm sensitivity column); the mediation framing in §S8 becomes descriptive using T1.34's parental NS-SEC × first-window regime cross-tab; the §4.5.x sub-section "Topological structure of family-of-origin clustering" reports T1.33's per-individual local persistence + sibling-pair coherence result as the substantive FOO finding. T2.4 should structure §4.5 as: Tier 1 → Tier 2 build-up (existing) → Tier 2 + IPW + svyglm sensitivity column (T1.34) → §4.5.x topological FOO signature (T1.33). See Spec §"Final regression specification" and §"Topological FOO Signature". See P01-A response plan §S5–§S9, §B7. **IPW weight documentation required in §4.5:** state the birth-cohort mechanism for the extreme raw weights (raw max=535.89; `birth_cohort_group1990+` coefficient=−6.196 → propensity≈0.002 for recent entrants who cannot satisfy the 10-year continuity criterion by construction), confirm p1–p99 trimming (trimmed max=42.78, CV drops from 1.36 to 0.99), and note the structural eligibility limitation. Reference the T1.29 restricted-eligibility sensitivity comparison. Read `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json` for primary values. **svyglm sensitivity documentation required in §4.5:** state the IPW pseudo-likelihood concern in `glmmTMB(family=binomial, weights=w)` (non-integer trial-count warnings) and present svyglm + cluster-robust SEs at the foo_cluster level as the design-correct sensitivity column.
+* **Dependencies:** **Task 1.33 by TDA Agent**, **Task 1.34 by Panel Statistics Agent**, **Task 1.13 by Panel Statistics Agent**, **Task 1.14 by Panel Statistics Agent**, **Task 1.15 by Panel Statistics Agent**, **Task 1.29 by Panel Statistics Agent**.
 
 1. Compile regression + mediation + weighting results.
 2. Build coefficient table.
@@ -1002,7 +1130,7 @@ style T4_10 fill:#a8dadc,color:#000
 * **Output:** `papers/P01-A-JRSSA/drafts/v2-supplement-YYYY-MM.md` with all sections.
 * **Validation:** Every supplement reference in the main text is satisfied; null-spec is reproducible from supplement alone; `/notation-check` clean; **User review**.
 * **Guidance:** See P01-A response plan §11.5, §12, plus the per-issue artefact lists. **JRSS formatting questions for User during this Task:** supplement page-limit policy, citation style for grey literature. **BIC disclosure (mandatory):** The BIC curve section must state that the global BIC minimum is k=14 (ΔBIC=504,751 vs k=7 on the Kass-Raftery scale) and that k=7 is defended by local BIC optimality in the k=6–8 neighbourhood plus regime interpretability. Read `results/trajectory_tda_integration/stage1/bic_curve_2026-05-13.json` for the exact values. **IPW supplement section (mandatory):** Document the full weight distribution (raw and trimmed) from T1.13 and T1.29: raw max=535.89, trimmed max=42.78 (p1–p99), CV raw=1.36→trimmed=0.99. State the birth-cohort explanation (recent entrants cannot satisfy the 10-year continuity criterion → `birth_cohort_group1990+` coefficient=−6.196). Document the structural eligibility limitation and present the T1.29 restricted-eligibility sensitivity comparison. Read `results/panel_methodology/weights/ipw_diagnostics_2026-05-13.json` and `results/panel_methodology/weights/ipw_structural_eligible_sensitivity_<date>.json` for the values.
-* **Dependencies:** All Stage 1 Tasks; **in particular Task 1.12 by Panel Statistics Agent** (BIC curve values and disclosure requirement).
+* **Dependencies:** All Stage 1 Tasks; **in particular Task 1.12 by Panel Statistics Agent** (BIC curve values and disclosure requirement), **Task 1.35 by Panel Statistics Agent** (T1.21 cross-classified GLMM diagnosis transparency supplement — power, singleton decomposition, sibling-pair concordance), and **Task 1.33 by TDA Agent** (per-individual local persistence methodology supplement and pre-registration audit trail for the topological FOO signature).
 
 1. Section-by-section compilation, drawing from Stage 1 results.
 2. Cross-references resolved against main-text Tasks.
