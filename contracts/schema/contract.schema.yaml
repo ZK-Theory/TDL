@@ -1,0 +1,278 @@
+# Meta-schema for TDL math-correctness contracts.
+#
+# Every YAML file under contracts/<topic>/ (excluding contracts/schema/ and
+# contracts/manifests/) MUST validate against this schema. The pre-commit
+# hook validates each contract against this file as its first gate.
+#
+# Conforms to JSON Schema draft 2020-12 vocabulary so a standard validator
+# (e.g. python-jsonschema) can consume it.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://tdl.local/contracts/schema/contract.schema.yaml"
+title: "TDL Math-Correctness Contract"
+description: "Schema for individual contract files under contracts/<topic>/."
+type: object
+
+required:
+  - id
+  - kind
+  - description
+  - spec_citation
+  - binding
+
+properties:
+
+  id:
+    type: string
+    pattern: "^[a-z][a-z0-9-]*[a-z0-9]$"
+    description: >
+      Kebab-case unique identifier. MUST equal the filename stem.
+      Cross-contract references use this id (e.g., from output_validation
+      contracts referencing schema contracts).
+
+  kind:
+    type: string
+    enum:
+      - formula
+      - schema
+      - invariant
+      - output_validation
+    description: >
+      Contract kind. Four kinds locked — extending the grammar requires
+      retiring an existing kind. See README.md for kind semantics.
+
+  description:
+    type: string
+    minLength: 20
+    description: >
+      Single-paragraph statement of what the contract enforces. Reads
+      naturally; assumes a reader familiar with the project domain.
+
+  pending:
+    type: boolean
+    description: >
+      Optional. When true, the contract is still validated against the
+      meta-schema (gate 1) but binding existence (gate 2), pytest invocation
+      (gate 3), and output JSON validation (gate 4) are SKIPPED for this
+      contract. Used to land contracts whose binding tests are not yet on
+      the base branch (e.g., authored on a feature branch that has not yet
+      merged). Pending contracts MUST be transitioned out of pending (by
+      removing this field) as soon as their binding test is available on
+      the base branch. Default false.
+
+  spec_citation:
+    type: object
+    required: [source]
+    properties:
+      source:
+        type: string
+        description: >
+          Where the contract originates. Free-form but should name the
+          authoritative document (Spec section, Plan task ID, pre-reg
+          vault entry, response-plan section, code-review finding date,
+          paper section, methodological mandate).
+      anchor:
+        type: string
+        description: "Optional sub-anchor within the source (e.g., '§3.3' or 'page 12')."
+      vault_entry_date:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        description: "If from a vault entry, the entry's date in ISO format."
+
+  binding:
+    type: object
+    required: [test_file, test_function, must_assert]
+    description: >
+      One-to-one link from this contract to a pytest test. The pre-commit
+      hook runs this test and blocks the commit if it fails.
+    properties:
+      test_file:
+        type: string
+        description: "Repo-root-relative path of the pytest test file."
+      test_function:
+        type: string
+        pattern: "^[a-zA-Z_][a-zA-Z0-9_]*$"
+        description: >
+          Name of the bound pytest test function. MUST exist in test_file
+          and MUST be referenced by no other contract (one-to-one).
+      must_assert:
+        type: string
+        minLength: 20
+        description: >
+          Human-readable description of what the bound test must assert.
+          Used as the diagnostic message when the binding fails.
+
+  # ---------- Per-kind structured fields ----------
+  #
+  # Exactly one of the following blocks is required, determined by `kind`.
+  # The allOf section at the bottom enforces this.
+
+  formula:
+    type: object
+    description: "Required when kind=formula."
+    required: [expression, variables, invariants]
+    properties:
+      expression:
+        type: string
+        description: >
+          Mathematical expression in LaTeX-lite (e.g., 'p = (r + 1) / (n + 1)').
+          Use only ASCII operators (=, +, -, *, /, ^, <=, >=) for parseability.
+      variables:
+        type: object
+        description: "Map of variable symbol -> definition."
+        additionalProperties:
+          type: object
+          required: [description]
+          properties:
+            description: { type: string }
+            domain:
+              type: string
+              description: "Mathematical domain (e.g., 'non-negative integer', '[0, 1]')."
+            implementation_name:
+              type: string
+              description: "Name of the variable in the bound code (for traceability)."
+      invariants:
+        type: array
+        description: >
+          Derived constraints — what must hold under the formula. These are
+          claims the binding test verifies (or scoped sub-assertions thereof).
+        items:
+          type: object
+          required: [claim]
+          properties:
+            claim: { type: string }
+            expression:
+              type: string
+              description: "Optional formal expression of the invariant."
+
+  schema_def:
+    type: object
+    description: "Required when kind=schema."
+    required: [applies_to, required_keys]
+    properties:
+      applies_to:
+        type: string
+        description: >
+          What this schema validates — a function return value (with full
+          dotted path), a JSON file pattern, or a data-structure name.
+      required_keys:
+        type: array
+        items:
+          type: object
+          required: [name, type, description]
+          properties:
+            name: { type: string }
+            type:
+              type: string
+              description: "Type as 'float', 'int', 'str', 'bool', 'float | null', 'list[float]', 'dict[str, ...]'."
+            description: { type: string }
+            implementation_source:
+              type: string
+              description: "Optional line / function ref in the source code where this key is populated."
+      conditional_keys:
+        type: array
+        description: "Keys that are required only when a stated condition holds."
+        items:
+          type: object
+          required: [condition, name, type, description]
+          properties:
+            condition:
+              type: string
+              description: "Human-readable condition (e.g., 'when dim == 0')."
+            name: { type: string }
+            type: { type: string }
+            description: { type: string }
+      forbidden_keys:
+        type: array
+        description: "Keys that MUST NOT appear in the validated object."
+        items:
+          type: object
+          required: [name, reason]
+          properties:
+            name: { type: string }
+            reason: { type: string }
+
+  invariant:
+    type: object
+    description: "Required when kind=invariant."
+    required: [claim]
+    properties:
+      claim:
+        type: string
+        minLength: 20
+        description: >
+          The non-formulaic invariant. State as a condition-consequence pair
+          where applicable (e.g., 'When X holds, Y must follow').
+      preconditions:
+        type: array
+        items: { type: string }
+        description: "Conditions under which the invariant applies."
+      counter_example_history:
+        type: string
+        description: >
+          Optional reference to a past defect this invariant was authored to
+          prevent (e.g., a vault [NEGATIVE] entry date and PR number).
+
+  output_validation:
+    type: object
+    description: "Required when kind=output_validation."
+    required: [applies_to_glob, schema_contracts]
+    properties:
+      applies_to_glob:
+        type: string
+        description: >
+          Glob pattern (POSIX-style, repo-root-relative). The pre-commit hook
+          validates any file matching this glob staged in the commit.
+      wrapper_key:
+        type: string
+        description: >
+          Optional. When set, the referenced schema_contract is applied to
+          data[wrapper_key] rather than to the top-level data. Use when a
+          persisted JSON wraps the return-value structure under a named
+          field alongside metadata (e.g., 'result' alongside 'phase',
+          'run_params', 'dataset'). Default behaviour (key absent) treats
+          data itself as the schema target.
+      schema_contracts:
+        type: array
+        description: >
+          Contract IDs (filename stems) of schema-kind contracts whose
+          schemas apply to files matching the glob.
+        items: { type: string }
+        minItems: 1
+      file_dispatch:
+        type: array
+        description: >
+          Optional per-filename dispatch — when multiple schemas could apply,
+          map filename patterns to specific schema contracts.
+        items:
+          type: object
+          required: [filename_pattern, schema_contract]
+          properties:
+            filename_pattern: { type: string }
+            schema_contract: { type: string }
+
+# ---------- Kind-conditional requirements ----------
+
+allOf:
+  - if:
+      properties:
+        kind: { const: formula }
+    then:
+      required: [formula]
+  - if:
+      properties:
+        kind: { const: schema }
+    then:
+      required: [schema_def]
+  - if:
+      properties:
+        kind: { const: invariant }
+    then:
+      required: [invariant]
+  - if:
+      properties:
+        kind: { const: output_validation }
+    then:
+      required: [output_validation]
+
+additionalProperties: false

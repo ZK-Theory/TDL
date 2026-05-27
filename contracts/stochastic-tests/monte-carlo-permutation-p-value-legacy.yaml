@@ -1,0 +1,53 @@
+id: monte-carlo-permutation-p-value-legacy
+kind: formula
+pending: true  # binding test lives on run/headline-batch-frozen-pca-rerun worktree; clear after merge to main
+
+description: >
+  Same Davison-Hinkley Monte Carlo permutation p-value as
+  monte-carlo-permutation-p-value, but bound to the legacy pre-phase-split
+  aggregator at trajectory_tda.scripts.run_stage1_battery._aggregate_combined.
+  The legacy path is retained as a reference implementation and bit-for-bit
+  equivalence target for the new stage1._battery_core.aggregate_combined
+  (verified by tests/trajectory_tda/test_stage1_phase_equivalence.py).
+  Same mathematical claim, distinct enforcement target — both must use
+  the (r + 1) / (n + 1) formula with n derived from B, not from the
+  effect-size pair cap. Authored under the one-to-one binding rule to
+  cover the legacy code path independently. Unlikely to be re-exercised
+  given wall-time on legacy invocations, but retained for completeness.
+
+spec_citation:
+  source: "Same as monte-carlo-permutation-p-value; applies to legacy aggregator at run_stage1_battery.py::_aggregate_combined"
+  anchor: "§B2"
+  vault_entry_date: "2026-05-27"
+
+formula:
+  expression: "p = (r + 1) / (n + 1)"
+  variables:
+    r:
+      description: "Count of null statistics greater than or equal to the observed statistic."
+      domain: "non-negative integer"
+      implementation_name: "_r_w2 (W2) / _r_land (landscape L2) in legacy _aggregate_combined"
+    n:
+      description: "Number of null draws used for p-value computation. In the legacy aggregator, MUST equal min(B, n_total_pairs) where n_total_pairs = B*(B-1)/2."
+      domain: "positive integer"
+      implementation_name: "_n_w2 / _n_land == pvalue_null_draws"
+    B:
+      description: "Number of Markov-k permutations executed."
+      domain: "positive integer"
+      implementation_name: "n_permutations"
+  invariants:
+    - claim: "Minimum p-value is 1 / (n + 1)."
+      expression: "p_min = 1 / (n + 1)"
+    - claim: "p_max = 1.0."
+    - claim: "n MUST be derived from B (or total_pairs when B*(B-1)/2 < B), not from the effect-size pair cap."
+    - claim: "pvalue_null_draws field equals n; effect_null_pairs field equals the count actually used for T/d, which in the legacy path equals total_pairs (since the legacy aggregator does not expose a separable cap)."
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_battery_core_regressions.py"
+  test_function: "test_legacy_stage1_pvalue_uses_b_draws_not_pair_count"
+  must_assert: >
+    For trajectory_tda.scripts.run_stage1_battery._aggregate_combined with
+    B=12 permutations: every output cell exposes pvalue_null_draws == 12,
+    effect_null_pairs == 12*11/2 == 66, w2_pvalue == 1/13, and
+    landscape_l2_pvalue == 1/13. Asserts the legacy path uses the same
+    (r+1)/(B+1) construction as the new aggregator under canonical inputs.

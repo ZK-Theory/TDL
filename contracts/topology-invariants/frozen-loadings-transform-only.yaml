@@ -1,0 +1,46 @@
+id: frozen-loadings-transform-only
+kind: invariant
+
+description: >
+  When frozen_scaler and frozen_pca are passed to ngram_embed, the
+  function must use .transform() — NOT .fit_transform() — for those
+  stages. The output embedding must equal the deterministic composition
+  frozen_pca.transform(frozen_scaler.transform(raw_features)). The
+  fitted_models field of the returned info dict must reflect the
+  passed-in models (identity preserved), not freshly-fit replacements.
+  Violating this invariant defeats the purpose of frozen loadings —
+  null draws would land in a different PCA coordinate frame than the
+  observed.
+
+spec_citation:
+  source: "T1.36 Plan task definition + 2026-05-26 T1.36 [PIPELINE] entry"
+  vault_entry_date: "2026-05-26"
+
+invariant:
+  claim: >
+    For any trajectories T and fitted (scaler S, pca P), the call
+    ngram_embed(T, frozen_scaler=S, frozen_pca=P, ...) returns
+    (embedding, info) such that embedding == P.transform(S.transform(raw_features(T)))
+    within numerical tolerance, AND info['fitted_models']['scaler'] is S
+    (object identity), AND info['fitted_models']['reducer'] is P.
+  preconditions:
+    - "Both frozen_scaler and frozen_pca are non-None."
+    - "frozen_scaler exposes .transform(); frozen_pca exposes .transform()."
+    - "embed_kwargs other than the frozen_* slots are consistent with how (S, P) were originally fit (e.g., same pca_dim)."
+  counter_example_history: >
+    Pre-T1.36 ngram_embed unconditionally re-fit scaler + PCA, so any
+    "frozen" semantics would have been a no-op. T1.36 added the
+    frozen_scaler / frozen_pca / frozen_umap parameters with explicit
+    branching on None vs object.
+
+binding:
+  test_file: "tests/trajectory_tda/test_frozen_loadings.py"
+  test_function: "test_frozen_scaler_pca_transform_only"
+  must_assert: >
+    After fitting (scaler, pca) on a training set of 60 trajectories, a
+    subsequent ngram_embed call on a held-out set of 30 trajectories
+    with frozen_scaler=scaler and frozen_pca=pca produces an embedding
+    equal (within np.testing.assert_allclose tolerance) to
+    pca.transform(scaler.transform(raw_features(test))). The
+    info['fitted_models']['scaler'] field is the same object as the
+    passed-in scaler; same for reducer.

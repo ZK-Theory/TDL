@@ -1,0 +1,87 @@
+id: stage1-aggregate-output-cell
+kind: schema
+pending: true  # binding test lives on run/headline-batch-frozen-pca-rerun worktree; clear after merge to main
+
+description: >
+  The per-dimension cell (h0, h1, ...) of the Stage-1 W2 + landscape L2
+  battery output. Returned by stage1._battery_core.aggregate_combined
+  and propagated unchanged through run_headline_from_embeddings,
+  run_headline, and run_lm_sensitivity_single_L. The schema must be
+  preserved end-to-end: LM-sensitivity must return the full aggregate
+  payload, not a p-value-only subset (the original T1.36 truncation
+  defect dropped t_ratio, d_perm, mean_obs_null, and mean_null_null,
+  preventing pre-fix-vs-post-fix comparison-table construction).
+
+spec_citation:
+  source: "stage1._battery_core.aggregate_combined source-of-truth schema (lines 401-419 of the corrected implementation, 2026-05-27)"
+  vault_entry_date: "2026-05-27"
+
+schema_def:
+  applies_to: "Return value of trajectory_tda.scripts.stage1._battery_core.aggregate_combined, keyed by 'h0', 'h1', ..., 'h{max_dim}'."
+  required_keys:
+    - name: w2_pvalue
+      type: float
+      description: "Monte Carlo p-value under the W2 ground metric. Computed per monte-carlo-permutation-p-value contract."
+      implementation_source: "_battery_core.aggregate_combined line 365"
+    - name: pvalue_null_draws
+      type: int
+      description: "Number of null draws (n) used in the p-value denominator. MUST equal min(B, total_pairs). Exposed for traceability of the (r+1)/(n+1) formula."
+      implementation_source: "_battery_core.aggregate_combined line 364 / 403"
+    - name: effect_null_pairs
+      type: int
+      description: "Number of null-null pairs used for T-ratio and d-perm effect-size diagnostics. Capped by n_null_pairs_cap (default 500). Distinct from pvalue_null_draws."
+      implementation_source: "_battery_core.aggregate_combined line 404"
+    - name: landscape_l2_pvalue
+      type: float
+      description: "Monte Carlo p-value under the landscape L2 ground metric."
+      implementation_source: "_battery_core.aggregate_combined line 385"
+    - name: t_ratio
+      type: float
+      description: "W2 test statistic: mean(W2_obs-null) / mean(W2_null-null)."
+      implementation_source: "_battery_core.aggregate_combined line 353"
+    - name: bca_ci_lower
+      type: "float | null"
+      description: "Lower bound of 95% BCa CI for t_ratio. Null if BCa computation failed."
+      implementation_source: "_battery_core.aggregate_combined lines 354-360"
+    - name: bca_ci_upper
+      type: "float | null"
+      description: "Upper bound of 95% BCa CI for t_ratio. Null if BCa computation failed."
+    - name: d_perm
+      type: float
+      description: "Permutation effect size: (mean_obs_null - mean_null_null) / std(null_null)."
+      implementation_source: "_battery_core.aggregate_combined line 369"
+    - name: mean_obs_null
+      type: float
+      description: "Mean of observed-vs-null W2 distances."
+    - name: mean_null_null
+      type: float
+      description: "Mean of null-vs-null W2 distances."
+    - name: landscape_t_ratio
+      type: float
+      description: "Landscape L2 t_ratio analogue."
+    - name: landscape_bca_ci_lower
+      type: "float | null"
+      description: "Landscape L2 BCa CI lower bound. Null if computation failed."
+    - name: landscape_bca_ci_upper
+      type: "float | null"
+      description: "Landscape L2 BCa CI upper bound. Null if computation failed."
+    - name: landscape_d_perm
+      type: float
+      description: "Landscape L2 permutation effect size."
+  conditional_keys:
+    - condition: "when dim == 0 (h0 cell only)"
+      name: lower_tail_pvalue
+      type: float
+      description: "One-sided lower-tail p-value: probability the observed statistic is ≤ null statistics. Reported only for H0 because H0 has interpretable lower-tail behaviour (component over-merging)."
+      implementation_source: "_battery_core.aggregate_combined line 367"
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_battery_core_regressions.py"
+  test_function: "test_lm_sensitivity_single_L_returns_full_aggregate_schema"
+  must_assert: >
+    run_lm_sensitivity_single_L returns the full aggregate_combined payload —
+    NOT a p-value-only subset. Specifically, the returned object's h0 cell
+    contains AT LEAST {t_ratio, d_perm, mean_obs_null, mean_null_null} in
+    addition to the p-value fields. This catches the original T1.36 LM-output
+    truncation defect at its primary surface.

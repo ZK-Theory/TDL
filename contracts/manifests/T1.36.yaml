@@ -1,0 +1,26 @@
+scope_id: T1.36
+scope_description: >
+  Code-side fix: ngram_embed frozen-loadings parameters + null threading +
+  (in-flight follow-on after User-caught defects) p-value denominator
+  correction + LM-sensitivity output-schema fix. Worked-example contract
+  set authored retroactively against the corrected implementation.
+authored: "2026-05-27"
+authored_by: "Manager 3 (worked-example pass, Phase A)"
+
+contracts:
+  - stochastic-tests/monte-carlo-permutation-p-value
+  - stochastic-tests/monte-carlo-permutation-p-value-legacy
+  - stage1-output-schemas/stage1-aggregate-output-cell
+  - stage1-output-schemas/stage1-output-json-validation
+  - topology-invariants/frozen-loadings-null-threading
+  - topology-invariants/frozen-loadings-transform-only
+
+notes: >
+  This manifest is the worked example used to validate the contract
+  grammar against the actual T1.36 failure surface. All five contracts
+  bind to existing tests in
+  tests/trajectory_tda/test_stage1_battery_core_regressions.py and
+  tests/trajectory_tda/test_frozen_loadings.py, except
+  stage1-output-json-validation whose binding test does not yet exist
+  and must be authored as part of landing the framework. Authorship of
+  the missing test is a tracked deliverable.

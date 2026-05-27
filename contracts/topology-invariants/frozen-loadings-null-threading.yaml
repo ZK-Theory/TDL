@@ -1,0 +1,47 @@
+id: frozen-loadings-null-threading
+kind: invariant
+
+description: >
+  When the observed embedding's fitted scaler + PCA + UMAP models are
+  available (e.g., produced by an initial call to ngram_embed), the
+  trajectory-level permutation null functions
+  (_markov_shuffle / _order_shuffle / _stratified_markov_shuffle, and
+  the integration point _single_permutation) must accept a frozen_models
+  bundle and forward it to ngram_embed for re-embedding the permuted
+  trajectories. Without this threading, null embeddings live in a
+  rotated PCA coordinate frame from the observed embedding, and W2
+  distances between observed and null persistence diagrams measure
+  coordinate-frame mismatch in addition to topological difference. This
+  was the P1-5 null-layer audit finding closed by T1.36.
+
+spec_citation:
+  source: "2026-05-25 vault [NEGATIVE] entry (null-layer audit) + 2026-05-26 T1.36 [PIPELINE] entry"
+  vault_entry_date: "2026-05-26"
+
+invariant:
+  claim: >
+    When frozen_models = {'scaler': S, 'reducer': P} is passed to
+    permutation_nulls._markov_shuffle (or any trajectory-level null
+    function in permutation_nulls), the inner ngram_embed call uses
+    frozen_scaler=S and frozen_pca=P. When frozen_models is None or
+    omitted, the inner ngram_embed call uses the default fit-then-transform
+    pipeline (backward-compatible behaviour).
+  preconditions:
+    - "trajectories is a list of state sequences."
+    - "embed_kwargs is a dict matching ngram_embed's signature."
+    - "frozen_models, if provided, contains valid fitted sklearn-like objects with a .transform() method."
+  counter_example_history: >
+    Original null-layer implementation in permutation_nulls.py re-fit PCA
+    inside each null permutation, producing PCA-basis rotation across
+    null draws and between null and observed. P1-5 finding closed by
+    T1.36 (commit 7e7ffcb on 2026-05-26).
+
+binding:
+  test_file: "tests/trajectory_tda/test_frozen_loadings.py"
+  test_function: "test_null_function_uses_frozen_models"
+  must_assert: >
+    permutation_nulls._markov_shuffle, when called with frozen_models=info['fitted_models'],
+    forwards frozen_scaler and frozen_pca kwargs into the inner ngram_embed call.
+    When called without frozen_models, ngram_embed is called without those kwargs
+    (None / absent). The test monkeypatches ngram_embed to capture kwargs and
+    asserts the forwarding behaviour against both call paths.

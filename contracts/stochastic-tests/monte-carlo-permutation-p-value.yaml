@@ -1,0 +1,56 @@
+id: monte-carlo-permutation-p-value
+kind: formula
+pending: true  # binding test lives on run/headline-batch-frozen-pca-rerun worktree; clear after merge to main
+
+description: >
+  The two-sided Monte Carlo permutation p-value uses the bias-corrected
+  Davison-Hinkley formula p = (r + 1) / (n + 1), where n is the number
+  of null draws used for p-value computation. In Stage-1 batteries, n
+  equals min(B, total_pairs) where B is the number of permutations and
+  total_pairs is the number of unique null-null index pairs. This is
+  distinct from the diagnostic null-null pair cap (n_null_pairs_cap)
+  used for T/d effect-size diagnostics — conflating the two produces
+  a wrong denominator and an inflated p-value floor.
+
+spec_citation:
+  source: "P01-A response plan §B2.5–B2.9 + 2026-05-26 T1.36 [NEGATIVE] / 2026-05-27 [PIPELINE] vault entries"
+  anchor: "§B2"
+  vault_entry_date: "2026-05-27"
+
+formula:
+  expression: "p = (r + 1) / (n + 1)"
+  variables:
+    r:
+      description: "Count of null statistics greater than or equal to the observed statistic."
+      domain: "non-negative integer"
+      implementation_name: "_r_w2 (W2) / _r_land (landscape L2)"
+    n:
+      description: "Number of null draws used for p-value computation. MUST equal min(B, total_pairs)."
+      domain: "positive integer"
+      implementation_name: "_n_w2 / _n_land == pvalue_null_draws"
+    B:
+      description: "Number of Markov-k permutations executed."
+      domain: "positive integer"
+      implementation_name: "n_permutations"
+    total_pairs:
+      description: "Number of unique unordered null-null index pairs: B * (B - 1) / 2."
+      domain: "non-negative integer"
+      implementation_name: "n_total_pairs"
+  invariants:
+    - claim: "Minimum achievable p-value is 1 / (n + 1). For B=1000 with full null-pair availability, p_min = 1/1001 ≈ 0.000999, NOT 1/501 ≈ 0.001996."
+      expression: "p_min = 1 / (n + 1)"
+    - claim: "Maximum p-value is 1.0 (all null statistics ≥ observed)."
+      expression: "p_max = 1"
+    - claim: "p is monotone non-decreasing in r."
+    - claim: "The p-value denominator MUST be derived from B (or min(B, total_pairs)), NOT from the diagnostic n_null_pairs_cap used for T-ratio and d-perm effect sizes. The output cell exposes both as pvalue_null_draws and effect_null_pairs respectively."
+    - claim: "The exposed bookkeeping field pvalue_null_draws MUST equal n (the p-value denominator minus 1) for every output cell."
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_battery_core_regressions.py"
+  test_function: "test_aggregate_combined_pvalue_uses_b_draws_not_effect_pair_cap"
+  must_assert: >
+    For the corrected stage1._battery_core.aggregate_combined, with B=10 permutations
+    and n_null_pairs_cap=3: every output cell exposes pvalue_null_draws == 10,
+    effect_null_pairs == 3, w2_pvalue == 1/11 (the floor under r=0), and
+    landscape_l2_pvalue == 1/11. For h0, lower_tail_pvalue == 1.0 when all null
+    statistics equal the observed (extreme lower-tail case).

@@ -12,6 +12,7 @@ GIT_HOOKS_DIR = REPO_ROOT / ".git" / "hooks"
 
 HOOKS = {
     "commit-msg": "git-commit-msg.sh",
+    "pre-commit": "git-pre-commit.sh",
 }
 
 
