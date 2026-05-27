@@ -1,0 +1,35 @@
+scope_id: T1.37
+scope_description: >
+  Reissue of affected Stage-1 headline, landmark-sensitivity,
+  length-matched, and stratified Markov-1 outputs under frozen
+  loadings, plus the cache-based p-value denominator cleanup for
+  provisional T1.2 outputs, the frozen-vs-provisional comparison table,
+  and disclosure paragraph.
+authored: "2026-05-27"
+authored_by: "Manager 4 (pre-dispatch coverage extraction)"
+
+contracts:
+  - stochastic-tests/monte-carlo-permutation-p-value
+  - stochastic-tests/monte-carlo-permutation-p-value-legacy
+  - stage1-output-schemas/stage1-aggregate-output-cell
+  - stage1-output-schemas/stage1-output-json-validation
+  - topology-invariants/frozen-loadings-null-threading
+  - topology-invariants/frozen-loadings-transform-only
+  - topology-invariants/stratified-markov-frozen-loadings-runner
+  - stage1-output-schemas/stratified-markov1-output
+  - stage1-output-schemas/stratified-markov1-output-json-validation
+  - stage1-output-schemas/frozen-vs-provisional-comparison-table
+  - stage1-output-schemas/frozen-vs-provisional-comparison-json-validation
+  - stage1-output-schemas/stage1-pvalue-denominator-cleanup
+  - stage1-output-schemas/stage1-pvalue-denominator-cleanup-json-validation
+
+notes: >
+  Existing T1.36 contracts cover the corrected p-value denominator, full
+  aggregate cell schema, headline/LM/length-matched JSON validation, and
+  low-level frozen-loadings transform/threading. T1.37 adds pending
+  contracts for three surfaces first touched by the reissue: the
+  stratified Markov-1 frozen runner/output, the cache-based p-value
+  denominator cleanup for provisional Stage-1 values, and the
+  frozen-vs-provisional comparison artifact. Pending contracts must have
+  binding tests authored and the pending flags cleared before the Worker
+  commits the corresponding code or output JSONs.

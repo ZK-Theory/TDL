@@ -1,0 +1,62 @@
+id: stratified-markov1-output
+kind: schema
+pending: true
+
+description: >
+  The frozen stratified Markov-1 result JSON produced by T1.37 must
+  preserve the outcome-lock surface needed for review: run parameters,
+  A/B/C outcome, per-dataset significant-regime summaries, BH-FDR test
+  table, and per-regime aggregate W2/landscape cells for both USoc and
+  BHPS. The output must explicitly record frozen_loadings=true so the
+  post-fix result cannot be mistaken for the provisional pre-fix T1.3
+  result.
+
+spec_citation:
+  source: "Plan Task 1.37 output list + 2026-05-25 null-layer [NEGATIVE] vault entry"
+  anchor: "stratified_markov1_W2_L5000_frozen_<date>.json"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "results/trajectory_tda_integration/stratified_markov/stratified_markov1_W2_L5000_frozen_<date>.json"
+  required_keys:
+    - name: pre_registration
+      type: str
+      description: "Identifier/date of the pre-registration governing the stratified Markov-1 decision rule."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Run parameters including L, B, seed, null, k_max, n_points, fdr_alpha, outcome_a_min_frac, and frozen_loadings=true."
+    - name: outcome
+      type: str
+      description: "Outcome letter A, B, or C after BH-FDR correction and per-dataset classification."
+    - name: outcome_rule
+      type: str
+      description: "Human-readable A/B/C classification rule."
+    - name: per_dataset
+      type: "dict[str, ...]"
+      description: "USoc and BHPS summaries with n_regimes_tested, n_significant, significant_regimes, and frac_significant."
+    - name: fdr_tests
+      type: "dict[str, ...]"
+      description: "BH-FDR table keyed by dataset_regime_dim with raw_pvalue and rejected fields."
+    - name: usoc
+      type: "dict[str, ...]"
+      description: "Per-regime USoc results. Non-skipped regimes contain h0/h1 aggregate cells."
+    - name: bhps
+      type: "dict[str, ...]"
+      description: "Per-regime BHPS results. Non-skipped regimes contain h0/h1 aggregate cells."
+    - name: date
+      type: str
+      description: "ISO date the frozen rerun output was produced."
+  conditional_keys: []
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/trajectory_tda/test_stratified_markov_contracts.py"
+  test_function: "test_stratified_markov1_output_schema_contract"
+  must_assert: >
+    A representative frozen stratified Markov-1 output contains all root
+    required keys, params.frozen_loadings is true, outcome is one of
+    A/B/C, per_dataset contains both usoc and bhps summaries, fdr_tests
+    entries contain raw_pvalue and rejected, and every non-skipped regime
+    under usoc/bhps exposes h0/h1 cells compatible with the
+    stage1-aggregate-output-cell schema.
+

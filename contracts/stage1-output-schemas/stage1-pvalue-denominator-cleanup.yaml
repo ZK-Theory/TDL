@@ -1,0 +1,61 @@
+id: stage1-pvalue-denominator-cleanup
+kind: schema
+pending: true
+
+description: >
+  The cache-based Stage-1 p-value denominator cleanup records corrected
+  p-values recomputed from preserved pre-fix null-diagram caches under
+  the locked Monte Carlo formula p = (r + 1) / (B + 1). This artifact is
+  distinct from the fresh frozen-loadings reruns: it uses the same
+  pre-fix null diagrams and changes only the denominator/rank-count
+  bookkeeping where recoverable. It exists to make the academic record
+  explicit about how the T1.36 p-value defect changes historical
+  provisional values.
+
+spec_citation:
+  source: "Manager 3 handoff T1.2 cascade recompute + 2026-05-27 [PIPELINE] vault entry"
+  anchor: "recompute corrected p-values from preserved .npz caches"
+  vault_entry_date: "2026-05-27"
+
+schema_def:
+  applies_to: "results/trajectory_tda_integration/stage1/pvalue_denominator_cleanup_<date>.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Version identifier for the denominator-cleanup artifact."
+    - name: generated_at
+      type: str
+      description: "ISO timestamp or date for cleanup generation."
+    - name: formula
+      type: str
+      description: "Locked p-value formula, expected to be '(r + 1) / (B + 1)' or equivalent."
+    - name: source_caches
+      type: "dict[str, ...]"
+      description: "Preserved pre-fix cache paths used as inputs, with size/mtime verification where available."
+    - name: source_results
+      type: "dict[str, ...]"
+      description: "Historical provisional result JSON paths whose p-values are being cleaned up."
+    - name: cells
+      type: "list[dict[str, ...]]"
+      description: "Per-cell cleanup rows."
+    - name: unrecoverable_cells
+      type: "list[dict[str, ...]]"
+      description: "Rows that could not be recomputed from available cache/source artifacts, with explicit reason."
+    - name: summary
+      type: "dict[str, ...]"
+      description: "Aggregate count of cells recomputed, unavailable, and any rejection-direction changes."
+  conditional_keys: []
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_comparison_contracts.py"
+  test_function: "test_stage1_pvalue_denominator_cleanup_schema_contract"
+  must_assert: >
+    A representative denominator-cleanup JSON contains the required root
+    keys and every cells[] row includes at least: cell_id, analysis_id,
+    dataset, homology_dim, metric, old_reported_pvalue,
+    corrected_pvalue, old_denominator, corrected_denominator,
+    old_pvalue_floor, corrected_pvalue_floor, rank_count, B,
+    source_cache_path, and source_result_path. Any row that cannot be
+    recomputed must appear in unrecoverable_cells with cell_id and reason.
+

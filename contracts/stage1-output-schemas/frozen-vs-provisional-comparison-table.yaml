@@ -1,0 +1,67 @@
+id: frozen-vs-provisional-comparison-table
+kind: schema
+pending: true
+
+description: >
+  The T1.37 frozen-vs-provisional comparison JSON is the disclosure
+  bridge between provisional pre-fix Stage-1 values and corrected
+  frozen-loadings rerun values. It must also carry the denominator
+  cleanup layer from preserved pre-fix caches, so the paper can
+  distinguish "same null diagrams, corrected (r+1)/(B+1) denominator"
+  from "new frozen-loadings null diagrams." It must preserve enough
+  per-cell information to support paper prose: source paths, provisional
+  p-value, cache-corrected p-value, frozen post-fix p-value, deltas,
+  rejection calls, and whether the rejection direction was preserved.
+  Missing these fields would make the methodological-disclosure
+  paragraph unverifiable.
+
+spec_citation:
+  source: "Plan Task 1.37 output list"
+  anchor: "frozen_vs_provisional_comparison_<date>.json"
+
+schema_def:
+  applies_to: "results/trajectory_tda_integration/stage1/frozen_vs_provisional_comparison_<date>.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Version identifier for the comparison-table schema."
+    - name: generated_at
+      type: str
+      description: "ISO timestamp or date for comparison table generation."
+    - name: task
+      type: str
+      description: "Task identifier or descriptive label for the T1.37 comparison."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Source result files and cache files used for provisional, cache-corrected, and post-fix/frozen values."
+    - name: denominator_cleanup
+      type: "dict[str, ...]"
+      description: "Summary of the cache-based p-value denominator cleanup: formula, affected analyses, source caches, and cells recomputed or marked not recoverable."
+    - name: cells
+      type: "list[dict[str, ...]]"
+      description: "Per-cell comparison rows including provisional, cache-corrected, and frozen post-fix p-values."
+    - name: decision_summary
+      type: "dict[str, ...]"
+      description: "Summary of whether T1.2h prose direction and T1.3 Outcome A lock survive."
+    - name: methodological_disclosure_draft
+      type: str
+      description: "Draft prose paragraph for P01-A section 3.3 / P01-B section 3.4."
+  conditional_keys: []
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_comparison_contracts.py"
+  test_function: "test_frozen_vs_provisional_comparison_schema_contract"
+  must_assert: >
+    A representative comparison JSON contains the required root keys and
+    every cells[] row includes at least: cell_id, analysis_id, dataset,
+    homology_dim, metric, provisional_pvalue,
+    cache_denominator_corrected_pvalue, frozen_post_fix_pvalue,
+    provisional_to_cache_delta_pvalue, cache_to_frozen_delta_pvalue,
+    provisional_reject, cache_corrected_reject, frozen_post_fix_reject,
+    rejection_direction_preserved, provisional_result_path,
+    denominator_cleanup_source_path, and frozen_post_fix_result_path.
+    The test must also assert that denominator_cleanup is present and
+    decision_summary reports both the T1.2h prose-direction decision and
+    the T1.3 stratified Outcome A survival/revision decision.
+

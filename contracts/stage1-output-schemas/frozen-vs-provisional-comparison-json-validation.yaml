@@ -1,0 +1,32 @@
+id: frozen-vs-provisional-comparison-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  T1.37 comparison-table JSONs staged under
+  results/trajectory_tda_integration/stage1/ must validate against the
+  frozen-vs-provisional-comparison-table schema. This gates the
+  disclosure artifact at commit time, separate from the rerun result
+  JSON contracts.
+
+spec_citation:
+  source: "Plan Task 1.37 output list"
+  anchor: "frozen_vs_provisional_comparison_<date>.json"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_integration/stage1/*.json"
+  schema_contracts:
+    - frozen-vs-provisional-comparison-table
+  file_dispatch:
+    - filename_pattern: "frozen_vs_provisional_comparison_*.json"
+      schema_contract: frozen-vs-provisional-comparison-table
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_comparison_contracts.py"
+  test_function: "test_frozen_vs_provisional_comparison_json_validation_contract"
+  must_assert: >
+    Every on-disk JSON matching
+    results/trajectory_tda_integration/stage1/frozen_vs_provisional_comparison_*.json
+    satisfies the frozen-vs-provisional-comparison-table contract. The
+    test passes trivially when no comparison JSON exists yet.
+
