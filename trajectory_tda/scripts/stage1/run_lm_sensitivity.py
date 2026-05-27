@@ -81,9 +81,10 @@ def main() -> None:
 
     today = date.today().isoformat()
     smoke_tag = "_smoke" if args.smoke else ""
+    frozen_tag = "_frozen" if args.frozen_loadings else ""
     out_dir = core.worktree_root() / "results/trajectory_tda_integration/stage1"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"lm_sensitivity_L{args.L}{smoke_tag}_{today}.json"
+    out_path = out_dir / f"lm_sensitivity_L{args.L}{frozen_tag}{smoke_tag}_{today}.json"
     payload = {
         "phase": phase_tag,
         "run_params": {

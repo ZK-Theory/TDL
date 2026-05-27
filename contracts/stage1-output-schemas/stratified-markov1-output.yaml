@@ -1,6 +1,5 @@
 id: stratified-markov1-output
 kind: schema
-pending: true
 
 description: >
   The frozen stratified Markov-1 result JSON produced by T1.37 must
