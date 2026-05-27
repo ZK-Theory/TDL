@@ -2,24 +2,6 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "serena-hooks remind --client=claude-code"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__serena__*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "serena-hooks auto-approve --client=claude-code"
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
@@ -57,27 +39,6 @@
             "command": "'c:\\Users\\steph\\TDL\\.codex\\hooks\\results-vault-reminder.sh'",
             "timeout": 5,
             "statusMessage": "Checking for vault reminder..."
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "serena-hooks activate --client=claude-code"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "serena-hooks cleanup --client=claude-code"
           }
         ]
       }

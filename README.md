@@ -6,12 +6,12 @@ GitHub Actions CI Badge (uncomment when workflow is active):
 
 ## Repository policy
 
-This repository uses the Serena MCP toolchain for code navigation and enforces quality checks through `.claude/settings.json` and hook scripts.
+This repository uses the built-in `Read`/`Grep`/`Glob` tools for code navigation and enforces quality checks through `.claude/settings.json` and hook scripts.
 
 Key files:
 
 - `.claude/CLAUDE.md` — root policy file for active guidance
-- `.claude/instructions/tool-usage.instructions.md` — Serena tool usage workflow
+- `.claude/instructions/tool-usage.instructions.md` — tool routing for code navigation
 - `.claude/instructions/hook-enforcement.instructions.md` — enforcement hook rules
 - `.claude/hooks/install-git-hooks.py` — installs repository Git hooks
 

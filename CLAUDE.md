@@ -303,21 +303,20 @@ Key frameworks to integrate: `torch-geometric`, `TopoModelX` (simplicial/cellula
 
 ## Code Exploration Policy
 
-Use Serena's MCP tools for code navigation. Reserve `Read` for files about to be edited, and `Grep`/`Glob` for non-symbol text or filesystem inventory.
+Use the built-in `Read`, `Grep`, and `Glob` tools for code navigation. There is no symbol-level MCP server in use.
 
 **Tool routing:**
-- symbol by name / kind → `mcp__serena__find_symbol`
-- overview of a file's symbols → `mcp__serena__get_symbols_overview`
-- substring or regex inside source files → `mcp__serena__search_for_pattern` (or `Grep` for non-code text such as markdown, configs, notes)
-- where a symbol is referenced → `mcp__serena__find_referencing_symbols`
-- LSP-level diagnostics for a file → `mcp__serena__get_diagnostics_for_file`
-- file outline before editing → `mcp__serena__get_symbols_overview`, then `Read` only the file you will modify
+- read a file with a known path → `Read`
+- search file contents (symbol names, strings, regex) across the repo → `Grep` (with `type: "py"` filter and `output_mode: "content"` for code context)
+- list files by name pattern (e.g. `**/*.py`) or do a filesystem inventory → `Glob`
+- edit an existing file → `Edit` (must be preceded by `Read` of that file)
+- create or fully overwrite a file → `Write`
 
 `Read` is permitted only after the target file has been identified — typically just before `Edit`/`Write`. The agent harness requires a prior `Read` for `Edit`/`Write` to succeed.
 
-`Grep` and `Glob` remain available for: non-symbol text (config values, comments, markdown), filesystem inventories, and as a fallback when Serena returns empty for a query you have strong reason to believe should match.
+Do not use `Bash` (`grep` / `rg` / `find`) for code search — `Grep` is faster, sandboxed, and integrates with the agent harness.
 
-**When Serena is unavailable** (e.g. inside a worktree where the language server has not indexed the branch's files, or in a transient MCP-disconnected state), fall back to `Read` + `Grep` and note the gap in the Task Log so the tooling can be brought back into shape.
+For large multi-step searches (more than a few rounds of grep/read), spawn an `Explore` subagent rather than burning the main context.
 
 ---
 
@@ -403,7 +402,7 @@ When a Task encounters a question requiring User input — a journal-formatting 
 
 ## Code exploration
 
-See "Code Exploration Policy" above. Use Serena's MCP symbol tools for code navigation; `Read` is reserved for files about to be edited; `Grep`/`Glob` are fallbacks for non-symbol text and for when Serena is unavailable. Do not rely on `Bash` for code search.
+See "Code Exploration Policy" above. Use the built-in `Read`/`Grep`/`Glob` tools; `Read` is reserved for files about to be edited; `Grep` is the canonical content-search tool; `Glob` is for filesystem inventory. Do not rely on `Bash` for code search.
 
 ## Methodological mandates
 

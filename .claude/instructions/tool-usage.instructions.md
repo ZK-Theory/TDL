@@ -1,45 +1,33 @@
 ---
-description: Serena MCP tool usage for code exploration and repository navigation.
+description: Code navigation policy — Read for known paths, Grep for content, Glob for filenames.
 alwaysApply: true
 ---
 
-## Serena Tool Usage
+## Code Navigation Policy
 
-Use Serena's MCP tools for code navigation in this repository. Reserve `Read` for files about to be edited, and `Grep`/`Glob` for non-symbol text or filesystem inventory.
+This repository uses the built-in `Read`, `Grep`, and `Glob` tools for code navigation. There is no symbol-level MCP server in use.
 
 ### Tool routing
 
 | Need | Tool |
 |---|---|
-| Symbol by name / kind | `mcp__serena__find_symbol` |
-| Overview of a file's symbols | `mcp__serena__get_symbols_overview` |
-| Substring or regex inside source files | `mcp__serena__search_for_pattern` |
-| Where a symbol is referenced | `mcp__serena__find_referencing_symbols` |
-| Insert before / after a symbol | `mcp__serena__insert_before_symbol` / `insert_after_symbol` |
-| Replace a symbol's body | `mcp__serena__replace_symbol_body` |
-| Replace file contents (regex) | `mcp__serena__replace_content` |
-| LSP-level diagnostics for a file | `mcp__serena__get_diagnostics_for_file` |
-| Rename a symbol across the codebase | `mcp__serena__rename_symbol` |
-| Find symbol implementations | `mcp__serena__find_implementations` |
-| Find symbol declaration | `mcp__serena__find_declaration` |
+| Read a file with a known path | `Read` |
+| Search file contents (symbol names, strings, regex) across the repo | `Grep` |
+| List files by name pattern (e.g. `**/*.py`) | `Glob` |
+| Filesystem inventory (directory listing) | `Glob` |
+| Edit an existing file | `Edit` (must be preceded by `Read` of that file) |
+| Create / fully overwrite a file | `Write` |
 
 ### Discovery flow
 
-1. Unfamiliar repo → `mcp__serena__check_onboarding_performed`; if `false`, run `mcp__serena__onboarding`.
-2. New file → `mcp__serena__get_symbols_overview` first.
-3. Specific symbol → `mcp__serena__find_symbol` (use `name_path_pattern` like `Class/method` for nested symbols; `include_body=true` to fetch source).
-4. Cross-symbol relationships → `find_referencing_symbols` / `find_implementations`.
+1. Unfamiliar repo → start with `Glob "**/*.py"` (or the relevant extension) plus `Glob "**/*.md"` for documentation.
+2. Looking for a specific symbol → `Grep` for the symbol name with `type` filter (`type: "py"`, `type: "rust"`, etc.). Use `output_mode: "content"` with `-n` and `-C 2` for context.
+3. About to edit a file → `Read` it first, then `Edit`.
+4. Cross-symbol relationships (callers of a function, implementations of an interface) → `Grep` for the symbol name; review match list to identify call sites.
 
-### Read / Grep / Glob — fallback discipline
+### Discipline
 
-- `Read` is permitted **only after** the target file has been identified — typically just before `Edit`/`Write`. The agent harness requires a prior `Read` for `Edit`/`Write` to succeed.
-- `Grep` and `Glob` remain available for: non-symbol text (config values, comments, markdown, notation), filesystem inventories, and as a fallback when Serena returns empty for a query you have strong reason to believe should match.
-- `Bash` for code search (`grep`/`find`/`rg`) is **not** appropriate — use the typed tools above instead.
-
-### When Serena is unavailable
-
-Inside a worktree where the language server has not indexed the branch's files, or during a transient MCP-disconnected state, fall back to `Read` + `Grep` and note the gap in the Task Log so the tooling can be brought back into shape.
-
-### After editing
-
-If a file's symbol structure changes substantially (function added, signature changed, class moved), the next `find_symbol` call on that name path picks up the change without manual reindex. No `register_edit` step is required.
+- `Read` is for files you already have a path for. Don't use it to "explore" — start with `Glob` / `Grep`.
+- `Grep` is the canonical content-search tool. Do **not** use `Bash` (`grep` / `rg` / `find`) for code search — the typed tool is faster, sandboxed, and integrates with the agent harness.
+- `Glob` matches by pathname only — for content matching, use `Grep` with the `glob` parameter to restrict by path pattern.
+- For large multi-step searches (more than a few rounds of grep/read), spawn an `Explore` subagent rather than burning the main context.

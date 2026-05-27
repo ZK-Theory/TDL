@@ -1,35 +1,32 @@
-## Code Exploration Policy
+# AGENTS.md — Code Navigation Policy
 
-Use Serena's MCP tools for code navigation. Reserve `Read` for files about to be edited, and `Grep`/`Glob` for non-symbol text or filesystem inventory.
+This repository uses the built-in `Read`, `Grep`, and `Glob` tools for code navigation. There is no symbol-level MCP server in use.
 
-**Exception:** `Read` is permitted only after the target file has been identified — typically just before `Edit`/`Write`. The agent harness requires a prior `Read` for `Edit`/`Write` to succeed.
+## Tool routing
 
-**Finding code:**
-- symbol by name / kind → `mcp__serena__find_symbol` (use `name_path_pattern` like `Class/method`; `include_body=true` for source; `include_kinds` to filter by LSP kind)
-- overview of a file's symbols → `mcp__serena__get_symbols_overview`
-- substring or regex inside source files → `mcp__serena__search_for_pattern` (or `Grep` for non-code text such as markdown, configs, notes)
-- where a symbol is referenced → `mcp__serena__find_referencing_symbols`
-- implementations of an interface / abstract method → `mcp__serena__find_implementations`
-- symbol declaration → `mcp__serena__find_declaration`
+| Need | Tool |
+|---|---|
+| Read a file with a known path | `Read` |
+| Search file contents (symbol names, strings, regex) across the repo | `Grep` |
+| List files by name pattern (e.g. `**/*.py`) | `Glob` |
+| Filesystem inventory (directory listing) | `Glob` |
+| Edit an existing file | `Edit` (must be preceded by `Read` of that file) |
+| Create / fully overwrite a file | `Write` |
 
-**Editing code via symbols:**
-- insert before / after a symbol → `mcp__serena__insert_before_symbol` / `insert_after_symbol`
-- replace a symbol's body → `mcp__serena__replace_symbol_body`
-- rename a symbol across the codebase → `mcp__serena__rename_symbol`
-- replace file contents via regex → `mcp__serena__replace_content`
+## Discovery flow
 
-**Repo orientation:**
-- new file → `mcp__serena__get_symbols_overview` before any detailed inspection
-- unfamiliar repo → `mcp__serena__check_onboarding_performed`; if `false`, run `mcp__serena__onboarding`
+1. Unfamiliar repo → start with `Glob "**/*.py"` plus `Glob "**/*.md"` for orientation.
+2. Looking for a specific symbol → `Grep` for the symbol name; use `type: "py"` (or equivalent) and `output_mode: "content"` with `-n` and `-C 2` for context.
+3. About to edit a file → `Read` it first, then `Edit`.
+4. Cross-symbol relationships (callers, implementations) → `Grep` for the symbol name; the match list identifies the call sites.
 
-**LSP diagnostics:**
-- `mcp__serena__get_diagnostics_for_file` returns LSP-level warnings/errors for a file (more accurate than running the linter manually for type/import issues).
+## Discipline
 
-## When Serena is unavailable
+- `Read` is for files you already have a path for. Don't use it to "explore" — start with `Glob` / `Grep`.
+- `Grep` is the canonical content-search tool. Do not use `Bash` (`grep` / `rg` / `find`) for code search — the typed tool is faster, sandboxed, and integrates with the agent harness.
+- `Glob` matches by pathname only — for content matching, use `Grep` with the `glob` parameter to restrict by path pattern.
+- For large multi-step searches (more than a few rounds of grep/read), spawn an `Explore` subagent rather than burning the main context.
 
-Inside a worktree where the language server has not indexed the branch's files, or during a transient MCP-disconnected state, fall back to `Read` + `Grep` and note the gap in the Task Log so the tooling can be brought back into shape.
+## After editing
 
-## Fallbacks
-
-- `Grep` and `Glob` remain available for: non-symbol text (config values, comments, markdown, notation), filesystem inventories, and as a fallback when Serena returns empty for a query you have strong reason to believe should match.
-- `Bash` for code search (`grep`/`find`/`rg`) is **not** appropriate — use the typed tools above instead.
+If a file's structure changes substantially (function added, signature changed, class moved), no re-index step is needed — the next `Grep` or `Read` picks up the change directly from disk.

@@ -1,8 +1,8 @@
 ## Code Navigation Policy
 
-Use Serena's MCP tools for code navigation in this repository. Reserve `Read` for files about to be edited, and `Grep`/`Glob` for non-symbol text or filesystem inventory.
+Use the built-in `Read`, `Grep`, and `Glob` tools for code navigation in this repository. There is no symbol-level MCP server in use.
 
-See `.claude/instructions/tool-usage.instructions.md` for the tool routing table and fallback rules.
+See `.claude/instructions/tool-usage.instructions.md` for the tool routing table and discipline notes.
 
 `Read` is permitted only after the target source file has been identified — typically just before `Edit`/`Write`. The agent harness requires a prior `Read` for `Edit`/`Write` to succeed.
 
@@ -12,8 +12,6 @@ This repository enforces quality rules through `.claude/settings.json` and hook 
 See `.claude/instructions/hook-enforcement.instructions.md` for:
 - PostToolUse linting and formatting
 - research-context and results-vault hooks
-
-`.claude/settings.json` also provides Serena lifecycle support for session activation, pretool reminders, and cleanup.
 
 ## Repository Workflow
 
