@@ -1,6 +1,5 @@
 id: monte-carlo-permutation-p-value-legacy
 kind: formula
-pending: true  # binding test lives on run/headline-batch-frozen-pca-rerun worktree; clear after merge to main
 
 description: >
   Same Davison-Hinkley Monte Carlo permutation p-value as

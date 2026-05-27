@@ -1,6 +1,5 @@
 id: stage1-aggregate-output-cell
 kind: schema
-pending: true  # binding test lives on run/headline-batch-frozen-pca-rerun worktree; clear after merge to main
 
 description: >
   The per-dimension cell (h0, h1, ...) of the Stage-1 W2 + landscape L2

@@ -346,7 +346,10 @@ def _aggregate_combined(
     from trajectory_tda.topology.vectorisation import compute_w2_ratio_bca_ci
 
     rng_pairs = np.random.RandomState(seed)
-    n_null_pairs = min(500, n_permutations * (n_permutations - 1) // 2)
+    n_total_pairs = n_permutations * (n_permutations - 1) // 2
+    n_null_pairs = min(500, n_total_pairs)
+    n_pvalue_pairs = min(n_permutations, n_total_pairs)
+    n_pair_draws = max(n_null_pairs, n_pvalue_pairs)
 
     t_agg_total = time.time()
     tag = f"[{phase_label} AGG]" if phase_label else "[AGG]"
@@ -407,40 +410,48 @@ def _aggregate_combined(
             time.time() - t_obs_null_land,
         )
 
-        # Pre-sample pairs deterministically (preserves seeded reproducibility)
+        # Pre-sample pairs deterministically (preserves seeded reproducibility).
+        # P-values use B null-null draws so the Monte Carlo denominator is B + 1.
+        # T/d diagnostics keep the historical 500-pair cap.
         rng_pairs.seed(seed)
-        pair_indices = [
-            tuple(int(x) for x in rng_pairs.choice(n_permutations, size=2, replace=False)) for _ in range(n_null_pairs)
+        pair_indices_all = [
+            tuple(int(x) for x in rng_pairs.choice(n_permutations, size=2, replace=False)) for _ in range(n_pair_draws)
         ]
 
-        # Null-null W₂ — parallel (was the serial bottleneck; now n_jobs=-1).
-        # Per-worker memory is small (~50–100 MB) since we only pass two small diagrams
+        # Null-null W2 - parallel (was the serial bottleneck; now n_jobs=-1).
+        # Per-worker memory is small (~50-100 MB) since we only pass two small diagrams
         # per task; no condensed distance matrices allocated here.
         t_w2 = time.time()
         logger.info(
-            "%s   dim=%d null-null W₂ Parallel(n_jobs=-1) n_pairs=%d...",
+            "%s   dim=%d null-null W2 Parallel(n_jobs=-1) n_pairs=%d (effect=%d, pvalue=%d)...",
             tag,
             dim,
+            n_pair_draws,
             n_null_pairs,
+            n_pvalue_pairs,
         )
-        null_null_w2 = list(
+        null_null_w2_all = list(
             Parallel(n_jobs=-1, verbose=10)(
-                delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim) for (i, j) in pair_indices
+                delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim) for (i, j) in pair_indices_all
             )
         )
+        null_null_w2 = null_null_w2_all[:n_null_pairs]
+        pvalue_null_null_w2 = null_null_w2_all[:n_pvalue_pairs]
         logger.info(
-            "%s   dim=%d null-null W₂ done in %.1fs (mean=%.4f)",
+            "%s   dim=%d null-null W2 done in %.1fs (mean=%.4f)",
             tag,
             dim,
             time.time() - t_w2,
             float(np.mean(null_null_w2)) if null_null_w2 else 0.0,
         )
 
-        # Null-null landscape L² — serial (cheap, not worth parallelising)
+        # Null-null landscape L2 - serial (cheap, not worth parallelising)
         t_l2 = time.time()
-        null_null_l2_list = [_landscape_l2_distance(null_lands[i], null_lands[j], dx) for (i, j) in pair_indices]
+        null_null_l2_all = [_landscape_l2_distance(null_lands[i], null_lands[j], dx) for (i, j) in pair_indices_all]
+        null_null_l2_list = null_null_l2_all[:n_null_pairs]
+        pvalue_null_null_l2_list = null_null_l2_all[:n_pvalue_pairs]
         logger.info(
-            "%s   dim=%d null-null L² done in %.1fs",
+            "%s   dim=%d null-null L2 done in %.1fs",
             tag,
             dim,
             time.time() - t_l2,
@@ -461,10 +472,11 @@ def _aggregate_combined(
             except Exception as exc:
                 logger.warning("BCa CI failed for W₂ %s: %s", key, exc)
 
-        _r_w2 = int(np.sum(null_null_w2_arr >= mean_obs_null_w2))
-        _n_w2 = len(null_null_w2_arr)
+        pvalue_null_null_w2_arr = np.array(pvalue_null_null_w2) if pvalue_null_null_w2 else np.array([0.0])
+        _r_w2 = int(np.sum(pvalue_null_null_w2_arr >= mean_obs_null_w2))
+        _n_w2 = len(pvalue_null_null_w2_arr)
         w2_pvalue = (_r_w2 + 1) / (_n_w2 + 1)
-        _r_lower = int(np.sum(null_null_w2_arr <= mean_obs_null_w2))
+        _r_lower = int(np.sum(pvalue_null_null_w2_arr <= mean_obs_null_w2))
         lower_tail_pvalue = (_r_lower + 1) / (_n_w2 + 1)
         _std_w2 = float(null_null_w2_arr.std()) if len(null_null_w2) > 1 else float("nan")
         d_perm_w2 = (mean_obs_null_w2 - mean_null_null_w2) / _std_w2 if _std_w2 > 0 else float("nan")
@@ -481,8 +493,9 @@ def _aggregate_combined(
             except Exception as exc:
                 logger.warning("BCa CI failed for landscape L² %s: %s", key, exc)
 
-        _r_land = int(np.sum(null_null_l2_arr >= mean_obs_null_land))
-        _n_land = len(null_null_l2_arr)
+        pvalue_null_null_l2_arr = np.array(pvalue_null_null_l2_list) if pvalue_null_null_l2_list else np.array([0.0])
+        _r_land = int(np.sum(pvalue_null_null_l2_arr >= mean_obs_null_land))
+        _n_land = len(pvalue_null_null_l2_arr)
         land_pvalue = (_r_land + 1) / (_n_land + 1)
         _std_land = float(null_null_l2_arr.std()) if len(null_null_l2_list) > 1 else float("nan")
         d_perm_land = (mean_obs_null_land - mean_null_null_land) / _std_land if _std_land > 0 else float("nan")
@@ -501,6 +514,8 @@ def _aggregate_combined(
 
         cell: dict[str, Any] = {
             "w2_pvalue": w2_pvalue,
+            "pvalue_null_draws": _n_w2,
+            "effect_null_pairs": len(null_null_w2_arr),
             "landscape_l2_pvalue": land_pvalue,
             "t_ratio": t_ratio_w2,
             "bca_ci_lower": bca_ci_lower,
