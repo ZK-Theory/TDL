@@ -1,5 +1,8 @@
+name = "apm-archive-explorer"
 description = "Explores APM session archives to extract context for planning new sessions."
+
 developer_instructions = """
+
 # APM 1.0.1 - Archive Explorer Agent
 
 ## 1. Overview
@@ -50,5 +53,6 @@ When you receive an archive path or list of archive paths:
 
 ---
 
-**End of Agent**"""
-name = "apm-archive-explorer"
+**End of Agent**
+
+"""
