@@ -1,0 +1,49 @@
+{
+  "phase": "lm_sens_L8000",
+  "run_params": {
+    "L": 8000,
+    "B": 1000,
+    "null_model": "markov-1",
+    "seed": 42,
+    "landscape_k_max": 5,
+    "landscape_n_points": 200,
+    "pvalue_formula": "(r+1)/(B+1)",
+    "frozen_loadings": true
+  },
+  "dataset": "usoc",
+  "result": {
+    "h0": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 15.239530061282574,
+      "bca_ci_lower": 14.882025328172993,
+      "bca_ci_upper": 15.599070791101823,
+      "d_perm": 53.25286020399698,
+      "mean_obs_null": 65.01209333381713,
+      "mean_null_null": 4.266016935718138,
+      "landscape_t_ratio": 5.056383328327203,
+      "landscape_bca_ci_lower": 4.8452069846108206,
+      "landscape_bca_ci_upper": 5.278612317774511,
+      "landscape_d_perm": 8.455836895913585,
+      "lower_tail_pvalue": 1.0
+    },
+    "h1": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 1.2201635805683884,
+      "bca_ci_lower": 1.2187902981452026,
+      "bca_ci_upper": 1.221510520895594,
+      "d_perm": 18.118363773644315,
+      "mean_obs_null": 294.0519283041428,
+      "mean_null_null": 240.99385769829703,
+      "landscape_t_ratio": 3.746288064323446,
+      "landscape_bca_ci_lower": 3.678808731001309,
+      "landscape_bca_ci_upper": 3.8118723477347856,
+      "landscape_d_perm": 13.75651206650521
+    }
+  }
+}
