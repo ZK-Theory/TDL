@@ -28,6 +28,8 @@ Extract the information needed for the next review decision.
 
 **Content review:** Beyond flags and status, review the log body sections (Summary, Details, Output, Validation, Issues) to understand what happened and inform the review outcome. When findings contradict content in the Spec, Plan, or Rules - factual inaccuracies, incorrect assumptions, outdated descriptions - treat the affected document as needing correction per §3.4 Planning Document Modification regardless of whether the Worker handled the discrepancy.
 
+**Research assurance review.** For Tasks that touched mathematical, statistical, topological, representation, output, or paper-claim logic, assess the result against the Research Assurance Requirements in the Task Prompt, not only against software tests. A Task can pass unit tests, linting, and smoke execution while still failing research review. Check that parameters, seeds, null model, Markov order, p-value formula, cache provenance, output paths, no-overwrite behavior, JSON schema, decision-rule application, vault entries, and paper-facing conclusions match the governing requirements. If a required assurance artifact is missing, a machine-checkable claim was left unchecked without explanation, or a conclusion does not follow from the decision rule, investigate before accepting Success.
+
 ### 2.2 Review Outcome Standards
 
 After reviewing a Task Log, determine the review outcome.
@@ -129,14 +131,15 @@ Execute after report processing. Present your assessment of the Task Log visibly
 Perform the following actions:
 1. Read the Task Log at the path referenced in the Task Report.
 2. Interpret content per §2.1 Task Log Review Standards: status, flags, body sections. Assess consistency between status/flags and body content.
-3. Continue to the review outcome.
+3. If the Task Prompt included Research Assurance Requirements, review the deliverables against those requirements and note whether any research-validity checks remain unverified.
+4. Continue to the review outcome.
 
 ### 3.3 Review Outcome
 
 Execute after Task Log review.
 
 Perform the following actions:
-1. Review findings from the Task Log per §2.2 Review Outcome Standards. Assess deliverables against the Task's objectives and validation criteria before determining the outcome. If version control is active and the Task was successful but changes remain uncommitted on the Task branch, commit on behalf following the conventions from Rules - no follow-up needed. If everything looks good, skip to step 3. If something needs attention, continue to step 2.
+1. Review findings from the Task Log per §2.2 Review Outcome Standards. Assess deliverables against the Task's objectives, validation criteria, and any Research Assurance Requirements before determining the outcome. If version control is active and the Task was successful but changes remain uncommitted on the Task branch, commit on behalf following the conventions from Rules - no follow-up needed. If everything looks good, skip to step 3. If something needs attention, continue to step 2.
 2. Investigate and determine outcome per §2.2 Review Outcome Standards:
    - If no issues are found, continue to step 3.
    - If the Worker needs a follow-up, create a follow-up Task Prompt per `.codex/apm-guides/task-assignment.md` §3.4 Follow-Up Task Prompt Construction and continue to step 3.
@@ -294,6 +297,7 @@ modified: Task 2.3 scope clarified based on task-02-02.log.md findings. Modified
 
 - *Status inconsistency:* When a Worker claims Success but the log body shows incomplete validation, unresolved issues, or missing deliverables, treat the content as authoritative over the status field and investigate before accepting.
 - *Accepting insufficient reports:* Marking Tasks as Done when validation criteria were not fully exercised or deliverables are partial. Push back with a follow-up Task Prompt before accepting.
+- *Software-success tunnel vision:* Treating passing tests, lint, or smoke runs as sufficient for mathematical research tasks. Research assurance can fail even when software checks pass; verify the Task's formulas, null model, parameters, outputs, provenance, and paper-facing conclusions before accepting Success.
 - *Skipping Handoff detection:* Failing to track Worker Handoff leads to incorrect dependency context treatment.
 - *Unacknowledged recovery:* When a Worker report indicates auto-compaction occurred, factor this into the assessment - reconstructed context may have affected report completeness.
 - *Single-document tunnel vision:* Updating the Spec without checking whether the Plan references the same content, or modifying the Plan without assessing whether the Spec's design assumptions still hold. Changes to one planning document often cascade to the other.

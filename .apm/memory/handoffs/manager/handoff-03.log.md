@@ -343,3 +343,29 @@ Pending merges: none.
 
 Both flagged across two Manager handoffs now; Manager 4 may want to surface
 again if they remain unresolved at session start.
+
+### 2026-05-28 addendum: APM/Superpowers research assurance integration
+
+- Durable recovery anchor added:
+  `.apm/memory/plans/2026-05-28-apm-research-assurance-integration.md`.
+- Strategic Manager workflow preserved separately at
+  `.apm/memory/plans/2026-05-28-manager-research-assurance-workflow.md`.
+- Strategic Worker workflow preserved separately at
+  `.apm/memory/plans/2026-05-28-worker-research-assurance-workflow.md`.
+- Independent TDL research skillset design preserved separately at
+  `.apm/memory/plans/2026-05-28-tdl-research-skillset-design.md`.
+- Superpowers-style working plan also added at
+  `docs/superpowers/plans/2026-05-28-apm-research-assurance-integration.md`;
+  note that `docs/` is gitignored, so future Managers should use the APM memory
+  file as the reliable pointer.
+- Manager workflow now includes research assurance triage in
+  `.codex/apm-guides/task-assignment.md` and research assurance review in
+  `.codex/apm-guides/task-review.md`.
+- Worker workflow now requires `Research Assurance Evidence` when a Task Prompt
+  includes `Research Assurance Requirements`; see
+  `.codex/apm-guides/task-execution.md`,
+  `.codex/apm-guides/task-logging.md`, and
+  `.agents/skills/research-assurance-triage/SKILL.md`.
+- Next incremental test: apply the workflow to the next T1.37 Worker report.
+  Use gaps from that review to build the post-T1.37 hook backlog rather than
+  pre-building a broad hook suite.

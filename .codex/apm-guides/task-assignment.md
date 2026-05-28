@@ -41,6 +41,16 @@ Task Prompts must be self-contained. Workers have the same tools as any agent bu
 
 **Exclude** content relating to other domains, providing background without actionable requirements, or already captured in the Task's Guidance field.
 
+**Research assurance content.** For Tasks that touch mathematical, statistical, topological, representation, output, or paper-claim logic, include a Research Assurance Requirements section in the Task Prompt. Classify the touched assurance lanes before prompt construction:
+- *Topology:* persistent homology construction, filtration choices, diagram metrics, landscapes, Mapper, zigzag, multipersistence, landmark sampling, and topology-vs-geometry interpretation.
+- *Stochastic / Null Model:* permutation exchangeability, Markov order, stratification, label/cohort/order shuffles, null-null construction, bootstrap, RNG/seed propagation, and p-value formulas.
+- *Statistical / Panel:* IPW, MICE, FDR/BH/BY, GLMM/Firth/svyglm, Manski bounds, sample denominators, estimands, and eligibility rules.
+- *Representation:* PCA/UMAP/scaler fitting, frozen loadings, GMM labels, state recoding, trajectory windows, and embedding comparability.
+- *Output / Provenance:* result JSON schema, cache provenance, date-suffixed outputs, no-overwrite constraints, seeds, parameters, and vault traceability.
+- *Paper Claim:* pre-registration decision rules, outcome-to-prose mapping, table/figure claims, and disclosure obligations.
+
+For each touched lane, decide whether the assurance is machine-checkable, human-review-only, requires a pre-registration amendment, requires a new or pending contract, requires an output schema, or requires a vault/CONVENTIONS lock. Every machine-checkable research claim should either have a concrete enforcement artifact (contract, binding test, output schema, validation command, smoke/canary, or provenance check) or an explicit note explaining why it is not being mechanized in this Task.
+
 ### 2.3 Follow-Up Standards
 
 Follow-up Task Prompts occur when the review outcome determines retry after investigation. You arrive with: original Task Log findings, investigation results, understanding of what went wrong, and potentially modified planning documents.
@@ -102,8 +112,9 @@ Perform the following actions:
 1. Identify Ready Tasks from the Tracker. Cross-reference the Dependency Graph for newly unblocked Tasks.
 2. Check whether a pending report would unlock Tasks that combine well with currently Ready Tasks. If waiting costs little, consider it. Otherwise proceed.
 3. Group Ready Tasks by assigned Worker. Form dispatch units per §2.4 Dispatch Standards - assess all three modes (single, batch, parallel) before committing to a dispatch plan.
-4. Assess parallel opportunity: if 2+ dispatch units exist with no unresolved cross-agent dependencies - parallel dispatch.
-5. Formulate dispatch plan: which Workers receive which units, whether parallel. For each Task, continue to per-Task analysis.
+4. Add a research assurance assessment for each candidate Task: identify which assurance lanes it touches, whether it changes methodology or only executes an existing design, and whether pre-registration, contract, schema, provenance, or paper-claim checks must happen before dispatch.
+5. Assess parallel opportunity: if 2+ dispatch units exist with no unresolved cross-agent dependencies - parallel dispatch.
+6. Formulate dispatch plan: which Workers receive which units, whether parallel. For each Task, continue to per-Task analysis.
 
 ### 3.2 Per-Task Analysis
 
@@ -114,7 +125,8 @@ Perform the following actions:
 2. For each dependency, determine context depth per §2.1 Dependency Context Standards - check Worker Handoff state and auto-compaction notes in the Tracker, classify as same-agent or cross-agent, check cross-agent overrides, and trace upstream when ancestors are relevant. For Workers that recovered from auto-compaction, provide more comprehensive same-agent dependency context since reconstructed context may lack working nuance.
 3. For cross-agent dependencies, read unique producer Task Logs and note key outputs, file paths, and integration details. When multiple Tasks in this dispatch cycle depend on the same producer, read that log once and extract from context for subsequent Tasks.
 4. Extract Spec content relevant to this Task per §2.2 Task Prompt Content Standards. The Spec is in context from session start and refreshed on any modification. A fresh read is warranted at the start of a new Stage's first dispatch; per-Task re-reads of an unchanged Spec are not needed.
-5. Extract Task definition fields from the Plan: Objective, Steps, Guidance, Output, Validation. When Guidance references Spec sections, resolve those references and extract the referenced content per §2.2 Task Prompt Content Standards. Transform steps into actionable instructions, incorporating Guidance and relevant Spec content.
+5. Perform research assurance triage per §2.2 Research assurance content when the Task touches mathematical, statistical, topological, representation, output, or paper-claim logic. Record which lanes are touched and which enforcement artifacts must be included in the prompt.
+6. Extract Task definition fields from the Plan: Objective, Steps, Guidance, Output, Validation. When Guidance references Spec sections, resolve those references and extract the referenced content per §2.2 Task Prompt Content Standards. Transform steps into actionable instructions, incorporating Guidance and relevant Spec content.
 
 ### 3.3 Task Prompt Construction
 
@@ -122,7 +134,7 @@ Assemble the Task Prompt and deliver via the Message Bus.
 
 Perform the following actions:
 1. Construct YAML frontmatter per §4.1 Task Prompt Format.
-2. Construct prompt body: Task Reference, Context from Dependencies (if applicable), Objective, Detailed Instructions, Workspace, Expected Output, Validation Criteria, Instruction Accuracy, Task Iteration, Task Logging instructions, Reporting Instructions.
+2. Construct prompt body: Task Reference, Context from Dependencies (if applicable), Objective, Detailed Instructions, Research Assurance Requirements (when applicable), Workspace, Expected Output, Validation Criteria, Instruction Accuracy, Task Iteration, Task Logging instructions, Reporting Instructions.
 3. Create a feature branch off the repository's base branch per §2.5 Version Control Standards. For parallel dispatch, create a worktree: `git worktree add .apm/worktrees/<branch-slug> -b <branch-name>`. Include the branch name (sequential) or worktree path (parallel) in the Workspace section.
 4. Record the branch name in the Task row's Branch column when updating the Tracker.
 5. Clear the incoming Report Bus per §2.6 Delivery Standards.
@@ -180,6 +192,7 @@ has_dependencies: true
   - *Cross-agent.* "This Task depends on work completed by [Producer Agent]:" intro - `**Integration Steps:**` numbered file reading instructions - `**Producer Output Summary:**` key features, files, interfaces, constraints - `**Upstream Context:**` for relevant ancestors.
 - *Objective:* Single-sentence Task goal, optionally enhanced with coordination-level context.
 - *Detailed Instructions:* Plan steps transformed into actionable instructions with integrated Spec content and guidance.
+- *Research Assurance Requirements:* Included for Tasks touching mathematical, statistical, topological, representation, output, or paper-claim logic. List touched assurance lanes, governing pre-registration or decision rule, contracts or schemas in scope, parameters and seeds, output/provenance requirements, vault obligations, and any human-review-only claims. Instruct the Worker to report Partial rather than silently weaken or bypass an assurance requirement if implementation reality conflicts with the prompt.
 - *Workspace:* Working directory and branch name for sequential dispatch, or worktree path and project root for parallel dispatch. For worktree dispatch, instruct the Worker to perform code work in the worktree but resolve all `.apm/` paths (Task Log, bus files) from the project root. Worker operates in the specified workspace, commits there, and notes it in the Task Log. Workers do not merge.
 - *Expected Output:* Deliverables from Plan Output field.
 - *Validation Criteria:* From Plan Validation field.
@@ -250,6 +263,7 @@ tasks:
 - *Under-scoped cross-agent context:* Cross-agent dependencies require comprehensive context regardless of perceived simplicity. Workers do not interact with Memory and have no access to other Workers' work - the only cross-agent context they receive is what you embed in the Task Prompt.
 - *Stale dependency classification after Handoff:* When a Worker Handoff is detected, previous-Stage same-agent dependencies must be reclassified as cross-agent. Check the Tracker's cross-agent overrides before constructing dependency context.
 - *Shallow dependency chains:* A Task's direct dependency may itself depend on earlier work that established patterns, schemas, or contracts. Trace upstream until an intermediate node fully abstracts what came before.
+- *Narrow contract-only thinking:* Contracts are one enforcement artifact, not the whole assurance process. Tasks may also need pre-registration amendments, decision-rule checks, output schemas, smoke/canary runs, provenance review, or human mathematical review.
 - *Vague instructions:* "Implement the feature properly" vs "Implement POST /api/users with email validation using express-validator, returning 201 on success."
 - *Dispatching before merging dependencies:* If Task B depends on Task A's output and A was on a separate branch, A must be merged before B's branch is created.
 - *Assuming base branch name:* Read the base branch from the Tracker's Version Control table for the relevant repository. Do not assume `main` or `master`.
