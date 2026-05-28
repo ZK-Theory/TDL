@@ -303,7 +303,11 @@ Key frameworks to integrate: `torch-geometric`, `TopoModelX` (simplicial/cellula
 
 ## Code Exploration Policy
 
-Use the built-in `Read`, `Grep`, and `Glob` tools for code navigation. There is no symbol-level MCP server in use.
+Use the built-in `Read`, `Grep`, and `Glob` tools for baseline code
+navigation. Repowise MCP is configured for repository-level context when the
+agent runtime exposes its tools; use it for orientation, risk, architecture,
+and indexed symbol context, then verify against actual files before editing or
+making precise source claims.
 
 **Tool routing:**
 - read a file with a known path → `Read`
@@ -408,7 +412,11 @@ When a Task encounters a question requiring User input — a journal-formatting 
 
 ## Code exploration
 
-See "Code Exploration Policy" above. Use the built-in `Read`/`Grep`/`Glob` tools; `Read` is reserved for files about to be edited; `Grep` is the canonical content-search tool; `Glob` is for filesystem inventory. Do not rely on `Bash` for code search.
+See "Code Exploration Policy" above. Use Repowise MCP when available for
+repository orientation and indexed context. Otherwise use the built-in
+`Read`/`Grep`/`Glob` tools; `Read` is reserved for files about to be edited,
+`Grep` is the canonical content-search fallback, and `Glob` is for filesystem
+inventory. Do not rely on `Bash` for code search.
 
 ## Methodological mandates
 

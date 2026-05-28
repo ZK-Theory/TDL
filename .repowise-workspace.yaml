@@ -1,0 +1,8 @@
+version: 1
+default_repo: tdl
+repos:
+- path: .
+  alias: tdl
+  is_primary: true
+  indexed_at: '2026-05-28T11:40:52.718788+00:00'
+  last_commit_at_index: 80ee41b9417d5205ecb3876849365198238ce19b

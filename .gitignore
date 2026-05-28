@@ -145,3 +145,8 @@ results/**/.partial/
 # in commit 52af787 and removed from history via filter-repo 2026-05-22)
 repomix-output.xml
 repomix-output.*
+
+# Repowise local index/cache. Keep the shareable MCP config tracked.
+.repowise/*
+!.repowise/
+!.repowise/mcp.json
