@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -154,3 +155,59 @@ def test_lm_sensitivity_single_L_returns_full_aggregate_schema(monkeypatch: pyte
 
     assert result == full_payload
     assert {"t_ratio", "d_perm", "mean_obs_null", "mean_null_null"} <= set(result["h0"])
+
+
+def test_lm_sensitivity_cli_writes_aggregate_result_shape(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """The LM CLI JSON must expose h0/h1 directly under result for schema validation."""
+    import sys
+    from trajectory_tda.scripts.stage1 import run_lm_sensitivity
+
+    full_payload = {
+        "h0": {
+            "w2_pvalue": 0.25,
+            "landscape_l2_pvalue": 0.5,
+            "t_ratio": 1.25,
+            "d_perm": 0.75,
+            "mean_obs_null": 2.0,
+            "mean_null_null": 1.6,
+            "pvalue_null_draws": 2,
+            "effect_null_pairs": 1,
+            "lower_tail_pvalue": 0.5,
+        },
+        "h1": {
+            "w2_pvalue": 0.75,
+            "landscape_l2_pvalue": 0.8,
+            "t_ratio": 0.9,
+            "d_perm": -0.1,
+            "mean_obs_null": 1.8,
+            "mean_null_null": 2.0,
+            "pvalue_null_draws": 2,
+            "effect_null_pairs": 1,
+        },
+    }
+
+    monkeypatch.setattr(run_lm_sensitivity.core, "worktree_root", lambda: tmp_path)
+    monkeypatch.setattr(run_lm_sensitivity.core, "write_launch_marker", lambda *args, **kwargs: tmp_path / "launch.pid")
+    monkeypatch.setattr(run_lm_sensitivity.core, "run_lm_sensitivity_single_L", lambda **kwargs: full_payload)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_lm_sensitivity.py",
+            "--usoc-dir",
+            str(tmp_path),
+            "--L",
+            "2500",
+            "--B",
+            "2",
+            "--frozen-loadings",
+            "--smoke",
+        ],
+    )
+
+    run_lm_sensitivity.main()
+
+    out_path = next((tmp_path / "results/trajectory_tda_integration/stage1").glob("lm_sensitivity_L2500_frozen_smoke_*.json"))
+    payload = json.loads(out_path.read_text())
+    assert payload["result"] == full_payload
+    assert "L2500" not in payload["result"]

@@ -108,7 +108,7 @@ def main() -> None:
         },
     )
 
-    out_dir = core.worktree_root() / "results/trajectory_tda_integration/stage1"
+    out_dir = core.worktree_root() / "results/trajectory_tda_bhps/stage1"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"bhps_headline{frozen_tag}{smoke_tag}_{today}.json"
     payload = {

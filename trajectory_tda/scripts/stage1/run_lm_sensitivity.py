@@ -98,7 +98,7 @@ def main() -> None:
             "frozen_loadings": args.frozen_loadings,
         },
         "dataset": "usoc",
-        "result": {f"L{args.L}": cell},
+        "result": cell,
     }
     with open(out_path, "w") as f:
         json.dump(core.convert_numpy(payload), f, indent=2)

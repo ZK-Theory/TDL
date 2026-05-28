@@ -1,0 +1,14 @@
+﻿{
+    "job":  "job-02-bhps-headline-frozen-2026-05-28",
+    "status":  "success",
+    "started":  "2026-05-28T08:56:19.4791234+01:00",
+    "finished":  "2026-05-28T11:11:59.8026622+01:00",
+    "elapsed_seconds":  8140.3,
+    "exit_code":  null,
+    "audit_note":  "Wrapper reported failed because the child exit code was null after WaitForExit, but phase-status reached DONE, output_exists=true, the frozen output/cache were present, and schema validation passed.",
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_bhps\\stage1\\bhps_headline_frozen_2026-05-28.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-02-bhps-headline-frozen-2026-05-28.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-02-bhps-headline-frozen-2026-05-28.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-02-bhps-headline-frozen-2026-05-28.phase-status.log"
+}

@@ -1,0 +1,49 @@
+{
+    "phase":  "lm_sens_L2500",
+    "run_params":  {
+                       "L":  2500,
+                       "B":  1000,
+                       "null_model":  "markov-1",
+                       "seed":  42,
+                       "landscape_k_max":  5,
+                       "landscape_n_points":  200,
+                       "pvalue_formula":  "(r+1)/(B+1)",
+                       "frozen_loadings":  true
+                   },
+    "dataset":  "usoc",
+    "result":  {
+                   "h0":  {
+                              "w2_pvalue":  0.000999000999000999,
+                              "pvalue_null_draws":  1000,
+                              "effect_null_pairs":  500,
+                              "landscape_l2_pvalue":  0.000999000999000999,
+                              "t_ratio":  14.9078464712436,
+                              "bca_ci_lower":  14.530306039375095,
+                              "bca_ci_upper":  15.28829022189176,
+                              "d_perm":  47.48270934907606,
+                              "mean_obs_null":  62.30182157305096,
+                              "mean_null_null":  4.179129540489143,
+                              "landscape_t_ratio":  5.537990140690391,
+                              "landscape_bca_ci_lower":  5.285374837536044,
+                              "landscape_bca_ci_upper":  5.79877559229744,
+                              "landscape_d_perm":  8.730683088150052,
+                              "lower_tail_pvalue":  1.0
+                          },
+                   "h1":  {
+                              "w2_pvalue":  0.000999000999000999,
+                              "pvalue_null_draws":  1000,
+                              "effect_null_pairs":  500,
+                              "landscape_l2_pvalue":  0.000999000999000999,
+                              "t_ratio":  1.5988566180788002,
+                              "bca_ci_lower":  1.5955728625617898,
+                              "bca_ci_upper":  1.6021270048197036,
+                              "d_perm":  27.033429184618146,
+                              "mean_obs_null":  164.1810632473583,
+                              "mean_null_null":  102.6865457420689,
+                              "landscape_t_ratio":  4.192500501866075,
+                              "landscape_bca_ci_lower":  4.103536577424089,
+                              "landscape_bca_ci_upper":  4.280551652461852,
+                              "landscape_d_perm":  13.334204241152886
+                          }
+               }
+}
