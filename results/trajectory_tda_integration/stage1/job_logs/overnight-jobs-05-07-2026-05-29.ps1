@@ -32,8 +32,8 @@ function Append-Line($Path, $Line) {
   Add-Content -LiteralPath $Path -Value $Line -Encoding UTF8
 }
 
-function Command-Text($Args) {
-  return ($Args | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
+function Command-Text($CommandArgs) {
+  return ($CommandArgs | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
 }
 
 function Find-Output($OutputDir, $OutputPattern, $Started, $FixedOutput) {
@@ -48,19 +48,19 @@ function Find-Output($OutputDir, $OutputPattern, $Started, $FixedOutput) {
   return $null
 }
 
-function Invoke-Validation($Job, $Index, $Args) {
+function Invoke-Validation($Job, $Index, $CommandArgs) {
   $validationLog = Join-Path $logDir "$Job.validation-$Index.log"
-  Append-Line $validationLog ("{0} | VALIDATION START | {1}" -f (Get-Date).ToString('o'), (Command-Text $Args))
+  Append-Line $validationLog ("{0} | VALIDATION START | {1}" -f (Get-Date).ToString('o'), (Command-Text $CommandArgs))
   $oldErrorAction = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  & $Args[0] @($Args[1..($Args.Count - 1)]) 1>> $validationLog 2>&1
+  & $CommandArgs[0] @($CommandArgs[1..($CommandArgs.Count - 1)]) 1>> $validationLog 2>&1
   $exitCode = $LASTEXITCODE
   $ErrorActionPreference = $oldErrorAction
   Append-Line $validationLog ("{0} | VALIDATION END | exit_code={1}" -f (Get-Date).ToString('o'), $exitCode)
-  return [ordered]@{ command = (Command-Text $Args); exit_code = $exitCode; log = $validationLog }
+  return [ordered]@{ command = (Command-Text $CommandArgs); exit_code = $exitCode; log = $validationLog }
 }
 
-function Invoke-Step($Job, $Args, $OutputDir, $OutputPattern, $FixedOutput, $ValidationCommands) {
+function Invoke-Step($Job, $CommandArgs, $OutputDir, $OutputPattern, $FixedOutput, $ValidationCommands) {
   Write-ControllerStatus 'running' $Job
   $statusPath = Join-Path $logDir "$Job.status.json"
   $stdoutPath = Join-Path $logDir "$Job.stdout.log"
@@ -68,12 +68,12 @@ function Invoke-Step($Job, $Args, $OutputDir, $OutputPattern, $FixedOutput, $Val
   $phasePath = Join-Path $logDir "$Job.phase-status.log"
   $started = Get-Date
   $env:STAGE1_STATUS_FILE = $phasePath
-  Append-Line $phasePath ("{0} | CONTROLLER LAUNCH | {1}" -f $started.ToString('s'), (Command-Text $Args))
+  Append-Line $phasePath ("{0} | CONTROLLER LAUNCH | {1}" -f $started.ToString('s'), (Command-Text $CommandArgs))
   Write-Utf8Json $statusPath ([ordered]@{
     job = $Job
     status = 'running'
     started = $started.ToString('o')
-    command = (Command-Text $Args)
+    command = (Command-Text $CommandArgs)
     output = $FixedOutput
     output_pattern = (Join-Path $OutputDir $OutputPattern)
     stdout = $stdoutPath
@@ -84,7 +84,7 @@ function Invoke-Step($Job, $Args, $OutputDir, $OutputPattern, $FixedOutput, $Val
 
   $oldErrorAction = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
-  & $Args[0] @($Args[1..($Args.Count - 1)]) 1> $stdoutPath 2> $stderrPath
+  & $CommandArgs[0] @($CommandArgs[1..($CommandArgs.Count - 1)]) 1> $stdoutPath 2> $stderrPath
   $exitCode = $LASTEXITCODE
   $ErrorActionPreference = $oldErrorAction
 
