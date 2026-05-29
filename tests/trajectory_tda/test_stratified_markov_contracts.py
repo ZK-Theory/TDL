@@ -17,6 +17,7 @@ import trajectory_tda.scripts.run_stratified_battery as stratified_battery
 import trajectory_tda.scripts.run_wasserstein_battery as wasserstein_battery
 import trajectory_tda.topology.permutation_nulls as permutation_nulls
 from trajectory_tda.embedding import ngram_embed as embed_module
+from trajectory_tda.scripts.stage1 import assemble_stratified_markov_partials
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -201,6 +202,41 @@ def test_stratified_markov_runner_threads_frozen_loadings(monkeypatch: pytest.Mo
 def test_stratified_markov1_output_schema_contract() -> None:
     """Representative frozen stratified output satisfies the schema contract."""
     _assert_stratified_output_contract(_representative_output())
+
+
+def test_stratified_markov_partial_outputs_assemble_to_full_contract(tmp_path: Path) -> None:
+    """Split USoc/BHPS job outputs can be assembled into the final stratified schema."""
+    usoc_path = tmp_path / "usoc_partial.json"
+    bhps_path = tmp_path / "bhps_partial.json"
+    output_path = tmp_path / "stratified_markov1_W2_L5000_frozen_2026-05-28.json"
+    usoc_payload = stratified_battery._assemble_partial_output(
+        dataset="usoc",
+        results={"R0": _representative_regime()},
+        n_permutations=1000,
+        n_landmarks=5000,
+        seed=42,
+        frozen_loadings=True,
+        today="2026-05-28",
+    )
+    bhps_payload = stratified_battery._assemble_partial_output(
+        dataset="bhps",
+        results={"R0": _representative_regime()},
+        n_permutations=1000,
+        n_landmarks=5000,
+        seed=42,
+        frozen_loadings=True,
+        today="2026-05-28",
+    )
+    usoc_path.write_text(json.dumps(usoc_payload), encoding="utf-8")
+    bhps_path.write_text(json.dumps(bhps_payload), encoding="utf-8")
+
+    assembled_path = assemble_stratified_markov_partials.combine_partials(
+        usoc_path,
+        bhps_path,
+        output=output_path,
+    )
+    data = json.loads(assembled_path.read_text(encoding="utf-8"))
+    _assert_stratified_output_contract(data)
 
 
 def test_stratified_markov1_output_json_validation_contract() -> None:
