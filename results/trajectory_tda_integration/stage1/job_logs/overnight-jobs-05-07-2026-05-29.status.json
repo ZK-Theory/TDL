@@ -1,0 +1,13 @@
+{
+    "controller":  "overnight-jobs-05-07-2026-05-29",
+    "status":  "failed",
+    "started":  "2026-05-29T01:49:42.6110157+01:00",
+    "updated":  "2026-05-29T03:21:51.3262856+01:00",
+    "current_step":  "failed",
+    "steps":  [
+
+              ],
+    "error":  "The term \u0027u\u0027 is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.",
+    "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\overnight-jobs-05-07-2026-05-29.log",
+    "poll_policy":  "Controller is sequential and unattended; inspect this status JSON hourly if desired."
+}
