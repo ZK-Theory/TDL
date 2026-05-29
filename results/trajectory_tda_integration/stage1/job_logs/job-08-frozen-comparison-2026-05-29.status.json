@@ -1,0 +1,25 @@
+{
+    "job":  "job-08-frozen-comparison-2026-05-29",
+    "status":  "success",
+    "started":  "2026-05-29T17:53:03.0374764+01:00",
+    "finished":  "2026-05-29T17:53:03.2565747+01:00",
+    "elapsed_seconds":  0.2,
+    "exit_code":  0,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\frozen_vs_provisional_comparison_2026-05-29.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-08-frozen-comparison-2026-05-29.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-08-frozen-comparison-2026-05-29.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-08-frozen-comparison-2026-05-29.phase-status.log",
+    "validations":  [
+                        {
+                            "command":  "uv run pytest tests/trajectory_tda/test_stage1_comparison_contracts.py::test_frozen_vs_provisional_comparison_json_validation_contract",
+                            "exit_code":  0,
+                            "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-08-frozen-comparison-2026-05-29.validation-1.log"
+                        },
+                        {
+                            "command":  "uv run python .claude/hooks/contract_binding_check.py --all-jsons",
+                            "exit_code":  0,
+                            "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-08-frozen-comparison-2026-05-29.validation-2.log"
+                        }
+                    ]
+}

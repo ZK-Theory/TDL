@@ -1,0 +1,25 @@
+{
+    "job":  "job-07-bhps-stratified-markov1-frozen-2026-05-29",
+    "status":  "success",
+    "started":  "2026-05-29T17:31:28.6122920+01:00",
+    "finished":  "2026-05-29T17:52:36.3631815+01:00",
+    "elapsed_seconds":  1267.8,
+    "exit_code":  0,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stratified_markov\\.partial\\stratified_markov1_W2_L5000_frozen_bhps_2026-05-29.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-07-bhps-stratified-markov1-frozen-2026-05-29.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-07-bhps-stratified-markov1-frozen-2026-05-29.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-07-bhps-stratified-markov1-frozen-2026-05-29.phase-status.log",
+    "validations":  [
+                        {
+                            "command":  "uv run python -m trajectory_tda.scripts.stage1.assemble_stratified_markov_partials --usoc-partial C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stratified_markov\\.partial\\stratified_markov1_W2_L5000_frozen_usoc_2026-05-29.json --bhps-partial C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stratified_markov\\.partial\\stratified_markov1_W2_L5000_frozen_bhps_2026-05-29.json --output C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stratified_markov\\stratified_markov1_W2_L5000_frozen_2026-05-29.json",
+                            "exit_code":  0,
+                            "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-07-bhps-stratified-markov1-frozen-2026-05-29.validation-1.log"
+                        },
+                        {
+                            "command":  "uv run pytest tests/trajectory_tda/test_stratified_markov_contracts.py::test_stratified_markov1_output_json_validation_contract",
+                            "exit_code":  0,
+                            "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-07-bhps-stratified-markov1-frozen-2026-05-29.validation-2.log"
+                        }
+                    ]
+}
