@@ -239,10 +239,12 @@ def main() -> None:
 
     today = date.today().isoformat()
     smoke_tag = "_smoke" if args.smoke else ""
+    frozen_tag = "_frozen" if args.frozen_loadings else ""
 
     cache_dir = core.proj_root() / "results/trajectory_tda_integration/stage1/cache"
     cache_name = (
-        f"null_diagrams_bhps_length_matched_{args.strategy}_B{args.B}_L{args.L}_seed{args.seed}{smoke_tag}_{today}.npz"
+        f"null_diagrams_bhps_length_matched_{args.strategy}{frozen_tag}_B{args.B}_L{args.L}_seed{args.seed}"
+        f"{smoke_tag}_{today}.npz"
     )
     cache_path = core.write_null_diagram_cache(
         cache_dir / cache_name,
@@ -265,7 +267,7 @@ def main() -> None:
 
     out_dir = core.worktree_root() / "results/trajectory_tda_bhps/stage1"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"bhps_length_matched_{args.strategy}{smoke_tag}_{today}.json"
+    out_path = out_dir / f"bhps_length_matched_{args.strategy}{frozen_tag}{smoke_tag}_{today}.json"
     payload = {
         "phase": phase_tag,
         "run_params": {

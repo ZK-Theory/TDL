@@ -1,6 +1,5 @@
 id: frozen-vs-provisional-comparison-table
 kind: schema
-pending: true
 
 description: >
   The T1.37 frozen-vs-provisional comparison JSON is the disclosure

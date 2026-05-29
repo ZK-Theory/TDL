@@ -1,0 +1,12 @@
+﻿{
+    "job":  "job-01-usoc-headline-frozen-2026-05-28",
+    "status":  "failed",
+    "started":  "2026-05-28T00:42:55.7403572+01:00",
+    "finished":  "2026-05-28T00:42:55.8671676+01:00",
+    "elapsed_seconds":  0.1,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\usoc_headline_frozen_2026-05-28.json",
+    "output_exists":  false,
+    "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-01-usoc-headline-frozen-2026-05-28.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-01-usoc-headline-frozen-2026-05-28.phase-status.log",
+    "error":  "error: failed to open file `C:\\Users\\steph\\AppData\\Local\\uv\\cache\\sdists-v8\\.git`: Access is denied. (os error 5)"
+}

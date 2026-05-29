@@ -71,8 +71,13 @@ def main() -> None:
     sensitivity_landmark: dict[str, Any] = {}
     for lm_path in args.lm:
         lm = _load_json(Path(lm_path))
-        for k, v in lm.get("result", {}).items():
-            sensitivity_landmark[k] = v
+        lm_result = lm.get("result", {})
+        if {"h0", "h1"} <= set(lm_result):
+            L = lm.get("run_params", {}).get("L")
+            sensitivity_landmark[f"L{L}"] = lm_result
+        else:
+            for k, v in lm_result.items():
+                sensitivity_landmark[k] = v
 
     sensitivity_landscape: dict[str, Any] = {}
     if args.landscape:

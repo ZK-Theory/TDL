@@ -1,0 +1,21 @@
+{
+    "job":  "job-05-bhps-length-truncate-frozen-2026-05-29",
+    "status":  "success",
+    "started":  "2026-05-29T01:49:42.6595636+01:00",
+    "finished":  "2026-05-29T03:21:51.3262856+01:00",
+    "elapsed_seconds":  5528.7,
+    "exit_code":  0,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-05-bhps-length-truncate-frozen-2026-05-29.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-05-bhps-length-truncate-frozen-2026-05-29.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-05-bhps-length-truncate-frozen-2026-05-29.phase-status.log",
+    "validations":  [
+                        {
+                            "command":  "uv run pytest tests/trajectory_tda/test_stage1_output_json_validation.py::test_stage1_output_jsons_validate_against_aggregate_schema",
+                            "exit_code":  0,
+                            "note":  "Manual validation after controller validation-dispatch failure; schema test passed."
+                        }
+                    ],
+    "audit_note":  "Controller completed the compute/output step but failed before recording validation because validation command dispatch treated uv as a scalar string. Job 05 output and schema validation were checked manually."
+}

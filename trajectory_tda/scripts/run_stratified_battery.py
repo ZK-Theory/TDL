@@ -86,6 +86,26 @@ def _bh_fdr(pvalues: list[float], alpha: float = 0.05) -> list[bool]:
     return result
 
 
+def _params_payload(
+    n_permutations: int,
+    n_landmarks: int,
+    seed: int,
+    frozen_loadings: bool,
+) -> dict[str, Any]:
+    return {
+        "L": n_landmarks,
+        "B": n_permutations,
+        "null": "markov-1 per regime",
+        "markov_order": DEFAULT_MARKOV_ORDER,
+        "seed": seed,
+        "k_max": DEFAULT_K_MAX,
+        "n_points": DEFAULT_N_POINTS,
+        "fdr_alpha": FDR_ALPHA,
+        "outcome_a_min_frac": OUTCOME_A_MIN_FRAC,
+        "frozen_loadings": bool(frozen_loadings),
+    }
+
+
 def _run_regime_battery(
     checkpoint_dir: Path,
     analysis_json_path: Path,
@@ -93,6 +113,7 @@ def _run_regime_battery(
     n_landmarks: int,
     seed: int,
     label: str,
+    frozen_loadings: bool = False,
 ) -> dict[str, Any]:
     """Run per-regime W₂ + landscape L² battery for one dataset.
 
@@ -115,6 +136,7 @@ def _run_regime_battery(
     from joblib import Parallel, delayed
 
     from poverty_tda.topology.multidim_ph import compute_rips_ph
+    from trajectory_tda.embedding.ngram_embed import ngram_embed
     from trajectory_tda.scripts.run_stage1_battery import _aggregate_combined
     from trajectory_tda.scripts.run_wasserstein_battery import (
         load_checkpoint,
@@ -157,6 +179,10 @@ def _run_regime_battery(
 
         emb_r: NDArray[np.float64] = embeddings[mask]
         traj_r = [t for t, m in zip(traj_arr, mask.tolist()) if m]
+        frozen_models = None
+        if frozen_loadings:
+            emb_r, embedding_info = ngram_embed(traj_r, **embed_kwargs)
+            frozen_models = embedding_info["fitted_models"]
 
         actual_lm = min(n_landmarks, n_r)
         if actual_lm < n_r:
@@ -188,6 +214,7 @@ def _run_regime_battery(
                 "wasserstein",
                 DEFAULT_MARKOV_ORDER,
                 embed_kwargs,
+                frozen_models=frozen_models,
                 ph_observed=ph_obs,
             )
             for s in seeds_list
@@ -210,6 +237,52 @@ def _run_regime_battery(
         }
 
     return regime_results
+
+
+def _assemble_output(
+    usoc_results: dict[str, Any],
+    bhps_results: dict[str, Any],
+    n_permutations: int,
+    n_landmarks: int,
+    seed: int,
+    frozen_loadings: bool,
+    today: str,
+) -> dict[str, Any]:
+    """Assemble the persisted stratified Markov-1 payload."""
+    fdr_table, per_dataset, outcome = _apply_bh_and_classify(usoc_results, bhps_results)
+    return {
+        "pre_registration": "2026-05-13",
+        "params": _params_payload(n_permutations, n_landmarks, seed, frozen_loadings),
+        "outcome": outcome,
+        "outcome_rule": (
+            f"A: frac_significant >= {OUTCOME_A_MIN_FRAC} in >=1 dataset; B: any significant; C: none significant"
+        ),
+        "per_dataset": per_dataset,
+        "fdr_tests": fdr_table,
+        "usoc": usoc_results,
+        "bhps": bhps_results,
+        "date": today,
+    }
+
+
+def _assemble_partial_output(
+    dataset: str,
+    results: dict[str, Any],
+    n_permutations: int,
+    n_landmarks: int,
+    seed: int,
+    frozen_loadings: bool,
+    today: str,
+) -> dict[str, Any]:
+    """Assemble a dataset-specific intermediate payload for split job execution."""
+    return {
+        "schema_version": "stratified-markov1-partial/v1",
+        "pre_registration": "2026-05-13",
+        "dataset": dataset,
+        "params": _params_payload(n_permutations, n_landmarks, seed, frozen_loadings),
+        "results": results,
+        "date": today,
+    }
 
 
 def _apply_bh_and_classify(
@@ -304,7 +377,18 @@ def main() -> None:
     parser.add_argument("--n-perms", type=int, default=DEFAULT_B)
     parser.add_argument("--landmarks", type=int, default=DEFAULT_L)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument(
+        "--dataset",
+        choices=("both", "usoc", "bhps"),
+        default="both",
+        help="Run both datasets for the final output, or one dataset for an intermediate split-job payload.",
+    )
     parser.add_argument("--output", default=None, help="Output JSON path")
+    parser.add_argument(
+        "--frozen-loadings",
+        action="store_true",
+        help="Fit per-regime observed scaler/PCA loadings and reuse them for Markov-null embeddings.",
+    )
     args = parser.parse_args()
 
     today = date.today().isoformat()
@@ -330,47 +414,66 @@ def main() -> None:
     logger.info("=" * 70)
 
     t_total = time.time()
-    usoc_results = _run_regime_battery(usoc_dir, usoc_analysis, args.n_perms, args.landmarks, args.seed, "USoc")
-    bhps_results = _run_regime_battery(bhps_dir, bhps_analysis, args.n_perms, args.landmarks, args.seed, "BHPS")
-
-    fdr_table, per_dataset, outcome = _apply_bh_and_classify(usoc_results, bhps_results)
-
-    logger.info("=" * 70)
-    logger.info("OUTCOME: %s", outcome)
-    for ds, summary in per_dataset.items():
-        logger.info(
-            "  %s: %d/%d regimes significant (%.0f%%): %s",
-            ds,
-            summary["n_significant"],
-            summary["n_regimes_tested"],
-            100 * summary["frac_significant"],
-            summary["significant_regimes"],
+    usoc_results: dict[str, Any] | None = None
+    bhps_results: dict[str, Any] | None = None
+    if args.dataset in ("both", "usoc"):
+        usoc_results = _run_regime_battery(
+            usoc_dir,
+            usoc_analysis,
+            args.n_perms,
+            args.landmarks,
+            args.seed,
+            "USoc",
+            frozen_loadings=args.frozen_loadings,
         )
-    logger.info("Total elapsed: %.1fs", time.time() - t_total)
-    logger.info("=" * 70)
+    if args.dataset in ("both", "bhps"):
+        bhps_results = _run_regime_battery(
+            bhps_dir,
+            bhps_analysis,
+            args.n_perms,
+            args.landmarks,
+            args.seed,
+            "BHPS",
+            frozen_loadings=args.frozen_loadings,
+        )
+    if args.dataset == "both":
+        assert usoc_results is not None and bhps_results is not None
+        output = _assemble_output(
+            usoc_results=usoc_results,
+            bhps_results=bhps_results,
+            n_permutations=args.n_perms,
+            n_landmarks=args.landmarks,
+            seed=args.seed,
+            frozen_loadings=args.frozen_loadings,
+            today=today,
+        )
+        logger.info("=" * 70)
+        logger.info("OUTCOME: %s", output["outcome"])
+        for ds, summary in output["per_dataset"].items():
+            logger.info(
+                "  %s: %d/%d regimes significant (%.0f%%): %s",
+                ds,
+                summary["n_significant"],
+                summary["n_regimes_tested"],
+                100 * summary["frac_significant"],
+                summary["significant_regimes"],
+            )
+        logger.info("=" * 70)
+    else:
+        dataset_results = usoc_results if args.dataset == "usoc" else bhps_results
+        assert dataset_results is not None
+        output = _assemble_partial_output(
+            dataset=args.dataset,
+            results=dataset_results,
+            n_permutations=args.n_perms,
+            n_landmarks=args.landmarks,
+            seed=args.seed,
+            frozen_loadings=args.frozen_loadings,
+            today=today,
+        )
+        logger.info("%s partial complete: %d regimes", args.dataset, len(dataset_results))
 
-    output: dict[str, Any] = {
-        "pre_registration": "2026-05-13",
-        "params": {
-            "L": args.landmarks,
-            "B": args.n_perms,
-            "null": "markov-1 per regime",
-            "seed": args.seed,
-            "k_max": DEFAULT_K_MAX,
-            "n_points": DEFAULT_N_POINTS,
-            "fdr_alpha": FDR_ALPHA,
-            "outcome_a_min_frac": OUTCOME_A_MIN_FRAC,
-        },
-        "outcome": outcome,
-        "outcome_rule": (
-            f"A: frac_significant >= {OUTCOME_A_MIN_FRAC} in ≥1 dataset; B: any significant; C: none significant"
-        ),
-        "per_dataset": per_dataset,
-        "fdr_tests": fdr_table,
-        "usoc": usoc_results,
-        "bhps": bhps_results,
-        "date": today,
-    }
+    logger.info("Total elapsed: %.1fs", time.time() - t_total)
 
     with open(output_path, "w") as f:
         json.dump(_convert_numpy(output), f, indent=2)

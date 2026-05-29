@@ -1,6 +1,5 @@
 id: stratified-markov1-output-json-validation
 kind: output_validation
-pending: true
 
 description: >
   Frozen stratified Markov-1 JSONs written for T1.37 must validate

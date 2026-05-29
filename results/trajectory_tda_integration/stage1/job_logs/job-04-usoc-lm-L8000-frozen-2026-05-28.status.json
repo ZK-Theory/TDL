@@ -1,0 +1,16 @@
+{
+    "job":  "job-04-usoc-lm-L8000-frozen-2026-05-28",
+    "status":  "success",
+    "started":  "2026-05-28T14:25:19.5389857+01:00",
+    "finished":  "2026-05-28T23:28:25.1022615+01:00",
+    "elapsed_seconds":  32585.6,
+    "exit_code":  0,
+    "error":  null,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\lm_sensitivity_L8000_frozen_2026-05-28.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-04-usoc-lm-L8000-frozen-2026-05-28.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-04-usoc-lm-L8000-frozen-2026-05-28.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-04-usoc-lm-L8000-frozen-2026-05-28.phase-status.log",
+    "command":  "uv run --env-file .env python trajectory_tda/scripts/stage1/run_lm_sensitivity.py --L 8000 --B 1000 --seed 42 --n-null-pairs 500 --n-jobs 4 --frozen-loadings",
+    "poll_policy":  "Use status JSON as completion signal; poll this and future runs once per hour, shortening only when phase-status reaches aggregation/DONE or output appears."
+}

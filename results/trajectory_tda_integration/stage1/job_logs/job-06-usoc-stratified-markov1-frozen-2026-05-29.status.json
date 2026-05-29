@@ -1,0 +1,13 @@
+{
+    "job":  "job-06-usoc-stratified-markov1-frozen-2026-05-29",
+    "status":  "success",
+    "started":  "2026-05-29T08:13:13.0933501+01:00",
+    "finished":  "2026-05-29T17:31:28.5992686+01:00",
+    "elapsed_seconds":  33495.5,
+    "exit_code":  0,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stratified_markov\\.partial\\stratified_markov1_W2_L5000_frozen_usoc_2026-05-29.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-06-usoc-stratified-markov1-frozen-2026-05-29.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-06-usoc-stratified-markov1-frozen-2026-05-29.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-06-usoc-stratified-markov1-frozen-2026-05-29.phase-status.log"
+}

@@ -1,6 +1,5 @@
 id: stratified-markov-frozen-loadings-runner
 kind: invariant
-pending: true
 
 description: >
   The T1.37 stratified Markov-1 rerun is part of the frozen-loadings

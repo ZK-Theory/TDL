@@ -1,6 +1,5 @@
 id: stage1-pvalue-denominator-cleanup-json-validation
 kind: output_validation
-pending: true
 
 description: >
   Cache-based Stage-1 denominator-cleanup JSONs must validate against

@@ -1,0 +1,18 @@
+﻿{
+    "job":  "job-01-usoc-headline-frozen-2026-05-28-v2",
+    "status":  "success",
+    "started":  "2026-05-28T00:44:22.5190713+01:00",
+    "finished":  "2026-05-28T05:24:55.5147218+01:00",
+    "elapsed_seconds":  16833,
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\usoc_headline_frozen_2026-05-28.json",
+    "output_exists":  true,
+    "log":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-01-usoc-headline-frozen-2026-05-28-v2.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-01-usoc-headline-frozen-2026-05-28-v2.phase-status.log",
+    "status_repaired_from_wrapper_failure":  true,
+    "repair_reason":  "Phase-status recorded DONE, output JSON exists, and schema validation passed; original wrapper catch was triggered by stderr/logging text rather than a failed computation.",
+    "validation":  {
+                       "pytest_stage1_output_json_validation":  "passed",
+                       "pvalue_null_draws":  1000,
+                       "frozen_loadings":  true
+                   }
+}

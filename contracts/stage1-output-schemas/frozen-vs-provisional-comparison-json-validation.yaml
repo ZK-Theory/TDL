@@ -1,6 +1,5 @@
 id: frozen-vs-provisional-comparison-json-validation
 kind: output_validation
-pending: true
 
 description: >
   T1.37 comparison-table JSONs staged under

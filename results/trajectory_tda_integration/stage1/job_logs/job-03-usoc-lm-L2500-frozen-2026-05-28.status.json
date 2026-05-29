@@ -1,0 +1,17 @@
+﻿{
+    "job":  "job-03-usoc-lm-L2500-frozen-2026-05-28",
+    "status":  "success",
+    "started":  "2026-05-28T11:34:10.1306947+01:00",
+    "finished":  "2026-05-28T13:18:23.5759979+01:00",
+    "elapsed_seconds":  6253.4,
+    "exit_code":  1,
+    "error":  "2026-05-28 11:34:10,380 INFO Launch marker: C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\launches\\launch_lm_sens_L2500_2026-05-28T10-34-10Z.pid (pid=31084)",
+    "audit_note":  "Wrapper reported failed because PowerShell treated native stderr logging as an error, but phase-status reached DONE, output_exists=true, and the repaired aggregate-shape JSON passed stage1 output schema validation.",
+    "output":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\lm_sensitivity_L2500_frozen_2026-05-28.json",
+    "output_exists":  true,
+    "stdout":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-03-usoc-lm-L2500-frozen-2026-05-28.stdout.log",
+    "stderr":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-03-usoc-lm-L2500-frozen-2026-05-28.stderr.log",
+    "phase_status":  "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-headline-batch-frozen-pca-rerun\\results\\trajectory_tda_integration\\stage1\\job_logs\\job-03-usoc-lm-L2500-frozen-2026-05-28.phase-status.log",
+    "command":  "uv run --env-file .env python trajectory_tda/scripts/stage1/run_lm_sensitivity.py --L 2500 --B 1000 --seed 42 --n-null-pairs 500 --n-jobs 4 --frozen-loadings",
+    "poll_policy":  "Use status JSON as completion signal; poll every 30 minutes, shortening when phase-status reaches aggregation/DONE or output appears."
+}

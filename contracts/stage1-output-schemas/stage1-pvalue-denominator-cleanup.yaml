@@ -1,6 +1,5 @@
 id: stage1-pvalue-denominator-cleanup
 kind: schema
-pending: true
 
 description: >
   The cache-based Stage-1 p-value denominator cleanup records corrected
