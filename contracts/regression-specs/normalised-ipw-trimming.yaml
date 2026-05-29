@@ -1,0 +1,71 @@
+id: normalised-ipw-trimming
+kind: formula
+pending: true
+
+description: >
+  Normalised IPW weights for T1.34's Tier-2 GLMM and svyglm sensitivity. The
+  raw IPW from the T1.13 propensity model (logistic regression with the
+  locked covariate set, AUC = 0.714, ESS = 57,028) is trimmed at the 1st and
+  99th percentiles of the raw weight distribution to bound extreme weights,
+  then normalised so the mean weight equals 1 within each stratum. The
+  trimming rule, the percentile values, and the per-stratum normalisation
+  are jointly pinned: a Worker substituting raw weights, a different
+  trimming threshold (e.g., 5/95), or global (non-stratified) normalisation
+  breaks the contract.
+
+spec_citation:
+  source: "T1.13 [DECISION] 2026-05-13 vault entry (p1/p99 trimming, AUC = 0.714, ESS = 57,028); Plan Task 1.34 Guidance block"
+  vault_entry_date: "2026-05-13"
+
+formula:
+  expression: "raw_ipw_i = 1 / propensity_i; ipw_trimmed_i = clip(raw_ipw_i, percentile_1(raw_ipw), percentile_99(raw_ipw)); ipw_normalised_i = ipw_trimmed_i * n_s / sum_{j in stratum(i)}(ipw_trimmed_j) where stratum(i) is the (birth_cohort, analytical_status) stratum"
+  variables:
+    propensity_i:
+      description: "Propensity score from the T1.13 logistic regression of treatment / inclusion on the locked covariate set."
+      domain: "(0, 1)"
+      implementation_name: "propensity"
+    raw_ipw_i:
+      description: "Raw IPW: inverse propensity score."
+      domain: "positive real"
+      implementation_name: "ipw_raw"
+    ipw_trimmed_i:
+      description: "Trimmed IPW: raw_ipw clipped at the 1st and 99th percentiles of the raw_ipw distribution. The same percentile bounds apply to all individuals (global trimming bounds), even though normalisation is per stratum."
+      domain: "positive real"
+      implementation_name: "ipw_trimmed"
+    ipw_normalised_i:
+      description: "Per-stratum normalised IPW with mean = 1 within each (birth_cohort, analytical_status) stratum."
+      domain: "positive real"
+      implementation_name: "ipw_normalised"
+    stratum(i):
+      description: "The (birth_cohort_i, analytical_status_i) stratum to which individual i belongs."
+      domain: "categorical"
+      implementation_name: "stratum"
+    n_s:
+      description: "Number of individuals in stratum s."
+      domain: "positive integer"
+      implementation_name: "n_stratum"
+  invariants:
+    - claim: "Trimming is at the 1st and 99th percentiles of the RAW IPW distribution, NOT after normalisation. Trimming after normalisation produces different bounds and is forbidden."
+    - claim: "The trimming threshold is exactly p1 / p99 — neither p5 / p95 nor any other percentile is permitted under this contract."
+    - claim: "Normalisation is per-stratum (stratum = birth_cohort x analytical_status), giving mean(ipw_normalised) == 1 within each stratum. Global normalisation (mean = 1 over the full sample) is forbidden."
+      expression: "for every stratum s: mean({ipw_normalised_i : stratum(i) == s}) == 1"
+    - claim: "Pre-normalisation, the trimmed max should be approximately 42.78 and CV approximately 0.99 on the canonical T1.13 sample (sanity check against the 2026-05-13 vault entry); on a synthetic test sample the values will differ but the relative behaviour (raw_max >> trimmed_max, CV_raw > CV_trimmed) must hold."
+    - claim: "Individual weights MUST be saved as an RDS alongside the JSON diagnostics output. The 2026-05-14 working note records that the prior ipw_construction.R only saved a diagnostics JSON — this is fixed; the RDS is required for T1.34 (and was the gap that blocked T1.16)."
+    - claim: "Propensity is from a logistic regression with the locked T1.13 covariate set (do not redefine the propensity model)."
+    - claim: "Trimming yields ipw_trimmed_min == percentile_1(raw_ipw) and ipw_trimmed_max == percentile_99(raw_ipw); CV(ipw_trimmed) < CV(raw_ipw)."
+
+binding:
+  test_file: "tests/panel/test_t134_regression_contracts.py"
+  test_function: "test_normalised_ipw_trimming_rule"
+  must_assert: >
+    On a synthetic propensity vector (e.g., n = 1000 with simulated extreme
+    propensities including some < 0.01 and > 0.99): (a) raw_ipw = 1 /
+    propensity; (b) ipw_trimmed has min == percentile_1(raw_ipw) and max ==
+    percentile_99(raw_ipw); (c) trimming uses p1 / p99 of the raw distribution
+    (NOT p1 / p99 of any post-normalised quantity); (d) given a synthetic
+    stratum assignment, mean(ipw_normalised) == 1 within each stratum (within
+    float tolerance); (e) global mean(ipw_normalised) != 1 in general (proving
+    per-stratum, not global, normalisation); (f) substituting p5/p95 trimming
+    is rejected with a precise diagnostic; (g) the produced individual-weights
+    RDS exists at a path passed via argument and contains the ipw_normalised
+    vector.

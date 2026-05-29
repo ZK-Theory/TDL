@@ -1,0 +1,48 @@
+id: cross-tab-sparse-cell-flagging
+kind: invariant
+pending: true
+
+description: >
+  Behavioural invariant for T1.34's parental NS-SEC x first-window regime
+  descriptive cross-tab. Any cell with a count strictly less than 5 MUST
+  be flagged in the output JSON via an explicit sparse_cells field; cells
+  must NEVER be silently combined, rounded down to zero for display, or
+  suppressed. Sparse cells in a descriptive cross-tab are themselves
+  evidence (about the joint distribution of parental NS-SEC and regime
+  placement) and the §S8 prose must report them transparently.
+
+spec_citation:
+  source: "Plan Task 1.34 Validation block (cross-tab cells > 5 for major cells); ONS Statistical Disclosure Control guidance (small-cell reporting requires transparency)"
+  vault_entry_date: "2026-05-25"
+
+invariant:
+  claim: >
+    Every cell of the NS-SEC x first-window regime cross-tab whose count is
+    strictly less than 5 MUST appear in the output JSON's sparse_cells list
+    with its (nssec_proxy_level, regime_init_level, count) tuple. The
+    cross-tab JSON MUST also include the full counts matrix verbatim (no
+    rounding, no aggregation across categories). Output-time aggregation of
+    sparse cells into an "other" category is forbidden at the JSON layer;
+    any aggregation for paper-table display is a downstream concern handled
+    in the prose / table-rendering step, NOT in the JSON.
+  preconditions:
+    - "The cross-tab is computed on the analytical sample with non-missing nssec_proxy and regime_init."
+    - "Cell threshold is < 5 (counts of 0, 1, 2, 3, 4 are sparse; count of 5 is not sparse under this contract — adjust both threshold and rationale together if changed)."
+  counter_example_history: >
+    The recurring failure mode this invariant prevents is the silent
+    suppression or combination of sparse cells in published cross-tabs,
+    which hides genuine sample-coverage limitations. T1.34 produces the
+    cross-tab for §S8 transparency; the contract enforces that the
+    transparency is delivered at the JSON layer.
+
+binding:
+  test_file: "tests/panel/test_t134_regression_contracts.py"
+  test_function: "test_cross_tab_sparse_cells_flagged"
+  must_assert: >
+    On a synthetic cross-tab with at least three known sparse cells (e.g.,
+    a 5 x 4 cross-tab with hand-set counts including 0, 2, 4, 6, 100): the
+    output JSON's sparse_cells list contains exactly the cells with count
+    in {0, 1, 2, 3, 4}; cells with count == 5 are NOT flagged; the full
+    counts matrix is present verbatim; no cells have been combined or
+    aggregated. A test variant with zero sparse cells produces an empty
+    sparse_cells list (not absent — the key is present with []).

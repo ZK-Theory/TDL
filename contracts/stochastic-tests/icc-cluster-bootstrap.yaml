@@ -1,0 +1,73 @@
+id: icc-cluster-bootstrap
+kind: formula
+pending: true
+
+description: >
+  Per-feature intra-class correlation (ICC) and its 95% percentile bootstrap
+  CI for the T1.33 sibling-pair coherence test. ICC is computed from a one-way
+  random-effects decomposition of the per-individual feature into between-
+  cluster and within-cluster variance components. The CI is constructed by
+  cluster-level resampling (NOT individual-level) with replacement, because
+  individuals within the same FOO cluster are not exchangeable: individual-
+  level resampling would break the cluster structure and underestimate
+  uncertainty.
+
+spec_citation:
+  source: "Plan Task 1.33 'Topological FOO signature' Validation block + 2026-05-25 vault pre-registration [DECISION]"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "ICC_f = sigma_between_f^2 / (sigma_between_f^2 + sigma_within_f^2); CI_f = [percentile(ICC_f^*, 2.5), percentile(ICC_f^*, 97.5)] over B_boot cluster-level resamples"
+  variables:
+    v:
+      description: "Per-individual feature value: v[i, f] is the f-th local-PH feature for individual i, with f in {max_h0_persistence, total_h1_persistence, landscape_integral_k1}."
+      domain: "real matrix of shape (N, 3)"
+      implementation_name: "features"
+    c:
+      description: "FOO cluster assignment: c[i] is the cluster ID of individual i."
+      domain: "integer vector of length N"
+      implementation_name: "foo_clusters"
+    sigma_between_f:
+      description: "Between-cluster standard deviation of feature f: sqrt(variance of per-cluster means of v[:, f])."
+      domain: "non-negative real"
+      implementation_name: "sigma_between"
+    sigma_within_f:
+      description: "Within-cluster standard deviation of feature f: sqrt(average within-cluster variance of v[:, f]) using unbiased per-cluster variance."
+      domain: "non-negative real"
+      implementation_name: "sigma_within"
+    ICC_f:
+      description: "Intra-class correlation for feature f, in [0, 1]."
+      domain: "[0, 1]"
+      implementation_name: "icc_point_estimate"
+    B_boot:
+      description: "Number of bootstrap iterations. Pre-registered B_boot = 1000."
+      domain: "positive integer; pre-reg locks 1000"
+      implementation_name: "icc_bootstrap_B"
+    ICC_f_star:
+      description: "Bootstrap distribution of ICC_f: ICC_f recomputed on each cluster-level resample."
+      domain: "vector of length B_boot of values in [0, 1]"
+      implementation_name: "icc_bootstrap_samples"
+  invariants:
+    - claim: "ICC is bounded: ICC_f is in [0, 1] for the point estimate and every bootstrap sample."
+      expression: "0 <= ICC_f <= 1 and 0 <= ICC_f_star[b] <= 1 for all b"
+    - claim: "Resampling is at the CLUSTER level: each bootstrap iteration draws |unique(c)| cluster IDs with replacement, then keeps ALL individuals belonging to drawn clusters. Individual-level resampling within clusters is forbidden."
+    - claim: "B_boot = 1000 by pre-registration."
+      expression: "B_boot == 1000"
+    - claim: "CI is the 95% percentile interval: (CI_lower, CI_upper) = (percentile_2.5(ICC_f_star), percentile_97.5(ICC_f_star))."
+      expression: "CI_lower == percentile(ICC_f_star, 2.5); CI_upper == percentile(ICC_f_star, 97.5)"
+    - claim: "Bootstrap randomness is seeded; the seed used and B_boot are recorded in the output JSON params block; reseeding reproduces the bootstrap distribution bit-for-bit."
+    - claim: "Each of the 3 features yields one (point_estimate, CI_lower, CI_upper) triple — three independent ICC computations, not a multivariate ICC."
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_icc_cluster_bootstrap_construction"
+  must_assert: >
+    On a synthetic feature matrix with known between/within-cluster variances
+    (e.g., 5 clusters of size 4, feature drawn from cluster-mean + Gaussian
+    noise with known sigma): (a) the point estimate ICC matches the analytical
+    value within Monte Carlo tolerance; (b) bootstrap resampling samples
+    CLUSTERS (verified by monkeypatching np.random and checking the sampled
+    indices are cluster IDs, not individual indices); (c) ICC values across
+    bootstrap samples are in [0, 1]; (d) the CI is the 2.5 / 97.5 percentile;
+    (e) reseeding reproduces the bootstrap distribution bit-for-bit;
+    (f) B_boot == 1000 (test on small B for speed but assert the parameter).

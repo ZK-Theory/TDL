@@ -1,0 +1,60 @@
+id: tier2-ipw-mice-svyglm-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.34 Tier-2 IPW + MICE + svyglm output JSON written to
+  results/panel_methodology/regression/. The JSON carries the Rubin-pooled
+  GLMM coefficient column AND the svyglm cluster-robust column side by
+  side, allowing the paper to report both columns transparently as the
+  Spec amendment requires. The schema fixes the provenance fields, the
+  required per-coefficient fields, and the random-effect summary.
+
+spec_citation:
+  source: "Plan Task 1.34 Output block + tier2-escape-regression-spec, rubin-pooling, svyglm-cluster-robust-se formula contracts"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/regression/tier2_ipw_mice_svyglm_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'panel-output/tier2-ipw-mice-svyglm/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.34 Tier-2 IPW + MICE + svyglm'."
+    - name: pre_registration
+      type: str
+      description: "Date of the governing pre-registration vault entry."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain: m_imputations (int == 20), ipw_source (str, path to T1.13 ipw_normalised RDS), ipw_trimming (str == 'p1/p99 of raw, per-stratum normalisation'), engine_glmm (str == 'glmmTMB'), engine_design (str == 'survey::svyglm'), family (str == 'binomial' for glmm and 'quasibinomial' for svyglm), model_formula_fixed (str), model_formula_random (str == '(1 | hh_group)'), conditioning_sample (str == 'first-window regime in {R2, R6}'), escape_definition_source (str, path to window_escape_assignments_2026-05-14.json), n_obs (int), n_clusters_hh (int), n_clusters_foo (int)."
+    - name: convergence
+      type: "dict[str, ...]"
+      description: "MICE convergence diagnostics per the mice-convergence-rule invariant. MUST contain: all_chains_converged (bool == true; if false, the JSON should not have been produced), per_chain_trace_passed (list[bool] of length m), rhat_summary (dict[str, float])."
+    - name: coefficients
+      type: "list[dict]"
+      description: "Per-coefficient row. Each row MUST contain: name (str), level (str if categorical else null), glmm_rubin_estimate (float), glmm_rubin_se (float), glmm_rubin_pvalue (float in [0, 1]), glmm_rubin_df (float > 0), glmm_rubin_fmi (float in [0, 1]), svyglm_estimate (float), svyglm_se (float), svyglm_pvalue (float in [0, 1]), agreement_direction (bool — true iff sign(glmm_rubin_estimate) == sign(svyglm_estimate))."
+    - name: random_effects
+      type: "dict[str, ...]"
+      description: "Random-effect summary from the Tier-2 GLMM (pooled across m). MUST contain: sigma_u_hh_pooled (float >= 0), icc_hh (float in [0, 1])."
+    - name: model_fit
+      type: "dict[str, ...]"
+      description: "Model-fit diagnostics. MUST contain: marginal_r2 (float), conditional_r2_caveat (str, explaining why conditional R2 is reported only if interpretable on this sample)."
+  forbidden_keys:
+    - name: stargazer_table
+      reason: "The JSON is the data layer; rendering is a downstream concern. Embedding a stargazer-formatted string makes the JSON brittle to formatting changes."
+
+binding:
+  test_file: "tests/panel/test_t134_regression_contracts.py"
+  test_function: "test_tier2_output_json_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema validates. JSONs with (a)
+    params.m_imputations != 20, (b) convergence.all_chains_converged != true,
+    (c) any coefficient row missing either glmm_rubin_* or svyglm_* fields
+    (we require BOTH columns), (d) glmm_rubin_pvalue or svyglm_pvalue outside
+    [0, 1], (e) icc_hh outside [0, 1], or (f) presence of the forbidden
+    stargazer_table key are rejected with a precise diagnostic.

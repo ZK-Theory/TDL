@@ -1,0 +1,79 @@
+id: glmm-power-simulation
+kind: formula
+pending: true
+
+description: >
+  Simulation-based power analysis for the T1.35 minimum-detectable-ICC
+  computation on the n = 735 / 353-cluster R2/R6 disadvantaged-starter
+  subsample from T1.21. For each grid value of the true intra-class
+  correlation, B = 1000 datasets are simulated under a one-way random-
+  effects logistic model with that ICC, the glmmTMB(escape ~ 1 +
+  (1 | foo_cluster)) model is fit on each, and an LRT against the null
+  ICC = 0 is run. Empirical power at a grid point is the fraction of
+  simulations rejecting at alpha = 0.05; minimum detectable ICC at 80%
+  power is the smallest grid value whose empirical power exceeds 0.80.
+
+spec_citation:
+  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; T1.21 superseded sample structure"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 derived from icc; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); LRT_b = -2 * (logLik(fit_null) - logLik(fit_full)); reject_b = (1 - chisq_cdf(LRT_b, df = 1)) <= alpha; power(icc) = mean(reject_b); minimum_detectable_icc = min({icc : power(icc) >= 0.80})"
+  variables:
+    icc:
+      description: "True intra-class correlation in the simulated data. Grid is {0.01, 0.025, 0.05, 0.10, 0.20} (locked by pre-reg)."
+      domain: "real in (0, 1); grid values locked"
+      implementation_name: "icc_grid"
+    B:
+      description: "Number of simulations per grid point. Pre-registered B = 1000."
+      domain: "positive integer; B = 1000"
+      implementation_name: "n_sims"
+    sigma_u:
+      description: "Random-intercept standard deviation derived from icc: for the logistic null, sigma_u^2 = icc * pi^2 / 3 (latent-variable / Snijders-Bosker scale)."
+      domain: "non-negative real"
+      implementation_name: "sigma_u"
+    n:
+      description: "Sample size per simulation: 735 individuals across 353 clusters with size structure matching the T1.21 R2/R6 multi-FOO subsample."
+      domain: "positive integer; n = 735"
+      implementation_name: "n_individuals"
+    LRT_b:
+      description: "Likelihood-ratio statistic on simulation b: 2 * (logLik(full) - logLik(null))."
+      domain: "non-negative real"
+      implementation_name: "lrt_statistic[b]"
+    alpha:
+      description: "Type-I error rate. Pre-registered alpha = 0.05."
+      domain: "real in (0, 1); alpha = 0.05"
+      implementation_name: "alpha"
+    power(icc):
+      description: "Empirical power at true ICC value icc."
+      domain: "[0, 1]"
+      implementation_name: "power[icc]"
+    minimum_detectable_icc:
+      description: "Smallest grid value with power(icc) >= 0.80. If no grid value reaches 0.80, the result is reported as 'greater than max grid value' (NOT silently extrapolated)."
+      domain: "real or 'greater than 0.20' string"
+      implementation_name: "min_detectable_icc"
+  invariants:
+    - claim: "ICC grid is exactly {0.01, 0.025, 0.05, 0.10, 0.20} — five values. Adding or removing grid points requires a pre-reg amendment."
+      expression: "icc_grid == [0.01, 0.025, 0.05, 0.10, 0.20]"
+    - claim: "B = 1000 by pre-registration."
+      expression: "B == 1000"
+    - claim: "n = 735 (T1.21 R2/R6 multi-FOO subsample) and n_clusters = 353; the cluster-size distribution matches the T1.21 sample (NOT uniformly distributed across clusters)."
+    - claim: "LRT is computed against the null model with no random effect (NOT against a Wald test, NOT against a null with a different fixed-effect structure)."
+    - claim: "Rejection rule uses chi-square with df = 1. (The 50:50 mixture of chi-square_0 and chi-square_1 is a more precise asymptotic for variance-component tests; if used, document the choice in the output JSON. The default contract uses df = 1.)"
+    - claim: "sigma_u is derived from icc using the latent-variable representation sigma_u^2 = icc * pi^2 / 3, with pi^2/3 being the variance of the standard logistic distribution. Misusing the linear-mixed-model formula sigma_u^2 = icc * sigma_e^2 for the logistic case underestimates the simulated random-effect variance."
+    - claim: "Simulation randomness is seeded; the seed and B are recorded in the output JSON; reseeding reproduces the power curve bit-for-bit."
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_glmm_power_simulation_construction"
+  must_assert: >
+    On a reduced-scope test (icc_grid = [0.20], B = 50 — small enough for
+    speed but large enough for stable rejection rate): (a) the simulation
+    routine constructs datasets with the correct cluster-size structure
+    matching the n = 735 / 353 input pattern; (b) sigma_u is computed
+    from icc via icc * pi^2 / 3; (c) the LRT compares glmmTMB null vs full
+    correctly; (d) empirical power at icc = 0.20 on B = 50 sims is positive
+    (typically high) — the test asserts power > 0 rather than a specific
+    value, to avoid Monte Carlo flakiness; (e) reseeding reproduces the
+    rejection vector; (f) the minimum_detectable_icc convention reports
+    'greater than 0.20' when no grid value reaches power >= 0.80.

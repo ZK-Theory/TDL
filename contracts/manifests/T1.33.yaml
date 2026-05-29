@@ -1,0 +1,33 @@
+scope_id: T1.33
+scope_description: >
+  Per-individual local persistence features on the 90-D bigram embedding via
+  kNN sub-cloud Vietoris-Rips, sibling-pair geometric coherence test against
+  a constrained-shuffle null over B = 5000 draws on the full-sample
+  foo_clusters, and per-feature ICCs with cluster-level bootstrap CIs.
+  Substantive FOO finding for P01-A §4.5.x.
+authored: "2026-05-29"
+authored_by: "Manager 5 (pre-dispatch coverage extraction)"
+
+contracts:
+  - topology-invariants/per-individual-knn-local-ph
+  - stochastic-tests/constrained-shuffle-null
+  - stochastic-tests/icc-cluster-bootstrap
+  - topology-invariants/constrained-shuffle-cluster-size-preservation
+  - topology-invariants/seed-propagation-foo-topology
+  - foo-topology-schemas/per-individual-local-features-output
+  - foo-topology-schemas/sibling-pair-permutation-output
+  - foo-topology-schemas/foo-topology-output-json-validation
+  - stochastic-tests/monte-carlo-permutation-p-value
+
+notes: >
+  All eight T1.33-specific contracts are authored as pending: true so the
+  pre-commit hook does not block on binding tests that will live on the
+  Worker's feature branch (run/foo-topology-signature). The Worker clears
+  pending in each contract once test functions are present and passing on
+  the feature branch. The ninth contract (monte-carlo-permutation-p-value)
+  is referenced — not re-authored — because the (r+1)/(B+1) p-value formula
+  is already pinned and active on main from T1.36/T1.37; the
+  sibling-pair-permutation-output schema enforces compliance with it.
+  Human-review-only claims (substantive interpretation of any positive FOO
+  signal for the §4.5.x narrative; reviewer-facing framing) are deliberately
+  NOT contract-encoded — they are flagged as such in the Task Prompt.

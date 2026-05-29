@@ -1,0 +1,60 @@
+id: singleton-decomposition-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.35b singleton-decomposition output JSON written to
+  results/panel_methodology/foo_transparency/. Records the partition of
+  the 6,363 disadvantaged-starter singletons into true singletons (no
+  sibling in xwavedat) and filtered singletons (sibling exists but was
+  excluded by analytical filters), with both primary-reason and
+  secondary-reason counts per the singleton-decomposition-exhaustivity
+  invariant.
+
+spec_citation:
+  source: "Plan Task 1.35b Output block + singleton-decomposition-exhaustivity invariant"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/foo_transparency/singleton_decomposition_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'panel-output/singleton-decomposition/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.35b singleton decomposition'."
+    - name: pre_registration
+      type: str
+      description: "Date of the T1.35b pre-registration vault entry."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain: t121_source_path (str, e.g. branch ref + commit), xwavedat_source_path (str), n_total_singletons (int == 6363), n_t121_total_sample (int == 7098 = 735 + 6363)."
+    - name: counts
+      type: "dict[str, int]"
+      description: "Top-level decomposition. MUST contain n_true_singletons and n_filtered_singletons. The two MUST sum to n_total_singletons == 6363 exactly (enforced by the singleton-decomposition-exhaustivity invariant)."
+    - name: primary_reason_counts
+      type: "dict[str, int]"
+      description: "Counts of filtered singletons by their PRIMARY exclusion reason. Keys MUST be drawn from the locked vocabulary {does_not_start_in_r2_or_r6, ipw_zero_due_to_ineligibility, dropped_by_10_of_14_rule, missing_nssec_proxy, other_filter_chain}. Values are non-negative integers summing to counts.n_filtered_singletons exactly."
+    - name: secondary_reason_counts
+      type: "dict[str, int]"
+      description: "Counts of filtered singletons whose sibling fails each exclusion reason (independent of whether that reason is the primary one). Keys MUST be the same vocabulary. Sum can exceed n_filtered_singletons when multi-filter cases exist; this is expected and required for the §S8 narrative's multi-filter visibility."
+    - name: per_singleton_records
+      type: "list[dict]"
+      description: "Per-singleton row, length == n_filtered_singletons. Each row: pidp (int), primary_reason (str in the locked vocabulary), secondary_reasons (list[str] subset of the locked vocabulary, may be empty), sibling_pidps (list[int]) — the sibling PIDPs of this singleton whose presence in xwavedat made it 'filtered' rather than 'true'."
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_singleton_decomposition_json_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema validates. JSONs with
+    (a) n_true_singletons + n_filtered_singletons != 6363,
+    (b) primary_reason_counts containing a key outside the locked
+    vocabulary, (c) primary_reason_counts values not summing to
+    n_filtered_singletons, (d) per_singleton_records length not matching
+    n_filtered_singletons, or (e) any record with primary_reason outside
+    the locked vocabulary are rejected with a precise diagnostic.

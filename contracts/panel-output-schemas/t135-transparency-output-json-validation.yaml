@@ -1,0 +1,42 @@
+id: t135-transparency-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Output-validation dispatch for the three T1.35 result JSONs written to
+  results/panel_methodology/foo_transparency/. Files matching
+  power_analysis_*.json validate against the power-analysis-output schema;
+  files matching singleton_decomposition_*.json validate against the
+  singleton-decomposition-output schema; files matching
+  sibling_concordance_*.json validate against the sibling-concordance-
+  output schema. The pre-commit hook validates any matching JSON staged
+  in a commit and blocks on schema violation.
+
+spec_citation:
+  source: "Plan Task 1.35 Output block + the three T1.35 schema contracts"
+  vault_entry_date: "2026-05-25"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/foo_transparency/**/*.json"
+  schema_contracts:
+    - power-analysis-output
+    - singleton-decomposition-output
+    - sibling-concordance-output
+  file_dispatch:
+    - filename_pattern: "power_analysis_*.json"
+      schema_contract: power-analysis-output
+    - filename_pattern: "singleton_decomposition_*.json"
+      schema_contract: singleton-decomposition-output
+    - filename_pattern: "sibling_concordance_*.json"
+      schema_contract: sibling-concordance-output
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_t135_output_jsons_validate_against_schemas"
+  must_assert: >
+    Every JSON file in the working tree matching the applies_to_glob is
+    dispatched to the correct schema contract by file_dispatch pattern and
+    validates against its required_keys (and forbidden_keys rejection).
+    Files not matching any dispatch pattern are NOT validated by this
+    contract (positive-filter dispatch). When no matching JSONs exist, the
+    test passes trivially.

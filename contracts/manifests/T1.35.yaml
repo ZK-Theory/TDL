@@ -1,0 +1,33 @@
+scope_id: T1.35
+scope_description: >
+  T1.21 transparency supplement: minimum detectable ICC at 80% power on
+  the n = 735 multi-FOO R2/R6 subsample, decomposition of the 6,363
+  disadvantaged-starter singletons into true vs filtered singletons with
+  primary and secondary filter-exclusion reason counts, and sibling-pair
+  concordance via McNemar + Cohen's kappa + within-pair odds ratio on the
+  353 multi-member clusters.
+authored: "2026-05-29"
+authored_by: "Manager 5 (pre-dispatch coverage extraction)"
+
+contracts:
+  - statistical-tests/glmm-power-simulation
+  - statistical-tests/mcnemar-test
+  - statistical-tests/cohens-kappa
+  - statistical-tests/within-pair-odds-ratio
+  - regression-specs/singleton-decomposition-exhaustivity
+  - panel-output-schemas/power-analysis-output
+  - panel-output-schemas/singleton-decomposition-output
+  - panel-output-schemas/sibling-concordance-output
+  - panel-output-schemas/t135-transparency-output-json-validation
+
+notes: >
+  All nine T1.35 contracts are authored as pending: true so the pre-commit
+  hook does not block on binding tests that will live on the Worker's
+  feature branch (run/foo-regression-transparency, shared with T1.34). The
+  Worker clears pending in each contract once test functions are present
+  and passing on the feature branch. Human-review-only claims (substantive
+  interpretation of kappa magnitude or OR magnitude for the §S8 narrative)
+  are deliberately NOT contract-encoded — they are flagged as such in the
+  Task Prompt. The three sibling-concordance statistics (McNemar / kappa /
+  OR) share a single 2 x 2 contingency table per the member-ordering rule
+  pinned in each formula contract.

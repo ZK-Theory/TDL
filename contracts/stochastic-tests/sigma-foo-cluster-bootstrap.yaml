@@ -1,0 +1,72 @@
+id: sigma-foo-cluster-bootstrap
+kind: formula
+pending: true
+
+description: >
+  Cluster-level bootstrap 95% percentile CI for the sigma_foo random-intercept
+  standard deviation in the T1.34 full-sample FOO sensitivity model. The
+  fitted model is escape ~ baseline_covariates + (1 | foo_cluster) on the
+  FULL analytical sample (not the R2/R6 disadvantaged-starters subsample
+  used in Tier-2). The bootstrap resamples foo_clusters with replacement,
+  refits the model on the resampled data, and records sigma_foo across B
+  iterations. The CI is the 2.5 / 97.5 percentile interval over the
+  bootstrap distribution. A CI strictly above zero supports a non-null FOO
+  random-effect; a CI including zero is reported as such (no upward
+  adjustment, no preferred-direction framing).
+
+spec_citation:
+  source: "Plan Task 1.34 'foo_sensitivity_fullsample' output block + Pre-reg T1.34c [DECISION] 2026-05-25"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "for b in 1..B: cluster_ids_b = sample_with_replacement(unique(foo_cluster), |unique(foo_cluster)|); sample_b = {individual i : foo_cluster_i in cluster_ids_b}; fit_b = glmmTMB(escape ~ baseline_covariates + (1 | foo_cluster), data = sample_b, family = binomial); sigma_foo_b = sd(random_effects(fit_b)); CI = [percentile(sigma_foo_b, 2.5), percentile(sigma_foo_b, 97.5)]"
+  variables:
+    foo_cluster:
+      description: "FOO cluster ID per individual from data/derived/foo_clusters_2026-05-06.csv."
+      domain: "categorical (integer cluster IDs)"
+      implementation_name: "foo_cluster"
+    B:
+      description: "Number of bootstrap iterations. Pre-registered B = 1000."
+      domain: "positive integer; B = 1000"
+      implementation_name: "bootstrap_B"
+    cluster_ids_b:
+      description: "Cluster-level resample for iteration b: |unique(foo_cluster)| cluster IDs drawn with replacement."
+      domain: "list of cluster IDs of length |unique(foo_cluster)|"
+      implementation_name: "cluster_ids_b"
+    sample_b:
+      description: "Individuals whose foo_cluster is drawn in cluster_ids_b. A cluster drawn multiple times contributes all its individuals each time it is drawn (preserves intra-cluster structure)."
+      domain: "individual-level dataframe"
+      implementation_name: "sample_b"
+    sigma_foo_b:
+      description: "Estimated random-intercept standard deviation from the b-th refit."
+      domain: "non-negative real"
+      implementation_name: "sigma_foo_bootstrap_samples[b]"
+    CI:
+      description: "95% percentile CI on sigma_foo: (P_2.5, P_97.5) over the B bootstrap samples."
+      domain: "(non-negative real, non-negative real) with lower <= upper"
+      implementation_name: "(bootstrap_ci_lower, bootstrap_ci_upper)"
+  invariants:
+    - claim: "Resampling is at the CLUSTER level: each iteration draws |unique(foo_cluster)| cluster IDs with replacement, then includes ALL individuals from each drawn cluster (a cluster drawn k times contributes its individuals k times). Individual-level resampling is forbidden because it breaks the within-cluster dependence structure that sigma_foo measures."
+    - claim: "B = 1000 by pre-registration."
+      expression: "B == 1000"
+    - claim: "CI is the 2.5 / 97.5 percentile interval; bias-corrected, BCa, and percentile-t variants are not the contract default. If the Worker also reports BCa, it MUST be an additional column, not a replacement for the percentile CI."
+    - claim: "sigma_foo and CI bounds are non-negative."
+      expression: "sigma_foo >= 0 and CI_lower >= 0 and CI_upper >= 0 and CI_lower <= CI_upper"
+    - claim: "The CI is reported as-is regardless of whether it contains zero. The §S8 narrative reports the CI containing zero as null evidence; it does NOT exclude zero by inflating CI_lower."
+    - claim: "Bootstrap randomness is seeded; seed and B are recorded in the output JSON params block."
+    - claim: "The base model is fit on the FULL analytical sample (not R2/R6 only). The full-sample size is recorded in the output JSON for traceability."
+
+binding:
+  test_file: "tests/panel/test_t134_regression_contracts.py"
+  test_function: "test_sigma_foo_cluster_bootstrap"
+  must_assert: >
+    On a small synthetic dataset (n = 600, 50 clusters of varying size, binary
+    response with known cluster random effect): (a) bootstrap resampling
+    samples CLUSTERS (verified by capturing the sample composition and
+    confirming clusters appear / disappear in blocks of size matching the
+    original cluster size); (b) sigma_foo across iterations is non-negative;
+    (c) the CI is the 2.5 / 97.5 percentile of the bootstrap distribution;
+    (d) reseeding reproduces the bootstrap distribution bit-for-bit;
+    (e) the full-sample fit (not R2/R6 only) is used; (f) if the synthetic
+    true sigma is 0, the CI includes 0 — and the test does NOT silently
+    return a positive lower bound.

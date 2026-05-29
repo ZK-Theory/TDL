@@ -1,0 +1,60 @@
+id: singleton-decomposition-exhaustivity
+kind: invariant
+pending: true
+
+description: >
+  Behavioural invariant for T1.35's singleton decomposition of the 6,363
+  disadvantaged-starter singletons in the T1.21 sample. Each singleton
+  must be classified as either a TRUE singleton (the individual has no
+  sibling anywhere in xwavedat) or a FILTERED singleton (a sibling exists
+  in xwavedat but was excluded by an analytical filter). The two counts
+  must sum to the total singleton count exactly, and the filter-exclusion
+  reasons recorded per filtered singleton must be drawn from a fixed,
+  mutually exclusive vocabulary so no individual is double-counted across
+  reasons.
+
+spec_citation:
+  source: "Plan Task 1.35 singleton_decomposition Output block; Pre-reg T1.35b [DECISION] 2026-05-25"
+  vault_entry_date: "2026-05-25"
+
+invariant:
+  claim: >
+    Let S = 6,363 be the total disadvantaged-starter singleton count in
+    the T1.21 sample. Let T = count of true singletons (no sibling in
+    xwavedat at all) and F = count of filtered singletons (sibling exists
+    in xwavedat but was excluded by at least one analytical filter). The
+    decomposition MUST satisfy T + F == S exactly (no rounding, no
+    overlap). Each filtered singleton has exactly one PRIMARY exclusion
+    reason drawn from the locked vocabulary {does_not_start_in_r2_or_r6,
+    ipw_zero_due_to_ineligibility, dropped_by_10_of_14_rule,
+    missing_nssec_proxy, other_filter_chain}. Filtered singletons may have
+    additional SECONDARY reasons (one sibling can fail multiple filters),
+    but the primary reason is the one earliest in the analytical pipeline
+    that caused the exclusion. The output JSON records counts at both
+    levels: primary reason counts sum to F; secondary reason counts can
+    exceed F (because one filtered singleton's sibling can fail multiple
+    filters).
+  preconditions:
+    - "The T1.21 sample structure (n=735 multi-FOO, 6363 singletons) is available from the T1.21 working files (run/tier3-regression branch, commit ddc7efb)."
+    - "xwavedat.tab is cross-referenced to determine sibling existence per individual."
+  counter_example_history: >
+    The recurring failure mode is silent omission: a filtered singleton
+    whose sibling fails three filters is counted only against the first
+    filter encountered, hiding the multi-filter exclusion pattern. The
+    invariant requires both primary and secondary reason counts so the
+    multi-filter pattern is visible in the §S8 narrative.
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_singleton_decomposition_exhaustivity"
+  must_assert: >
+    On a synthetic singleton population (e.g., 100 singletons with
+    constructed sibling-existence and filter-failure patterns including
+    multi-filter cases): (a) T + F == total singleton count exactly;
+    (b) every filtered singleton has exactly one primary reason from the
+    locked vocabulary; (c) the sum of primary reason counts equals F;
+    (d) secondary reason counts can exceed F when multi-filter cases are
+    present and exceed F in the synthetic test; (e) a test variant with
+    T + F != total (constructed defect) is rejected with a precise
+    diagnostic; (f) a test variant where a filtered singleton has a
+    primary reason outside the locked vocabulary is rejected.

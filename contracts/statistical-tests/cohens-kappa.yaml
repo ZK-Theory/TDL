@@ -1,0 +1,80 @@
+id: cohens-kappa
+kind: formula
+pending: true
+
+description: >
+  Cohen's kappa for sibling-pair escape concordance with 95% percentile
+  cluster-bootstrap CI on the T1.35 multi-member FOO subsample. Kappa
+  measures concordance above chance under the marginal distributions of
+  member 1 and member 2 escape outcomes. The bootstrap CI is cluster-level
+  (FOO clusters resampled with replacement) for the same reason as in
+  icc-cluster-bootstrap.
+
+spec_citation:
+  source: "Cohen (1960); Plan Task 1.35 sibling-concordance Output block; Pre-reg T1.35c [DECISION] 2026-05-25"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "p_o = (a + d) / N; p_e = ((a + b) * (a + c) + (c + d) * (b + d)) / N^2; kappa = (p_o - p_e) / (1 - p_e); CI = [percentile(kappa^*, 2.5), percentile(kappa^*, 97.5)] over B cluster-level resamples"
+  variables:
+    a:
+      description: "Pairs where both members escaped (escape = 1, escape = 1)."
+      domain: "non-negative integer"
+      implementation_name: "n_both_escape"
+    b:
+      description: "Discordant: member 1 escaped, member 2 did not."
+      domain: "non-negative integer"
+      implementation_name: "n_discordant_b"
+    c:
+      description: "Discordant: member 1 did not escape, member 2 did."
+      domain: "non-negative integer"
+      implementation_name: "n_discordant_c"
+    d:
+      description: "Pairs where neither escaped."
+      domain: "non-negative integer"
+      implementation_name: "n_both_no_escape"
+    N:
+      description: "Total pairs: a + b + c + d."
+      domain: "positive integer; N = 353 for T1.35"
+      implementation_name: "n_pairs"
+    p_o:
+      description: "Observed agreement: (a + d) / N."
+      domain: "[0, 1]"
+      implementation_name: "p_observed"
+    p_e:
+      description: "Expected agreement under independence given the marginals: ((a + b) * (a + c) + (c + d) * (b + d)) / N^2."
+      domain: "[0, 1]"
+      implementation_name: "p_expected"
+    kappa:
+      description: "Cohen's kappa: (p_o - p_e) / (1 - p_e). Bounded in [-1, 1]. kappa > 0 indicates above-chance concordance."
+      domain: "[-1, 1]"
+      implementation_name: "kappa_point_estimate"
+    B:
+      description: "Number of cluster-level bootstrap iterations. Pre-registered B = 1000."
+      domain: "positive integer; B = 1000"
+      implementation_name: "bootstrap_B"
+  invariants:
+    - claim: "kappa is bounded: -1 <= kappa <= 1."
+      expression: "-1 <= kappa <= 1"
+    - claim: "p_e is computed from the marginals of the OBSERVED 2 x 2 table — it is NOT a uniform 0.5 baseline."
+    - claim: "If p_e == 1 (all observations on one marginal level), kappa is undefined; the output JSON reports kappa as null and the narrative reports the degenerate marginal."
+    - claim: "Resampling is at the FOO CLUSTER level (not at the individual or pair level). A drawn cluster contributes all its sibling pairs each time it is drawn."
+    - claim: "B = 1000 by pre-registration."
+      expression: "B == 1000"
+    - claim: "CI is the 2.5 / 97.5 percentile of kappa across bootstrap samples; BCa is permitted as an additional column but not as a replacement for the percentile CI."
+    - claim: "Bootstrap randomness is seeded; seed and B are recorded in the output JSON."
+    - claim: "Member 1 vs member 2 ordering within a pair uses the same fixed rule as the mcnemar-test contract so the (b, c) cells are consistent across the two statistics."
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_cohens_kappa_construction"
+  must_assert: >
+    On a synthetic 2 x 2 table with known marginals (e.g., a = 20, b = 10,
+    c = 4, d = 30, N = 64): (a) kappa matches the hand-computed value
+    within float tolerance; (b) bootstrap resampling samples CLUSTERS
+    (verified by inspection of the resample composition); (c) kappa values
+    across bootstrap iterations are in [-1, 1]; (d) the CI is the 2.5 / 97.5
+    percentile; (e) reseeding reproduces the bootstrap distribution
+    bit-for-bit; (f) for a synthetic degenerate table where all pairs have
+    escape = 0 (a = b = c = 0, d = N), kappa is returned as null and the
+    test does NOT silently coerce to 1 or 0.

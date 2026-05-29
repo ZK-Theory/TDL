@@ -1,0 +1,69 @@
+id: svyglm-cluster-robust-se
+kind: formula
+pending: true
+
+description: >
+  T1.34's design-based sensitivity column uses svyglm from the R survey
+  package fit on a svydesign that declares foo_cluster as the cluster ID
+  and the normalised IPW vector as the weights. The standard errors come
+  from a Taylor-linearised cluster-robust sandwich estimator that accounts
+  for both the IPW design and within-cluster correlation. This is a
+  separable assurance lane from the Rubin-pooled GLMM column because it
+  tests whether the substantive coefficient direction and significance
+  survive a pseudo-likelihood / design-based estimator instead of a model-
+  based one. A Worker substituting CR1 cluster-robust SEs without the
+  svydesign, or omitting the cluster argument, breaks the contract.
+
+spec_citation:
+  source: "Lumley (2010) 'Complex Surveys' Ch. 3 / Binder (1983) for the Taylor linearisation; Plan Task 1.34 Guidance block (svyglm sensitivity column)"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "design = svydesign(ids = ~foo_cluster, weights = ~ipw_trimmed, data = analytic_sample); fit = svyglm(escape ~ regime_init + nssec_proxy + birth_cohort + sex + region, design = design, family = quasibinomial()); SE_j = sqrt(V_TL(beta_j)) where V_TL is the Taylor-linearised cluster-robust sandwich variance"
+  variables:
+    foo_cluster:
+      description: "Family-of-origin cluster ID per individual from data/derived/foo_clusters_2026-05-06.csv (T0.11 output)."
+      domain: "categorical (integer cluster IDs)"
+      implementation_name: "foo_cluster"
+    ipw_trimmed:
+      description: "Normalised IPW weights per the normalised-ipw-trimming contract: trimmed at p1/p99 percentiles of the raw IPW distribution and normalised to mean 1 within strata."
+      domain: "positive real vector of length n"
+      implementation_name: "ipw_trimmed"
+    design:
+      description: "Survey design object declaring foo_cluster as the primary sampling unit and ipw_trimmed as the weight."
+      domain: "svydesign object"
+      implementation_name: "design"
+    beta_j:
+      description: "j-th regression coefficient from svyglm; the full coefficient table is the contract surface."
+      domain: "real"
+      implementation_name: "coef(fit)[j]"
+    V_TL:
+      description: "Taylor-linearised cluster-robust variance estimator (sandwich) accounting for both the IPW design and within-foo_cluster correlation."
+      domain: "real, square matrix (covariance)"
+      implementation_name: "vcov(fit)"
+    SE_j:
+      description: "Standard error of beta_j from V_TL."
+      domain: "non-negative real"
+      implementation_name: "SE(coef(fit))[j]"
+  invariants:
+    - claim: "The svydesign MUST declare ids = ~foo_cluster. A model with ids = ~1 (no clustering) or ids = ~hh_group violates the contract."
+    - claim: "The weights MUST be the normalised IPW (ipw_trimmed), not raw IPW and not uniform weights."
+    - claim: "The family MUST be quasibinomial(); binomial() in svyglm triggers a warning about non-integer weights and is non-canonical for the design-based estimator."
+    - claim: "Coefficient direction MUST agree with the Tier-2 GLMM column (e.g., regime_init = R6 yields beta > 0). A sign reversal between GLMM and svyglm indicates a data-assembly defect, not a real divergence."
+    - claim: "The SE column reported alongside the coefficient table MUST be the Taylor-linearised cluster-robust SE from vcov(fit), NOT the naive SE from a quasi-likelihood fit without the design."
+    - claim: "When svyglm and Rubin-pooled GLMM give substantively different significance verdicts (e.g., one rejects at alpha = 0.05 and the other does not), both verdicts are reported transparently in the coefficient table; the discrepancy is not silently resolved by preferring one column."
+    - claim: "The svyglm fit is computed PER IMPUTATION (m = 20) and then pooled via Rubin's rules; a single-imputation svyglm is forbidden as the headline."
+
+binding:
+  test_file: "tests/panel/test_t134_regression_contracts.py"
+  test_function: "test_svyglm_cluster_robust_se_construction"
+  must_assert: >
+    On a small synthetic sample (n = 300, 50 foo_clusters, simulated IPW
+    weights, simulated binary escape with known coefficient): (a) the call
+    constructs svydesign with ids = ~foo_cluster and weights = ~ipw_trimmed;
+    (b) the family is quasibinomial; (c) the returned SE for the regime
+    coefficient is larger than the naive (cluster-ignored) SE on the same
+    sample (the cluster-robust correction inflates SE in the presence of
+    intra-cluster correlation); (d) attempting to fit svyglm with ids = ~1
+    is rejected; (e) the test runs svyglm on each of m = 3 synthetic
+    imputations and Rubin-pools the results via the rubin-pooling contract.

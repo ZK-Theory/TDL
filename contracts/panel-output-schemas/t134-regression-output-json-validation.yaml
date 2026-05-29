@@ -1,0 +1,45 @@
+id: t134-regression-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Output-validation dispatch for the three T1.34 result JSONs written to
+  results/panel_methodology/regression/. Files matching
+  tier2_ipw_mice_svyglm_*.json validate against the
+  tier2-ipw-mice-svyglm-output schema; files matching
+  nssec_regime_crosstab_*.json validate against the
+  nssec-regime-crosstab-output schema; files matching
+  foo_sensitivity_fullsample_*.json validate against the
+  foo-sensitivity-fullsample-output schema. The pre-commit hook validates
+  any matching JSON staged in a commit and blocks the commit on schema
+  violation.
+
+spec_citation:
+  source: "Plan Task 1.34 Output block + the three T1.34 schema contracts"
+  vault_entry_date: "2026-05-25"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/regression/**/*.json"
+  schema_contracts:
+    - tier2-ipw-mice-svyglm-output
+    - nssec-regime-crosstab-output
+    - foo-sensitivity-fullsample-output
+  file_dispatch:
+    - filename_pattern: "tier2_ipw_mice_svyglm_*.json"
+      schema_contract: tier2-ipw-mice-svyglm-output
+    - filename_pattern: "nssec_regime_crosstab_*.json"
+      schema_contract: nssec-regime-crosstab-output
+    - filename_pattern: "foo_sensitivity_fullsample_*.json"
+      schema_contract: foo-sensitivity-fullsample-output
+
+binding:
+  test_file: "tests/panel/test_t134_regression_contracts.py"
+  test_function: "test_t134_output_jsons_validate_against_schemas"
+  must_assert: >
+    Every JSON file in the working tree matching the applies_to_glob is
+    dispatched to the correct schema contract by file_dispatch pattern and
+    validates against its required_keys (and forbidden_keys rejection).
+    Pre-T1.34 legacy files under results/panel_methodology/regression/ that
+    do not match any file_dispatch pattern are NOT validated by this contract
+    (positive-filter dispatch). When no matching JSONs exist, the test passes
+    trivially.

@@ -1,0 +1,71 @@
+id: within-pair-odds-ratio
+kind: formula
+pending: true
+
+description: >
+  Within-sibling-pair odds ratio for escape concordance in the T1.35
+  sibling-concordance analysis, with 95% percentile cluster-bootstrap CI.
+  The OR is the ratio of the odds of concordant escape pairs to the odds
+  of discordant escape pairs. Reported alongside kappa and McNemar as
+  complementary summaries: kappa captures above-chance agreement, McNemar
+  tests symmetry of discordance, OR captures the magnitude of within-pair
+  association.
+
+spec_citation:
+  source: "Plan Task 1.35 sibling-concordance Output block; Pre-reg T1.35c [DECISION] 2026-05-25"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "OR = (a * d) / (b * c); log_OR = log(OR); CI = [exp(percentile(log_OR^*, 2.5)), exp(percentile(log_OR^*, 97.5))] over B cluster-level resamples"
+  variables:
+    a:
+      description: "Pairs where both members escaped."
+      domain: "non-negative integer"
+      implementation_name: "n_both_escape"
+    b:
+      description: "Discordant: member 1 escaped, member 2 did not."
+      domain: "non-negative integer"
+      implementation_name: "n_discordant_b"
+    c:
+      description: "Discordant: member 1 did not escape, member 2 did."
+      domain: "non-negative integer"
+      implementation_name: "n_discordant_c"
+    d:
+      description: "Pairs where neither escaped."
+      domain: "non-negative integer"
+      implementation_name: "n_both_no_escape"
+    OR:
+      description: "Within-pair odds ratio: (a * d) / (b * c). OR > 1 indicates within-pair concordance above chance."
+      domain: "positive real (or undefined when b * c == 0)"
+      implementation_name: "odds_ratio"
+    log_OR:
+      description: "Natural log of OR. Bootstrap CI is constructed on the log scale (more stable than directly on OR) and exponentiated for reporting."
+      domain: "real (or undefined when b * c == 0)"
+      implementation_name: "log_or"
+    B:
+      description: "Number of cluster-level bootstrap iterations. Pre-registered B = 1000."
+      domain: "positive integer; B = 1000"
+      implementation_name: "bootstrap_B"
+  invariants:
+    - claim: "OR == (a * d) / (b * c). When b * c == 0 (no discordant pairs in one direction), OR is undefined; the output JSON reports OR as null and adds Haldane-Anscombe-style 0.5 cell adjustment as an OPTIONAL supplementary column (NOT as the headline OR)."
+      expression: "OR == (a * d) / (b * c) when b * c > 0"
+    - claim: "OR > 1 corresponds to within-pair concordance (concordant pair odds exceed discordant pair odds); OR < 1 indicates anti-concordance; OR == 1 is the independence null."
+    - claim: "Bootstrap CI is constructed on log_OR (Wald-style on the log scale) and exponentiated to the OR scale for reporting. Direct percentile CI on OR is permitted as an additional column but not as the headline."
+    - claim: "Resampling is at the FOO CLUSTER level (same convention as the kappa contract)."
+    - claim: "B = 1000 by pre-registration."
+      expression: "B == 1000"
+    - claim: "Bootstrap randomness is seeded; seed and B are recorded in the output JSON."
+    - claim: "Member 1 vs member 2 ordering matches the mcnemar-test and cohens-kappa contracts so all three statistics share the same (a, b, c, d) tabulation."
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_within_pair_odds_ratio_construction"
+  must_assert: >
+    On a synthetic 2 x 2 table (a = 20, b = 10, c = 4, d = 30): (a) OR
+    equals (20 * 30) / (10 * 4) = 15 within float tolerance; (b) log_OR
+    equals log(15); (c) bootstrap resampling samples CLUSTERS; (d) the
+    reported CI is the exponentiated percentile interval on log_OR, NOT
+    a direct percentile interval on OR; (e) reseeding reproduces the
+    bootstrap distribution bit-for-bit; (f) on a degenerate table with
+    b == 0 or c == 0, OR is returned as null and the Haldane-Anscombe
+    supplementary value is reported in a separate optional field.

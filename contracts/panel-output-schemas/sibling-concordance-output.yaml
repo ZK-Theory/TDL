@@ -1,0 +1,61 @@
+id: sibling-concordance-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.35c sibling-concordance output JSON written to
+  results/panel_methodology/foo_transparency/. Records the McNemar test
+  statistic, Cohen's kappa with bootstrap CI, and the within-pair odds
+  ratio with bootstrap CI on the 353 multi-member FOO clusters from
+  T1.21. Three statistics share a single 2 x 2 (a, b, c, d) tabulation
+  per the contracts' member-ordering convention.
+
+spec_citation:
+  source: "Plan Task 1.35c Output block + mcnemar-test, cohens-kappa, within-pair-odds-ratio formula contracts"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/foo_transparency/sibling_concordance_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'panel-output/sibling-concordance/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.35c sibling concordance'."
+    - name: pre_registration
+      type: str
+      description: "Date of the T1.35c pre-registration vault entry."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain: n_pairs (int == 353), member_ordering_rule (str == 'smaller pidp within cluster is member 1'), bootstrap_B (int == 1000), seed (int), source_sample (str, the T1.21 multi-FOO subsample path)."
+    - name: contingency_table
+      type: "dict[str, int]"
+      description: "Shared 2 x 2 table. MUST contain a, b, c, d (each non-negative integer) with a + b + c + d == params.n_pairs."
+    - name: mcnemar
+      type: "dict[str, ...]"
+      description: "Per mcnemar-test contract. MUST contain: statistic_uncorrected (float >= 0), statistic_yates_corrected (float >= 0), pvalue_asymptotic (float in [0, 1]), pvalue_exact (float in [0, 1] or null if asymptotic was used), used_variant (str in {'asymptotic_uncorrected', 'asymptotic_yates_cc', 'exact_conditional_binomial'})."
+    - name: cohens_kappa
+      type: "dict[str, ...]"
+      description: "Per cohens-kappa contract. MUST contain: point_estimate (float in [-1, 1] or null if p_e == 1), bootstrap_ci_lower (float in [-1, 1]), bootstrap_ci_upper (float in [-1, 1]), bootstrap_B (int == 1000), ci_method (str == 'percentile')."
+    - name: odds_ratio
+      type: "dict[str, ...]"
+      description: "Per within-pair-odds-ratio contract. MUST contain: point_estimate (float > 0 or null if b * c == 0), log_or (float or null), bootstrap_ci_lower (float > 0), bootstrap_ci_upper (float > 0), bootstrap_B (int == 1000), ci_method (str == 'percentile on log scale, exponentiated'), haldane_anscombe_supplementary (dict or null, with point_estimate and CI bounds when null cells force the supplementary calculation)."
+  forbidden_keys:
+    - name: chisq_pearson_statistic
+      reason: "Pearson chi-square on the 2 x 2 table ignores the paired structure and tests a different hypothesis. McNemar is the correct test; including Pearson would misrepresent the inferential framework."
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_sibling_concordance_json_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema validates. JSONs with
+    (a) contingency_table.a + b + c + d != params.n_pairs,
+    (b) cohens_kappa.point_estimate outside [-1, 1] when non-null,
+    (c) odds_ratio.bootstrap_ci_lower > odds_ratio.bootstrap_ci_upper,
+    (d) mcnemar.used_variant outside the enum, or (e) presence of the
+    forbidden chisq_pearson_statistic key are rejected with a precise
+    diagnostic.

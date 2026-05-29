@@ -1,0 +1,59 @@
+id: power-analysis-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.35a power-analysis output JSON written to
+  results/panel_methodology/foo_transparency/. Records empirical power at
+  every grid value of the true ICC, the minimum detectable ICC at 80%
+  power, the bootstrap CI on sigma_foo from the multi-member-only fit,
+  and the LRT p-value against ICC = 0. The schema fixes the grid values,
+  the simulation count B = 1000, and the explicit handling of the case
+  where no grid value reaches 80% power.
+
+spec_citation:
+  source: "Plan Task 1.35a Output block + glmm-power-simulation formula contract"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/foo_transparency/power_analysis_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'panel-output/power-analysis/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.35a power analysis'."
+    - name: pre_registration
+      type: str
+      description: "Date of the T1.35a pre-registration vault entry."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain: icc_grid (list[float] == [0.01, 0.025, 0.05, 0.10, 0.20]), B (int == 1000), alpha (float == 0.05), seed (int), n_individuals (int == 735), n_clusters (int == 353), sigma_u_formula (str == 'latent-variable: sigma_u^2 = icc * pi^2 / 3'), lrt_df_reference (str = 'chisq_1' or 'chisq_0_1_mixture')."
+    - name: power_curve
+      type: "list[dict]"
+      description: "Per-grid-point power. Each entry: icc (float in {0.01, 0.025, 0.05, 0.10, 0.20}), empirical_power (float in [0, 1]), n_rejections (int), bootstrap_se_of_power (float >= 0)."
+    - name: minimum_detectable_icc
+      type: "float | str"
+      description: "Smallest grid value with empirical_power >= 0.80. If no grid value reaches 0.80, MUST be the string 'greater than 0.20' (NOT a silent extrapolation, NOT a null)."
+    - name: multi_member_only_fit
+      type: "dict[str, ...]"
+      description: "Sigma_foo from the actual T1.21 multi-member subsample fit. MUST contain: sigma_foo_point_estimate (float >= 0), sigma_foo_bootstrap_ci_lower (float >= 0), sigma_foo_bootstrap_ci_upper (float >= 0), bootstrap_B (int == 1000), lrt_pvalue_against_icc_zero (float in [0, 1])."
+  forbidden_keys:
+    - name: extrapolated_minimum_detectable_icc
+      reason: "Extrapolation beyond the grid is forbidden — when no grid value reaches 80% power, the result is reported as the string 'greater than 0.20', NOT a model-extrapolated estimate."
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_power_analysis_json_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema validates. JSONs with
+    (a) icc_grid != [0.01, 0.025, 0.05, 0.10, 0.20], (b) B != 1000,
+    (c) power_curve entry with empirical_power outside [0, 1],
+    (d) minimum_detectable_icc as null when no grid value reached 0.80
+    (must be the string 'greater than 0.20' instead), (e) bootstrap_B
+    != 1000 in multi_member_only_fit, or (f) presence of the forbidden
+    extrapolated_minimum_detectable_icc key are rejected.

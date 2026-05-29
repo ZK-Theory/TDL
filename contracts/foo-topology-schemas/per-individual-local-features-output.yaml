@@ -1,0 +1,50 @@
+id: per-individual-local-features-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the per-individual local-PH feature JSON written by the T1.33
+  pipeline to results/trajectory_tda_integration/foo_topology/. The JSON
+  records, for every individual in the analytical sample and for each k in
+  the pre-registered grid, three scalar features computed on the kNN sub-
+  cloud (per the per-individual-knn-local-ph formula contract). The schema
+  fixes the params provenance fields, the per-k feature row layout, and the
+  cross-feature N consistency check needed by the downstream sibling-pair
+  test.
+
+spec_citation:
+  source: "Plan Task 1.33 'Topological FOO signature' Output block + per-individual-knn-local-ph formula contract"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/foo_topology/per_individual_local_features_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'foo-topology/per-individual-local-features/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp when the file was written."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.33 per-individual local PH features'."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain keys: k_grid (list[int] equal to [10, 20, 50]), k_primary (int equal to 20), seed (int), n_individuals (int = N), landscape_n_points (int = number of evaluation points used for the landscape integral), distance_metric (str = 'euclidean'), filtration (str = 'vietoris-rips'), max_dim (int = 1), input_embeddings_path (str), input_foo_clusters_path (str), embedding_dim (int = 90)."
+    - name: features_per_k
+      type: "dict[str, list[dict]]"
+      description: "Map from k-key (e.g., 'k_10', 'k_20', 'k_50') to a list of per-individual feature rows. Each row is a dict with keys: individual_id (int), max_h0_persistence (float >= 0), total_h1_persistence (float >= 0), landscape_integral_k1 (float >= 0). List length per k MUST equal params.n_individuals."
+    - name: input_provenance
+      type: "dict[str, ...]"
+      description: "Cross-reference to inputs. MUST contain keys: embeddings_sha256 (str, hex digest of the input embeddings file), foo_clusters_sha256 (str, hex digest of foo_clusters CSV), embeddings_shape (list[int] = [N, 90])."
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_per_individual_local_features_json_schema"
+  must_assert: >
+    A synthetic feature JSON conforming to this schema validates. JSONs with
+    (a) missing schema_version, (b) k_grid != [10, 20, 50], (c) features_per_k
+    list length != n_individuals, (d) any feature value < 0, (e) missing
+    input_provenance sha256 fields, or (f) embeddings_shape with second dim
+    != 90 are rejected with a precise diagnostic.

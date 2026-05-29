@@ -1,0 +1,68 @@
+id: constrained-shuffle-null
+kind: formula
+pending: true
+
+description: >
+  The constrained-shuffle null permutes foo_cluster IDs across individuals
+  while preserving the cluster-size partition exactly. Each shuffle produces
+  a re-assignment in which every cluster has the same size as in the observed
+  assignment; only the membership changes. This is the correct null for the
+  T1.33 sibling-pair coherence test because it leaves the sibling-cluster
+  structure intact and tests whether the observed grouping of feature vectors
+  by FOO cluster yields lower within-pair distances than would arise under
+  random membership at the same cluster sizes. A naive label shuffle that did
+  not preserve cluster sizes would change the variance structure of within-
+  pair distances and contaminate the test.
+
+spec_citation:
+  source: "Plan Task 1.33 'Topological FOO signature' Guidance block + 2026-05-25 vault pre-registration [DECISION]"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "c'[sigma(i)] = c[i] where sigma is a uniformly random permutation of {0,...,N-1}; pi(c') == pi(c)"
+  variables:
+    c:
+      description: "Observed cluster assignment vector: c[i] is the foo_cluster ID of individual i."
+      domain: "integer vector of length N"
+      implementation_name: "observed_clusters"
+    N:
+      description: "Number of individuals in the analytical sample."
+      domain: "positive integer"
+      implementation_name: "N"
+    sigma:
+      description: "Uniformly random permutation of {0, 1, ..., N-1} drawn from the seeded RNG."
+      domain: "permutation of N elements"
+      implementation_name: "rng.permutation(N)"
+    c_prime:
+      description: "Shuffled cluster assignment vector."
+      domain: "integer vector of length N"
+      implementation_name: "shuffled_clusters"
+    pi:
+      description: "Cluster-size partition operator: pi(c) is the sorted multiset of cluster sizes derived from c."
+      domain: "sorted tuple of positive integers summing to N"
+      implementation_name: "cluster_size_partition"
+    B:
+      description: "Number of constrained shuffles drawn for the null distribution. Pre-registered B = 5000."
+      domain: "positive integer; pre-reg locks B = 5000"
+      implementation_name: "B (n_permutations)"
+  invariants:
+    - claim: "The cluster-size partition is preserved exactly under every shuffle: sorted size vector of c' equals sorted size vector of c bitwise."
+      expression: "sorted([count_j(c'[k] == j) for j in unique(c')]) == sorted([count_j(c[k] == j) for j in unique(c)])"
+    - claim: "Total population is conserved: every individual is assigned to exactly one cluster in c'; no individual is duplicated or lost."
+      expression: "len(c_prime) == N and set(individuals_in_c_prime) == set(individuals_in_c)"
+    - claim: "The number of clusters is preserved: |unique(c')| == |unique(c)|."
+    - claim: "For each size s appearing in pi(c), the number of clusters of size s is preserved: multiset of sizes in c' matches multiset of sizes in c."
+    - claim: "Shuffle randomness is seeded via numpy.random.default_rng(seed); the seed is recorded in the output JSON params block; reseeding with the same seed reproduces the null distribution bit-for-bit."
+    - claim: "B independent shuffles are drawn (B = 5000 by pre-registration); the null distribution is the empirical distribution of the within-sibling-pair test statistic across the B shuffles."
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_constrained_shuffle_preserves_cluster_size_partition"
+  must_assert: >
+    On a synthetic cluster assignment with known partition (e.g., cluster
+    sizes [1, 1, 1, 2, 2, 3, 5] over 15 individuals): (a) for B = 200 shuffles
+    drawn with a fixed seed, every shuffle yields a cluster_size_partition
+    bitwise equal to the input partition; (b) over the B shuffles, the
+    individual-to-cluster mapping varies (i.e., shuffles are not the identity);
+    (c) re-running with the same seed reproduces the B shuffles bitwise;
+    (d) cluster count |unique(c_prime)| equals |unique(c)| for every shuffle.

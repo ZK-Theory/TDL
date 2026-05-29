@@ -1,0 +1,73 @@
+id: mcnemar-test
+kind: formula
+pending: true
+
+description: >
+  McNemar test on the 2 x 2 paired-discordance table for sibling-pair escape
+  concordance in the T1.35 sibling concordance analysis. The 353 multi-
+  member FOO clusters from T1.21 contribute paired observations; the test
+  asks whether sibling concordance is symmetric (b == c under the null) or
+  asymmetric (b != c). The contract pins both the with-continuity-correction
+  and the without-continuity-correction variants, requires the exact
+  conditional binomial fallback when b + c is small, and forbids using
+  Pearson chi-square (which ignores the paired structure).
+
+spec_citation:
+  source: "McNemar (1947); Plan Task 1.35 sibling-concordance Output block; Pre-reg T1.35c [DECISION] 2026-05-25"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "X^2 = (b - c)^2 / (b + c) for the uncorrected; X^2_cc = (|b - c| - 1)^2 / (b + c) for the Yates continuity correction; exact_pvalue = 2 * min(P(B <= min(b, c) | n = b + c, p = 0.5), 0.5) when b + c < 25"
+  variables:
+    a:
+      description: "Count of pairs where BOTH members escaped (escape = 1, escape = 1)."
+      domain: "non-negative integer"
+      implementation_name: "n_both_escape"
+    b:
+      description: "Count of discordant pairs where member 1 escaped, member 2 did not (1, 0)."
+      domain: "non-negative integer"
+      implementation_name: "n_discordant_b"
+    c:
+      description: "Count of discordant pairs where member 1 did NOT escape, member 2 did (0, 1)."
+      domain: "non-negative integer"
+      implementation_name: "n_discordant_c"
+    d:
+      description: "Count of pairs where NEITHER member escaped (0, 0)."
+      domain: "non-negative integer"
+      implementation_name: "n_both_no_escape"
+    X^2:
+      description: "Uncorrected McNemar chi-square statistic on (b, c)."
+      domain: "non-negative real"
+      implementation_name: "mcnemar_statistic"
+    X^2_cc:
+      description: "McNemar statistic with Yates continuity correction."
+      domain: "non-negative real"
+      implementation_name: "mcnemar_statistic_cc"
+    pvalue:
+      description: "Asymptotic p-value from chi-square_1 cdf (uncorrected or cc variant); or exact conditional binomial p-value when b + c < 25."
+      domain: "[0, 1]"
+      implementation_name: "mcnemar_pvalue"
+  invariants:
+    - claim: "The test uses ONLY the off-diagonal cells (b, c); the diagonal cells (a, d) do NOT enter the statistic. Pearson chi-square on the 2 x 2 table is forbidden — it ignores the paired structure and tests a different hypothesis."
+    - claim: "When b + c < 25, the exact conditional binomial (two-sided) p-value MUST be used; the asymptotic chi-square is unreliable in that regime. The output JSON records which variant was used."
+    - claim: "Both with-continuity-correction (Yates) and without-continuity-correction variants are computed; the output JSON records both."
+    - claim: "Member 1 vs member 2 within a pair is determined by a fixed rule (e.g., the smaller pidp within the cluster) so the (b, c) cells are reproducible across runs. Random assignment of member 1 / member 2 is forbidden."
+    - claim: "The test is two-sided (the sibling concordance hypothesis does not predict a direction); the output records the two-sided p-value."
+    - claim: "a + b + c + d == n_pairs == 353 (the T1.21 multi-FOO cluster count for the T1.35 sibling-concordance analysis)."
+      expression: "a + b + c + d == 353"
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_mcnemar_construction"
+  must_assert: >
+    On a synthetic 2 x 2 table (a = 20, b = 10, c = 4, d = 30, total = 64):
+    (a) the uncorrected statistic equals (10 - 4)^2 / (10 + 4) = 36/14
+    within float tolerance; (b) the Yates-corrected statistic equals
+    (|10 - 4| - 1)^2 / 14 = 25/14; (c) the asymptotic p-value matches
+    1 - chisq_1_cdf(statistic); (d) on a small-discordance table (b = 3,
+    c = 2, total b+c = 5), the exact binomial branch is taken and matches
+    a hand-computed 2 * binomial.cdf(2, n = 5, p = 0.5); (e) on the same
+    table swapping member 1 and member 2 yields the same statistic but
+    swapped (b, c) cells — the test asserts reproducibility under a fixed
+    member-ordering rule; (f) attempting to compute Pearson chi-square
+    instead of McNemar is rejected by the contract enforcement.

@@ -1,0 +1,46 @@
+id: seed-propagation-foo-topology
+kind: invariant
+pending: true
+
+description: >
+  Every stochastic step in the T1.33 FOO topological-signature pipeline must
+  be seeded, and the seeds used must be recorded in the output JSON. This
+  spans (a) the kNN tie-breaking (when ties exist between equidistant
+  candidates), (b) the constrained-shuffle null over B = 5000 draws, and
+  (c) the cluster-level bootstrap over B_boot = 1000 draws. Seed propagation
+  is the universal CLAUDE.md methodological mandate; this contract pins it
+  specifically for T1.33 so two independent runs with the same seed produce
+  bit-identical features, null distribution, and ICC bootstrap distribution.
+
+spec_citation:
+  source: "CLAUDE.md 'Methodological Mandates' + 2026-05-25 vault pre-registration [DECISION]"
+  vault_entry_date: "2026-05-25"
+
+invariant:
+  claim: >
+    Two independent runs of the T1.33 pipeline invoked with the same seed
+    produce bit-identical per-individual feature JSONs and bit-identical
+    sibling-pair permutation JSONs (modulo wall-clock timestamps). The output
+    JSON's params block records seed, B (= 5000), and icc_bootstrap_B
+    (= 1000). No call to a stochastic function uses module-level np.random;
+    every call routes through a seeded numpy.random.default_rng instance.
+  preconditions:
+    - "The pipeline driver accepts a --seed argument and threads it through every stochastic step."
+    - "kNN tie-breaking uses a deterministic rule (e.g., ascending individual index) so that 'no ties' and 'seeded tie-breaking' both yield reproducible sub-clouds."
+  counter_example_history: >
+    The 2026-05-05 vault [PIPELINE] entry from T0.2 documents the original RNG
+    audit: production paths using module-level np.random or unseeded
+    default_rng() were patched to thread seeds through function signatures.
+    T1.33 must not regress.
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_seed_propagation_reproducibility"
+  must_assert: >
+    Running the T1.33 pipeline twice on identical inputs with the same seed
+    produces feature JSONs and sibling-pair permutation JSONs whose
+    numerical fields are bit-identical (compared after stripping wall-clock
+    fields like 'generated_at'). A grep over the production code path returns
+    no module-level np.random.* call sites — all randomness routes through
+    a default_rng instance seeded from the recorded seed. The output JSON
+    params block contains 'seed', 'B', and 'icc_bootstrap_B' keys.

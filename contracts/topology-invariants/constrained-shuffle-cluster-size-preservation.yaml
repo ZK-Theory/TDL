@@ -1,0 +1,49 @@
+id: constrained-shuffle-cluster-size-preservation
+kind: invariant
+pending: true
+
+description: >
+  Behavioural invariant for the T1.33 constrained-shuffle null: every shuffle
+  produced by the null-distribution generator must preserve the cluster-size
+  partition of the observed FOO assignment bitwise. This invariant is
+  separable from the constrained-shuffle-null formula contract because it
+  pins a property of every call to the shuffle function regardless of how the
+  shuffle is implemented (Fisher-Yates over individuals, partition-preserving
+  walk, etc.). A shuffle implementation that drifts to ordinary label-shuffle
+  (e.g., reassigning cluster IDs uniformly at random) breaks this invariant.
+
+spec_citation:
+  source: "Plan Task 1.33 'Topological FOO signature' Guidance block; complements stochastic-tests/constrained-shuffle-null"
+  vault_entry_date: "2026-05-25"
+
+invariant:
+  claim: >
+    For any call shuffle(observed_clusters, seed) that returns a shuffled
+    cluster assignment shuffled_clusters, the sorted multiset of cluster sizes
+    derived from shuffled_clusters MUST equal the sorted multiset of cluster
+    sizes derived from observed_clusters bitwise. The number of clusters and
+    the per-size cluster counts are preserved exactly. No cluster is gained,
+    lost, split, or merged.
+  preconditions:
+    - "observed_clusters is an integer vector of length N with at least one cluster of size >= 2."
+    - "seed is an integer used to seed numpy.random.default_rng for reproducibility."
+  counter_example_history: >
+    The 2026-05-25 vault [NEGATIVE] entry on the original label/cohort shuffle
+    implementation in permutation_nulls.py:53-92 records the related failure
+    mode in a different setting: those nulls permuted already-embedded rows
+    rather than shuffling structure-aware identifiers, leaving the
+    persistent-homology output invariant. The T1.33 constrained-shuffle null
+    must NOT replicate that failure mode by silently degrading to ordinary
+    label permutation that does not preserve cluster sizes.
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_constrained_shuffle_cluster_size_invariant"
+  must_assert: >
+    For at least three distinct cluster-size distributions (uniform, heavy-
+    tailed, mostly singletons), and for at least 100 shuffles per distribution
+    drawn under fixed seeds, the sorted cluster-size vector of the shuffled
+    assignment equals the sorted cluster-size vector of the input assignment
+    bitwise. Additionally, the test asserts that |unique(shuffled)| ==
+    |unique(observed)| for every shuffle and that the sum of cluster sizes
+    equals N.

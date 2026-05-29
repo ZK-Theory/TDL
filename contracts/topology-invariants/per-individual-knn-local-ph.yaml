@@ -1,0 +1,76 @@
+id: per-individual-knn-local-ph
+kind: formula
+pending: true
+
+description: >
+  Per-individual local persistence features are computed on a (k+1)-point
+  sub-cloud consisting of individual i together with its k nearest neighbours
+  in the 90-D bigram embedding under the Euclidean (l2) metric. The sub-cloud
+  is filtered by Vietoris-Rips up to max_dim=1, and three scalar features are
+  extracted from the resulting persistence diagram: max H0 persistence, total
+  H1 persistence, and the integral of the first persistence landscape. This
+  pins the geometric construction the FOO topological signature relies on —
+  any divergence (Manhattan distance, mismatched sub-cloud size, alpha
+  filtration, wrong landscape index) breaks the §4.5.x interpretation.
+
+spec_citation:
+  source: "Plan Task 1.33 'Topological FOO signature' Guidance block + 2026-05-25 vault pre-registration [DECISION]"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "S_i = E[[i] union argmink_j(||E[i] - E[j]||_2)], j != i; D_i = VR(S_i, max_dim=1); (f1, f2, f3) = (max_persistence(D_i, dim=0), total_persistence(D_i, dim=1), integral(landscape_1(D_i, dim=1)))"
+  variables:
+    E:
+      description: "90-D bigram embedding matrix, one row per individual."
+      domain: "real matrix of shape (N, 90)"
+      implementation_name: "embeddings (load_checkpoint return)"
+    i:
+      description: "Individual index over the analytical sample."
+      domain: "integer in [0, N-1]"
+      implementation_name: "i (loop variable)"
+    k:
+      description: "Number of nearest neighbours. Pre-registered grid: {10, 20, 50}; primary value k = 20."
+      domain: "positive integer in {10, 20, 50}"
+      implementation_name: "k"
+    S_i:
+      description: "Sub-cloud consisting of individual i and its k nearest neighbours by Euclidean distance in E. Size is exactly k + 1."
+      domain: "real matrix of shape (k+1, 90)"
+      implementation_name: "subcloud"
+    D_i:
+      description: "Persistence diagram of the Vietoris-Rips filtration on S_i up to max_dim = 1."
+      domain: "set of (birth, death) pairs per homology dimension"
+      implementation_name: "diagram"
+    f1:
+      description: "Max H0 persistence: max over H0 features of (death - birth). For Rips, birth = 0 for all H0 features, so f1 = max death of finite H0 features. The infinite H0 component (the one that never dies) is excluded."
+      domain: "non-negative real"
+      implementation_name: "max_h0_persistence"
+    f2:
+      description: "Total H1 persistence: sum over H1 features of (death - birth)."
+      domain: "non-negative real"
+      implementation_name: "total_h1_persistence"
+    f3:
+      description: "Integral of the first persistence landscape lambda_1 over its support, computed by piecewise-linear summation on a uniform grid of n_points evaluation points across the (birth, death) range of D_i in dimension 1. n_points is recorded in the output JSON params block."
+      domain: "non-negative real"
+      implementation_name: "landscape_integral_k1"
+  invariants:
+    - claim: "Sub-cloud size is exactly k + 1 — the individual i plus exactly k distinct nearest neighbours (i not counted as its own neighbour)."
+      expression: "|S_i| == k + 1"
+    - claim: "The distance metric is Euclidean (l2). Manhattan, cosine, or any other metric breaks the contract."
+    - claim: "kNN tie-breaking is by ascending individual index, ensuring deterministic sub-cloud composition under seeded execution."
+    - claim: "Filtration is Vietoris-Rips up to max_dim = 1. Alpha filtration, cubical, or any other complex breaks the contract."
+    - claim: "f1, f2, f3 are non-negative real numbers; f1 excludes the infinite H0 component; f2 sums only finite H1 features (infinite H1 features, if any due to a 1-cycle that never closes within the sub-cloud diameter, are excluded)."
+      expression: "f1 >= 0 and f2 >= 0 and f3 >= 0"
+    - claim: "The three features are computed independently per individual i and per k value; no cross-individual leakage."
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_per_individual_knn_local_ph_construction"
+  must_assert: >
+    On a synthetic 20-individual 5-D embedding with k = 5, the test verifies:
+    (a) for every i, the sub-cloud passed to the Rips filtration has shape
+    (k+1, 5) and contains row i; (b) the kNN selection uses Euclidean distance
+    (test on a small synthetic with known l2 vs l1 disagreement); (c)
+    tie-breaking is index-ascending under a controlled tie (two equidistant
+    neighbours); (d) the three returned features are non-negative reals; (e)
+    f1 excludes the infinite H0 bar; (f) computing for two different i values
+    does not mutate shared state.

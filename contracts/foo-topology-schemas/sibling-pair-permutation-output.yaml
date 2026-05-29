@@ -1,0 +1,70 @@
+id: sibling-pair-permutation-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the sibling-pair permutation test JSON written by the T1.33
+  pipeline to results/trajectory_tda_integration/foo_topology/. The JSON
+  records the observed mean within-sibling-pair feature-vector distance, the
+  null distribution from B = 5000 constrained shuffles, the resulting
+  permutation p-value (via the existing (r+1)/(B+1) contract), an effect-size
+  ratio, and per-feature ICCs with cluster-bootstrap 95% percentile CIs.
+  This is the load-bearing output that drives the §4.5.x prose direction in
+  P01-A and feeds the FOO sensitivity columns in T1.34.
+
+spec_citation:
+  source: "Plan Task 1.33 'Topological FOO signature' Output block + 2026-05-25 vault pre-registration [DECISION]"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/foo_topology/sibling_pair_permutation_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'foo-topology/sibling-pair-permutation/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp when the file was written."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.33 sibling-pair permutation test'."
+    - name: pre_registration
+      type: str
+      description: "Date of the governing pre-registration vault entry, e.g. '2026-05-25'."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain: B (int == 5000), seed (int), icc_bootstrap_B (int == 1000), k_primary (int == 20), n_clusters_observed (int), n_individuals (int == N), pvalue_formula (str == '(r+1)/(B+1)'), pvalue_null_draws (int == B), null_type (str == 'constrained-shuffle'), distance_in_feature_space (str == 'euclidean')."
+    - name: observed
+      type: "dict[str, float]"
+      description: "Observed statistics block. MUST contain: mean_within_pair_distance (float >= 0), n_sibling_pairs (int >= 1)."
+    - name: null_distribution
+      type: "dict[str, ...]"
+      description: "Null-distribution block from B = 5000 constrained shuffles. MUST contain: mean_within_pair_distance_samples (list[float], length == B), mean (float), std (float), min (float), max (float). The full sample list is required for downstream re-analysis and is the source of the recorded p-value."
+    - name: permutation_pvalue
+      type: float
+      description: "Two-sided permutation p-value computed by (r + 1) / (B + 1) per the existing monte-carlo-permutation-p-value contract, where r = count of null samples with mean_within_pair_distance <= observed (one-sided lower-tail; the sibling-coherence hypothesis predicts shorter observed within-pair distances)."
+    - name: effect_size_ratio
+      type: float
+      description: "observed.mean_within_pair_distance / null_distribution.mean. Values < 1 indicate observed sibling-pair distances are shorter than expected under the null."
+    - name: per_feature_icc
+      type: "dict[str, dict]"
+      description: "Map from feature name (in {'max_h0_persistence', 'total_h1_persistence', 'landscape_integral_k1'}) to a dict with keys point_estimate (float in [0,1]), bootstrap_ci_lower (float in [0,1]), bootstrap_ci_upper (float in [0,1]), bootstrap_B (int == 1000). Per the icc-cluster-bootstrap contract."
+    - name: input_provenance
+      type: "dict[str, ...]"
+      description: "Cross-reference to inputs. MUST contain: per_individual_features_path (str, the producing per-individual JSON), per_individual_features_sha256 (str), foo_clusters_path (str), foo_clusters_sha256 (str)."
+  forbidden_keys:
+    - name: bootstrap_pvalue
+      reason: "The p-value is a permutation p-value under the constrained-shuffle null, NOT a bootstrap p-value. Conflating the two is a category error."
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_sibling_pair_permutation_json_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema validates. JSONs with (a)
+    params.B != 5000, (b) params.pvalue_formula != '(r+1)/(B+1)', (c)
+    null_distribution.mean_within_pair_distance_samples length != B, (d)
+    per_feature_icc missing any of the three feature names, (e) ICC values
+    outside [0, 1], or (f) presence of the forbidden 'bootstrap_pvalue' key
+    are rejected with a precise diagnostic. The test additionally verifies
+    that the recorded permutation_pvalue equals (r + 1) / (B + 1) for an
+    r derived from a small synthetic null distribution.

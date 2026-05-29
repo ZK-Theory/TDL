@@ -1,0 +1,36 @@
+scope_id: T1.34
+scope_description: >
+  Refit the §4.5 escape regression as Tier-2 (household-RE + normalised IPW +
+  MICE-pooled NS-SEC proxy), add svyglm + cluster-robust SE column as design-
+  based sensitivity, deliver the parental NS-SEC x first-window regime
+  descriptive cross-tab for §S8, and the one-paragraph full-sample FOO
+  sensitivity at end of §S8. Supersedes the abandoned Tier-3 cross-classified
+  spec (T1.21 superseded by 2026-05-25 Spec amendment).
+authored: "2026-05-29"
+authored_by: "Manager 5 (pre-dispatch coverage extraction)"
+
+contracts:
+  - regression-specs/tier2-escape-regression-spec
+  - regression-specs/rubin-pooling
+  - regression-specs/svyglm-cluster-robust-se
+  - regression-specs/normalised-ipw-trimming
+  - stochastic-tests/sigma-foo-cluster-bootstrap
+  - regression-specs/mice-convergence-rule
+  - regression-specs/cross-tab-sparse-cell-flagging
+  - panel-output-schemas/tier2-ipw-mice-svyglm-output
+  - panel-output-schemas/nssec-regime-crosstab-output
+  - panel-output-schemas/foo-sensitivity-fullsample-output
+  - panel-output-schemas/t134-regression-output-json-validation
+
+notes: >
+  All eleven T1.34 contracts are authored as pending: true so the pre-commit
+  hook does not block on binding tests that will live on the Worker's
+  feature branch (run/foo-regression-transparency). The Worker clears
+  pending in each contract once test functions are present and passing on
+  the feature branch. Human-review-only claims (substantive interpretation
+  of effect sizes for §4.5 / §S8 narrative; reviewer-facing framing of the
+  design-based vs model-based agreement) are deliberately NOT contract-
+  encoded — they are flagged as such in the Task Prompt. The
+  normalised-ipw-trimming contract pins the rule from the 2026-05-13 T1.13
+  [DECISION] and additionally requires the individual-weights RDS that the
+  prior pipeline did not save (the 2026-05-14 IPW individual-weights gap).
