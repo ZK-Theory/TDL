@@ -1,0 +1,75 @@
+id: length-matched-dedup-via-n-perm
+kind: formula
+pending: true
+
+description: >
+  For length-matched Stage-1 cells (T1.2f truncate, T1.2g first13), Rips
+  persistent homology is computed via ripser.ripser(X, ..., n_perm=N) where
+  N is determined per-landmark-sample as the smallest size at which the
+  greedy permutation's observed covering radius is at or below a numerical
+  tolerance tau_float. This is mathematically exact, not approximate: the
+  identity PD(L) = PD(unique(L)) holds because duplicate points contribute
+  no geometric information to Rips PH. The empirical justification is the
+  2026-05-30 covering-radius diagnostic — for the first13 strategy the
+  L=5000 maxmin landmark sample contains only ~3500 distinct embedded
+  points, and the Cavanna-Jahanseir-Sheehy bottleneck bound at that size
+  evaluates to zero. For truncate the bound is non-zero at every N<5000 so
+  the scheme yields no useful dedup speedup, but the contract applies
+  uniformly to both strategies so the comparison-cell rule is preserved.
+
+spec_citation:
+  source: "2026-05-30 vault [DECISION] — Pre-reg #5 redo amendment for length-matched cells; Cavanna, Jahanseir & Sheehy (2015) 'A geometric perspective on sparse filtrations'"
+  vault_entry_date: "2026-05-30"
+
+formula:
+  expression: "N = min { k in {1,...,L} : eps_k <= tau_float }; PD = ripser.ripser(X, maxdim=max_dim, n_perm=N) where eps_k is the covering radius after greedy-permutation selection of k landmarks"
+  variables:
+    L:
+      description: "Landmark count per Pre-reg #5 redo; locked at L=5000."
+      domain: "positive integer; L = 5000 for length-matched cells"
+      implementation_name: "n_landmarks"
+    X:
+      description: "The L-row landmark matrix produced by maxmin_landmarks on the (re-embedded, frozen-loadings) length-matched sub-sample."
+      domain: "real matrix of shape (L, 20)"
+      implementation_name: "landmarks (observed) / null_landmarks (per permutation)"
+    eps_k:
+      description: "Covering radius at greedy-permutation size k: max over all rows of X of the distance from that row to the nearest of the first k selected rows. Computed by a greedy-permutation pass starting from row index 0 with Euclidean (l2) metric."
+      domain: "non-negative real; monotone non-increasing in k"
+      implementation_name: "cover_radii[k-1]"
+    tau_float:
+      description: "Numerical tolerance defining 'exact coverage'. Set at 1e-10 to absorb floating-point noise from PCA projection while still demanding bitwise duplication of embedded points."
+      domain: "positive real; tau_float = 1e-10"
+      implementation_name: "DEDUP_TOLERANCE"
+    N:
+      description: "n_perm value passed to ripser.ripser. Equal to the smallest k for which eps_k <= tau_float; if no such k exists within {1,...,L}, N = L (no dedup, falls back to exact ripser on the full landmark sample)."
+      domain: "positive integer in {1, ..., L}"
+      implementation_name: "n_perm_used"
+    max_dim:
+      description: "Maximum homology dimension. Locked at max_dim = 1 for Stage-1 W2 + landscape L2 batteries (H0 + H1 only)."
+      domain: "positive integer; max_dim = 1"
+      implementation_name: "max_dim"
+  invariants:
+    - claim: "The identity PD(X) = PD(unique(X)) is exact (bottleneck distance zero in every homology dimension) because duplicate points are trivially merged at filtration value zero in Rips and contribute no H1 or H2 features. The contract enforces this identity by setting n_perm at the dedup threshold."
+    - claim: "When eps_N <= tau_float, the bottleneck distance between PD(X) and PD(X_subsample_N) is bounded by zero (within float tolerance) per Cavanna-Jahanseir-Sheehy. The implementation records eps_N in the output JSON; a downstream check that eps_N > tau_float invalidates the cell."
+      expression: "d_B(PD(X), PD(X_{1:N})) <= eps_N <= tau_float"
+    - claim: "The greedy permutation starts from row index 0 (deterministic given the input ordering) and uses Euclidean distance. Both choices are pinned because eps_N depends on them; the dedup count N is a property of the data geometry, not of the seed."
+    - claim: "When N == L, the scheme reduces to the existing exact-ripser path. Backward compatibility with the existing T1.36/T1.37 results on non-length-matched cells is preserved by not invoking this contract for those cells."
+    - claim: "The same tau_float applies to the observed PD and every null PD within a cell. The recorded n_perm_used and covering radius are stored per-PD-class (observed; null-summary) in run_params for full provenance."
+    - claim: "Falling back to n_perm = L (full landmark sample) when no k achieves eps_k <= tau_float is correct because ripser internally constructs the same greedy permutation up to L; the resulting PD is exact on the full landmark sample. The output JSON records this fallback explicitly."
+
+binding:
+  test_file: "tests/trajectory_tda/test_length_matched_dedup_contracts.py"
+  test_function: "test_length_matched_dedup_via_n_perm_construction"
+  must_assert: >
+    On synthetic landmark matrices with controlled duplication: (a) for a
+    matrix with K distinct rows replicated to total 100 rows, the computed
+    N equals K within {K, K+1} tolerance for handling float-equality edge
+    cases at tau_float = 1e-10; (b) ripser.ripser(X, maxdim=1, n_perm=N)
+    returns a persistence diagram whose bottleneck distance from
+    ripser.ripser(unique(X), maxdim=1) is below tau_float in both H0 and
+    H1; (c) for an all-distinct synthetic matrix, N equals the matrix size
+    L and the scheme falls back to the existing exact-ripser path with no
+    behavioural change; (d) the greedy permutation uses Euclidean distance
+    starting from row index 0 (verified by replacing the metric or starting
+    point and asserting a different N is returned for non-duplicate-aligned
+    starts).

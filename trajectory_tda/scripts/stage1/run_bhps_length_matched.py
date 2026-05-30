@@ -235,7 +235,12 @@ def main() -> None:
         n_jobs=args.n_jobs,
         n_null_pairs_cap=args.n_null_pairs,
         frozen_models=frozen_models,
+        dedup_length_matched=True,
     )
+    # Pop the dedup provenance off the result so the JSON's `result` block
+    # stays a clean aggregate-output payload; the dedup fields live on
+    # run_params per the length-matched-run-params schema contract.
+    dedup_info = out.pop("_dedup_info", None)
 
     today = date.today().isoformat()
     smoke_tag = "_smoke" if args.smoke else ""
@@ -268,25 +273,37 @@ def main() -> None:
     out_dir = core.worktree_root() / "results/trajectory_tda_bhps/stage1"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"bhps_length_matched_{args.strategy}{frozen_tag}{smoke_tag}_{today}.json"
+    run_params: dict[str, Any] = {
+        "L": args.L,
+        "B": args.B,
+        "null_model": f"markov-{core.DEFAULT_MARKOV_ORDER}",
+        "seed": args.seed,
+        "landscape_k_max": args.k_max,
+        "landscape_n_points": args.n_points,
+        "n_null_pairs_cap": args.n_null_pairs,
+        "pvalue_formula": "(r+1)/(B+1)",
+        "frozen_loadings": args.frozen_loadings,
+        "null_diagram_cache": str(cache_path),
+        "strategy": args.strategy,
+        "target_years": args.target_years,
+        "n_trajectories_after_strategy": len(sub_seqs),
+        "mean_length_after_strategy": (float(np.mean(lengths)) if lengths else 0.0),
+        "length_distribution_after_strategy": length_dist,
+    }
+    if dedup_info is not None:
+        run_params["n_perm_used_observed"] = dedup_info["observed"]["n_perm_used"]
+        run_params["covering_radius_at_n_perm_observed"] = dedup_info["observed"][
+            "covering_radius_at_n_perm"
+        ]
+        run_params["n_perm_used_null_summary"] = dedup_info["null_summary"]["n_perm_used"]
+        run_params["covering_radius_at_n_perm_null_summary"] = dedup_info[
+            "null_summary"
+        ]["covering_radius_at_n_perm"]
+        run_params["dedup_tolerance"] = dedup_info["tolerance"]
+        run_params["dedup_strategy"] = dedup_info["strategy"]
     payload = {
         "phase": phase_tag,
-        "run_params": {
-            "L": args.L,
-            "B": args.B,
-            "null_model": f"markov-{core.DEFAULT_MARKOV_ORDER}",
-            "seed": args.seed,
-            "landscape_k_max": args.k_max,
-            "landscape_n_points": args.n_points,
-            "n_null_pairs_cap": args.n_null_pairs,
-            "pvalue_formula": "(r+1)/(B+1)",
-            "frozen_loadings": args.frozen_loadings,
-            "null_diagram_cache": str(cache_path),
-            "strategy": args.strategy,
-            "target_years": args.target_years,
-            "n_trajectories_after_strategy": len(sub_seqs),
-            "mean_length_after_strategy": (float(np.mean(lengths)) if lengths else 0.0),
-            "length_distribution_after_strategy": length_dist,
-        },
+        "run_params": run_params,
         "dataset": "bhps",
         "result": out,
     }

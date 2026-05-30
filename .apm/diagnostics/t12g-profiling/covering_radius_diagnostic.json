@@ -1,0 +1,374 @@
+{
+  "task": "T1.2g first13 / T1.2f truncate covering-radius + n_perm timing diagnostic",
+  "generated_at": "2026-05-30T04:29:12.974674+00:00",
+  "context": "Empirical viability check for ripser.ripser(..., n_perm=N) sparse-Rips approximation on the L=5000 length-matched cells. epsilon_N is the Cavanna-Jahanseir-Sheehy bottleneck-distance bound from greedy subsampling. The decision is whether some defensible n_perm yields epsilon_N small enough relative to the top H1 feature lifetime to support a Pre-reg #5 redo amendment for length-matched cells.",
+  "params": {
+    "L": 5000,
+    "seed": 42,
+    "target_years": 13,
+    "bhps_dir": "results\\trajectory_tda_bhps",
+    "ripser_version": "0.6.14"
+  },
+  "strategies": {
+    "truncate": {
+      "strategy": "truncate",
+      "n_after_strategy": 8509,
+      "embedding_shape": [
+        8509,
+        20
+      ],
+      "landmark_shape": [
+        5000,
+        20
+      ],
+      "h1_top_reference_used_for_ratio": 2.0,
+      "covering_radius_curve": [
+        {
+          "N": 10,
+          "epsilon": 29.1923,
+          "ratio_to_h1_top": 14.5962
+        },
+        {
+          "N": 50,
+          "epsilon": 16.4682,
+          "ratio_to_h1_top": 8.2341
+        },
+        {
+          "N": 100,
+          "epsilon": 13.1543,
+          "ratio_to_h1_top": 6.5772
+        },
+        {
+          "N": 250,
+          "epsilon": 9.0199,
+          "ratio_to_h1_top": 4.51
+        },
+        {
+          "N": 500,
+          "epsilon": 6.3501,
+          "ratio_to_h1_top": 3.1751
+        },
+        {
+          "N": 750,
+          "epsilon": 5.0317,
+          "ratio_to_h1_top": 2.5158
+        },
+        {
+          "N": 1000,
+          "epsilon": 4.1395,
+          "ratio_to_h1_top": 2.0698
+        },
+        {
+          "N": 1500,
+          "epsilon": 3.0597,
+          "ratio_to_h1_top": 1.5298
+        },
+        {
+          "N": 2000,
+          "epsilon": 2.3259,
+          "ratio_to_h1_top": 1.163
+        },
+        {
+          "N": 2500,
+          "epsilon": 1.7171,
+          "ratio_to_h1_top": 0.8585
+        },
+        {
+          "N": 3000,
+          "epsilon": 1.2401,
+          "ratio_to_h1_top": 0.62
+        },
+        {
+          "N": 3500,
+          "epsilon": 0.894,
+          "ratio_to_h1_top": 0.447
+        },
+        {
+          "N": 4000,
+          "epsilon": 0.6003,
+          "ratio_to_h1_top": 0.3002
+        },
+        {
+          "N": 4500,
+          "epsilon": 0.2854,
+          "ratio_to_h1_top": 0.1427
+        },
+        {
+          "N": 5000,
+          "epsilon": 0.0,
+          "ratio_to_h1_top": 0.0
+        }
+      ],
+      "ripser_timing": [
+        {
+          "n_perm_effective": 500,
+          "elapsed_sec": 0.392,
+          "h0_n_finite": 499,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 441,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            26.5524,
+            24.2993,
+            23.7363,
+            20.2889,
+            17.6172
+          ],
+          "h1_top5_lifetimes": [
+            4.0348,
+            2.7451,
+            2.6437,
+            2.5391,
+            2.5065
+          ]
+        },
+        {
+          "n_perm_effective": 1000,
+          "elapsed_sec": 1.131,
+          "h0_n_finite": 999,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 923,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            26.5524,
+            24.2993,
+            23.7363,
+            20.2889,
+            17.6172
+          ],
+          "h1_top5_lifetimes": [
+            2.5983,
+            2.5391,
+            2.5065,
+            2.17,
+            2.1626
+          ]
+        },
+        {
+          "n_perm_effective": 1500,
+          "elapsed_sec": 2.3,
+          "h0_n_finite": 1499,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 1409,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            26.5524,
+            24.2993,
+            23.7363,
+            20.2889,
+            17.6172
+          ],
+          "h1_top5_lifetimes": [
+            2.5983,
+            2.5391,
+            2.5065,
+            2.17,
+            2.0921
+          ]
+        },
+        {
+          "n_perm_effective": 2000,
+          "elapsed_sec": 3.866,
+          "h0_n_finite": 1999,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 1848,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            26.5524,
+            24.2993,
+            23.7363,
+            20.2889,
+            17.6172
+          ],
+          "h1_top5_lifetimes": [
+            2.5983,
+            2.5391,
+            2.5065,
+            2.17,
+            2.0921
+          ]
+        }
+      ]
+    },
+    "first13": {
+      "strategy": "first13",
+      "n_after_strategy": 5363,
+      "embedding_shape": [
+        5363,
+        20
+      ],
+      "landmark_shape": [
+        5000,
+        20
+      ],
+      "h1_top_reference_used_for_ratio": 2.0,
+      "covering_radius_curve": [
+        {
+          "N": 10,
+          "epsilon": 24.0704,
+          "ratio_to_h1_top": 12.0352
+        },
+        {
+          "N": 50,
+          "epsilon": 15.1284,
+          "ratio_to_h1_top": 7.5642
+        },
+        {
+          "N": 100,
+          "epsilon": 11.6859,
+          "ratio_to_h1_top": 5.843
+        },
+        {
+          "N": 250,
+          "epsilon": 7.8323,
+          "ratio_to_h1_top": 3.9162
+        },
+        {
+          "N": 500,
+          "epsilon": 5.3661,
+          "ratio_to_h1_top": 2.6831
+        },
+        {
+          "N": 750,
+          "epsilon": 4.1385,
+          "ratio_to_h1_top": 2.0693
+        },
+        {
+          "N": 1000,
+          "epsilon": 3.4158,
+          "ratio_to_h1_top": 1.7079
+        },
+        {
+          "N": 1500,
+          "epsilon": 2.3051,
+          "ratio_to_h1_top": 1.1526
+        },
+        {
+          "N": 2000,
+          "epsilon": 1.4222,
+          "ratio_to_h1_top": 0.7111
+        },
+        {
+          "N": 2500,
+          "epsilon": 0.804,
+          "ratio_to_h1_top": 0.402
+        },
+        {
+          "N": 3000,
+          "epsilon": 0.2103,
+          "ratio_to_h1_top": 0.1052
+        },
+        {
+          "N": 3500,
+          "epsilon": 0.0,
+          "ratio_to_h1_top": 0.0
+        },
+        {
+          "N": 4000,
+          "epsilon": 0.0,
+          "ratio_to_h1_top": 0.0
+        },
+        {
+          "N": 4500,
+          "epsilon": 0.0,
+          "ratio_to_h1_top": 0.0
+        },
+        {
+          "N": 5000,
+          "epsilon": 0.0,
+          "ratio_to_h1_top": 0.0
+        }
+      ],
+      "ripser_timing": [
+        {
+          "n_perm_effective": 500,
+          "elapsed_sec": 0.391,
+          "h0_n_finite": 499,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 418,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            19.5663,
+            18.9219,
+            15.8816,
+            15.8763,
+            15.7176
+          ],
+          "h1_top5_lifetimes": [
+            2.8119,
+            2.1144,
+            2.0463,
+            2.0106,
+            1.9485
+          ]
+        },
+        {
+          "n_perm_effective": 1000,
+          "elapsed_sec": 1.148,
+          "h0_n_finite": 999,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 921,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            19.5663,
+            18.9219,
+            15.8816,
+            15.8763,
+            15.7176
+          ],
+          "h1_top5_lifetimes": [
+            2.8119,
+            2.261,
+            2.2094,
+            2.1144,
+            2.0675
+          ]
+        },
+        {
+          "n_perm_effective": 1500,
+          "elapsed_sec": 2.311,
+          "h0_n_finite": 1499,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 1353,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            19.5663,
+            18.9219,
+            15.8816,
+            15.8763,
+            15.7176
+          ],
+          "h1_top5_lifetimes": [
+            2.8119,
+            2.2557,
+            2.1144,
+            2.0753,
+            2.0463
+          ]
+        },
+        {
+          "n_perm_effective": 2000,
+          "elapsed_sec": 3.784,
+          "h0_n_finite": 1999,
+          "h0_n_infinite": 1,
+          "h1_n_finite": 1654,
+          "h1_n_infinite": 0,
+          "h0_top5_lifetimes": [
+            19.5663,
+            18.9219,
+            15.8816,
+            15.8763,
+            15.7176
+          ],
+          "h1_top5_lifetimes": [
+            2.8119,
+            2.1895,
+            2.1144,
+            2.0753,
+            2.0463
+          ]
+        }
+      ]
+    }
+  }
+}

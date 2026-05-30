@@ -1,0 +1,61 @@
+id: dedup-equivalence-canary
+kind: invariant
+pending: true
+
+description: >
+  Behavioural invariant for the length-matched-dedup-via-n-perm scheme:
+  for a real-world Stage-1 length-matched landmark sample (the existing
+  T1.2f truncate frozen observed landmarks from the 2026-05-29 merged
+  result), the Rips PD computed under the new scheme (ripser.ripser with
+  n_perm = N determined by greedy permutation at tau_float = 1e-10) must
+  be identical to the PD computed under the existing exact-ripser path
+  (ripser.ripser with no n_perm) in both H0 and H1, with bottleneck
+  distance <= tau_float in each dimension. This is the canary that closes
+  the methodological loop on the 2026-05-30 [DECISION]: it verifies the
+  identity PD(L) = PD(unique(L)) on data that the paper actually relies
+  on, not just on synthetic toy inputs.
+
+spec_citation:
+  source: "2026-05-30 vault [DECISION] — Pre-reg #5 redo amendment, Validation section ('Canary equivalence test required before any T1.2g re-run is dispatched')"
+  vault_entry_date: "2026-05-30"
+
+invariant:
+  claim: >
+    Let L_obs be the T1.2f truncate frozen observed L=5000 maxmin landmark
+    sample (regenerated deterministically from the committed BHPS
+    checkpoint at the locked seed and frozen-loadings basis, OR loaded from
+    a pinned canary fixture). Let PD_exact = ripser.ripser(L_obs, maxdim=1)
+    and PD_dedup = ripser.ripser(L_obs, maxdim=1, n_perm=N_obs) where N_obs
+    is the smallest N for which the greedy permutation on L_obs achieves
+    covering radius <= 1e-10. The bottleneck distance d_B(PD_exact, PD_dedup)
+    must be <= 1e-10 in BOTH H0 and H1. If this assertion fails the
+    contract is violated and the length-matched-dedup-via-n-perm formula
+    contract must be re-evaluated before any T1.2g re-run is committed.
+  preconditions:
+    - "ripser.ripser is from the pinned ripser 0.6.14."
+    - "The BHPS checkpoint (01_trajectories_sequences.json + 02_embedding.json) is present at the canonical PROJ_ROOT path; if absent, the binding test fails with a clear 'canary fixture missing' diagnostic rather than silently passing."
+    - "The frozen ngram_embed basis is recreated deterministically from the truncate strategy by the same code path used in production (run_bhps_length_matched.py)."
+    - "The persim library (or scikit-tda compatible) provides bottleneck distance computation; the binding test imports it and uses it."
+  counter_example_history: >
+    The 2026-05-25 [NEGATIVE] null-layer audit identified a class of
+    failures in which methodological changes to the PH computation
+    silently invalidated downstream cells. The dedup-via-n_perm scheme is
+    a methodological change of the same class. This canary contract is
+    the gate that prevents the analogous silent failure for length-matched
+    cells. If the canary fails, the 2026-05-30 [DECISION] must be revisited.
+
+binding:
+  test_file: "tests/trajectory_tda/test_length_matched_dedup_contracts.py"
+  test_function: "test_dedup_equivalence_canary_on_t12f_truncate_landmarks"
+  must_assert: >
+    Regenerating the T1.2f truncate frozen observed L=5000 landmark sample
+    deterministically from the BHPS checkpoint (seed=42, target_years=13,
+    strategy='truncate', frozen-loadings basis recreated from the same
+    sub-sample), computing PD_exact = ripser.ripser(landmarks, maxdim=1)
+    and PD_dedup = ripser.ripser(landmarks, maxdim=1, n_perm=N_obs) where
+    N_obs is the result of the greedy-permutation dedup pass at
+    tau_float = 1e-10, asserts persim.bottleneck(PD_exact['dgms'][0],
+    PD_dedup['dgms'][0]) <= 1e-10 and persim.bottleneck(PD_exact['dgms'][1],
+    PD_dedup['dgms'][1]) <= 1e-10. The test additionally records the
+    measured bottleneck distances in a diagnostic JSON adjacent to the
+    test so the actual values are queryable even when the test passes.

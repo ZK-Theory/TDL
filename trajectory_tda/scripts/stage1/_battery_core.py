@@ -445,6 +445,7 @@ def run_headline_from_embeddings(
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
     frozen_models: dict[str, Any] | None = None,
+    dedup_length_matched: bool = False,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
 
@@ -470,15 +471,27 @@ def run_headline_from_embeddings(
         n_null_pairs_cap: Cap on null-null symmetric pairs (default 500).
         markov_order: Markov order ``k`` of the permutation null (default 1).
         frozen_models: Optional fitted-model bundle forwarded into trajectory-level null embeddings.
+        dedup_length_matched: When True, observed and null PDs are computed via
+            ``ripser.ripser(..., n_perm=N)`` with N determined by
+            ``compute_greedy_dedup_count`` per the length-matched-dedup-via-n-perm
+            formula contract. The returned result dict carries an ``_dedup_info``
+            metadata key with observed and null-summary dedup provenance.
+            Default False — existing call sites behave exactly as before.
 
     Returns:
         Tuple of (result dict ready for JSON dump, per-permutation null_results
         list, observed PHResult for cache writing) — same return shape as
-        ``run_headline``.
+        ``run_headline``. When ``dedup_length_matched`` is True the result dict
+        carries an additional ``_dedup_info`` key; callers should pop it and
+        thread it into their output JSON's ``run_params`` block.
     """
     from joblib import Parallel, delayed
 
-    from poverty_tda.topology.multidim_ph import compute_rips_ph
+    from poverty_tda.topology.multidim_ph import (
+        DEDUP_TOLERANCE,
+        compute_greedy_dedup_count,
+        compute_rips_ph,
+    )
     from trajectory_tda.topology.permutation_nulls import (
         _single_permutation,
         maxmin_landmarks,
@@ -497,7 +510,26 @@ def run_headline_from_embeddings(
         _, obs_landmarks = maxmin_landmarks(embeddings, actual_lm, seed=seed)
     else:
         obs_landmarks = embeddings
-    ph_obs = compute_rips_ph(obs_landmarks, max_dim=1)
+
+    # Optional dedup-via-n_perm for the observed PD per the
+    # length-matched-dedup-via-n-perm formula contract. Call shape is
+    # bit-for-bit unchanged when dedup_length_matched=False (default) so
+    # existing callers and monkeypatches are unaffected.
+    obs_n_perm_used: int | None = None
+    obs_covering_radius: float | None = None
+    if dedup_length_matched:
+        obs_n_perm_used, obs_covering_radius = compute_greedy_dedup_count(obs_landmarks)
+        logger.info(
+            "[PHASE %s] dedup observed: n_perm_used=%d, covering_radius=%.3e (tolerance=%.0e, L=%d)",
+            label,
+            obs_n_perm_used,
+            obs_covering_radius,
+            DEDUP_TOLERANCE,
+            actual_lm,
+        )
+        ph_obs = compute_rips_ph(obs_landmarks, max_dim=1, n_perm=obs_n_perm_used)
+    else:
+        ph_obs = compute_rips_ph(obs_landmarks, max_dim=1)
     logger.info(
         "[PHASE %s] obs landmarks + PH built in %.1fs (L=%d)",
         label,
@@ -530,6 +562,7 @@ def run_headline_from_embeddings(
                 embed_kwargs,
                 frozen_models=frozen_models,
                 ph_observed=ph_obs,
+                dedup=dedup_length_matched,
             )
             for s in seeds_list
         )
@@ -560,6 +593,58 @@ def run_headline_from_embeddings(
         n_null_pairs_cap=n_null_pairs_cap,
         phase_label=label,
     )
+
+    # Attach dedup provenance for length-matched cells. The caller (e.g.
+    # run_bhps_length_matched.py) pops _dedup_info and threads the fields
+    # into run_params per the length-matched-run-params schema contract.
+    if dedup_length_matched:
+        null_dedup_infos = [
+            r.get("_dedup_info") for r in null_results if r.get("_dedup_info") is not None
+        ]
+        n_perms_null = [
+            info["n_perm_used"]
+            for info in null_dedup_infos
+            if info.get("n_perm_used") is not None
+        ]
+        covs_null = [
+            info["covering_radius_at_n_perm"]
+            for info in null_dedup_infos
+            if info.get("covering_radius_at_n_perm") is not None
+        ]
+        out["_dedup_info"] = {
+            "observed": {
+                "n_perm_used": int(obs_n_perm_used) if obs_n_perm_used is not None else None,
+                "covering_radius_at_n_perm": (
+                    float(obs_covering_radius) if obs_covering_radius is not None else None
+                ),
+            },
+            "null_summary": {
+                "n_perm_used": {
+                    "min": int(min(n_perms_null)) if n_perms_null else None,
+                    "median": int(np.median(n_perms_null)) if n_perms_null else None,
+                    "max": int(max(n_perms_null)) if n_perms_null else None,
+                    "all_equal_to_L": (
+                        all(n == actual_lm for n in n_perms_null) if n_perms_null else False
+                    ),
+                },
+                "covering_radius_at_n_perm": {
+                    "min": float(min(covs_null)) if covs_null else None,
+                    "median": float(np.median(covs_null)) if covs_null else None,
+                    "max": float(max(covs_null)) if covs_null else None,
+                    "max_observed": float(max(covs_null)) if covs_null else None,
+                },
+            },
+            "tolerance": DEDUP_TOLERANCE,
+            "strategy": "greedy-permutation-via-ripser-n_perm",
+        }
+        logger.info(
+            "[PHASE %s] dedup null summary: n_perm_used min/median/max = %s/%s/%s; max covering radius = %.3e",
+            label,
+            out["_dedup_info"]["null_summary"]["n_perm_used"]["min"],
+            out["_dedup_info"]["null_summary"]["n_perm_used"]["median"],
+            out["_dedup_info"]["null_summary"]["n_perm_used"]["max"],
+            out["_dedup_info"]["null_summary"]["covering_radius_at_n_perm"]["max"] or 0.0,
+        )
 
     write_partial(phase_tag, "after_agg", {"phase": phase_tag, "result": out})
 

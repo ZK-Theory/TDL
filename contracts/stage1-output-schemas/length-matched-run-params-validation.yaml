@@ -1,0 +1,37 @@
+id: length-matched-run-params-validation
+kind: output_validation
+pending: true
+
+description: >
+  Output-validation dispatch for the run_params block of length-matched
+  Stage-1 result JSONs. The pre-commit hook validates the run_params block
+  of any staged length-matched frozen JSON against the
+  length-matched-run-params schema. This is the second output_validation
+  contract that applies to these files: the existing
+  stage1-output-json-validation contract dispatches the result block
+  (h0/h1 cells) against stage1-aggregate-output-cell via wrapper_key=result,
+  and this contract dispatches the run_params block against
+  length-matched-run-params via wrapper_key=run_params. Both fire on the
+  same staged file and both must pass.
+
+spec_citation:
+  source: "2026-05-30 vault [DECISION] — Pre-reg #5 redo amendment for length-matched cells + length-matched-run-params schema contract"
+  vault_entry_date: "2026-05-30"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_*/stage1/*length_matched*_frozen_*.json"
+  wrapper_key: run_params
+  schema_contracts:
+    - length-matched-run-params
+
+binding:
+  test_file: "tests/trajectory_tda/test_length_matched_dedup_contracts.py"
+  test_function: "test_length_matched_run_params_jsons_validate_against_schema"
+  must_assert: >
+    Every JSON file in the working tree matching the applies_to_glob, when
+    loaded, has a run_params dict whose contents validate against the
+    length-matched-run-params schema's required_keys (and forbidden_keys
+    rejection). The validation reads data['run_params'] per the wrapper_key
+    setting and treats that subdict as the schema target. When no matching
+    JSONs exist (e.g., on a fresh clone before the T1.2g rerun has been
+    committed), the test passes trivially.

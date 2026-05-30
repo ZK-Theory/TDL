@@ -535,8 +535,17 @@ def _single_permutation(
     embed_kwargs: dict | None,
     frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
+    dedup: bool = False,
 ) -> dict:
-    """Execute one permutation and return statistic values."""
+    """Execute one permutation and return statistic values.
+
+    When ``dedup`` is True, the Rips PH for the permuted landmark sample is
+    computed via ``ripser.ripser(..., n_perm=N)`` where N is determined by
+    ``compute_greedy_dedup_count`` so that the covering radius is at or below
+    ``DEDUP_TOLERANCE`` — see the length-matched-dedup-via-n-perm formula
+    contract. The returned dict additionally carries ``_dedup_info`` with
+    the per-permutation ``n_perm_used`` and ``covering_radius_at_n_perm``.
+    """
     rng = np.random.RandomState(seed)
 
     if null_type == "label_shuffle":
@@ -570,7 +579,31 @@ def _single_permutation(
     else:
         landmarks = X_perm
 
-    ph = compute_rips_ph(landmarks, max_dim=max_dim)
+    # Optional dedup-via-n_perm for length-matched cells per the
+    # length-matched-dedup-via-n-perm formula contract. Identical to the
+    # exact-ripser path when dedup=False (default) — the compute_rips_ph
+    # call shape is bit-for-bit unchanged so existing monkeypatches and
+    # call sites are not affected.
+    n_perm_used: int | None = None
+    covering_radius_at_n_perm: float | None = None
+    if dedup:
+        from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
+
+        n_perm_used, covering_radius_at_n_perm = compute_greedy_dedup_count(landmarks)
+        ph = compute_rips_ph(landmarks, max_dim=max_dim, n_perm=n_perm_used)
+    else:
+        ph = compute_rips_ph(landmarks, max_dim=max_dim)
+
+    dedup_info: dict | None = None
+    if dedup:
+        dedup_info = {
+            "n_perm_used": int(n_perm_used) if n_perm_used is not None else None,
+            "covering_radius_at_n_perm": (
+                float(covering_radius_at_n_perm)
+                if covering_radius_at_n_perm is not None
+                else None
+            ),
+        }
 
     # Wasserstein statistic: return W(null, observed) per dimension
     if statistic == "wasserstein" and ph_observed is not None:
@@ -585,6 +618,8 @@ def _single_permutation(
             if len(arr) > 0:
                 arr = arr[np.isfinite(arr[:, 1])]
             result[f"{key}_dgm"] = arr.tolist()
+        if dedup_info is not None:
+            result["_dedup_info"] = dedup_info
         return result
 
     summary = persistence_summary(ph)
@@ -594,6 +629,8 @@ def _single_permutation(
         key = f"H{dim}"
         result[key] = summary.get(key, {}).get(statistic, 0.0)
 
+    if dedup_info is not None:
+        result["_dedup_info"] = dedup_info
     return result
 
 

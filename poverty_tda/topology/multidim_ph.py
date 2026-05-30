@@ -198,10 +198,71 @@ def load_deprivation_cloud(
     return X, lsoa_codes, domain_names
 
 
+# Numerical tolerance for the length-matched dedup-via-n_perm scheme per the
+# length-matched-dedup-via-n-perm formula contract. A greedy-permutation
+# covering radius at or below this value is treated as exact coverage:
+# duplicate landmarks contribute zero geometric information to Rips PH, so
+# PD on the deduplicated sample equals PD on the full sample bitwise modulo
+# points on the diagonal.
+DEDUP_TOLERANCE: float = 1e-10
+
+
+def compute_greedy_dedup_count(
+    X: np.ndarray,
+    tolerance: float = DEDUP_TOLERANCE,
+) -> tuple[int, float]:
+    """Greedy-permutation deduplication count for a point cloud.
+
+    Runs a greedy (farthest-point) permutation starting from row 0 with
+    Euclidean (l2) metric, returning the smallest N for which the covering
+    radius (max distance from any row to the nearest of the first N
+    selected) falls at or below ``tolerance``. Used by length-matched
+    Stage-1 cells per the length-matched-dedup-via-n-perm formula contract
+    so that ripser.ripser(..., n_perm=N) computes exact Rips PH on the
+    deduplicated landmark sample.
+
+    Args:
+        X: (n, d) point cloud, typically a maxmin landmark sample.
+        tolerance: Numerical tolerance for "exact coverage". Default
+            ``DEDUP_TOLERANCE`` (1e-10).
+
+    Returns:
+        Tuple ``(n_unique, covering_radius_at_n_unique)``:
+            * ``n_unique``: smallest N with covering radius at or below
+              tolerance, or ``X.shape[0]`` if no such N exists (fallback
+              to no dedup — ripser falls back to its existing exact path).
+            * ``covering_radius_at_n_unique``: observed covering radius at
+              ``N == n_unique``. At or below tolerance for the dedup path;
+              the actual covering radius at L for the fallback path.
+
+    Notes:
+        See Cavanna, Jahanseir & Sheehy (2015) "A geometric perspective on
+        sparse filtrations" (Proc. CCCG). The bottleneck distance between
+        PD(full point cloud) and PD(greedy size-N subsample) is bounded by
+        the covering radius at N; when zero (within tolerance), the bound
+        is exact identity.
+    """
+    from scipy.spatial.distance import cdist
+
+    n = X.shape[0]
+    if n <= 1:
+        return n, 0.0
+    D = cdist(X, X)
+    min_dists = D[0].copy()
+    for k in range(1, n):
+        eps_k = float(min_dists.max())
+        if eps_k <= tolerance:
+            return k, eps_k
+        next_idx = int(np.argmax(min_dists))
+        min_dists = np.minimum(min_dists, D[next_idx])
+    return n, float(min_dists.max())
+
+
 def compute_rips_ph(
     X: np.ndarray,
     max_dim: int = 2,
     thresh: float | None = None,
+    n_perm: int | None = None,
 ) -> PHResult:
     """
     Compute Vietoris-Rips persistent homology on a point cloud using ripser.
@@ -213,6 +274,12 @@ def compute_rips_ph(
         X: (N, D) point cloud array (should be standardised)
         max_dim: Maximum homology dimension to compute (2 = H0+H1+H2)
         thresh: Maximum edge length (ripser default: enclosing radius)
+        n_perm: Optional greedy-permutation subsample size for sparse Rips.
+            When set, ripser computes PH on the first ``n_perm`` points of
+            its internal greedy permutation. Used by length-matched Stage-1
+            cells with ``n_perm`` chosen so the covering radius is at or
+            below ``DEDUP_TOLERANCE`` — see ``compute_greedy_dedup_count``
+            and the length-matched-dedup-via-n-perm formula contract.
 
     Returns:
         PHResult with persistence diagrams
@@ -239,6 +306,8 @@ def compute_rips_ph(
     rips_kwargs = {"X": X, "maxdim": max_dim, "do_cocycles": True}
     if thresh is not None:
         rips_kwargs["thresh"] = thresh
+    if n_perm is not None:
+        rips_kwargs["n_perm"] = n_perm
 
     result = ripser.ripser(**rips_kwargs)
     elapsed = time.time() - t0

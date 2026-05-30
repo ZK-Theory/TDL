@@ -1,0 +1,81 @@
+id: length-matched-run-params
+kind: schema
+pending: true
+
+description: >
+  Schema for the run_params block of length-matched Stage-1 result JSONs
+  (T1.2f truncate, T1.2g first13). In addition to the standard locked
+  Stage-1 parameters (L, B, seed, null_model, etc.), length-matched cells
+  must record the deduplication-via-n_perm provenance fields per the
+  length-matched-dedup-via-n-perm formula contract: n_perm_used_observed,
+  covering_radius_at_n_perm_observed, the null-summary statistics across
+  the B null PDs, and the tolerance tau_float used to determine the
+  dedup threshold. These fields make the run reproducible and make the
+  cell's dedup behaviour queryable from the artefact alone.
+
+spec_citation:
+  source: "2026-05-30 vault [DECISION] — Pre-reg #5 redo amendment for length-matched cells + length-matched-dedup-via-n-perm formula contract"
+  vault_entry_date: "2026-05-30"
+
+schema_def:
+  applies_to: "The run_params block of length-matched Stage-1 JSON files matching results/trajectory_tda_*/stage1/*length_matched*_frozen_*.json. The output_validation contract dispatches with wrapper_key=run_params."
+  required_keys:
+    - name: L
+      type: int
+      description: "Landmark count. MUST equal 5000 per Pre-reg #5 redo lock."
+    - name: B
+      type: int
+      description: "Number of Markov-1 null permutations. Typically 1000 for headline cells; lower values permitted for diagnostic / smoke runs but flagged."
+    - name: seed
+      type: int
+      description: "Master seed routed through ngram_embed, maxmin_landmarks, and Markov-1 surrogate generation."
+    - name: null_model
+      type: str
+      description: "Null-model identifier. MUST start with 'markov-' for length-matched cells (Markov-1 surrogate per Pre-reg #5 redo)."
+    - name: frozen_loadings
+      type: bool
+      description: "True for the frozen-loadings rerun under the 2026-05-26 T1.36 fix. The Pre-reg #5 redo amendment lock only applies to frozen-loadings runs; non-frozen runs are pre-fix legacy and remain out of scope."
+    - name: strategy
+      type: str
+      description: "Length-matching strategy. Value MUST be 'truncate' or 'first13'."
+    - name: target_years
+      type: int
+      description: "Length-matching target in waves. Locked at 13 per Pre-reg #5 redo."
+    - name: pvalue_formula
+      type: str
+      description: "MUST equal '(r+1)/(B+1)' per monte-carlo-permutation-p-value contract."
+    - name: n_perm_used_observed
+      type: int
+      description: "The n_perm value passed to ripser for the OBSERVED PD computation. Computed as the smallest N with covering radius at or below dedup_tolerance per length-matched-dedup-via-n-perm formula. Bounded by 1 <= n_perm_used_observed <= L."
+    - name: covering_radius_at_n_perm_observed
+      type: float
+      description: "The observed covering radius eps_N at N = n_perm_used_observed for the observed-PD greedy permutation pass. MUST be <= dedup_tolerance, OR equal to the covering radius at N = L if the fallback path triggered (no smaller N achieves eps <= tolerance). The contract asserts this; the binding test verifies."
+    - name: n_perm_used_null_summary
+      type: "dict[str, ...]"
+      description: "Summary of n_perm values used across the B null PDs. MUST contain keys min (int), median (int), max (int), and all_equal_to_L (bool, true iff every null fell back to no-dedup). Per-null full vector is recorded separately if length permits; the schema fixes only the summary."
+    - name: covering_radius_at_n_perm_null_summary
+      type: "dict[str, ...]"
+      description: "Analogous covering-radius summary for the null PDs. MUST contain keys min (float), median (float), max (float), max_observed (float, the largest covering radius across nulls — must be <= dedup_tolerance, OR if the fallback triggered for any null, equal to the actual largest covering radius at L for those fallbacks)."
+    - name: dedup_tolerance
+      type: float
+      description: "The tau_float value used as the dedup threshold. MUST equal 1e-10 per the length-matched-dedup-via-n-perm formula lock; a different value is invalid under this contract."
+    - name: dedup_strategy
+      type: str
+      description: "Identifier of the dedup implementation. MUST equal 'greedy-permutation-via-ripser-n_perm' under this contract."
+  conditional_keys: []
+  forbidden_keys:
+    - name: n_perm
+      reason: "Singular n_perm could be ambiguous between observed and null. Use n_perm_used_observed and n_perm_used_null_summary explicitly to make the per-PD-class provenance unambiguous."
+
+binding:
+  test_file: "tests/trajectory_tda/test_length_matched_dedup_contracts.py"
+  test_function: "test_length_matched_run_params_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema (with run_params containing
+    all required keys with valid types and values) validates. JSONs with
+    (a) L != 5000, (b) frozen_loadings != true, (c) strategy outside
+    {'truncate', 'first13'}, (d) dedup_tolerance != 1e-10, (e) dedup_strategy
+    != 'greedy-permutation-via-ripser-n_perm', (f) covering_radius_at_n_perm_observed
+    > dedup_tolerance with n_perm_used_observed < L (a fallback that
+    didn't fall back), or (g) presence of the forbidden singular 'n_perm'
+    key are rejected with a precise diagnostic.
