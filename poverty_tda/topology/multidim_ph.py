@@ -269,6 +269,47 @@ def compute_greedy_dedup_count(
     return n, float(min_dists.max()), np.asarray(selected, dtype=np.int64)
 
 
+def greedy_first_k_indices_with_radius(
+    X: np.ndarray,
+    k: int,
+) -> tuple[np.ndarray, float]:
+    """Greedy-permutation first-k indices, ignoring covering-radius termination.
+
+    Returns the first ``k`` indices of the greedy permutation starting from
+    row 0 with Euclidean (l2) metric, regardless of whether the covering
+    radius drops below any tolerance. Used by probe-mode forced-dedup runs
+    where a fixed ``k`` (e.g. the observed-PD dedup count) is imposed on
+    null PDs to eliminate the observed-vs-null vertex-count asymmetry that
+    emerges from the natural per-sample dedup.
+
+    Args:
+        X: (n, d) point cloud.
+        k: Number of indices to return. Clamped to ``[1, n]``.
+
+    Returns:
+        Tuple ``(indices, covering_radius_at_k)``:
+            * ``indices``: shape ``(min(k, n),)`` int64 array of greedy-
+              permutation indices in selection order.
+            * ``covering_radius_at_k``: observed covering radius after the
+              first ``k`` indices are selected. For probe provenance only;
+              not used to make termination decisions.
+    """
+    from scipy.spatial.distance import cdist
+
+    n = X.shape[0]
+    k_clamped = max(1, min(int(k), n))
+    if n == 1:
+        return np.asarray([0], dtype=np.int64), 0.0
+    D = cdist(X, X)
+    min_dists = D[0].copy()
+    selected: list[int] = [0]
+    for _ in range(k_clamped - 1):
+        next_idx = int(np.argmax(min_dists))
+        selected.append(next_idx)
+        min_dists = np.minimum(min_dists, D[next_idx])
+    return np.asarray(selected, dtype=np.int64), float(min_dists.max())
+
+
 def compute_rips_ph(
     X: np.ndarray,
     max_dim: int = 2,

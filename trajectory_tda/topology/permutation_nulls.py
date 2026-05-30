@@ -536,6 +536,8 @@ def _single_permutation(
     frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
     dedup: bool = False,
+    forced_n_dedup: int | None = None,
+    pinned_thresh: float | None = None,
 ) -> dict:
     """Execute one permutation and return statistic values.
 
@@ -545,6 +547,23 @@ def _single_permutation(
     ``DEDUP_TOLERANCE`` — see the length-matched-dedup-via-n-perm formula
     contract. The returned dict additionally carries ``_dedup_info`` with
     the per-permutation ``n_perm_used`` and ``covering_radius_at_n_perm``.
+
+    Probe-mode overrides for Pre-reg #5 redo amendment robustness checks:
+
+    - ``forced_n_dedup``: when set, override the natural dedup count and use
+      the first ``forced_n_dedup`` greedy-permutation indices regardless of
+      covering-radius termination. Used by the probe-symmetric-dedup probe
+      to force null PDs to use n_perm = obs_n_dedup, eliminating the
+      observed-vs-null vertex-count asymmetry that emerges naturally on
+      length-matched cells.
+    - ``pinned_thresh``: when set, pass this threshold to ``compute_rips_ph``
+      for the null PD computation, overriding the per-call auto-thresh from
+      a random 500-pt subsample. Used by the probe-pinned-thresh probe to
+      eliminate observed-vs-null auto-thresh divergence.
+
+    Both probe parameters default to ``None`` (no behaviour change) — they
+    do not affect the production pipeline; they exist to support the
+    supplementary robustness probes queued in P01-A-JRSSA open items.
     """
     rng = np.random.RandomState(seed)
 
@@ -583,28 +602,46 @@ def _single_permutation(
     # length-matched-dedup-via-n-perm formula contract. Identical to the
     # exact-ripser path when dedup=False (default) — the compute_rips_ph
     # call shape is bit-for-bit unchanged so existing monkeypatches and
-    # call sites are not affected.
+    # call sites are not affected. Probe-mode overrides (forced_n_dedup,
+    # pinned_thresh) are documented in the function docstring.
     n_perm_used: int | None = None
     covering_radius_at_n_perm: float | None = None
-    if dedup:
+    landmarks_for_ph = landmarks
+    if forced_n_dedup is not None:
+        from poverty_tda.topology.multidim_ph import (
+            greedy_first_k_indices_with_radius,
+        )
+
+        forced_k = int(min(forced_n_dedup, landmarks.shape[0]))
+        dedup_idx, eps_at_k = greedy_first_k_indices_with_radius(landmarks, forced_k)
+        n_perm_used = forced_k
+        covering_radius_at_n_perm = float(eps_at_k)
+        landmarks_for_ph = landmarks[dedup_idx]
+    elif dedup:
         from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
 
         n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(
             landmarks
         )
-        ph = compute_rips_ph(landmarks[dedup_idx], max_dim=max_dim)
-    else:
-        ph = compute_rips_ph(landmarks, max_dim=max_dim)
+        landmarks_for_ph = landmarks[dedup_idx]
+
+    ph_kwargs: dict = {"max_dim": max_dim}
+    if pinned_thresh is not None:
+        ph_kwargs["thresh"] = float(pinned_thresh)
+    ph = compute_rips_ph(landmarks_for_ph, **ph_kwargs)
 
     dedup_info: dict | None = None
-    if dedup:
+    if n_perm_used is not None:
+        # Populated for both natural dedup (dedup=True) and probe-forced
+        # dedup (forced_n_dedup set). Carries forced-vs-natural origin so
+        # downstream provenance can distinguish probe results from
+        # production runs.
         dedup_info = {
-            "n_perm_used": int(n_perm_used) if n_perm_used is not None else None,
-            "covering_radius_at_n_perm": (
-                float(covering_radius_at_n_perm)
-                if covering_radius_at_n_perm is not None
-                else None
-            ),
+            "n_perm_used": int(n_perm_used),
+            "covering_radius_at_n_perm": float(covering_radius_at_n_perm)
+            if covering_radius_at_n_perm is not None
+            else None,
+            "origin": "forced" if forced_n_dedup is not None else "natural",
         }
 
     # Wasserstein statistic: return W(null, observed) per dimension
