@@ -336,9 +336,11 @@ def test_dedup_equivalence_canary_on_t12f_truncate_landmarks() -> None:
 
     Regenerates the T1.2f truncate frozen observed L=5000 landmark sample
     deterministically from the BHPS checkpoint at the locked seed and
-    target_years, computes PD via the exact ripser path and via the
-    n_perm=N dedup path, asserts bottleneck distance <= tau_float in both
-    H0 and H1, and records the measured distances in a diagnostic JSON.
+    target_years, computes PD on the full landmark sample (PD_exact) and
+    on the externally indexed dedup subset landmarks[I_obs] (PD_dedup) via
+    direct ripser.ripser calls, asserts per-dimension bottleneck distance
+    <= tau_H0 = 1e-6 and <= tau_H1 = 1e-10, and records the measured
+    distances in a diagnostic JSON.
 
     Per the 2026-05-30 vault [DECISION], this canary is the methodological
     gate on dispatching the T1.2g first13 rerun under the dedup amendment.
@@ -413,6 +415,6 @@ def test_dedup_equivalence_canary_on_t12f_truncate_landmarks() -> None:
         tau_dim = per_dim_tau[dim_key]
         assert d <= tau_dim, (
             f"{dim_key}: bottleneck distance {d} exceeds tolerance {tau_dim}; "
-            f"PD(exact) and PD(dedup at n_perm={N_obs}) diverge — "
-            f"length-matched-dedup-via-n-perm formula contract violated"
+            f"PD(exact) and PD(dedup via landmarks[I_obs], N={N_obs}) "
+            f"diverge — length-matched-dedup-via-n-perm formula contract violated"
         )
