@@ -138,6 +138,12 @@ papers/submission guidelines/
 # Pinned diagnostic JSONs (e.g. dedup-equivalence-canary.json) are still tracked.
 .apm/diagnostics/*-validation-report.json
 
+# Vault junction — `vault/` is a Windows directory junction to
+# `C:\Users\steph\Documents\TDA-Research\` for direct content access from
+# the repo (Edit/Read against vault/<path> rather than vault_get through
+# the vault-engine MCP). Machine-local setup; not for commit.
+vault/
+
 # Stage-1 battery gitignored intermediates (T0.12 two-path rule)
 # - launches/ : PID markers written before any heavy work (launch ground truth)
 # - cache/    : permutation-diagram .npz cache shared headline → sensitivity

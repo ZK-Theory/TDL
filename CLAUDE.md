@@ -30,6 +30,15 @@ This repo contains the code. The vault contains theory, methodology, literature,
 
 **When working on code:** Cross-check `CONVENTIONS.md` for locked methodological decisions before implementing. Any new decision should be added there after locking.
 
+**Direct content access via `vault/` junction (machine-local).** A Windows directory junction at `c:\Users\steph\TDL\vault\` mirrors the vault root, so the commonly-used files are reachable as `vault/CONVENTIONS.md`, `vault/04-Methods/Computational-Log.md`, `vault/04-Methods/Pipeline-Overview.md`, `vault/VAULT-MAP.md`, `vault/05-Daily/YYYY-MM-DD.md`, etc. The junction is gitignored (`vault/` line in `.gitignore`); same inode either side, so edits via `vault/<path>` land in the real vault file.
+
+**When to use which access mode:**
+
+- *Content read/edit/append* (read CONVENTIONS, append to Computational-Log, draft a Daily note): use the `vault/` path with `Read` / `Edit` / `Write` tools — faster and integrates with the standard tool chain.
+- *Wikilink-graph navigation* (find pages linking to X, page skeletons, cross-vault traversal, status dashboards): use the vault-engine MCP (`vault_query`, `vault_skeleton`, `vault_graph`, `vault_status`, `cross_vault`) — the graph context is not available via the filesystem.
+
+The vault remains the source of truth; the junction is a convenience shortcut, not a separate copy.
+
 ## Key Concepts (Domain Knowledge)
 
 **TDA fundamentals used here:**
@@ -205,8 +214,9 @@ Examples:
 When finishing a session that produced results, decisions, or insights:
 
 1. **In Cowork:** Say "repo bridge" or "log results" to trigger the `tda-repo-bridge` skill, which structures session outputs and files them into the vault
-2. **In Claude Code / Copilot:** Produce the vault entry text and write it directly to `04-Methods/Computational-Log.md`
+2. **In Claude Code / Copilot:** Produce the vault entry text and write it directly to `vault/04-Methods/Computational-Log.md` (or the absolute vault path)
 3. **Manually:** Add an entry to `04-Methods/Computational-Log.md` in the vault
+4. **Consider a daily note.** Computational-Log entries are reserved for the formal artifacts (`[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`). The session story — judgement calls, dead-ends, surprises, CodeRabbit batches reviewed, "TIL X about library Y" — belongs in `vault/05-Daily/YYYY-MM-DD.md`. At session close, draft one if the session produced *any* of: a non-obvious judgement call, a surprise finding (positive or negative) that isn't formal enough for the Computational-Log, a queued open item, a workflow lesson, or a CodeRabbit review batch. Skip when the session was pure execution with no commentary worth preserving.
 
 Format for Computational-Log entries:
 ```
@@ -218,6 +228,48 @@ Format for Computational-Log entries:
 **Decision:** [if any parameter/method locked]
 **Resolves:** [open items closed]
 ```
+
+Format for Daily notes (`vault/05-Daily/YYYY-MM-DD.md`):
+
+```markdown
+---
+date: YYYY-MM-DD
+type: daily
+tags: [daily]
+---
+
+# YYYY-MM-DD — <one-line session-defining headline>
+
+## What landed
+
+- commit `<hash>`: [PREFIX] PXX: <one-line>
+- commit `<hash>`: [PREFIX] PXX: <one-line>
+
+## Threads we pulled
+
+- <surprise / dead-end / judgement call, one line of why it mattered>
+- <another>
+
+## Worth remembering (not [DECISION]-worthy)
+
+- <numerical artifact, library quirk, workflow lesson — the kind of thing
+  you'd otherwise rediscover painfully next year>
+
+## Open at end of session
+
+- <queued item> → [[03-Papers/P01-A-JRSSA/_project|P01-A open items]]
+- <queued item>
+
+## Links
+
+[[Computational-Log#YYYY-MM-DD-PXX-...]] · [[CONVENTIONS]]
+
+---
+
+*[[YYYY-MM-DD|← Previous daily note]]*
+```
+
+Sections may be omitted when empty. The daily note is a session-history artefact, not a status report — write for future-you trying to reconstruct *why* something landed the way it did.
 
 ## Common Workflows
 
