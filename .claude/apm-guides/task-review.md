@@ -74,7 +74,7 @@ Merge state is a dispatch prerequisite. Merge completed feature branches into th
 
 **Branch protection adaptation:** If the base branch has protection rules preventing direct merges, adapt (create a PR, merge into an intermediate branch, or ask the User). Discovered reactively and noted in working notes.
 
-**Cleanup:** After a successful merge, clean up in order - first remove the worktree if one exists (`git worktree remove .apm/worktrees/<branch-slug>`), then delete the merged feature branch (`git branch -d <branch-name>`). The branch cannot be deleted while a worktree references it. During Stage-end merge sweeps with multiple branches, batch all removals first, then all deletions, in a single terminal invocation.
+**Cleanup:** After a successful merge, clean up in order - first remove the worktree if one exists (`git worktree remove .apm/worktrees/<branch-slug>`), then delete the merged feature branch (`git branch -d <branch-name>`). The branch cannot be deleted while a worktree references it. During Stage-end merge sweeps with multiple branches, batch all removals first, then all deletions, in a single terminal invocation. **Project override:** This repository defers cleanup; see `CLAUDE.md` § APM_RULES "Worktree removal cadence" — Manager does not auto-remove post-merge, and cleanup is manual at session start or on User trigger so CodeRabbit reviews can complete on the open PR.
 
 ### 2.6 Stage Summary Standards
 
