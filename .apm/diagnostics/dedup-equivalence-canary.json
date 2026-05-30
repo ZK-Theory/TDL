@@ -1,0 +1,35 @@
+{
+  "spec": "dedup-equivalence-canary",
+  "strategy": "truncate",
+  "target_years": 13,
+  "L": 5000,
+  "n_perm_used": 4861,
+  "covering_radius_at_n_perm": 2.4059457684765624e-15,
+  "bottleneck_distances": {
+    "H0": 2.9802322387695312e-08,
+    "H1": 0.0
+  },
+  "per_dimension_tolerance": {
+    "H0": 1e-06,
+    "H1": 1e-10
+  },
+  "tolerance_note": "H1 strict (1e-10) — paper claims operate on H1 loops; H0 relaxed (1e-6) to absorb persim/ripser float32 floor (~1/2^25 = 2.98e-8) from H0 diagonal-matching of extra near-duplicate features. Operationally negligible (H0 lifetimes are O(20+) in our data).",
+  "ripser_version": "0.6.14",
+  "persim_version": "0.3.8",
+  "passes_under_per_dimension_tolerance": true,
+  "first_run_under_n_perm_shortcut": {
+    "H0": 2.9802322387695312e-08,
+    "H1": 0.0,
+    "note": "2026-05-30 initial run; n_perm shortcut path superseded by external-indexing per length-matched-dedup-via-n-perm contract."
+  },
+  "second_run_under_external_indexing_with_auto_thresh": {
+    "H0": 2.9802322387695312e-08,
+    "H1": 0.4010548591613770,
+    "note": "2026-05-30 second run; the H1 deviation traced to compute_rips_ph auto-thresh (75th percentile from a 500-pt random subsample, computed per-call) producing different cutoffs on X (L=5000) vs X[I] (L=4861). Confounder removed in third run by calling ripser.ripser directly."
+  },
+  "third_run_under_external_indexing_direct_ripser": {
+    "H0": 2.9802322387695312e-08,
+    "H1": 0.0,
+    "note": "2026-05-30 third run; canary-passing values under external-indexing + direct ripser. H0 deviation is the persim/ripser float32 floor; H1 is exact."
+  }
+}

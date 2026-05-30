@@ -93,3 +93,21 @@ Headline categories:
 - [ ] Move Mapper sensitivity grid and heavy pipeline detail to the supplement
 - [ ] Prepare JRSS-A submission package and arXiv metadata (LaTeX class
       `papers/style_guides/JRSS/statsoc.cls`)
+- [ ] **Auto-thresh sanity probe (post Pre-reg #5 closure).** Bound the
+      impact of `compute_rips_ph`'s per-call auto-threshold logic
+      (75th-percentile of pairwise distances on a 500-pt random subsample)
+      on Stage 1 cell p-values. Surfaced 2026-05-30 during the T1.2g dedup
+      canary work: each `compute_rips_ph` call resets `RandomState(42)` and
+      computes its own thresh from a fresh subsample, so observed and null
+      PDs within a cell — and PDs across cells with different `|X|` — use
+      slightly different cutoffs. Effect is small because most H1 features
+      sit well below the auto-thresh, but the top H1 features land near it.
+      Recommended probe: re-run T1.36 BHPS headline frozen with pinned
+      ripser thresh = enclosing radius of observed landmarks (no truncation,
+      no subsample), compare W2 + landscape p-values + statistics to the
+      on-file numbers; if deltas <5% and decisions unchanged, on-file Tier 1
+      results stand with an SI note; otherwise decide which cells need a
+      pinned-thresh re-run. Applies equally to P01-B headline cells (shared
+      apparatus). Sequencing: after the Pre-reg #5 redo amendment
+      (length-matched dedup) is fully closed out — do not change the
+      apparatus mid-decision.

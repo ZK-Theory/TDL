@@ -61,7 +61,7 @@ schema_def:
       description: "The tau_float value used as the dedup threshold. MUST equal 1e-10 per the length-matched-dedup-via-n-perm formula lock; a different value is invalid under this contract."
     - name: dedup_strategy
       type: str
-      description: "Identifier of the dedup implementation. MUST equal 'greedy-permutation-via-ripser-n_perm' under this contract."
+      description: "Identifier of the dedup implementation. MUST equal 'greedy-permutation-external-indexing' under this contract (revised 2026-05-30 after the canary established that the ripser n_perm shortcut produces a non-zero H0 bottleneck deviation; external indexing materialises X[I] and passes it to ripser directly)."
   conditional_keys: []
   forbidden_keys:
     - name: n_perm

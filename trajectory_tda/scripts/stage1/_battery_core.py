@@ -511,23 +511,25 @@ def run_headline_from_embeddings(
     else:
         obs_landmarks = embeddings
 
-    # Optional dedup-via-n_perm for the observed PD per the
+    # Optional external dedup for the observed PD per the
     # length-matched-dedup-via-n-perm formula contract. Call shape is
     # bit-for-bit unchanged when dedup_length_matched=False (default) so
     # existing callers and monkeypatches are unaffected.
     obs_n_perm_used: int | None = None
     obs_covering_radius: float | None = None
     if dedup_length_matched:
-        obs_n_perm_used, obs_covering_radius = compute_greedy_dedup_count(obs_landmarks)
+        obs_n_perm_used, obs_covering_radius, obs_dedup_idx = compute_greedy_dedup_count(
+            obs_landmarks
+        )
         logger.info(
-            "[PHASE %s] dedup observed: n_perm_used=%d, covering_radius=%.3e (tolerance=%.0e, L=%d)",
+            "[PHASE %s] dedup observed: n_dedup=%d, covering_radius=%.3e (tolerance=%.0e, L=%d)",
             label,
             obs_n_perm_used,
             obs_covering_radius,
             DEDUP_TOLERANCE,
             actual_lm,
         )
-        ph_obs = compute_rips_ph(obs_landmarks, max_dim=1, n_perm=obs_n_perm_used)
+        ph_obs = compute_rips_ph(obs_landmarks[obs_dedup_idx], max_dim=1)
     else:
         ph_obs = compute_rips_ph(obs_landmarks, max_dim=1)
     logger.info(
@@ -635,7 +637,7 @@ def run_headline_from_embeddings(
                 },
             },
             "tolerance": DEDUP_TOLERANCE,
-            "strategy": "greedy-permutation-via-ripser-n_perm",
+            "strategy": "greedy-permutation-external-indexing",
         }
         logger.info(
             "[PHASE %s] dedup null summary: n_perm_used min/median/max = %s/%s/%s; max covering radius = %.3e",

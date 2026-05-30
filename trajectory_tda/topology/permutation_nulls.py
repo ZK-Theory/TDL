@@ -579,7 +579,7 @@ def _single_permutation(
     else:
         landmarks = X_perm
 
-    # Optional dedup-via-n_perm for length-matched cells per the
+    # Optional external dedup for length-matched cells per the
     # length-matched-dedup-via-n-perm formula contract. Identical to the
     # exact-ripser path when dedup=False (default) — the compute_rips_ph
     # call shape is bit-for-bit unchanged so existing monkeypatches and
@@ -589,8 +589,10 @@ def _single_permutation(
     if dedup:
         from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
 
-        n_perm_used, covering_radius_at_n_perm = compute_greedy_dedup_count(landmarks)
-        ph = compute_rips_ph(landmarks, max_dim=max_dim, n_perm=n_perm_used)
+        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(
+            landmarks
+        )
+        ph = compute_rips_ph(landmarks[dedup_idx], max_dim=max_dim)
     else:
         ph = compute_rips_ph(landmarks, max_dim=max_dim)
 

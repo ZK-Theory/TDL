@@ -198,28 +198,31 @@ def load_deprivation_cloud(
     return X, lsoa_codes, domain_names
 
 
-# Numerical tolerance for the length-matched dedup-via-n_perm scheme per the
+# Numerical tolerance for the length-matched external-dedup scheme per the
 # length-matched-dedup-via-n-perm formula contract. A greedy-permutation
 # covering radius at or below this value is treated as exact coverage:
 # duplicate landmarks contribute zero geometric information to Rips PH, so
-# PD on the deduplicated sample equals PD on the full sample bitwise modulo
-# points on the diagonal.
+# PD on the externally deduplicated sample equals PD on the full sample
+# modulo points on the diagonal.
 DEDUP_TOLERANCE: float = 1e-10
 
 
 def compute_greedy_dedup_count(
     X: np.ndarray,
     tolerance: float = DEDUP_TOLERANCE,
-) -> tuple[int, float]:
-    """Greedy-permutation deduplication count for a point cloud.
+) -> tuple[int, float, np.ndarray]:
+    """Greedy-permutation deduplication count and selected indices.
 
     Runs a greedy (farthest-point) permutation starting from row 0 with
     Euclidean (l2) metric, returning the smallest N for which the covering
     radius (max distance from any row to the nearest of the first N
-    selected) falls at or below ``tolerance``. Used by length-matched
-    Stage-1 cells per the length-matched-dedup-via-n-perm formula contract
-    so that ripser.ripser(..., n_perm=N) computes exact Rips PH on the
-    deduplicated landmark sample.
+    selected) falls at or below ``tolerance``, together with the
+    permutation indices. Used by length-matched Stage-1 cells per the
+    length-matched-dedup-via-n-perm formula contract: callers build the
+    deduplicated landmark sample as ``X[selected_indices]`` and pass it to
+    ripser without ``n_perm``, so ripser computes exact Rips PH on the
+    externally deduplicated subset rather than relying on its internal
+    greedy permutation (which need not agree with this one).
 
     Args:
         X: (n, d) point cloud, typically a maxmin landmark sample.
@@ -227,42 +230,49 @@ def compute_greedy_dedup_count(
             ``DEDUP_TOLERANCE`` (1e-10).
 
     Returns:
-        Tuple ``(n_unique, covering_radius_at_n_unique)``:
+        Tuple ``(n_unique, covering_radius_at_n_unique, selected_indices)``:
             * ``n_unique``: smallest N with covering radius at or below
               tolerance, or ``X.shape[0]`` if no such N exists (fallback
-              to no dedup — ripser falls back to its existing exact path).
+              to no dedup — ripser is called on the full sample).
             * ``covering_radius_at_n_unique``: observed covering radius at
               ``N == n_unique``. At or below tolerance for the dedup path;
-              the actual covering radius at L for the fallback path.
+              the actual covering radius at ``X.shape[0]`` for the fallback.
+            * ``selected_indices``: shape ``(n_unique,)`` int64 array of
+              row indices into ``X`` selected by the greedy permutation,
+              in selection order. ``X[selected_indices]`` is the
+              deduplicated landmark sample on which exact Rips PH should
+              be computed.
 
     Notes:
         See Cavanna, Jahanseir & Sheehy (2015) "A geometric perspective on
         sparse filtrations" (Proc. CCCG). The bottleneck distance between
         PD(full point cloud) and PD(greedy size-N subsample) is bounded by
         the covering radius at N; when zero (within tolerance), the bound
-        is exact identity.
+        is exact identity — verified by the dedup-equivalence-canary
+        invariant contract.
     """
     from scipy.spatial.distance import cdist
 
     n = X.shape[0]
     if n <= 1:
-        return n, 0.0
+        return n, 0.0, np.arange(n, dtype=np.int64)
     D = cdist(X, X)
     min_dists = D[0].copy()
+    selected: list[int] = [0]
     for k in range(1, n):
         eps_k = float(min_dists.max())
         if eps_k <= tolerance:
-            return k, eps_k
+            return k, eps_k, np.asarray(selected, dtype=np.int64)
         next_idx = int(np.argmax(min_dists))
+        selected.append(next_idx)
         min_dists = np.minimum(min_dists, D[next_idx])
-    return n, float(min_dists.max())
+    return n, float(min_dists.max()), np.asarray(selected, dtype=np.int64)
 
 
 def compute_rips_ph(
     X: np.ndarray,
     max_dim: int = 2,
     thresh: float | None = None,
-    n_perm: int | None = None,
 ) -> PHResult:
     """
     Compute Vietoris-Rips persistent homology on a point cloud using ripser.
@@ -274,15 +284,16 @@ def compute_rips_ph(
         X: (N, D) point cloud array (should be standardised)
         max_dim: Maximum homology dimension to compute (2 = H0+H1+H2)
         thresh: Maximum edge length (ripser default: enclosing radius)
-        n_perm: Optional greedy-permutation subsample size for sparse Rips.
-            When set, ripser computes PH on the first ``n_perm`` points of
-            its internal greedy permutation. Used by length-matched Stage-1
-            cells with ``n_perm`` chosen so the covering radius is at or
-            below ``DEDUP_TOLERANCE`` — see ``compute_greedy_dedup_count``
-            and the length-matched-dedup-via-n-perm formula contract.
 
     Returns:
         PHResult with persistence diagrams
+
+    Note:
+        Length-matched dedup happens *outside* this function: callers compute
+        the dedup index set via ``compute_greedy_dedup_count`` and pass
+        ``X[selected_indices]`` here, so ripser sees the externally
+        deduplicated sample directly rather than relying on its internal
+        greedy permutation (see length-matched-dedup-via-n-perm contract).
     """
     import time
 
@@ -306,8 +317,6 @@ def compute_rips_ph(
     rips_kwargs = {"X": X, "maxdim": max_dim, "do_cocycles": True}
     if thresh is not None:
         rips_kwargs["thresh"] = thresh
-    if n_perm is not None:
-        rips_kwargs["n_perm"] = n_perm
 
     result = ripser.ripser(**rips_kwargs)
     elapsed = time.time() - t0

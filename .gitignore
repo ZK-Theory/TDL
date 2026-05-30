@@ -133,6 +133,11 @@ papers/submission guidelines/
 .apm/memory/stage-*/
 .apm/worktrees/
 
+# Test-generated pending-contract reports (auto-regenerated each test run,
+# reflects current working-tree JSON validity — not a stable artifact).
+# Pinned diagnostic JSONs (e.g. dedup-equivalence-canary.json) are still tracked.
+.apm/diagnostics/*-validation-report.json
+
 # Stage-1 battery gitignored intermediates (T0.12 two-path rule)
 # - launches/ : PID markers written before any heavy work (launch ground truth)
 # - cache/    : permutation-diagram .npz cache shared headline → sensitivity
