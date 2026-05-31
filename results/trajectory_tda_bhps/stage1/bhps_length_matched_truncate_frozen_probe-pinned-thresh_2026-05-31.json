@@ -1,0 +1,80 @@
+{
+  "phase": "bhps_length_matched_truncate",
+  "run_params": {
+    "L": 5000,
+    "B": 1000,
+    "null_model": "markov-1",
+    "seed": 42,
+    "landscape_k_max": 5,
+    "landscape_n_points": 200,
+    "n_null_pairs_cap": 500,
+    "pvalue_formula": "(r+1)/(B+1)",
+    "frozen_loadings": true,
+    "null_diagram_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_probe-pinned-thresh_B1000_L5000_seed42_2026-05-31.npz",
+    "strategy": "truncate",
+    "target_years": 13,
+    "n_trajectories_after_strategy": 8509,
+    "mean_length_after_strategy": 12.030438359384181,
+    "length_distribution_after_strategy": {
+      "10": 2341,
+      "11": 422,
+      "12": 383,
+      "13": 5363
+    },
+    "n_perm_used_observed": 4861,
+    "covering_radius_at_n_perm_observed": 1.2102353997080455e-15,
+    "n_perm_used_null_summary": {
+      "min": 5000,
+      "median": 5000,
+      "max": 5000,
+      "all_equal_to_L": true
+    },
+    "covering_radius_at_n_perm_null_summary": {
+      "min": 0.0,
+      "median": 0.0,
+      "max": 0.0,
+      "max_observed": 0.0
+    },
+    "dedup_tolerance": 1e-10,
+    "dedup_strategy": "greedy-permutation-external-indexing",
+    "probe_symmetric_dedup": false,
+    "probe_pinned_thresh": true,
+    "pinned_thresh_value": 67.37338528374835
+  },
+  "dataset": "bhps",
+  "result": {
+    "h0": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 8.39878569349988,
+      "bca_ci_lower": 8.14241988848613,
+      "bca_ci_upper": 8.644090227937523,
+      "d_perm": 21.812366291027207,
+      "mean_obs_null": 55.016592585869205,
+      "mean_null_null": 6.550541303661137,
+      "landscape_t_ratio": 6.293907645816406,
+      "landscape_bca_ci_lower": 5.920383135943436,
+      "landscape_bca_ci_upper": 6.6670778626376475,
+      "landscape_d_perm": 7.8578329986846,
+      "lower_tail_pvalue": 1.0
+    },
+    "h1": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 1.8780777502402788,
+      "bca_ci_lower": 1.8661485935954334,
+      "bca_ci_upper": 1.8896484918762984,
+      "d_perm": 12.81454879014614,
+      "mean_obs_null": 7.38305261198816,
+      "mean_null_null": 3.931175166227054,
+      "landscape_t_ratio": 2.4561376086550673,
+      "landscape_bca_ci_lower": 2.41381855523287,
+      "landscape_bca_ci_upper": 2.498173589435647,
+      "landscape_d_perm": 7.443220834275749
+    }
+  }
+}
