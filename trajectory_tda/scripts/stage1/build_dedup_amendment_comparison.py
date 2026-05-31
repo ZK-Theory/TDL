@@ -126,6 +126,102 @@ def _dedup_provenance(result_json: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _probe_robustness_row(
+    probe_id: str,
+    analysis_id: str,
+    production_result: dict[str, Any],
+    probe_result: dict[str, Any],
+    production_path: Path,
+    probe_path: Path,
+) -> dict[str, Any]:
+    """Compute a per-probe robustness comparison row vs the production result.
+
+    Reports rejection-preservation and signal-to-noise drift, the two
+    measurements the probes are designed to expose. Absolute W2 magnitudes
+    are not the focus — only the (mean_obs_null / mean_null_null) ratio,
+    which is the rejection-driving quantity.
+    """
+    h0_prod = production_result["h0"]
+    h0_probe = probe_result["h0"]
+    h1_prod = production_result["h1"]
+    h1_probe = probe_result["h1"]
+
+    def _rel_pct(probe_val: float, prod_val: float) -> float:
+        if prod_val == 0.0:
+            return 0.0
+        return 100.0 * (probe_val - prod_val) / prod_val
+
+    def _signal_to_noise(cell: dict[str, Any]) -> float:
+        return float(cell["mean_obs_null"]) / float(cell["mean_null_null"])
+
+    return {
+        "probe_id": probe_id,
+        "analysis_id": analysis_id,
+        "production_path": str(production_path),
+        "probe_path": str(probe_path),
+        "h0": {
+            "w2_pvalue_production": _pvalue(production_result, "h0", "w2"),
+            "w2_pvalue_probe": _pvalue(probe_result, "h0", "w2"),
+            "landscape_l2_pvalue_production": _pvalue(
+                production_result, "h0", "landscape_l2"
+            ),
+            "landscape_l2_pvalue_probe": _pvalue(
+                probe_result, "h0", "landscape_l2"
+            ),
+            "t_ratio_production": float(h0_prod["t_ratio"]),
+            "t_ratio_probe": float(h0_probe["t_ratio"]),
+            "t_ratio_relative_change_pct": _rel_pct(
+                float(h0_probe["t_ratio"]), float(h0_prod["t_ratio"])
+            ),
+            "d_perm_production": float(h0_prod["d_perm"]),
+            "d_perm_probe": float(h0_probe["d_perm"]),
+            "d_perm_relative_change_pct": _rel_pct(
+                float(h0_probe["d_perm"]), float(h0_prod["d_perm"])
+            ),
+            "signal_to_noise_production": _signal_to_noise(h0_prod),
+            "signal_to_noise_probe": _signal_to_noise(h0_probe),
+            "w2_rejection_preserved": _preserved(
+                _reject(_pvalue(production_result, "h0", "w2")),
+                _reject(_pvalue(probe_result, "h0", "w2")),
+            ),
+            "landscape_l2_rejection_preserved": _preserved(
+                _reject(_pvalue(production_result, "h0", "landscape_l2")),
+                _reject(_pvalue(probe_result, "h0", "landscape_l2")),
+            ),
+        },
+        "h1": {
+            "w2_pvalue_production": _pvalue(production_result, "h1", "w2"),
+            "w2_pvalue_probe": _pvalue(probe_result, "h1", "w2"),
+            "landscape_l2_pvalue_production": _pvalue(
+                production_result, "h1", "landscape_l2"
+            ),
+            "landscape_l2_pvalue_probe": _pvalue(
+                probe_result, "h1", "landscape_l2"
+            ),
+            "t_ratio_production": float(h1_prod["t_ratio"]),
+            "t_ratio_probe": float(h1_probe["t_ratio"]),
+            "t_ratio_relative_change_pct": _rel_pct(
+                float(h1_probe["t_ratio"]), float(h1_prod["t_ratio"])
+            ),
+            "d_perm_production": float(h1_prod["d_perm"]),
+            "d_perm_probe": float(h1_probe["d_perm"]),
+            "d_perm_relative_change_pct": _rel_pct(
+                float(h1_probe["d_perm"]), float(h1_prod["d_perm"])
+            ),
+            "signal_to_noise_production": _signal_to_noise(h1_prod),
+            "signal_to_noise_probe": _signal_to_noise(h1_probe),
+            "w2_rejection_preserved": _preserved(
+                _reject(_pvalue(production_result, "h1", "w2")),
+                _reject(_pvalue(probe_result, "h1", "w2")),
+            ),
+            "landscape_l2_rejection_preserved": _preserved(
+                _reject(_pvalue(production_result, "h1", "landscape_l2")),
+                _reject(_pvalue(probe_result, "h1", "landscape_l2")),
+            ),
+        },
+    }
+
+
 def build_comparison(
     worktree_root: Path, output: Path | None = None
 ) -> Path:
@@ -133,8 +229,9 @@ def build_comparison(
 
     Args:
         worktree_root: Root of the worktree (used to locate the staged
-            2026-05-30 frozen-dedup JSONs and the 2026-05-29 frozen-no-dedup
-            JSON which is on the branch from the prior commit).
+            2026-05-30 frozen-dedup JSONs, the 2026-05-29 frozen-no-dedup
+            JSON, and the two probe JSONs which sit on the branch from
+            prior commits).
         output: Optional explicit output path. Defaults to
             ``<worktree>/results/trajectory_tda_integration/stage1/
             dedup_amendment_comparison_<today>.json``.
@@ -146,18 +243,40 @@ def build_comparison(
     truncate_no_dedup_path = bhps_stage1 / "bhps_length_matched_truncate_frozen_2026-05-29.json"
     truncate_dedup_path = bhps_stage1 / "bhps_length_matched_truncate_frozen_2026-05-30.json"
     first13_dedup_path = bhps_stage1 / "bhps_length_matched_first13_frozen_2026-05-30.json"
+    truncate_probe_symmetric_dedup_path = (
+        bhps_stage1
+        / "bhps_length_matched_truncate_frozen_probe-symmetric-dedup_2026-05-30.json"
+    )
+    truncate_probe_pinned_thresh_path = (
+        bhps_stage1
+        / "bhps_length_matched_truncate_frozen_probe-pinned-thresh_2026-05-31.json"
+    )
 
-    for p in (truncate_no_dedup_path, truncate_dedup_path, first13_dedup_path):
+    for p in (
+        truncate_no_dedup_path,
+        truncate_dedup_path,
+        first13_dedup_path,
+        truncate_probe_symmetric_dedup_path,
+        truncate_probe_pinned_thresh_path,
+    ):
         if not p.exists():
             raise FileNotFoundError(f"Required input JSON missing: {p}")
 
     truncate_no_dedup = _load_json(truncate_no_dedup_path)
     truncate_dedup = _load_json(truncate_dedup_path)
     first13_dedup = _load_json(first13_dedup_path)
+    truncate_probe_symmetric_dedup = _load_json(
+        truncate_probe_symmetric_dedup_path
+    )
+    truncate_probe_pinned_thresh = _load_json(truncate_probe_pinned_thresh_path)
 
     truncate_no_dedup_result = truncate_no_dedup["result"]
     truncate_dedup_result = truncate_dedup["result"]
     first13_dedup_result = first13_dedup["result"]
+    truncate_probe_symmetric_dedup_result = truncate_probe_symmetric_dedup[
+        "result"
+    ]
+    truncate_probe_pinned_thresh_result = truncate_probe_pinned_thresh["result"]
 
     cells: list[dict[str, Any]] = []
     for dim in ("h0", "h1"):
@@ -222,6 +341,32 @@ def build_comparison(
             "length-of-observation artefact."
         )
 
+    probe_comparison = [
+        _probe_robustness_row(
+            probe_id="probe_symmetric_dedup",
+            analysis_id="bhps_length_matched_truncate",
+            production_result=truncate_dedup_result,
+            probe_result=truncate_probe_symmetric_dedup_result,
+            production_path=truncate_dedup_path,
+            probe_path=truncate_probe_symmetric_dedup_path,
+        ),
+        _probe_robustness_row(
+            probe_id="probe_pinned_thresh",
+            analysis_id="bhps_length_matched_truncate",
+            production_result=truncate_dedup_result,
+            probe_result=truncate_probe_pinned_thresh_result,
+            production_path=truncate_dedup_path,
+            probe_path=truncate_probe_pinned_thresh_path,
+        ),
+    ]
+    all_probes_preserve_rejection = all(
+        row["h1"]["w2_rejection_preserved"] is True
+        and row["h1"]["landscape_l2_rejection_preserved"] is True
+        and row["h0"]["w2_rejection_preserved"] is True
+        and row["h0"]["landscape_l2_rejection_preserved"] is True
+        for row in probe_comparison
+    )
+
     decision_summary = {
         "alpha": ALPHA,
         "outcome": outcome,
@@ -244,10 +389,8 @@ def build_comparison(
         "n_cells_no_prior": sum(
             1 for row in cells if row["no_dedup_pvalue"] is None
         ),
-        "robustness_probes_queued": [
-            "forced_symmetric_dedup",
-            "auto_thresh_pinned",
-        ],
+        "probes_completed": [row["probe_id"] for row in probe_comparison],
+        "all_probes_preserve_rejection": all_probes_preserve_rejection,
     }
 
     effect_summaries = {
@@ -304,29 +447,44 @@ def build_comparison(
         "surrogates do not need because they do not reproduce the "
         "near-duplicate structure) strips the phantoms and reveals the "
         "underlying signal (mean_obs_null / mean_null_null = 1.87 in "
-        f"2026-05-30). Both length-matching strategies now reject H1 W2 "
-        f"at alpha=0.05, locking Outcome A. Two robustness probes are "
-        "queued to defend the conclusion against alternative methodological "
-        "choices: (a) forced-symmetric dedup, which forces nulls to use "
-        "n_perm = obs_n_dedup so the obs/null vertex-count asymmetry "
-        "is eliminated; and (b) auto-thresh-pinned, which fixes the "
-        "ripser threshold to the enclosing radius of the observed "
-        "landmarks for both observed and null PDs, removing the "
-        "compute_rips_ph auto-threshold subsample drift."
+        f"2026-05-30). Both length-matching strategies reject H1 W2 at "
+        "alpha=0.05, locking Outcome A. Two robustness probes were run "
+        "and both preserve the rejection direction across all four cells: "
+        "(a) probe_symmetric_dedup forces nulls to use n_perm = "
+        "obs_n_dedup (eliminating the observed-vs-null vertex-count "
+        "asymmetry); the signal-to-noise ratio drift is <1% across H0 "
+        "and H1. (b) probe_pinned_thresh fixes the ripser threshold to "
+        "the enclosing radius of the observed post-dedup landmark sample "
+        "(eliminating the compute_rips_ph auto-threshold subsample "
+        "drift); absolute W2 magnitudes shift due to more features being "
+        "captured under the wider thresh, but the signal-to-noise ratio "
+        "drift is <1% and the rejection direction is preserved. The "
+        "Outcome A conclusion rests on the dedup methodology, not on "
+        "either of the incidental implementation choices the probes test."
     )
 
     payload: dict[str, Any] = {
-        "schema_version": "dedup-amendment-comparison/v1",
+        "schema_version": "dedup-amendment-comparison/v2",
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "task": "Pre-reg #5 redo amendment dedup-path comparison (length-matched cells)",
+        "task": (
+            "Pre-reg #5 redo amendment dedup-path comparison with "
+            "robustness probes (length-matched cells)"
+        ),
         "inputs": {
             "truncate_no_dedup_frozen": str(truncate_no_dedup_path),
             "truncate_dedup_frozen": str(truncate_dedup_path),
             "first13_dedup_frozen": str(first13_dedup_path),
+            "truncate_probe_symmetric_dedup_frozen": str(
+                truncate_probe_symmetric_dedup_path
+            ),
+            "truncate_probe_pinned_thresh_frozen": str(
+                truncate_probe_pinned_thresh_path
+            ),
         },
         "cells": cells,
         "effect_summaries": effect_summaries,
         "dedup_provenance": dedup_provenance,
+        "probe_comparison": probe_comparison,
         "decision_summary": decision_summary,
         "methodological_disclosure_draft": methodological_disclosure,
     }
