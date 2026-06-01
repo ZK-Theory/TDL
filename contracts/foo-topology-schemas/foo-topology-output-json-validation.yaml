@@ -8,10 +8,13 @@ description: >
   match per_individual_local_features_*.json validate against the
   per-individual-local-features-output schema; files matching
   sibling_pair_permutation_*.json validate against the sibling-pair-
-  permutation-output schema. The pre-commit hook validates any matching JSON
-  staged in a commit and blocks the commit if any required key is missing or
-  a forbidden key is present. This catches output-shape drift at write time,
-  independent of whether the pytest binding exercised the exact code path.
+  permutation-output schema; files matching
+  topology_distinctiveness_comparison_*.json validate against the
+  topology-distinctiveness-comparison-output schema. The pre-commit hook
+  validates any matching JSON staged in a commit and blocks the commit if any
+  required key is missing or a forbidden key is present. This catches
+  output-shape drift at write time, independent of whether the pytest binding
+  exercised the exact code path.
 
 spec_citation:
   source: "Plan Task 1.33 + per-individual-local-features-output and sibling-pair-permutation-output schema contracts"
@@ -22,11 +25,14 @@ output_validation:
   schema_contracts:
     - per-individual-local-features-output
     - sibling-pair-permutation-output
+    - topology-distinctiveness-comparison-output
   file_dispatch:
     - filename_pattern: "per_individual_local_features_*.json"
       schema_contract: per-individual-local-features-output
     - filename_pattern: "sibling_pair_permutation_*.json"
       schema_contract: sibling-pair-permutation-output
+    - filename_pattern: "topology_distinctiveness_comparison_*.json"
+      schema_contract: topology-distinctiveness-comparison-output
 
 binding:
   test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"

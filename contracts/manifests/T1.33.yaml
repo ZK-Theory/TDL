@@ -17,7 +17,24 @@ contracts:
   - foo-topology-schemas/per-individual-local-features-output
   - foo-topology-schemas/sibling-pair-permutation-output
   - foo-topology-schemas/foo-topology-output-json-validation
+  - foo-topology-schemas/comparator-feature-definitions
+  - foo-topology-schemas/topology-distinctiveness-comparison-output
   - stochastic-tests/monte-carlo-permutation-p-value
+
+comparator_amendment:
+  authored: "2026-06-01"
+  authored_by: "Manager 6 (restored from 2026-05-25 pre-reg amendment; User-confirmed include 2026-06-01)"
+  description: >
+    The 2026-05-25 T1.33 pre-registration amendment (recorded in the APM
+    Tracker) added two simpler-method comparators — C1 (bigram-coordinate
+    ICC) and C2 (summary trajectory feature ICC) — to defend the
+    topology-distinctive contribution. This amendment was never reflected in
+    the Spec or in any contract. On 2026-06-01 the User confirmed including the
+    comparators in T1.33 scope; the two contracts above
+    (comparator-feature-definitions, topology-distinctiveness-comparison-output)
+    were authored to cover them, and the foo-topology-output-json-validation
+    dispatch was extended to the comparison JSON. Both are pending: true like
+    the rest of the T1.33 set.
 
 notes: >
   All eight T1.33-specific contracts are authored as pending: true so the

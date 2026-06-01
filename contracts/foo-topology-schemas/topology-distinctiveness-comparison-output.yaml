@@ -1,0 +1,66 @@
+id: topology-distinctiveness-comparison-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.33 topology-distinctiveness comparison JSON written to
+  results/trajectory_tda_integration/foo_topology/. The JSON places the
+  topological local-PH sibling-pair result side-by-side with the two
+  simpler-method comparators (C1 bigram-coordinate, C2 summary trajectory
+  feature) on the SAME sibling-pair coherence test, and records the
+  pre-registered distinctiveness verdict. This is the reviewer-facing artefact
+  that defends the topology-distinctive contribution for P01-A §4.5.x against
+  the 'a simpler representation recovers this' objection. The three arms
+  (topological, C1, C2) each carry a permutation p-value, an effect-size
+  ratio, and an ICC summary, all produced by the identical machinery so the
+  comparison is apples-to-apples.
+
+spec_citation:
+  source: "APM Tracker T1.33 row (2026-05-25 pre-reg amendment) + comparator-feature-definitions contract; re-authored canonically 2026-06-01"
+  vault_entry_date: "2026-05-25"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/foo_topology/topology_distinctiveness_comparison_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'foo-topology/topology-distinctiveness-comparison/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp when the file was written."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.33 topology-distinctiveness comparison'."
+    - name: pre_registration
+      type: str
+      description: "Date of the governing pre-registration vault entry, MUST be '2026-05-25'."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Provenance block. MUST contain: B (int == 5000), seed (int), icc_bootstrap_B (int == 1000), k_primary (int == 20), n_individuals (int == N), pvalue_formula (str == '(r+1)/(B+1)'), null_type (str == 'constrained-shuffle'), distance_in_feature_space (str == 'euclidean')."
+    - name: arms
+      type: "dict[str, dict]"
+      description: "Map with EXACTLY three keys: 'topological', 'c1_bigram_coordinate', 'c2_summary_trajectory'. Each value is a dict with keys: feature_dim (int; 3 for topological, 90 for c1, 10 for c2), permutation_pvalue (float), effect_size_ratio (float, observed mean within-pair distance / null mean), n_icc_features (int; coordinates tested for ICC), n_icc_ci_above_zero (int >= 0, count of coordinates whose ICC 95% CI lower bound > 0), max_icc (float in [0,1]), mean_icc (float in [0,1]), rejects (bool, permutation_pvalue < 0.05)."
+    - name: distinctiveness_verdict
+      type: str
+      description: "Pre-registered verdict, one of: 'TOPOLOGY_DISTINCTIVE' (topological arm rejects AND >=1 per-feature ICC CI strictly above zero, AND at least one comparator arm is materially weaker — does not reject OR has zero coordinates with ICC CI above zero OR effect_size_ratio materially closer to 1); 'SIGNAL_NOT_TOPOLOGY_SPECIFIC' (topological arm shows the FOO signal but both comparators show it comparably); 'NO_FOO_SIGNAL' (topological arm does not meet the primary SUPPORT rule). The string MUST match the arm statistics under the rule."
+    - name: input_provenance
+      type: "dict[str, ...]"
+      description: "Cross-reference. MUST contain: sibling_pair_permutation_path (str, the topological-arm JSON this comparison is built against), sibling_pair_permutation_sha256 (str), foo_clusters_path (str), foo_clusters_sha256 (str)."
+  forbidden_keys:
+    - name: bootstrap_pvalue
+      reason: "Permutation p-value under the constrained-shuffle null, not a bootstrap p-value — same category rule as the sibling-pair-permutation-output schema."
+    - name: winner
+      reason: "The artefact records a pre-registered verdict against an explicit rule, not an unstructured 'winner' label that invites post-hoc framing."
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_topology_distinctiveness_comparison_json_schema"
+  must_assert: >
+    A synthetic JSON conforming to this schema validates. JSONs with (a)
+    arms missing any of the three required arm keys, (b) an arm missing
+    permutation_pvalue / effect_size_ratio / n_icc_ci_above_zero, (c)
+    params.B != 5000, (d) distinctiveness_verdict not in the three allowed
+    strings, (e) a verdict string inconsistent with the arm statistics under
+    the pre-registered rule (e.g. 'TOPOLOGY_DISTINCTIVE' when the topological
+    arm does not reject), or (f) presence of a forbidden key are rejected with
+    a precise diagnostic.

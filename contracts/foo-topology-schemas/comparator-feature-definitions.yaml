@@ -1,0 +1,72 @@
+id: comparator-feature-definitions
+kind: formula
+pending: true
+
+description: >
+  Defines the two simpler-method comparator feature spaces for the T1.33
+  topology-distinctiveness defence: C1 (bigram-coordinate) and C2 (summary
+  trajectory feature). Each comparator runs the IDENTICAL sibling-pair
+  coherence machinery used for the topological features — the constrained-
+  shuffle permutation null on mean within-sibling-pair Euclidean distance
+  (constrained-shuffle-null contract, B = 5000) and per-feature cluster-
+  bootstrap ICC (icc-cluster-bootstrap contract, B_boot = 1000) — but in the
+  comparator's own feature space instead of the 3-D topological local-PH
+  feature space. The comparison exists to defend that the FOO signal carried
+  by the topological features is not trivially recoverable from the raw
+  representation (C1) or a coarse non-topological summary (C2). Restored from
+  the 2026-05-25 T1.33 pre-registration amendment (recorded in the APM Tracker)
+  that added simpler-method comparators; the concrete feature sets were pinned
+  on 2026-06-01 during canonical re-filing, before any T1.33 run.
+
+spec_citation:
+  source: "APM Tracker T1.33 row (2026-05-25 pre-reg amendment: 'simpler-method comparators C1 bigram-coordinate ICC + C2 summary trajectory feature ICC to defend topology-distinctive contribution'); state alphabet + 90-D layout from trajectory_tda/embedding/ngram_embed.py (STATES, _compute_unigrams, _compute_bigrams); re-authored canonically 2026-06-01"
+  vault_entry_date: "2026-05-25"
+
+formula:
+  expression: "C1_i = E90[i] (the 90-D bigram embedding row for individual i); C2_i = concat(unigram_freq(traj_i) in R^9, n_transitions(traj_i) in R^1) in R^10; each comparator statistic = sibling-pair mean within-pair Euclidean distance + per-coordinate ICC, computed exactly as for the topological features"
+  variables:
+    E90:
+      description: "The 90-D bigram embedding matrix (9 unigram state frequencies + 81 bigram transition frequencies per individual), BEFORE any PCA/standardisation. This is the same representation the topological local-PH features are built on; C1 uses it directly with no topological transform."
+      domain: "real matrix of shape (N, 90)"
+      implementation_name: "bigram_embedding_90d"
+    unigram_freq:
+      description: "Per-individual state-occupancy proportions over the 9 states (EL,EM,EH,UL,UM,UH,IL,IM,IH), i.e. fraction of waves spent in each state; equals _compute_unigrams(trajectory) and sums to 1 over non-missing states."
+      domain: "vector in the 9-simplex"
+      implementation_name: "unigram_vector"
+    n_transitions:
+      description: "Count of state changes along the trajectory: number of adjacent wave-pairs (t, t+1) with trajectory[t] != trajectory[t+1]. A coarse mobility scalar. Raw count (not normalised by length) — the C2 feature vector is [9 occupancy proportions, n_transitions]."
+      domain: "non-negative integer"
+      implementation_name: "n_transitions"
+    C1_i:
+      description: "C1 comparator feature vector for individual i: the raw 90-D bigram coordinates."
+      domain: "real vector of length 90"
+      implementation_name: "c1_features"
+    C2_i:
+      description: "C2 comparator feature vector for individual i: 9 occupancy proportions concatenated with n_transitions."
+      domain: "real vector of length 10"
+      implementation_name: "c2_features"
+  invariants:
+    - claim: "C1 uses the raw 90-D bigram embedding directly with NO topological transform, NO PCA, NO standardisation reduction — it is the unmodified representation the topological features are derived from. This is the fair 'raw coordinates' baseline."
+      expression: "C1_i == E90[i] and C1.shape == (N, 90)"
+    - claim: "C2 is exactly 10-dimensional: the 9 state-occupancy proportions (unigram sub-vector) followed by the integer transition count. No bigrams, no income/length-of-spell extras."
+      expression: "C2.shape == (N, 10)"
+    - claim: "The sibling-pair test statistic for each comparator is the SAME functional used for the topological features: mean within-sibling-pair Euclidean (l2) distance in the comparator's own feature space, evaluated against the constrained-shuffle null (constrained-shuffle-null contract, B = 5000, same seed family)."
+    - claim: "Per-feature ICC for each comparator uses the icc-cluster-bootstrap contract (cluster-level resampling, B_boot = 1000, 95% percentile CI). C1 yields up to 90 per-coordinate ICCs; C2 yields 10. The output schema records, per comparator, the count of coordinates whose ICC 95% CI is strictly above zero, plus max and mean ICC."
+    - claim: "The p-value for each comparator's permutation test uses the (r+1)/(B+1) formula (monte-carlo-permutation-p-value contract) with r = count of null draws whose mean within-pair distance <= observed (lower-tail, matching the sibling-coherence direction)."
+    - claim: "Comparators are computed on the SAME analytical sample and the SAME foo_clusters assignment as the topological features; no re-subsetting. Seeds for the comparator permutation and bootstrap are recorded in the comparison output JSON."
+
+binding:
+  test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
+  test_function: "test_comparator_feature_definitions_construction"
+  must_assert: >
+    On a small synthetic set of state trajectories over the 9-state alphabet:
+    (a) C1 equals the 90-D bigram embedding (9 unigram + 81 bigram entries) for
+    every individual, shape (N, 90); (b) C2 is shape (N, 10) with the first 9
+    columns equal to the unigram occupancy proportions (summing to 1 over
+    observed states) and the 10th column equal to the integer count of adjacent
+    state changes; (c) a known trajectory with a hand-counted number of
+    transitions returns that exact n_transitions; (d) the comparator sibling-
+    pair statistic is the mean within-pair Euclidean distance in the
+    comparator feature space and matches a hand-computed value on a 2-cluster
+    toy; (e) the comparator path invokes the same constrained-shuffle and ICC
+    helpers as the topological path (no divergent re-implementation).
