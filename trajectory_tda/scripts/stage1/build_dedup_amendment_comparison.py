@@ -40,6 +40,20 @@ def _load_json(path: Path) -> dict[str, Any]:
         return json.load(f)
 
 
+def _artifact_path(path: Path, worktree_root: Path) -> str:
+    """Serialize a path relative to the worktree root for machine-stable JSON.
+
+    Absolute worktree paths leak the local username and make regenerated
+    artifacts differ by machine; storing repo-relative paths keeps the
+    committed JSON reproducible. Falls back to the absolute string if the
+    path is not under worktree_root.
+    """
+    try:
+        return str(path.relative_to(worktree_root))
+    except ValueError:
+        return str(path)
+
+
 def _pvalue(scope: dict[str, Any], dim: str, metric: str) -> float:
     return float(scope[dim][METRIC_TO_KEY[metric]])
 
@@ -77,6 +91,7 @@ def _cell_compare_row(
     strategy: str,
     dim: str,
     metric: str,
+    worktree_root: Path,
     no_dedup_path: Path | None,
     no_dedup_result: dict[str, Any] | None,
     dedup_path: Path,
@@ -93,9 +108,13 @@ def _cell_compare_row(
         "homology_dim": dim,
         "metric": metric,
         "no_dedup_pvalue": no_dedup_p,
-        "no_dedup_path": str(no_dedup_path) if no_dedup_path is not None else None,
+        "no_dedup_path": (
+            _artifact_path(no_dedup_path, worktree_root)
+            if no_dedup_path is not None
+            else None
+        ),
         "dedup_pvalue": dedup_p,
-        "dedup_path": str(dedup_path),
+        "dedup_path": _artifact_path(dedup_path, worktree_root),
         "delta_pvalue": (
             dedup_p - no_dedup_p if no_dedup_p is not None else None
         ),
@@ -131,6 +150,7 @@ def _probe_robustness_row(
     analysis_id: str,
     production_result: dict[str, Any],
     probe_result: dict[str, Any],
+    worktree_root: Path,
     production_path: Path,
     probe_path: Path,
 ) -> dict[str, Any]:
@@ -157,8 +177,8 @@ def _probe_robustness_row(
     return {
         "probe_id": probe_id,
         "analysis_id": analysis_id,
-        "production_path": str(production_path),
-        "probe_path": str(probe_path),
+        "production_path": _artifact_path(production_path, worktree_root),
+        "probe_path": _artifact_path(probe_path, worktree_root),
         "h0": {
             "w2_pvalue_production": _pvalue(production_result, "h0", "w2"),
             "w2_pvalue_probe": _pvalue(probe_result, "h0", "w2"),
@@ -287,6 +307,7 @@ def build_comparison(
                     strategy="truncate",
                     dim=dim,
                     metric=metric,
+                    worktree_root=worktree_root,
                     no_dedup_path=truncate_no_dedup_path,
                     no_dedup_result=truncate_no_dedup_result,
                     dedup_path=truncate_dedup_path,
@@ -301,6 +322,7 @@ def build_comparison(
                     strategy="first13",
                     dim=dim,
                     metric=metric,
+                    worktree_root=worktree_root,
                     no_dedup_path=None,
                     no_dedup_result=None,
                     dedup_path=first13_dedup_path,
@@ -311,6 +333,10 @@ def build_comparison(
     h1_w2_cells = {
         row["analysis_id"]: row for row in cells
         if row["homology_dim"] == "h1" and row["metric"] == "w2"
+    }
+    h0_w2_cells = {
+        row["analysis_id"]: row for row in cells
+        if row["homology_dim"] == "h0" and row["metric"] == "w2"
     }
     truncate_h1_w2_reject = h1_w2_cells["bhps_length_matched_truncate"]["dedup_reject"]
     first13_h1_w2_reject = h1_w2_cells["bhps_length_matched_first13"]["dedup_reject"]
@@ -347,6 +373,7 @@ def build_comparison(
             analysis_id="bhps_length_matched_truncate",
             production_result=truncate_dedup_result,
             probe_result=truncate_probe_symmetric_dedup_result,
+            worktree_root=worktree_root,
             production_path=truncate_dedup_path,
             probe_path=truncate_probe_symmetric_dedup_path,
         ),
@@ -355,6 +382,7 @@ def build_comparison(
             analysis_id="bhps_length_matched_truncate",
             production_result=truncate_dedup_result,
             probe_result=truncate_probe_pinned_thresh_result,
+            worktree_root=worktree_root,
             production_path=truncate_dedup_path,
             probe_path=truncate_probe_pinned_thresh_path,
         ),
@@ -373,10 +401,10 @@ def build_comparison(
         "outcome_reasoning": outcome_reasoning,
         "h1_w2_truncate_reject": truncate_h1_w2_reject,
         "h1_w2_first13_reject": first13_h1_w2_reject,
-        "h0_w2_truncate_reject": h1_w2_cells["bhps_length_matched_truncate"][
+        "h0_w2_truncate_reject": h0_w2_cells["bhps_length_matched_truncate"][
             "dedup_reject"
         ],
-        "h0_w2_first13_reject": h1_w2_cells["bhps_length_matched_first13"][
+        "h0_w2_first13_reject": h0_w2_cells["bhps_length_matched_first13"][
             "dedup_reject"
         ],
         "rejection_direction_changes": sum(
@@ -426,6 +454,14 @@ def build_comparison(
         ),
     }
 
+    _probe_by_id = {row["probe_id"]: row for row in probe_comparison}
+    _sym = _probe_by_id["probe_symmetric_dedup"]
+    _pin = _probe_by_id["probe_pinned_thresh"]
+    _sym_h0_drift = _sym["h0"]["t_ratio_relative_change_pct"]
+    _sym_h1_drift = _sym["h1"]["t_ratio_relative_change_pct"]
+    _pin_h0_drift = _pin["h0"]["t_ratio_relative_change_pct"]
+    _pin_h1_drift = _pin["h1"]["t_ratio_relative_change_pct"]
+
     methodological_disclosure = (
         "The Pre-reg #5 redo amendment locked external-indexing dedup of "
         "the observed maxmin landmark sample for length-matched cells "
@@ -449,18 +485,23 @@ def build_comparison(
         "underlying signal (mean_obs_null / mean_null_null = 1.87 in "
         f"2026-05-30). Both length-matching strategies reject H1 W2 at "
         "alpha=0.05, locking Outcome A. Two robustness probes were run "
-        "and both preserve the rejection direction across all four cells: "
+        "and both preserve the rejection direction in all four cells "
+        "(H0/H1 x W2/landscape L2): "
         "(a) probe_symmetric_dedup forces nulls to use n_perm = "
         "obs_n_dedup (eliminating the observed-vs-null vertex-count "
-        "asymmetry); the signal-to-noise ratio drift is <1% across H0 "
-        "and H1. (b) probe_pinned_thresh fixes the ripser threshold to "
+        "asymmetry); the signal-to-noise (mean_obs_null/mean_null_null) "
+        f"drift is {_sym_h0_drift:+.1f}% (H0), {_sym_h1_drift:+.1f}% (H1). "
+        "(b) probe_pinned_thresh fixes the ripser threshold to "
         "the enclosing radius of the observed post-dedup landmark sample "
         "(eliminating the compute_rips_ph auto-threshold subsample "
-        "drift); absolute W2 magnitudes shift due to more features being "
-        "captured under the wider thresh, but the signal-to-noise ratio "
-        "drift is <1% and the rejection direction is preserved. The "
-        "Outcome A conclusion rests on the dedup methodology, not on "
-        "either of the incidental implementation choices the probes test."
+        f"drift); the signal-to-noise drift is {_pin_h0_drift:+.1f}% (H0), "
+        f"{_pin_h1_drift:+.1f}% (H1). The larger H0 shift reflects "
+        "additional features captured under the wider fixed threshold; the "
+        "H0 cell nonetheless stays far inside the rejection region (W2 p at "
+        "the Monte-Carlo floor) and the contested H1 cell is essentially "
+        "unchanged. The Outcome A conclusion rests on the dedup "
+        "methodology, not on either of the incidental implementation "
+        "choices the probes test."
     )
 
     payload: dict[str, Any] = {
@@ -471,14 +512,20 @@ def build_comparison(
             "robustness probes (length-matched cells)"
         ),
         "inputs": {
-            "truncate_no_dedup_frozen": str(truncate_no_dedup_path),
-            "truncate_dedup_frozen": str(truncate_dedup_path),
-            "first13_dedup_frozen": str(first13_dedup_path),
-            "truncate_probe_symmetric_dedup_frozen": str(
-                truncate_probe_symmetric_dedup_path
+            "truncate_no_dedup_frozen": _artifact_path(
+                truncate_no_dedup_path, worktree_root
             ),
-            "truncate_probe_pinned_thresh_frozen": str(
-                truncate_probe_pinned_thresh_path
+            "truncate_dedup_frozen": _artifact_path(
+                truncate_dedup_path, worktree_root
+            ),
+            "first13_dedup_frozen": _artifact_path(
+                first13_dedup_path, worktree_root
+            ),
+            "truncate_probe_symmetric_dedup_frozen": _artifact_path(
+                truncate_probe_symmetric_dedup_path, worktree_root
+            ),
+            "truncate_probe_pinned_thresh_frozen": _artifact_path(
+                truncate_probe_pinned_thresh_path, worktree_root
             ),
         },
         "cells": cells,
