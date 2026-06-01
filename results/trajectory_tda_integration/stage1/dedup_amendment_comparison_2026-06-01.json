@@ -1,0 +1,345 @@
+{
+  "schema_version": "dedup-amendment-comparison/v2",
+  "generated_at": "2026-06-01T21:41:08",
+  "task": "Pre-reg #5 redo amendment dedup-path comparison with robustness probes (length-matched cells)",
+  "inputs": {
+    "truncate_no_dedup_frozen": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+    "truncate_dedup_frozen": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+    "first13_dedup_frozen": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_first13_frozen_2026-05-30.json",
+    "truncate_probe_symmetric_dedup_frozen": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_probe-symmetric-dedup_2026-05-30.json",
+    "truncate_probe_pinned_thresh_frozen": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_probe-pinned-thresh_2026-05-31.json"
+  },
+  "cells": [
+    {
+      "cell_id": "bhps_length_matched_truncate_h0_w2",
+      "analysis_id": "bhps_length_matched_truncate",
+      "strategy": "truncate",
+      "homology_dim": "h0",
+      "metric": "w2",
+      "no_dedup_pvalue": 0.000999000999000999,
+      "no_dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "delta_pvalue": 0.0,
+      "no_dedup_reject": true,
+      "dedup_reject": true,
+      "rejection_direction_preserved": true,
+      "no_prior_note": null
+    },
+    {
+      "cell_id": "bhps_length_matched_truncate_h0_landscape_l2",
+      "analysis_id": "bhps_length_matched_truncate",
+      "strategy": "truncate",
+      "homology_dim": "h0",
+      "metric": "landscape_l2",
+      "no_dedup_pvalue": 0.000999000999000999,
+      "no_dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "delta_pvalue": 0.0,
+      "no_dedup_reject": true,
+      "dedup_reject": true,
+      "rejection_direction_preserved": true,
+      "no_prior_note": null
+    },
+    {
+      "cell_id": "bhps_length_matched_truncate_h1_w2",
+      "analysis_id": "bhps_length_matched_truncate",
+      "strategy": "truncate",
+      "homology_dim": "h1",
+      "metric": "w2",
+      "no_dedup_pvalue": 0.34965034965034963,
+      "no_dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "delta_pvalue": -0.3486513486513486,
+      "no_dedup_reject": false,
+      "dedup_reject": true,
+      "rejection_direction_preserved": false,
+      "no_prior_note": null
+    },
+    {
+      "cell_id": "bhps_length_matched_truncate_h1_landscape_l2",
+      "analysis_id": "bhps_length_matched_truncate",
+      "strategy": "truncate",
+      "homology_dim": "h1",
+      "metric": "landscape_l2",
+      "no_dedup_pvalue": 0.000999000999000999,
+      "no_dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "delta_pvalue": 0.0,
+      "no_dedup_reject": true,
+      "dedup_reject": true,
+      "rejection_direction_preserved": true,
+      "no_prior_note": null
+    },
+    {
+      "cell_id": "bhps_length_matched_first13_h0_w2",
+      "analysis_id": "bhps_length_matched_first13",
+      "strategy": "first13",
+      "homology_dim": "h0",
+      "metric": "w2",
+      "no_dedup_pvalue": null,
+      "no_dedup_path": null,
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_first13_frozen_2026-05-30.json",
+      "delta_pvalue": null,
+      "no_dedup_reject": null,
+      "dedup_reject": true,
+      "rejection_direction_preserved": null,
+      "no_prior_note": "No prior frozen-loadings result for this cell; new under dedup amendment."
+    },
+    {
+      "cell_id": "bhps_length_matched_first13_h0_landscape_l2",
+      "analysis_id": "bhps_length_matched_first13",
+      "strategy": "first13",
+      "homology_dim": "h0",
+      "metric": "landscape_l2",
+      "no_dedup_pvalue": null,
+      "no_dedup_path": null,
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_first13_frozen_2026-05-30.json",
+      "delta_pvalue": null,
+      "no_dedup_reject": null,
+      "dedup_reject": true,
+      "rejection_direction_preserved": null,
+      "no_prior_note": "No prior frozen-loadings result for this cell; new under dedup amendment."
+    },
+    {
+      "cell_id": "bhps_length_matched_first13_h1_w2",
+      "analysis_id": "bhps_length_matched_first13",
+      "strategy": "first13",
+      "homology_dim": "h1",
+      "metric": "w2",
+      "no_dedup_pvalue": null,
+      "no_dedup_path": null,
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_first13_frozen_2026-05-30.json",
+      "delta_pvalue": null,
+      "no_dedup_reject": null,
+      "dedup_reject": true,
+      "rejection_direction_preserved": null,
+      "no_prior_note": "No prior frozen-loadings result for this cell; new under dedup amendment."
+    },
+    {
+      "cell_id": "bhps_length_matched_first13_h1_landscape_l2",
+      "analysis_id": "bhps_length_matched_first13",
+      "strategy": "first13",
+      "homology_dim": "h1",
+      "metric": "landscape_l2",
+      "no_dedup_pvalue": null,
+      "no_dedup_path": null,
+      "dedup_pvalue": 0.000999000999000999,
+      "dedup_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_first13_frozen_2026-05-30.json",
+      "delta_pvalue": null,
+      "no_dedup_reject": null,
+      "dedup_reject": true,
+      "rejection_direction_preserved": null,
+      "no_prior_note": "No prior frozen-loadings result for this cell; new under dedup amendment."
+    }
+  ],
+  "effect_summaries": {
+    "truncate_no_dedup": {
+      "h0": {
+        "w2_pvalue": 0.000999000999000999,
+        "landscape_l2_pvalue": 0.000999000999000999,
+        "t_ratio": 7.941775571021037,
+        "d_perm": 22.55335515838482,
+        "mean_obs_null": 37.50655790352544,
+        "mean_null_null": 4.722691741678542,
+        "landscape_t_ratio": 5.3622786830306435,
+        "landscape_d_perm": 7.740389625203843
+      },
+      "h1": {
+        "w2_pvalue": 0.34965034965034963,
+        "landscape_l2_pvalue": 0.000999000999000999,
+        "t_ratio": 1.006263853314455,
+        "d_perm": 0.35522285405291826,
+        "mean_obs_null": 202.8400026226595,
+        "mean_null_null": 201.57735166034283,
+        "landscape_t_ratio": 2.492517134091222,
+        "landscape_d_perm": 8.843722978371419
+      }
+    },
+    "truncate_dedup": {
+      "h0": {
+        "w2_pvalue": 0.000999000999000999,
+        "landscape_l2_pvalue": 0.000999000999000999,
+        "t_ratio": 7.868748821605686,
+        "d_perm": 22.275764358748543,
+        "mean_obs_null": 37.12702185634921,
+        "mean_null_null": 4.718287836867707,
+        "landscape_t_ratio": 5.414957419051341,
+        "landscape_d_perm": 7.694474184285898
+      },
+      "h1": {
+        "w2_pvalue": 0.000999000999000999,
+        "landscape_l2_pvalue": 0.000999000999000999,
+        "t_ratio": 1.8663942635605362,
+        "d_perm": 13.814156558462313,
+        "mean_obs_null": 6.631409600565725,
+        "mean_null_null": 3.5530593562342654,
+        "landscape_t_ratio": 2.5018381826216602,
+        "landscape_d_perm": 8.92661593685393
+      }
+    },
+    "first13_dedup": {
+      "h0": {
+        "w2_pvalue": 0.000999000999000999,
+        "landscape_l2_pvalue": 0.000999000999000999,
+        "t_ratio": 6.983952001105391,
+        "d_perm": 18.76474459265695,
+        "mean_obs_null": 33.183189826603275,
+        "mean_null_null": 4.7513484945702915,
+        "landscape_t_ratio": 7.996978244740565,
+        "landscape_d_perm": 11.985613615660892
+      },
+      "h1": {
+        "w2_pvalue": 0.000999000999000999,
+        "landscape_l2_pvalue": 0.000999000999000999,
+        "t_ratio": 1.778241592863447,
+        "d_perm": 12.795588215920572,
+        "mean_obs_null": 5.926320085442837,
+        "mean_null_null": 3.3326855637764434,
+        "landscape_t_ratio": 2.6638824328297623,
+        "landscape_d_perm": 10.378291378034696
+      }
+    }
+  },
+  "dedup_provenance": {
+    "truncate": {
+      "n_dedup_observed": 4861,
+      "covering_radius_at_n_dedup_observed": 1.2102353997080455e-15,
+      "n_dedup_null_summary": {
+        "min": 5000,
+        "median": 5000,
+        "max": 5000,
+        "all_equal_to_L": true
+      },
+      "covering_radius_null_summary": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0,
+        "max_observed": 0.0
+      },
+      "dedup_tolerance": 1e-10,
+      "dedup_strategy": "greedy-permutation-external-indexing"
+    },
+    "first13": {
+      "n_dedup_observed": 3090,
+      "covering_radius_at_n_dedup_observed": 1.7618232860786317e-15,
+      "n_dedup_null_summary": {
+        "min": 3766,
+        "median": 3864,
+        "max": 3980,
+        "all_equal_to_L": false
+      },
+      "covering_radius_null_summary": {
+        "min": 0.0,
+        "median": 1.0456808397583454e-15,
+        "max": 3.1973471406467404e-15,
+        "max_observed": 3.1973471406467404e-15
+      },
+      "dedup_tolerance": 1e-10,
+      "dedup_strategy": "greedy-permutation-external-indexing"
+    },
+    "asymmetry_note": "Truncate nulls all fell through to no-dedup (n_dedup=L=5000, max covering radius 0.0): Markov-1 surrogates of BHPS truncate trajectories do not produce the near-duplicate landmark clusters that observed BHPS truncate does (~139 near-duplicates in the observed sample). The obs/null vertex-count asymmetry (obs=4861 vs nulls=5000) is a TRUE DATA PROPERTY, not an artefact: it is the same property that makes the dedup amendment necessary in the first place. First13 nulls did dedup (n_dedup nulls 3766-3980); the surrogate trajectories there preserve enough first-13-wave structure to retain some near-duplicate landmarks under maxmin."
+  },
+  "probe_comparison": [
+    {
+      "probe_id": "probe_symmetric_dedup",
+      "analysis_id": "bhps_length_matched_truncate",
+      "production_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "probe_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_probe-symmetric-dedup_2026-05-30.json",
+      "h0": {
+        "w2_pvalue_production": 0.000999000999000999,
+        "w2_pvalue_probe": 0.000999000999000999,
+        "landscape_l2_pvalue_production": 0.000999000999000999,
+        "landscape_l2_pvalue_probe": 0.000999000999000999,
+        "t_ratio_production": 7.868748821605686,
+        "t_ratio_probe": 7.81650295825244,
+        "t_ratio_relative_change_pct": -0.6639665916109985,
+        "d_perm_production": 22.275764358748543,
+        "d_perm_probe": 22.397529400650896,
+        "d_perm_relative_change_pct": 0.5466256508254529,
+        "signal_to_noise_production": 7.868748821605686,
+        "signal_to_noise_probe": 7.81650295825244,
+        "w2_rejection_preserved": true,
+        "landscape_l2_rejection_preserved": true
+      },
+      "h1": {
+        "w2_pvalue_production": 0.000999000999000999,
+        "w2_pvalue_probe": 0.000999000999000999,
+        "landscape_l2_pvalue_production": 0.000999000999000999,
+        "landscape_l2_pvalue_probe": 0.000999000999000999,
+        "t_ratio_production": 1.8663942635605362,
+        "t_ratio_probe": 1.8619550351645953,
+        "t_ratio_relative_change_pct": -0.23785051650727615,
+        "d_perm_production": 13.814156558462313,
+        "d_perm_probe": 13.53750454581678,
+        "d_perm_relative_change_pct": -2.0026703148666773,
+        "signal_to_noise_production": 1.8663942635605362,
+        "signal_to_noise_probe": 1.8619550351645953,
+        "w2_rejection_preserved": true,
+        "landscape_l2_rejection_preserved": true
+      }
+    },
+    {
+      "probe_id": "probe_pinned_thresh",
+      "analysis_id": "bhps_length_matched_truncate",
+      "production_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "probe_path": "results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_probe-pinned-thresh_2026-05-31.json",
+      "h0": {
+        "w2_pvalue_production": 0.000999000999000999,
+        "w2_pvalue_probe": 0.000999000999000999,
+        "landscape_l2_pvalue_production": 0.000999000999000999,
+        "landscape_l2_pvalue_probe": 0.000999000999000999,
+        "t_ratio_production": 7.868748821605686,
+        "t_ratio_probe": 8.39878569349988,
+        "t_ratio_relative_change_pct": 6.73597396372395,
+        "d_perm_production": 22.275764358748543,
+        "d_perm_probe": 21.812366291027207,
+        "d_perm_relative_change_pct": -2.080279088332795,
+        "signal_to_noise_production": 7.868748821605686,
+        "signal_to_noise_probe": 8.39878569349988,
+        "w2_rejection_preserved": true,
+        "landscape_l2_rejection_preserved": true
+      },
+      "h1": {
+        "w2_pvalue_production": 0.000999000999000999,
+        "w2_pvalue_probe": 0.000999000999000999,
+        "landscape_l2_pvalue_production": 0.000999000999000999,
+        "landscape_l2_pvalue_probe": 0.000999000999000999,
+        "t_ratio_production": 1.8663942635605362,
+        "t_ratio_probe": 1.8780777502402788,
+        "t_ratio_relative_change_pct": 0.6259924233507839,
+        "d_perm_production": 13.814156558462313,
+        "d_perm_probe": 12.81454879014614,
+        "d_perm_relative_change_pct": -7.236111478002834,
+        "signal_to_noise_production": 1.8663942635605362,
+        "signal_to_noise_probe": 1.8780777502402788,
+        "w2_rejection_preserved": true,
+        "landscape_l2_rejection_preserved": true
+      }
+    }
+  ],
+  "decision_summary": {
+    "alpha": 0.05,
+    "outcome": "A",
+    "outcome_reasoning": "Both length-matching strategies (truncate and first13) reject H1 W2 at alpha=0.05 under the dedup amendment methodology. The H1 topological signature survives length-matching to USoc's mean horizon (~13 waves) under both truncation and >=13-wave-only restriction; the BHPS-vs-USoc H1 signal is not a length artefact.",
+    "h1_w2_truncate_reject": true,
+    "h1_w2_first13_reject": true,
+    "h0_w2_truncate_reject": true,
+    "h0_w2_first13_reject": true,
+    "rejection_direction_changes": 1,
+    "n_cells_with_prior": 4,
+    "n_cells_no_prior": 4,
+    "probes_completed": [
+      "probe_symmetric_dedup",
+      "probe_pinned_thresh"
+    ],
+    "all_probes_preserve_rejection": true
+  },
+  "methodological_disclosure_draft": "The Pre-reg #5 redo amendment locked external-indexing dedup of the observed maxmin landmark sample for length-matched cells (formula contract length-matched-dedup-via-n-perm at vault [DECISION] 2026-05-30). Compared to the 2026-05-29 frozen-loadings result for truncate (no dedup), the 2026-05-30 frozen-loadings dedup result preserves H0 rejection direction and the H1 landscape L2 rejection direction; the H1 W2 statistic flipped from p=0.349650 (non-reject) to p=0.000999 (reject). The flip is mechanistic, not a tuning: the 2026-05-29 observed PD contained ~139 phantom H1 features at near-zero filtration scales contributed by numerical near-duplicates in the embedding (within the locked tolerance tau_float = 1e-10); those phantoms inflated the W2 statistic by a ~30-200x constant on both observed-to-null and null-to-null pairings, making observed look statistically indistinguishable from a null (mean_obs_null / mean_null_null = 1.006 in 2026-05-29). External dedup of observed (which Markov-1 surrogates do not need because they do not reproduce the near-duplicate structure) strips the phantoms and reveals the underlying signal (mean_obs_null / mean_null_null = 1.87 in 2026-05-30). Both length-matching strategies reject H1 W2 at alpha=0.05, locking Outcome A. Two robustness probes were run and both preserve the rejection direction in all four cells (H0/H1 x W2/landscape L2): (a) probe_symmetric_dedup forces nulls to use n_perm = obs_n_dedup (eliminating the observed-vs-null vertex-count asymmetry); the signal-to-noise (mean_obs_null/mean_null_null) drift is -0.7% (H0), -0.2% (H1). (b) probe_pinned_thresh fixes the ripser threshold to the enclosing radius of the observed post-dedup landmark sample (eliminating the compute_rips_ph auto-threshold subsample drift); the signal-to-noise drift is +6.7% (H0), +0.6% (H1). The larger H0 shift reflects additional features captured under the wider fixed threshold; the H0 cell nonetheless stays far inside the rejection region (W2 p at the Monte-Carlo floor) and the contested H1 cell is essentially unchanged. The Outcome A conclusion rests on the dedup methodology, not on either of the incidental implementation choices the probes test."
+}
