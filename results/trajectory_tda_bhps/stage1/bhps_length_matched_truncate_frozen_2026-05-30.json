@@ -1,0 +1,77 @@
+{
+  "phase": "bhps_length_matched_truncate",
+  "run_params": {
+    "L": 5000,
+    "B": 1000,
+    "null_model": "markov-1",
+    "seed": 42,
+    "landscape_k_max": 5,
+    "landscape_n_points": 200,
+    "n_null_pairs_cap": 500,
+    "pvalue_formula": "(r+1)/(B+1)",
+    "frozen_loadings": true,
+    "null_diagram_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_B1000_L5000_seed42_2026-05-30.npz",
+    "strategy": "truncate",
+    "target_years": 13,
+    "n_trajectories_after_strategy": 8509,
+    "mean_length_after_strategy": 12.030438359384181,
+    "length_distribution_after_strategy": {
+      "10": 2341,
+      "11": 422,
+      "12": 383,
+      "13": 5363
+    },
+    "n_perm_used_observed": 4861,
+    "covering_radius_at_n_perm_observed": 1.2102353997080455e-15,
+    "n_perm_used_null_summary": {
+      "min": 5000,
+      "median": 5000,
+      "max": 5000,
+      "all_equal_to_L": true
+    },
+    "covering_radius_at_n_perm_null_summary": {
+      "min": 0.0,
+      "median": 0.0,
+      "max": 0.0,
+      "max_observed": 0.0
+    },
+    "dedup_tolerance": 1e-10,
+    "dedup_strategy": "greedy-permutation-external-indexing"
+  },
+  "dataset": "bhps",
+  "result": {
+    "h0": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 7.868748821605686,
+      "bca_ci_lower": 7.652884890450934,
+      "bca_ci_upper": 8.081333011927086,
+      "d_perm": 22.275764358748543,
+      "mean_obs_null": 37.12702185634921,
+      "mean_null_null": 4.718287836867707,
+      "landscape_t_ratio": 5.414957419051341,
+      "landscape_bca_ci_lower": 5.142537286575868,
+      "landscape_bca_ci_upper": 5.6861461258937425,
+      "landscape_d_perm": 7.694474184285898,
+      "lower_tail_pvalue": 1.0
+    },
+    "h1": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 1.8663942635605362,
+      "bca_ci_lower": 1.8552326866243591,
+      "bca_ci_upper": 1.8773138349157839,
+      "d_perm": 13.814156558462313,
+      "mean_obs_null": 6.631409600565725,
+      "mean_null_null": 3.5530593562342654,
+      "landscape_t_ratio": 2.5018381826216602,
+      "landscape_bca_ci_lower": 2.4633718979872357,
+      "landscape_bca_ci_upper": 2.5394335763891163,
+      "landscape_d_perm": 8.92661593685393
+    }
+  }
+}

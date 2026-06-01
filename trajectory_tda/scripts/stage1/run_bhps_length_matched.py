@@ -172,6 +172,25 @@ def main() -> None:
         help="Reuse the length-matched observed embedding scaler/PCA basis for Markov-null embeddings.",
     )
     parser.add_argument("--smoke", action="store_true", help="Smoke-test mode.")
+    parser.add_argument(
+        "--probe-symmetric-dedup",
+        action="store_true",
+        help=(
+            "Pre-reg #5 redo amendment robustness probe: force nulls to use "
+            "n_perm = obs_n_dedup (eliminating the observed-vs-null vertex-count "
+            "asymmetry). Requires --frozen-loadings."
+        ),
+    )
+    parser.add_argument(
+        "--probe-pinned-thresh",
+        action="store_true",
+        help=(
+            "Pre-reg #5 redo amendment robustness probe: pin the ripser thresh "
+            "to the enclosing radius of observed post-dedup landmarks for both "
+            "observed and null PD computations (eliminating compute_rips_ph "
+            "auto-thresh subsample drift). Requires --frozen-loadings."
+        ),
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -236,6 +255,8 @@ def main() -> None:
         n_null_pairs_cap=args.n_null_pairs,
         frozen_models=frozen_models,
         dedup_length_matched=True,
+        probe_symmetric_dedup=args.probe_symmetric_dedup,
+        probe_pinned_thresh=args.probe_pinned_thresh,
     )
     # Pop the dedup provenance off the result so the JSON's `result` block
     # stays a clean aggregate-output payload; the dedup fields live on
@@ -245,10 +266,19 @@ def main() -> None:
     today = date.today().isoformat()
     smoke_tag = "_smoke" if args.smoke else ""
     frozen_tag = "_frozen" if args.frozen_loadings else ""
+    # Probe-mode tags keep probe result files distinct from the production
+    # frozen-dedup result already on the branch. The two probes are
+    # mutually exclusive at the CLI; combining them produces a stacked tag.
+    probe_tags: list[str] = []
+    if args.probe_symmetric_dedup:
+        probe_tags.append("symmetric-dedup")
+    if args.probe_pinned_thresh:
+        probe_tags.append("pinned-thresh")
+    probe_tag = f"_probe-{'-'.join(probe_tags)}" if probe_tags else ""
 
     cache_dir = core.proj_root() / "results/trajectory_tda_integration/stage1/cache"
     cache_name = (
-        f"null_diagrams_bhps_length_matched_{args.strategy}{frozen_tag}_B{args.B}_L{args.L}_seed{args.seed}"
+        f"null_diagrams_bhps_length_matched_{args.strategy}{frozen_tag}{probe_tag}_B{args.B}_L{args.L}_seed{args.seed}"
         f"{smoke_tag}_{today}.npz"
     )
     cache_path = core.write_null_diagram_cache(
@@ -272,7 +302,9 @@ def main() -> None:
 
     out_dir = core.worktree_root() / "results/trajectory_tda_bhps/stage1"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"bhps_length_matched_{args.strategy}{frozen_tag}{smoke_tag}_{today}.json"
+    out_path = out_dir / (
+        f"bhps_length_matched_{args.strategy}{frozen_tag}{probe_tag}{smoke_tag}_{today}.json"
+    )
     run_params: dict[str, Any] = {
         "L": args.L,
         "B": args.B,
@@ -301,6 +333,16 @@ def main() -> None:
         ]["covering_radius_at_n_perm"]
         run_params["dedup_tolerance"] = dedup_info["tolerance"]
         run_params["dedup_strategy"] = dedup_info["strategy"]
+        # Probe-mode provenance — present on probe runs, identifies which
+        # robustness probe (if any) was active. Production runs land both
+        # at False.
+        run_params["probe_symmetric_dedup"] = dedup_info.get(
+            "probe_symmetric_dedup", False
+        )
+        run_params["probe_pinned_thresh"] = dedup_info.get(
+            "probe_pinned_thresh", False
+        )
+        run_params["pinned_thresh_value"] = dedup_info.get("pinned_thresh_value")
     payload = {
         "phase": phase_tag,
         "run_params": run_params,

@@ -446,6 +446,8 @@ def run_headline_from_embeddings(
     markov_order: int = DEFAULT_MARKOV_ORDER,
     frozen_models: dict[str, Any] | None = None,
     dedup_length_matched: bool = False,
+    probe_symmetric_dedup: bool = False,
+    probe_pinned_thresh: bool = False,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
 
@@ -477,6 +479,19 @@ def run_headline_from_embeddings(
             formula contract. The returned result dict carries an ``_dedup_info``
             metadata key with observed and null-summary dedup provenance.
             Default False — existing call sites behave exactly as before.
+        probe_symmetric_dedup: Pre-reg #5 redo amendment robustness probe.
+            When True (and ``dedup_length_matched=True``), forces null PDs
+            to use n_perm = obs_n_dedup (the observed natural dedup count)
+            regardless of each null's natural dedup count. Eliminates the
+            observed-vs-null vertex-count asymmetry that emerges on
+            length-matched cells. Default False — no behaviour change.
+        probe_pinned_thresh: Pre-reg #5 redo amendment robustness probe.
+            When True, computes the enclosing radius of the observed
+            (post-dedup) landmark sample and passes it as the ripser
+            ``thresh`` argument to BOTH observed and null PD computations,
+            overriding the per-call auto-thresh from a random 500-pt
+            subsample. Eliminates observed-vs-null auto-thresh divergence.
+            Default False — no behaviour change.
 
     Returns:
         Tuple of (result dict ready for JSON dump, per-permutation null_results
@@ -517,6 +532,7 @@ def run_headline_from_embeddings(
     # existing callers and monkeypatches are unaffected.
     obs_n_perm_used: int | None = None
     obs_covering_radius: float | None = None
+    obs_landmarks_for_ph = obs_landmarks
     if dedup_length_matched:
         obs_n_perm_used, obs_covering_radius, obs_dedup_idx = compute_greedy_dedup_count(
             obs_landmarks
@@ -529,9 +545,45 @@ def run_headline_from_embeddings(
             DEDUP_TOLERANCE,
             actual_lm,
         )
-        ph_obs = compute_rips_ph(obs_landmarks[obs_dedup_idx], max_dim=1)
-    else:
-        ph_obs = compute_rips_ph(obs_landmarks, max_dim=1)
+        obs_landmarks_for_ph = obs_landmarks[obs_dedup_idx]
+
+    # Probe-mode pinned thresh — compute the enclosing radius of the
+    # observed (post-dedup) landmark sample once and pass it to ripser for
+    # BOTH the observed and every null PD. Eliminates the auto-thresh
+    # divergence from compute_rips_ph's per-call 500-pt subsample. Default
+    # path (probe_pinned_thresh=False) leaves ph_kwargs empty so
+    # compute_rips_ph runs its existing auto-thresh logic unchanged.
+    pinned_thresh_value: float | None = None
+    if probe_pinned_thresh:
+        from scipy.spatial.distance import pdist
+
+        pinned_thresh_value = float(pdist(obs_landmarks_for_ph).max())
+        logger.info(
+            "[PHASE %s] probe pinned thresh = %.4f (enclosing radius of observed post-dedup landmarks)",
+            label,
+            pinned_thresh_value,
+        )
+
+    obs_ph_kwargs: dict[str, Any] = {"max_dim": 1}
+    if pinned_thresh_value is not None:
+        obs_ph_kwargs["thresh"] = pinned_thresh_value
+    ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
+
+    # Probe-mode forced symmetric dedup — if requested, force every null PD
+    # to use n_perm = obs_n_perm_used. Requires dedup_length_matched=True to
+    # have computed obs_n_perm_used in the first place.
+    forced_null_n_dedup: int | None = None
+    if probe_symmetric_dedup:
+        if not dedup_length_matched:
+            raise ValueError(
+                "probe_symmetric_dedup requires dedup_length_matched=True"
+            )
+        forced_null_n_dedup = int(obs_n_perm_used)
+        logger.info(
+            "[PHASE %s] probe forced symmetric dedup: nulls will use n_perm = %d (obs dedup count)",
+            label,
+            forced_null_n_dedup,
+        )
     logger.info(
         "[PHASE %s] obs landmarks + PH built in %.1fs (L=%d)",
         label,
@@ -565,6 +617,8 @@ def run_headline_from_embeddings(
                 frozen_models=frozen_models,
                 ph_observed=ph_obs,
                 dedup=dedup_length_matched,
+                forced_n_dedup=forced_null_n_dedup,
+                pinned_thresh=pinned_thresh_value,
             )
             for s in seeds_list
         )
@@ -638,6 +692,9 @@ def run_headline_from_embeddings(
             },
             "tolerance": DEDUP_TOLERANCE,
             "strategy": "greedy-permutation-external-indexing",
+            "probe_symmetric_dedup": bool(probe_symmetric_dedup),
+            "probe_pinned_thresh": bool(probe_pinned_thresh),
+            "pinned_thresh_value": pinned_thresh_value,
         }
         logger.info(
             "[PHASE %s] dedup null summary: n_perm_used min/median/max = %s/%s/%s; max covering radius = %.3e",
