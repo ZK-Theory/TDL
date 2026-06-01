@@ -93,21 +93,33 @@ Headline categories:
 - [ ] Move Mapper sensitivity grid and heavy pipeline detail to the supplement
 - [ ] Prepare JRSS-A submission package and arXiv metadata (LaTeX class
       `papers/style_guides/JRSS/statsoc.cls`)
-- [ ] **Auto-thresh sanity probe (post Pre-reg #5 closure).** Bound the
-      impact of `compute_rips_ph`'s per-call auto-threshold logic
-      (75th-percentile of pairwise distances on a 500-pt random subsample)
-      on Stage 1 cell p-values. Surfaced 2026-05-30 during the T1.2g dedup
-      canary work: each `compute_rips_ph` call resets `RandomState(42)` and
-      computes its own thresh from a fresh subsample, so observed and null
-      PDs within a cell — and PDs across cells with different `|X|` — use
-      slightly different cutoffs. Effect is small because most H1 features
-      sit well below the auto-thresh, but the top H1 features land near it.
-      Recommended probe: re-run T1.36 BHPS headline frozen with pinned
-      ripser thresh = enclosing radius of observed landmarks (no truncation,
-      no subsample), compare W2 + landscape p-values + statistics to the
-      on-file numbers; if deltas <5% and decisions unchanged, on-file Tier 1
-      results stand with an SI note; otherwise decide which cells need a
-      pinned-thresh re-run. Applies equally to P01-B headline cells (shared
-      apparatus). Sequencing: after the Pre-reg #5 redo amendment
-      (length-matched dedup) is fully closed out — do not change the
-      apparatus mid-decision.
+- [x] **Pre-reg #5 redo amendment closure — Outcome A locked (2026-05-31).**
+      Both length-matching strategies reject H₁ W₂ at α=0.05 under the
+      external-indexing dedup methodology (truncate p=0.001 vs the
+      2026-05-29 no-dedup p=0.350; first13 p=0.001 first time under
+      frozen-loadings). The BHPS-vs-USoc H₁ signal is not a length-of-
+      observation artefact. Vault [DECISION] 2026-05-31 (Computational-Log)
+      + CONVENTIONS entry (always-rule for external-indexing dedup) +
+      Pipeline-Overview entry + PR #28 (branch `run/length-matched-dedup-rerun`,
+      commits `707571d` → `18ce018`). Closure artefact:
+      `results/trajectory_tda_integration/stage1/dedup_amendment_comparison_2026-05-31.json`.
+- [ ] **Auto-thresh sanity probe — length-matched cells covered; T1.36
+      BHPS headline frozen still pending.** Partially closed 2026-05-31:
+      probe (3) `pinned_thresh` on T1.2f truncate confirmed the
+      `compute_rips_ph` auto-thresh divergence is not the driver of the
+      H1 W2 rejection direction (S/N drift <1% under pinned thresh =
+      enclosing radius of observed landmarks). Remaining work: same probe
+      against T1.36 BHPS headline frozen (the headline cell in the
+      production W2 + landscape battery, not under length-matching).
+      Sequencing: at next natural opportunity; not blocking any
+      submission-critical work. Applies equally to P01-B headline cells.
+- [ ] **SI methodological-disclosure paragraph for the dedup amendment.**
+      Draft the SI section text from the
+      `methodological_disclosure_draft` field in the v2 comparison JSON
+      (`results/trajectory_tda_integration/stage1/dedup_amendment_comparison_2026-05-31.json`).
+      Covers (a) the rationale for external-indexing dedup, (b) the H1
+      W2 flip from p=0.350 to p=0.001 under the corrected methodology
+      and why this is mechanistic rather than tuning, (c) the two
+      robustness probes (symmetric_dedup, pinned_thresh) and their <1%
+      S/N drift defending Outcome A against the obs/null vertex-count
+      asymmetry and the auto-thresh divergence. Reviewer-facing.
