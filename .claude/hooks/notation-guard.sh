@@ -6,7 +6,7 @@
 INPUT=$(cat)
 
 # Extract file path (works for Write and all Edit variants)
-FILE_PATH=$(printf '%s' "$INPUT" | python3 -c "
+FILE_PATH=$(printf '%s' "$INPUT" | python -c "
 import sys, json
 d = json.load(sys.stdin)
 ti = d.get('tool_input', {})
@@ -29,7 +29,7 @@ case "$FILE_PATH" in
 esac
 
 # Extract content being written (Write => 'content', Edit => 'new_string')
-CONTENT=$(printf '%s' "$INPUT" | python3 -c "
+CONTENT=$(printf '%s' "$INPUT" | python -c "
 import sys, json
 d = json.load(sys.stdin)
 ti = d.get('tool_input', {})
@@ -37,7 +37,7 @@ print(ti.get('content', '') + ti.get('new_string', ''))
 " 2>/dev/null)
 
 # Check for W_1 / W_{1} — but not W_12, W_16, etc.
-VIOLATION=$(printf '%s' "$CONTENT" | python3 -c "
+VIOLATION=$(printf '%s' "$CONTENT" | python -c "
 import sys, re
 text = sys.stdin.read()
 if re.search(r'W_\{?1\}?(?!\d)', text):

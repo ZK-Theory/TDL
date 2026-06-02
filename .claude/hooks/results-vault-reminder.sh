@@ -5,7 +5,7 @@
 INPUT=$(cat)
 
 # Extract file path
-FILE_PATH=$(printf '%s' "$INPUT" | python3 -c "
+FILE_PATH=$(printf '%s' "$INPUT" | python -c "
 import sys, json
 d = json.load(sys.stdin)
 ti = d.get('tool_input', {})
