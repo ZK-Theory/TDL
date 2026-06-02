@@ -307,11 +307,13 @@ def _compute_unique_group_features(
 
 def compute_per_individual_local_features(
     embeddings: NDArray[np.float64],
-    k_grid: list[int] = K_GRID,
+    k_grid: list[int] | None = None,
     landscape_n_points: int = 256,
     n_jobs: int = 1,
 ) -> dict[int, NDArray[np.float64]]:
     """Compute local PH features for every individual and every k."""
+    if k_grid is None:
+        k_grid = list(K_GRID)
     max_k = max(k_grid)
     _, inverse, groups, neighbours_by_group = deterministic_neighbour_indices_by_group(embeddings, max_k)
     LOGGER.info("Computing local PH for %d unique embedding rows", len(groups))

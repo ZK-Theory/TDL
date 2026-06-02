@@ -94,3 +94,12 @@ markers = [
     "integration: marks tests as integration tests",
     "validation: marks tests as mathematical validation tests",
 ]
+
+[tool.bandit]
+# Security scanning targets production code. Test files legitimately use bare
+# `assert` -- it is the canonical pytest idiom (pytest rewrites asserts for rich
+# introspection) and the suite is never run under `python -O`, so Bandit's B101
+# (assert_used) is a false positive in tests. Allow asserts in test files only;
+# every other Bandit check still applies everywhere.
+[tool.bandit.assert_used]
+skips = ["*/test_*.py", "*/tests/*", "*_test.py"]
