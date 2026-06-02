@@ -1,0 +1,55 @@
+{
+  "arms": {
+    "c1_bigram_coordinate": {
+      "effect_size_ratio": 0.6604491613493206,
+      "feature_dim": 90,
+      "max_icc": 0.8969708294903582,
+      "mean_icc": 0.4684500798566738,
+      "n_icc_ci_above_zero": 90,
+      "n_icc_features": 90,
+      "permutation_pvalue": 0.0001999600079984003,
+      "rejects": true
+    },
+    "c2_summary_trajectory": {
+      "effect_size_ratio": 0.654747938468941,
+      "feature_dim": 10,
+      "max_icc": 0.8688269267823763,
+      "mean_icc": 0.6216937926637143,
+      "n_icc_ci_above_zero": 10,
+      "n_icc_features": 10,
+      "permutation_pvalue": 0.0001999600079984003,
+      "rejects": true
+    },
+    "topological": {
+      "effect_size_ratio": 0.824324509055838,
+      "feature_dim": 3,
+      "max_icc": 0.5809770864599716,
+      "mean_icc": 0.521132753009597,
+      "n_icc_ci_above_zero": 3,
+      "n_icc_features": 3,
+      "permutation_pvalue": 0.0001999600079984003,
+      "rejects": true
+    }
+  },
+  "distinctiveness_verdict": "SIGNAL_NOT_TOPOLOGY_SPECIFIC",
+  "generated_at": "2026-06-02T00:00:00",
+  "input_provenance": {
+    "foo_clusters_path": "C:\\Users\\steph\\TDL\\data\\derived\\foo_clusters_2026-05-06.csv",
+    "foo_clusters_sha256": "c23e113f1f4c23083fe4b22cdacf2cd2977af4f8098eba82325de2e9c108129e",
+    "sibling_pair_permutation_path": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-foo-topology-signature\\results\\trajectory_tda_integration\\foo_topology\\sibling_pair_permutation_2026-06-02.json",
+    "sibling_pair_permutation_sha256": "06e47fd6a8f9f47a231e38e500db707515fe586b65ec20de2157c328a857c70b"
+  },
+  "params": {
+    "B": 5000,
+    "distance_in_feature_space": "euclidean",
+    "icc_bootstrap_B": 1000,
+    "k_primary": 20,
+    "n_individuals": 27280,
+    "null_type": "constrained-shuffle",
+    "pvalue_formula": "(r+1)/(B+1)",
+    "seed": 42
+  },
+  "pre_registration": "2026-05-25",
+  "schema_version": "foo-topology/topology-distinctiveness-comparison/v1",
+  "task": "T1.33 topology-distinctiveness comparison"
+}

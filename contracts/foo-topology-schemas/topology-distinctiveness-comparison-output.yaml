@@ -1,6 +1,5 @@
 id: topology-distinctiveness-comparison-output
 kind: schema
-pending: true
 
 description: >
   Schema for the T1.33 topology-distinctiveness comparison JSON written to

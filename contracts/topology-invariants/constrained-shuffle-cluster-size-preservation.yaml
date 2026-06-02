@@ -1,6 +1,5 @@
 id: constrained-shuffle-cluster-size-preservation
 kind: invariant
-pending: true
 
 description: >
   Behavioural invariant for the T1.33 constrained-shuffle null: every shuffle

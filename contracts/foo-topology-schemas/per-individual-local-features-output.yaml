@@ -1,6 +1,5 @@
 id: per-individual-local-features-output
 kind: schema
-pending: true
 
 description: >
   Schema for the per-individual local-PH feature JSON written by the T1.33

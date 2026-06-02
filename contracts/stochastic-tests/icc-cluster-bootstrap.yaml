@@ -1,6 +1,5 @@
 id: icc-cluster-bootstrap
 kind: formula
-pending: true
 
 description: >
   Per-feature intra-class correlation (ICC) and its 95% percentile bootstrap

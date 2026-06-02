@@ -1,6 +1,5 @@
 id: per-individual-knn-local-ph
 kind: formula
-pending: true
 
 description: >
   Per-individual local persistence features are computed on a (k+1)-point
