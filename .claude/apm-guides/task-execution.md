@@ -22,6 +22,8 @@ Follow cross-agent integration steps completely - read files, review artifacts, 
 
 Validation criteria in the Task Prompt specify what to check. Execute each criterion as written - run tests, verify outputs exist and match expected structure, confirm behavior meets requirements. Always complete autonomous checks first. If any autonomous check fails, correct it before involving the User - do not request User review or User action while autonomous checks are failing.
 
+When the Task Prompt includes `Research Assurance Requirements`, validation includes producing lane-by-lane evidence for those requirements. For each listed lane, record what was checked, the command or artifact that supports it, and any claim that remains human-review-only. Do not weaken, bypass, or silently omit a research-assurance requirement to reach Success; if required evidence cannot be produced, use Partial unless the Task Prompt explicitly allows a narrower outcome.
+
 When a criterion requires User involvement - judgment the Worker cannot self-assess (design approval, content quality) or action outside the development environment (running external checks, confirming platform behavior) - pause and present work only after all autonomous checks pass. When pausing, communicate clearly per `.claude/skills/apm-communication/SKILL.md` §2.1 Direct Communication: what is needed and why, what the User should expect or verify, and what to report back so execution can continue.
 
 When criteria require resources not currently available, request them from the User rather than substituting a lower verification level.
@@ -82,6 +84,8 @@ Perform the following actions:
 2. When an instruction requires explicit User action, communicate what needs doing, why, and what options exist. Await completion, then resume.
 3. When an instruction includes a subagent step, spawn the relevant subagent with a structured task description. Verify critical findings by reading key files the subagent references before integrating into execution. For complex cross-agent dependencies or multi-file exploration, spawn a dedicated Explore subagent rather than inline searching - it runs in its own context window and returns consolidated findings: `Agent(subagent_type="Explore", prompt="...")`. Structure the prompt with specific files to read and questions to answer.
 4. When all instructions complete, communicate that implementation is complete and you are moving to validation. Continue to Task Validation.
+
+If the Task Prompt includes `Research Assurance Requirements`, assemble the Research Assurance Evidence before claiming Success: lanes touched, governing rule or contract, parameter/provenance checks, commands or artifacts used, human-review-only claims, and unresolved gaps. If required evidence is missing, continue to the correction loop when fixable or complete with Partial when it requires Manager/User guidance.
 
 ### 3.4 Task Validation
 
