@@ -96,10 +96,11 @@ markers = [
 ]
 
 [tool.bandit]
-# Security scanning targets production code. Test files legitimately use bare
-# `assert` -- it is the canonical pytest idiom (pytest rewrites asserts for rich
-# introspection) and the suite is never run under `python -O`, so Bandit's B101
-# (assert_used) is a false positive in tests. Allow asserts in test files only;
-# every other Bandit check still applies everywhere.
-[tool.bandit.assert_used]
-skips = ["*/test_*.py", "*/tests/*", "*_test.py"]
+# Security scanning targets production code. The test suite legitimately uses
+# bare `assert` -- the canonical pytest idiom (pytest rewrites asserts for rich
+# introspection) and never run under `python -O`, so Bandit's B101 (assert_used)
+# is a false positive there. `exclude_dirs` is the TOML-supported mechanism for
+# this (per-path `assert_used.skips` is only honoured from a YAML config); it
+# omits the test tree from scanning while every Bandit check still runs on the
+# production packages.
+exclude_dirs = ["tests"]

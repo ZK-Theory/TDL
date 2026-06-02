@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
@@ -46,8 +47,13 @@ warnings.filterwarnings(
     module="ripser.ripser",
 )
 
-PROJ_ROOT = Path(r"C:\Users\steph\TDL")
-WORKTREE = Path(__file__).resolve().parents[2]
+# PROJ_ROOT is the main working tree (holds gitignored intermediates that must
+# survive worktree removal); WORKTREE_ROOT is the local checkout this file runs
+# from. PROJ_ROOT defaults to the developer tree but is overridable via the
+# TDL_PROJ_ROOT env var (mirrors the stage1 _battery_core.proj_root() pattern)
+# so runs on other machines / CI are not pinned to a personal path.
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", r"C:\Users\steph\TDL"))
+WORKTREE_ROOT = Path(__file__).resolve().parents[2]
 RESULTS_REL = Path("results/trajectory_tda_integration/foo_topology")
 TRAJECTORIES_REL = Path("results/trajectory_tda_integration/01_trajectories_sequences.json")
 METADATA_REL = Path("results/trajectory_tda_integration/01_trajectories.json")
@@ -470,7 +476,11 @@ def run_sibling_analysis(
     r = int(np.sum(null_samples <= observed_mean))
     pvalue = (r + 1) / (B + 1)
     null_mean = float(np.mean(null_samples))
-    effect_size_ratio = float(observed_mean / null_mean) if null_mean > 0 else float("inf")
+    # null_mean is a mean of non-negative within-pair distances, so null_mean <= 0
+    # only in the degenerate all-identical-features case where observed_mean is
+    # also 0; the 0/0 ratio is then 1.0 (no effect) -- a JSON-safe finite value
+    # rather than Infinity.
+    effect_size_ratio = float(observed_mean / null_mean) if null_mean > 0 else 1.0
     icc = cluster_bootstrap_icc(
         features=features,
         clusters=clusters,
@@ -791,7 +801,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--proj-root", default=str(PROJ_ROOT))
-    parser.add_argument("--worktree", default=str(WORKTREE))
+    parser.add_argument("--worktree", default=str(WORKTREE_ROOT))
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--B", type=int, default=5000)
     parser.add_argument("--icc-bootstrap-B", type=int, default=1000)
