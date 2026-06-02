@@ -39,7 +39,19 @@ if tool in ('Edit', 'MultiEdit'):
          'instead of editing in place (CLAUDE.md APM_RULES, Output file '
          'management).' % fp)
 
-# Write: allow only if byte-identical to existing (idempotent rerun).
+# Write to an existing results file.
+ext = norm.rsplit('.', 1)[-1].lower()
+
+# Binary results (.npy/.npz): the Write tool only emits text content, so a Write
+# to an existing binary result is always an overwrite. Deny explicitly rather than
+# via a misleading text-mode 'content differs' comparison.
+if ext in ('npy', 'npz'):
+    emit('deny', '%s is an existing binary results file (.%s) and must not be '
+         'overwritten in place. Write a new <basename>_<YYYY-MM-DD>.%s and '
+         'preserve the old file (CLAUDE.md APM_RULES, Output file management).'
+         % (fp, ext, ext))
+
+# Text results (.json): allow only if byte-identical to existing (idempotent rerun).
 content = ti.get('content', None)
 if content is not None:
     try:

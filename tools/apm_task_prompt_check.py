@@ -121,7 +121,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.path:
-        targets = [Path(args.path)]
+        p = Path(args.path)
+        if not p.is_file():
+            print(f"ERROR: {p} is not a file.", file=sys.stderr)
+            return 2
+        targets = [p]
     else:
         try:
             repo_root = find_repo_root()
