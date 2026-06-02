@@ -6,7 +6,7 @@
 INPUT=$(cat)
 
 # Extract file path
-FILE_PATH=$(printf '%s' "$INPUT" | python3 -c "
+FILE_PATH=$(printf '%s' "$INPUT" | python -c "
 import sys, json
 d = json.load(sys.stdin)
 ti = d.get('tool_input', {})
@@ -20,7 +20,7 @@ case "$FILE_PATH" in
 esac
 
 # Get content — only Write tool has 'content'; Edit tools have old_string/new_string (skip)
-CONTENT=$(printf '%s' "$INPUT" | python3 -c "
+CONTENT=$(printf '%s' "$INPUT" | python -c "
 import sys, json
 d = json.load(sys.stdin)
 ti = d.get('tool_input', {})
@@ -31,7 +31,8 @@ print(ti.get('content', ''))
 [ -z "$CONTENT" ] && exit 0
 
 # Check first 10 lines for the mandatory header
-FOUND=$(printf '%s' "$CONTENT" | head -10 | grep -c '# Research context:' 2>/dev/null || echo 0)
+FOUND=$(printf '%s' "$CONTENT" | head -10 | grep -c '# Research context:' 2>/dev/null)
+FOUND=${FOUND:-0}
 
 if [ "$FOUND" -eq 0 ]; then
   echo "Warning: $(basename "$FILE_PATH") is missing the mandatory research context header."

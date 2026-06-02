@@ -29,6 +29,19 @@
 
 ## Current Status
 
+> **2026-06-02 update (Manager 6):** The User lifted the T1.37-trial gate
+> ("we do not need to postpone anything") and the full research-assurance layer
+> was built directly. Done and committed on `pipe/research-assurance-implementation`:
+> dual-tree skill sync (`tools/sync_agent_skills.py`) + `research-assurance-triage`
+> ported into `.claude/skills/`; the RA workflow sections ported into the four
+> `.claude/apm-guides/`; all 5 Layer-1 and 6 Layer-2 skills authored and synced to
+> both trees; Layer-3 enforcement (`tools/apm_task_prompt_check.py`,
+> `.claude/hooks/results-no-overwrite.sh`, and the `null-operation-changes-ph-input`
+> + `markov-order-provenance` contracts, both `pending:true`). Task 4's hook
+> backlog is therefore satisfied directly rather than driven by T1.37 friction;
+> Task 3 (T1.37 trial) was superseded. Remaining: transition the two pending
+> contracts out of `pending` once their binding tests land.
+
 - Manager dispatch/review integration is in place.
 - The first project-local research assurance skill exists.
 - Worker evidence reporting is in place as the smallest matching workflow change.

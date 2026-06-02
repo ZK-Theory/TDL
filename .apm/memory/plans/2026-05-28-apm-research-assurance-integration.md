@@ -22,6 +22,18 @@ The matching Worker workflow and skillset design strategies are preserved at:
 
 ## Current State
 
+> **2026-06-02 update (Manager 6):** The User lifted the T1.37-trial gate and the
+> full research-assurance layer was built directly on
+> `pipe/research-assurance-implementation`: dual-tree skill sync
+> (`tools/sync_agent_skills.py`) + `research-assurance-triage` ported into
+> `.claude/skills/`; the RA workflow sections ported into the four
+> `.claude/apm-guides/`; all 5 Layer-1 and 6 Layer-2 skills authored and synced to
+> both trees; Layer-3 enforcement (`tools/apm_task_prompt_check.py`,
+> `.claude/hooks/results-no-overwrite.sh`, and the `null-operation-changes-ph-input`
+> + `markov-order-provenance` contracts, both `pending:true`). The hook backlog is
+> satisfied directly; the T1.37 trial was superseded. Remaining: transition the two
+> pending contracts out of `pending` once their binding tests land.
+
 - Manager dispatch guidance now requires research assurance triage for tasks
   touching mathematical, statistical, topological, representation,
   output-provenance, or paper-claim logic.

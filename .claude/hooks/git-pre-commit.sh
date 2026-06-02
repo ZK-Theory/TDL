@@ -17,6 +17,14 @@ if [ -z "$REPO_ROOT" ]; then
   exit 2
 fi
 
-# Invoke the validator under the project's locked Python environment.
-# `uv run` resolves the project venv automatically; no need to source .venv.
+# Gate 0: dual-tree skill sync. The Codex (.agents/skills/) and Claude Code
+# (.claude/skills/) skill trees must stay in step for research-assurance skills
+# to be visible in both runtimes. Fast filecmp; advisory message names the fix.
+if ! uv run python "$REPO_ROOT/tools/sync_agent_skills.py" --check; then
+  echo "ERROR: skill trees diverged; run tools/sync_agent_skills.py to mirror." >&2
+  exit 1
+fi
+
+# Gates 1-4: math-correctness contracts. Invoke the validator under the project's
+# locked Python environment. `uv run` resolves the project venv automatically.
 exec uv run python "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"

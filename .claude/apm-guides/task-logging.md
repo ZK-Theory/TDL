@@ -58,7 +58,8 @@ Perform the following actions:
    - Set `important_findings` and `compatibility_issues` per §2.1 Flag Assessment Standards.
    - Set `stage`, `task`, `title`, and `agent` from the Task Prompt.
 3. Complete markdown body sections per §4.1 Task Log Format. Always include: Summary, Details, Output, Validation, Issues. Include conditional sections (Compatibility Concerns, Important Findings) only when their corresponding flag is `true`.
-4. Write the Task Log to `log_path`.
+4. When the Task Prompt included `Research Assurance Requirements`, include a `Research Assurance Evidence` section in the markdown body before writing the log.
+5. Write the Task Log to `log_path`.
 
 ### 3.2 Task Report Delivery
 
@@ -124,6 +125,9 @@ compatibility_issues: true | false
 ## Validation
 [Description of validation performed and result]
 
+## Research Assurance Evidence
+[Only include if the Task Prompt included Research Assurance Requirements. For each lane: requirement checked, command or artifact used, result, human-review-only claims, and unresolved gaps.]
+
 ## Issues
 [Specific blockers or errors encountered, or "None"]
 
@@ -165,7 +169,7 @@ compatibility_issues: true | false
 - `important_findings`: Same value as the Task Log.
 - `compatibility_issues`: Same value as the Task Log.
 
-**Markdown Body:** 1-2 sentences summarizing the outcome. Reference the Task Log for detail.
+**Markdown Body:** 1-2 sentences summarizing the outcome. Reference the Task Log for detail. If the Task included `Research Assurance Requirements`, state whether Research Assurance Evidence is complete or whether gaps remain.
 
 For batch reports, use §4.3 Batch Report Format instead.
 
@@ -243,6 +247,7 @@ If the batch stopped early due to a Failed Task, indicate which Task caused the 
 - *Forgetting conditional sections:* When a flag is `true`, include the corresponding section (Compatibility Concerns, Important Findings).
 - *Missing artifact references:* When deliverables are produced, list file paths in the Output section.
 - *Deferred batch logging:* In batch execution, write each Task Log immediately after completing that Task - before starting the next. Deferring all logging to the end of a batch risks context loss if auto-compaction occurs mid-batch.
+- *Missing research evidence:* When the Task Prompt included `Research Assurance Requirements`, omitting Research Assurance Evidence prevents the Manager from accepting research-validity claims even if software validation passed.
 
 ---
 
