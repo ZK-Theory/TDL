@@ -354,29 +354,35 @@ def test_sibling_pair_permutation_json_schema() -> None:
         _assert_sibling_contract(bad)
 
 
+@pytest.mark.integration
 def test_foo_topology_output_jsons_validate_against_schemas() -> None:
     """Validate every on-disk T1.33 JSON, if any exist."""
     ov = _load_contract("foo-topology-schemas/foo-topology-output-json-validation.yaml")["output_validation"]
     dispatch = {entry["filename_pattern"]: entry["schema_contract"] for entry in ov["file_dispatch"]}
-    for path in REPO_ROOT.rglob("*.json"):
-        rel = path.relative_to(REPO_ROOT)
-        if not rel.full_match(ov["applies_to_glob"]):
+    # The applies_to_glob is rooted under results/; only scan results/ and
+    # outputs/ (per the coding guidelines) rather than the whole repository.
+    for search_dir in (REPO_ROOT / "results", REPO_ROOT / "outputs"):
+        if not search_dir.is_dir():
             continue
-        data = json.loads(path.read_text(encoding="utf-8"))
-        schema_id = None
-        for pattern, candidate in dispatch.items():
-            if Path(path.name).match(pattern):
-                schema_id = candidate
-                break
-        assert schema_id is not None, f"No schema dispatch matched {rel}"
-        if schema_id == "per-individual-local-features-output":
-            _assert_per_individual_features_contract(data)
-        elif schema_id == "sibling-pair-permutation-output":
-            _assert_sibling_contract(data)
-        elif schema_id == "topology-distinctiveness-comparison-output":
-            _assert_comparison_contract(data)
-        else:
-            raise AssertionError(f"Unexpected schema id {schema_id}")
+        for path in search_dir.rglob("*.json"):
+            rel = path.relative_to(REPO_ROOT)
+            if not rel.full_match(ov["applies_to_glob"]):
+                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
+            schema_id = None
+            for pattern, candidate in dispatch.items():
+                if Path(path.name).match(pattern):
+                    schema_id = candidate
+                    break
+            assert schema_id is not None, f"No schema dispatch matched {rel}"
+            if schema_id == "per-individual-local-features-output":
+                _assert_per_individual_features_contract(data)
+            elif schema_id == "sibling-pair-permutation-output":
+                _assert_sibling_contract(data)
+            elif schema_id == "topology-distinctiveness-comparison-output":
+                _assert_comparison_contract(data)
+            else:
+                raise AssertionError(f"Unexpected schema id {schema_id}")
 
 
 def test_comparator_feature_definitions_construction() -> None:
