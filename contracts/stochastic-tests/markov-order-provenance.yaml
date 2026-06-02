@@ -1,0 +1,41 @@
+id: markov-order-provenance
+kind: schema
+pending: true
+
+description: >
+  Result JSONs produced by permutation-null batteries must expose the stochastic
+  provenance needed to reproduce and audit them: the Markov order k of the null
+  model, the number of permutations B, the RNG seed, and a null-model label.
+  "Markov null" alone is ambiguous — k must be explicit (methodological mandate).
+  Without these fields a result cannot be regenerated and the null model cannot be
+  verified against the governing design. The output_validation dispatch that wires
+  this schema to the battery result glob is added when the binding test lands.
+
+spec_citation:
+  source: "CLAUDE.md methodological mandate (Markov order k always explicit) + statistical-design-audit skill"
+  vault_entry_date: "2026-06-02"
+
+schema_def:
+  applies_to: "permutation-null battery result JSONs (e.g., results/trajectory_tda_integration/stage1/*_battery_*.json)"
+  required_keys:
+    - name: markov_order_k
+      type: int
+      description: "Markov order k of the null model. Must be present and explicit; -1 or null is not acceptable for a Markov null."
+    - name: n_permutations
+      type: int
+      description: "Number of permutations B drawn for the null distribution."
+    - name: seed
+      type: int
+      description: "RNG seed used for the permutation draws, recorded for reproducibility."
+    - name: null_model
+      type: str
+      description: "Null-model label (e.g., 'markov-k', 'order-shuffle', 'stratified-markov'), naming the operation used."
+
+binding:
+  test_file: "tests/trajectory_tda/test_markov_order_provenance.py"
+  test_function: "test_battery_result_exposes_null_provenance"
+  must_assert: >
+    A representative permutation-null battery result dict exposes markov_order_k
+    (int, not null), n_permutations (positive int), seed (int), and null_model
+    (non-empty str). A dict missing any of these keys, or carrying a null
+    markov_order_k for a Markov null, fails validation.

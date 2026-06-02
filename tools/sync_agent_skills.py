@@ -164,6 +164,16 @@ def lint_path_literals(skill_dir: Path) -> list[str]:
 
 
 def run_sync(agents_skills: Path, claude_skills: Path, check_only: bool) -> int:
+    """Sync or check runtime-agnostic skills from .agents/ to .claude/.
+
+    Args:
+        agents_skills: Path to .agents/skills/ directory (source of truth).
+        claude_skills: Path to .claude/skills/ directory (sync destination).
+        check_only: If True, verify sync without writing; if False, mirror divergent skills.
+
+    Returns:
+        0 if in sync (or sync completed), 1 if unclassified skills or divergence found.
+    """
     to_sync, errors, planned = classify(agents_skills)
     if errors:
         print("ERROR: unclassified skills in .agents/skills/ "

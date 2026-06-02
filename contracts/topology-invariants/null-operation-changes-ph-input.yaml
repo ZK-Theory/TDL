@@ -1,0 +1,48 @@
+id: null-operation-changes-ph-input
+kind: invariant
+pending: true
+
+description: >
+  A permutation/shuffle null is only valid if the null operation perturbs the
+  object that persistent homology is computed on. When a label/cohort/order
+  shuffle is applied to rows that have ALREADY been embedded, the resulting point
+  cloud — and therefore its persistence diagram — is unchanged (the diagram is a
+  set invariant to row order), so the null distribution collapses onto the
+  observed value and the test cannot reject anything. This contract asserts that
+  the null operation is applied to the raw inputs upstream of embedding, so the
+  re-embedded null trajectories produce a persistence diagram that differs from
+  the observed one. This is the label/cohort-shuffle invariance defect recorded
+  in the research-assurance pressure scenarios.
+
+spec_citation:
+  source: "research-assurance-triage pressure scenarios + representation-freeze-audit / null-operation-invariance-audit skills"
+  vault_entry_date: "2026-06-02"
+
+invariant:
+  claim: >
+    For a permutation-null battery, the shuffle operation is applied to the raw
+    state sequences (or pre-embedding inputs) and the permuted inputs are
+    re-embedded before persistent homology is computed. The null persistence
+    diagram for a non-trivial permutation must differ from the observed
+    persistence diagram (W2 > 0 for at least one permutation in a battery where
+    the association under test is real), confirming the null is not invariant to
+    the operation it is meant to test.
+  preconditions:
+    - "The null tests an association that involves the embedding (not a property fixed pre-embedding)."
+    - "The permutation is non-identity (at least two elements exchanged)."
+    - "Embedding is deterministic given inputs and frozen models."
+  counter_example_history: >
+    Label/cohort shuffles in an earlier null-layer implementation permuted
+    already-embedded rows, leaving the persistence diagram invariant to the null
+    operation; the permutation test was structurally incapable of rejecting.
+    Pairs with representation-freeze-audit checklist item 3.
+
+binding:
+  test_file: "tests/trajectory_tda/test_null_operation_invariance.py"
+  test_function: "test_null_shuffle_perturbs_persistence_diagram"
+  must_assert: >
+    Constructs a minimal case with two state sequences whose embeddings differ.
+    Asserts that (a) shuffling pre-embedding then re-embedding yields a
+    persistence diagram with W2 > 0 vs the observed for a non-identity
+    permutation, and (b) shuffling already-embedded rows yields W2 == 0
+    (the invariance bug), demonstrating the test distinguishes the two code paths.
