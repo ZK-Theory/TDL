@@ -1,6 +1,5 @@
 id: seed-propagation-foo-topology
 kind: invariant
-pending: true
 
 description: >
   Every stochastic step in the T1.33 FOO topological-signature pipeline must

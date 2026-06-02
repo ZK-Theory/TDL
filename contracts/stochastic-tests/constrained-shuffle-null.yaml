@@ -1,6 +1,5 @@
 id: constrained-shuffle-null
 kind: formula
-pending: true
 
 description: >
   The constrained-shuffle null permutes foo_cluster IDs across individuals

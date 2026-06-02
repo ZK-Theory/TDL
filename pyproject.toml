@@ -94,3 +94,13 @@ markers = [
     "integration: marks tests as integration tests",
     "validation: marks tests as mathematical validation tests",
 ]
+
+[tool.bandit]
+# Security scanning targets production code. The test suite legitimately uses
+# bare `assert` -- the canonical pytest idiom (pytest rewrites asserts for rich
+# introspection) and never run under `python -O`, so Bandit's B101 (assert_used)
+# is a false positive there. `exclude_dirs` is the TOML-supported mechanism for
+# this (per-path `assert_used.skips` is only honoured from a YAML config); it
+# omits the test tree from scanning while every Bandit check still runs on the
+# production packages.
+exclude_dirs = ["tests"]

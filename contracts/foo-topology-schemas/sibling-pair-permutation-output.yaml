@@ -1,6 +1,5 @@
 id: sibling-pair-permutation-output
 kind: schema
-pending: true
 
 description: >
   Schema for the sibling-pair permutation test JSON written by the T1.33

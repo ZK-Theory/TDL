@@ -1,6 +1,5 @@
 id: foo-topology-output-json-validation
 kind: output_validation
-pending: true
 
 description: >
   Output-validation dispatch for T1.33 FOO topology result JSONs written
