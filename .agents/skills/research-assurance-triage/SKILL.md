@@ -105,9 +105,21 @@ Before accepting Success:
   null operation.
 - LM sensitivity JSONs dropped T/d/mean fields needed for comparison tables.
 
-## Related Skills
+## Lane Routing
 
-- Use `markov-null-design` for Markov-memory ladder design.
-- Use `validate-topology` for topological result sanity checks.
-- Use `wasserstein-audit` for W1/W2 and order/internal_p ambiguity.
-- Use `tda-experiment` for result JSON schemas and experiment logging.
+Once lanes are classified, route to the lane skill for the judgment procedure and
+to the enforcing contract for the deterministic check:
+
+| Lane | Judgment skill | Deterministic enforcement |
+|---|---|---|
+| Topology | `validate-topology`, `wasserstein-audit`, `topology-benchmark-review` | `topology-invariants/*` contracts |
+| Stochastic / Null Model | `markov-null-design`, `statistical-design-audit`, `null-operation-invariance-audit` | `monte-carlo-permutation-p-value`, `null-operation-changes-ph-input`, `markov-order-provenance` |
+| Statistical / Panel | `statistical-design-audit`, `panel-estimand-audit` | `icc-cluster-bootstrap`, `rubin-pooling`, `normalised-ipw-trimming`, `mice-convergence-rule`, `svyglm-cluster-robust-se` |
+| Representation | `representation-freeze-audit` | `frozen-loadings-null-threading`, `frozen-loadings-transform-only` |
+| Output / Provenance | `result-provenance-review`, `reproducibility-package-review`, `sensitivity-comparison-review` | `*-output-json-validation`, `stage1-output-json-validation` |
+| Paper Claim | `paper-claim-trace` | human-review-only (no contract) |
+
+Cross-cutting: `pre-reg-to-dispatch` converts a pre-registration into the Task
+Prompt block (Manager-facing); `schema-contract-design` is the procedure for
+adding a new enforcing contract; `tda-experiment` covers result JSON schemas and
+experiment logging.
