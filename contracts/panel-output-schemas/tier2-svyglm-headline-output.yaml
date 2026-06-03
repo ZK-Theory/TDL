@@ -1,6 +1,6 @@
 id: tier2-svyglm-headline-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.34a fallback (Option A) Tier-2 headline JSON written to

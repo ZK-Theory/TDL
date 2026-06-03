@@ -12,6 +12,7 @@ from trajectory_tda.analysis.panel.foo_regression_contracts import (
     validate_crosstab_output,
     validate_foo_sensitivity_output,
     validate_mice_convergence,
+    validate_tier2_svyglm_headline_output,
     validate_tier2_output,
 )
 
@@ -159,6 +160,90 @@ def test_tier2_output_json_schema():
     bad = {**payload, "convergence": {**payload["convergence"], "all_chains_converged": False}}
     with pytest.raises(AssertionError):
         validate_tier2_output(bad)
+
+
+def _tier2_svyglm_headline_payload():
+    return {
+        "schema_version": "panel-output/tier2-svyglm-headline/v1",
+        "generated_at": "2026-06-03T12:00:00Z",
+        "task": "T1.34a svyglm headline (Option A fallback)",
+        "pre_registration": "2026-06-03 resolution amendment",
+        "params": {
+            "m_imputations": 20,
+            "engine_headline": "survey::svyglm",
+            "family": "quasibinomial",
+            "design_ids": "~foo_cluster",
+            "ipw_source": "weights.rds",
+            "ipw_trimming": "p1/p99 of raw, per-stratum normalisation to mean 1",
+            "model_formula_fixed": "escape ~ regime_init + nssec_proxy + birth_cohort + sex + region",
+            "conditioning_sample": "first-window regime in {R2, R6}",
+            "escape_definition_source": "window_escape_assignments_2026-05-14.json",
+            "seed": 42,
+            "n_obs": 7097,
+            "n_clusters": 6715,
+        },
+        "convergence": {
+            "all_chains_converged": True,
+            "per_chain_trace_passed": [True] * 20,
+            "rhat_summary": {"nssec_proxy": 1.0},
+        },
+        "svyglm_headline": [
+            {
+                "name": "regime_initR6",
+                "level": "R6",
+                "estimate": 3.55,
+                "cluster_robust_se": 0.33,
+                "pvalue": 0.0,
+                "rubin_df": 1000,
+                "rubin_fmi": 0.01,
+            }
+        ],
+        "unweighted_glmm_companion": {
+            "regime_init_r6_logor": 3.40,
+            "sigma_u_hh": 0.47,
+            "icc_hh": 0.062,
+            "coefficients": [{"name": "regime_initR6", "level": "R6", "estimate": 3.40, "se": None, "pvalue": None}],
+        },
+        "household_variance_estimability": {
+            "weighted_household_variance_estimable": False,
+            "rationale": "singleton-dominated household structure",
+            "evidence": ["WeMix Matrix seems negative semi-definite", "weighted glmmTMB ICC->0.997 divergence"],
+        },
+        "acceptance": {
+            "regime6_or_gt_1": True,
+            "nssec_direction_consistent_with_t120": True,
+            "accepted": True,
+        },
+    }
+
+
+def test_tier2_svyglm_headline_json_schema():
+    payload = _tier2_svyglm_headline_payload()
+    validate_tier2_svyglm_headline_output(payload)
+    bad_m = {**payload, "params": {**payload["params"], "m_imputations": 19}}
+    with pytest.raises(AssertionError, match="m_imputations"):
+        validate_tier2_svyglm_headline_output(bad_m)
+    bad_engine = {**payload, "params": {**payload["params"], "engine_headline": "glm"}}
+    with pytest.raises(AssertionError, match="engine_headline"):
+        validate_tier2_svyglm_headline_output(bad_engine)
+    bad_row = {**payload, "svyglm_headline": [{k: v for k, v in payload["svyglm_headline"][0].items() if k != "cluster_robust_se"}]}
+    with pytest.raises(AssertionError, match="missing required keys"):
+        validate_tier2_svyglm_headline_output(bad_row)
+    bad_estimability = {
+        **payload,
+        "household_variance_estimability": {**payload["household_variance_estimability"], "weighted_household_variance_estimable": True},
+    }
+    with pytest.raises(AssertionError, match="weighted_household_variance_estimable"):
+        validate_tier2_svyglm_headline_output(bad_estimability)
+    bad_icc = {**payload, "unweighted_glmm_companion": {**payload["unweighted_glmm_companion"], "icc_hh": 1.5}}
+    with pytest.raises(AssertionError, match="icc_hh"):
+        validate_tier2_svyglm_headline_output(bad_icc)
+    bad_accept = {**payload, "acceptance": {**payload["acceptance"], "accepted": False}}
+    with pytest.raises(AssertionError, match="acceptance"):
+        validate_tier2_svyglm_headline_output(bad_accept)
+    bad_forbidden = {**payload, "weighted_household_icc": 0.99}
+    with pytest.raises(AssertionError, match="forbidden"):
+        validate_tier2_svyglm_headline_output(bad_forbidden)
 
 
 def test_nssec_regime_crosstab_json_schema():

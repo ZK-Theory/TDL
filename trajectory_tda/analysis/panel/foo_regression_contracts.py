@@ -191,6 +191,71 @@ def validate_tier2_output(payload: Mapping[str, object]) -> None:
             raise AssertionError("p-values must be in [0, 1]")
 
 
+def validate_tier2_svyglm_headline_output(payload: Mapping[str, object]) -> None:
+    assert_required_keys(
+        payload,
+        [
+            "schema_version",
+            "generated_at",
+            "task",
+            "pre_registration",
+            "params",
+            "convergence",
+            "svyglm_headline",
+            "unweighted_glmm_companion",
+            "household_variance_estimability",
+            "acceptance",
+        ],
+    )
+    if payload.get("schema_version") != "panel-output/tier2-svyglm-headline/v1":
+        raise AssertionError("unexpected schema_version")
+    for forbidden in ("weighted_household_icc", "wemix_headline"):
+        if forbidden in payload:
+            raise AssertionError(f"{forbidden} is forbidden")
+    params = payload["params"]  # type: ignore[index]
+    if params["m_imputations"] != 20:
+        raise AssertionError("m_imputations must be 20")
+    if params["engine_headline"] != "survey::svyglm":
+        raise AssertionError("engine_headline must be survey::svyglm")
+    if params["family"] != "quasibinomial":
+        raise AssertionError("family must be quasibinomial")
+    if params["design_ids"] not in {"~foo_cluster", "~hh_group"}:
+        raise AssertionError("design_ids must declare the survey design cluster")
+    if params["ipw_trimming"] != "p1/p99 of raw, per-stratum normalisation to mean 1":
+        raise AssertionError("ipw_trimming must match the registered normalisation rule")
+    if params["conditioning_sample"] != "first-window regime in {R2, R6}":
+        raise AssertionError("conditioning_sample mismatch")
+    if params["seed"] != 42:
+        raise AssertionError("seed must be 42")
+    if not payload["convergence"]["all_chains_converged"]:  # type: ignore[index]
+        raise AssertionError("all MICE chains must converge")
+    for row in payload["svyglm_headline"]:  # type: ignore[index]
+        assert_required_keys(row, ["name", "level", "estimate", "cluster_robust_se", "pvalue", "rubin_df", "rubin_fmi"])
+        if row["cluster_robust_se"] < 0:
+            raise AssertionError("cluster_robust_se must be non-negative")
+        if not 0 <= row["pvalue"] <= 1:
+            raise AssertionError("pvalue must be in [0, 1]")
+        if row["rubin_df"] <= 0:
+            raise AssertionError("rubin_df must be positive")
+        if not 0 <= row["rubin_fmi"] <= 1:
+            raise AssertionError("rubin_fmi must be in [0, 1]")
+    companion = payload["unweighted_glmm_companion"]  # type: ignore[index]
+    assert_required_keys(companion, ["regime_init_r6_logor", "sigma_u_hh", "icc_hh", "coefficients"])
+    if companion["sigma_u_hh"] < 0:
+        raise AssertionError("sigma_u_hh must be non-negative")
+    if not 0 <= companion["icc_hh"] <= 1:
+        raise AssertionError("icc_hh must be in [0, 1]")
+    estimability = payload["household_variance_estimability"]  # type: ignore[index]
+    if estimability["weighted_household_variance_estimable"] is not False:
+        raise AssertionError("weighted_household_variance_estimable must be false")
+    if len(estimability["evidence"]) < 2:
+        raise AssertionError("non-estimability evidence must cite both model failure paths")
+    acceptance = payload["acceptance"]  # type: ignore[index]
+    expected = bool(acceptance["regime6_or_gt_1"] and acceptance["nssec_direction_consistent_with_t120"])
+    if acceptance["accepted"] != expected:
+        raise AssertionError("acceptance.accepted must equal the conjunction of its gates")
+
+
 def validate_crosstab_output(payload: Mapping[str, object]) -> None:
     assert_required_keys(
         payload,
