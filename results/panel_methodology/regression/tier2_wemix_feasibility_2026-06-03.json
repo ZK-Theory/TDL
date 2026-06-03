@@ -1,0 +1,81 @@
+{
+  "schema_version": "panel-output/tier2-wemix-feasibility/v1",
+  "generated_at": "2026-06-03T15:50:11Z",
+  "task": "T1.34a-redo Phase 1 WeMix feasibility",
+  "params": {
+    "seed": 42,
+    "estimator": "WeMix::mix",
+    "family": "binomial",
+    "formula": "escape ~ regime_init + nssec_proxy + birth_cohort + sex + region + (1 | hh_group)",
+    "weights": ["ipw_model", "hh_weight"],
+    "weight_threading": "level-1 ipw_model is T1.13 p1/p99 trimmed IPW renormalised to mean 1 in the model frame; level-2 hh_weight is 1 for every household because no household-level survey weight is available",
+    "cWeights": false,
+    "nQuad": 3,
+    "max_iteration": 3,
+    "bounded_max_households": 500,
+    "full_single_imputation_censored_seconds": 4001.4,
+    "full_single_imputation_censored_completed": false
+  },
+  "package_available": {
+    "WeMix": true,
+    "survey": true,
+    "glmmTMB": true
+  },
+  "sample": {
+    "full_first_imputation_n_obs": 7097,
+    "full_first_imputation_n_households": 6037,
+    "bounded_n_obs": 563,
+    "bounded_n_households": 500,
+    "bounded_mean_weight": 1
+  },
+  "bounded_fit": {
+    "status": "failed",
+    "error": "Matrix seems negative semi-definite",
+    "elapsed_seconds": 18.307,
+    "sigma2_hh": null,
+    "icc_hh": null,
+    "regime_initR6_log_or": null,
+    "regime_initR6_or": null,
+    "nssec_proxyL_log_or": null,
+    "nssec_proxyL_direction": "missing",
+    "warnings": []
+  },
+  "additional_bounded_attempts": [
+    {
+      "bounded_max_households": 1000,
+      "nQuad": 3,
+      "max_iteration": 3,
+      "status": "timed_out",
+      "timeout_seconds": 604,
+      "cpu_seconds_observed_before_stop": 586.55,
+      "process_stopped": true,
+      "output_json_written": false,
+      "interpretation": "The larger event-balanced bounded diagnostic exceeded the 10-minute smoke-test cap, so it did not provide a usable Phase-1 convergence check."
+    }
+  ],
+  "full_run_estimate": {
+    "basis": "bounded elapsed scaling plus censored failed full-sample smoke evidence",
+    "bounded_linear_seconds_per_imputation": 221,
+    "bounded_quadratic_seconds_per_imputation": 2668.8,
+    "observed_full_smoke_lower_bound_seconds_per_imputation": 4001.4,
+    "serial_m20_lower_bound_hours": 22.23,
+    "four_worker_m20_lower_bound_hours": 5.56,
+    "feasibility_conclusion": "Full-sample WeMix is installable and weight-threading is specified, but one full single-imputation smoke did not finish after the censored wall-time lower bound; Manager should decide whether this estimator remains feasible before any m=20 run."
+  },
+  "proposed_output_json_field_set": [
+    "schema_version",
+    "generated_at",
+    "task",
+    "pre_registration",
+    "params",
+    "package_versions",
+    "sample",
+    "mice_convergence",
+    "parallelization",
+    "coefficients",
+    "random_effects",
+    "model_fit",
+    "acceptance_gate",
+    "fallback_if_failed"
+  ]
+}
