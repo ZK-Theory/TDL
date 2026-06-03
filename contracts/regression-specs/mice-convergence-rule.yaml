@@ -1,6 +1,6 @@
 id: mice-convergence-rule
 kind: invariant
-pending: true
+pending: false
 
 description: >
   Behavioural invariant for T1.34's m = 20 MICE imputations of the NS-SEC

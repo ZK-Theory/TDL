@@ -1,6 +1,6 @@
 id: svyglm-cluster-robust-se
 kind: formula
-pending: true
+pending: false
 
 description: >
   T1.34's design-based sensitivity column uses svyglm from the R survey

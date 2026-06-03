@@ -1,6 +1,6 @@
 id: tier2-ipw-mice-svyglm-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.34 Tier-2 IPW + MICE + svyglm output JSON written to

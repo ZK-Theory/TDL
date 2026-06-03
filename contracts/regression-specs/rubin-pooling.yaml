@@ -1,6 +1,6 @@
 id: rubin-pooling
 kind: formula
-pending: true
+pending: false
 
 description: >
   Rubin's rules for pooling estimates and variance across m multiple
