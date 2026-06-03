@@ -7,18 +7,23 @@ description: >
   computation on the n = 735 / 353-cluster R2/R6 disadvantaged-starter
   subsample from T1.21. For each grid value of the true intra-class
   correlation, B = 1000 datasets are simulated under a one-way random-
-  effects logistic model with that ICC, the glmmTMB(escape ~ 1 +
-  (1 | foo_cluster)) model is fit on each, and an LRT against the null
-  ICC = 0 is run. Empirical power at a grid point is the fraction of
-  simulations rejecting at alpha = 0.05; minimum detectable ICC at 80%
-  power is the smallest grid value whose empirical power exceeds 0.80.
+  effects logistic model with that ICC, and a likelihood-ratio test of the
+  random-effect variance against zero is run. CORRECTED 2026-06-03 after
+  the first delivery produced an invalid curve (power 0.94 -> 0.84 as ICC
+  0.01 -> 0.20; 94% power at ICC = 0.01): the null and alternative MUST be
+  fit with the SAME engine (glmmTMB) so their log-likelihoods are
+  comparable, the boundary variance test MUST use the 50:50 chi-square
+  mixture reference (not a plain chi-square_1), convergence failures MUST
+  be counted explicitly rather than silently scored as non-rejections, and
+  the engine MUST be calibration-checked at ICC = 0 (empirical type-I rate
+  approximately alpha) before any minimum-detectable-ICC is reported.
 
 spec_citation:
-  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; T1.21 superseded sample structure"
-  vault_entry_date: "2026-05-25"
+  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; corrected by resolution amendment [DECISION] 2026-06-03 (boundary-mixture LRT, single-engine logLik, convergence accounting, ICC=0 calibration)"
+  vault_entry_date: "2026-06-03"
 
 formula:
-  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 derived from icc; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); LRT_b = -2 * (logLik(fit_null) - logLik(fit_full)); reject_b = (1 - chisq_cdf(LRT_b, df = 1)) <= alpha; power(icc) = mean(reject_b); minimum_detectable_icc = min({icc : power(icc) >= 0.80})"
+  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 = icc * pi^2 / 3; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); if either fit fails to converge: record convergence_failure_b = TRUE and EXCLUDE b from the rejection denominator (do NOT score as reject = FALSE); else LRT_b = max(0, 2 * (logLik(fit_full) - logLik(fit_null))); p_b = (LRT_b <= 0 ? 1 : 0.5 * (1 - chisq_cdf(LRT_b, df = 1))); reject_b = p_b <= alpha; power(icc) = mean(reject_b over converged b); minimum_detectable_icc = min({icc : power(icc) >= 0.80})"
   variables:
     icc:
       description: "True intra-class correlation in the simulated data. Grid is {0.01, 0.025, 0.05, 0.10, 0.20} (locked by pre-reg)."
@@ -33,23 +38,35 @@ formula:
       domain: "non-negative real"
       implementation_name: "sigma_u"
     n:
-      description: "Sample size per simulation: 735 individuals across 353 clusters with size structure matching the T1.21 R2/R6 multi-FOO subsample."
+      description: "Sample size per simulation: 735 individuals across 353 clusters with size structure matching the T1.21 R2/R6 multi-FOO subsample (reconstructed deterministically from regression_tier3.R's assembly path)."
       domain: "positive integer; n = 735"
       implementation_name: "n_individuals"
     LRT_b:
-      description: "Likelihood-ratio statistic on simulation b: 2 * (logLik(full) - logLik(null))."
+      description: "Likelihood-ratio statistic on simulation b: max(0, 2 * (logLik(full) - logLik(null))). BOTH fits use glmmTMB so the log-likelihood normalising constants are comparable."
       domain: "non-negative real"
       implementation_name: "lrt_statistic[b]"
+    p_b:
+      description: "Boundary-corrected LRT p-value: the 50:50 mixture of chi-square_0 and chi-square_1, i.e. p_b = 0.5 * (1 - chisq_cdf(LRT_b, df = 1)) for LRT_b > 0 and p_b = 1 otherwise."
+      domain: "[0, 1]"
+      implementation_name: "pval[b]"
+    convergence_failure_b:
+      description: "Whether either glmmTMB fit failed to converge on simulation b. Such b are excluded from the rejection denominator and tallied separately; they are NOT scored as non-rejections."
+      domain: "boolean"
+      implementation_name: "convergence_failures[b]"
     alpha:
       description: "Type-I error rate. Pre-registered alpha = 0.05."
       domain: "real in (0, 1); alpha = 0.05"
       implementation_name: "alpha"
     power(icc):
-      description: "Empirical power at true ICC value icc."
+      description: "Empirical power at true ICC value icc: fraction rejecting among CONVERGED simulations."
       domain: "[0, 1]"
       implementation_name: "power[icc]"
+    type_i_at_icc0:
+      description: "Calibration check: empirical rejection rate at true ICC = 0. MUST be approximately alpha (0.05) for the engine to be trusted; reported in the output JSON."
+      domain: "[0, 1]; target ~ alpha"
+      implementation_name: "type_i_at_icc0"
     minimum_detectable_icc:
-      description: "Smallest grid value with power(icc) >= 0.80. If no grid value reaches 0.80, the result is reported as 'greater than max grid value' (NOT silently extrapolated)."
+      description: "Smallest grid value with power(icc) >= 0.80. If no grid value reaches 0.80, reported as 'greater than 0.20' (NOT silently extrapolated)."
       domain: "real or 'greater than 0.20' string"
       implementation_name: "min_detectable_icc"
   invariants:
@@ -57,23 +74,31 @@ formula:
       expression: "icc_grid == [0.01, 0.025, 0.05, 0.10, 0.20]"
     - claim: "B = 1000 by pre-registration."
       expression: "B == 1000"
-    - claim: "n = 735 (T1.21 R2/R6 multi-FOO subsample) and n_clusters = 353; the cluster-size distribution matches the T1.21 sample (NOT uniformly distributed across clusters)."
-    - claim: "LRT is computed against the null model with no random effect (NOT against a Wald test, NOT against a null with a different fixed-effect structure)."
-    - claim: "Rejection rule uses chi-square with df = 1. (The 50:50 mixture of chi-square_0 and chi-square_1 is a more precise asymptotic for variance-component tests; if used, document the choice in the output JSON. The default contract uses df = 1.)"
-    - claim: "sigma_u is derived from icc using the latent-variable representation sigma_u^2 = icc * pi^2 / 3, with pi^2/3 being the variance of the standard logistic distribution. Misusing the linear-mixed-model formula sigma_u^2 = icc * sigma_e^2 for the logistic case underestimates the simulated random-effect variance."
+    - claim: "n = 735 (T1.21 R2/R6 multi-FOO subsample) and n_clusters = 353; the cluster-size distribution matches the T1.21 sample reconstructed from regression_tier3.R (NOT uniformly distributed, NOT a re-derived approximation)."
+    - claim: "BOTH the null and the alternative are fit with glmmTMB so their log-likelihoods share the same normalising constant. Comparing a glm() null log-likelihood against a glmmTMB() alternative log-likelihood is FORBIDDEN — the constants differ and bias the LRT."
+      expression: "engine(fit_null) == engine(fit_full) == 'glmmTMB'"
+    - claim: "The boundary variance test uses the 50:50 mixture of chi-square_0 and chi-square_1: p = 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0. A plain chi-square_1 reference (pchisq(LRT, df = 1)) over-rejects at a boundary null and is FORBIDDEN."
+      expression: "p_value == 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0"
+    - claim: "Convergence failures are counted in a separate tally and EXCLUDED from the rejection denominator; they are NOT scored as reject = FALSE. (Scoring failures as non-rejections inverts the power curve, since failures rise with sigma_u.)"
+    - claim: "The engine is calibration-checked at ICC = 0: the empirical type-I rate type_i_at_icc0 MUST be approximately alpha (0.05). If it is far from alpha, the engine is miscalibrated and no minimum-detectable-ICC is reported — the discrepancy is surfaced instead."
+    - claim: "sigma_u is derived from icc using the latent-variable representation sigma_u^2 = icc * pi^2 / 3 (variance of the standard logistic). Misusing the linear-mixed-model formula sigma_u^2 = icc * sigma_e^2 underestimates the simulated random-effect variance."
     - claim: "Simulation randomness is seeded; the seed and B are recorded in the output JSON; reseeding reproduces the power curve bit-for-bit."
 
 binding:
   test_file: "tests/panel/test_t135_transparency_contracts.py"
   test_function: "test_glmm_power_simulation_construction"
   must_assert: >
-    On a reduced-scope test (icc_grid = [0.20], B = 50 — small enough for
-    speed but large enough for stable rejection rate): (a) the simulation
-    routine constructs datasets with the correct cluster-size structure
-    matching the n = 735 / 353 input pattern; (b) sigma_u is computed
-    from icc via icc * pi^2 / 3; (c) the LRT compares glmmTMB null vs full
-    correctly; (d) empirical power at icc = 0.20 on B = 50 sims is positive
-    (typically high) — the test asserts power > 0 rather than a specific
-    value, to avoid Monte Carlo flakiness; (e) reseeding reproduces the
-    rejection vector; (f) the minimum_detectable_icc convention reports
+    On a reduced-scope test (small B for speed, large enough for a stable
+    rate): (a) datasets are constructed with the correct cluster-size
+    structure matching the n = 735 / 353 pattern; (b) sigma_u is computed
+    from icc via icc * pi^2 / 3; (c) BOTH null and full are glmmTMB fits and
+    the routine does NOT compare a glm() null log-likelihood against a
+    glmmTMB() alternative (assert the null engine is glmmTMB); (d) the
+    p-value uses the 50:50 chi-square mixture (p = 0.5 * P(chi2_1 >= LRT)
+    for LRT > 0), NOT pchisq(LRT, df = 1) — assert the mixture value on a
+    known LRT; (e) a simulated convergence failure is tallied separately
+    and excluded from the rejection denominator, NOT scored as a
+    non-rejection; (f) the ICC = 0 calibration path yields an empirical
+    type-I rate within Monte-Carlo tolerance of alpha = 0.05; (g) reseeding
+    reproduces the rejection vector; (h) minimum_detectable_icc reports
     'greater than 0.20' when no grid value reaches power >= 0.80.

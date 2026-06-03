@@ -18,6 +18,7 @@ contracts:
   - regression-specs/mice-convergence-rule
   - regression-specs/cross-tab-sparse-cell-flagging
   - panel-output-schemas/tier2-ipw-mice-svyglm-output
+  - panel-output-schemas/tier2-svyglm-headline-output
   - panel-output-schemas/nssec-regime-crosstab-output
   - panel-output-schemas/foo-sensitivity-fullsample-output
   - panel-output-schemas/t134-regression-output-json-validation
