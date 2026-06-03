@@ -35,7 +35,7 @@ invariant:
     exceed F (because one filtered singleton's sibling can fail multiple
     filters).
   preconditions:
-    - "The T1.21 sample structure (n=735 multi-FOO, 6363 singletons) is available from the T1.21 working files (run/tier3-regression branch, commit ddc7efb)."
+    - "The T1.21 fitted sample structure (n=711 multi-FOO, 6284 singletons; post complete-case, n_obs=6995) is available from the T1.21 working files (run/tier3-regression branch, commit ddc7efb). The prior 735 / 6363 were pre-complete-case IPW-eligible counts (corrected 2026-06-03b)."
     - "xwavedat.tab is cross-referenced to determine sibling existence per individual."
   counter_example_history: >
     The recurring failure mode is silent omission: a filtered singleton

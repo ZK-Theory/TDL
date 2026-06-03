@@ -35,7 +35,7 @@ formula:
       implementation_name: "n_both_no_escape"
     N:
       description: "Total pairs: a + b + c + d."
-      domain: "positive integer; N = 353 for T1.35"
+      domain: "positive integer; N = 342 for T1.35 (fitted stage; prior 353 was pre-complete-case)"
       implementation_name: "n_pairs"
     p_o:
       description: "Observed agreement: (a + d) / N."

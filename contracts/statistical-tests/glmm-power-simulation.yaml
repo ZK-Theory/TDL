@@ -4,8 +4,15 @@ pending: false
 
 description: >
   Simulation-based power analysis for the T1.35 minimum-detectable-ICC
-  computation on the n = 735 / 353-cluster R2/R6 disadvantaged-starter
-  subsample from T1.21. For each grid value of the true intra-class
+  computation on the n = 711 / 342-cluster R2/R6 disadvantaged-starter
+  subsample from T1.21. SAMPLE-COUNT CORRECTION 2026-06-03b: the prior
+  735 / 353 figure was the IPW-eligible count taken BEFORE the MICE
+  complete-case filter; the T1.21 cross-classified GLMM actually fit on
+  the post-complete-case sample of 6,995 observations / 711 multi-member
+  individuals in 342 clusters (see results/panel_methodology/regression/
+  tier3_cross_classified_2026-05-25.json, n_obs = 6995). The pinned counts
+  here are the fitted-stage counts, matching the deterministic
+  regression_tier3.R reconstruction. For each grid value of the true intra-class
   correlation, B = 1000 datasets are simulated under a one-way random-
   effects logistic model with that ICC, and a likelihood-ratio test of the
   random-effect variance against zero is run. CORRECTED 2026-06-03 after
@@ -19,7 +26,7 @@ description: >
   approximately alpha) before any minimum-detectable-ICC is reported.
 
 spec_citation:
-  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; corrected by resolution amendment [DECISION] 2026-06-03 (boundary-mixture LRT, single-engine logLik, convergence accounting, ICC=0 calibration)"
+  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; corrected by resolution amendment [DECISION] 2026-06-03 (boundary-mixture LRT, single-engine logLik, convergence accounting, ICC=0 calibration); sample-count corrected to fitted-stage 711/342 by [DECISION] 2026-06-03b (prior 735/353 was the pre-complete-case IPW-eligible count; T1.21 deliverable tier3_cross_classified_2026-05-25.json fit on n_obs=6995)"
   vault_entry_date: "2026-06-03"
 
 formula:
@@ -38,8 +45,8 @@ formula:
       domain: "non-negative real"
       implementation_name: "sigma_u"
     n:
-      description: "Sample size per simulation: 735 individuals across 353 clusters with size structure matching the T1.21 R2/R6 multi-FOO subsample (reconstructed deterministically from regression_tier3.R's assembly path)."
-      domain: "positive integer; n = 735"
+      description: "Sample size per simulation: 711 individuals across 342 clusters with size structure matching the T1.21 R2/R6 multi-FOO fitted subsample (reconstructed deterministically from regression_tier3.R's assembly path; post complete-case filter)."
+      domain: "positive integer; n = 711"
       implementation_name: "n_individuals"
     LRT_b:
       description: "Likelihood-ratio statistic on simulation b: max(0, 2 * (logLik(full) - logLik(null))). BOTH fits use glmmTMB so the log-likelihood normalising constants are comparable."
@@ -74,7 +81,7 @@ formula:
       expression: "icc_grid == [0.01, 0.025, 0.05, 0.10, 0.20]"
     - claim: "B = 1000 by pre-registration."
       expression: "B == 1000"
-    - claim: "n = 735 (T1.21 R2/R6 multi-FOO subsample) and n_clusters = 353; the cluster-size distribution matches the T1.21 sample reconstructed from regression_tier3.R (NOT uniformly distributed, NOT a re-derived approximation)."
+    - claim: "n = 711 (T1.21 R2/R6 multi-FOO fitted subsample) and n_clusters = 342; the cluster-size distribution matches the T1.21 fitted sample reconstructed from regression_tier3.R (NOT uniformly distributed, NOT a re-derived approximation). These are the post-complete-case fitted counts (n_obs = 6995 total), NOT the pre-filter IPW-eligible 735 / 353."
     - claim: "BOTH the null and the alternative are fit with glmmTMB so their log-likelihoods share the same normalising constant. Comparing a glm() null log-likelihood against a glmmTMB() alternative log-likelihood is FORBIDDEN — the constants differ and bias the LRT."
       expression: "engine(fit_null) == engine(fit_full) == 'glmmTMB'"
     - claim: "The boundary variance test uses the 50:50 mixture of chi-square_0 and chi-square_1: p = 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0. A plain chi-square_1 reference (pchisq(LRT, df = 1)) over-rejects at a boundary null and is FORBIDDEN."
@@ -90,7 +97,7 @@ binding:
   must_assert: >
     On a reduced-scope test (small B for speed, large enough for a stable
     rate): (a) datasets are constructed with the correct cluster-size
-    structure matching the n = 735 / 353 pattern; (b) sigma_u is computed
+    structure matching the n = 711 / 342 pattern; (b) sigma_u is computed
     from icc via icc * pi^2 / 3; (c) BOTH null and full are glmmTMB fits and
     the routine does NOT compare a glm() null log-likelihood against a
     glmmTMB() alternative (assert the null engine is glmmTMB); (d) the

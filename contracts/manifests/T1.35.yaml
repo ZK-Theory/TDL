@@ -1,11 +1,14 @@
 scope_id: T1.35
 scope_description: >
   T1.21 transparency supplement: minimum detectable ICC at 80% power on
-  the n = 735 multi-FOO R2/R6 subsample, decomposition of the 6,363
+  the n = 711 multi-FOO R2/R6 subsample, decomposition of the 6,284
   disadvantaged-starter singletons into true vs filtered singletons with
   primary and secondary filter-exclusion reason counts, and sibling-pair
   concordance via McNemar + Cohen's kappa + within-pair odds ratio on the
-  353 multi-member clusters.
+  342 multi-member clusters. (Sample counts are the T1.21 fitted stage,
+  post complete-case filter, n_obs = 6995; the prior 735 / 6363 / 353
+  figures were the pre-complete-case IPW-eligible counts — corrected
+  2026-06-03b after reconciling against tier3_cross_classified_2026-05-25.json.)
 authored: "2026-05-29"
 authored_by: "Manager 5 (pre-dispatch coverage extraction)"
 
