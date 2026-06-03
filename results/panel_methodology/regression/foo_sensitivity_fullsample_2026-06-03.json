@@ -1,0 +1,29 @@
+{
+  "schema_version": "panel-output/foo-sensitivity-fullsample/v1",
+  "generated_at": "2026-06-03T08:52:55Z",
+  "task": "T1.34c full-sample FOO sensitivity",
+  "pre_registration": "2026-05-25",
+  "params": {
+    "sample_definition": "full analytical sample, all individuals with valid escape outcome - NOT restricted to R2/R6 starters",
+    "bootstrap_B": 1000,
+    "seed": 42,
+    "model_formula": "escape ~ regime_init + nssec_proxy + birth_cohort + sex + region + (1 | foo_cluster)",
+    "engine": "glmmTMB",
+    "family": "binomial",
+    "bootstrap_workers": 4,
+    "bootstrap_chunk": 20,
+    "bootstrap_successful_refits": 1000,
+    "bootstrap_checkpoint": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-foo-regression-transparency/results/panel_methodology/regression/.partial/foo_sensitivity_fullsample_2026-06-03_bootstrap_progress.rds"
+  },
+  "n_full_sample": 27252,
+  "n_foo_clusters": 18524,
+  "sigma_foo": {
+    "point_estimate": 0.1702,
+    "bootstrap_ci_lower": 0.0001,
+    "bootstrap_ci_upper": 36.9459,
+    "bootstrap_B": 1000,
+    "ci_method": "percentile"
+  },
+  "ci_includes_zero": false,
+  "narrative_sentence": "The full-sample FOO random-intercept estimate was sigma_foo = 0.1702 with 95% cluster-bootstrap CI [0.0001, 36.9459], strictly above zero; Section S8 therefore reports detectable between-FOO variance."
+}

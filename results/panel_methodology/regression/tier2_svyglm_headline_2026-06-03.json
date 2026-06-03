@@ -1,0 +1,279 @@
+{
+  "schema_version": "panel-output/tier2-svyglm-headline/v1",
+  "generated_at": "2026-06-03T19:59:40Z",
+  "task": "T1.34a svyglm headline (Option A fallback)",
+  "pre_registration": "2026-06-03 resolution amendment: weighted household random-effect variance non-estimable; design-based svyglm promoted to headline",
+  "params": {
+    "m_imputations": 20,
+    "engine_headline": "survey::svyglm",
+    "family": "quasibinomial",
+    "design_ids": "~foo_cluster",
+    "ipw_source": "C:/Users/steph/TDL/results/panel_methodology/weights/ipw_individual_weights_2026-05-14.rds",
+    "ipw_trimming": "p1/p99 of raw, per-stratum normalisation to mean 1",
+    "model_formula_fixed": "escape ~ regime_init + nssec_proxy + birth_cohort + sex + region",
+    "conditioning_sample": "first-window regime in {R2, R6}",
+    "escape_definition_source": "C:/Users/steph/TDL/results/trajectory_tda_priority2/window_escape_assignments_2026-05-14.json",
+    "seed": 42,
+    "n_obs": 7097,
+    "n_clusters": 6715,
+    "source_pooled_output": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-foo-regression-transparency/results/panel_methodology/regression/tier2_ipw_mice_svyglm_2026-06-03.json",
+    "source_weight_diagnostic": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-foo-regression-transparency/results/panel_methodology/regression/tier2_weight_diagnostic_2026-06-03.json"
+  },
+  "convergence": {
+    "all_chains_converged": true,
+    "per_chain_trace_passed": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "rhat_summary": {
+      "nssec_proxy": {}
+    },
+    "note": "Trace-drift screen on saved MICE chain means; categorical NS-SEC R-hat unavailable in the saved T1.18 object."
+  },
+  "svyglm_headline": [
+    {
+      "name": "(Intercept)",
+      "level": null,
+      "estimate": -7.3552,
+      "cluster_robust_se": 0.5817,
+      "pvalue": 0,
+      "rubin_df": 21192099.8199,
+      "rubin_fmi": 0.0009
+    },
+    {
+      "name": "regime_initR6",
+      "level": "R6",
+      "estimate": 3.5516,
+      "cluster_robust_se": 0.3269,
+      "pvalue": 0,
+      "rubin_df": 37055877.3546,
+      "rubin_fmi": 0.0007
+    },
+    {
+      "name": "nssec_proxyM",
+      "level": "M",
+      "estimate": 0.0911,
+      "cluster_robust_se": 0.225,
+      "pvalue": 0.6858,
+      "rubin_df": 13022.8272,
+      "rubin_fmi": 0.0382
+    },
+    {
+      "name": "nssec_proxyL",
+      "level": "L",
+      "estimate": 0.1067,
+      "cluster_robust_se": 0.2288,
+      "pvalue": 0.6409,
+      "rubin_df": 34539.5021,
+      "rubin_fmi": 0.0235
+    },
+    {
+      "name": "birth_cohort1950s",
+      "level": "1950s",
+      "estimate": 1.6249,
+      "cluster_robust_se": 0.5079,
+      "pvalue": 0.0014,
+      "rubin_df": 4675873828.9263,
+      "rubin_fmi": 0.0001
+    },
+    {
+      "name": "birth_cohort1960s",
+      "level": "1960s",
+      "estimate": 3.4967,
+      "cluster_robust_se": 0.508,
+      "pvalue": 0,
+      "rubin_df": 17478011021.8965,
+      "rubin_fmi": 0
+    },
+    {
+      "name": "birth_cohort1970s",
+      "level": "1970s",
+      "estimate": 3.8666,
+      "cluster_robust_se": 0.5166,
+      "pvalue": 0,
+      "rubin_df": 4040002588.1152,
+      "rubin_fmi": 0.0001
+    },
+    {
+      "name": "birth_cohortpost-1980",
+      "level": "post-1980",
+      "estimate": 3.9893,
+      "cluster_robust_se": 0.5192,
+      "pvalue": 0,
+      "rubin_df": 10402690191.9692,
+      "rubin_fmi": 0
+    },
+    {
+      "name": "sexfemale",
+      "level": "female",
+      "estimate": -0.5961,
+      "cluster_robust_se": 0.1626,
+      "pvalue": 0.0002,
+      "rubin_df": 61432973.6046,
+      "rubin_fmi": 0.0006
+    },
+    {
+      "name": "region2",
+      "level": "2",
+      "estimate": -0.2543,
+      "cluster_robust_se": 0.4216,
+      "pvalue": 0.5463,
+      "rubin_df": 105668784.0583,
+      "rubin_fmi": 0.0004
+    },
+    {
+      "name": "region3",
+      "level": "3",
+      "estimate": -0.1849,
+      "cluster_robust_se": 0.4268,
+      "pvalue": 0.6648,
+      "rubin_df": 354824680.0227,
+      "rubin_fmi": 0.0002
+    },
+    {
+      "name": "region4",
+      "level": "4",
+      "estimate": -0.1779,
+      "cluster_robust_se": 0.4593,
+      "pvalue": 0.6984,
+      "rubin_df": 789387109.7017,
+      "rubin_fmi": 0.0002
+    },
+    {
+      "name": "region5",
+      "level": "5",
+      "estimate": -0.886,
+      "cluster_robust_se": 0.4391,
+      "pvalue": 0.0436,
+      "rubin_df": 530207962.2294,
+      "rubin_fmi": 0.0002
+    },
+    {
+      "name": "region6",
+      "level": "6",
+      "estimate": -0.3745,
+      "cluster_robust_se": 0.4377,
+      "pvalue": 0.3922,
+      "rubin_df": 412163036.1433,
+      "rubin_fmi": 0.0002
+    },
+    {
+      "name": "region7",
+      "level": "7",
+      "estimate": -0.1062,
+      "cluster_robust_se": 0.4127,
+      "pvalue": 0.7969,
+      "rubin_df": 2288509003.9378,
+      "rubin_fmi": 0.0001
+    },
+    {
+      "name": "region8",
+      "level": "8",
+      "estimate": -0.3022,
+      "cluster_robust_se": 0.4483,
+      "pvalue": 0.5002,
+      "rubin_df": 926290574.3324,
+      "rubin_fmi": 0.0001
+    },
+    {
+      "name": "region9",
+      "level": "9",
+      "estimate": -0.735,
+      "cluster_robust_se": 0.4645,
+      "pvalue": 0.1136,
+      "rubin_df": 515659125.9593,
+      "rubin_fmi": 0.0002
+    },
+    {
+      "name": "region10",
+      "level": "10",
+      "estimate": -0.1996,
+      "cluster_robust_se": 0.4659,
+      "pvalue": 0.6684,
+      "rubin_df": 756461937.8418,
+      "rubin_fmi": 0.0002
+    },
+    {
+      "name": "region11",
+      "level": "11",
+      "estimate": -0.5702,
+      "cluster_robust_se": 0.4665,
+      "pvalue": 0.2216,
+      "rubin_df": 1175970549.5684,
+      "rubin_fmi": 0.0001
+    },
+    {
+      "name": "region12",
+      "level": "12",
+      "estimate": -0.5355,
+      "cluster_robust_se": 0.4451,
+      "pvalue": 0.2289,
+      "rubin_df": 500307709.0301,
+      "rubin_fmi": 0.0002
+    }
+  ],
+  "unweighted_glmm_companion": {
+    "regime_init_r6_logor": 3.3988,
+    "sigma_u_hh": 0.4671,
+    "icc_hh": 0.0622,
+    "coefficients": [
+      {
+        "name": "regime_initR6",
+        "level": "R6",
+        "estimate": 3.3988,
+        "se": null,
+        "pvalue": null
+      },
+      {
+        "name": "nssec_proxyM",
+        "level": "M",
+        "estimate": -0.0089,
+        "se": null,
+        "pvalue": null
+      },
+      {
+        "name": "nssec_proxyL",
+        "level": "L",
+        "estimate": 0.0377,
+        "se": null,
+        "pvalue": null
+      }
+    ],
+    "note": "Unweighted diagnostic companion from first completed NS-SEC imputation; not the IPW-adjusted headline."
+  },
+  "household_variance_estimability": {
+    "weighted_household_variance_estimable": false,
+    "rationale": "Weighted household random-effect variance is not reliably estimable on the singleton-dominated household structure (6,037 households / 7,097 individuals in the Tier-2 model frame).",
+    "evidence": [
+      "Weighted glmmTMB diagnostic diverged to sigma_u=35.6066 and ICC=0.9974.",
+      "WeMix bounded smoke failed with error: Matrix seems negative semi-definite",
+      "Full first-imputation WeMix smoke was censored after 4001.4 seconds without completing."
+    ]
+  },
+  "acceptance": {
+    "regime6_or_gt_1": true,
+    "nssec_direction_consistent_with_t120": true,
+    "accepted": true,
+    "t120_baseline_source": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-foo-regression-transparency/results/panel_methodology/regression/tier2_glmm_firth_2026-05-14.json",
+    "t120_nssec_proxyM_sign": 1,
+    "t120_nssec_proxyL_sign": 1
+  }
+}

@@ -1,6 +1,6 @@
 id: within-pair-odds-ratio
 kind: formula
-pending: true
+pending: false
 
 description: >
   Within-sibling-pair odds ratio for escape concordance in the T1.35

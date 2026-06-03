@@ -1,6 +1,6 @@
 id: nssec-regime-crosstab-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.34 parental NS-SEC x first-window regime descriptive

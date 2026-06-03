@@ -1,0 +1,36 @@
+{
+  "schema_version": "panel-output/nssec-regime-crosstab/v1",
+  "generated_at": "2026-06-03T19:54:50Z",
+  "task": "T1.34 NSSEC x regime cross-tab",
+  "params": {
+    "nssec_proxy_source": "T1.18 sibling-consistent MICE pool, first completed dataset for descriptive cross-tab",
+    "regime_init_source": "first-window placement from window_escape_assignments_2026-05-14.json",
+    "nssec_levels": ["H", "M", "L"],
+    "regime_levels": ["R2", "R6"],
+    "n_total": 7275,
+    "n_missing_nssec": 11,
+    "n_missing_regime": 0
+  },
+  "counts": [
+    [1435, 462],
+    [2049, 651],
+    [2050, 628]
+  ],
+  "row_proportions": [
+    [0.7565, 0.2435],
+    [0.7589, 0.2411],
+    [0.7655, 0.2345]
+  ],
+  "col_proportions": [
+    [0.2593, 0.2654],
+    [0.3703, 0.3739],
+    [0.3704, 0.3607]
+  ],
+  "sparse_cells": [],
+  "column_independence_test": {
+    "statistic": 0.5747,
+    "df": 2,
+    "pvalue": 0.7503,
+    "expected_min": 453.9762
+  }
+}

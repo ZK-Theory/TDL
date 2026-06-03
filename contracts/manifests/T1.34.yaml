@@ -18,16 +18,18 @@ contracts:
   - regression-specs/mice-convergence-rule
   - regression-specs/cross-tab-sparse-cell-flagging
   - panel-output-schemas/tier2-ipw-mice-svyglm-output
+  - panel-output-schemas/tier2-svyglm-headline-output
   - panel-output-schemas/nssec-regime-crosstab-output
   - panel-output-schemas/foo-sensitivity-fullsample-output
   - panel-output-schemas/t134-regression-output-json-validation
 
 notes: >
-  All eleven T1.34 contracts are authored as pending: true so the pre-commit
-  hook does not block on binding tests that will live on the Worker's
-  feature branch (run/foo-regression-transparency). The Worker clears
-  pending in each contract once test functions are present and passing on
-  the feature branch. Human-review-only claims (substantive interpretation
+  The twelve T1.34 contracts were authored as pending: true so the pre-commit
+  hook does not block on binding tests that live on the Worker's feature
+  branch (run/foo-regression-transparency); the Worker clears pending in each
+  contract once its test function is present and passing on the feature branch
+  (most are now cleared, including the 2026-06-03 tier2-svyglm-headline-output
+  schema added for the Option A fallback). Human-review-only claims (substantive interpretation
   of effect sizes for §4.5 / §S8 narrative; reviewer-facing framing of the
   design-based vs model-based agreement) are deliberately NOT contract-
   encoded — they are flagged as such in the Task Prompt. The

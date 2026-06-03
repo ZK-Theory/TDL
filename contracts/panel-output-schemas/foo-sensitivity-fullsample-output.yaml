@@ -1,6 +1,6 @@
 id: foo-sensitivity-fullsample-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.34c full-sample FOO sensitivity JSON written to
