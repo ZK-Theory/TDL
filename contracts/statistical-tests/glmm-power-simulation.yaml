@@ -30,7 +30,7 @@ spec_citation:
   vault_entry_date: "2026-06-03"
 
 formula:
-  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); if either fit fails to converge: record convergence_failure_b = TRUE and EXCLUDE b from the rejection denominator (do NOT score as reject = FALSE); else LRT_b = max(0, 2 * (logLik(fit_full) - logLik(fit_null))); p_b = (LRT_b <= 0 ? 1 : 0.5 * (1 - chisq_cdf(LRT_b, df = 1))); reject_b = p_b <= alpha; power(icc) = mean(reject_b over converged b); minimum_detectable_icc = min({icc : power(icc) >= 0.80})"
+  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); if either fit fails to converge: record convergence_failure_b = TRUE and EXCLUDE b from the rejection denominator (do NOT score as reject = FALSE); else LRT_b = max(0, 2 * (logLik(fit_full) - logLik(fit_null))); p_b = (LRT_b <= 0 ? 1 : 0.5 * (1 - chisq_cdf(LRT_b, df = 1))); reject_b = p_b <= alpha; power(icc) = mean(reject_b over converged b); run the identical simulate-fit-LRT-reject procedure at icc = 0 (sigma_u = 0) to obtain type_i_at_icc0 = mean(reject_b over converged b at icc=0); calibrated = (abs(type_i_at_icc0 - alpha) <= calibration_tolerance); if not calibrated: minimum_detectable_icc = 'engine not calibrated'; else if no icc in {0.01, 0.025, 0.05, 0.10, 0.20} has power(icc) >= 0.80: minimum_detectable_icc = 'greater than 0.20'; else minimum_detectable_icc = min({icc in {0.01, 0.025, 0.05, 0.10, 0.20} : power(icc) >= 0.80})"
   variables:
     icc:
       description: "True intra-class correlation in the simulated data. Grid is {0.01, 0.025, 0.05, 0.10, 0.20} (locked by pre-reg)."
@@ -69,12 +69,16 @@ formula:
       domain: "[0, 1]"
       implementation_name: "power[icc]"
     type_i_at_icc0:
-      description: "Calibration check: empirical rejection rate at true ICC = 0. MUST be approximately alpha (0.05) for the engine to be trusted; reported in the output JSON."
+      description: "Calibration check: empirical rejection rate at true ICC = 0 (sigma_u = 0), computed by the identical simulate-fit-LRT-reject procedure used for the power grid. MUST be approximately alpha for the engine to be trusted; reported in the output JSON."
       domain: "[0, 1]; target ~ alpha"
       implementation_name: "type_i_at_icc0"
+    calibration_tolerance:
+      description: "Pinned Monte-Carlo tolerance for deciding whether type_i_at_icc0 is close enough to alpha: calibrated == (abs(type_i_at_icc0 - alpha) <= calibration_tolerance). Pinned at 0.03 (so for alpha = 0.05 the engine is 'calibrated' iff empirical type-I lies in [0.02, 0.08])."
+      domain: "non-negative real; pinned == 0.03"
+      implementation_name: "calibration_tolerance"
     minimum_detectable_icc:
-      description: "Smallest grid value with power(icc) >= 0.80. Three mutually-exclusive output forms: (1) a real grid value when calibrated and a grid point reaches 0.80; (2) the string 'greater than 0.20' when calibrated but no grid value reaches 0.80 (NOT silently extrapolated); (3) the string 'engine not calibrated' when the ICC=0 calibration check fails (type_i_at_icc0 not approximately alpha) — in that case NO numeric minimum-detectable-ICC may be reported, since the power curve is uninterpretable."
-      domain: "real, or 'greater than 0.20' string, or 'engine not calibrated' string"
+      description: "Computed by the explicit three-branch gate in the expression: (1) if NOT calibrated (abs(type_i_at_icc0 - alpha) > calibration_tolerance) -> the string 'engine not calibrated' (NO numeric value, since the power curve is uninterpretable); (2) else if no grid value reaches power 0.80 -> the string 'greater than 0.20' (NOT silently extrapolated); (3) else the smallest grid value with power(icc) >= 0.80. The calibration branch takes strict precedence over the other two."
+      domain: "one of {0.01, 0.025, 0.05, 0.10, 0.20}, or 'greater than 0.20', or 'engine not calibrated'"
       implementation_name: "min_detectable_icc"
   invariants:
     - claim: "ICC grid is exactly {0.01, 0.025, 0.05, 0.10, 0.20} — five values. Adding or removing grid points requires a pre-reg amendment."
@@ -87,8 +91,8 @@ formula:
     - claim: "The boundary variance test uses the 50:50 mixture of chi-square_0 and chi-square_1: p = 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0. A plain chi-square_1 reference (pchisq(LRT, df = 1)) over-rejects at a boundary null and is FORBIDDEN."
       expression: "p_value == 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0"
     - claim: "Convergence failures are counted in a separate tally and EXCLUDED from the rejection denominator; they are NOT scored as reject = FALSE. (Scoring failures as non-rejections inverts the power curve, since failures rise with sigma_u.)"
-    - claim: "The engine is calibration-checked at ICC = 0: the empirical type-I rate type_i_at_icc0 MUST be approximately alpha (0.05). If it is far from alpha, the engine is miscalibrated and minimum_detectable_icc MUST be the string 'engine not calibrated' (NOT a numeric grid value and NOT 'greater than 0.20') — the discrepancy is surfaced instead."
-      expression: "calibrated == false => minimum_detectable_icc == 'engine not calibrated'"
+    - claim: "The engine is calibration-checked at ICC = 0 with a PINNED tolerance: calibrated == (abs(type_i_at_icc0 - alpha) <= calibration_tolerance), calibration_tolerance == 0.03. If not calibrated, minimum_detectable_icc MUST be the string 'engine not calibrated' (NOT a numeric grid value and NOT 'greater than 0.20'), and this branch takes strict precedence — the discrepancy is surfaced instead of a power claim."
+      expression: "abs(type_i_at_icc0 - alpha) > calibration_tolerance => minimum_detectable_icc == 'engine not calibrated'"
     - claim: "sigma_u is derived from icc using the latent-variable representation sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3 (invert ICC = sigma_u^2 / (sigma_u^2 + pi^2/3); variance of the standard logistic is pi^2/3). The naive sigma_u^2 = icc * pi^2 / 3 omits the 1/(1-icc) factor and understates the simulated random-effect variance (up to ~25% at icc=0.20); the linear-mixed-model formula sigma_u^2 = icc * sigma_e^2 is also wrong here."
       expression: "sigma_u^2 == (icc / (1 - icc)) * pi^2 / 3"
     - claim: "Simulation randomness is seeded; the seed and B are recorded in the output JSON; reseeding reproduces the power curve bit-for-bit."
