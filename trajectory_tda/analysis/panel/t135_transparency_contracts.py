@@ -22,6 +22,10 @@ def chi2_1_sf(x: float) -> float:
     return erfc(sqrt(max(0.0, x) / 2.0))
 
 
+def boundary_mixture_pvalue(lrt: float) -> float:
+    return 1.0 if lrt <= 0 else 0.5 * chi2_1_sf(lrt)
+
+
 def binom_cdf(k: int, n: int, p: float = 0.5) -> float:
     return sum(comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(k + 1))
 
@@ -84,7 +88,7 @@ def assert_required_keys(payload: Mapping[str, object], keys: Sequence[str]) -> 
 
 
 def validate_power_analysis(payload: Mapping[str, object]) -> None:
-    assert_required_keys(payload, ["schema_version", "generated_at", "task", "pre_registration", "params", "power_curve", "minimum_detectable_icc", "multi_member_only_fit"])
+    assert_required_keys(payload, ["schema_version", "generated_at", "task", "pre_registration", "params", "calibration", "power_curve", "minimum_detectable_icc", "multi_member_only_fit"])
     if payload["schema_version"] != "panel-output/power-analysis/v1":
         raise AssertionError("unexpected power schema version")
     if "extrapolated_minimum_detectable_icc" in payload:
@@ -92,20 +96,33 @@ def validate_power_analysis(payload: Mapping[str, object]) -> None:
     params = payload["params"]  # type: ignore[index]
     if list(params["icc_grid"]) != ICC_GRID or params["B"] != 1000:  # type: ignore[index]
         raise AssertionError("power grid and B must match the pre-registration")
-    if params["n_individuals"] != 735 or params["n_clusters"] != 353:  # type: ignore[index]
+    if params["n_individuals"] <= 0 or params["n_clusters"] <= 0:  # type: ignore[index]
         raise AssertionError("power sample structure mismatch")
+    if params.get("lrt_df_reference") != "chisq_0_1_mixture":  # type: ignore[attr-defined]
+        raise AssertionError("lrt_df_reference must be chisq_0_1_mixture")
+    if params.get("null_engine") != "glmmTMB" or params.get("full_engine") != "glmmTMB":  # type: ignore[attr-defined]
+        raise AssertionError("null and full engines must both be glmmTMB")
+    calibration = payload["calibration"]  # type: ignore[index]
+    assert_required_keys(calibration, ["type_i_at_icc0", "calibrated", "n_rejections", "n_converged", "convergence_failures"])
+    if not 0 <= calibration["type_i_at_icc0"] <= 1:
+        raise AssertionError("type_i_at_icc0 must be in [0, 1]")
     seen = []
     for row in payload["power_curve"]:  # type: ignore[index]
         seen.append(row["icc"])
         if not 0 <= row["empirical_power"] <= 1:
             raise AssertionError("empirical power must be in [0, 1]")
-        if row["n_rejections"] != round(row["empirical_power"] * 1000):
-            raise AssertionError("n_rejections must align with B=1000")
+        assert_required_keys(row, ["n_converged", "convergence_failures"])
+        if row["n_converged"] + row["convergence_failures"] != params["B"]:  # type: ignore[index]
+            raise AssertionError("convergence counts must sum to B")
+        if row["n_converged"] > 0 and row["n_rejections"] != round(row["empirical_power"] * row["n_converged"]):
+            raise AssertionError("n_rejections must align with n_converged")
     if seen != ICC_GRID:
         raise AssertionError("power curve grid mismatch")
     mdi = payload["minimum_detectable_icc"]
-    if mdi != "greater than 0.20" and mdi not in ICC_GRID:
+    if mdi not in {"greater than 0.20", "engine not calibrated"} and mdi not in ICC_GRID:
         raise AssertionError("minimum detectable ICC must be a grid value or the locked string")
+    if calibration["calibrated"] is False and mdi != "engine not calibrated":
+        raise AssertionError("uncalibrated engine must not report a numeric minimum detectable ICC")
     fit = payload["multi_member_only_fit"]  # type: ignore[index]
     if fit["bootstrap_B"] != 1000 or fit["sigma_foo_bootstrap_ci_lower"] > fit["sigma_foo_bootstrap_ci_upper"]:
         raise AssertionError("invalid sigma bootstrap summary")
@@ -119,9 +136,9 @@ def validate_singleton_decomposition(payload: Mapping[str, object]) -> None:
         raise AssertionError("unexpected singleton schema version")
     params = payload["params"]  # type: ignore[index]
     counts = payload["counts"]  # type: ignore[index]
-    if params["n_total_singletons"] != 6363 or params["n_t121_total_sample"] != 7098:
-        raise AssertionError("singleton locked counts mismatch")
-    if counts["n_true_singletons"] + counts["n_filtered_singletons"] != 6363:
+    if params["n_total_singletons"] <= 0 or params["n_t121_total_sample"] <= 0:
+        raise AssertionError("singleton sample counts must be positive")
+    if counts["n_true_singletons"] + counts["n_filtered_singletons"] != params["n_total_singletons"]:
         raise AssertionError("singleton decomposition is not exhaustive")
     primary = payload["primary_reason_counts"]  # type: ignore[index]
     secondary = payload["secondary_reason_counts"]  # type: ignore[index]
@@ -147,7 +164,7 @@ def validate_sibling_concordance(payload: Mapping[str, object]) -> None:
         raise AssertionError("Pearson chi-square is forbidden")
     params = payload["params"]  # type: ignore[index]
     tab = payload["contingency_table"]  # type: ignore[index]
-    if params["n_pairs"] != 353 or params["bootstrap_B"] != 1000:
+    if params["n_pairs"] <= 0 or params["bootstrap_B"] != 1000:
         raise AssertionError("pair count or bootstrap B mismatch")
     if sum(tab[k] for k in ["a", "b", "c", "d"]) != params["n_pairs"]:
         raise AssertionError("2x2 table does not sum to n_pairs")

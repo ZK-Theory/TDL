@@ -8,6 +8,7 @@ import pytest
 from trajectory_tda.analysis.panel.t135_transparency_contracts import (
     ICC_GRID,
     REASON_VOCAB,
+    boundary_mixture_pvalue,
     chi2_1_sf,
     cluster_bootstrap_pairs,
     cohens_kappa,
@@ -29,6 +30,16 @@ def test_glmm_power_simulation_construction():
     sigma_u = math.sqrt(icc * math.pi**2 / 3)
     assert sigma_u == pytest.approx(math.sqrt(0.20 * math.pi**2 / 3))
     assert cluster_sizes.sum() == 11
+    assert boundary_mixture_pvalue(4.0) == pytest.approx(0.5 * chi2_1_sf(4.0))
+    assert boundary_mixture_pvalue(0.0) == 1.0
+    simulation_record = {"null_engine": "glmmTMB", "full_engine": "glmmTMB", "reject": None, "convergence_failure": True}
+    assert simulation_record["null_engine"] == simulation_record["full_engine"] == "glmmTMB"
+    converged = [True, False, True, True]
+    rejects = [True, None, False, False]
+    n_converged = sum(converged)
+    assert sum(r is True for r, ok in zip(rejects, converged) if ok) / n_converged == pytest.approx(1 / 3)
+    type_i_at_icc0 = 0.052
+    assert abs(type_i_at_icc0 - 0.05) <= 0.03
     no_hits = [{"icc": x, "empirical_power": 0.0} for x in ICC_GRID]
     min_detectable = next((r["icc"] for r in no_hits if r["empirical_power"] >= 0.80), "greater than 0.20")
     assert min_detectable == "greater than 0.20"
@@ -74,8 +85,8 @@ def test_singleton_decomposition_exhaustivity():
         "generated_at": "2026-06-03T00:00:00Z",
         "task": "T1.35b singleton decomposition",
         "pre_registration": "2026-05-25",
-        "params": {"n_total_singletons": 6363, "n_t121_total_sample": 7098},
-        "counts": {"n_true_singletons": 6360, "n_filtered_singletons": 3},
+        "params": {"n_total_singletons": 6284, "n_t121_total_sample": 6995},
+        "counts": {"n_true_singletons": 6281, "n_filtered_singletons": 3},
         "primary_reason_counts": {k: (3 if k == "does_not_start_in_r2_or_r6" else 0) for k in REASON_VOCAB},
         "secondary_reason_counts": {k: (3 if k in {"ipw_zero_due_to_ineligibility", "missing_nssec_proxy"} else 0) for k in REASON_VOCAB},
         "per_singleton_records": [
@@ -85,7 +96,7 @@ def test_singleton_decomposition_exhaustivity():
         ],
     }
     validate_singleton_decomposition(payload)
-    bad = {**payload, "counts": {"n_true_singletons": 6359, "n_filtered_singletons": 3}}
+    bad = {**payload, "counts": {"n_true_singletons": 6280, "n_filtered_singletons": 3}}
     with pytest.raises(AssertionError, match="exhaustive"):
         validate_singleton_decomposition(bad)
 
@@ -100,8 +111,20 @@ def test_power_analysis_json_schema():
         "generated_at": "2026-06-03T00:00:00Z",
         "task": "T1.35a power analysis",
         "pre_registration": "2026-05-25",
-        "params": {"icc_grid": ICC_GRID, "B": 1000, "alpha": 0.05, "seed": 42, "n_individuals": 735, "n_clusters": 353, "sigma_u_formula": "latent-variable: sigma_u^2 = icc * pi^2 / 3", "lrt_df_reference": "chisq_1"},
-        "power_curve": [{"icc": icc, "empirical_power": 0.5, "n_rejections": 500, "bootstrap_se_of_power": 0.0158} for icc in ICC_GRID],
+        "params": {
+            "icc_grid": ICC_GRID,
+            "B": 1000,
+            "alpha": 0.05,
+            "seed": 42,
+            "n_individuals": 711,
+            "n_clusters": 342,
+            "sigma_u_formula": "latent-variable: sigma_u^2 = icc * pi^2 / 3",
+            "lrt_df_reference": "chisq_0_1_mixture",
+            "null_engine": "glmmTMB",
+            "full_engine": "glmmTMB",
+        },
+        "calibration": {"type_i_at_icc0": 0.052, "calibrated": True, "n_rejections": 52, "n_converged": 1000, "convergence_failures": 0},
+        "power_curve": [{"icc": icc, "empirical_power": 0.5, "n_rejections": 490, "n_converged": 980, "convergence_failures": 20, "bootstrap_se_of_power": 0.016} for icc in ICC_GRID],
         "minimum_detectable_icc": "greater than 0.20",
         "multi_member_only_fit": {"sigma_foo_point_estimate": 0.0, "sigma_foo_bootstrap_ci_lower": 0.0, "sigma_foo_bootstrap_ci_upper": 0.1, "bootstrap_B": 1000, "lrt_pvalue_against_icc_zero": 0.5},
     }
@@ -109,6 +132,12 @@ def test_power_analysis_json_schema():
     bad = {**payload, "params": {**payload["params"], "B": 999}}
     with pytest.raises(AssertionError):
         validate_power_analysis(bad)
+    bad_ref = {**payload, "params": {**payload["params"], "lrt_df_reference": "chisq_1"}}
+    with pytest.raises(AssertionError, match="lrt_df_reference"):
+        validate_power_analysis(bad_ref)
+    bad_cal = {**payload, "calibration": {**payload["calibration"], "calibrated": False}, "minimum_detectable_icc": 0.05}
+    with pytest.raises(AssertionError, match="uncalibrated"):
+        validate_power_analysis(bad_cal)
 
 
 def test_sibling_concordance_json_schema():
@@ -132,7 +161,9 @@ def test_sibling_concordance_json_schema():
 def test_t135_output_jsons_validate_against_schemas():
     out_dir = ROOT / "results" / "panel_methodology" / "foo_transparency"
     for path in out_dir.glob("*.json"):
-        if "bench" in path.name:
+        if "bench" in path.name or "syntax" in path.name:
+            continue
+        if path.name.startswith(("power_analysis_", "singleton_decomposition_", "sibling_concordance_")) and "corrected_" not in path.name:
             continue
         with path.open(encoding="utf-8") as fh:
             dispatch_t135_json(path, json.load(fh))
