@@ -32,10 +32,13 @@ schema_def:
       description: "Date of the T1.35a pre-registration vault entry."
     - name: params
       type: "dict[str, ...]"
-      description: "Provenance block. MUST contain: icc_grid (list[float] == [0.01, 0.025, 0.05, 0.10, 0.20]), B (int == 1000), alpha (float == 0.05), seed (int), n_individuals (int == 735), n_clusters (int == 353), sigma_u_formula (str == 'latent-variable: sigma_u^2 = icc * pi^2 / 3'), lrt_df_reference (str = 'chisq_1' or 'chisq_0_1_mixture')."
+      description: "Provenance block. MUST contain: icc_grid (list[float] == [0.01, 0.025, 0.05, 0.10, 0.20]), B (int == 1000), alpha (float == 0.05), seed (int), n_individuals (int == 735), n_clusters (int == 353), sigma_u_formula (str == 'latent-variable: sigma_u^2 = icc * pi^2 / 3'), lrt_df_reference (str == 'chisq_0_1_mixture' — the boundary 50:50 mixture; the plain 'chisq_1' reference is FORBIDDEN per the corrected glmm-power-simulation contract), null_engine (str == 'glmmTMB') and full_engine (str == 'glmmTMB') (both fit with the same engine so log-likelihoods are comparable)."
+    - name: calibration
+      type: "dict[str, ...]"
+      description: "ICC = 0 calibration check (corrected method, 2026-06-03). MUST contain: type_i_at_icc0 (float in [0, 1] — empirical rejection rate at true ICC = 0, MUST be approximately alpha=0.05 within Monte-Carlo tolerance), calibrated (bool — true iff type_i_at_icc0 is within tolerance of alpha). If calibrated is false, minimum_detectable_icc MUST be the string 'engine not calibrated' rather than a numeric grid value."
     - name: power_curve
       type: "list[dict]"
-      description: "Per-grid-point power. Each entry: icc (float in {0.01, 0.025, 0.05, 0.10, 0.20}), empirical_power (float in [0, 1]), n_rejections (int), bootstrap_se_of_power (float >= 0)."
+      description: "Per-grid-point power. Each entry: icc (float in {0.01, 0.025, 0.05, 0.10, 0.20}), empirical_power (float in [0, 1] — fraction rejecting among CONVERGED sims), n_rejections (int), n_converged (int <= B), convergence_failures (int >= 0 — tallied separately, NOT scored as non-rejections), bootstrap_se_of_power (float >= 0)."
     - name: minimum_detectable_icc
       type: "float | str"
       description: "Smallest grid value with empirical_power >= 0.80. If no grid value reaches 0.80, MUST be the string 'greater than 0.20' (NOT a silent extrapolation, NOT a null)."
@@ -55,5 +58,9 @@ binding:
     (c) power_curve entry with empirical_power outside [0, 1],
     (d) minimum_detectable_icc as null when no grid value reached 0.80
     (must be the string 'greater than 0.20' instead), (e) bootstrap_B
-    != 1000 in multi_member_only_fit, or (f) presence of the forbidden
-    extrapolated_minimum_detectable_icc key are rejected.
+    != 1000 in multi_member_only_fit, (f) presence of the forbidden
+    extrapolated_minimum_detectable_icc key, (g) lrt_df_reference ==
+    'chisq_1' (the forbidden plain reference — only 'chisq_0_1_mixture'
+    is accepted), (h) a missing calibration block or type_i_at_icc0, or
+    (i) a power_curve entry missing convergence_failures / n_converged
+    are rejected.

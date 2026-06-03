@@ -1,6 +1,5 @@
 id: comparator-feature-definitions
 kind: formula
-pending: true
 
 description: >
   Defines the two simpler-method comparator feature spaces for the T1.33
