@@ -4,9 +4,11 @@ pending: false
 
 description: >
   McNemar test on the 2 x 2 paired-discordance table for sibling-pair escape
-  concordance in the T1.35 sibling concordance analysis. The 342 multi-
-  member FOO clusters from T1.21 (fitted stage; prior 353 was pre-complete-case)
-  contribute paired observations; the test
+  concordance in the T1.35 sibling concordance analysis. ALL within-family
+  sibling pairs enumerated from the 342 multi-member FOO clusters from T1.21
+  (fitted stage; one pair per 2-member cluster, C(n,2) per larger cluster;
+  n_pairs >= 342) contribute paired observations, with the bootstrap clustered
+  at the FOO-family level; the test
   asks whether sibling concordance is symmetric (b == c under the null) or
   asymmetric (b != c). The contract pins both the with-continuity-correction
   and the without-continuity-correction variants, requires the exact
@@ -54,8 +56,8 @@ formula:
     - claim: "Both with-continuity-correction (Yates) and without-continuity-correction variants are computed; the output JSON records both."
     - claim: "Member 1 vs member 2 within a pair is determined by a fixed rule (e.g., the smaller pidp within the cluster) so the (b, c) cells are reproducible across runs. Random assignment of member 1 / member 2 is forbidden."
     - claim: "The test is two-sided (the sibling concordance hypothesis does not predict a direction); the output records the two-sided p-value."
-    - claim: "a + b + c + d == n_pairs == 342 (the T1.21 fitted-stage multi-FOO cluster count for the T1.35 sibling-concordance analysis; prior 353 was the pre-complete-case count)."
-      expression: "a + b + c + d == 342"
+    - claim: "a + b + c + d == n_pairs, the total within-family sibling pairs enumerated across the 342 multi-member FOO clusters (n_pairs >= 342: one pair per 2-member cluster, C(n,2) per larger cluster). The structural identity is on n_pairs, not a fixed literal."
+      expression: "a + b + c + d == n_pairs"
 
 binding:
   test_file: "tests/panel/test_t135_transparency_contracts.py"

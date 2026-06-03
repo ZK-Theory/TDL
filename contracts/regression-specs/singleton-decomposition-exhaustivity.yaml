@@ -3,8 +3,9 @@ kind: invariant
 pending: false
 
 description: >
-  Behavioural invariant for T1.35's singleton decomposition of the 6,363
-  disadvantaged-starter singletons in the T1.21 sample. Each singleton
+  Behavioural invariant for T1.35's singleton decomposition of the 6,284
+  disadvantaged-starter singletons in the T1.21 fitted sample (post
+  complete-case; the prior 6,363 was the pre-complete-case count). Each singleton
   must be classified as either a TRUE singleton (the individual has no
   sibling anywhere in xwavedat) or a FILTERED singleton (a sibling exists
   in xwavedat but was excluded by an analytical filter). The two counts
@@ -19,8 +20,9 @@ spec_citation:
 
 invariant:
   claim: >
-    Let S = 6,363 be the total disadvantaged-starter singleton count in
-    the T1.21 sample. Let T = count of true singletons (no sibling in
+    Let S = 6,284 be the total disadvantaged-starter singleton count in
+    the T1.21 fitted sample (post complete-case; prior 6,363 was
+    pre-complete-case). Let T = count of true singletons (no sibling in
     xwavedat at all) and F = count of filtered singletons (sibling exists
     in xwavedat but was excluded by at least one analytical filter). The
     decomposition MUST satisfy T + F == S exactly (no rounding, no
