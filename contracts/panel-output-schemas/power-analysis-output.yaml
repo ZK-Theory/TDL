@@ -35,10 +35,10 @@ schema_def:
       description: "Provenance block. MUST contain: icc_grid (list[float] == [0.01, 0.025, 0.05, 0.10, 0.20]), B (int == 1000), alpha (float == 0.05), seed (int), n_individuals (int == 711), n_clusters (int == 342) (the T1.21 fitted-stage counts, post complete-case filter; the prior 735/353 was the pre-filter IPW-eligible count — see the sample_reconciliation block and tier3_cross_classified_2026-05-25.json n_obs=6995), sigma_u_formula (str == 'latent-variable: sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3' — corrected 2026-06-03c; the naive 'icc * pi^2 / 3' omits the 1/(1-icc) factor and is FORBIDDEN), lrt_df_reference (str == 'chisq_0_1_mixture' — the boundary 50:50 mixture; the plain 'chisq_1' reference is FORBIDDEN per the corrected glmm-power-simulation contract), null_engine (str == 'glmmTMB') and full_engine (str == 'glmmTMB') (both fit with the same engine so log-likelihoods are comparable)."
     - name: calibration
       type: "dict[str, ...]"
-      description: "ICC = 0 calibration check (corrected method, 2026-06-03). MUST contain: type_i_at_icc0 (float in [0, 1] — empirical rejection rate at true ICC = 0), calibrated (bool — true iff abs(type_i_at_icc0 - alpha) <= 0.03, where alpha == 0.05 and 0.03 is the calibration_tolerance pinned by the glmm-power-simulation contract; the gate is numeric and reproducible, NOT a qualitative 'approximately alpha' judgement). If calibrated is false, minimum_detectable_icc MUST be the string 'engine not calibrated' rather than a numeric grid value."
+      description: "ICC = 0 calibration check (corrected method, 2026-06-03). MUST contain: type_i_at_icc0 (float in [0, 1] — empirical rejection rate at true ICC = 0), calibrated (bool — true iff abs(type_i_at_icc0 - alpha) <= 0.03, where alpha == 0.05 and 0.03 is the calibration_tolerance pinned by the glmm-power-simulation contract; the gate is numeric and reproducible, NOT a qualitative 'approximately alpha' judgement), n_rejections (int), n_converged (int), convergence_failures (int). The calibration counts obey the same conservation as the power curve: n_converged + convergence_failures == B, 0 <= n_rejections <= n_converged, and n_rejections == round(type_i_at_icc0 * n_converged). If calibrated is false, minimum_detectable_icc MUST be the string 'engine not calibrated' rather than a numeric grid value."
     - name: power_curve
       type: "list[dict]"
-      description: "Per-grid-point power. Each entry: icc (float in {0.01, 0.025, 0.05, 0.10, 0.20}), empirical_power (float in [0, 1] — fraction rejecting among CONVERGED sims), n_rejections (int), n_converged (int <= B), convergence_failures (int >= 0 — tallied separately, NOT scored as non-rejections), bootstrap_se_of_power (float >= 0)."
+      description: "Per-grid-point power. Each entry: icc (float in {0.01, 0.025, 0.05, 0.10, 0.20}), empirical_power (float in [0, 1] — fraction rejecting among CONVERGED sims), n_rejections (int), n_converged (int <= B), convergence_failures (int >= 0 — tallied separately, NOT scored as non-rejections), bootstrap_se_of_power (float >= 0). Conservation MUST hold per entry: n_converged + convergence_failures == B (no silent drop), 0 <= n_rejections <= n_converged, and n_rejections == round(empirical_power * n_converged)."
     - name: minimum_detectable_icc
       type: "float | str"
       description: "Smallest grid value with empirical_power >= 0.80. If no grid value reaches 0.80, MUST be the string 'greater than 0.20' (NOT a silent extrapolation, NOT a null)."
@@ -61,6 +61,8 @@ binding:
     != 1000 in multi_member_only_fit, (f) presence of the forbidden
     extrapolated_minimum_detectable_icc key, (g) lrt_df_reference ==
     'chisq_1' (the forbidden plain reference — only 'chisq_0_1_mixture'
-    is accepted), (h) a missing calibration block or type_i_at_icc0, or
-    (i) a power_curve entry missing convergence_failures / n_converged
-    are rejected.
+    is accepted), (h) a missing calibration block or type_i_at_icc0,
+    (i) a power_curve entry missing convergence_failures / n_converged,
+    or (j) a power_curve OR calibration entry violating conservation
+    (n_converged + convergence_failures != B, or n_rejections outside
+    [0, n_converged]) are rejected.

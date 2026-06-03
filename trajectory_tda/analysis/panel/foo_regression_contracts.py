@@ -251,12 +251,31 @@ def validate_tier2_svyglm_headline_output(payload: Mapping[str, object]) -> None
             raise AssertionError("rubin_df must be positive")
         if not 0 <= row["rubin_fmi"] <= 1:
             raise AssertionError("rubin_fmi must be in [0, 1]")
+    # The acceptance gate is defined in terms of specific model outputs, so the
+    # rows those gates read MUST exist — otherwise the booleans can be hard-coded
+    # while the underlying coefficients are absent.
+    headline_names = {row["name"] for row in payload["svyglm_headline"]}  # type: ignore[index]
+    if "regime_initR6" not in headline_names:
+        raise AssertionError("svyglm_headline must contain the regime_initR6 row (acceptance.regime6_or_gt_1 reads it)")
+    if not any(isinstance(n, str) and n.startswith("nssec_proxy") for n in headline_names):
+        raise AssertionError("svyglm_headline must contain at least one nssec_proxy row (acceptance.nssec_direction_consistent_with_t120 reads it)")
     companion = payload["unweighted_glmm_companion"]  # type: ignore[index]
     assert_required_keys(companion, ["regime_init_r6_logor", "sigma_u_hh", "icc_hh", "coefficients"])
     if companion["sigma_u_hh"] < 0:
         raise AssertionError("sigma_u_hh must be non-negative")
     if not 0 <= companion["icc_hh"] <= 1:
         raise AssertionError("icc_hh must be in [0, 1]")
+    # Pin the companion coefficient rows as tightly as the headline rows. se and
+    # pvalue may be null — the companion is an unweighted point-estimate reference,
+    # not an inferential headline — but when present they must be well-typed.
+    for crow in companion["coefficients"]:
+        assert_required_keys(crow, ["name", "level", "estimate", "se", "pvalue"])
+        if not (isinstance(crow["level"], str) or crow["level"] is None):
+            raise AssertionError("companion coefficient level must be a string or null")
+        if crow["se"] is not None and crow["se"] < 0:
+            raise AssertionError("companion se must be non-negative or null")
+        if crow["pvalue"] is not None and not 0 <= crow["pvalue"] <= 1:
+            raise AssertionError("companion pvalue must be in [0, 1] or null")
     estimability = payload["household_variance_estimability"]  # type: ignore[index]
     if estimability["weighted_household_variance_estimable"] is not False:
         raise AssertionError("weighted_household_variance_estimable must be false")

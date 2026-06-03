@@ -44,10 +44,10 @@ schema_def:
       description: "MICE convergence diagnostics per the mice-convergence-rule invariant. MUST contain: all_chains_converged (bool == true; if false the JSON should not have been produced), per_chain_trace_passed (list[bool] of length m), rhat_summary (dict[str, float])."
     - name: svyglm_headline
       type: "list[dict]"
-      description: "Per-coefficient headline rows (Rubin-pooled across m svyglm fits). Each row MUST contain: name (str), level (str if categorical else null), estimate (float), cluster_robust_se (float >= 0), pvalue (float in [0, 1]), rubin_df (float > 0), rubin_fmi (float in [0, 1])."
+      description: "Per-coefficient headline rows (Rubin-pooled across m svyglm fits). Each row MUST contain: name (str), level (str if categorical else null), estimate (float), cluster_robust_se (float >= 0), pvalue (float in [0, 1]), rubin_df (float > 0), rubin_fmi (float in [0, 1]). The list MUST include a row with name == 'regime_initR6' and at least one row with name beginning 'nssec_proxy' — the coefficients the acceptance gate (regime6_or_gt_1, nssec_direction_consistent_with_t120) reads; the booleans cannot be hard-coded while the rows are absent."
     - name: unweighted_glmm_companion
       type: "dict[str, ...]"
-      description: "Companion random-effects reference (stable unweighted household-RE GLMM). MUST contain: regime_init_r6_logor (float), sigma_u_hh (float >= 0), icc_hh (float in [0, 1]), coefficients (list[dict] with name/level/estimate/se/pvalue). This is the ONLY place a household ICC may appear, explicitly labelled as the unweighted reference, NOT the IPW-adjusted headline."
+      description: "Companion random-effects reference (stable unweighted household-RE GLMM). MUST contain: regime_init_r6_logor (float), sigma_u_hh (float >= 0), icc_hh (float in [0, 1]), coefficients (list[dict]; each row pinned as tightly as the headline rows: name (str), level (str if categorical else null), estimate (float), se (float >= 0 or null), pvalue (float in [0, 1] or null) — se/pvalue MAY be null because this is an unweighted point-estimate reference, but when present are bound-checked). This is the ONLY place a household ICC may appear, explicitly labelled as the unweighted reference, NOT the IPW-adjusted headline."
     - name: household_variance_estimability
       type: "dict[str, ...]"
       description: "Honest non-estimability record. MUST contain: weighted_household_variance_estimable (bool == false), rationale (str — singleton-dominated household structure; ~6,037 households / n_obs = 6,995 individuals at the fitted stage), evidence (list[str] — references to the WeMix 'Matrix seems negative semi-definite' failure and the weighted glmmTMB ICC->0.997 divergence)."
@@ -71,6 +71,9 @@ binding:
     household_variance_estimability.weighted_household_variance_estimable
     != false, (e) icc_hh in the companion block outside [0, 1], (f)
     acceptance.accepted not equal to (regime6_or_gt_1 AND
-    nssec_direction_consistent_with_t120), or (g) presence of either
-    forbidden key (weighted_household_icc, wemix_headline) are rejected
-    with a precise diagnostic.
+    nssec_direction_consistent_with_t120), (g) presence of either
+    forbidden key (weighted_household_icc, wemix_headline), (h)
+    svyglm_headline missing the regime_initR6 row or any nssec_proxy row
+    (the acceptance gate's referenced coefficients), or (i) a companion
+    coefficient row with a non-null se < 0 or a non-null pvalue outside
+    [0, 1] are rejected with a precise diagnostic.

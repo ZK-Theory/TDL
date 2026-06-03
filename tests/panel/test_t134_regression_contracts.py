@@ -200,7 +200,16 @@ def _tier2_svyglm_headline_payload():
                 "pvalue": 0.0,
                 "rubin_df": 1000,
                 "rubin_fmi": 0.01,
-            }
+            },
+            {
+                "name": "nssec_proxyM",
+                "level": "M",
+                "estimate": 0.09,
+                "cluster_robust_se": 0.23,
+                "pvalue": 0.69,
+                "rubin_df": 1000,
+                "rubin_fmi": 0.01,
+            },
         ],
         "unweighted_glmm_companion": {
             "regime_init_r6_logor": 3.40,
@@ -251,6 +260,32 @@ def test_tier2_svyglm_headline_json_schema():
     bad_forbidden = {**payload, "weighted_household_icc": 0.99}
     with pytest.raises(AssertionError, match="forbidden"):
         validate_tier2_svyglm_headline_output(bad_forbidden)
+    # #3 acceptance gate must be anchored to the rows it reads
+    bad_missing_nssec = {**payload, "svyglm_headline": [payload["svyglm_headline"][0]]}
+    with pytest.raises(AssertionError, match="nssec_proxy"):
+        validate_tier2_svyglm_headline_output(bad_missing_nssec)
+    bad_missing_regime = {**payload, "svyglm_headline": [payload["svyglm_headline"][1]]}
+    with pytest.raises(AssertionError, match="regime_initR6"):
+        validate_tier2_svyglm_headline_output(bad_missing_regime)
+    # #4 companion coefficient rows pinned (se/pvalue may be null, but if present must be well-typed)
+    bad_companion_se = {
+        **payload,
+        "unweighted_glmm_companion": {
+            **payload["unweighted_glmm_companion"],
+            "coefficients": [{"name": "regime_initR6", "level": "R6", "estimate": 3.4, "se": -1.0, "pvalue": None}],
+        },
+    }
+    with pytest.raises(AssertionError, match="companion se"):
+        validate_tier2_svyglm_headline_output(bad_companion_se)
+    bad_companion_pvalue = {
+        **payload,
+        "unweighted_glmm_companion": {
+            **payload["unweighted_glmm_companion"],
+            "coefficients": [{"name": "regime_initR6", "level": "R6", "estimate": 3.4, "se": None, "pvalue": 2.0}],
+        },
+    }
+    with pytest.raises(AssertionError, match="companion pvalue"):
+        validate_tier2_svyglm_headline_output(bad_companion_pvalue)
 
 
 def test_nssec_regime_crosstab_json_schema():

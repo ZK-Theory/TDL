@@ -138,6 +138,13 @@ def test_power_analysis_json_schema():
     bad_cal = {**payload, "calibration": {**payload["calibration"], "calibrated": False}, "minimum_detectable_icc": 0.05}
     with pytest.raises(AssertionError, match="uncalibrated"):
         validate_power_analysis(bad_cal)
+    # #2 conservation: calibration counts must close against B; rejections bounded by converged
+    bad_calib_sum = {**payload, "calibration": {**payload["calibration"], "n_converged": 900}}
+    with pytest.raises(AssertionError, match="sum to B"):
+        validate_power_analysis(bad_calib_sum)
+    bad_pc_rej = {**payload, "power_curve": [{**payload["power_curve"][0], "n_rejections": 9999}, *payload["power_curve"][1:]]}
+    with pytest.raises(AssertionError, match="n_rejections"):
+        validate_power_analysis(bad_pc_rej)
 
 
 def test_sibling_concordance_json_schema():
