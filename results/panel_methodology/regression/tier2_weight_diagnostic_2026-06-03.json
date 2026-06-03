@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-06-03T11:27:18Z",
+  "n": 7097,
+  "weight_summary": {
+    "ipw_trimmed_mean": 3.9383,
+    "ipw_model_mean": 1,
+    "ipw_model_min": 0.439,
+    "ipw_model_max": 10.8629
+  },
+  "glm_unweighted": {
+    "regime_initR6": 3.3409,
+    "nssec_proxyM": -0.0061,
+    "nssec_proxyL": 0.0395
+  },
+  "glm_weighted": {
+    "regime_initR6": 3.5541,
+    "nssec_proxyM": 0.1566,
+    "nssec_proxyL": 0.0746
+  },
+  "glmm_unweighted": {
+    "regime_initR6": 3.3988,
+    "nssec_proxyM": -0.0089,
+    "nssec_proxyL": 0.0377,
+    "sigma_u": 0.4671,
+    "icc": 0.0622,
+    "convergence": 0
+  },
+  "glmm_weighted": {
+    "regime_initR6": 11.7156,
+    "nssec_proxyM": 0.0898,
+    "nssec_proxyL": -0.1079,
+    "sigma_u": 35.6066,
+    "icc": 0.9974,
+    "convergence": 0
+  }
+}

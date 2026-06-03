@@ -1,11 +1,18 @@
 id: glmm-power-simulation
 kind: formula
-pending: true
+pending: false
 
 description: >
   Simulation-based power analysis for the T1.35 minimum-detectable-ICC
-  computation on the n = 735 / 353-cluster R2/R6 disadvantaged-starter
-  subsample from T1.21. For each grid value of the true intra-class
+  computation on the n = 711 / 342-cluster R2/R6 disadvantaged-starter
+  subsample from T1.21. SAMPLE-COUNT CORRECTION 2026-06-03b: the prior
+  735 / 353 figure was the IPW-eligible count taken BEFORE the MICE
+  complete-case filter; the T1.21 cross-classified GLMM actually fit on
+  the post-complete-case sample of 6,995 observations / 711 multi-member
+  individuals in 342 clusters (see results/panel_methodology/regression/
+  tier3_cross_classified_2026-05-25.json, n_obs = 6995). The pinned counts
+  here are the fitted-stage counts, matching the deterministic
+  regression_tier3.R reconstruction. For each grid value of the true intra-class
   correlation, B = 1000 datasets are simulated under a one-way random-
   effects logistic model with that ICC, and a likelihood-ratio test of the
   random-effect variance against zero is run. CORRECTED 2026-06-03 after
@@ -19,11 +26,11 @@ description: >
   approximately alpha) before any minimum-detectable-ICC is reported.
 
 spec_citation:
-  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; corrected by resolution amendment [DECISION] 2026-06-03 (boundary-mixture LRT, single-engine logLik, convergence accounting, ICC=0 calibration)"
+  source: "Plan Task 1.35 Output / Validation blocks; Pre-reg T1.35a [DECISION] 2026-05-25; corrected by resolution amendment [DECISION] 2026-06-03 (boundary-mixture LRT, single-engine logLik, convergence accounting, ICC=0 calibration); sample-count corrected to fitted-stage 711/342 by [DECISION] 2026-06-03b (prior 735/353 was the pre-complete-case IPW-eligible count; T1.21 deliverable tier3_cross_classified_2026-05-25.json fit on n_obs=6995)"
   vault_entry_date: "2026-06-03"
 
 formula:
-  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 = icc * pi^2 / 3; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); if either fit fails to converge: record convergence_failure_b = TRUE and EXCLUDE b from the rejection denominator (do NOT score as reject = FALSE); else LRT_b = max(0, 2 * (logLik(fit_full) - logLik(fit_null))); p_b = (LRT_b <= 0 ? 1 : 0.5 * (1 - chisq_cdf(LRT_b, df = 1))); reject_b = p_b <= alpha; power(icc) = mean(reject_b over converged b); minimum_detectable_icc = min({icc : power(icc) >= 0.80})"
+  expression: "for icc in {0.01, 0.025, 0.05, 0.10, 0.20}: for b in 1..B: simulate dataset_b under logit(p_ij) = mu + u_j with u_j ~ N(0, sigma_u^2), sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3; fit_null = glmmTMB(y ~ 1, family = binomial); fit_full = glmmTMB(y ~ 1 + (1 | cluster), family = binomial); if either fit fails to converge: record convergence_failure_b = TRUE and EXCLUDE b from the rejection denominator (do NOT score as reject = FALSE); else LRT_b = max(0, 2 * (logLik(fit_full) - logLik(fit_null))); p_b = (LRT_b <= 0 ? 1 : 0.5 * (1 - chisq_cdf(LRT_b, df = 1))); reject_b = p_b <= alpha; power(icc) = mean(reject_b over converged b); run the identical simulate-fit-LRT-reject procedure at icc = 0 (sigma_u = 0) to obtain type_i_at_icc0 = mean(reject_b over converged b at icc=0); calibrated = (abs(type_i_at_icc0 - alpha) <= calibration_tolerance); if not calibrated: minimum_detectable_icc = 'engine not calibrated'; else if no icc in {0.01, 0.025, 0.05, 0.10, 0.20} has power(icc) >= 0.80: minimum_detectable_icc = 'greater than 0.20'; else minimum_detectable_icc = min({icc in {0.01, 0.025, 0.05, 0.10, 0.20} : power(icc) >= 0.80})"
   variables:
     icc:
       description: "True intra-class correlation in the simulated data. Grid is {0.01, 0.025, 0.05, 0.10, 0.20} (locked by pre-reg)."
@@ -34,12 +41,12 @@ formula:
       domain: "positive integer; B = 1000"
       implementation_name: "n_sims"
     sigma_u:
-      description: "Random-intercept standard deviation derived from icc: for the logistic null, sigma_u^2 = icc * pi^2 / 3 (latent-variable / Snijders-Bosker scale)."
+      description: "Random-intercept standard deviation derived from icc: for the logistic latent-variable representation, sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3 (invert ICC = sigma_u^2 / (sigma_u^2 + pi^2/3); Snijders-Bosker scale). NOTE: the naive sigma_u^2 = icc * pi^2 / 3 is WRONG (it omits the 1/(1-icc) factor) and understates sigma_u by up to ~25% at icc=0.20."
       domain: "non-negative real"
       implementation_name: "sigma_u"
     n:
-      description: "Sample size per simulation: 735 individuals across 353 clusters with size structure matching the T1.21 R2/R6 multi-FOO subsample (reconstructed deterministically from regression_tier3.R's assembly path)."
-      domain: "positive integer; n = 735"
+      description: "Sample size per simulation: 711 individuals across 342 clusters with size structure matching the T1.21 R2/R6 multi-FOO fitted subsample (reconstructed deterministically from regression_tier3.R's assembly path; post complete-case filter)."
+      domain: "positive integer; n = 711"
       implementation_name: "n_individuals"
     LRT_b:
       description: "Likelihood-ratio statistic on simulation b: max(0, 2 * (logLik(full) - logLik(null))). BOTH fits use glmmTMB so the log-likelihood normalising constants are comparable."
@@ -62,26 +69,32 @@ formula:
       domain: "[0, 1]"
       implementation_name: "power[icc]"
     type_i_at_icc0:
-      description: "Calibration check: empirical rejection rate at true ICC = 0. MUST be approximately alpha (0.05) for the engine to be trusted; reported in the output JSON."
+      description: "Calibration check: empirical rejection rate at true ICC = 0 (sigma_u = 0), computed by the identical simulate-fit-LRT-reject procedure used for the power grid. MUST be approximately alpha for the engine to be trusted; reported in the output JSON."
       domain: "[0, 1]; target ~ alpha"
       implementation_name: "type_i_at_icc0"
+    calibration_tolerance:
+      description: "Pinned Monte-Carlo tolerance for deciding whether type_i_at_icc0 is close enough to alpha: calibrated == (abs(type_i_at_icc0 - alpha) <= calibration_tolerance). Pinned at 0.03 (so for alpha = 0.05 the engine is 'calibrated' iff empirical type-I lies in [0.02, 0.08])."
+      domain: "non-negative real; pinned == 0.03"
+      implementation_name: "calibration_tolerance"
     minimum_detectable_icc:
-      description: "Smallest grid value with power(icc) >= 0.80. If no grid value reaches 0.80, reported as 'greater than 0.20' (NOT silently extrapolated)."
-      domain: "real or 'greater than 0.20' string"
+      description: "Computed by the explicit three-branch gate in the expression: (1) if NOT calibrated (abs(type_i_at_icc0 - alpha) > calibration_tolerance) -> the string 'engine not calibrated' (NO numeric value, since the power curve is uninterpretable); (2) else if no grid value reaches power 0.80 -> the string 'greater than 0.20' (NOT silently extrapolated); (3) else the smallest grid value with power(icc) >= 0.80. The calibration branch takes strict precedence over the other two."
+      domain: "one of {0.01, 0.025, 0.05, 0.10, 0.20}, or 'greater than 0.20', or 'engine not calibrated'"
       implementation_name: "min_detectable_icc"
   invariants:
     - claim: "ICC grid is exactly {0.01, 0.025, 0.05, 0.10, 0.20} — five values. Adding or removing grid points requires a pre-reg amendment."
       expression: "icc_grid == [0.01, 0.025, 0.05, 0.10, 0.20]"
     - claim: "B = 1000 by pre-registration."
       expression: "B == 1000"
-    - claim: "n = 735 (T1.21 R2/R6 multi-FOO subsample) and n_clusters = 353; the cluster-size distribution matches the T1.21 sample reconstructed from regression_tier3.R (NOT uniformly distributed, NOT a re-derived approximation)."
+    - claim: "n = 711 (T1.21 R2/R6 multi-FOO fitted subsample) and n_clusters = 342; the cluster-size distribution matches the T1.21 fitted sample reconstructed from regression_tier3.R (NOT uniformly distributed, NOT a re-derived approximation). These are the post-complete-case fitted counts (n_obs = 6995 total), NOT the pre-filter IPW-eligible 735 / 353."
     - claim: "BOTH the null and the alternative are fit with glmmTMB so their log-likelihoods share the same normalising constant. Comparing a glm() null log-likelihood against a glmmTMB() alternative log-likelihood is FORBIDDEN — the constants differ and bias the LRT."
       expression: "engine(fit_null) == engine(fit_full) == 'glmmTMB'"
     - claim: "The boundary variance test uses the 50:50 mixture of chi-square_0 and chi-square_1: p = 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0. A plain chi-square_1 reference (pchisq(LRT, df = 1)) over-rejects at a boundary null and is FORBIDDEN."
       expression: "p_value == 0.5 * (1 - chisq_cdf(LRT, df = 1)) for LRT > 0"
     - claim: "Convergence failures are counted in a separate tally and EXCLUDED from the rejection denominator; they are NOT scored as reject = FALSE. (Scoring failures as non-rejections inverts the power curve, since failures rise with sigma_u.)"
-    - claim: "The engine is calibration-checked at ICC = 0: the empirical type-I rate type_i_at_icc0 MUST be approximately alpha (0.05). If it is far from alpha, the engine is miscalibrated and no minimum-detectable-ICC is reported — the discrepancy is surfaced instead."
-    - claim: "sigma_u is derived from icc using the latent-variable representation sigma_u^2 = icc * pi^2 / 3 (variance of the standard logistic). Misusing the linear-mixed-model formula sigma_u^2 = icc * sigma_e^2 underestimates the simulated random-effect variance."
+    - claim: "The engine is calibration-checked at ICC = 0 with a PINNED tolerance: calibrated == (abs(type_i_at_icc0 - alpha) <= calibration_tolerance), calibration_tolerance == 0.03. If not calibrated, minimum_detectable_icc MUST be the string 'engine not calibrated' (NOT a numeric grid value and NOT 'greater than 0.20'), and this branch takes strict precedence — the discrepancy is surfaced instead of a power claim."
+      expression: "abs(type_i_at_icc0 - alpha) > calibration_tolerance => minimum_detectable_icc == 'engine not calibrated'"
+    - claim: "sigma_u is derived from icc using the latent-variable representation sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3 (invert ICC = sigma_u^2 / (sigma_u^2 + pi^2/3); variance of the standard logistic is pi^2/3). The naive sigma_u^2 = icc * pi^2 / 3 omits the 1/(1-icc) factor and understates the simulated random-effect variance (up to ~25% at icc=0.20); the linear-mixed-model formula sigma_u^2 = icc * sigma_e^2 is also wrong here."
+      expression: "sigma_u^2 == (icc / (1 - icc)) * pi^2 / 3"
     - claim: "Simulation randomness is seeded; the seed and B are recorded in the output JSON; reseeding reproduces the power curve bit-for-bit."
 
 binding:
@@ -90,8 +103,10 @@ binding:
   must_assert: >
     On a reduced-scope test (small B for speed, large enough for a stable
     rate): (a) datasets are constructed with the correct cluster-size
-    structure matching the n = 735 / 353 pattern; (b) sigma_u is computed
-    from icc via icc * pi^2 / 3; (c) BOTH null and full are glmmTMB fits and
+    structure matching the n = 711 / 342 pattern; (b) sigma_u is computed
+    from icc via (icc / (1 - icc)) * pi^2 / 3 — assert the value on a known
+    icc (e.g. icc=0.2 gives sigma_u^2 = 0.25 * pi^2/3), and assert the naive
+    icc * pi^2 / 3 is NOT used; (c) BOTH null and full are glmmTMB fits and
     the routine does NOT compare a glm() null log-likelihood against a
     glmmTMB() alternative (assert the null engine is glmmTMB); (d) the
     p-value uses the 50:50 chi-square mixture (p = 0.5 * P(chi2_1 >= LRT)
@@ -101,4 +116,7 @@ binding:
     non-rejection; (f) the ICC = 0 calibration path yields an empirical
     type-I rate within Monte-Carlo tolerance of alpha = 0.05; (g) reseeding
     reproduces the rejection vector; (h) minimum_detectable_icc reports
-    'greater than 0.20' when no grid value reaches power >= 0.80.
+    'greater than 0.20' when calibrated but no grid value reaches power >=
+    0.80; (i) when the ICC=0 calibration fails (type_i_at_icc0 not within
+    tolerance of alpha), minimum_detectable_icc is the string 'engine not
+    calibrated' and NO numeric value or 'greater than 0.20' is emitted.

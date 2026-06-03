@@ -1,6 +1,6 @@
 id: cross-tab-sparse-cell-flagging
 kind: invariant
-pending: true
+pending: false
 
 description: >
   Behavioural invariant for T1.34's parental NS-SEC x first-window regime

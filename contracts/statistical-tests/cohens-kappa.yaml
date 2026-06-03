@@ -1,6 +1,6 @@
 id: cohens-kappa
 kind: formula
-pending: true
+pending: false
 
 description: >
   Cohen's kappa for sibling-pair escape concordance with 95% percentile
@@ -35,7 +35,7 @@ formula:
       implementation_name: "n_both_no_escape"
     N:
       description: "Total pairs: a + b + c + d."
-      domain: "positive integer; N = 353 for T1.35"
+      domain: "positive integer; N = n_pairs >= 342 for T1.35 (all within-family sibling pairs enumerated across the 342 multi-member FOO clusters: one per 2-member cluster, C(n,2) per larger cluster)"
       implementation_name: "n_pairs"
     p_o:
       description: "Observed agreement: (a + d) / N."

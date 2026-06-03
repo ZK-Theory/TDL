@@ -1,6 +1,6 @@
 id: normalised-ipw-trimming
 kind: formula
-pending: true
+pending: false
 
 description: >
   Normalised IPW weights for T1.34's Tier-2 GLMM and svyglm sensitivity. The

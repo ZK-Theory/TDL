@@ -1,6 +1,6 @@
 id: sigma-foo-cluster-bootstrap
 kind: formula
-pending: true
+pending: false
 
 description: >
   Cluster-level bootstrap 95% percentile CI for the sigma_foo random-intercept

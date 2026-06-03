@@ -1,6 +1,6 @@
 id: tier2-escape-regression-spec
 kind: formula
-pending: true
+pending: false
 
 description: >
   The Tier-2 escape regression for T1.34 supersedes the abandoned Tier-3

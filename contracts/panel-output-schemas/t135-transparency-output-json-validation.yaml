@@ -1,6 +1,6 @@
 id: t135-transparency-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Output-validation dispatch for the three T1.35 result JSONs written to

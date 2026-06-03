@@ -1,6 +1,6 @@
 id: singleton-decomposition-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.35b singleton-decomposition output JSON written to
@@ -32,10 +32,10 @@ schema_def:
       description: "Date of the T1.35b pre-registration vault entry."
     - name: params
       type: "dict[str, ...]"
-      description: "Provenance block. MUST contain: t121_source_path (str, e.g. branch ref + commit), xwavedat_source_path (str), n_total_singletons (int == 6363), n_t121_total_sample (int == 7098 = 735 + 6363)."
+      description: "Provenance block. MUST contain: t121_source_path (str, e.g. branch ref + commit), xwavedat_source_path (str), n_total_singletons (int == 6284), n_t121_total_sample (int == 6995 = 711 + 6284). FITTED-STAGE CORRECTION 2026-06-03b: prior 6363 / 7098 (= 735 + 6363) were pre-complete-case IPW-eligible counts; the T1.21 cross-classified GLMM fit on n_obs = 6995 (tier3_cross_classified_2026-05-25.json), so the singleton total is 6284 and the multi-member count is 711."
     - name: counts
       type: "dict[str, int]"
-      description: "Top-level decomposition. MUST contain n_true_singletons and n_filtered_singletons. The two MUST sum to n_total_singletons == 6363 exactly (enforced by the singleton-decomposition-exhaustivity invariant)."
+      description: "Top-level decomposition. MUST contain n_true_singletons and n_filtered_singletons. The two MUST sum to n_total_singletons == 6284 exactly (enforced by the singleton-decomposition-exhaustivity invariant)."
     - name: primary_reason_counts
       type: "dict[str, int]"
       description: "Counts of filtered singletons by their PRIMARY exclusion reason. Keys MUST be drawn from the locked vocabulary {does_not_start_in_r2_or_r6, ipw_zero_due_to_ineligibility, dropped_by_10_of_14_rule, missing_nssec_proxy, other_filter_chain}. Values are non-negative integers summing to counts.n_filtered_singletons exactly."
@@ -52,7 +52,8 @@ binding:
   test_function: "test_singleton_decomposition_json_schema"
   must_assert: >
     A synthetic JSON conforming to this schema validates. JSONs with
-    (a) n_true_singletons + n_filtered_singletons != 6363,
+    (a) n_true_singletons + n_filtered_singletons != n_total_singletons
+    (the file's declared total, 6284 in the corrected T1.21 fitted sample),
     (b) primary_reason_counts containing a key outside the locked
     vocabulary, (c) primary_reason_counts values not summing to
     n_filtered_singletons, (d) per_singleton_records length not matching

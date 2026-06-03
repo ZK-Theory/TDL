@@ -1,10 +1,11 @@
 id: singleton-decomposition-exhaustivity
 kind: invariant
-pending: true
+pending: false
 
 description: >
-  Behavioural invariant for T1.35's singleton decomposition of the 6,363
-  disadvantaged-starter singletons in the T1.21 sample. Each singleton
+  Behavioural invariant for T1.35's singleton decomposition of the 6,284
+  disadvantaged-starter singletons in the T1.21 fitted sample (post
+  complete-case; the prior 6,363 was the pre-complete-case count). Each singleton
   must be classified as either a TRUE singleton (the individual has no
   sibling anywhere in xwavedat) or a FILTERED singleton (a sibling exists
   in xwavedat but was excluded by an analytical filter). The two counts
@@ -19,8 +20,9 @@ spec_citation:
 
 invariant:
   claim: >
-    Let S = 6,363 be the total disadvantaged-starter singleton count in
-    the T1.21 sample. Let T = count of true singletons (no sibling in
+    Let S = 6,284 be the total disadvantaged-starter singleton count in
+    the T1.21 fitted sample (post complete-case; prior 6,363 was
+    pre-complete-case). Let T = count of true singletons (no sibling in
     xwavedat at all) and F = count of filtered singletons (sibling exists
     in xwavedat but was excluded by at least one analytical filter). The
     decomposition MUST satisfy T + F == S exactly (no rounding, no
@@ -35,7 +37,7 @@ invariant:
     exceed F (because one filtered singleton's sibling can fail multiple
     filters).
   preconditions:
-    - "The T1.21 sample structure (n=735 multi-FOO, 6363 singletons) is available from the T1.21 working files (run/tier3-regression branch, commit ddc7efb)."
+    - "The T1.21 fitted sample structure (n=711 multi-FOO, 6284 singletons; post complete-case, n_obs=6995) is available from the T1.21 working files (run/tier3-regression branch, commit ddc7efb). The prior 735 / 6363 were pre-complete-case IPW-eligible counts (corrected 2026-06-03b)."
     - "xwavedat.tab is cross-referenced to determine sibling existence per individual."
   counter_example_history: >
     The recurring failure mode is silent omission: a filtered singleton

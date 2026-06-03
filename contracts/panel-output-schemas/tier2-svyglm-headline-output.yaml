@@ -1,6 +1,6 @@
 id: tier2-svyglm-headline-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.34a fallback (Option A) Tier-2 headline JSON written to
@@ -50,7 +50,7 @@ schema_def:
       description: "Companion random-effects reference (stable unweighted household-RE GLMM). MUST contain: regime_init_r6_logor (float), sigma_u_hh (float >= 0), icc_hh (float in [0, 1]), coefficients (list[dict] with name/level/estimate/se/pvalue). This is the ONLY place a household ICC may appear, explicitly labelled as the unweighted reference, NOT the IPW-adjusted headline."
     - name: household_variance_estimability
       type: "dict[str, ...]"
-      description: "Honest non-estimability record. MUST contain: weighted_household_variance_estimable (bool == false), rationale (str — singleton-dominated household structure; ~6,037 households / ~7,097 individuals), evidence (list[str] — references to the WeMix 'Matrix seems negative semi-definite' failure and the weighted glmmTMB ICC->0.997 divergence)."
+      description: "Honest non-estimability record. MUST contain: weighted_household_variance_estimable (bool == false), rationale (str — singleton-dominated household structure; ~6,037 households / n_obs = 6,995 individuals at the fitted stage), evidence (list[str] — references to the WeMix 'Matrix seems negative semi-definite' failure and the weighted glmmTMB ICC->0.997 divergence)."
     - name: acceptance
       type: "dict[str, ...]"
       description: "Pre-registered acceptance gate. MUST contain: regime6_or_gt_1 (bool — true iff the svyglm regime_6 odds ratio > 1), nssec_direction_consistent_with_t120 (bool — true iff NS-SEC coefficient signs match the T1.20 Tier-2 baseline tier2_glmm_firth_2026-05-14.json), accepted (bool == regime6_or_gt_1 AND nssec_direction_consistent_with_t120)."
