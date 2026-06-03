@@ -1,6 +1,6 @@
 id: glmm-power-simulation
 kind: formula
-pending: true
+pending: false
 
 description: >
   Simulation-based power analysis for the T1.35 minimum-detectable-ICC

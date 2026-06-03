@@ -1,6 +1,6 @@
 id: singleton-decomposition-exhaustivity
 kind: invariant
-pending: true
+pending: false
 
 description: >
   Behavioural invariant for T1.35's singleton decomposition of the 6,363

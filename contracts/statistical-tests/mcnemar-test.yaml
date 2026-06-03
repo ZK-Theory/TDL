@@ -1,6 +1,6 @@
 id: mcnemar-test
 kind: formula
-pending: true
+pending: false
 
 description: >
   McNemar test on the 2 x 2 paired-discordance table for sibling-pair escape

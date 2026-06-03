@@ -1,0 +1,70 @@
+{
+  "schema_version": "panel-output/power-analysis/v1",
+  "generated_at": "2026-06-03T16:36:52Z",
+  "task": "T1.35a power analysis",
+  "pre_registration": "2026-05-25",
+  "params": {
+    "icc_grid": [
+      0.01,
+      0.025,
+      0.05,
+      0.1,
+      0.2
+    ],
+    "B": 1000,
+    "alpha": 0.05,
+    "seed": 42,
+    "n_individuals": 735,
+    "n_clusters": 353,
+    "sigma_u_formula": "latent-variable: sigma_u^2 = icc * pi^2 / 3",
+    "lrt_df_reference": "chisq_1",
+    "power_workers": 4,
+    "power_chunk": 20,
+    "power_checkpoint": "C:/Users/steph/TDL/results/panel_methodology/foo_transparency/.partial/power_analysis_2026-06-03_progress.rds",
+    "sigma_bootstrap_checkpoint": "C:/Users/steph/TDL/results/panel_methodology/foo_transparency/.partial/power_sigma_2026-06-03_bootstrap_progress.rds"
+  },
+  "power_curve": [
+    {
+      "icc": 0.01,
+      "empirical_power": 0.941,
+      "n_rejections": 941,
+      "bootstrap_se_of_power": 0.0075
+    },
+    {
+      "icc": 0.025,
+      "empirical_power": 0.929,
+      "n_rejections": 929,
+      "bootstrap_se_of_power": 0.0081
+    },
+    {
+      "icc": 0.05,
+      "empirical_power": 0.916,
+      "n_rejections": 916,
+      "bootstrap_se_of_power": 0.0088
+    },
+    {
+      "icc": 0.1,
+      "empirical_power": 0.89,
+      "n_rejections": 890,
+      "bootstrap_se_of_power": 0.0099
+    },
+    {
+      "icc": 0.2,
+      "empirical_power": 0.84,
+      "n_rejections": 840,
+      "bootstrap_se_of_power": 0.0116
+    }
+  ],
+  "minimum_detectable_icc": 0.01,
+  "interpretation": {
+    "decision_rule_result": "nominally_well_powered",
+    "calibration_warning": "The glmmTMB LRT simulation rejects at high rates across the entire ICC grid, including ICC=0.01. Treat the nominal minimum detectable ICC as requiring Manager/statistical review before paper-facing prose."
+  },
+  "multi_member_only_fit": {
+    "sigma_foo_point_estimate": 6.2368,
+    "sigma_foo_bootstrap_ci_lower": 1.5881,
+    "sigma_foo_bootstrap_ci_upper": 7.7206,
+    "bootstrap_B": 1000,
+    "lrt_pvalue_against_icc_zero": 3.8e-07
+  }
+}

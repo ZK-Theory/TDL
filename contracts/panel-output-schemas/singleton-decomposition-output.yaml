@@ -1,6 +1,6 @@
 id: singleton-decomposition-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.35b singleton-decomposition output JSON written to

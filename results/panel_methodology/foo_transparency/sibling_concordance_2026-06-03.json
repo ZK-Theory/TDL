@@ -1,0 +1,47 @@
+{
+  "schema_version": "panel-output/sibling-concordance/v1",
+  "generated_at": "2026-06-03T16:21:44Z",
+  "task": "T1.35c sibling concordance",
+  "pre_registration": "2026-05-25",
+  "params": {
+    "n_pairs": 353,
+    "member_ordering_rule": "smaller pidp within cluster is member 1",
+    "bootstrap_B": 1000,
+    "seed": 42,
+    "source_sample": "reconciled T1.35 sample from window_escape_assignments_2026-05-14 + IPW + foo_clusters",
+    "bootstrap_workers": 4,
+    "bootstrap_chunk": 20,
+    "bootstrap_checkpoint": "C:/Users/steph/TDL/results/panel_methodology/foo_transparency/.partial/sibling_concordance_2026-06-03_bootstrap_progress.rds"
+  },
+  "contingency_table": {
+    "a": 2,
+    "b": 12,
+    "c": 22,
+    "d": 317
+  },
+  "mcnemar": {
+    "statistic_uncorrected": 2.9412,
+    "statistic_yates_corrected": 2.3824,
+    "pvalue_asymptotic": 0.1227,
+    "pvalue_exact": null,
+    "used_variant": "asymptotic_yates_cc"
+  },
+  "cohens_kappa": {
+    "point_estimate": 0.0581,
+    "bootstrap_ci_lower": -0.0542,
+    "bootstrap_ci_upper": 0.2069,
+    "bootstrap_B": 1000,
+    "ci_method": "percentile"
+  },
+  "odds_ratio": {
+    "point_estimate": 2.4015,
+    "log_or": 0.8761,
+    "bootstrap_ci_lower": 0.7865,
+    "bootstrap_ci_upper": 8.5809,
+    "bootstrap_B": 1000,
+    "ci_method": "percentile on log scale, exponentiated",
+    "haldane_anscombe_supplementary": {
+      "point_estimate": 2.8222
+    }
+  }
+}

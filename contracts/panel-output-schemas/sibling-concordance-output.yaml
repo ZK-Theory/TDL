@@ -1,6 +1,6 @@
 id: sibling-concordance-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.35c sibling-concordance output JSON written to

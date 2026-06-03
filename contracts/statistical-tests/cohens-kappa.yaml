@@ -1,6 +1,6 @@
 id: cohens-kappa
 kind: formula
-pending: true
+pending: false
 
 description: >
   Cohen's kappa for sibling-pair escape concordance with 95% percentile

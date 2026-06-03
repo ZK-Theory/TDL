@@ -1,6 +1,6 @@
 id: power-analysis-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.35a power-analysis output JSON written to
