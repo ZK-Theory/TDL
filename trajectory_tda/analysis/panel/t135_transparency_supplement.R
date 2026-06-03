@@ -351,9 +351,10 @@ make_singleton_decomposition <- function(sample_bundle) {
     pre_registration = "2026-05-25",
     params = list(
       t121_source_path = ESCAPE_PATH,
-      xwavedat_source_path = FOO_PATH,
+      xwavedat_source_path = XWAVEDAT,
       n_total_singletons = as.integer(n_total_singletons),
       n_t121_total_sample = as.integer(nrow(sample)),
+      sample_provenance = "regression_tier3.R fitted-stage complete-case sample reconstruction; FOO clusters from foo_clusters_2026-05-06.csv",
       live_input_counts = sample_bundle$live_counts,
       reconciliation = sample_bundle$reconciliation
     ),
@@ -369,13 +370,22 @@ make_singleton_decomposition <- function(sample_bundle) {
 
 ordered_pairs <- function(sample) {
   multi <- sample[t135_cluster_n > 1L]
-  pairs <- multi[order(foo_cluster, pidp), .SD[1:2], by = foo_cluster]
-  pairs[, member := seq_len(.N), by = foo_cluster]
-  wide <- dcast(pairs[, .(foo_cluster, member, pidp, escape)], foo_cluster ~ member, value.var = c("pidp", "escape"))
-  setnames(wide, c("pidp_1", "pidp_2", "escape_1", "escape_2"), c("pidp_1", "pidp_2", "escape_1", "escape_2"), skip_absent = TRUE)
-  expected_pairs <- uniqueN(multi$foo_cluster)
-  if (nrow(wide) != expected_pairs) stop("Expected ", expected_pairs, " ordered pairs, found ", nrow(wide))
-  wide
+  pairs <- multi[order(pidp), {
+    pair_idx <- utils::combn(seq_len(.N), 2L)
+    data.table(
+      pidp_1 = as.integer(pidp[pair_idx[1L, ]]),
+      pidp_2 = as.integer(pidp[pair_idx[2L, ]]),
+      escape_1 = as.integer(escape[pair_idx[1L, ]]),
+      escape_2 = as.integer(escape[pair_idx[2L, ]])
+    )
+  }, by = foo_cluster]
+  if (nrow(pairs) < uniqueN(multi$foo_cluster)) {
+    stop("All-pairs enumeration produced fewer pairs than contributing clusters.")
+  }
+  if (any(pairs$pidp_1 > pairs$pidp_2)) {
+    stop("Pair member ordering rule violated: pidp_1 must be the smaller pidp.")
+  }
+  pairs
 }
 
 pair_table <- function(pairs) {
@@ -413,7 +423,7 @@ run_pair_bootstrap <- function(pairs, b = B, workers = WORKERS, chunk = CHUNK) {
     log_ors <- rep(NA_real_, b)
     completed <- 0L
   }
-  clusters <- pairs$foo_cluster
+  clusters <- unique(pairs$foo_cluster)
   one_iter <- function(iter, pairs_worker, clusters_worker) {
     set.seed(42L + iter)
     drawn <- sample(clusters_worker, length(clusters_worker), replace = TRUE)
@@ -472,10 +482,12 @@ make_concordance <- function(sample) {
     pre_registration = "2026-05-25",
     params = list(
       n_pairs = as.integer(nrow(pairs)),
+      n_clusters = as.integer(uniqueN(pairs$foo_cluster)),
       member_ordering_rule = "smaller pidp within cluster is member 1",
       bootstrap_B = B,
       seed = 42L,
       source_sample = "exact regression_tier3.R complete-case T1.21 reconstruction; no forced reconciliation to prior T1.35 counts",
+      sample_provenance = "all within-family pairs from the fitted-stage multi-member FOO sample; bootstrap resamples FOO clusters",
       bootstrap_workers = WORKERS,
       bootstrap_chunk = CHUNK,
       bootstrap_checkpoint = boot$progress_path
@@ -573,8 +585,11 @@ run_sigma_bootstrap <- function(multi, b = B, workers = WORKERS, chunk = CHUNK) 
 simulate_power_one <- function(iter, icc, cluster_sizes, alpha = 0.05) {
   suppressPackageStartupMessages({ library(data.table); library(glmmTMB) })
   data.table::setDTthreads(1L)
+  if (!is.finite(icc) || icc < 0 || icc >= 1) {
+    stop("ICC must be in [0, 1) for latent-variable sigma_u conversion.")
+  }
   set.seed(420000L + as.integer(round(icc * 1000)) * 10000L + iter)
-  sigma_u <- sqrt(icc * pi^2 / 3)
+  sigma_u <- sqrt((icc / (1 - icc)) * pi^2 / 3)
   cluster <- rep(seq_along(cluster_sizes), cluster_sizes)
   u <- rnorm(length(cluster_sizes), 0, sigma_u)
   p <- plogis(qlogis(0.05) + u[cluster])
@@ -701,7 +716,7 @@ make_power <- function(sample) {
       seed = 42L,
       n_individuals = as.integer(nrow(multi)),
       n_clusters = as.integer(uniqueN(multi$foo_cluster)),
-      sigma_u_formula = "latent-variable: sigma_u^2 = icc * pi^2 / 3",
+      sigma_u_formula = "latent-variable: sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3",
       lrt_df_reference = "chisq_0_1_mixture",
       null_engine = "glmmTMB",
       full_engine = "glmmTMB",
@@ -710,6 +725,7 @@ make_power <- function(sample) {
       power_checkpoint = power$progress_path,
       sigma_bootstrap_checkpoint = sigma_boot$progress_path,
       sample_reconciliation = list(
+        sample_provenance = "regression_tier3.R fitted-stage complete-case sample reconstruction; power uses the multi-member FOO cluster-size distribution from that sample",
         expected_prior_t135_counts = EXPECTED_PRIOR_T135,
         actual_regression_tier3_counts = list(
           n = as.integer(nrow(sample)),

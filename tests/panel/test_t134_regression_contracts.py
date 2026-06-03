@@ -1,4 +1,6 @@
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -46,9 +48,9 @@ def test_rubin_pooling_formula():
 
 
 def test_svyglm_cluster_robust_se_construction():
-    design = {"ids": "~foo_cluster", "weights": "~ipw_trimmed", "family": "quasibinomial"}
+    design = {"ids": "~foo_cluster", "weights": "~ipw_normalised", "family": "quasibinomial"}
     assert design["ids"] == "~foo_cluster"
-    assert design["weights"] == "~ipw_trimmed"
+    assert design["weights"] == "~ipw_normalised"
     assert design["family"] == "quasibinomial"
     synthetic_glmm = [0.8, 0.9, 0.85]
     synthetic_svy = [0.75, 0.88, 0.82]
@@ -106,6 +108,8 @@ def test_cross_tab_sparse_cells_flagged():
     expected = {(i, j) for i in range(counts.shape[0]) for j in range(counts.shape[1]) if counts[i, j] < 5}
     assert sparse == expected
     assert (0, 0) not in sparse
+    with pytest.raises(ValueError, match="same length"):
+        make_nssec_regime_crosstab(["H", "M"], ["R2"], ["H", "M"], ["R2", "R6"])
 
 
 def _tier2_payload():
@@ -117,10 +121,10 @@ def _tier2_payload():
         "params": {
             "m_imputations": 20,
             "ipw_source": "weights.rds",
-            "ipw_trimming": "p1/p99 of raw, normalised to mean 1",
+            "ipw_trimming": "p1/p99 of raw, per-stratum normalisation to mean 1",
             "engine_glmm": "glmmTMB",
             "engine_design": "survey::svyglm",
-            "family": "binomial/quasibinomial",
+            "family": "quasibinomial",
             "model_formula_fixed": "escape ~ regime_init + nssec_proxy + birth_cohort + sex + region",
             "model_formula_random": "(1 | hh_group)",
             "conditioning_sample": "first-window regime in {R2, R6}",
@@ -229,6 +233,9 @@ def test_tier2_svyglm_headline_json_schema():
     bad_row = {**payload, "svyglm_headline": [{k: v for k, v in payload["svyglm_headline"][0].items() if k != "cluster_robust_se"}]}
     with pytest.raises(AssertionError, match="missing required keys"):
         validate_tier2_svyglm_headline_output(bad_row)
+    bad_level = {**payload, "svyglm_headline": [{**payload["svyglm_headline"][0], "level": {}}]}
+    with pytest.raises(AssertionError, match="level"):
+        validate_tier2_svyglm_headline_output(bad_level)
     bad_estimability = {
         **payload,
         "household_variance_estimability": {**payload["household_variance_estimability"], "weighted_household_variance_estimable": True},
@@ -303,6 +310,20 @@ def test_foo_sensitivity_fullsample_json_schema():
 
 
 def test_t134_output_jsons_validate_against_schemas():
-    validate_tier2_output(_tier2_payload())
+    out_dir = Path(__file__).resolve().parents[2] / "results" / "panel_methodology" / "regression"
+    tier2_paths = sorted(out_dir.glob("tier2_ipw_mice_svyglm_*.json"))
+    assert tier2_paths
+    for path in tier2_paths:
+        with path.open(encoding="utf-8") as fh:
+            parsed = json.load(fh)
+        validate_tier2_output(parsed)
+        assert_required_keys(parsed, ["schema_version", "generated_at", "task", "params", "coefficients"])
+    headline_paths = sorted(out_dir.glob("tier2_svyglm_headline_*.json"))
+    assert headline_paths
+    for path in headline_paths:
+        with path.open(encoding="utf-8") as fh:
+            parsed = json.load(fh)
+        validate_tier2_svyglm_headline_output(parsed)
+        assert_required_keys(parsed, ["schema_version", "generated_at", "task", "params", "svyglm_headline"])
     with pytest.raises(AssertionError):
         assert_required_keys({}, ["schema_version"])

@@ -1,6 +1,6 @@
 {
   "schema_version": "panel-output/tier2-svyglm-headline/v1",
-  "generated_at": "2026-06-03T17:16:26Z",
+  "generated_at": "2026-06-03T19:59:40Z",
   "task": "T1.34a svyglm headline (Option A fallback)",
   "pre_registration": "2026-06-03 resolution amendment: weighted household random-effect variance non-estimable; design-based svyglm promoted to headline",
   "params": {
@@ -51,7 +51,7 @@
   "svyglm_headline": [
     {
       "name": "(Intercept)",
-      "level": {},
+      "level": null,
       "estimate": -7.3552,
       "cluster_robust_se": 0.5817,
       "pvalue": 0,
@@ -87,7 +87,7 @@
     },
     {
       "name": "birth_cohort1950s",
-      "level": "birth_cohort1950s",
+      "level": "1950s",
       "estimate": 1.6249,
       "cluster_robust_se": 0.5079,
       "pvalue": 0.0014,
@@ -96,7 +96,7 @@
     },
     {
       "name": "birth_cohort1960s",
-      "level": "birth_cohort1960s",
+      "level": "1960s",
       "estimate": 3.4967,
       "cluster_robust_se": 0.508,
       "pvalue": 0,
@@ -105,7 +105,7 @@
     },
     {
       "name": "birth_cohort1970s",
-      "level": "birth_cohort1970s",
+      "level": "1970s",
       "estimate": 3.8666,
       "cluster_robust_se": 0.5166,
       "pvalue": 0,
@@ -114,7 +114,7 @@
     },
     {
       "name": "birth_cohortpost-1980",
-      "level": "birth_cohortpost-1980",
+      "level": "post-1980",
       "estimate": 3.9893,
       "cluster_robust_se": 0.5192,
       "pvalue": 0,
@@ -123,7 +123,7 @@
     },
     {
       "name": "sexfemale",
-      "level": "sexfemale",
+      "level": "female",
       "estimate": -0.5961,
       "cluster_robust_se": 0.1626,
       "pvalue": 0.0002,
@@ -132,7 +132,7 @@
     },
     {
       "name": "region2",
-      "level": {},
+      "level": "2",
       "estimate": -0.2543,
       "cluster_robust_se": 0.4216,
       "pvalue": 0.5463,
@@ -141,7 +141,7 @@
     },
     {
       "name": "region3",
-      "level": {},
+      "level": "3",
       "estimate": -0.1849,
       "cluster_robust_se": 0.4268,
       "pvalue": 0.6648,
@@ -150,7 +150,7 @@
     },
     {
       "name": "region4",
-      "level": {},
+      "level": "4",
       "estimate": -0.1779,
       "cluster_robust_se": 0.4593,
       "pvalue": 0.6984,
@@ -159,7 +159,7 @@
     },
     {
       "name": "region5",
-      "level": {},
+      "level": "5",
       "estimate": -0.886,
       "cluster_robust_se": 0.4391,
       "pvalue": 0.0436,
@@ -168,7 +168,7 @@
     },
     {
       "name": "region6",
-      "level": {},
+      "level": "6",
       "estimate": -0.3745,
       "cluster_robust_se": 0.4377,
       "pvalue": 0.3922,
@@ -177,7 +177,7 @@
     },
     {
       "name": "region7",
-      "level": {},
+      "level": "7",
       "estimate": -0.1062,
       "cluster_robust_se": 0.4127,
       "pvalue": 0.7969,
@@ -186,7 +186,7 @@
     },
     {
       "name": "region8",
-      "level": {},
+      "level": "8",
       "estimate": -0.3022,
       "cluster_robust_se": 0.4483,
       "pvalue": 0.5002,
@@ -195,7 +195,7 @@
     },
     {
       "name": "region9",
-      "level": {},
+      "level": "9",
       "estimate": -0.735,
       "cluster_robust_se": 0.4645,
       "pvalue": 0.1136,
@@ -204,7 +204,7 @@
     },
     {
       "name": "region10",
-      "level": {},
+      "level": "10",
       "estimate": -0.1996,
       "cluster_robust_se": 0.4659,
       "pvalue": 0.6684,
@@ -213,7 +213,7 @@
     },
     {
       "name": "region11",
-      "level": {},
+      "level": "11",
       "estimate": -0.5702,
       "cluster_robust_se": 0.4665,
       "pvalue": 0.2216,
@@ -222,7 +222,7 @@
     },
     {
       "name": "region12",
-      "level": {},
+      "level": "12",
       "estimate": -0.5355,
       "cluster_robust_se": 0.4451,
       "pvalue": 0.2289,

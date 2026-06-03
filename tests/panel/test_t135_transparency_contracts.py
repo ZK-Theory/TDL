@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_glmm_power_simulation_construction():
     cluster_sizes = np.array([2, 2, 3, 4])
     icc = 0.20
-    sigma_u = math.sqrt(icc * math.pi**2 / 3)
-    assert sigma_u == pytest.approx(math.sqrt(0.20 * math.pi**2 / 3))
+    sigma_u = math.sqrt((icc / (1 - icc)) * math.pi**2 / 3)
+    assert sigma_u == pytest.approx(math.sqrt((0.20 / 0.80) * math.pi**2 / 3))
     assert cluster_sizes.sum() == 11
     assert boundary_mixture_pvalue(4.0) == pytest.approx(0.5 * chi2_1_sf(4.0))
     assert boundary_mixture_pvalue(0.0) == 1.0
@@ -118,7 +118,7 @@ def test_power_analysis_json_schema():
             "seed": 42,
             "n_individuals": 711,
             "n_clusters": 342,
-            "sigma_u_formula": "latent-variable: sigma_u^2 = icc * pi^2 / 3",
+            "sigma_u_formula": "latent-variable: sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3",
             "lrt_df_reference": "chisq_0_1_mixture",
             "null_engine": "glmmTMB",
             "full_engine": "glmmTMB",
@@ -146,8 +146,8 @@ def test_sibling_concordance_json_schema():
         "generated_at": "2026-06-03T00:00:00Z",
         "task": "T1.35c sibling concordance",
         "pre_registration": "2026-05-25",
-        "params": {"n_pairs": 342, "member_ordering_rule": "smaller pidp within cluster is member 1", "bootstrap_B": 1000, "seed": 42, "source_sample": "x"},
-        "contingency_table": {"a": 20, "b": 10, "c": 4, "d": 308},
+        "params": {"n_pairs": 360, "n_clusters": 342, "member_ordering_rule": "smaller pidp within cluster is member 1", "bootstrap_B": 1000, "seed": 42, "source_sample": "x"},
+        "contingency_table": {"a": 20, "b": 10, "c": 4, "d": 326},
         "mcnemar": {"statistic_uncorrected": 36 / 14, "statistic_yates_corrected": 25 / 14, "pvalue_asymptotic": 0.1, "pvalue_exact": None, "used_variant": "asymptotic_yates_cc"},
         "cohens_kappa": {"point_estimate": 0.2, "bootstrap_ci_lower": -0.1, "bootstrap_ci_upper": 0.4, "bootstrap_B": 1000, "ci_method": "percentile"},
         "odds_ratio": {"point_estimate": 159.5, "log_or": 5.0, "bootstrap_ci_lower": 1.0, "bootstrap_ci_upper": 200.0, "bootstrap_B": 1000, "ci_method": "percentile on log scale, exponentiated", "haldane_anscombe_supplementary": None},
@@ -160,10 +160,8 @@ def test_sibling_concordance_json_schema():
 
 def test_t135_output_jsons_validate_against_schemas():
     out_dir = ROOT / "results" / "panel_methodology" / "foo_transparency"
-    for path in out_dir.glob("*.json"):
+    for path in out_dir.rglob("*.json"):
         if "bench" in path.name or "syntax" in path.name:
-            continue
-        if path.name.startswith(("power_analysis_", "singleton_decomposition_", "sibling_concordance_")) and "corrected_" not in path.name:
             continue
         with path.open(encoding="utf-8") as fh:
             dispatch_t135_json(path, json.load(fh))

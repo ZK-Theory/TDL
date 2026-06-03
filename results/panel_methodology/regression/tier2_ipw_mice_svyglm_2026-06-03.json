@@ -1,15 +1,15 @@
 {
   "schema_version": "panel-output/tier2-ipw-mice-svyglm/v1",
-  "generated_at": "2026-06-03T11:21:06Z",
+  "generated_at": "2026-06-03T19:54:50Z",
   "task": "T1.34 Tier-2 IPW + MICE + svyglm",
   "pre_registration": "2026-05-25",
   "params": {
     "m_imputations": 20,
     "ipw_source": "C:/Users/steph/TDL/results/panel_methodology/weights/ipw_individual_weights_2026-05-14.rds",
-    "ipw_trimming": "T1.13 p1/p99 trimmed weights; glmmTMB weights normalised to mean 1 inside each imputation-specific model sample",
+    "ipw_trimming": "p1/p99 of raw, per-stratum normalisation to mean 1",
     "engine_glmm": "glmmTMB",
     "engine_design": "survey::svyglm",
-    "family": "binomial for glmmTMB; quasibinomial for svyglm",
+    "family": "quasibinomial",
     "model_formula_fixed": "escape ~ regime_init + nssec_proxy + birth_cohort + sex + region",
     "model_formula_random": "(1 | hh_group)",
     "conditioning_sample": "first-window regime in {R2, R6}",
@@ -50,7 +50,7 @@
   "coefficients": [
     {
       "name": "(Intercept)",
-      "level": {},
+      "level": null,
       "glmm_rubin_estimate": -25.8649,
       "glmm_rubin_se": 4.2833,
       "glmm_rubin_pvalue": 0,
@@ -63,7 +63,7 @@
     },
     {
       "name": "regime_initR6",
-      "level": "regime_initR6",
+      "level": "R6",
       "glmm_rubin_estimate": 11.6934,
       "glmm_rubin_se": 2.7819,
       "glmm_rubin_pvalue": 0,
@@ -76,7 +76,7 @@
     },
     {
       "name": "nssec_proxyM",
-      "level": "nssec_proxyM",
+      "level": "M",
       "glmm_rubin_estimate": 0.1872,
       "glmm_rubin_se": 0.7333,
       "glmm_rubin_pvalue": 0.7985,
@@ -89,7 +89,7 @@
     },
     {
       "name": "nssec_proxyL",
-      "level": "nssec_proxyL",
+      "level": "L",
       "glmm_rubin_estimate": -0.1291,
       "glmm_rubin_se": 0.8151,
       "glmm_rubin_pvalue": 0.8742,
@@ -102,7 +102,7 @@
     },
     {
       "name": "birth_cohort1950s",
-      "level": "birth_cohort1950s",
+      "level": "1950s",
       "glmm_rubin_estimate": 1.0199,
       "glmm_rubin_se": 2.8251,
       "glmm_rubin_pvalue": 0.7181,
@@ -115,7 +115,7 @@
     },
     {
       "name": "birth_cohort1960s",
-      "level": "birth_cohort1960s",
+      "level": "1960s",
       "glmm_rubin_estimate": 4.0944,
       "glmm_rubin_se": 2.7605,
       "glmm_rubin_pvalue": 0.138,
@@ -128,7 +128,7 @@
     },
     {
       "name": "birth_cohort1970s",
-      "level": "birth_cohort1970s",
+      "level": "1970s",
       "glmm_rubin_estimate": 5.4461,
       "glmm_rubin_se": 2.7673,
       "glmm_rubin_pvalue": 0.0491,
@@ -141,7 +141,7 @@
     },
     {
       "name": "birth_cohortpost-1980",
-      "level": "birth_cohortpost-1980",
+      "level": "post-1980",
       "glmm_rubin_estimate": 4.8183,
       "glmm_rubin_se": 2.75,
       "glmm_rubin_pvalue": 0.0798,
@@ -154,7 +154,7 @@
     },
     {
       "name": "sexfemale",
-      "level": "sexfemale",
+      "level": "female",
       "glmm_rubin_estimate": 0.1549,
       "glmm_rubin_se": 0.5695,
       "glmm_rubin_pvalue": 0.7857,
@@ -167,7 +167,7 @@
     },
     {
       "name": "region2",
-      "level": {},
+      "level": "2",
       "glmm_rubin_estimate": -0.632,
       "glmm_rubin_se": 1.809,
       "glmm_rubin_pvalue": 0.7268,
@@ -180,7 +180,7 @@
     },
     {
       "name": "region3",
-      "level": {},
+      "level": "3",
       "glmm_rubin_estimate": -0.4211,
       "glmm_rubin_se": 1.8123,
       "glmm_rubin_pvalue": 0.8163,
@@ -193,7 +193,7 @@
     },
     {
       "name": "region4",
-      "level": {},
+      "level": "4",
       "glmm_rubin_estimate": -0.6258,
       "glmm_rubin_se": 1.8705,
       "glmm_rubin_pvalue": 0.738,
@@ -206,7 +206,7 @@
     },
     {
       "name": "region5",
-      "level": {},
+      "level": "5",
       "glmm_rubin_estimate": -1.5039,
       "glmm_rubin_se": 1.9083,
       "glmm_rubin_pvalue": 0.4306,
@@ -219,7 +219,7 @@
     },
     {
       "name": "region6",
-      "level": {},
+      "level": "6",
       "glmm_rubin_estimate": -0.676,
       "glmm_rubin_se": 1.9431,
       "glmm_rubin_pvalue": 0.7279,
@@ -232,7 +232,7 @@
     },
     {
       "name": "region7",
-      "level": {},
+      "level": "7",
       "glmm_rubin_estimate": -0.9413,
       "glmm_rubin_se": 1.7389,
       "glmm_rubin_pvalue": 0.5883,
@@ -245,7 +245,7 @@
     },
     {
       "name": "region8",
-      "level": {},
+      "level": "8",
       "glmm_rubin_estimate": -0.6375,
       "glmm_rubin_se": 1.8377,
       "glmm_rubin_pvalue": 0.7287,
@@ -258,7 +258,7 @@
     },
     {
       "name": "region9",
-      "level": {},
+      "level": "9",
       "glmm_rubin_estimate": -0.8085,
       "glmm_rubin_se": 2.113,
       "glmm_rubin_pvalue": 0.702,
@@ -271,7 +271,7 @@
     },
     {
       "name": "region10",
-      "level": {},
+      "level": "10",
       "glmm_rubin_estimate": -0.5443,
       "glmm_rubin_se": 1.9108,
       "glmm_rubin_pvalue": 0.7758,
@@ -284,7 +284,7 @@
     },
     {
       "name": "region11",
-      "level": {},
+      "level": "11",
       "glmm_rubin_estimate": -1.5965,
       "glmm_rubin_se": 1.8902,
       "glmm_rubin_pvalue": 0.3983,
@@ -297,7 +297,7 @@
     },
     {
       "name": "region12",
-      "level": {},
+      "level": "12",
       "glmm_rubin_estimate": -0.9944,
       "glmm_rubin_se": 1.906,
       "glmm_rubin_pvalue": 0.6019,

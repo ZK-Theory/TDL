@@ -1,6 +1,6 @@
 {
   "schema_version": "panel-output/power-analysis/v1",
-  "generated_at": "2026-06-03T18:16:25Z",
+  "generated_at": "2026-06-03T20:11:17Z",
   "task": "T1.35a power analysis",
   "pre_registration": "2026-05-25",
   "params": {
@@ -16,7 +16,7 @@
     "seed": 42,
     "n_individuals": 711,
     "n_clusters": 342,
-    "sigma_u_formula": "latent-variable: sigma_u^2 = icc * pi^2 / 3",
+    "sigma_u_formula": "latent-variable: sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3",
     "lrt_df_reference": "chisq_0_1_mixture",
     "null_engine": "glmmTMB",
     "full_engine": "glmmTMB",
@@ -25,6 +25,7 @@
     "power_checkpoint": "C:/Users/steph/TDL/results/panel_methodology/foo_transparency/.partial/power_analysis_corrected_2026-06-03_progress.rds",
     "sigma_bootstrap_checkpoint": "C:/Users/steph/TDL/results/panel_methodology/foo_transparency/.partial/power_sigma_corrected_2026-06-03_bootstrap_progress.rds",
     "sample_reconciliation": {
+      "sample_provenance": "regression_tier3.R fitted-stage complete-case sample reconstruction; power uses the multi-member FOO cluster-size distribution from that sample",
       "expected_prior_t135_counts": {
         "n": 7098,
         "singletons": 6363,
@@ -59,35 +60,35 @@
     },
     {
       "icc": 0.025,
-      "empirical_power": 0.938,
-      "n_rejections": 938,
+      "empirical_power": 0.939,
+      "n_rejections": 939,
       "n_converged": 1000,
       "convergence_failures": 0,
       "bootstrap_se_of_power": 0.0076
     },
     {
       "icc": 0.05,
-      "empirical_power": 0.92,
-      "n_rejections": 920,
+      "empirical_power": 0.923,
+      "n_rejections": 923,
       "n_converged": 1000,
       "convergence_failures": 0,
-      "bootstrap_se_of_power": 0.0086
+      "bootstrap_se_of_power": 0.0084
     },
     {
       "icc": 0.1,
-      "empirical_power": 0.885,
-      "n_rejections": 885,
+      "empirical_power": 0.886,
+      "n_rejections": 886,
       "n_converged": 1000,
       "convergence_failures": 0,
       "bootstrap_se_of_power": 0.0101
     },
     {
       "icc": 0.2,
-      "empirical_power": 0.855,
-      "n_rejections": 855,
+      "empirical_power": 0.86,
+      "n_rejections": 860,
       "n_converged": 1000,
       "convergence_failures": 0,
-      "bootstrap_se_of_power": 0.0111
+      "bootstrap_se_of_power": 0.011
     }
   ],
   "minimum_detectable_icc": "engine not calibrated",

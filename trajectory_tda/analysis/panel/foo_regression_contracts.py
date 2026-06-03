@@ -84,6 +84,8 @@ def make_nssec_regime_crosstab(
     sparse_threshold: int = 5,
 ) -> dict[str, object]:
     """Build counts, row/column proportions, and explicit sparse-cell records."""
+    if len(rows) != len(cols):
+        raise ValueError("rows and cols must have the same length")
     row_index = {v: i for i, v in enumerate(row_levels)}
     col_index = {v: j for j, v in enumerate(col_levels)}
     counts = np.zeros((len(row_levels), len(col_levels)), dtype=int)
@@ -165,6 +167,12 @@ def validate_tier2_output(payload: Mapping[str, object]) -> None:
     params = payload["params"]  # type: ignore[index]
     if params["m_imputations"] != 20:  # type: ignore[index]
         raise AssertionError("m_imputations must be 20")
+    if params["engine_glmm"] != "glmmTMB" or params["engine_design"] != "survey::svyglm":  # type: ignore[index]
+        raise AssertionError("unexpected estimation engine literal")
+    if params["family"] != "quasibinomial":  # type: ignore[index]
+        raise AssertionError("family must be quasibinomial")
+    if params["ipw_trimming"] != "p1/p99 of raw, per-stratum normalisation to mean 1":  # type: ignore[index]
+        raise AssertionError("ipw_trimming must match the normalised IPW literal")
     if not payload["convergence"]["all_chains_converged"]:  # type: ignore[index]
         raise AssertionError("all MICE chains must converge")
     icc = payload["random_effects"]["icc_hh"]  # type: ignore[index]
@@ -187,6 +195,8 @@ def validate_tier2_output(payload: Mapping[str, object]) -> None:
                 "agreement_direction",
             ],
         )
+        if not (isinstance(row["level"], str) or row["level"] is None):
+            raise AssertionError("coefficient level must be a string or null")
         if not 0 <= row["glmm_rubin_pvalue"] <= 1 or not 0 <= row["svyglm_pvalue"] <= 1:
             raise AssertionError("p-values must be in [0, 1]")
 
@@ -231,6 +241,8 @@ def validate_tier2_svyglm_headline_output(payload: Mapping[str, object]) -> None
         raise AssertionError("all MICE chains must converge")
     for row in payload["svyglm_headline"]:  # type: ignore[index]
         assert_required_keys(row, ["name", "level", "estimate", "cluster_robust_se", "pvalue", "rubin_df", "rubin_fmi"])
+        if not (isinstance(row["level"], str) or row["level"] is None):
+            raise AssertionError("coefficient level must be a string or null")
         if row["cluster_robust_se"] < 0:
             raise AssertionError("cluster_robust_se must be non-negative")
         if not 0 <= row["pvalue"] <= 1:

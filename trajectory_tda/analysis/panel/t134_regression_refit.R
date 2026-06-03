@@ -135,6 +135,23 @@ rubin_pool <- function(estimates, ses) {
   list(estimate = qbar, se = se, pvalue = pval, df = df, fmi = fmi)
 }
 
+term_level <- function(term) {
+  if (term == "(Intercept)") return(NA_character_)
+  factor_prefixes <- c(
+    regime_init = "regime_init",
+    nssec_proxy = "nssec_proxy",
+    birth_cohort = "birth_cohort",
+    sex = "sex",
+    region = "region"
+  )
+  for (prefix in factor_prefixes) {
+    if (startsWith(term, prefix) && nchar(term) > nchar(prefix)) {
+      return(substr(term, nchar(prefix) + 1L, nchar(term)))
+    }
+  }
+  NA_character_
+}
+
 make_coefficients <- function(glmm_tables, svy_tables) {
   terms <- Reduce(intersect, c(lapply(glmm_tables, rownames), lapply(svy_tables, rownames)))
   lapply(terms, function(term) {
@@ -146,7 +163,7 @@ make_coefficients <- function(glmm_tables, svy_tables) {
     sp <- rubin_pool(svy_est, svy_se)
     list(
       name = term,
-      level = if (grepl("R6|female|1950s|1960s|1970s|post-1980|M$|L$", term)) term else NULL,
+      level = term_level(term),
       glmm_rubin_estimate = round(gp$estimate, 8),
       glmm_rubin_se = round(gp$se, 8),
       glmm_rubin_pvalue = round(gp$pvalue, 8),
@@ -272,7 +289,7 @@ if (!ONLY_FOO) {
     null_fit <- glmmTMB(escape ~ 1 + (1 | hh_group), data = fit_dt, family = binomial(link = "logit"), weights = ipw_model)
     ll_null[i] <- as.numeric(logLik(null_fit))
 
-    fit_dt[, svy_weight := ipw_trimmed]
+    fit_dt[, svy_weight := ipw_norm]
     design <- svydesign(ids = ~foo_cluster, weights = ~svy_weight, data = fit_dt)
     svy_fit <- svyglm(formula_svy, design = design, family = quasibinomial())
     svy_tables[[i]] <- coef(summary(svy_fit))
@@ -296,10 +313,10 @@ if (!ONLY_FOO) {
     params = list(
       m_imputations = 20L,
       ipw_source = IPW_PATH,
-      ipw_trimming = "T1.13 p1/p99 trimmed weights; glmmTMB weights normalised to mean 1 inside each imputation-specific model sample",
+      ipw_trimming = "p1/p99 of raw, per-stratum normalisation to mean 1",
       engine_glmm = "glmmTMB",
       engine_design = "survey::svyglm",
-      family = "binomial for glmmTMB; quasibinomial for svyglm",
+      family = "quasibinomial",
       model_formula_fixed = formula_fixed,
       model_formula_random = "(1 | hh_group)",
       conditioning_sample = "first-window regime in {R2, R6}",

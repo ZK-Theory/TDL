@@ -40,12 +40,14 @@ iso_now <- function() {
 
 as_row <- function(row) {
   level <- row$level
-  if (identical(row$name, "regime_initR6")) level <- "R6"
-  if (identical(row$name, "nssec_proxyM")) level <- "M"
-  if (identical(row$name, "nssec_proxyL")) level <- "L"
+  if (is.null(level) || length(level) == 0L || is.na(level) || !nzchar(as.character(level))) {
+    level <- NA_character_
+  } else {
+    level <- as.character(level)[1L]
+  }
   list(
     name = row$name,
-    level = if (is.null(level)) NULL else level,
+    level = level,
     estimate = row$svyglm_estimate,
     cluster_robust_se = row$svyglm_se,
     pvalue = row$svyglm_pvalue,
@@ -74,9 +76,14 @@ if (length(regime) != 1L || length(nssec_m) != 1L || length(nssec_l) != 1L) {
   stop("Required headline coefficient row is missing.")
 }
 
+dir_m <- baseline_direction(baseline, "nssec_proxyM")
+dir_l <- baseline_direction(baseline, "nssec_proxyL")
+if (is.na(dir_m) || is.na(dir_l)) {
+  stop("Baseline missing required NS-SEC terms: nssec_proxyM/nssec_proxyL")
+}
 nssec_consistent <- (
-  sign(nssec_m[[1L]]$estimate) == baseline_direction(baseline, "nssec_proxyM") &&
-    sign(nssec_l[[1L]]$estimate) == baseline_direction(baseline, "nssec_proxyL")
+  sign(nssec_m[[1L]]$estimate) == dir_m &&
+    sign(nssec_l[[1L]]$estimate) == dir_l
 )
 
 payload <- list(
@@ -131,8 +138,8 @@ payload <- list(
     nssec_direction_consistent_with_t120 = nssec_consistent,
     accepted = (exp(regime[[1L]]$estimate) > 1) && nssec_consistent,
     t120_baseline_source = BASELINE_SOURCE,
-    t120_nssec_proxyM_sign = baseline_direction(baseline, "nssec_proxyM"),
-    t120_nssec_proxyL_sign = baseline_direction(baseline, "nssec_proxyL")
+    t120_nssec_proxyM_sign = dir_m,
+    t120_nssec_proxyL_sign = dir_l
   )
 )
 

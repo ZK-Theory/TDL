@@ -1,6 +1,6 @@
 {
   "schema_version": "panel-output/nssec-regime-crosstab/v1",
-  "generated_at": "2026-06-03T11:21:06Z",
+  "generated_at": "2026-06-03T19:54:50Z",
   "task": "T1.34 NSSEC x regime cross-tab",
   "params": {
     "nssec_proxy_source": "T1.18 sibling-consistent MICE pool, first completed dataset for descriptive cross-tab",

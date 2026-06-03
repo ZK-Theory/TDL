@@ -1,47 +1,49 @@
 {
   "schema_version": "panel-output/sibling-concordance/v1",
-  "generated_at": "2026-06-03T17:59:01Z",
+  "generated_at": "2026-06-03T20:04:58Z",
   "task": "T1.35c sibling concordance",
   "pre_registration": "2026-05-25",
   "params": {
-    "n_pairs": 342,
+    "n_pairs": 396,
+    "n_clusters": 342,
     "member_ordering_rule": "smaller pidp within cluster is member 1",
     "bootstrap_B": 1000,
     "seed": 42,
     "source_sample": "exact regression_tier3.R complete-case T1.21 reconstruction; no forced reconciliation to prior T1.35 counts",
+    "sample_provenance": "all within-family pairs from the fitted-stage multi-member FOO sample; bootstrap resamples FOO clusters",
     "bootstrap_workers": 4,
     "bootstrap_chunk": 20,
     "bootstrap_checkpoint": "C:/Users/steph/TDL/results/panel_methodology/foo_transparency/.partial/sibling_concordance_corrected_2026-06-03_bootstrap_progress.rds"
   },
   "contingency_table": {
     "a": 2,
-    "b": 12,
-    "c": 21,
-    "d": 307
+    "b": 14,
+    "c": 25,
+    "d": 355
   },
   "mcnemar": {
-    "statistic_uncorrected": 2.4545,
-    "statistic_yates_corrected": 1.9394,
-    "pvalue_asymptotic": 0.1637,
+    "statistic_uncorrected": 3.1026,
+    "statistic_yates_corrected": 2.5641,
+    "pvalue_asymptotic": 0.1093,
     "pvalue_exact": null,
     "used_variant": "asymptotic_yates_cc"
   },
   "cohens_kappa": {
-    "point_estimate": 0.0603,
-    "bootstrap_ci_lower": -0.0528,
-    "bootstrap_ci_upper": 0.1966,
+    "point_estimate": 0.0445,
+    "bootstrap_ci_lower": -0.0552,
+    "bootstrap_ci_upper": 0.1952,
     "bootstrap_B": 1000,
     "ci_method": "percentile"
   },
   "odds_ratio": {
-    "point_estimate": 2.4365,
-    "log_or": 0.8906,
-    "bootstrap_ci_lower": 0.7548,
-    "bootstrap_ci_upper": 8.6186,
+    "point_estimate": 2.0286,
+    "log_or": 0.7073,
+    "bootstrap_ci_lower": 0.639,
+    "bootstrap_ci_upper": 8.2653,
     "bootstrap_B": 1000,
     "ci_method": "percentile on log scale, exponentiated",
     "haldane_anscombe_supplementary": {
-      "point_estimate": 2.8605
+      "point_estimate": 2.4037
     }
   }
 }

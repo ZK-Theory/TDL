@@ -1,13 +1,14 @@
 {
   "schema_version": "panel-output/singleton-decomposition/v1",
-  "generated_at": "2026-06-03T17:58:28Z",
+  "generated_at": "2026-06-03T20:04:41Z",
   "task": "T1.35b singleton decomposition",
   "pre_registration": "2026-05-25",
   "params": {
     "t121_source_path": "C:/Users/steph/TDL/results/trajectory_tda_priority2/window_escape_assignments_2026-05-14.json",
-    "xwavedat_source_path": "C:/Users/steph/TDL/data/derived/foo_clusters_2026-05-06.csv",
+    "xwavedat_source_path": "C:/Users/steph/TDL/data/UKDA-6614-tab/tab/ukhls/xwavedat.tab",
     "n_total_singletons": 6284,
     "n_t121_total_sample": 6995,
+    "sample_provenance": "regression_tier3.R fitted-stage complete-case sample reconstruction; FOO clusters from foo_clusters_2026-05-06.csv",
     "live_input_counts": {
       "n_disadvantaged_starters": 7286,
       "n_after_regression_tier3_complete_case": 6995,

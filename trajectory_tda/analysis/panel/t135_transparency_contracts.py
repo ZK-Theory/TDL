@@ -96,8 +96,10 @@ def validate_power_analysis(payload: Mapping[str, object]) -> None:
     params = payload["params"]  # type: ignore[index]
     if list(params["icc_grid"]) != ICC_GRID or params["B"] != 1000:  # type: ignore[index]
         raise AssertionError("power grid and B must match the pre-registration")
-    if params["n_individuals"] <= 0 or params["n_clusters"] <= 0:  # type: ignore[index]
-        raise AssertionError("power sample structure mismatch")
+    if params["n_individuals"] != 711 or params["n_clusters"] != 342:  # type: ignore[index]
+        raise AssertionError("power sample structure must be n_individuals=711 and n_clusters=342")
+    if params.get("sigma_u_formula") != "latent-variable: sigma_u^2 = (icc / (1 - icc)) * pi^2 / 3":  # type: ignore[attr-defined]
+        raise AssertionError("sigma_u_formula must use the latent-variable ICC inversion")
     if params.get("lrt_df_reference") != "chisq_0_1_mixture":  # type: ignore[attr-defined]
         raise AssertionError("lrt_df_reference must be chisq_0_1_mixture")
     if params.get("null_engine") != "glmmTMB" or params.get("full_engine") != "glmmTMB":  # type: ignore[attr-defined]
@@ -164,7 +166,7 @@ def validate_sibling_concordance(payload: Mapping[str, object]) -> None:
         raise AssertionError("Pearson chi-square is forbidden")
     params = payload["params"]  # type: ignore[index]
     tab = payload["contingency_table"]  # type: ignore[index]
-    if params["n_pairs"] <= 0 or params["bootstrap_B"] != 1000:
+    if params["n_pairs"] < 342 or params.get("n_clusters") != 342 or params["bootstrap_B"] != 1000:
         raise AssertionError("pair count or bootstrap B mismatch")
     if sum(tab[k] for k in ["a", "b", "c", "d"]) != params["n_pairs"]:
         raise AssertionError("2x2 table does not sum to n_pairs")
