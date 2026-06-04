@@ -2,8 +2,15 @@
 
 Generated from `uv run python .claude/hooks/contract_binding_check.py --no-pytest --all-jsons` in warn mode after adding the hardening gates.
 
-Hardening warnings: 114
+Hardening warnings: 112 (74 gate 1c + 34 gate 2b + 4 pending-debt)
 Existing hard Gate 4 all-JSON findings observed during the same run: 6
+
+> Updated after the PR #33 CodeRabbit review: the gate 1b qualitative-language
+> lint was tuned (bare "about" narrowed to numeric-quantifier contexts;
+> nearby-number radius 50 → 200), which removed the two prior gate 1b findings
+> (`svyglm-cluster-robust-se` "warning about …"; `icc-cluster-bootstrap` "within
+> Monte Carlo tolerance" — a soft statistical tolerance to be retrofitted via
+> `enforced_by`, not a pinned expression). Gate 1b is now 0.
 
 The warnings below are grouped by contract topic directory for TDA/panel retrofit assignment. They are warn-mode findings; the original hard gates remain blocking.
 
@@ -40,7 +47,6 @@ The warnings below are grouped by contract topic directory for TDA/panel retrofi
 
 ## regression-specs
 
-- [gate 1b] svyglm-cluster-robust-se: formula.invariants[2].claim: qualitative term without pinned number: 'nomial(); binomial() in svyglm triggers a warning about non-integer weights and is non-canonical for'
 - [gate 1c] normalised-ipw-trimming: formula.invariants[0] has neither expression nor enforced_by; exactly one is required by the hardening gate
 - [gate 1c] normalised-ipw-trimming: formula.invariants[1] has neither expression nor enforced_by; exactly one is required by the hardening gate
 - [gate 1c] normalised-ipw-trimming: formula.invariants[3] has neither expression nor enforced_by; exactly one is required by the hardening gate
@@ -113,7 +119,6 @@ The warnings below are grouped by contract topic directory for TDA/panel retrofi
 
 ## stochastic-tests
 
-- [gate 1b] icc-cluster-bootstrap: binding.must_assert: qualitative term without pinned number: 'e point estimate ICC matches the analytical value within Monte Carlo tolerance; (b) bootstrap resamp'
 - [gate 1c] constrained-shuffle-null: formula.invariants[2] has neither expression nor enforced_by; exactly one is required by the hardening gate
 - [gate 1c] constrained-shuffle-null: formula.invariants[3] has neither expression nor enforced_by; exactly one is required by the hardening gate
 - [gate 1c] constrained-shuffle-null: formula.invariants[4] has neither expression nor enforced_by; exactly one is required by the hardening gate

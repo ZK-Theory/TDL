@@ -35,4 +35,7 @@ def test_valid_contract_fixture():
 
 
 def test_json_schema_contract_fixture():
-    assert {"score": 0.5, "count": 1, "optional_se": None}
+    payload = {"score": 0.5, "count": 1, "optional_se": None}
+    assert payload["score"] == 0.5
+    assert payload["count"] == 1
+    assert payload["optional_se"] is None

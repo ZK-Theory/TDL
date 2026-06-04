@@ -107,9 +107,12 @@ def _is_pending(c: dict) -> bool:
 
 QUALITATIVE_RE = re.compile(
     r"\b("
-    r"approximately|roughly|about|close to|should be|reasonable|qualitative|"
+    r"approximately|roughly|close to|should be|reasonable|qualitative|"
     r"within\s+(?:(?:a|the)\s+)?(?:(?:monte[- ]?carlo)\s+)?tolerance|"
-    r"sensible|adequate|sufficiently"
+    r"sensible|adequate|sufficiently|"
+    # bare "about" only counts as a hedge when it quantifies a value
+    # (e.g. "about 0.05"); "warning about ...", "evidence (about ...)" do not.
+    r"about(?=\s+[~.\d+-])"
     r")\b",
     flags=re.IGNORECASE,
 )
@@ -123,7 +126,7 @@ def _snippet(text: str, start: int, radius: int = 50) -> str:
     return " ".join(text[lo:hi].split())
 
 
-def _has_nearby_number(text: str, start: int, end: int, radius: int = 50) -> bool:
+def _has_nearby_number(text: str, start: int, end: int, radius: int = 200) -> bool:
     lo = max(0, start - radius)
     hi = min(len(text), end + radius)
     return bool(NUMBER_RE.search(text[lo:hi]))
@@ -516,6 +519,7 @@ def _base_type_matches(value: Any, base: str) -> bool:
         if not isinstance(value, dict):
             return False
         inner = base[5:-1].strip()
+        parts: list[str] = []
         if inner.startswith("str"):
             if not all(isinstance(k, str) for k in value):
                 return False

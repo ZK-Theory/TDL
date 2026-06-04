@@ -147,8 +147,10 @@ The warn-mode hardening layer reports:
 5. **Pending-debt detection** â€” a `pending:true` contract warns when its
    binding test already exists on the current branch.
 
-Genuine emergencies use `git commit --no-verify` documented as an exception
-that requires a follow-up contract-authoring commit within 24 hours.
+During the retrofit period the hardening gates run in warn mode (exit 0) and
+do not block commits; enforcement is planned for T0.17 once the backlog is
+remediated, gated behind `--enforce` / `RA_CONTRACT_GATES=enforce`. Never use
+`git commit --no-verify` — the pre-commit hooks (Ruff lint/format) must run.
 
 ## Pending contracts
 
