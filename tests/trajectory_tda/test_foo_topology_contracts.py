@@ -345,30 +345,99 @@ def test_constrained_shuffle_preserves_cluster_size_partition() -> None:
         assert len(bad_partition[:-1]) == len(clusters)
 
 
-def test_icc_cluster_bootstrap_construction() -> None:
+def test_icc_cluster_bootstrap_construction(monkeypatch: pytest.MonkeyPatch) -> None:
     """ICC uses cluster-level bootstrap and percentile CIs."""
     clusters = np.repeat(np.arange(5), 4)
     feature = np.array(
         [
-            [0.9], [1.0], [1.1], [1.0],
-            [1.9], [2.0], [2.1], [2.0],
-            [2.9], [3.0], [3.1], [3.0],
-            [3.9], [4.0], [4.1], [4.0],
-            [4.9], [5.0], [5.1], [5.0],
+            [0.9],
+            [1.0],
+            [1.1],
+            [1.0],
+            [1.9],
+            [2.0],
+            [2.1],
+            [2.0],
+            [2.9],
+            [3.0],
+            [3.1],
+            [3.0],
+            [3.9],
+            [4.0],
+            [4.1],
+            [4.0],
+            [4.9],
+            [5.0],
+            [5.1],
+            [5.0],
         ],
         dtype=np.float64,
     )
     means, within = foo._cluster_feature_stats(feature, clusters)
-    expected = np.var(means[:, 0], ddof=1) / (np.var(means[:, 0], ddof=1) + np.nanmean(within[:, 0]))
-    assert foo._icc_from_cluster_stats(means, within)[0] == pytest.approx(expected)
+    expected = np.var(means[:, 0], ddof=1) / (
+        np.var(means[:, 0], ddof=1) + np.nanmean(within[:, 0])
+    )
+    point_estimate = foo._icc_from_cluster_stats(means, within)[0]
+    assert point_estimate == pytest.approx(expected)
     assert expected > 0.99
 
     icc1 = foo.cluster_bootstrap_icc(feature, clusters, ["x"], B_boot=200, seed=42)["x"]
     icc2 = foo.cluster_bootstrap_icc(feature, clusters, ["x"], B_boot=200, seed=42)["x"]
     assert icc1 == icc2
+    assert set(icc1) == {
+        "point_estimate",
+        "bootstrap_ci_lower",
+        "bootstrap_ci_upper",
+        "bootstrap_B",
+    }
+    assert isinstance(icc1["point_estimate"], float)
+    assert isinstance(icc1["bootstrap_ci_lower"], float)
+    assert isinstance(icc1["bootstrap_ci_upper"], float)
+    assert isinstance(icc1["bootstrap_B"], int)
     assert 0.0 <= icc1["point_estimate"] <= 1.0
     assert 0.0 <= icc1["bootstrap_ci_lower"] <= icc1["bootstrap_ci_upper"] <= 1.0
     assert icc1["bootstrap_B"] == 200
+
+    three_feature = np.column_stack([feature[:, 0], feature[:, 0] * 0.5, feature[:, 0] * 0.0])
+    per_feature = foo.cluster_bootstrap_icc(
+        three_feature,
+        clusters,
+        ["max_h0_persistence", "total_h1_persistence", "landscape_integral_k1"],
+        B_boot=20,
+        seed=42,
+    )
+    assert set(per_feature) == set(foo.FEATURE_NAMES)
+
+    recorded_draws: list[tuple[int, int]] = []
+
+    class FakeRng:
+        def integers(self, low: int, high: int | None = None, size: int | None = None):
+            assert low == 0
+            assert high is not None
+            assert size is not None
+            recorded_draws.append((high, size))
+            return np.arange(size) % high
+
+    monkeypatch.setattr(foo.np.random, "default_rng", lambda seed: FakeRng())
+    fake_icc = foo.cluster_bootstrap_icc(feature, clusters, ["x"], B_boot=3, seed=99)["x"]
+    assert recorded_draws == [(5, 5), (5, 5), (5, 5)]
+    assert fake_icc["bootstrap_B"] == 3
+
+    params = foo._common_params(seed=42, B=5000, icc_bootstrap_B=1000, n=20)
+    assert params["icc_bootstrap_B"] == 1000
+
+    with pytest.raises(AssertionError):
+        assert point_estimate == pytest.approx(expected + 0.1)
+    with pytest.raises(AssertionError):
+        assert recorded_draws == [(20, 20), (20, 20), (20, 20)]
+    with pytest.raises(AssertionError):
+        assert -0.1 <= icc1["point_estimate"] <= -0.01
+    with pytest.raises(AssertionError):
+        assert icc1["bootstrap_ci_lower"] == pytest.approx(np.percentile([0.0, 1.0], 10.0))
+    with pytest.raises(AssertionError):
+        assert icc1 != icc2
+    with pytest.raises(AssertionError):
+        assert params["icc_bootstrap_B"] == 200
 
 
 def test_constrained_shuffle_cluster_size_invariant() -> None:

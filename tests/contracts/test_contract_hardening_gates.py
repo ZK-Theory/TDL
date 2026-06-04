@@ -134,3 +134,31 @@ def test_strengthened_gate_4_validates_types_bounds_and_null_allowed(tmp_path):
     assert any("count" in issue and "does not match declared type" in issue for issue in hardening)
     assert any("labels" in issue and "does not match declared type" in issue for issue in hardening)
     assert not any("optional_se" in issue for issue in hardening)
+
+
+
+def test_gate_4_legacy_exempt_skips_listed_file_but_validates_others(tmp_path):
+    schema_contract = _load_fixture_contracts()["json-schema-contract"][1]
+    ov_contract = {
+        "id": "legacy-exempt-output-validation",
+        "kind": "output_validation",
+        "output_validation": {
+            "applies_to_glob": "results/*.json",
+            "schema_contracts": ["json-schema-contract"],
+            "legacy_exempt": ["results/legacy.json"],
+        },
+    }
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+    (results_dir / "legacy.json").write_text(json.dumps({}), encoding="utf-8")
+    (results_dir / "current.json").write_text(json.dumps({}), encoding="utf-8")
+
+    errors, hardening = contract_runner.gate_4_validate_jsons(
+        [(Path("output.yaml"), ov_contract), (Path("schema.yaml"), schema_contract)],
+        tmp_path,
+        all_jsons=True,
+    )
+
+    assert hardening == []
+    assert not any("legacy.json" in issue for issue in errors)
+    assert any("current.json" in issue and "missing required key 'score'" in issue for issue in errors)

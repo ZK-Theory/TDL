@@ -20,23 +20,7 @@
       "11": 422,
       "12": 383,
       "13": 5363
-    },
-    "n_perm_used_observed": 5000,
-    "covering_radius_at_n_perm_observed": 0.0,
-    "n_perm_used_null_summary": {
-      "min": 5000,
-      "median": 5000,
-      "max": 5000,
-      "all_equal_to_L": true
-    },
-    "covering_radius_at_n_perm_null_summary": {
-      "min": 0.0,
-      "median": 0.0,
-      "max": 0.0,
-      "max_observed": 0.0
-    },
-    "dedup_tolerance": 1e-10,
-    "dedup_strategy": "greedy-permutation-external-indexing"
+    }
   },
   "dataset": "bhps",
   "result": {

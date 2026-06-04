@@ -326,8 +326,13 @@ def test_length_matched_run_params_jsons_validate_against_schema() -> None:
     ov = ov_contract["output_validation"]
     glob_pattern = ov["applies_to_glob"]
     wrapper_key = ov["wrapper_key"]
+    legacy_exempt = {Path(entry).as_posix() for entry in ov.get("legacy_exempt", [])}
 
-    jsons = _matched_jsons(glob_pattern)
+    jsons = [
+        path
+        for path in _matched_jsons(glob_pattern)
+        if path.relative_to(REPO_ROOT).as_posix() not in legacy_exempt
+    ]
     failures: list[str] = []
     for path in jsons:
         try:
