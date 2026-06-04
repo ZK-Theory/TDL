@@ -1,6 +1,5 @@
 id: length-matched-run-params
 kind: schema
-pending: true
 
 description: >
   Schema for the run_params block of length-matched Stage-1 result JSONs
@@ -75,7 +74,7 @@ binding:
     all required keys with valid types and values) validates. JSONs with
     (a) L != 5000, (b) frozen_loadings != true, (c) strategy outside
     {'truncate', 'first13'}, (d) dedup_tolerance != 1e-10, (e) dedup_strategy
-    != 'greedy-permutation-via-ripser-n_perm', (f) covering_radius_at_n_perm_observed
+    != 'greedy-permutation-external-indexing', (f) covering_radius_at_n_perm_observed
     > dedup_tolerance with n_perm_used_observed < L (a fallback that
     didn't fall back), or (g) presence of the forbidden singular 'n_perm'
     key are rejected with a precise diagnostic.

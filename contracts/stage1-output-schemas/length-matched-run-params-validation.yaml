@@ -1,6 +1,5 @@
 id: length-matched-run-params-validation
 kind: output_validation
-pending: true
 
 description: >
   Output-validation dispatch for the run_params block of length-matched

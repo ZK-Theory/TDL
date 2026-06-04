@@ -38,8 +38,11 @@ formula:
     - claim: "Minimum p-value is 1 / (n + 1)."
       expression: "p_min = 1 / (n + 1)"
     - claim: "p_max = 1.0."
+      expression: "p_max == 1"
     - claim: "n MUST be derived from B (or total_pairs when B*(B-1)/2 < B), not from the effect-size pair cap."
+      expression: "n == min(B, B * (B - 1) / 2)"
     - claim: "pvalue_null_draws field equals n; effect_null_pairs field equals the count actually used for T/d, which in the legacy path equals total_pairs (since the legacy aggregator does not expose a separable cap)."
+      expression: "pvalue_null_draws == n and effect_null_pairs == B * (B - 1) / 2"
 
 binding:
   test_file: "tests/trajectory_tda/test_stage1_battery_core_regressions.py"

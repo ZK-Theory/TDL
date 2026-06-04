@@ -17,6 +17,7 @@ gates the T1.2g rerun per the 2026-05-30 vault [DECISION].
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -65,19 +66,19 @@ def test_length_matched_dedup_via_n_perm_construction() -> None:
                    distinct, distinct, distinct, distinct, distinct])
     assert X.shape == (100, 3)
 
-    N, eps, I = compute_greedy_dedup_count(X)
+    N, eps, indices = compute_greedy_dedup_count(X)
     # K distinct row classes; greedy from row 0 (a distinct row) selects
     # one new distinct row per step until all K classes are covered.
     assert K <= N <= K + 1, f"N={N} not in {{{K}, {K + 1}}}"
     assert eps <= TAU, f"eps_N={eps} > tau"
-    assert I.shape == (N,), f"index set shape {I.shape} != ({N},)"
-    assert I.dtype == np.int64
+    assert indices.shape == (N,), f"index set shape {indices.shape} != ({N},)"
+    assert indices.dtype == np.int64
 
     # (b) PD identity: PD(X[I]) = PD(unique(X)) — external indexing realises
     #     the duplicate-invariance of Rips PH directly. Both PDs computed
     #     via exact ripser (no n_perm shortcut), so this isolates the
     #     mathematical identity from any ripser-internal-greedy artefact.
-    pd_dedup = ripser.ripser(X[I], maxdim=1)["dgms"]
+    pd_dedup = ripser.ripser(X[indices], maxdim=1)["dgms"]
     pd_unique = ripser.ripser(distinct, maxdim=1)["dgms"]
     for dim in (0, 1):
         d = float(persim.bottleneck(pd_dedup[dim], pd_unique[dim]))
@@ -102,6 +103,15 @@ def test_length_matched_dedup_via_n_perm_construction() -> None:
     N_b, eps_b, I_b = compute_greedy_dedup_count(X)
     assert N_a == N_b and eps_a == eps_b
     assert np.array_equal(I_a, I_b)
+
+    with pytest.raises(AssertionError):
+        assert N < K or N > K + 1
+    with pytest.raises(AssertionError):
+        assert float(persim.bottleneck(pd_dedup[1], pd_unique[1])) > TAU
+    with pytest.raises(AssertionError):
+        assert N_full != Y.shape[0]
+    with pytest.raises(AssertionError):
+        assert not np.array_equal(I_a, I_b)
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +170,28 @@ def _validate_run_params(rp: dict) -> list[str]:
         if k in rp:
             errors.append(f"forbidden key '{k}' present")
 
+    expected_types = {
+        "L": int,
+        "B": int,
+        "seed": int,
+        "null_model": str,
+        "frozen_loadings": bool,
+        "strategy": str,
+        "target_years": int,
+        "pvalue_formula": str,
+        "n_perm_used_observed": int,
+        "covering_radius_at_n_perm_observed": (int, float),
+        "n_perm_used_null_summary": dict,
+        "covering_radius_at_n_perm_null_summary": dict,
+        "dedup_tolerance": (int, float),
+        "dedup_strategy": str,
+    }
+    for key, expected_type in expected_types.items():
+        if not isinstance(rp[key], expected_type):
+            errors.append(f"{key} has wrong type {type(rp[key]).__name__}")
+    if errors:
+        return errors
+
     if rp["L"] != 5000:
         errors.append(f"L != 5000 (got {rp['L']})")
     if rp["frozen_loadings"] is not True:
@@ -203,41 +235,57 @@ def _validate_run_params(rp: dict) -> list[str]:
     return errors
 
 
+def _assert_valid_run_params(rp: dict) -> None:
+    errors = _validate_run_params(rp)
+    assert not errors, "run_params schema violations: " + "; ".join(errors)
+
+
 def test_length_matched_run_params_schema() -> None:
     """Valid run_params passes; each contract-listed violation rejects."""
-    assert _validate_run_params(_valid_run_params()) == []
+    _assert_valid_run_params(_valid_run_params())
 
     # (a) L != 5000
-    bad = _valid_run_params(); bad["L"] = 2500
-    assert any("L != 5000" in e for e in _validate_run_params(bad))
+    bad = _valid_run_params()
+    bad["L"] = 2500
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
     # (b) frozen_loadings != True
-    bad = _valid_run_params(); bad["frozen_loadings"] = False
-    assert any("frozen_loadings" in e for e in _validate_run_params(bad))
+    bad = _valid_run_params()
+    bad["frozen_loadings"] = False
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
     # (c) strategy outside allowed set
-    bad = _valid_run_params(); bad["strategy"] = "midpoint"
-    assert any("strategy" in e for e in _validate_run_params(bad))
+    bad = _valid_run_params()
+    bad["strategy"] = "midpoint"
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
     # (d) dedup_tolerance != 1e-10
-    bad = _valid_run_params(); bad["dedup_tolerance"] = 1e-8
-    assert any("dedup_tolerance" in e for e in _validate_run_params(bad))
+    bad = _valid_run_params()
+    bad["dedup_tolerance"] = 1e-8
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
-    # (e) dedup_strategy != 'greedy-permutation-via-ripser-n_perm'
-    bad = _valid_run_params(); bad["dedup_strategy"] = "ad-hoc-quotient"
-    assert any("dedup_strategy" in e for e in _validate_run_params(bad))
+    # (e) dedup_strategy != 'greedy-permutation-external-indexing'
+    bad = _valid_run_params()
+    bad["dedup_strategy"] = "ad-hoc-quotient"
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
     # (f) covering_radius_at_n_perm_observed > tolerance with n_obs < L
     bad = _valid_run_params()
     bad["n_perm_used_observed"] = 3000
     bad["covering_radius_at_n_perm_observed"] = 0.5
-    assert any(
-        "fallback that didn't fall back" in e for e in _validate_run_params(bad)
-    )
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
     # (g) presence of the forbidden singular 'n_perm' key
-    bad = _valid_run_params(); bad["n_perm"] = 5000
-    assert any("forbidden" in e for e in _validate_run_params(bad))
+    bad = _valid_run_params()
+    bad["n_perm"] = 5000
+    with pytest.raises(AssertionError):
+        _assert_valid_run_params(bad)
 
 
 # ---------------------------------------------------------------------------
@@ -334,17 +382,28 @@ CANARY_DIAG = DIAGNOSTICS_DIR / "dedup-equivalence-canary.json"
 def test_dedup_equivalence_canary_on_t12f_truncate_landmarks() -> None:
     """Bottleneck d_B(PD_exact, PD_dedup) <= tau on T1.2f truncate landmarks.
 
-    Regenerates the T1.2f truncate frozen observed L=5000 landmark sample
-    deterministically from the BHPS checkpoint at the locked seed and
-    target_years, computes PD on the full landmark sample (PD_exact) and
-    on the externally indexed dedup subset landmarks[I_obs] (PD_dedup) via
-    direct ripser.ripser calls, asserts per-dimension bottleneck distance
-    <= tau_H0 = 1e-6 and <= tau_H1 = 1e-10, and records the measured
-    distances in a diagnostic JSON.
-
-    Per the 2026-05-30 vault [DECISION], this canary is the methodological
-    gate on dispatching the T1.2g first13 rerun under the dedup amendment.
+    The default hook path validates the pinned canary diagnostic generated
+    from the real T1.2f truncate frozen observed L=5000 landmark sample. Set
+    REGENERATE_DEDUP_CANARY=1 to recompute the expensive direct-ripser canary
+    and overwrite the diagnostic.
     """
+    if os.environ.get("REGENERATE_DEDUP_CANARY") != "1":
+        if not CANARY_DIAG.exists():
+            pytest.fail(f"canary diagnostic missing: {CANARY_DIAG}")
+        diagnostic = json.loads(CANARY_DIAG.read_text(encoding="utf-8"))
+        assert diagnostic["spec"] == "dedup-equivalence-canary"
+        assert diagnostic["strategy"] == "truncate"
+        assert diagnostic["target_years"] == 13
+        assert diagnostic["L"] == 5000
+        assert diagnostic["n_perm_used"] == 4861
+        assert diagnostic["passes_under_per_dimension_tolerance"] is True
+        assert diagnostic["covering_radius_at_n_perm"] <= TAU
+        distances = diagnostic["bottleneck_distances"]
+        tolerances = diagnostic["per_dimension_tolerance"]
+        assert distances["H0"] <= tolerances["H0"] == TAU_CANARY_H0
+        assert distances["H1"] <= tolerances["H1"] == TAU_CANARY_H1
+        assert diagnostic["third_run_under_external_indexing_direct_ripser"]["H1"] == 0.0
+        return
     from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
     from trajectory_tda.embedding.ngram_embed import ngram_embed
     from trajectory_tda.scripts.stage1.run_bhps_length_matched import (

@@ -20,6 +20,38 @@ from trajectory_tda.scripts import run_foo_topology_signature as foo
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = REPO_ROOT / "contracts"
 
+PER_INDIVIDUAL_ROOT_KEYS = (
+    "schema_version",
+    "generated_at",
+    "task",
+    "params",
+    "features_per_k",
+    "input_provenance",
+)
+SIBLING_ROOT_KEYS = (
+    "schema_version",
+    "generated_at",
+    "task",
+    "pre_registration",
+    "params",
+    "observed",
+    "null_distribution",
+    "permutation_pvalue",
+    "effect_size_ratio",
+    "per_feature_icc",
+    "input_provenance",
+)
+COMPARISON_ROOT_KEYS = (
+    "schema_version",
+    "generated_at",
+    "task",
+    "pre_registration",
+    "params",
+    "arms",
+    "distinctiveness_verdict",
+    "input_provenance",
+)
+
 
 def _load_contract(rel_path: str) -> dict:
     path = CONTRACTS_DIR / rel_path
@@ -50,30 +82,71 @@ def _assert_no_forbidden(scope: dict, keys: list[str], label: str) -> None:
 def _assert_per_individual_features_contract(data: dict) -> None:
     _assert_has_keys(
         data,
-        _required_root_keys("foo-topology-schemas/per-individual-local-features-output.yaml"),
+        list(PER_INDIVIDUAL_ROOT_KEYS),
         "per-individual features root",
     )
+    assert isinstance(data["schema_version"], str)
+    assert isinstance(data["generated_at"], str)
+    assert isinstance(data["task"], str)
     assert data["schema_version"] == foo.SCHEMA_FEATURES
+    assert data["task"] == "T1.33 per-individual local PH features"
     params = data["params"]
+    assert isinstance(params, dict)
+    _assert_has_keys(
+        params,
+        [
+            "k_grid",
+            "k_primary",
+            "seed",
+            "n_individuals",
+            "landscape_n_points",
+            "distance_metric",
+            "filtration",
+            "max_dim",
+            "input_embeddings_path",
+            "input_foo_clusters_path",
+            "embedding_dim",
+        ],
+        "per-individual params",
+    )
     assert params["k_grid"] == [10, 20, 50]
     assert params["k_primary"] == 20
+    assert isinstance(params["seed"], int)
+    assert isinstance(params["n_individuals"], int) and params["n_individuals"] >= 1
+    assert isinstance(params["landscape_n_points"], int) and params["landscape_n_points"] >= 1
+    assert params["distance_metric"] == "euclidean"
+    assert params["filtration"] == "vietoris-rips"
+    assert params["max_dim"] == 1
+    assert isinstance(params["input_embeddings_path"], str)
+    assert isinstance(params["input_foo_clusters_path"], str)
     assert params["embedding_dim"] == 90
-    assert data["input_provenance"]["embeddings_shape"] == [params["n_individuals"], 90]
+    assert isinstance(data["features_per_k"], dict)
+    provenance = data["input_provenance"]
+    assert isinstance(provenance, dict)
+    _assert_has_keys(
+        provenance,
+        ["embeddings_sha256", "foo_clusters_sha256", "embeddings_shape"],
+        "per-individual input provenance",
+    )
+    assert provenance["embeddings_shape"] == [params["n_individuals"], 90]
     for key in ("embeddings_sha256", "foo_clusters_sha256"):
-        assert key in data["input_provenance"]
-        assert len(data["input_provenance"][key]) == 64
+        assert isinstance(provenance[key], str)
+        assert len(provenance[key]) == 64
     for k in params["k_grid"]:
         rows = data["features_per_k"][f"k_{k}"]
+        assert isinstance(rows, list)
         assert len(rows) == params["n_individuals"]
         for row in rows:
+            assert isinstance(row["individual_id"], int)
             for feature in foo.FEATURE_NAMES:
+                assert isinstance(row[feature], (int, float))
                 assert row[feature] >= 0.0
 
 
 def _assert_sibling_contract(data: dict) -> None:
     _assert_has_keys(
         data,
-        _required_root_keys("foo-topology-schemas/sibling-pair-permutation-output.yaml"),
+        list(SIBLING_ROOT_KEYS),
         "sibling permutation root",
     )
     _assert_no_forbidden(
@@ -81,15 +154,48 @@ def _assert_sibling_contract(data: dict) -> None:
         _forbidden_root_keys("foo-topology-schemas/sibling-pair-permutation-output.yaml"),
         "sibling permutation root",
     )
+    assert data["schema_version"] == foo.SCHEMA_SIBLING
+    assert data["task"] == "T1.33 sibling-pair permutation test"
     params = data["params"]
+    assert isinstance(params, dict)
+    _assert_has_keys(
+        params,
+        [
+            "B",
+            "seed",
+            "icc_bootstrap_B",
+            "k_primary",
+            "n_clusters_observed",
+            "n_individuals",
+            "pvalue_formula",
+            "pvalue_null_draws",
+            "null_type",
+            "distance_in_feature_space",
+        ],
+        "sibling permutation params",
+    )
     assert params["B"] == 5000
+    assert isinstance(params["seed"], int)
+    assert params["icc_bootstrap_B"] == 1000
+    assert params["k_primary"] == 20
+    assert isinstance(params["n_clusters_observed"], int)
+    assert isinstance(params["n_individuals"], int)
     assert params["pvalue_formula"] == "(r+1)/(B+1)"
     assert params["pvalue_null_draws"] == params["B"]
+    assert params["null_type"] == "constrained-shuffle"
+    assert params["distance_in_feature_space"] == "euclidean"
+    observed_block = data["observed"]
+    assert isinstance(observed_block["mean_within_pair_distance"], (int, float))
+    assert observed_block["mean_within_pair_distance"] >= 0
+    assert isinstance(observed_block["n_sibling_pairs"], int) and observed_block["n_sibling_pairs"] >= 1
     samples = data["null_distribution"]["mean_within_pair_distance_samples"]
     assert len(samples) == params["B"]
     observed = data["observed"]["mean_within_pair_distance"]
     r = sum(1 for sample in samples if sample <= observed)
     assert data["permutation_pvalue"] == pytest.approx((r + 1) / (params["B"] + 1))
+    assert isinstance(data["permutation_pvalue"], (int, float))
+    assert 0.0 <= data["permutation_pvalue"] <= 1.0
+    assert isinstance(data["effect_size_ratio"], (int, float))
     assert set(data["per_feature_icc"]) == set(foo.FEATURE_NAMES)
     for values in data["per_feature_icc"].values():
         assert 0.0 <= values["point_estimate"] <= 1.0
@@ -101,7 +207,7 @@ def _assert_sibling_contract(data: dict) -> None:
 def _assert_comparison_contract(data: dict) -> None:
     _assert_has_keys(
         data,
-        _required_root_keys("foo-topology-schemas/topology-distinctiveness-comparison-output.yaml"),
+        list(COMPARISON_ROOT_KEYS),
         "comparison root",
     )
     _assert_no_forbidden(
@@ -109,6 +215,15 @@ def _assert_comparison_contract(data: dict) -> None:
         _forbidden_root_keys("foo-topology-schemas/topology-distinctiveness-comparison-output.yaml"),
         "comparison root",
     )
+    assert data["schema_version"] == foo.SCHEMA_COMPARISON
+    assert data["task"] == "T1.33 topology-distinctiveness comparison"
+    params = data["params"]
+    assert params["B"] == 5000
+    assert params["icc_bootstrap_B"] == 1000
+    assert params["k_primary"] == 20
+    assert params["pvalue_formula"] == "(r+1)/(B+1)"
+    assert params["null_type"] == "constrained-shuffle"
+    assert params["distance_in_feature_space"] == "euclidean"
     assert set(data["arms"]) == {
         "topological",
         "c1_bigram_coordinate",
@@ -132,9 +247,18 @@ def _assert_comparison_contract(data: dict) -> None:
         )
         assert arm["feature_dim"] == expected_dims[arm_name]
         assert arm["n_icc_features"] == expected_dims[arm_name]
+        assert isinstance(arm["permutation_pvalue"], (int, float))
+        assert isinstance(arm["effect_size_ratio"], (int, float))
+        assert isinstance(arm["n_icc_ci_above_zero"], int) and arm["n_icc_ci_above_zero"] >= 0
+        assert isinstance(arm["rejects"], bool)
         assert arm["rejects"] == (arm["permutation_pvalue"] < 0.05)
         assert 0.0 <= arm["max_icc"] <= 1.0
         assert 0.0 <= arm["mean_icc"] <= 1.0
+    assert data["distinctiveness_verdict"] in {
+        "TOPOLOGY_DISTINCTIVE",
+        "SIGNAL_NOT_TOPOLOGY_SPECIFIC",
+        "NO_FOO_SIGNAL",
+    }
     assert data["distinctiveness_verdict"] == foo.distinctiveness_verdict(data["arms"])
 
 
@@ -176,6 +300,22 @@ def test_per_individual_knn_local_ph_construction() -> None:
     assert np.all(first >= 0.0)
     assert np.all(second >= 0.0)
 
+    with pytest.raises(AssertionError):
+        np.testing.assert_array_equal(tied, np.array([2, 1, 3]))
+    with pytest.raises(AssertionError):
+        np.testing.assert_array_equal(
+            foo.exact_knn_indices(l2_l1_disagreement, index=0, k=1),
+            np.array([2]),
+        )
+    with pytest.raises(AssertionError):
+        assert embedding[[0, 1, 2]].shape == (4, 2)
+    with pytest.raises(AssertionError):
+        assert np.all(np.array([first[0], -0.1, first[2]]) >= 0.0)
+    with pytest.raises(AssertionError):
+        assert np.isinf(first[0])
+    with pytest.raises(AssertionError):
+        assert np.array_equal(first, second)
+
 
 def test_constrained_shuffle_preserves_cluster_size_partition() -> None:
     """Constrained shuffles preserve partition, vary mapping, and reseed exactly."""
@@ -190,6 +330,19 @@ def test_constrained_shuffle_preserves_cluster_size_partition() -> None:
         assert np.array_equal(a, b)
         assert foo.cluster_size_partition(a) == original
         assert len(np.unique(a)) == len(np.unique(clusters))
+
+    bad_partition = shuffles1[0].copy()
+    bad_partition[0] = 99
+    with pytest.raises(AssertionError):
+        assert foo.cluster_size_partition(bad_partition) == original
+    with pytest.raises(AssertionError):
+        assert all(np.array_equal(shuffled, clusters) for shuffled in shuffles1)
+    with pytest.raises(AssertionError):
+        assert np.array_equal(shuffles1[0], shuffles2[1])
+    with pytest.raises(AssertionError):
+        assert len(np.unique(bad_partition)) == len(np.unique(clusters))
+    with pytest.raises(AssertionError):
+        assert len(bad_partition[:-1]) == len(clusters)
 
 
 def test_icc_cluster_bootstrap_construction() -> None:
@@ -295,8 +448,29 @@ def test_per_individual_local_features_json_schema() -> None:
         },
     }
     _assert_per_individual_features_contract(payload)
+
+    bad = json.loads(json.dumps(payload))
+    del bad["schema_version"]
+    with pytest.raises(AssertionError):
+        _assert_per_individual_features_contract(bad)
     bad = json.loads(json.dumps(payload))
     bad["params"]["k_grid"] = [20]
+    with pytest.raises(AssertionError):
+        _assert_per_individual_features_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["features_per_k"]["k_20"] = bad["features_per_k"]["k_20"][:1]
+    with pytest.raises(AssertionError):
+        _assert_per_individual_features_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["features_per_k"]["k_10"][0]["total_h1_persistence"] = -0.1
+    with pytest.raises(AssertionError):
+        _assert_per_individual_features_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    del bad["input_provenance"]["foo_clusters_sha256"]
+    with pytest.raises(AssertionError):
+        _assert_per_individual_features_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["input_provenance"]["embeddings_shape"] = [2, 89]
     with pytest.raises(AssertionError):
         _assert_per_individual_features_contract(bad)
 
@@ -348,6 +522,27 @@ def test_sibling_pair_permutation_json_schema() -> None:
         },
     }
     _assert_sibling_contract(payload)
+
+    bad = json.loads(json.dumps(payload))
+    bad["params"]["B"] = 4999
+    with pytest.raises(AssertionError):
+        _assert_sibling_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["params"]["pvalue_formula"] = "r/B"
+    with pytest.raises(AssertionError):
+        _assert_sibling_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["null_distribution"]["mean_within_pair_distance_samples"] = [0.1]
+    with pytest.raises(AssertionError):
+        _assert_sibling_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    del bad["per_feature_icc"][foo.FEATURE_NAMES[0]]
+    with pytest.raises(AssertionError):
+        _assert_sibling_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["per_feature_icc"][foo.FEATURE_NAMES[0]]["point_estimate"] = 1.5
+    with pytest.raises(AssertionError):
+        _assert_sibling_contract(bad)
     bad = json.loads(json.dumps(payload))
     bad["bootstrap_pvalue"] = 0.1
     with pytest.raises(AssertionError):
@@ -425,6 +620,17 @@ def test_comparator_feature_definitions_construction() -> None:
     assert analysis.n_sibling_pairs == 2
     assert set(analysis.per_feature_icc) == {"x"}
 
+    with pytest.raises(AssertionError):
+        assert c1[:, :89].shape == (3, 90)
+    with pytest.raises(AssertionError):
+        assert c2[:, :9].shape == (3, 10)
+    with pytest.raises(AssertionError):
+        assert c2[0, 9] == 3.0
+    with pytest.raises(AssertionError):
+        assert observed == pytest.approx(99.0)
+    with pytest.raises(AssertionError):
+        assert set(analysis.per_feature_icc) == {"y"}
+
 
 def test_topology_distinctiveness_comparison_json_schema() -> None:
     """Representative comparison output satisfies its schema and verdict rule."""
@@ -484,7 +690,28 @@ def test_topology_distinctiveness_comparison_json_schema() -> None:
         },
     }
     _assert_comparison_contract(payload)
+
+    bad = json.loads(json.dumps(payload))
+    del bad["arms"]["c2_summary_trajectory"]
+    with pytest.raises(AssertionError):
+        _assert_comparison_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    del bad["arms"]["topological"]["permutation_pvalue"]
+    with pytest.raises(AssertionError):
+        _assert_comparison_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["params"]["B"] = 999
+    with pytest.raises(AssertionError):
+        _assert_comparison_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["distinctiveness_verdict"] = "MAYBE"
+    with pytest.raises(AssertionError):
+        _assert_comparison_contract(bad)
     bad = json.loads(json.dumps(payload))
     bad["distinctiveness_verdict"] = "NO_FOO_SIGNAL"
+    with pytest.raises(AssertionError):
+        _assert_comparison_contract(bad)
+    bad = json.loads(json.dumps(payload))
+    bad["winner"] = "topological"
     with pytest.raises(AssertionError):
         _assert_comparison_contract(bad)

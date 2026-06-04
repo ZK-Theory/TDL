@@ -50,9 +50,13 @@ formula:
     - claim: "C2 is exactly 10-dimensional: the 9 state-occupancy proportions (unigram sub-vector) followed by the integer transition count. No bigrams, no income/length-of-spell extras."
       expression: "C2.shape == (N, 10)"
     - claim: "The sibling-pair test statistic for each comparator is the SAME functional used for the topological features: mean within-sibling-pair Euclidean (l2) distance in the comparator's own feature space, evaluated against the constrained-shuffle null (constrained-shuffle-null contract, B = 5000, same seed family)."
+      enforced_by: "test_comparator_feature_definitions_construction::shared_sibling_analysis_path -- run_sibling_analysis is invoked on comparator features rather than reimplemented"
     - claim: "Per-feature ICC for each comparator uses the icc-cluster-bootstrap contract (cluster-level resampling, B_boot = 1000, 95% percentile CI). C1 yields up to 90 per-coordinate ICCs; C2 yields 10. The output schema records, per comparator, the count of coordinates whose ICC 95% CI is strictly above zero, plus max and mean ICC."
+      enforced_by: "test_comparator_feature_definitions_construction::shared_sibling_analysis_path -- run_sibling_analysis returns the same per_feature_icc structure for comparator arms"
     - claim: "The p-value for each comparator's permutation test uses the (r+1)/(B+1) formula (monte-carlo-permutation-p-value contract) with r = count of null draws whose mean within-pair distance <= observed (lower-tail, matching the sibling-coherence direction)."
+      expression: "p = (r + 1) / (B + 1) with r = sum(null_distance <= observed_distance)"
     - claim: "Comparators are computed on the SAME analytical sample and the SAME foo_clusters assignment as the topological features; no re-subsetting. Seeds for the comparator permutation and bootstrap are recorded in the comparison output JSON."
+      enforced_by: "test_comparator_feature_definitions_construction::shared_sibling_analysis_path -- comparator analysis receives the same cluster vector and seed-routed helper as the topological path"
 
 binding:
   test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
