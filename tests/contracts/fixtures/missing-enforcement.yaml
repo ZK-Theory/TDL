@@ -1,0 +1,21 @@
+id: missing-enforcement
+kind: formula
+description: >
+  Fixture contract with an invariant that has neither expression nor
+  enforced_by, used to test the invariant-enforcement hardening gate.
+spec_citation:
+  source: "Contract hardening fixture"
+formula:
+  expression: "x = y"
+  variables:
+    x:
+      description: "Observed value."
+    y:
+      description: "Reference value."
+  invariants:
+    - claim: "The invariant has no mechanical enforcement anchor."
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_missing_enforcement_fixture"
+  must_assert: >
+    The binding exists so the hardening gate can inspect this fixture.

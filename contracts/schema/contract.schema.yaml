@@ -131,11 +131,22 @@ properties:
             implementation_name:
               type: string
               description: "Name of the variable in the bound code (for traceability)."
+            derivation:
+              type: string
+              description: >
+                Optional provenance for pinned constants or counts used by this
+                variable, such as a result JSON path, sample_provenance.fitted
+                reference, or published formula. Use when the value is not
+                self-derived from the expression.
       invariants:
         type: array
         description: >
           Derived constraints — what must hold under the formula. These are
           claims the binding test verifies (or scoped sub-assertions thereof).
+          Each invariant should be mechanically grounded by exactly one of:
+          expression for crisp mathematical relationships, or enforced_by for
+          procedural assertions named in the binding test. This XOR is checked
+          by the hardening gate in warn mode during retrofit.
         items:
           type: object
           required: [claim]
@@ -144,6 +155,12 @@ properties:
             expression:
               type: string
               description: "Optional formal expression of the invariant."
+            enforced_by:
+              type: string
+              description: >
+                Optional binding-test assertion name plus short reason for a
+                procedural invariant that cannot honestly be represented as a
+                compact expression. Do not set when expression is present.
 
   schema_def:
     type: object
@@ -169,6 +186,12 @@ properties:
             implementation_source:
               type: string
               description: "Optional line / function ref in the source code where this key is populated."
+            derivation:
+              type: string
+              description: >
+                Optional provenance for pinned literals, bounds, or counts in
+                this key's type/description, such as a result JSON path,
+                sample_provenance.fitted reference, or published formula.
       conditional_keys:
         type: array
         description: "Keys that are required only when a stated condition holds."

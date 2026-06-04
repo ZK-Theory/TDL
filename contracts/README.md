@@ -54,6 +54,27 @@ Every contract has a `binding`: a one-to-one link from the contract to a
 single pytest test function. The binding is what the pre-commit hook
 runs. If the binding fails, the commit is blocked.
 
+`binding.must_assert` should enumerate distinct rejection cases using
+lettered clauses: `(a) ...; (b) ...; (c) ...`. The hardening coverage gate
+counts these clauses and compares them with negative assertion cases in the
+bound test and local validators it calls. This is intentionally heuristic,
+but it makes under-specified bindings visible before review.
+
+Formula invariants must be mechanically grounded. Use `expression` for crisp
+mathematical relationships such as `n_converged + convergence_failures == B`,
+`0 <= p <= 1`, or `n == 711`. Use `enforced_by` for procedural invariants
+that cannot honestly be represented as a compact expression, such as seeded
+reproducibility, ordering conventions, engine-literal choices, or object
+identity checks. Exactly one of `expression` or `enforced_by` should appear
+on each `formula.invariants[]` item; during the retrofit this XOR rule is a
+warn-mode hardening gate rather than a meta-schema failure.
+
+Pinned literals should carry provenance. `formula.variables.<name>` entries
+and `schema_def.required_keys[]` items may set `derivation` to cite where a
+constant, count, range, or bound came from: a result JSON path, a
+`sample_provenance.fitted` reference, or a published formula. This keeps
+contract literals traceable instead of free-typed.
+
 Authorship triggers (when contracts get written):
 
 1. **Plan authoring / amendment** — when a new task is added to the
@@ -95,11 +116,41 @@ the commit is blocked with a diagnostic.
 4. **Validate output JSONs in commit** — for each `.json` file staged
    in the commit that matches an `output_validation` contract's glob,
    validate the JSON against the referenced schema contract. Catches
-   schema-truncation defects at write time.
+   schema-truncation defects at write time. The strengthened hardening
+   layer also checks declared value types and simple `[lo, hi]` bounds,
+   including null-allowed forms such as `float | null`.
 
-The hook is hard-enforced from day one. Genuine emergencies use
-`git commit --no-verify` documented as an exception that requires a
-follow-up contract-authoring commit within 24 hours.
+The original four gates remain hard-enforced. New hardening gates run in
+warn mode by default so the existing contract tree can be retrofitted without
+blocking unrelated commits. Run `.claude/hooks/contract_binding_check.py
+--enforce` or set `RA_CONTRACT_GATES=enforce` to make the hardening gates
+blocking once the retrofit backlog is cleared.
+
+## Hardening gates
+
+The warn-mode hardening layer reports:
+
+1. **Qualitative-language lint** â€” gate-bearing fields must not rely on
+   phrases like "approximately", "roughly", "reasonable", or "within
+   tolerance" unless a pinned number appears nearby.
+2. **Invariant-enforcement completeness** â€” each formula invariant should
+   have exactly one of `expression` or `enforced_by`.
+3. **Claim-to-assertion coverage** â€” lettered `must_assert` clauses are
+   counted against negative assertion cases in the bound test and local
+   validators it calls. Schema contracts also warn when a declared required
+   key is not referenced as a string literal in the binding module.
+4. **Strengthened JSON validation** â€” output JSON validation checks required
+   key values against declared type strings: `float`, `int`, `str`, `bool`,
+   `list[...]`, `dict[str, ...]`, and null-allowed unions such as
+   `float | null`. It also checks simple numeric range hints written as
+   `[lo, hi]` in the type or description.
+5. **Pending-debt detection** â€” a `pending:true` contract warns when its
+   binding test already exists on the current branch.
+
+During the retrofit period the hardening gates run in warn mode (exit 0) and
+do not block commits; enforcement is planned for T0.17 once the backlog is
+remediated, gated behind `--enforce` / `RA_CONTRACT_GATES=enforce`. Never use
+`git commit --no-verify` — the pre-commit hooks (Ruff lint/format) must run.
 
 ## Pending contracts
 
@@ -111,6 +162,7 @@ binding test is authored on a feature branch that has not yet merged to
 the base branch — the contract is on file, but the hook does not block
 on artefacts that legitimately do not exist yet. Clear `pending` (delete
 the field) the moment the binding test is available on the base branch.
+The pending-debt hardening gate surfaces contracts that appear ready to flip.
 
 ## Adding a new topic directory
 

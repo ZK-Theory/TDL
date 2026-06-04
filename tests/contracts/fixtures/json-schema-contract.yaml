@@ -1,0 +1,30 @@
+id: json-schema-contract
+kind: schema
+description: >
+  Fixture schema contract used by strengthened Gate 4 type, bound, and null
+  grammar tests.
+spec_citation:
+  source: "Contract hardening fixture"
+schema_def:
+  applies_to: "Fixture JSON payload."
+  required_keys:
+    - name: score
+      type: float
+      description: "A score constrained to [0, 1]."
+    - name: count
+      type: int
+      description: "A count constrained to [0, 10]."
+    - name: optional_se
+      type: "float | null"
+      description: "A nullable standard error field."
+    - name: labels
+      type: "list[str]"
+      description: "String labels carried through validation."
+    - name: metadata
+      type: "dict[str, ...]"
+      description: "String-keyed metadata."
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_json_schema_contract_fixture"
+  must_assert: >
+    The binding checks fixture JSON keys and value types.
