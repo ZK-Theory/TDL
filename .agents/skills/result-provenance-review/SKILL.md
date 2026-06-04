@@ -40,6 +40,13 @@ Work through each item against the result under review:
 9. **Downstream intermediates present.** Any gitignored intermediate a downstream
    task consumes exists at its expected `PROJ_ROOT` path; the regeneration command
    is recorded. Gitignored ≠ missing — verify on disk at the absolute path.
+10. **No superseded artifact in an active glob.** When a result was corrected
+    within the branch, the superseded file is `git rm`ed — not left matching an
+    `output_validation` dispatch glob where it fails the active schema and forces
+    special-case handling. Correspondingly, confirm the enforcement test
+    *exercises* the files it guards: a test that skips the exact stale/non-
+    corrected files it is meant to catch (e.g. a `"corrected_" not in name`
+    skip) is not enforcing anything.
 
 ## Output Format
 
@@ -63,6 +70,11 @@ downstream input or paper-facing source.
   treats a provisional embedding as the frozen reference.
 - Superseded smoke-run outputs were left in place and risked being read as live
   results.
+- PR #31 left stale pre-correction JSONs (`power_analysis_2026-06-03.json` etc.)
+  matching the active dispatch glob while the validation test skipped exactly
+  those non-`corrected_` files — so the enforcement never exercised the files it
+  was meant to catch. Fix: `git rm` the superseded artifacts and remove the skip.
+  See `[[Enforcement-must-assert-value-not-key-presence]]`.
 
 ## Related Skills & Contracts
 
