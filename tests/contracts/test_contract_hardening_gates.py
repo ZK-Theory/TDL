@@ -138,6 +138,7 @@ def test_strengthened_gate_4_validates_types_bounds_and_null_allowed(tmp_path):
 
 
 def test_gate_4_legacy_exempt_skips_listed_file_but_validates_others(tmp_path):
+    """Gate 4 skips a JSON listed in an output_validation's legacy_exempt but validates others."""
     schema_contract = _load_fixture_contracts()["json-schema-contract"][1]
     ov_contract = {
         "id": "legacy-exempt-output-validation",

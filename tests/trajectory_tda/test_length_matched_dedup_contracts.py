@@ -236,6 +236,7 @@ def _validate_run_params(rp: dict) -> list[str]:
 
 
 def _assert_valid_run_params(rp: dict) -> None:
+    """Assert a length-matched run_params block carries the required dedup provenance fields."""
     errors = _validate_run_params(rp)
     assert not errors, "run_params schema violations: " + "; ".join(errors)
 

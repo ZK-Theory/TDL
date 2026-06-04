@@ -111,6 +111,7 @@ def _assert_aggregate_cell(cell: dict, dim: str) -> None:
 
 
 def _assert_stratified_output_contract(data: dict) -> None:
+    """Assert a stratified-Markov battery output payload meets the contract."""
     contract = _load_contract("stage1-output-schemas/stratified-markov1-output.yaml")
     required = [entry["name"] for entry in contract["schema_def"]["required_keys"]]
     assert required == list(STRATIFIED_ROOT_KEYS)

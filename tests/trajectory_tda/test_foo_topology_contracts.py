@@ -80,6 +80,7 @@ def _assert_no_forbidden(scope: dict, keys: list[str], label: str) -> None:
 
 
 def _assert_per_individual_features_contract(data: dict) -> None:
+    """Assert a per-individual-local-features output payload meets the contract."""
     _assert_has_keys(
         data,
         list(PER_INDIVIDUAL_ROOT_KEYS),
@@ -144,6 +145,7 @@ def _assert_per_individual_features_contract(data: dict) -> None:
 
 
 def _assert_sibling_contract(data: dict) -> None:
+    """Assert a sibling-pair-permutation output payload meets the contract."""
     _assert_has_keys(
         data,
         list(SIBLING_ROOT_KEYS),
@@ -205,6 +207,7 @@ def _assert_sibling_contract(data: dict) -> None:
 
 
 def _assert_comparison_contract(data: dict) -> None:
+    """Assert a topology-distinctiveness comparison output payload meets the contract."""
     _assert_has_keys(
         data,
         list(COMPARISON_ROOT_KEYS),
@@ -248,7 +251,11 @@ def _assert_comparison_contract(data: dict) -> None:
         assert arm["feature_dim"] == expected_dims[arm_name]
         assert arm["n_icc_features"] == expected_dims[arm_name]
         assert isinstance(arm["permutation_pvalue"], (int, float))
+        assert np.isfinite(arm["permutation_pvalue"])
+        assert 0.0 <= arm["permutation_pvalue"] <= 1.0
         assert isinstance(arm["effect_size_ratio"], (int, float))
+        assert np.isfinite(arm["effect_size_ratio"])
+        assert arm["effect_size_ratio"] >= 0.0
         assert isinstance(arm["n_icc_ci_above_zero"], int) and arm["n_icc_ci_above_zero"] >= 0
         assert isinstance(arm["rejects"], bool)
         assert arm["rejects"] == (arm["permutation_pvalue"] < 0.05)
@@ -412,6 +419,7 @@ def test_icc_cluster_bootstrap_construction(monkeypatch: pytest.MonkeyPatch) -> 
 
     class FakeRng:
         def integers(self, low: int, high: int | None = None, size: int | None = None):
+            """Return deterministic stand-in integers for the fake RNG used in tests."""
             assert low == 0
             assert high is not None
             assert size is not None
