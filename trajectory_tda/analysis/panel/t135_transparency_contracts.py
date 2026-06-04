@@ -108,14 +108,24 @@ def validate_power_analysis(payload: Mapping[str, object]) -> None:
     assert_required_keys(calibration, ["type_i_at_icc0", "calibrated", "n_rejections", "n_converged", "convergence_failures"])
     if not 0 <= calibration["type_i_at_icc0"] <= 1:
         raise AssertionError("type_i_at_icc0 must be in [0, 1]")
+    # Conservation on the calibration block (same simulate-fit-reject machinery as
+    # the power grid; counts must close against B and bound the rejection tally).
+    if calibration["n_converged"] + calibration["convergence_failures"] != params["B"]:  # type: ignore[index]
+        raise AssertionError("calibration convergence counts must sum to B")
+    if not 0 <= calibration["n_rejections"] <= calibration["n_converged"]:
+        raise AssertionError("calibration n_rejections must be in [0, n_converged]")
+    if calibration["n_converged"] > 0 and calibration["n_rejections"] != round(calibration["type_i_at_icc0"] * calibration["n_converged"]):
+        raise AssertionError("calibration n_rejections must align with type_i_at_icc0")
     seen = []
     for row in payload["power_curve"]:  # type: ignore[index]
         seen.append(row["icc"])
         if not 0 <= row["empirical_power"] <= 1:
             raise AssertionError("empirical power must be in [0, 1]")
-        assert_required_keys(row, ["n_converged", "convergence_failures"])
+        assert_required_keys(row, ["n_rejections", "n_converged", "convergence_failures"])
         if row["n_converged"] + row["convergence_failures"] != params["B"]:  # type: ignore[index]
             raise AssertionError("convergence counts must sum to B")
+        if not 0 <= row["n_rejections"] <= row["n_converged"]:
+            raise AssertionError("n_rejections must be in [0, n_converged]")
         if row["n_converged"] > 0 and row["n_rejections"] != round(row["empirical_power"] * row["n_converged"]):
             raise AssertionError("n_rejections must align with n_converged")
     if seen != ICC_GRID:
