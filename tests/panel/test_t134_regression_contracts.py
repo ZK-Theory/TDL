@@ -456,6 +456,7 @@ def test_foo_sensitivity_fullsample_json_schema():
         validate_foo_sensitivity_output(bad_method)
 
 
+@pytest.mark.integration
 def test_t134_output_jsons_validate_against_schemas():
     out_dir = Path(__file__).resolve().parents[2] / "results" / "panel_methodology" / "regression"
     tier2_paths = sorted(out_dir.glob("tier2_ipw_mice_svyglm_*.json"))

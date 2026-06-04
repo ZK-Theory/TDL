@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from math import comb, erfc, exp, isfinite, log, sqrt
+from math import comb, erfc, log, sqrt
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -88,6 +88,17 @@ def assert_required_keys(payload: Mapping[str, object], keys: Sequence[str]) -> 
 
 
 def validate_sample_provenance_ledger(payload: Mapping[str, object], repo_root: Path) -> None:
+    """Validate a ``sample_provenance`` ledger and its fitted PIDP manifest.
+
+    Args:
+        payload: Output JSON payload containing the ``sample_provenance`` block.
+        repo_root: Repository root used to resolve the manifest's relative path.
+
+    Raises:
+        AssertionError: If the ledger structure, the monotone stage counts
+            (eligible >= ipw >= complete_case >= fitted), the manifest path, or
+            the fitted-count-equals-manifest-length invariant is violated.
+    """
     assert_required_keys(payload, ["sample_provenance"])
     ledger = payload["sample_provenance"]
     if not isinstance(ledger, Mapping):
@@ -98,20 +109,29 @@ def validate_sample_provenance_ledger(payload: Mapping[str, object], repo_root: 
     for stage in stages:
         count = ledger[stage]
         if not isinstance(count, int) or isinstance(count, bool) or count < 0:
-            raise AssertionError(f"sample_provenance.{stage} must be a non-negative integer")
+            raise AssertionError(
+                f"sample_provenance.{stage} must be a non-negative integer"
+            )
         counts.append(count)
     if any(left < right for left, right in zip(counts, counts[1:])):
-        raise AssertionError("sample_provenance filter counts must be monotone eligible >= ipw >= complete_case >= fitted")
+        raise AssertionError(
+            "sample_provenance filter counts must be monotone "
+            "eligible >= ipw >= complete_case >= fitted"
+        )
     manifest_rel = ledger["fitted_pidp_manifest"]
     if not isinstance(manifest_rel, str) or not manifest_rel:
-        raise AssertionError("sample_provenance.fitted_pidp_manifest must be a non-empty path")
+        raise AssertionError(
+            "sample_provenance.fitted_pidp_manifest must be a non-empty path"
+        )
     manifest_path = repo_root / manifest_rel
     if not manifest_path.exists():
         raise AssertionError("sample_provenance fitted PIDP manifest is missing")
     with manifest_path.open(encoding="utf-8") as fh:
         manifest = [line.strip() for line in fh if line.strip()]
     if len(manifest) != ledger["fitted"]:
-        raise AssertionError("sample_provenance.fitted must equal fitted PIDP manifest length")
+        raise AssertionError(
+            "sample_provenance.fitted must equal fitted PIDP manifest length"
+        )
 
 
 def validate_power_analysis(payload: Mapping[str, object]) -> None:

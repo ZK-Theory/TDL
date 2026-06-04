@@ -156,6 +156,16 @@ def assert_required_keys(payload: Mapping[str, object], keys: Iterable[str]) -> 
 
 
 def assert_type(payload: Mapping[str, object], key: str, expected: type | tuple[type, ...]) -> None:
+    """Assert that a payload field has the expected type.
+
+    Args:
+        payload: Mapping containing the field to check.
+        key: Field name to validate.
+        expected: Expected type or tuple of acceptable types.
+
+    Raises:
+        AssertionError: If ``payload[key]`` is not an instance of ``expected``.
+    """
     if not isinstance(payload.get(key), expected):
         raise AssertionError(f"{key} has wrong type")
 
