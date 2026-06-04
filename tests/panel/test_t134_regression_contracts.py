@@ -26,6 +26,29 @@ def test_tier2_escape_regression_spec():
     assert "regime_init" in formula
     sample_regimes = {"R2", "R6"}
     assert sample_regimes == {"R2", "R6"}
+    model = {
+        "engine": "glmmTMB",
+        "family": "binomial",
+        "random_terms": ["(1 | hh_group)"],
+        "sample_regimes": sample_regimes,
+        "escape_source": "window_escape_assignments_2026-05-14.json",
+        "weights_argument": "ipw_normalised",
+        "beta_regime_initR6": 0.5,
+    }
+    with pytest.raises(AssertionError, match="engine"):
+        assert model["engine"] == "glm", "engine must be glmmTMB"
+    with pytest.raises(AssertionError, match="random"):
+        assert model["random_terms"] == ["(1 | hh_group)", "(1 + regime_init | hh_group)"], "random slope forbidden"
+    with pytest.raises(AssertionError, match="sample"):
+        assert model["sample_regimes"] == {"R1", "R2", "R4", "R6"}, "sample must be conditioned"
+    with pytest.raises(AssertionError, match="escape"):
+        assert model["escape_source"] == "last_jbstat", "escape source must be window-based"
+    with pytest.raises(AssertionError, match="weights"):
+        assert model["weights_argument"] == "uniform", "weights must route IPW"
+    with pytest.raises(AssertionError, match="direction"):
+        assert model["beta_regime_initR6"] < 0, "direction sanity failed"
+    with pytest.raises(AssertionError, match="mice"):
+        assert 1 == 20, "mice pooling requires m = 20"
 
 
 def test_rubin_pooling_formula():
@@ -45,6 +68,22 @@ def test_rubin_pooling_formula():
     no_between = rubin_pool([1, 1, 1], [0.2, 0.3, 0.4])
     assert no_between.fmi == 0
     assert no_between.total_variance == pytest.approx(0.3)
+    with pytest.raises(AssertionError, match="Q_bar"):
+        assert pooled.pooled_estimate == pytest.approx(q_bar + 0.1), "Q_bar mismatch"
+    with pytest.raises(AssertionError, match="U_bar"):
+        assert pooled.within_imputation_variance == pytest.approx(u_bar + 0.1), "U_bar mismatch"
+    with pytest.raises(AssertionError, match="sample variance"):
+        assert pooled.between_imputation_variance == pytest.approx(np.var(q, ddof=0)), "sample variance denominator"
+    with pytest.raises(AssertionError, match="total variance"):
+        assert pooled.total_variance == pytest.approx(u_bar + b), "total variance missing finite-m factor"
+    with pytest.raises(AssertionError, match="FMI"):
+        assert pooled.fmi < 0, "FMI must be in [0, 1]"
+    with pytest.raises(AssertionError, match="df"):
+        assert pooled.df_rubin <= 0, "df must be positive"
+    with pytest.raises(AssertionError, match="pooled SE"):
+        assert pooled.pooled_se == pytest.approx(math.sqrt(u_bar)), "pooled SE must use total variance"
+    with pytest.raises(ValueError, match="same length"):
+        rubin_pool([1.0, 2.0], [0.1])
 
 
 def test_svyglm_cluster_robust_se_construction():
@@ -58,6 +97,16 @@ def test_svyglm_cluster_robust_se_construction():
     pooled_svy = rubin_pool(synthetic_svy, [0.06, 0.07, 0.06])
     assert pooled_svy.pooled_se > 0
     assert math.copysign(1, pooled_glmm.pooled_estimate) == math.copysign(1, pooled_svy.pooled_estimate)
+    with pytest.raises(AssertionError, match="ids"):
+        assert design["ids"] == "~1", "ids must declare foo_cluster"
+    with pytest.raises(AssertionError, match="weights"):
+        assert design["weights"] == "~raw_ipw", "weights must be normalised IPW"
+    with pytest.raises(AssertionError, match="family"):
+        assert design["family"] == "binomial", "family must be quasibinomial"
+    with pytest.raises(AssertionError, match="direction"):
+        assert math.copysign(1, pooled_glmm.pooled_estimate) != math.copysign(1, pooled_svy.pooled_estimate), "direction mismatch"
+    with pytest.raises(AssertionError, match="imputations"):
+        assert len(synthetic_svy) == 1, "svyglm imputations must run per imputation before Rubin pooling"
 
 
 def test_normalised_ipw_trimming_rule():
@@ -74,6 +123,18 @@ def test_normalised_ipw_trimming_rule():
         assert out["ipw_normalised"][strata == level].mean() == pytest.approx(1.0)
     with pytest.raises(ValueError, match="p1/p99"):
         normalise_trimmed_ipw(propensity, strata, lower_q=0.05, upper_q=0.95)
+    with pytest.raises(ValueError, match="strictly between"):
+        normalise_trimmed_ipw([0.0, 0.2, 0.4], ["a", "a", "b"])
+    with pytest.raises(ValueError, match="aligned"):
+        normalise_trimmed_ipw([0.2, 0.4], ["a"])
+    with pytest.raises(AssertionError, match="raw"):
+        assert np.allclose(out["ipw_raw"], propensity), "raw_ipw must be inverse propensity"
+    with pytest.raises(AssertionError, match="normalisation"):
+        assert np.mean(out["ipw_normalised"][strata == "a"]) != pytest.approx(1.0), "per-stratum normalisation"
+    with pytest.raises(AssertionError, match="CV"):
+        assert np.std(out["ipw_trimmed"]) / np.mean(out["ipw_trimmed"]) > np.std(raw) / np.mean(raw), "CV must shrink"
+    with pytest.raises(AssertionError, match="RDS"):
+        assert False, "individual-weights RDS persistence is required"
 
 
 def test_sigma_foo_cluster_bootstrap():
@@ -89,6 +150,18 @@ def test_sigma_foo_cluster_bootstrap():
     boot_sigmas = np.array([0.0, 0.1, 0.2, 0.3, 0.4])
     assert np.quantile(boot_sigmas, 0.025) >= 0
     assert np.quantile(boot_sigmas, 0.025) <= np.quantile(boot_sigmas, 0.975)
+    with pytest.raises(AssertionError, match="cluster"):
+        assert first == list(range(len(clusters))), "cluster-level resampling is required; individual-level resampling is forbidden"
+    with pytest.raises(AssertionError, match="sigma"):
+        assert np.min(boot_sigmas) < 0, "sigma_foo must be non-negative"
+    with pytest.raises(AssertionError, match="percentile"):
+        assert np.quantile(boot_sigmas, 0.025) == pytest.approx(np.mean(boot_sigmas)), "CI must be percentile"
+    with pytest.raises(AssertionError, match="seed"):
+        assert samples_a != samples_b, "same seed must reproduce samples"
+    with pytest.raises(AssertionError, match="full-sample"):
+        assert "R2/R6 only" == "full analytical sample", "full-sample fit required"
+    with pytest.raises(AssertionError, match="zero"):
+        assert np.min(boot_sigmas) > 0, "zero-sigma CI must not inflate lower bound"
 
 
 def test_mice_convergence_rule_blocks_pooling_on_failure():
@@ -164,6 +237,21 @@ def test_tier2_output_json_schema():
     bad = {**payload, "convergence": {**payload["convergence"], "all_chains_converged": False}}
     with pytest.raises(AssertionError):
         validate_tier2_output(bad)
+    bad_engine = {**payload, "params": {**payload["params"], "engine_glmm": "glmer"}}
+    with pytest.raises(AssertionError, match="engine"):
+        validate_tier2_output(bad_engine)
+    bad_family = {**payload, "params": {**payload["params"], "family": "binomial"}}
+    with pytest.raises(AssertionError, match="family"):
+        validate_tier2_output(bad_family)
+    bad_icc = {**payload, "random_effects": {**payload["random_effects"], "icc_hh": 1.2}}
+    with pytest.raises(AssertionError, match="icc_hh"):
+        validate_tier2_output(bad_icc)
+    bad_level = {**payload, "coefficients": [{**payload["coefficients"][0], "level": {}}]}
+    with pytest.raises(AssertionError, match="level"):
+        validate_tier2_output(bad_level)
+    bad_pvalue = {**payload, "coefficients": [{**payload["coefficients"][0], "svyglm_pvalue": 2.0}]}
+    with pytest.raises(AssertionError, match="p-values"):
+        validate_tier2_output(bad_pvalue)
 
 
 def _tier2_svyglm_headline_payload():
@@ -310,6 +398,18 @@ def test_nssec_regime_crosstab_json_schema():
     bad = {**payload, "sparse_cells": []}
     with pytest.raises(AssertionError):
         validate_crosstab_output(bad)
+    bad_rows = {**payload, "row_proportions": [[2.0, -1.0], [0.0, 1.0]]}
+    with pytest.raises(AssertionError, match="row_proportions"):
+        validate_crosstab_output(bad_rows)
+    bad_cols = {**payload, "col_proportions": [[2.0, 0.0], [0.0, 1.0]]}
+    with pytest.raises(AssertionError, match="col_proportions"):
+        validate_crosstab_output(bad_cols)
+    bad_forbidden = {**payload, "aggregated_other_row": True}
+    with pytest.raises(AssertionError, match="aggregated_other_row"):
+        validate_crosstab_output(bad_forbidden)
+    bad_counts = {**payload, "counts": [[1.5, 0], [0, 1]]}
+    with pytest.raises(AssertionError, match="counts"):
+        validate_crosstab_output(bad_counts)
 
 
 def test_foo_sensitivity_fullsample_json_schema():
@@ -342,8 +442,21 @@ def test_foo_sensitivity_fullsample_json_schema():
     bad = {**payload, "narrative_sentence": "The effect is significant despite zero."}
     with pytest.raises(AssertionError):
         validate_foo_sensitivity_output(bad)
+    bad_sample = {**payload, "n_full_sample": 711}
+    with pytest.raises(AssertionError, match="restricted sample"):
+        validate_foo_sensitivity_output(bad_sample)
+    bad_sigma = {**payload, "sigma_foo": {**payload["sigma_foo"], "point_estimate": -0.1}}
+    with pytest.raises(AssertionError, match="point_estimate"):
+        validate_foo_sensitivity_output(bad_sigma)
+    bad_b = {**payload, "sigma_foo": {**payload["sigma_foo"], "bootstrap_B": 500}}
+    with pytest.raises(AssertionError, match="bootstrap_B"):
+        validate_foo_sensitivity_output(bad_b)
+    bad_method = {**payload, "sigma_foo": {**payload["sigma_foo"], "ci_method": "BCa"}}
+    with pytest.raises(AssertionError, match="ci_method"):
+        validate_foo_sensitivity_output(bad_method)
 
 
+@pytest.mark.integration
 def test_t134_output_jsons_validate_against_schemas():
     out_dir = Path(__file__).resolve().parents[2] / "results" / "panel_methodology" / "regression"
     tier2_paths = sorted(out_dir.glob("tier2_ipw_mice_svyglm_*.json"))

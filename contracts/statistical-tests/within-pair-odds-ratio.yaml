@@ -50,12 +50,17 @@ formula:
     - claim: "OR == (a * d) / (b * c). When b * c == 0 (no discordant pairs in one direction), OR is undefined; the output JSON reports OR as null and adds Haldane-Anscombe-style 0.5 cell adjustment as an OPTIONAL supplementary column (NOT as the headline OR)."
       expression: "OR == (a * d) / (b * c) when b * c > 0"
     - claim: "OR > 1 corresponds to within-pair concordance (concordant pair odds exceed discordant pair odds); OR < 1 indicates anti-concordance; OR == 1 is the independence null."
+      expression: "OR > 1 => a * d > b * c; OR == 1 => a * d == b * c; OR < 1 => a * d < b * c"
     - claim: "Bootstrap CI is constructed on log_OR (Wald-style on the log scale) and exponentiated to the OR scale for reporting. Direct percentile CI on OR is permitted as an additional column but not as the headline."
+      expression: "CI_lower == exp(percentile(log_OR_star, 2.5)) and CI_upper == exp(percentile(log_OR_star, 97.5))"
     - claim: "Resampling is at the FOO CLUSTER level (same convention as the kappa contract)."
+      enforced_by: "test_within_pair_odds_ratio_construction inspects cluster bootstrap samples and confirms whole-cluster pair blocks are retained."
     - claim: "B = 1000 by pre-registration."
       expression: "B == 1000"
     - claim: "Bootstrap randomness is seeded; seed and B are recorded in the output JSON."
+      enforced_by: "test_within_pair_odds_ratio_construction checks reseeding reproduces the bootstrap distribution."
     - claim: "Member 1 vs member 2 ordering matches the mcnemar-test and cohens-kappa contracts so all three statistics share the same (a, b, c, d) tabulation."
+      enforced_by: "test_within_pair_odds_ratio_construction uses the same fixed contingency-table orientation as the McNemar and kappa bindings."
 
 binding:
   test_file: "tests/panel/test_t135_transparency_contracts.py"

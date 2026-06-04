@@ -33,9 +33,11 @@ schema_def:
     - name: params
       type: "dict[str, ...]"
       description: "Provenance block. MUST contain: t121_source_path (str, e.g. branch ref + commit), xwavedat_source_path (str), n_total_singletons (int == 6284), n_t121_total_sample (int == 6995 = 711 + 6284). FITTED-STAGE CORRECTION 2026-06-03b: prior 6363 / 7098 (= 735 + 6363) were pre-complete-case IPW-eligible counts; the T1.21 cross-classified GLMM fit on n_obs = 6995 (tier3_cross_classified_2026-05-25.json), so the singleton total is 6284 and the multi-member count is 711."
+      derivation: "n_t121_total_sample and singleton partitions are fitted-stage counts that must trace to sample_provenance.fitted and the fitted PIDP manifest under the 2026-06-03b ledger rule."
     - name: counts
       type: "dict[str, int]"
       description: "Top-level decomposition. MUST contain n_true_singletons and n_filtered_singletons. The two MUST sum to n_total_singletons == 6284 exactly (enforced by the singleton-decomposition-exhaustivity invariant)."
+      derivation: "n_true_singletons + n_filtered_singletons derives from sample_provenance.fitted restricted to the singleton partition, not from pre-complete-case IPW-eligible counts."
     - name: primary_reason_counts
       type: "dict[str, int]"
       description: "Counts of filtered singletons by their PRIMARY exclusion reason. Keys MUST be drawn from the locked vocabulary {does_not_start_in_r2_or_r6, ipw_zero_due_to_ineligibility, dropped_by_10_of_14_rule, missing_nssec_proxy, other_filter_chain}. Values are non-negative integers summing to counts.n_filtered_singletons exactly."
