@@ -1,0 +1,23 @@
+id: valid-contract
+kind: formula
+description: >
+  Fixture contract that satisfies the hardening gates and anchors a valid
+  baseline for the contract framework tests.
+spec_citation:
+  source: "Contract hardening fixture"
+formula:
+  expression: "x = y + 1"
+  variables:
+    x:
+      description: "Observed value."
+      derivation: "Fixture literal in tests/contracts/fixtures."
+    y:
+      description: "Reference value."
+  invariants:
+    - claim: "x is one unit larger than y."
+      expression: "x == y + 1"
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_valid_contract_fixture"
+  must_assert: >
+    The binding checks the deterministic fixture relationship x equals y plus 1.

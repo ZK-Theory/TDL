@@ -1,0 +1,23 @@
+id: both-enforcement
+kind: formula
+description: >
+  Fixture contract with both expression and enforced_by on the same invariant,
+  used to test the XOR branch of the invariant hardening gate.
+spec_citation:
+  source: "Contract hardening fixture"
+formula:
+  expression: "x = y"
+  variables:
+    x:
+      description: "Observed value."
+    y:
+      description: "Reference value."
+  invariants:
+    - claim: "The invariant has two mechanical enforcement anchors."
+      expression: "x == y"
+      enforced_by: "test_both_enforcement_fixture duplicates the expression"
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_both_enforcement_fixture"
+  must_assert: >
+    The binding exists so the hardening gate can inspect this fixture.

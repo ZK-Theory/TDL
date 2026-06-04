@@ -1,0 +1,15 @@
+id: pending-debt
+kind: invariant
+pending: true
+description: >
+  Fixture pending contract whose binding already exists, used to test the
+  pending-debt hardening gate.
+spec_citation:
+  source: "Contract hardening fixture"
+invariant:
+  claim: "When the binding exists, pending true should be surfaced as debt."
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_pending_debt_fixture"
+  must_assert: >
+    The binding exists, so the pending flag should be retired.

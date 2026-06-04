@@ -1,0 +1,22 @@
+id: qualitative-language
+kind: formula
+description: >
+  Fixture contract with qualitative language that is not backed by a pinned
+  number, used to test the hardening lint gate.
+spec_citation:
+  source: "Contract hardening fixture"
+formula:
+  expression: "x = y"
+  variables:
+    x:
+      description: "Observed value."
+    y:
+      description: "Reference value."
+  invariants:
+    - claim: "The estimate is approximately alpha with no pinned threshold."
+      enforced_by: "test_qualitative_fixture documents procedural coverage"
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_qualitative_fixture"
+  must_assert: >
+    The binding checks the fixture behavior approximately with no pinned number.

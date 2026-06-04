@@ -1,0 +1,22 @@
+id: claim-coverage-shortfall
+kind: schema
+description: >
+  Fixture schema contract whose must_assert clauses and required key
+  references intentionally exceed the bound test's negative assertions.
+spec_citation:
+  source: "Contract hardening fixture"
+schema_def:
+  applies_to: "Fixture validator return payload."
+  required_keys:
+    - name: present_key
+      type: int
+      description: "An integer value in [0, 5]."
+    - name: missing_key
+      type: float
+      description: "A floating-point value in [0, 1]."
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_claim_coverage_shortfall_fixture"
+  must_assert: >
+    The validator rejects malformed payloads for (a) missing present_key;
+    (b) missing missing_key; and (c) wrong value type.
