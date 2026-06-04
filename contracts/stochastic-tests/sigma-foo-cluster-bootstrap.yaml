@@ -47,14 +47,19 @@ formula:
       implementation_name: "(bootstrap_ci_lower, bootstrap_ci_upper)"
   invariants:
     - claim: "Resampling is at the CLUSTER level: each iteration draws |unique(foo_cluster)| cluster IDs with replacement, then includes ALL individuals from each drawn cluster (a cluster drawn k times contributes its individuals k times). Individual-level resampling is forbidden because it breaks the within-cluster dependence structure that sigma_foo measures."
+      enforced_by: "test_sigma_foo_cluster_bootstrap inspects bootstrap indices and confirms drawn clusters contribute complete row blocks."
     - claim: "B = 1000 by pre-registration."
       expression: "B == 1000"
     - claim: "CI is the 2.5 / 97.5 percentile interval; bias-corrected, BCa, and percentile-t variants are not the contract default. If the Worker also reports BCa, it MUST be an additional column, not a replacement for the percentile CI."
+      expression: "CI_lower == percentile(sigma_foo_star, 2.5) and CI_upper == percentile(sigma_foo_star, 97.5)"
     - claim: "sigma_foo and CI bounds are non-negative."
       expression: "sigma_foo >= 0 and CI_lower >= 0 and CI_upper >= 0 and CI_lower <= CI_upper"
     - claim: "The CI is reported as-is regardless of whether it contains zero. The §S8 narrative reports the CI containing zero as null evidence; it does NOT exclude zero by inflating CI_lower."
+      expression: "true_sigma == 0 => CI_lower == 0 or CI_lower <= true_sigma"
     - claim: "Bootstrap randomness is seeded; seed and B are recorded in the output JSON params block."
+      enforced_by: "test_sigma_foo_cluster_bootstrap checks reseeding reproduces the bootstrap index samples."
     - claim: "The base model is fit on the FULL analytical sample (not R2/R6 only). The full-sample size is recorded in the output JSON for traceability."
+      enforced_by: "test_sigma_foo_cluster_bootstrap records the full-sample contract surface; production fit provenance is validated by the FOO sensitivity output schema."
 
 binding:
   test_file: "tests/panel/test_t134_regression_contracts.py"

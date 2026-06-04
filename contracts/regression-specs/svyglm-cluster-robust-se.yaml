@@ -47,12 +47,19 @@ formula:
       implementation_name: "SE(coef(fit))[j]"
   invariants:
     - claim: "The svydesign MUST declare ids = ~foo_cluster. A model with ids = ~1 (no clustering) or ids = ~hh_group violates the contract."
+      expression: "design.ids == '~foo_cluster'"
     - claim: "The weights MUST be the normalised IPW (ipw_trimmed), not raw IPW and not uniform weights."
+      expression: "design.weights == '~ipw_trimmed' or design.weights == '~ipw_normalised'"
     - claim: "The family MUST be quasibinomial(); binomial() in svyglm triggers a warning about non-integer weights and is non-canonical for the design-based estimator."
+      expression: "family == 'quasibinomial'"
     - claim: "Coefficient direction MUST agree with the Tier-2 GLMM column (e.g., regime_init = R6 yields beta > 0). A sign reversal between GLMM and svyglm indicates a data-assembly defect, not a real divergence."
+      expression: "sign(beta_svyglm_regime_initR6) == sign(beta_glmm_regime_initR6)"
     - claim: "The SE column reported alongside the coefficient table MUST be the Taylor-linearised cluster-robust SE from vcov(fit), NOT the naive SE from a quasi-likelihood fit without the design."
+      expression: "SE_j == sqrt(diag(V_TL)[j])"
     - claim: "When svyglm and Rubin-pooled GLMM give substantively different significance verdicts (e.g., one rejects at alpha = 0.05 and the other does not), both verdicts are reported transparently in the coefficient table; the discrepancy is not silently resolved by preferring one column."
+      enforced_by: "test_svyglm_cluster_robust_se_construction keeps both GLMM and svyglm summaries visible; discrepancy interpretation is procedural."
     - claim: "The svyglm fit is computed PER IMPUTATION (m = 20) and then pooled via Rubin's rules; a single-imputation svyglm is forbidden as the headline."
+      expression: "m == 20 and pooled_by == 'rubin-pooling'"
 
 binding:
   test_file: "tests/panel/test_t134_regression_contracts.py"

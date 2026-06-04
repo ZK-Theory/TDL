@@ -155,11 +155,21 @@ def assert_required_keys(payload: Mapping[str, object], keys: Iterable[str]) -> 
         raise AssertionError(f"missing required keys: {missing}")
 
 
+def assert_type(payload: Mapping[str, object], key: str, expected: type | tuple[type, ...]) -> None:
+    if not isinstance(payload.get(key), expected):
+        raise AssertionError(f"{key} has wrong type")
+
+
 def validate_tier2_output(payload: Mapping[str, object]) -> None:
     assert_required_keys(
         payload,
         ["schema_version", "generated_at", "task", "pre_registration", "params", "convergence", "coefficients", "random_effects", "model_fit"],
     )
+    for key in ["schema_version", "generated_at", "task", "pre_registration"]:
+        assert_type(payload, key, str)
+    for key in ["params", "convergence", "random_effects", "model_fit"]:
+        assert_type(payload, key, dict)
+    assert_type(payload, "coefficients", list)
     if payload.get("schema_version") != "panel-output/tier2-ipw-mice-svyglm/v1":
         raise AssertionError("unexpected schema_version")
     if "stargazer_table" in payload:
@@ -297,6 +307,14 @@ def validate_crosstab_output(payload: Mapping[str, object]) -> None:
     counts = np.asarray(payload["counts"])
     if not np.issubdtype(counts.dtype, np.integer) or np.any(counts < 0):
         raise AssertionError("counts must be non-negative integers")
+    row_proportions = np.asarray(payload["row_proportions"], dtype=float)
+    col_proportions = np.asarray(payload["col_proportions"], dtype=float)
+    if row_proportions.shape != counts.shape or col_proportions.shape != counts.shape:
+        raise AssertionError("row_proportions and col_proportions must match counts shape")
+    if np.any(row_proportions < 0) or np.any(row_proportions > 1):
+        raise AssertionError("row_proportions must be in [0, 1]")
+    if np.any(col_proportions < 0) or np.any(col_proportions > 1):
+        raise AssertionError("col_proportions must be in [0, 1]")
     sparse = {(c["row_index"], c["col_index"]) for c in payload["sparse_cells"]}  # type: ignore[index]
     expected = {(i, j) for i in range(counts.shape[0]) for j in range(counts.shape[1]) if counts[i, j] < 5}
     if sparse != expected:
@@ -312,9 +330,16 @@ def validate_foo_sensitivity_output(payload: Mapping[str, object]) -> None:
         raise AssertionError("sigma_foo_p_value is forbidden")
     if payload["n_full_sample"] <= 10_000:
         raise AssertionError("full-sample fit appears to use a restricted sample")
+    if payload["n_foo_clusters"] <= 0:
+        raise AssertionError("n_foo_clusters must be positive")
     sigma = payload["sigma_foo"]  # type: ignore[index]
+    for key in ["point_estimate", "bootstrap_ci_lower", "bootstrap_ci_upper"]:
+        if sigma[key] < 0:
+            raise AssertionError(f"sigma_foo {key} must be non-negative")
     if sigma["bootstrap_B"] != 1000:
         raise AssertionError("bootstrap_B must be 1000")
+    if sigma["ci_method"] != "percentile":
+        raise AssertionError("sigma_foo ci_method must be percentile")
     if sigma["bootstrap_ci_lower"] > sigma["bootstrap_ci_upper"]:
         raise AssertionError("CI lower bound exceeds upper bound")
     if payload["ci_includes_zero"] and "significant" in payload["narrative_sentence"].lower():

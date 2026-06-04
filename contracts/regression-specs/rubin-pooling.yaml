@@ -63,9 +63,13 @@ formula:
     - claim: "B uses (m - 1) divisor (unbiased sample variance), NOT m."
       expression: "B == sum((Q_i - Q_bar)^2) / (m - 1)"
     - claim: "df is computed from the pooled variance ratio; a fixed large df (e.g., Inf or m * 100) is forbidden."
+      expression: "df == (m - 1) * (1 + U_bar / ((1 + 1/m) * B))^2 when B > 0"
     - claim: "Pooled SE is sqrt(T), not sqrt(U_bar)."
+      expression: "pooled_se == sqrt(T)"
     - claim: "The pooled p-value uses the t-distribution with df degrees of freedom (NOT the Normal distribution unless df is very large)."
+      enforced_by: "test_rubin_pooling_formula asserts finite positive df for non-zero between-imputation variance; p-value distribution choice is procedural in the regression producer."
     - claim: "When m = 20, df should be well-defined and finite for all coefficients with non-zero between-imputation variance."
+      expression: "m == 20 and B > 0 => isfinite(df) and df > 0"
 
 binding:
   test_file: "tests/panel/test_t134_regression_contracts.py"

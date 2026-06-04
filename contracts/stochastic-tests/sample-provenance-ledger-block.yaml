@@ -1,0 +1,31 @@
+id: sample-provenance-ledger-block
+kind: schema
+pending: false
+
+description: >
+  Schema surface for the sample-provenance ledger required on panel
+  model-fitting outputs. The binding test validates the nested ledger fields:
+  eligible, ipw, complete_case, fitted, and a fitted PIDP manifest path whose
+  row count equals sample_provenance.fitted.
+
+spec_citation:
+  source: "CONVENTIONS sample-provenance ledger ALWAYS-rule 2026-06-03b; E6 provenance mechanization"
+  vault_entry_date: "2026-06-03"
+
+schema_def:
+  applies_to: "panel model-fitting result JSONs matched by sample-provenance-ledger"
+  required_keys:
+    - name: sample_provenance
+      type: "dict[str, ...]"
+      description: "Structured ledger block with eligible, ipw, complete_case, fitted, and fitted_pidp_manifest; sample_provenance.fitted must equal manifest length."
+      derivation: "CONVENTIONS sample-provenance ledger ALWAYS-rule 2026-06-03b; fitted counts cited by downstream contracts must reference sample_provenance.fitted."
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_sample_provenance_ledger_schema_contract"
+  must_assert: >
+    The bound test constructs a valid synthetic ledger and rejects: (a) missing
+    sample_provenance; (b) prose/string provenance instead of a structured
+    ledger object; (c) non-integer stage counts; (d) non-monotone filter-stage
+    counts; (e) missing fitted PIDP manifest path; (f) fitted count not equal
+    to manifest row count.

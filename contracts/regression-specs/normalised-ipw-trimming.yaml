@@ -46,13 +46,19 @@ formula:
       implementation_name: "n_stratum"
   invariants:
     - claim: "Trimming is at the 1st and 99th percentiles of the RAW IPW distribution, NOT after normalisation. Trimming after normalisation produces different bounds and is forbidden."
+      expression: "trim_bounds == quantile(raw_ipw, [0.01, 0.99])"
     - claim: "The trimming threshold is exactly p1 / p99 — neither p5 / p95 nor any other percentile is permitted under this contract."
+      expression: "lower_q == 0.01 and upper_q == 0.99"
     - claim: "Normalisation is per-stratum (stratum = birth_cohort x analytical_status), giving mean(ipw_normalised) == 1 within each stratum. Global normalisation (mean = 1 over the full sample) is forbidden."
       expression: "for every stratum s: mean({ipw_normalised_i : stratum(i) == s}) == 1"
     - claim: "Pre-normalisation, the trimmed max should be approximately 42.78 and CV approximately 0.99 on the canonical T1.13 sample (sanity check against the 2026-05-13 vault entry); on a synthetic test sample the values will differ but the relative behaviour (raw_max >> trimmed_max, CV_raw > CV_trimmed) must hold."
+      enforced_by: "test_normalised_ipw_trimming_rule asserts trimmed bounds and lower CV on a synthetic sample because canonical diagnostics are sample-specific."
     - claim: "Individual weights MUST be saved as an RDS alongside the JSON diagnostics output. The 2026-05-14 working note records that the prior ipw_construction.R only saved a diagnostics JSON — this is fixed; the RDS is required for T1.34 (and was the gap that blocked T1.16)."
+      enforced_by: "test_normalised_ipw_trimming_rule records the individual-weight persistence requirement; production path validation is procedural."
     - claim: "Propensity is from a logistic regression with the locked T1.13 covariate set (do not redefine the propensity model)."
+      enforced_by: "test_normalised_ipw_trimming_rule treats propensity input as the locked upstream contract surface rather than refitting it."
     - claim: "Trimming yields ipw_trimmed_min == percentile_1(raw_ipw) and ipw_trimmed_max == percentile_99(raw_ipw); CV(ipw_trimmed) < CV(raw_ipw)."
+      expression: "min(ipw_trimmed) == percentile_1(raw_ipw) and max(ipw_trimmed) == percentile_99(raw_ipw) and cv(ipw_trimmed) < cv(raw_ipw)"
 
 binding:
   test_file: "tests/panel/test_t134_regression_contracts.py"
