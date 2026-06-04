@@ -1,6 +1,5 @@
 id: length-matched-dedup-via-n-perm
 kind: formula
-pending: true
 
 description: >
   For length-matched Stage-1 cells (T1.2f truncate, T1.2g first13), Rips
@@ -37,6 +36,7 @@ formula:
       description: "Landmark count per Pre-reg #5 redo; locked at L=5000."
       domain: "positive integer; L = 5000 for length-matched cells"
       implementation_name: "n_landmarks"
+      derivation: "2026-05-30 Pre-reg #5 redo amendment locks length-matched landmark count at L=5000."
     X:
       description: "The L-row landmark matrix produced by maxmin_landmarks on the (re-embedded, frozen-loadings) length-matched sub-sample."
       domain: "real matrix of shape (L, 20)"
@@ -49,6 +49,7 @@ formula:
       description: "Numerical tolerance defining 'exact coverage'. Set at 1e-10 to absorb floating-point noise from PCA projection while still demanding bitwise duplication of embedded points."
       domain: "positive real; tau_float = 1e-10"
       implementation_name: "DEDUP_TOLERANCE"
+      derivation: "2026-05-30 dedup amendment and poverty_tda.topology.multidim_ph.DEDUP_TOLERANCE pin tau_float = 1e-10."
     N:
       description: "Size of the dedup index set I. Equal to the smallest k for which eps_k <= tau_float; if no such k exists within {1,...,L}, N = L (no dedup, ripser computes PH on the full landmark sample)."
       domain: "positive integer in {1, ..., L}"
@@ -63,12 +64,17 @@ formula:
       implementation_name: "max_dim"
   invariants:
     - claim: "The identity PD(X) = PD(X[I]) is exact (bottleneck distance zero in every homology dimension within float tolerance) when eps_N <= tau_float, because duplicate points are merged at filtration value zero in Rips and contribute no H1 features. External indexing realises this identity directly — ripser sees the deduplicated sample, with no internal sparse-Rips approximation."
+      expression: "if eps_N <= tau_float then PD(X) == PD(X[I]) within tau_H0/tau_H1 bottleneck tolerances"
     - claim: "When eps_N <= tau_float, the bottleneck distance between PD(X) and PD(X[I]) is bounded by zero (within float tolerance) per Cavanna-Jahanseir-Sheehy. The 2026-05-30 canary established that in practice this holds at d_B(H1) = 0 exactly under direct ripser calls, while d_B(H0) hits a numerical precision floor at ~3e-8 (the float32 gap 1/2^25) — almost certainly from float32 internals in persim's bottleneck matching for the H0 diagonal-matching of extra near-duplicate features. The contract therefore distinguishes two tolerances: tau_H1 = 1e-10 (strict; verifies the topological identity that drives paper claims) and tau_H0 = 1e-6 (loose; absorbs the persim/ripser H0 float32 floor with margin). Both are orders of magnitude below any meaningful H0 (~20+) or H1 (~2-4) lifetime in our data, so the relaxation is operationally negligible. The implementation records eps_N in the output JSON; a downstream check that eps_N > tau_float invalidates the cell."
       expression: "d_B^{H0}(PD(X), PD(X[I])) <= tau_H0 = 1e-6 AND d_B^{H1}(PD(X), PD(X[I])) <= tau_H1 = 1e-10"
     - claim: "The greedy permutation starts from row index 0 (deterministic given the input ordering) and uses Euclidean distance. Both choices are pinned because eps_N and I depend on them; the dedup count N is a property of the data geometry under the locked start row and metric, not of the seed."
+      enforced_by: "test_length_matched_dedup_via_n_perm_construction::deterministic_start_metric -- repeated compute_greedy_dedup_count calls return identical N/eps/I"
     - claim: "When N == L, the index set I is a permutation of {0,...,L-1} and X[I] is X up to row reordering; Rips PH is invariant under row permutation, so the scheme reduces to the existing exact-ripser path on X. Backward compatibility with the existing T1.36/T1.37 results on non-length-matched cells is preserved by not invoking this contract for those cells."
+      expression: "N == L implies sort(I) == [0, ..., L-1]"
     - claim: "The same tau_float applies to the observed PD and every null PD within a cell. The recorded n_perm_used (dedup count N) and covering radius are stored per-PD-class (observed; null-summary) in run_params for full provenance."
+      enforced_by: "test_length_matched_run_params_schema::dedup_tolerance_and_summary_fields -- run_params validation pins one dedup_tolerance and observed/null summary provenance fields"
     - claim: "External indexing (X[I]) is mathematically equivalent to but operationally distinct from ripser's internal n_perm argument. The 2026-05-30 canary established empirically that the n_perm shortcut produces a non-zero H0 bottleneck deviation (~3e-8 on T1.2f truncate) because ripser's internal greedy can select a different N-subset than this contract's greedy. External indexing closes that gap."
+      enforced_by: "test_length_matched_dedup_via_n_perm_construction::external_indexing_ripser_call -- test computes ripser.ripser(X[I], maxdim=1) directly, not ripser n_perm"
 
 binding:
   test_file: "tests/trajectory_tda/test_length_matched_dedup_contracts.py"

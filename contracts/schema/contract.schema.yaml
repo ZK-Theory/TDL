@@ -262,6 +262,14 @@ properties:
           schemas apply to files matching the glob.
         items: { type: string }
         minItems: 1
+      legacy_exempt:
+        type: array
+        description: >
+          Optional repo-root-relative JSON file paths produced before this
+          output-validation contract existed. Listed files are skipped by
+          gate 4 in both staged-file and --all-jsons modes; forward
+          validation remains active for all other matching files.
+        items: { type: string }
       file_dispatch:
         type: array
         description: >

@@ -460,6 +460,13 @@ def gate_3_run_bindings(
     ]
 
 
+def _is_legacy_exempt(ov_contract: dict, filename_rel: str | Path) -> bool:
+    """Return whether an output_validation contract grandfathers this JSON."""
+    rel_posix = Path(filename_rel).as_posix()
+    exemptions = {Path(entry).as_posix() for entry in ov_contract["output_validation"].get("legacy_exempt", [])}
+    return rel_posix in exemptions
+
+
 def _dispatch_schema_id(ov_contract: dict, filename_rel: str) -> str | None:
     """Pick a schema contract id for a filename using file_dispatch.
 
@@ -654,6 +661,8 @@ def gate_4_validate_jsons(
             for p in repo_root.rglob("*.json"):
                 rel = p.relative_to(repo_root)
                 if rel.full_match(pattern):
+                    if _is_legacy_exempt(ov, rel):
+                        continue
                     schema_id = _dispatch_schema_id(ov, str(rel))
                     if schema_id is None:
                         continue  # file_dispatch positive-filter rejected this file
@@ -675,6 +684,8 @@ def gate_4_validate_jsons(
             for ov in ov_contracts:
                 pattern = ov["output_validation"]["applies_to_glob"]
                 if sf_path.full_match(pattern):
+                    if _is_legacy_exempt(ov, sf_path):
+                        continue
                     schema_id = _dispatch_schema_id(ov, sf)
                     if schema_id is None:
                         continue

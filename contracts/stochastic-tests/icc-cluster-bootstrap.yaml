@@ -42,6 +42,7 @@ formula:
       description: "Number of bootstrap iterations. Pre-registered B_boot = 1000."
       domain: "positive integer; pre-reg locks 1000"
       implementation_name: "icc_bootstrap_B"
+      derivation: "2026-05-25 T1.33 pre-registration fixes ICC cluster-bootstrap iterations at B_boot = 1000."
     ICC_f_star:
       description: "Bootstrap distribution of ICC_f: ICC_f recomputed on each cluster-level resample."
       domain: "vector of length B_boot of values in [0, 1]"
@@ -50,12 +51,15 @@ formula:
     - claim: "ICC is bounded: ICC_f is in [0, 1] for the point estimate and every bootstrap sample."
       expression: "0 <= ICC_f <= 1 and 0 <= ICC_f_star[b] <= 1 for all b"
     - claim: "Resampling is at the CLUSTER level: each bootstrap iteration draws |unique(c)| cluster IDs with replacement, then keeps ALL individuals belonging to drawn clusters. Individual-level resampling within clusters is forbidden."
+      enforced_by: "test_icc_cluster_bootstrap_construction::cluster_index_sampling -- monkeypatched RNG records high == |unique(c)| and size == |unique(c)| for bootstrap draws"
     - claim: "B_boot = 1000 by pre-registration."
       expression: "B_boot == 1000"
     - claim: "CI is the 95% percentile interval: (CI_lower, CI_upper) = (percentile_2.5(ICC_f_star), percentile_97.5(ICC_f_star))."
       expression: "CI_lower == percentile(ICC_f_star, 2.5); CI_upper == percentile(ICC_f_star, 97.5)"
     - claim: "Bootstrap randomness is seeded; the seed used and B_boot are recorded in the output JSON params block; reseeding reproduces the bootstrap distribution bit-for-bit."
+      enforced_by: "test_icc_cluster_bootstrap_construction::same_seed_reproducibility -- repeated cluster_bootstrap_icc calls with the same seed return identical dictionaries"
     - claim: "Each of the 3 features yields one (point_estimate, CI_lower, CI_upper) triple — three independent ICC computations, not a multivariate ICC."
+      expression: "len(per_feature_icc) == 3 and keys(per_feature_icc[f]) == {point_estimate, bootstrap_ci_lower, bootstrap_ci_upper, bootstrap_B} for each f"
 
 binding:
   test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"
@@ -64,7 +68,7 @@ binding:
     On a synthetic feature matrix with known between/within-cluster variances
     (e.g., 5 clusters of size 4, feature drawn from cluster-mean + Gaussian
     noise with known sigma): (a) the point estimate ICC matches the analytical
-    value within Monte Carlo tolerance; (b) bootstrap resampling samples
+    value via a `pytest.approx(expected)` assertion; (b) bootstrap resampling samples
     CLUSTERS (verified by monkeypatching np.random and checking the sampled
     indices are cluster IDs, not individual indices); (c) ICC values across
     bootstrap samples are in [0, 1]; (d) the CI is the 2.5 / 97.5 percentile;

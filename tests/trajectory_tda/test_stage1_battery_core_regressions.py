@@ -13,6 +13,23 @@ import pytest
 import trajectory_tda.scripts.run_stage1_battery as legacy_battery
 import trajectory_tda.scripts.stage1._battery_core as battery_core
 
+STAGE1_AGGREGATE_REQUIRED_KEYS = (
+    "w2_pvalue",
+    "pvalue_null_draws",
+    "effect_null_pairs",
+    "landscape_l2_pvalue",
+    "t_ratio",
+    "bca_ci_lower",
+    "bca_ci_upper",
+    "d_perm",
+    "mean_obs_null",
+    "mean_null_null",
+    "landscape_t_ratio",
+    "landscape_bca_ci_lower",
+    "landscape_bca_ci_upper",
+    "landscape_d_perm",
+)
+
 
 class InlineParallel:
     """Small joblib.Parallel stand-in that executes delayed tasks inline."""
@@ -126,19 +143,35 @@ def test_lm_sensitivity_single_L_returns_full_aggregate_schema(monkeypatch: pyte
     full_payload = {
         "h0": {
             "w2_pvalue": 0.25,
+            "pvalue_null_draws": 2,
+            "effect_null_pairs": 1,
             "landscape_l2_pvalue": 0.5,
             "t_ratio": 1.25,
+            "bca_ci_lower": None,
+            "bca_ci_upper": None,
             "d_perm": 0.75,
             "mean_obs_null": 2.0,
             "mean_null_null": 1.6,
+            "landscape_t_ratio": 1.15,
+            "landscape_bca_ci_lower": None,
+            "landscape_bca_ci_upper": None,
+            "landscape_d_perm": 0.65,
         },
         "h1": {
             "w2_pvalue": 0.75,
+            "pvalue_null_draws": 2,
+            "effect_null_pairs": 1,
             "landscape_l2_pvalue": 0.8,
             "t_ratio": 0.9,
+            "bca_ci_lower": None,
+            "bca_ci_upper": None,
             "d_perm": -0.1,
             "mean_obs_null": 1.8,
             "mean_null_null": 2.0,
+            "landscape_t_ratio": 0.8,
+            "landscape_bca_ci_lower": None,
+            "landscape_bca_ci_upper": None,
+            "landscape_d_perm": -0.2,
         },
     }
     monkeypatch.setattr(battery_core, "aggregate_combined", lambda *args, **kwargs: full_payload)
@@ -154,7 +187,23 @@ def test_lm_sensitivity_single_L_returns_full_aggregate_schema(monkeypatch: pyte
     )
 
     assert result == full_payload
-    assert {"t_ratio", "d_perm", "mean_obs_null", "mean_null_null"} <= set(result["h0"])
+    for dim_key in ("h0", "h1"):
+        cell = result[dim_key]
+        assert set(STAGE1_AGGREGATE_REQUIRED_KEYS) <= set(cell)
+        assert isinstance(cell["w2_pvalue"], float)
+        assert isinstance(cell["pvalue_null_draws"], int)
+        assert isinstance(cell["effect_null_pairs"], int)
+        assert isinstance(cell["landscape_l2_pvalue"], float)
+        assert isinstance(cell["t_ratio"], float)
+        assert cell["bca_ci_lower"] is None or isinstance(cell["bca_ci_lower"], float)
+        assert cell["bca_ci_upper"] is None or isinstance(cell["bca_ci_upper"], float)
+        assert isinstance(cell["d_perm"], float)
+        assert isinstance(cell["mean_obs_null"], float)
+        assert isinstance(cell["mean_null_null"], float)
+        assert isinstance(cell["landscape_t_ratio"], float)
+        assert cell["landscape_bca_ci_lower"] is None or isinstance(cell["landscape_bca_ci_lower"], float)
+        assert cell["landscape_bca_ci_upper"] is None or isinstance(cell["landscape_bca_ci_upper"], float)
+        assert isinstance(cell["landscape_d_perm"], float)
 
 
 def test_lm_sensitivity_cli_writes_aggregate_result_shape(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -167,9 +216,15 @@ def test_lm_sensitivity_cli_writes_aggregate_result_shape(monkeypatch: pytest.Mo
             "w2_pvalue": 0.25,
             "landscape_l2_pvalue": 0.5,
             "t_ratio": 1.25,
+            "bca_ci_lower": None,
+            "bca_ci_upper": None,
             "d_perm": 0.75,
             "mean_obs_null": 2.0,
             "mean_null_null": 1.6,
+            "landscape_t_ratio": 1.15,
+            "landscape_bca_ci_lower": None,
+            "landscape_bca_ci_upper": None,
+            "landscape_d_perm": 0.65,
             "pvalue_null_draws": 2,
             "effect_null_pairs": 1,
             "lower_tail_pvalue": 0.5,
@@ -178,9 +233,15 @@ def test_lm_sensitivity_cli_writes_aggregate_result_shape(monkeypatch: pytest.Mo
             "w2_pvalue": 0.75,
             "landscape_l2_pvalue": 0.8,
             "t_ratio": 0.9,
+            "bca_ci_lower": None,
+            "bca_ci_upper": None,
             "d_perm": -0.1,
             "mean_obs_null": 1.8,
             "mean_null_null": 2.0,
+            "landscape_t_ratio": 0.8,
+            "landscape_bca_ci_lower": None,
+            "landscape_bca_ci_upper": None,
+            "landscape_d_perm": -0.2,
             "pvalue_null_draws": 2,
             "effect_null_pairs": 1,
         },

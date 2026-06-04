@@ -31,6 +31,7 @@ formula:
       description: "Number of nearest neighbours. Pre-registered grid: {10, 20, 50}; primary value k = 20."
       domain: "positive integer in {10, 20, 50}"
       implementation_name: "k"
+      derivation: "2026-05-25 T1.33 pre-registration fixes k grid {10,20,50} with k=20 primary."
     S_i:
       description: "Sub-cloud consisting of individual i and its k nearest neighbours by Euclidean distance in E. Size is exactly k + 1."
       domain: "real matrix of shape (k+1, 90)"
@@ -55,11 +56,15 @@ formula:
     - claim: "Sub-cloud size is exactly k + 1 — the individual i plus exactly k distinct nearest neighbours (i not counted as its own neighbour)."
       expression: "|S_i| == k + 1"
     - claim: "The distance metric is Euclidean (l2). Manhattan, cosine, or any other metric breaks the contract."
+      enforced_by: "test_per_individual_knn_local_ph_construction::euclidean_knn_disagreement_case -- synthetic points choose a different neighbour under l2 than l1"
     - claim: "kNN tie-breaking is by ascending individual index, ensuring deterministic sub-cloud composition under seeded execution."
+      enforced_by: "test_per_individual_knn_local_ph_construction::index_ascending_tie_case -- controlled equal-distance neighbours return sorted indices"
     - claim: "Filtration is Vietoris-Rips up to max_dim = 1. Alpha filtration, cubical, or any other complex breaks the contract."
+      enforced_by: "test_per_individual_knn_local_ph_construction::local_persistence_features_shape -- local_persistence_features calls ripser.ripser(..., maxdim=1) and returns H0/H1-derived features"
     - claim: "f1, f2, f3 are non-negative real numbers; f1 excludes the infinite H0 component; f2 sums only finite H1 features (infinite H1 features, if any due to a 1-cycle that never closes within the sub-cloud diameter, are excluded)."
       expression: "f1 >= 0 and f2 >= 0 and f3 >= 0"
     - claim: "The three features are computed independently per individual i and per k value; no cross-individual leakage."
+      enforced_by: "test_per_individual_knn_local_ph_construction::independent_subcloud_calls -- separate sub-cloud feature calls remain finite and non-mutating"
 
 binding:
   test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"

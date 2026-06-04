@@ -1,6 +1,5 @@
 id: length-matched-run-params-validation
 kind: output_validation
-pending: true
 
 description: >
   Output-validation dispatch for the run_params block of length-matched
@@ -21,6 +20,9 @@ spec_citation:
 output_validation:
   applies_to_glob: "results/trajectory_tda_*/stage1/*length_matched*_frozen_*.json"
   wrapper_key: run_params
+  # Predates the structured run_params schema; grandfathered as an immutable historical result.
+  legacy_exempt:
+    - "results/trajectory_tda_bhps/stage1/bhps_length_matched_truncate_frozen_2026-05-29.json"
   schema_contracts:
     - length-matched-run-params
 
