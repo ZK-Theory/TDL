@@ -14,23 +14,35 @@ spec_citation:
   vault_entry_date: "2026-06-03"
 
 output_validation:
+  # Broad discovery; path-specific file_dispatch below is the positive
+  # model-fitting filter.
   applies_to_glob: "results/panel_methodology/**/*.json"
   schema_contracts:
     - sample-provenance-ledger-block
+  legacy_exempt:
+    - "results/panel_methodology/foo_transparency/power_analysis_corrected_2026-06-03.json"
+    - "results/panel_methodology/regression/foo_sensitivity_fullsample_2026-06-03.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_2026-05-13.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_2026-05-14.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_2026-05-16.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_conditional_2026-05-13.json"
+    - "results/panel_methodology/regression/tier2_glmm_firth_2026-05-14.json"
+    - "results/panel_methodology/regression/tier2_ipw_mice_svyglm_2026-06-03.json"
+    - "results/panel_methodology/regression/tier2_svyglm_headline_2026-06-03.json"
   file_dispatch:
-    - filename_pattern: "tier1_clustered_firth_*.json"
+    - filename_pattern: "results/panel_methodology/regression/tier1_clustered_firth_*.json"
       schema_contract: sample-provenance-ledger-block
-    - filename_pattern: "tier1_clustered_firth_conditional_*.json"
+    - filename_pattern: "results/panel_methodology/regression/tier1_clustered_firth_conditional_*.json"
       schema_contract: sample-provenance-ledger-block
-    - filename_pattern: "tier2_glmm_firth_*.json"
+    - filename_pattern: "results/panel_methodology/regression/tier2_glmm_firth_*.json"
       schema_contract: sample-provenance-ledger-block
-    - filename_pattern: "tier2_ipw_mice_svyglm_*.json"
+    - filename_pattern: "results/panel_methodology/regression/tier2_ipw_mice_svyglm_*.json"
       schema_contract: sample-provenance-ledger-block
-    - filename_pattern: "tier2_svyglm_headline_*.json"
+    - filename_pattern: "results/panel_methodology/regression/tier2_svyglm_headline_*.json"
       schema_contract: sample-provenance-ledger-block
-    - filename_pattern: "power_analysis_*.json"
+    - filename_pattern: "results/panel_methodology/foo_transparency/power_analysis_*.json"
       schema_contract: sample-provenance-ledger-block
-    - filename_pattern: "foo_sensitivity_fullsample_*.json"
+    - filename_pattern: "results/panel_methodology/regression/foo_sensitivity_fullsample_*.json"
       schema_contract: sample-provenance-ledger-block
 
 binding:

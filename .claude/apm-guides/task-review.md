@@ -30,6 +30,8 @@ Extract the information needed for the next review decision.
 
 **Research assurance review.** For Tasks that touched mathematical, statistical, topological, representation, output, or paper-claim logic, assess the result against the Research Assurance Requirements in the Task Prompt, not only against software tests. A Task can pass unit tests, linting, and smoke execution while still failing research review. Check that parameters, seeds, null model, Markov order, p-value formula, cache provenance, output paths, no-overwrite behavior, JSON schema, decision-rule application, vault entries, and paper-facing conclusions match the governing requirements. If a required assurance artifact is missing, a machine-checkable claim was left unchecked without explanation, or a conclusion does not follow from the decision rule, investigate before accepting Success.
 
+**Contract-Quality Gate.** Before accepting a Task that authored, modified, or relied on a contract, confirm residual hardening findings for that Task's contract set are zero. Review the binding test and any local validator it calls: each `must_assert` lettered clause must have a corresponding assertion or rejection case; each formula invariant must have exactly one of `expression` or `enforced_by`; each schema `required_key` type and bound must be enforced, not merely present. For provenance contracts, confirm any pre-existing immutable outputs are grandfathered through explicit `legacy_exempt` entries and that no inferred provenance was backfilled into historical result JSONs.
+
 ### 2.2 Review Outcome Standards
 
 After reviewing a Task Log, determine the review outcome.

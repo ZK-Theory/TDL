@@ -51,6 +51,8 @@ Task Prompts must be self-contained. Workers have the same tools as any agent bu
 
 For each touched lane, decide whether the assurance is machine-checkable, human-review-only, requires a pre-registration amendment, requires a new or pending contract, requires an output schema, or requires a vault/CONVENTIONS lock. Every machine-checkable research claim should either have a concrete enforcement artifact (contract, binding test, output schema, validation command, smoke/canary, or provenance check) or an explicit note explaining why it is not being mechanized in this Task.
 
+**Contract-Quality Gate.** Before dispatching a Task that authors, modifies, or relies on a contract, confirm the relevant contract set passes gates 1b, 1c, and 2b before the Worker starts. Each formula invariant must carry exactly one of `expression` or `enforced_by`; each `binding.must_assert` lettered clause must be claim-to-assertion covered by the binding test and local validators it calls; each schema `required_key` type/bound must be checked by the validator or binding. Provenance contracts may grandfather pre-existing immutable result files through explicit `legacy_exempt` entries, but Task Prompts must never ask Workers to backfill inferred provenance into historical JSONs.
+
 ### 2.3 Follow-Up Standards
 
 Follow-up Task Prompts occur when the review outcome determines retry after investigation. You arrive with: original Task Log findings, investigation results, understanding of what went wrong, and potentially modified planning documents.

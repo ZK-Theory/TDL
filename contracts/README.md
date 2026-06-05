@@ -120,15 +120,14 @@ the commit is blocked with a diagnostic.
    layer also checks declared value types and simple `[lo, hi]` bounds,
    including null-allowed forms such as `float | null`.
 
-The original four gates remain hard-enforced. New hardening gates run in
-warn mode by default so the existing contract tree can be retrofitted without
-blocking unrelated commits. Run `.claude/hooks/contract_binding_check.py
---enforce` or set `RA_CONTRACT_GATES=enforce` to make the hardening gates
-blocking once the retrofit backlog is cleared.
+All contract gates, including the hardening gates, are enforced by default.
+Normal pre-commit runs validate staged JSON outputs only; `--all-jsons` remains
+an explicit audit mode for historical result backlogs and is not part of the
+commit-blocking path unless the caller chooses to run it.
 
 ## Hardening gates
 
-The warn-mode hardening layer reports:
+The hardening layer blocks:
 
 1. **Qualitative-language lint** â€” gate-bearing fields must not rely on
    phrases like "approximately", "roughly", "reasonable", or "within
@@ -147,10 +146,8 @@ The warn-mode hardening layer reports:
 5. **Pending-debt detection** â€” a `pending:true` contract warns when its
    binding test already exists on the current branch.
 
-During the retrofit period the hardening gates run in warn mode (exit 0) and
-do not block commits; enforcement is planned for T0.17 once the backlog is
-remediated, gated behind `--enforce` / `RA_CONTRACT_GATES=enforce`. Never use
-`git commit --no-verify` — the pre-commit hooks (Ruff lint/format) must run.
+The old `--enforce` flag is retained as a compatibility no-op; hardening gates
+are already blocking by default.
 
 ## Pending contracts
 
