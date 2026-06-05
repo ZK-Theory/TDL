@@ -1,0 +1,21 @@
+id: enforce-block-missing-enforcement
+kind: formula
+description: >
+  Fixture contract used to prove default enforce mode blocks a hardening
+  violation instead of merely warning about it.
+spec_citation:
+  source: "Contract hardening enforce-mode fixture"
+formula:
+  expression: "x = y"
+  variables:
+    x:
+      description: "Observed value."
+    y:
+      description: "Reference value."
+  invariants:
+    - claim: "The invariant has no mechanical enforcement anchor."
+binding:
+  test_file: "tests/contracts/fixtures/fixture_binding_tests.py"
+  test_function: "test_enforce_block_missing_enforcement_fixture"
+  must_assert: >
+    The binding exists so the default-enforce gate can inspect this fixture.

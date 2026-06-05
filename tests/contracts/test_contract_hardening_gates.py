@@ -163,3 +163,75 @@ def test_gate_4_legacy_exempt_skips_listed_file_but_validates_others(tmp_path):
     assert hardening == []
     assert not any("legacy.json" in issue for issue in errors)
     assert any("current.json" in issue and "missing required key 'score'" in issue for issue in errors)
+
+
+def test_default_enforce_mode_blocks_defective_fixture_contract(tmp_path, monkeypatch):
+    """A hardening defect is blocking by default once copied into a live contracts tree."""
+    repo = tmp_path
+    (repo / ".git").mkdir()
+    contract_dir = repo / "contracts" / "fixtures"
+    schema_dir = repo / "contracts" / "schema"
+    binding_dir = repo / "tests" / "contracts" / "fixtures"
+    contract_dir.mkdir(parents=True)
+    schema_dir.mkdir(parents=True)
+    binding_dir.mkdir(parents=True)
+
+    (schema_dir / "contract.schema.yaml").write_text(
+        (REPO_ROOT / "contracts" / "schema" / "contract.schema.yaml").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+    (contract_dir / "enforce-block-missing-enforcement.yaml").write_text(
+        (FIXTURES / "enforce-block-missing-enforcement.yaml").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+    (binding_dir / "fixture_binding_tests.py").write_text(
+        "def test_enforce_block_missing_enforcement_fixture():\n    assert True\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(repo)
+
+    assert contract_runner.main(["--validate-only"]) == 1
+
+
+def test_path_specific_dispatch_filters_non_fitting_panel_json(tmp_path):
+    """E6 path-specific dispatch excludes non-fitting panel outputs."""
+    ov_contract = yaml.safe_load(
+        (
+            REPO_ROOT
+            / "contracts"
+            / "stochastic-tests"
+            / "sample-provenance-ledger.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    schema_contract = yaml.safe_load(
+        (
+            REPO_ROOT
+            / "contracts"
+            / "stochastic-tests"
+            / "sample-provenance-ledger-block.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    regression_dir = tmp_path / "results" / "panel_methodology" / "regression"
+    regression_dir.mkdir(parents=True)
+    non_fitting = regression_dir / "nssec_regime_crosstab_2099-01-01.json"
+    fitting = regression_dir / "tier1_clustered_firth_2099-01-01.json"
+    non_fitting.write_text("{}", encoding="utf-8")
+    fitting.write_text("{}", encoding="utf-8")
+
+    errors, hardening = contract_runner.gate_4_validate_jsons(
+        [
+            (Path("sample-provenance-ledger.yaml"), ov_contract),
+            (Path("sample-provenance-ledger-block.yaml"), schema_contract),
+        ],
+        tmp_path,
+        all_jsons=True,
+    )
+
+    assert hardening == []
+    assert not any("nssec_regime_crosstab" in issue for issue in errors)
+    assert any("tier1_clustered_firth" in issue and "sample_provenance" in issue for issue in errors)
