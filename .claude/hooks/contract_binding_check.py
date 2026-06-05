@@ -37,7 +37,7 @@ import json
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import jsonschema
@@ -479,9 +479,11 @@ def _dispatch_schema_id(ov_contract: dict, filename_rel: str) -> str | None:
     dispatch = ov.get("file_dispatch")
     if dispatch:
         for entry in dispatch:
-            pattern = entry["filename_pattern"]
-            target = rel_posix if "/" in pattern or "\\" in pattern else fname_only
-            if Path(target).match(Path(pattern).as_posix()):
+            # Normalize Windows-style backslashes so pattern and target are both
+            # POSIX-style, then match flavour-independently (PurePosixPath).
+            pattern = entry["filename_pattern"].replace("\\", "/")
+            target = rel_posix if "/" in pattern else fname_only
+            if PurePosixPath(target).match(pattern):
                 return entry["schema_contract"]
         return None
     return ov["schema_contracts"][0]

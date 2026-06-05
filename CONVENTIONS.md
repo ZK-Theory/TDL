@@ -379,7 +379,7 @@ Three journal-targeted papers replacing the original four technique-first papers
   persistent homology of the observed data exceeds what the null produces
   at each Markov order.
 
-- **ε* canonical value:** The locked ε* point estimate is **0.54**, the
+- **ε\* canonical value:** The locked ε\* point estimate is **0.54**, the
   median knee across 32 years (1991–2022) from `detect_eps_star_knee()`
   sensitivity analysis (commit `4c73a1a`). Locked 2026-05-07. The robustness
   set is {0.54, 0.65, 0.70, 0.80}; 4 degenerate years (2003, 2005, 2011,
