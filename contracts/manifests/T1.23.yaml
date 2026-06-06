@@ -1,0 +1,19 @@
+﻿scope_id: T1.23
+scope_description: >
+  ARI normalisation for P01-A reviewer response B9: reconstruct H0 tree-cut
+  labels at eps*=0.54 from canonical embeddings, compare to locked GMM labels,
+  compute a cluster-size-preserving null SE, exact maximum-achievable or clearly
+  labelled upper-bound ARI, normalised ARI, and bootstrap uncertainty.
+authored: "2026-06-06"
+authored_by: "Manager 8 (pre-dispatch coverage extraction, corrected after User pause)"
+
+contracts:
+  - panel-output-schemas/ari-normalised-output
+  - panel-output-schemas/ari-normalised-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker continuation. The
+  Worker must implement the binding tests and clear pending before committing
+  the result JSON. If binding implementation is blocked or the contract is
+  defective, the Worker reports Partial for Manager review rather than accepting
+  the result for paper claims.

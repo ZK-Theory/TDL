@@ -1,0 +1,28 @@
+﻿id: ari-normalised-output-json-validation
+kind: output_validation
+pending: false
+
+description: >
+  Commit-time validation for T1.23 ARI-normalisation result JSONs. Any staged
+  JSON matching results/panel_methodology/ari/ari_normalised_*.json must
+  conform to the ari-normalised-output schema so that canonical row alignment,
+  ARI bounds, uncertainty summaries, exact-vs-upper-bound wording, and no stale
+  label provenance are enforced before a paper-citable result can be committed.
+
+spec_citation:
+  source: "P01-A reviewer response B9 ARI normalisation; Manager 8 pre-dispatch contract extraction for T1.23"
+  vault_entry_date: "2026-06-06"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/ari/ari_normalised_*.json"
+  schema_contracts:
+    - ari-normalised-output
+
+binding:
+  test_file: "tests/panel/test_t123_ari_normalisation_contracts.py"
+  test_function: "test_ari_normalisation_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching results/panel_methodology/ari/ari_normalised_*.json
+    is dispatched to the ari-normalised-output schema, while unrelated panel
+    methodology JSONs are not accidentally captured by this output-validation
+    contract.
