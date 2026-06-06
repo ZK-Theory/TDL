@@ -1,0 +1,26 @@
+id: sparse-u-state-six-state-sensitivity-output-json-validation
+kind: output_validation
+
+description: >
+  Commit-time validation for T1.25 sparse U-state sensitivity JSONs. Any
+  staged JSON under results/panel_methodology/u_state_sensitivity matching
+  six_state_gmm_*.json must conform to the sparse-u-state-six-state-sensitivity-output
+  schema, ensuring both collapse variants, row-count provenance, deterministic
+  representation parameters, ARI bounds, and prose-safe decision fields are present.
+
+spec_citation:
+  source: "P01-A sparse U-state reviewer response S13; User/Manager 2026-06-06 pre-run decision to run both U_to_I and U_to_E variants"
+  vault_entry_date: "2026-06-06"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/u_state_sensitivity/six_state_gmm_*.json"
+  schema_contracts:
+    - sparse-u-state-six-state-sensitivity-output
+
+binding:
+  test_file: "tests/trajectory_tda/test_sparse_u_state_sensitivity_contracts.py"
+  test_function: "test_sparse_u_state_sensitivity_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching results/panel_methodology/u_state_sensitivity/six_state_gmm_*.json
+    is dispatched to the sparse-u-state-six-state-sensitivity-output schema;
+    non-matching panel-methodology JSONs are not accidentally captured.

@@ -1,0 +1,65 @@
+id: sparse-u-state-six-state-sensitivity-output
+kind: schema
+
+description: >
+  Schema for the T1.25 sparse unemployment-state sensitivity JSON. The
+  result compares the locked 9-state GMM regime labels with two 6-state
+  re-embeddings that collapse unemployment into inactive (U_to_I) and
+  into employed (U_to_E). The schema requires both variants, the locked
+  recoding maps, deterministic PCA/GMM parameters, effective-dimensionality
+  diagnostics, ARI comparisons against the canonical 9-state labels, and
+  an interpretation that treats ARI >= 0.9 as evidence that sparse U states
+  do not drive the regime structure.
+
+spec_citation:
+  source: "P01-A sparse U-state reviewer response S13; User/Manager 2026-06-06 pre-run decision to run both U_to_I and U_to_E variants"
+  vault_entry_date: "2026-06-06"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/u_state_sensitivity/six_state_gmm_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/sparse-u-state-six-state-sensitivity/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.25 sparse U-state 6-state sensitivity'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-06 sparse U-state two-collapse pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain canonical_sequences_json, canonical_analysis_json, baseline_gmm_labels_source, n_trajectories == 27280, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain collapse_variants exactly ['U_to_I', 'U_to_E'], state_order_6 exactly ['EL','EM','EH','IL','IM','IH'], include_unigrams true, include_bigrams true, raw_dims_6 == 42, pca_dim == 20, pca_svd_solver == 'full', standardize true, gmm_primary_k == 7, gmm_covariance_type == 'full', gmm_n_init == 5, gmm_max_iter == 200, seed == 42, and ari_stability_threshold == 0.9."
+    - name: baseline_9_state
+      type: "dict[str, ...]"
+      description: "Baseline diagnostics from the canonical 9-state raw unigram+bigram representation and 9-state GMM labels. MUST include raw_dims == 90, n_bigram_dims == 81, label_counts, nontrivial_bigram_variance_dims, pca_explained_variance_20, n_components_90pct, n_components_95pct, and effective_rank."
+    - name: variants
+      type: "list[dict]"
+      description: "MUST contain exactly two entries with variant values 'U_to_I' and 'U_to_E'. Each entry MUST include recoding_map for UL/UM/UH, raw_dims == 42, n_bigram_dims == 36, nontrivial_bigram_variance_dims, pca_explained_variance_20, n_components_90pct, n_components_95pct, effective_rank, gmm_primary_k == 7, gmm_label_counts, ari_vs_9_state, ari_ge_0_9, optional bic_sensitivity, and interpretation."
+    - name: decision_summary
+      type: "dict[str, ...]"
+      description: "Summary booleans and prose-safe conclusion. MUST include all_variants_ari_ge_0_9, any_variant_ari_below_0_9, paper_claim_direction, and disclosure_required. paper_claim_direction MUST NOT claim the 6-state model is superior; it may only say whether sparse U states do or do not appear to drive the locked 9-state regime structure."
+  forbidden_keys:
+    - name: single_collapse_only
+      reason: "The 2026-06-06 pre-run decision requires both U_to_I and U_to_E variants."
+    - name: stale_pickle_labels
+      reason: "Regime labels must come from canonical 05_analysis.json or fresh fits on the 6-state embedding, never stale pickle/joblib labels."
+
+binding:
+  test_file: "tests/trajectory_tda/test_sparse_u_state_sensitivity_contracts.py"
+  test_function: "test_sparse_u_state_sensitivity_output_schema"
+  must_assert: >
+    The validator accepts a conforming two-variant payload and rejects
+    payloads where (a) variants are missing either U_to_I or U_to_E;
+    (b) inputs.n_trajectories != 27280; (c) params.pca_svd_solver != 'full'
+    or gmm_primary_k != 7 or seed != 42; (d) a variant has raw_dims != 42,
+    n_bigram_dims != 36, or missing UL/UM/UH recoding; (e) ari_vs_9_state
+    is outside [-1, 1] or ari_ge_0_9 disagrees with ari_vs_9_state >= 0.9;
+    (f) decision_summary.all_variants_ari_ge_0_9 disagrees with the variant
+    booleans; or (g) a forbidden key is present.

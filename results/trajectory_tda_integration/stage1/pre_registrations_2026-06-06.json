@@ -1,0 +1,35 @@
+﻿{
+  "pre_registration_date": "2026-06-06",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 8",
+  "entries": [
+    {
+      "name": "T1.25 Sparse U-state 6-state sensitivity",
+      "task": "T1.25",
+      "outcome_contingent": true,
+      "papers": ["P01-A"],
+      "decision_rule": "For each collapse variant, ARI(locked 9-state GMM labels, 6-state k=7 GMM labels) >= 0.9 indicates the sparse unemployment states do not drive the regime structure under that substantive collapse. If both variants have ARI >= 0.9, paper prose may state the regime structure is robust to collapsing U states. If either variant is below 0.9, disclose variant-specific sensitivity and do not claim U-state sparsity is harmless.",
+      "prose_direction": {
+        "both_ge_0_9": "Report sparse U states as not driving the locked 9-state regime structure; retain U states on substantive grounds because unemployment is conceptually distinct.",
+        "one_or_both_below_0_9": "Report that at least one substantive collapse changes regime structure; disclose the variant(s) and avoid a robustness claim."
+      },
+      "key_params": {
+        "collapse_variants": ["U_to_I", "U_to_E"],
+        "U_to_I_map": {"UL": "IL", "UM": "IM", "UH": "IH"},
+        "U_to_E_map": {"UL": "EL", "UM": "EM", "UH": "EH"},
+        "state_order_6": ["EL", "EM", "EH", "IL", "IM", "IH"],
+        "embedding": "6-state unigram + bigram frequencies (42 raw dims), standardised, PCA-20",
+        "pca_svd_solver": "full",
+        "gmm_primary": {"k": 7, "covariance_type": "full", "n_init": 5, "max_iter": 200, "random_state": 42},
+        "effective_dimensionality": ["nontrivial bigram variance dims", "effective rank", "PCA components for 90pct and 95pct variance"],
+        "ari_threshold": 0.9,
+        "seed": 42
+      },
+      "inputs": [
+        "results/trajectory_tda_integration/01_trajectories_sequences.json",
+        "results/trajectory_tda_integration/05_analysis.json[gmm_labels]"
+      ],
+      "manifest": "contracts/manifests/T1.25.yaml"
+    }
+  ]
+}

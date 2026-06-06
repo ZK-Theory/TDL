@@ -1,0 +1,168 @@
+{
+  "schema_version": "stage1/sparse-u-state-six-state-sensitivity/v1",
+  "generated_at": "2026-06-06T23:21:43+00:00",
+  "task": "T1.25 sparse U-state 6-state sensitivity",
+  "pre_registration": "2026-06-06 sparse U-state two-collapse pre-registration",
+  "inputs": {
+    "canonical_sequences_json": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
+    "canonical_analysis_json": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\05_analysis.json",
+    "baseline_gmm_labels_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\05_analysis.json[gmm_labels]",
+    "n_trajectories": 27280,
+    "row_order_basis": "Canonical checkpoint list index: 01_trajectories_sequences.json rows aligned to 05_analysis.json[gmm_labels].",
+    "git_head": "c890a4bdf0bb343440a0ec90292aef4bbdfa4e94"
+  },
+  "params": {
+    "collapse_variants": [
+      "U_to_I",
+      "U_to_E"
+    ],
+    "state_order_9": [
+      "EL",
+      "EM",
+      "EH",
+      "UL",
+      "UM",
+      "UH",
+      "IL",
+      "IM",
+      "IH"
+    ],
+    "state_order_6": [
+      "EL",
+      "EM",
+      "EH",
+      "IL",
+      "IM",
+      "IH"
+    ],
+    "U_to_I_map": {
+      "UL": "IL",
+      "UM": "IM",
+      "UH": "IH"
+    },
+    "U_to_E_map": {
+      "UL": "EL",
+      "UM": "EM",
+      "UH": "EH"
+    },
+    "include_unigrams": true,
+    "include_bigrams": true,
+    "raw_dims_6": 42,
+    "pca_dim": 20,
+    "pca_svd_solver": "full",
+    "standardize": true,
+    "gmm_primary_k": 7,
+    "gmm_covariance_type": "full",
+    "gmm_n_init": 5,
+    "gmm_max_iter": 200,
+    "seed": 42,
+    "ari_stability_threshold": 0.9
+  },
+  "baseline_9_state": {
+    "raw_dims": 90,
+    "n_bigram_dims": 81,
+    "variance_threshold": 1e-12,
+    "nontrivial_bigram_variance_dims": 81,
+    "effective_rank": 62.63285101998009,
+    "pca_explained_variance_20": 0.4882252275263629,
+    "n_components_90pct": 59,
+    "n_components_95pct": 66,
+    "label_counts": {
+      "0": 3787,
+      "1": 7358,
+      "2": 5415,
+      "3": 3333,
+      "4": 3510,
+      "5": 1813,
+      "6": 2064
+    }
+  },
+  "variants": [
+    {
+      "variant": "U_to_I",
+      "recoding_map": {
+        "UL": "IL",
+        "UM": "IM",
+        "UH": "IH"
+      },
+      "raw_dims": 42,
+      "n_bigram_dims": 36,
+      "variance_threshold": 1e-12,
+      "nontrivial_bigram_variance_dims": 36,
+      "effective_rank": 25.915944354900052,
+      "pca_explained_variance_20": 0.818721542575899,
+      "n_components_90pct": 25,
+      "n_components_95pct": 28,
+      "pca_n_components": 20,
+      "pca_svd_solver": "full",
+      "pca_random_state": 42,
+      "gmm_primary_k": 7,
+      "gmm_covariance_type": "full",
+      "gmm_n_init": 5,
+      "gmm_max_iter": 200,
+      "gmm_random_state": 42,
+      "gmm_converged": true,
+      "gmm_n_iter": 15,
+      "gmm_lower_bound": 33.61865449491098,
+      "gmm_bic": -1817718.2899942957,
+      "gmm_label_counts": {
+        "0": 7937,
+        "1": 1558,
+        "2": 3479,
+        "3": 1696,
+        "4": 6482,
+        "5": 2560,
+        "6": 3568
+      },
+      "ari_vs_9_state": 0.7022243709042737,
+      "ari_ge_0_9": false,
+      "interpretation": "U_to_I does not meet the pre-registered ARI >= 0.9 stability threshold."
+    },
+    {
+      "variant": "U_to_E",
+      "recoding_map": {
+        "UL": "EL",
+        "UM": "EM",
+        "UH": "EH"
+      },
+      "raw_dims": 42,
+      "n_bigram_dims": 36,
+      "variance_threshold": 1e-12,
+      "nontrivial_bigram_variance_dims": 36,
+      "effective_rank": 25.89362071938796,
+      "pca_explained_variance_20": 0.8197819185028783,
+      "n_components_90pct": 25,
+      "n_components_95pct": 28,
+      "pca_n_components": 20,
+      "pca_svd_solver": "full",
+      "pca_random_state": 42,
+      "gmm_primary_k": 7,
+      "gmm_covariance_type": "full",
+      "gmm_n_init": 5,
+      "gmm_max_iter": 200,
+      "gmm_random_state": 42,
+      "gmm_converged": true,
+      "gmm_n_iter": 22,
+      "gmm_lower_bound": 33.34291520810351,
+      "gmm_bic": -1802697.0789299614,
+      "gmm_label_counts": {
+        "0": 1609,
+        "1": 4026,
+        "2": 4954,
+        "3": 2509,
+        "4": 2141,
+        "5": 3378,
+        "6": 8663
+      },
+      "ari_vs_9_state": 0.6279885096274791,
+      "ari_ge_0_9": false,
+      "interpretation": "U_to_E does not meet the pre-registered ARI >= 0.9 stability threshold."
+    }
+  ],
+  "decision_summary": {
+    "all_variants_ari_ge_0_9": false,
+    "any_variant_ari_below_0_9": true,
+    "paper_claim_direction": "At least one six-state collapse variant has ARI below 0.9 against the locked 9-state labels; do not claim sparse U-state robustness without variant-specific disclosure.",
+    "disclosure_required": "Disclose the variant-specific sensitivity and avoid saying U-state sparsity is harmless."
+  }
+}
