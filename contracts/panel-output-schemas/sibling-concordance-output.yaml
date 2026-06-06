@@ -37,6 +37,7 @@ schema_def:
     - name: params
       type: "dict[str, ...]"
       description: "Provenance block. MUST contain: n_pairs (int >= 342, the total within-family sibling pairs enumerated across the 342 multi-member FOO clusters: one per 2-member cluster, C(n,2) per larger cluster), n_clusters (int == 342, the FOO families contributing pairs and the bootstrap clustering unit), member_ordering_rule (str == 'smaller pidp within cluster is member 1'), bootstrap_B (int == 1000), seed (int), source_sample (str, the T1.21 multi-FOO subsample path)."
+      derivation: "n_clusters and the within-family pair universe derive from sample_provenance.fitted for the T1.21 multi-member FOO fitted sample plus its fitted PIDP manifest."
     - name: contingency_table
       type: "dict[str, int]"
       description: "Shared 2 x 2 table. MUST contain a, b, c, d (each non-negative integer) with a + b + c + d == params.n_pairs."

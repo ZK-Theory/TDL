@@ -15,6 +15,10 @@ def test_missing_enforcement_fixture():
     assert True
 
 
+def test_enforce_block_missing_enforcement_fixture():
+    assert True
+
+
 def test_both_enforcement_fixture():
     assert True
 

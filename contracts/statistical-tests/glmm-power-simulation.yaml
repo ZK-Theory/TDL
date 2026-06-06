@@ -48,6 +48,7 @@ formula:
       description: "Sample size per simulation: 711 individuals across 342 clusters with size structure matching the T1.21 R2/R6 multi-FOO fitted subsample (reconstructed deterministically from regression_tier3.R's assembly path; post complete-case filter)."
       domain: "positive integer; n = 711"
       implementation_name: "n_individuals"
+      derivation: "sample_provenance.fitted for the T1.21 multi-member FOO fitted-stage ledger; the fitted PIDP manifest length must be 711."
     LRT_b:
       description: "Likelihood-ratio statistic on simulation b: max(0, 2 * (logLik(full) - logLik(null))). BOTH fits use glmmTMB so the log-likelihood normalising constants are comparable."
       domain: "non-negative real"

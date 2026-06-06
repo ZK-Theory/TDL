@@ -44,15 +44,20 @@ formula:
       description: "Number of constrained shuffles drawn for the null distribution. Pre-registered B = 5000."
       domain: "positive integer; pre-reg locks B = 5000"
       implementation_name: "B (n_permutations)"
+      derivation: "2026-05-25 pre-registration for the T1.33 constrained-shuffle null locks B = 5000."
   invariants:
     - claim: "The cluster-size partition is preserved exactly under every shuffle: sorted size vector of c' equals sorted size vector of c bitwise."
       expression: "sorted([count_j(c'[k] == j) for j in unique(c')]) == sorted([count_j(c[k] == j) for j in unique(c)])"
     - claim: "Total population is conserved: every individual is assigned to exactly one cluster in c'; no individual is duplicated or lost."
       expression: "len(c_prime) == N and set(individuals_in_c_prime) == set(individuals_in_c)"
     - claim: "The number of clusters is preserved: |unique(c')| == |unique(c)|."
+      expression: "|unique(c_prime)| == |unique(c)|"
     - claim: "For each size s appearing in pi(c), the number of clusters of size s is preserved: multiset of sizes in c' matches multiset of sizes in c."
+      expression: "pi(c_prime) == pi(c)"
     - claim: "Shuffle randomness is seeded via numpy.random.default_rng(seed); the seed is recorded in the output JSON params block; reseeding with the same seed reproduces the null distribution bit-for-bit."
+      enforced_by: "test_constrained_shuffle_preserves_cluster_size_partition::same_seed_reproducibility -- two default_rng(42) streams produce bit-identical shuffle sequences"
     - claim: "B independent shuffles are drawn (B = 5000 by pre-registration); the null distribution is the empirical distribution of the within-sibling-pair test statistic across the B shuffles."
+      expression: "len(null_distribution) == B and B == 5000"
 
 binding:
   test_file: "tests/trajectory_tda/test_foo_topology_contracts.py"

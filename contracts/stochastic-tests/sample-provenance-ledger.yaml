@@ -1,0 +1,59 @@
+id: sample-provenance-ledger
+kind: output_validation
+pending: false
+
+description: >
+  E6 output-validation dispatch for the panel sample-provenance ledger. Any
+  panel model-fitting result JSON matched by this contract must expose a
+  structured sample_provenance block recording eligible -> ipw -> complete_case
+  -> fitted counts plus a row-level fitted PIDP manifest; downstream contracts
+  cite sample_provenance.fitted rather than free-typed sample counts.
+
+spec_citation:
+  source: "CONVENTIONS sample-provenance ledger ALWAYS-rule 2026-06-03b; E6 provenance mechanization"
+  vault_entry_date: "2026-06-03"
+
+output_validation:
+  # Broad discovery; path-specific file_dispatch below is the positive
+  # model-fitting filter.
+  applies_to_glob: "results/panel_methodology/**/*.json"
+  schema_contracts:
+    - sample-provenance-ledger-block
+  legacy_exempt:
+    - "results/panel_methodology/foo_transparency/power_analysis_corrected_2026-06-03.json"
+    - "results/panel_methodology/regression/foo_sensitivity_fullsample_2026-06-03.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_2026-05-13.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_2026-05-14.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_2026-05-16.json"
+    - "results/panel_methodology/regression/tier1_clustered_firth_conditional_2026-05-13.json"
+    - "results/panel_methodology/regression/tier2_glmm_firth_2026-05-14.json"
+    - "results/panel_methodology/regression/tier2_ipw_mice_svyglm_2026-06-03.json"
+    - "results/panel_methodology/regression/tier2_svyglm_headline_2026-06-03.json"
+  file_dispatch:
+    - filename_pattern: "results/panel_methodology/regression/tier1_clustered_firth_*.json"
+      schema_contract: sample-provenance-ledger-block
+    - filename_pattern: "results/panel_methodology/regression/tier1_clustered_firth_conditional_*.json"
+      schema_contract: sample-provenance-ledger-block
+    - filename_pattern: "results/panel_methodology/regression/tier2_glmm_firth_*.json"
+      schema_contract: sample-provenance-ledger-block
+    - filename_pattern: "results/panel_methodology/regression/tier2_ipw_mice_svyglm_*.json"
+      schema_contract: sample-provenance-ledger-block
+    - filename_pattern: "results/panel_methodology/regression/tier2_svyglm_headline_*.json"
+      schema_contract: sample-provenance-ledger-block
+    - filename_pattern: "results/panel_methodology/foo_transparency/power_analysis_*.json"
+      schema_contract: sample-provenance-ledger-block
+    - filename_pattern: "results/panel_methodology/regression/foo_sensitivity_fullsample_*.json"
+      schema_contract: sample-provenance-ledger-block
+
+binding:
+  test_file: "tests/panel/test_t135_transparency_contracts.py"
+  test_function: "test_sample_provenance_ledger_contract"
+  must_assert: >
+    The bound test enforces the E6 provenance rule by accepting a ledger with
+    eligible -> ipw -> complete_case -> fitted counts and a fitted PIDP
+    manifest, and rejecting: (a) missing sample_provenance; (b) prose/string
+    provenance instead of a structured block; (c) non-integer stage counts;
+    (d) non-monotone filter-stage counts; (e) missing fitted PIDP manifest;
+    (f) fitted count not equal to manifest row count. The all-JSON impact
+    check surfaces current prose-only outputs as mismatches rather than
+    weakening this contract.

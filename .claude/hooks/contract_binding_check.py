@@ -24,10 +24,9 @@ Invocation:
     contract_binding_check.py --validate-only # gates 1+2 only (skip pytest + JSONs)
     contract_binding_check.py --no-pytest     # gates 1+2+4 only
     contract_binding_check.py --all-jsons     # validate every output JSON in tree, not just staged
-    contract_binding_check.py --enforce       # make hardening gates blocking
+    contract_binding_check.py --enforce       # compatibility no-op; hardening gates are default-enforced
 
-New hardening gates run in warn mode by default. Set RA_CONTRACT_GATES=enforce
-or pass --enforce to make them blocking after the retrofit backlog is cleared.
+Hardening gates are enforced by default.
 """
 
 from __future__ import annotations
@@ -35,11 +34,10 @@ from __future__ import annotations
 import argparse
 import ast
 import json
-import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import jsonschema
@@ -460,20 +458,32 @@ def gate_3_run_bindings(
     ]
 
 
+def _is_legacy_exempt(ov_contract: dict, filename_rel: str | Path) -> bool:
+    """Return whether an output_validation contract grandfathers this JSON."""
+    rel_posix = Path(filename_rel).as_posix()
+    exemptions = {Path(entry).as_posix() for entry in ov_contract["output_validation"].get("legacy_exempt", [])}
+    return rel_posix in exemptions
+
+
 def _dispatch_schema_id(ov_contract: dict, filename_rel: str) -> str | None:
-    """Pick a schema contract id for a filename using file_dispatch.
+    """Pick a schema contract id for a filename/path using file_dispatch.
 
     When `file_dispatch` is set, acts as a positive filter: only filenames
-    matching one of the dispatch patterns are validated; unmatched filenames
-    return None. When `file_dispatch` is absent, all files matching the
-    applies_to_glob are validated against schema_contracts[0].
+    or repo-relative paths matching one of the dispatch patterns are validated;
+    unmatched files return None. When `file_dispatch` is absent, all files
+    matching the applies_to_glob are validated against schema_contracts[0].
     """
     ov = ov_contract["output_validation"]
+    rel_posix = Path(filename_rel).as_posix()
     fname_only = Path(filename_rel).name
     dispatch = ov.get("file_dispatch")
     if dispatch:
         for entry in dispatch:
-            if Path(fname_only).match(entry["filename_pattern"]):
+            # Normalize Windows-style backslashes so pattern and target are both
+            # POSIX-style, then match flavour-independently (PurePosixPath).
+            pattern = entry["filename_pattern"].replace("\\", "/")
+            target = rel_posix if "/" in pattern else fname_only
+            if PurePosixPath(target).match(pattern):
                 return entry["schema_contract"]
         return None
     return ov["schema_contracts"][0]
@@ -654,6 +664,8 @@ def gate_4_validate_jsons(
             for p in repo_root.rglob("*.json"):
                 rel = p.relative_to(repo_root)
                 if rel.full_match(pattern):
+                    if _is_legacy_exempt(ov, rel):
+                        continue
                     schema_id = _dispatch_schema_id(ov, str(rel))
                     if schema_id is None:
                         continue  # file_dispatch positive-filter rejected this file
@@ -675,6 +687,8 @@ def gate_4_validate_jsons(
             for ov in ov_contracts:
                 pattern = ov["output_validation"]["applies_to_glob"]
                 if sf_path.full_match(pattern):
+                    if _is_legacy_exempt(ov, sf_path):
+                        continue
                     schema_id = _dispatch_schema_id(ov, sf)
                     if schema_id is None:
                         continue
@@ -736,8 +750,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--enforce",
         action="store_true",
         help=(
-            "Treat new hardening gates as blocking. Default is warn mode unless "
-            "RA_CONTRACT_GATES=enforce is set."
+            "Compatibility flag retained from warn-mode rollout; hardening gates "
+            "are enforced by default."
         ),
     )
     return parser.parse_args(argv)
@@ -745,7 +759,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    enforce_hardening = args.enforce or os.environ.get("RA_CONTRACT_GATES", "").lower() == "enforce"
     try:
         repo_root = find_repo_root()
     except RuntimeError as e:
@@ -784,16 +797,7 @@ def main(argv: list[str] | None = None) -> int:
             errors.extend(gate4_errors)
             hardening_issues.extend(gate4_hardening)
 
-    if enforce_hardening:
-        errors.extend(hardening_issues)
-    elif hardening_issues:
-        print(
-            "Contract framework: hardening gates reported "
-            f"{len(hardening_issues)} warning(s) in warn mode:",
-            file=sys.stderr,
-        )
-        for issue in hardening_issues:
-            print(f"  {issue}", file=sys.stderr)
+    errors.extend(hardening_issues)
 
     if errors:
         print(
@@ -804,8 +808,7 @@ def main(argv: list[str] | None = None) -> int:
         for e in errors:
             print(f"  {e}", file=sys.stderr)
         print(
-            "\nSee contracts/README.md for the framework, or "
-            "`git commit --no-verify` only in a documented emergency.",
+            "\nSee contracts/README.md for the contract framework and hardening rules.",
             file=sys.stderr,
         )
         return 1

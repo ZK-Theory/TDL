@@ -23,6 +23,17 @@ from trajectory_tda.scripts.stage1 import assemble_stratified_markov_partials
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = REPO_ROOT / "contracts"
 STATES = ["EL", "EM", "EH", "UL", "UM", "UH", "IL", "IM", "IH"]
+STRATIFIED_ROOT_KEYS = (
+    "pre_registration",
+    "params",
+    "outcome",
+    "outcome_rule",
+    "per_dataset",
+    "fdr_tests",
+    "usoc",
+    "bhps",
+    "date",
+)
 
 
 class InlineParallel:
@@ -100,13 +111,22 @@ def _assert_aggregate_cell(cell: dict, dim: str) -> None:
 
 
 def _assert_stratified_output_contract(data: dict) -> None:
+    """Assert a stratified-Markov battery output payload meets the contract."""
     contract = _load_contract("stage1-output-schemas/stratified-markov1-output.yaml")
     required = [entry["name"] for entry in contract["schema_def"]["required_keys"]]
+    assert required == list(STRATIFIED_ROOT_KEYS)
     missing = [key for key in required if key not in data]
     assert not missing, f"stratified output missing required keys: {missing}"
+    assert isinstance(data["pre_registration"], str)
+    assert isinstance(data["params"], dict)
     assert data["params"]["frozen_loadings"] is True
     assert data["outcome"] in {"A", "B", "C"}
+    assert isinstance(data["outcome_rule"], str)
     assert set(data["per_dataset"]) == {"usoc", "bhps"}
+    assert isinstance(data["fdr_tests"], dict)
+    assert isinstance(data["usoc"], dict)
+    assert isinstance(data["bhps"], dict)
+    assert isinstance(data["date"], str)
 
     for summary in data["per_dataset"].values():
         for key in ("n_regimes_tested", "n_significant", "significant_regimes", "frac_significant"):

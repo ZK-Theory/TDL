@@ -54,12 +54,19 @@ formula:
       implementation_name: "sigma_u"
   invariants:
     - claim: "Estimation engine is glmmTMB with family = binomial(link = 'logit'). lme4::glmer is forbidden for this contract because the T1.20 IPW-weighted spec uses glmmTMB's weights handling."
+      expression: "engine == 'glmmTMB' and family == 'binomial(logit)'"
     - claim: "Analytical sample is first-window R2/R6 starters (the conditional escape sample), NOT the full N analytical population. n_starters expected ~7,453; complete-case n with NS-SEC proxy expected ~6,173 per T1.18 ESC-2 Option B."
+      enforced_by: "test_tier2_escape_regression_spec rejects unconditioned full-sample fits; historical approximate counts are not pinned fitted counts."
     - claim: "Response is the window-based escape indicator from window_escape_assignments_2026-05-14.json (NOT 'last observed jbstat in E'; NOT 'any wave not in R2/R6'). GOOD_REGIMES = {1, 4}."
+      expression: "escape_source == 'window_escape_assignments_2026-05-14.json' and GOOD_REGIMES == {1, 4}"
     - claim: "Random structure is single random intercept on hh_group (household). No random slope, no nested grouping, no cross-classified grouping (Tier-3 was structurally non-estimable on this sample per T1.21 superseded result)."
+      expression: "random_terms == ['(1 | hh_group)']"
     - claim: "Normalised IPW weights from T1.13 (with p1/p99 trimming per normalised-ipw-trimming contract) are passed as the weights argument to glmmTMB."
+      expression: "weights_argument == 'ipw_normalised' or weights_argument == 'ipw_trimmed'"
     - claim: "Fixed-effect direction sanity: beta_regime (R6 vs R2) MUST be positive (R6 starters more likely to escape) and consistent with T1.20 reference (regime_6 OR ~ 21.3). A reversed sign indicates a data-assembly defect, not a real finding."
+      expression: "beta_regime_initR6 > 0"
     - claim: "MICE m = 20 imputations are pooled via Rubin's rules per the rubin-pooling contract; no single-imputation fit is permitted as the headline."
+      expression: "m == 20 and pooling == 'rubin-pooling'"
 
 binding:
   test_file: "tests/panel/test_t134_regression_contracts.py"

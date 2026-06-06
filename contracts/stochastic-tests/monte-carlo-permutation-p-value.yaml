@@ -41,8 +41,11 @@ formula:
     - claim: "Maximum p-value is 1.0 (all null statistics ≥ observed)."
       expression: "p_max = 1"
     - claim: "p is monotone non-decreasing in r."
+      expression: "if r_1 <= r_2 then (r_1 + 1) / (n + 1) <= (r_2 + 1) / (n + 1)"
     - claim: "The p-value denominator MUST be derived from B (or min(B, total_pairs)), NOT from the diagnostic n_null_pairs_cap used for T-ratio and d-perm effect sizes. The output cell exposes both as pvalue_null_draws and effect_null_pairs respectively."
+      expression: "n == pvalue_null_draws == min(B, total_pairs) and effect_null_pairs != n_null_pairs_cap does not define n"
     - claim: "The exposed bookkeeping field pvalue_null_draws MUST equal n (the p-value denominator minus 1) for every output cell."
+      expression: "pvalue_null_draws == n"
 
 binding:
   test_file: "tests/trajectory_tda/test_stage1_battery_core_regressions.py"

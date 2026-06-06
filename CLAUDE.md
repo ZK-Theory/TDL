@@ -25,19 +25,18 @@ This repo contains the code. The vault contains theory, methodology, literature,
 | `04-Methods/Pipeline-Overview.md` | Pipeline architecture description |
 | `04-Methods/Datasets/` | Dataset processing notes |
 | `02-Notes/Permanent/` | Crystallised methodological insights |
-| `CONVENTIONS.md` | Always/never rules with rationale — **load at session start** |
 | `VAULT-MAP.md` | Full vault navigation index |
 
-**When working on code:** Cross-check `CONVENTIONS.md` for locked methodological decisions before implementing. Any new decision should be added there after locking.
+**CONVENTIONS.md is repo-canonical (single source for all agents).** The always/never rules live in the committed **repo-root `CONVENTIONS.md`** — the one surface every agent (Claude, Codex, Copilot, any machine) reaches via a normal checkout, with no dependence on the machine-local `vault/` junction or the vault-engine MCP. The vault's `CONVENTIONS.md` is a **symlink to the repo file** (one inode), so Obsidian still renders it and edits on either side hit the same content. **Load `CONVENTIONS.md` at session start; read/edit it at the repo root, not via the vault path.** Any newly-locked decision is added to the repo-root `CONVENTIONS.md` (and surfaced in the vault automatically through the symlink).
 
 **Direct content access via `vault/` junction (machine-local).** A Windows directory junction at `c:\Users\steph\TDL\vault\` mirrors the vault root, so the commonly-used files are reachable as `vault/CONVENTIONS.md`, `vault/04-Methods/Computational-Log.md`, `vault/04-Methods/Pipeline-Overview.md`, `vault/VAULT-MAP.md`, `vault/05-Daily/YYYY-MM-DD.md`, etc. The junction is gitignored (`vault/` line in `.gitignore`); same inode either side, so edits via `vault/<path>` land in the real vault file.
 
 **When to use which access mode:**
 
-- *Content read/edit/append* (read CONVENTIONS, append to Computational-Log, draft a Daily note): use the `vault/` path with `Read` / `Edit` / `Write` tools — faster and integrates with the standard tool chain.
+- *Content read/edit/append* (append to Computational-Log, draft a Daily note): use the `vault/` path with `Read` / `Edit` / `Write` tools — faster and integrates with the standard tool chain. (CONVENTIONS.md is the exception — read/edit it at the repo root, not via `vault/`; see the repo-canonical note above.)
 - *Wikilink-graph navigation* (find pages linking to X, page skeletons, cross-vault traversal, status dashboards): use the vault-engine MCP (`vault_query`, `vault_skeleton`, `vault_graph`, `vault_status`, `cross_vault`) — the graph context is not available via the filesystem.
 
-The vault remains the source of truth; the junction is a convenience shortcut, not a separate copy.
+The vault remains the source of truth for research content (Computational-Log, Permanent notes, papers, daily notes); the junction is a convenience shortcut, not a separate copy. **`CONVENTIONS.md` is the one exception: it is repo-canonical (committed at the repo root) and symlinked into the vault**, so that every agent — regardless of vault-junction or MCP access — reads the same single source.
 
 ## Key Concepts (Domain Knowledge)
 
