@@ -41,6 +41,8 @@ Task Prompts must be self-contained. Workers have the same tools as any agent bu
 
 **Exclude** content relating to other domains, providing background without actionable requirements, or already captured in the Task's Guidance field.
 
+**Compute parallelization requirement.** Every Task Prompt that runs long stochastic compute - bootstraps, permutation nulls, MICE-pooled refits, per-individual/per-cluster batteries - must require the Worker to parallelize to **at least 4 workers** (joblib `n_jobs`, R `future`/`parallel`/`foreach`, or an explicit worker pool), expose a worker-count parameter defaulting to >= 4, write a chunked checkpoint so a halted job resumes rather than restarts, and **flag any job expected to exceed ~30 min as long-running with an up-front wall-time estimate before launch**. The machine handles >= 4 concurrent worker jobs. Serial-only long stochastic compute is a defect, surfaced in review. Locked in `CONVENTIONS.md` (2026-06-03) after repeated overnight-scale serial runs were cut to a fraction by parallelization.
+
 **Research assurance content.** For Tasks that touch mathematical, statistical, topological, representation, output, or paper-claim logic, include a Research Assurance Requirements section in the Task Prompt. Classify the touched assurance lanes before prompt construction:
 - *Topology:* persistent homology construction, filtration choices, diagram metrics, landscapes, Mapper, zigzag, multipersistence, landmark sampling, and topology-vs-geometry interpretation.
 - *Stochastic / Null Model:* permutation exchangeability, Markov order, stratification, label/cohort/order shuffles, null-null construction, bootstrap, RNG/seed propagation, and p-value formulas.

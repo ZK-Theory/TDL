@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: "2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
+modified: "2026-06-04 (Manager 7): New Stage-0 workstream 'Contract-framework hardening (full teeth)' added (T0.14–T0.17) per User direction after recurring CodeRabbit-caught contract-enforcement defects. T0.14 hardens the meta-schema + contract_binding_check.py gates (expression-XOR-enforced_by, qualitative-language lint, claim↔assertion coverage, gate-4 type/bound with null-allowed grammar, pending-debt gate; warn-mode rollout) — Reproducibility Agent. T0.15 retrofits TDA-side contracts+binding tests — TDA Agent. T0.16 retrofits Panel-side contracts+binding tests and lands the E6 sample-provenance-ledger contract — Panel Statistics Agent (sequenced after PR #32 merge). T0.17 flips gates warn→enforce and bakes a pre-dispatch/pre-accept contract-quality checklist into the APM guides — Reproducibility Agent. Dependency flow T0.14 → (T0.15 ∥ T0.16) → T0.17 added to the Stage 0 subgraph. Previous modification record retained below. Modified by the Manager.\n2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
 ---
 
 # APM Plan
@@ -41,6 +41,11 @@ subgraph S0["Stage 0: Foundation"]
   T0_9["0.9 jbstat verification<br/><i>Panel Statistics Agent</i>"]
   T0_10["0.10 Income concept verification<br/><i>Panel Statistics Agent</i>"]
   T0_11["0.11 Sibling clusters from xhhrel<br/><i>Panel Statistics Agent</i>"]
+  T0_14["0.14 Contract gate-framework hardening<br/><i>Reproducibility Agent</i>"]
+  T0_14 -.-> T0_15["0.15 Retrofit TDA-side contracts<br/><i>TDA Agent</i>"]
+  T0_14 -.-> T0_16["0.16 Retrofit Panel-side contracts + E6<br/><i>Panel Statistics Agent</i>"]
+  T0_15 -.-> T0_17["0.17 Enforce-flip + process integration<br/><i>Reproducibility Agent</i>"]
+  T0_16 -.-> T0_17
 end
 
 subgraph S1["Stage 1: Locked numerical and statistical results"]
@@ -220,6 +225,10 @@ style T0_8 fill:#2d6a4f,color:#000
 style T0_9 fill:#f4a261,color:#000
 style T0_10 fill:#f4a261,color:#000
 style T0_11 fill:#f4a261,color:#000
+style T0_14 fill:#a8dadc,color:#000
+style T0_15 fill:#2d6a4f,color:#000
+style T0_16 fill:#f4a261,color:#000
+style T0_17 fill:#a8dadc,color:#000
 style T1_1 fill:#2d6a4f,color:#000
 style T1_2 fill:#2d6a4f,color:#000
 style T1_3 fill:#2d6a4f,color:#000
@@ -480,6 +489,67 @@ style T4_10 fill:#a8dadc,color:#000
 5. Run the FOO ICC null GLMM pre-check: `glmer(escaped ~ 1 + (1 | foo_id), data = analytic_sample, family = binomial)`.
 6. Write the FOO clusters CSV.
 7. Write vault `[RESULT]` entry via `vault_observe`.
+
+### Task 0.14: Contract meta-schema + gate-framework hardening - Reproducibility Agent
+
+* **Objective:** Close the structural gaps that let unenforced/qualitative/free-typed-literal contract defects through (the recurring CodeRabbit-caught class): extend the contract meta-schema and `contract_binding_check.py` so that every contract claim is mechanically enforced or explicitly justified, and roll the new gates out in non-blocking warn mode so the retrofit backlog is surfaced without halting unrelated repo work.
+* **Output:** Patched `contracts/schema/contract.schema.yaml`; patched `.claude/hooks/contract_binding_check.py` with the new gates (warn mode); updated `contracts/README.md`; updated `schema-contract-design` skill in BOTH `.claude/skills/` and `.agents/skills/` (byte-identical); a warn-mode framework run output saved as the per-contract defect register at `contracts/_audit/contract_hardening_register_<date>.md`; vault `[PIPELINE]` entry.
+* **Validation:** Meta-schema requires each `invariants[]` item to carry `expression` XOR a new `enforced_by` field (named binding-test assertion + reason); a new `derivation`/provenance field is accepted on pinned numeric constants. `contract_binding_check.py` runs the new gates in warn mode (report, exit 0): (1b) qualitative-language lint flags "approximately/within tolerance/roughly/about/should be/sensible/adequate" in gate-bearing fields lacking a pinned number; (1c) invariant-enforcement completeness flags any invariant missing both `expression` and `enforced_by`; (2b) claim↔assertion coverage parses the binding-test AST and reports, per contract, whether the count of negative `pytest.raises` cases is ≥ the count of lettered `must_assert` clauses `(a)…(z)` and whether schema validators reference each `required_key`'s declared type/bound; (4-strengthened) gate-4 validates value types and simple bounds from `required_keys[].type` with a null-allowed grammar (`X | null`, optional `[lo, hi]` range hints), NOT just key-name presence; pending-debt gate flags any `pending:true` contract whose binding `test_function` already exists on the base branch. The existing 50 contracts all still pass gate-1 structurally; the warn-mode run enumerates every new-gate violation into the register. The strengthened gate-4, when run `--all-jsons`, does not crash and lists offending committed JSONs without blocking.
+* **Guidance:** The new gates MUST default to warn (non-blocking) until T0.15+T0.16 clear the backlog; T0.17 flips them to enforce. `expression` XOR `enforced_by` deliberately tolerates genuinely-procedural invariants (RNG-seeded, ordering-convention, engine-literal) — those declare `enforced_by` with the test assertion name and a one-line reason rather than a hollow expression. The gate-4 null-allowed grammar is mandatory: the `unweighted_glmm_companion.coefficients` rows legitimately carry `se: null, pvalue: null`, so a naive "se is a number ≥ 0" check would wrongly reject valid output. Keep skill bodies path-agnostic so the two trees stay byte-identical. Touched assurance lane: Output/Provenance + the framework itself (meta-assurance) — the deliverable is the enforcement substrate, so its own tests (a fixture contract that violates each new gate and is correctly flagged) are the assurance.
+* **Dependencies:** None (operates on the existing `contracts/` framework).
+
+1. Read `contracts/schema/contract.schema.yaml`, `contracts/README.md`, `.claude/hooks/contract_binding_check.py`, and 3-4 representative contracts of each kind to map current structure.
+2. Extend the meta-schema: add `enforced_by` to the invariant item grammar; require `expression` XOR `enforced_by`; add an optional `derivation` provenance field for pinned constants; document the `must_assert` lettered-clause convention.
+3. Implement the new gates in `contract_binding_check.py` behind a warn/enforce mode flag (default warn): qualitative-language lint, invariant-enforcement completeness, claim↔assertion coverage (AST parse of binding tests), strengthened gate-4 type/bound validation with null-allowed grammar, pending-debt gate.
+4. Add framework self-tests: a fixture contract (under a test area, not the live tree) that violates each new gate and asserts the gate flags it; a valid fixture that passes.
+5. Run the warn-mode framework against all 50 contracts and save the output as the defect register at `contracts/_audit/`.
+6. Update `contracts/README.md` and the dual-tree `schema-contract-design` skill with the new rules and the `expression`-XOR-`enforced_by` decision procedure.
+7. Write a vault `[PIPELINE]` entry to `04-Methods/Pipeline-Overview.md` recording the framework hardening.
+
+### Task 0.15: Retrofit TDA-side contracts and binding tests to the hardened standard - TDA Agent
+
+* **Objective:** Bring every topology/stochastic/stage1 contract and its binding test up to the hardened standard from Task 0.14 — every invariant enforced, no qualitative gates, type/bound and claim↔assertion coverage in the binding tests — verified against the committed result JSONs.
+* **Output:** Updated contracts under `contracts/foo-topology-schemas/`, `contracts/topology-invariants/`, `contracts/stochastic-tests/`, `contracts/stage1-output-schemas/`; updated binding tests (the corresponding `tests/**` files) with type/bound + per-clause negative cases; an impact-check note confirming every committed topology/stage1 JSON still validates under the strengthened gate-4; vault `[PIPELINE]` entry.
+* **Validation:** Running the Task 0.14 framework in warn mode against the retrofitted contracts reports zero new-gate violations for the TDA-owned set; every `invariants[]` item carries `expression` or `enforced_by`; no qualitative-language flags remain; each schema contract's binding test has ≥ one negative case per lettered `must_assert` clause and asserts the declared type/bound of each `required_key`; the strengthened gate-4 `--all-jsons` passes on all committed topology/stage1 JSONs (or any genuine mismatch is surfaced as an Important Finding, not silently relaxed).
+* **Guidance:** This is the empirical-integrity backbone of two papers — do not weaken a contract to make a test pass; if a committed JSON genuinely violates a corrected contract, surface it. Use `enforced_by` (not a hollow expression) for procedural invariants (RNG seeding, kNN tie-break ordering, VR max_dim literal, per-individual independence). Respect the null-allowed grammar where a field is legitimately nullable. Touched assurance lanes: Topology, Stochastic/Null, Output/Provenance. The contract is the spec and the binding test is the teeth — they must agree.
+* **Dependencies:** **Task 0.14** (hardened meta-schema + gates + the `expression`-XOR-`enforced_by` and null-allowed-grammar conventions). Cross-agent context required for the many contracts authored across earlier TDA tasks.
+
+1. Read the Task 0.14 defect register; filter to the TDA-owned contract directories.
+2. For each flagged contract: add `expression` or `enforced_by` to every invariant; replace qualitative gates with pinned numeric predicates; add `derivation` provenance to any pinned constant.
+3. For each binding test: add a negative `pytest.raises` case per lettered `must_assert` clause; assert the declared type/bound of each `required_key`.
+4. Impact-check: run the strengthened gate-4 against all committed topology/stage1 JSONs; resolve or surface any mismatch.
+5. Run the warn-mode framework; confirm zero residual violations for the TDA set.
+6. Write a vault `[PIPELINE]` entry.
+
+### Task 0.16: Retrofit Panel-side contracts and binding tests; land E6 sample-provenance-ledger - Panel Statistics Agent
+
+* **Objective:** Bring every panel/regression/statistical contract and its binding test up to the hardened standard, author the E6 sample-provenance-ledger contract that mechanizes the literal-provenance rule, and flip pending contracts whose binding tests now exist — verified against the committed panel result JSONs.
+* **Output:** Updated contracts under `contracts/panel-output-schemas/`, `contracts/regression-specs/`, `contracts/statistical-tests/`; new `contracts/stochastic-tests/sample-provenance-ledger.yaml` (E6, output_validation) + its binding test; updated binding tests with type/bound + per-clause negative cases; pending→active transitions where the test exists; an impact-check note confirming every committed panel JSON still validates; vault `[PIPELINE]` entry.
+* **Validation:** Warn-mode framework reports zero new-gate violations for the Panel-owned set; E6 asserts a `sample_provenance` block (eligible→IPW→complete-case→fitted) + a row-level PIDP manifest path with fitting-stage count equal to the manifest length, and that any pinned sample count cites `sample_provenance.fitted` by reference; the strengthened gate-4 `--all-jsons` passes on all committed panel JSONs; previously-pending contracts whose `test_function` exists are flipped to active and pass gates 2-4.
+* **Guidance:** Sequence this AFTER PR #32 merges — it touches `power-analysis-output`, `tier2-svyglm-headline-output`, and `glmm-power-simulation`, which PR #32 is hardening; start from post-merge `main` to avoid conflicts. The E6 motivating failure is the 735/353-vs-711/342 stage-of-measurement drift (2026-06-03b) — see the sample-provenance-ledger CONVENTIONS rule. Do not weaken a contract to pass; surface genuine JSON mismatches. Touched assurance lanes: Statistical/Panel, Output/Provenance, Paper Claim. Parallel-dispatchable with Task 0.15 (disjoint contract sets) once Task 0.14 is merged.
+* **Dependencies:** **Task 0.14** (hardened standard). Coordination: after PR #32 merge.
+
+1. Read the Task 0.14 defect register; filter to the Panel-owned contract directories.
+2. Retrofit each flagged contract (expression/enforced_by, pinned gates, derivation provenance) and its binding test (per-clause negatives, type/bound assertions).
+3. Author the E6 `sample-provenance-ledger.yaml` output_validation contract + a one-to-one binding test per the RA plan; register it in the appropriate manifest.
+4. Flip pending contracts whose binding tests now exist on base; confirm they pass gates 2-4.
+5. Impact-check the strengthened gate-4 against all committed panel JSONs; resolve or surface mismatches.
+6. Run the warn-mode framework; confirm zero residual violations for the Panel set.
+7. Write a vault `[PIPELINE]` entry.
+
+### Task 0.17: Flip gates to enforce; integrate the contract-quality gate into the APM process - Reproducibility Agent
+
+* **Objective:** With the retrofit backlog cleared, flip the new contract gates from warn to enforce, bake a pre-dispatch / pre-accept contract-quality checklist into the APM guides so neither Manager nor Worker can rely on an unenforced contract, and lock the hardened framework in the vault and CONVENTIONS.
+* **Output:** `contract_binding_check.py` default switched warn→enforce; a contract-quality checklist added to `.claude/apm-guides/task-assignment.md` (and the `.agents`/`.codex` counterpart) and `.claude/apm-guides/task-review.md`; optional wiring into the planned `apm_task_prompt_check.py`; vault `[PIPELINE]` entry to `Pipeline-Overview.md` + a `[DECISION]` entry to `Computational-Log.md` and a locked ALWAYS rule in `CONVENTIONS.md`.
+* **Validation:** A fresh `contract_binding_check.py` run (enforce mode) passes against all 50+ contracts with zero violations; a deliberately-defective fixture contract (missing enforcement / qualitative gate / claim without a negative test) is BLOCKED by the pre-commit gate; the APM guides carry the contract-quality checklist (presence check on a stable heading); the vault `[DECISION]` + CONVENTIONS rule are on file.
+* **Guidance:** Do not flip to enforce until Task 0.15 and Task 0.16 are both merged and the warn-mode run is clean — flipping early would block all repo commits. The checklist must be actionable at two moments: Manager pre-dispatch (a contract a task authors/relies on must pass the new gates) and pre-accept (review confirms claim↔assertion coverage). Touched assurance lane: the meta-assurance process itself.
+* **Dependencies:** **Task 0.15**, **Task 0.16** (backlog cleared and merged).
+
+1. Confirm the warn-mode framework run is clean across all contracts post-T0.15/T0.16 merge.
+2. Flip the gate default warn→enforce; verify the full pre-commit gate passes.
+3. Add the pre-dispatch/pre-accept contract-quality checklist to the APM task-assignment and task-review guides (dual-tree where applicable).
+4. Add a defective fixture and confirm the enforce-mode gate blocks it.
+5. Write the vault `[PIPELINE]` + `[DECISION]` entries and the `CONVENTIONS.md` ALWAYS rule.
 
 ## Stage 1: Locked numerical and statistical results
 
