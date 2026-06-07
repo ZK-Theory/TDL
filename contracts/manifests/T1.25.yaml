@@ -1,0 +1,18 @@
+﻿scope_id: T1.25
+scope_description: >
+  Sparse unemployment-state sensitivity for P01-A reviewer response S13:
+  run both 6-state collapse variants, U_to_I and U_to_E, re-embed with
+  deterministic PCA, refit k=7 GMMs, compare against canonical 9-state
+  labels by ARI, and report effective dimensionality of the bigram matrix.
+authored: "2026-06-06"
+authored_by: "Manager 8 (pre-dispatch coverage extraction)"
+
+contracts:
+  - stage1-output-schemas/sparse-u-state-six-state-sensitivity-output
+  - stage1-output-schemas/sparse-u-state-six-state-sensitivity-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker must implement the binding tests and clear pending before committing
+  the result JSON. If binding implementation is blocked, the Worker reports
+  Partial and leaves the result unaccepted for paper claims.
