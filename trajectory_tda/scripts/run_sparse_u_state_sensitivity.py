@@ -310,7 +310,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run sparse U-state six-state GMM sensitivity.")
     parser.add_argument("--proj-root", type=Path, default=PROJ_ROOT)
     parser.add_argument("--worktree-root", type=Path, default=WORKTREE_ROOT)
-    parser.add_argument("--run-date", default="2026-06-06")
+    parser.add_argument("--run-date", default=datetime.now(UTC).date().isoformat())
     return parser.parse_args()
 
 

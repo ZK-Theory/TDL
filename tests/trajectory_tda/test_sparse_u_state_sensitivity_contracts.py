@@ -263,7 +263,9 @@ def test_sparse_u_state_sensitivity_json_validation_dispatch() -> None:
     )
     assert _load_contract(SCHEMA_REL)["binding"]["test_function"] == "test_sparse_u_state_sensitivity_output_schema"
 
-    for json_path in _matched_jsons(ov["applies_to_glob"]):
+    matched = _matched_jsons(ov["applies_to_glob"])
+    assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
+    for json_path in matched:
         payload = json.loads(json_path.read_text(encoding="utf-8"))
         _assert_valid_sparse_payload(payload)
 
