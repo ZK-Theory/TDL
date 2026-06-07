@@ -93,6 +93,33 @@ Headline categories:
 - [ ] Move Mapper sensitivity grid and heavy pipeline detail to the supplement
 - [ ] Prepare JRSS-A submission package and arXiv metadata (LaTeX class
       `papers/style_guides/JRSS/statsoc.cls`)
+- [x] **T1.33 — FOO topology signature (complete 2026-06-02, PR #30).**
+      SUPPORT + SIGNAL_NOT_TOPOLOGY_SPECIFIC (p=1/5001, constrained-shuffle,
+      B=5000). All 3 local-PH ICCs strictly above zero. Comparator arms
+      (raw 90-D bigram, 10-D occupancy) match the topological arm — signal
+      is detectable but not topology-specific. §4.5.x prose direction locked:
+      "detectable FOO trajectory-geometry signal that topology captures but
+      does not uniquely identify." Vault [RESULT] + [DECISION] 2026-06-02.
+- [x] **T1.34 — Tier-2 escape regression (complete 2026-06-03, PR #31).**
+      GLMM headline withdrawn (pathological sigma_u=35.6066, ICC=0.9974 — IPW
+      absorption). Fallback to design-based svyglm (Option A). Rubin-pooled
+      (m=20): `regime_initR6` log-OR = 3.5516; OR gate accepted (>1);
+      direction consistent with T1.20 baseline. T1.34b: NS-SEC x regime
+      cross-tab N=7,275, no sparse cells. T1.34c: full-sample FOO
+      sigma_foo = 0.1702, 95% CI [0.0001, 36.9459] — strictly above zero
+      but too wide for a strong variance-component claim. §S8 reports this as
+      fragile, specification-sensitive disclosure; the main family-origin
+      contribution rests on local trajectory-geometry analysis plus
+      non-topology-specific comparator checks.
+      Vault [RESULT]×2 + [DECISION] 2026-06-03.
+- [x] **T1.35 — FOO transparency supplement (complete 2026-06-03, PR #31).**
+      Corrected power simulation (boundary-mixture reference, ICC=0
+      calibration). Engine not calibrated (type-I=0.951 at ICC=0): no
+      minimum-detectable-ICC claim reported. Corrected sibling concordance:
+      κ=0.0445, 95% bootstrap CI [−0.0552, 0.1952]; 396 pairs (was 342
+      before ordered-pairs correction). σ_foo=6.23 flagged as separation
+      artifact. §S8 framing: non-estimability — T1.21/T1.34/T1.35 are one
+      consistent story. Vault [RESULT] 2026-06-03c.
 - [x] **Pre-reg #5 redo amendment closure — Outcome A locked (2026-05-31).**
       Both length-matching strategies reject H₁ W₂ at α=0.05 under the
       external-indexing dedup methodology (truncate p=0.001 vs the
