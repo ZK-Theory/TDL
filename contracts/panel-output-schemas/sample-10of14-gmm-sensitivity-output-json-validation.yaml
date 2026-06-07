@@ -1,6 +1,6 @@
 id: sample-10of14-gmm-sensitivity-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for T1.27 gap-tolerant 10-of-14 GMM sensitivity

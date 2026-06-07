@@ -1,6 +1,6 @@
 id: sample-10of14-gmm-sensitivity-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.27 gap-tolerant 10-of-14 sample sensitivity (GMM only).

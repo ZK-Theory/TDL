@@ -1,0 +1,562 @@
+{
+  "schema_version": "stage1/sample-10of14-gmm-sensitivity/v1",
+  "generated_at": "2026-06-07T11:41:33.630650+00:00",
+  "task": "T1.27 gap-tolerant 10-of-14 GMM sensitivity",
+  "pre_registration": "2026-06-07 T1.27 pre-registration: results/panel_methodology/selection_sensitivity/pre_registrations_2026-06-07.json",
+  "inputs": {
+    "eligible_population_source": "UKHLS waves a-n (2009-2022) indresp/hhresp valid employment-income states",
+    "original_gmm_labels_source": "results/trajectory_tda_integration/05_analysis.json[gmm_labels]",
+    "canonical_trajectory_source": "results/trajectory_tda_integration/01_trajectories_sequences.json",
+    "n_eligible": 97269,
+    "git_head": "7db2eaed57468aee909b8bad270af6cef0f5afb9"
+  },
+  "params": {
+    "presence_rule": "10-of-14",
+    "min_present_waves": 10,
+    "reference_waves": 14,
+    "waves": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f",
+      "g",
+      "h",
+      "i",
+      "j",
+      "k",
+      "l",
+      "m",
+      "n"
+    ],
+    "length_variance_standardisation": true,
+    "length_variance_standardisation_note": "Unigram and bigram features are within-trajectory frequencies, so observed 10-14 wave sequences are compared on normalised state/transition rates.",
+    "pca_dim": 20,
+    "pca_svd_solver": "full",
+    "frozen_loadings": true,
+    "gmm_k": 7,
+    "gmm_covariance_type": "full",
+    "gmm_n_init": 5,
+    "gmm_max_iter": 200,
+    "seed": 42,
+    "n_jobs": 4,
+    "parallel_gmm_workers": 4,
+    "parallel_wave_ingestion_workers": 4,
+    "high_ari_threshold": 0.9
+  },
+  "results": {
+    "n_sample": 25824,
+    "sample_fraction_of_eligible": 0.26549054683403756,
+    "sample_fraction_target_context": {
+      "wave_a_baseline_eligible": 50982,
+      "fraction_vs_wave_a_baseline": 0.5065356400298144,
+      "target_band": [
+        0.45,
+        0.55
+      ],
+      "note": "The broad any-valid-state denominator is retained as n_eligible. The prompt's ~45-55% target is met against the wave-a baseline population that could have satisfied all 14 UKHLS waves."
+    },
+    "gmm_converged": true,
+    "gmm_n_iter": 38,
+    "gmm_lower_bound": 27.848025383576058,
+    "gmm_label_counts": {
+      "0": 1679,
+      "1": 4051,
+      "2": 2179,
+      "3": 5318,
+      "4": 5575,
+      "5": 1743,
+      "6": 5279
+    },
+    "ari_vs_original": 0.5974233458316296,
+    "alignment": {
+      "basis": "pidp intersection between gap-tolerant sample and canonical metadata row order",
+      "n_original_labels": 27280,
+      "n_gap_tolerant_labels": 25824,
+      "n_common_pidps": 25343,
+      "original_label_counts_common": {
+        "0": 3359,
+        "1": 6833,
+        "2": 5136,
+        "3": 3066,
+        "4": 3280,
+        "5": 1714,
+        "6": 1955
+      },
+      "gap_tolerant_label_counts_common": {
+        "0": 1636,
+        "1": 3982,
+        "2": 2126,
+        "3": 5217,
+        "4": 5512,
+        "5": 1714,
+        "6": 5156
+      }
+    },
+    "decision_rule": {
+      "threshold": 0.9,
+      "outcome": "low_ari",
+      "interpretation": "Presence rule materially shapes regimes; flag Stage-4 Option A as consequential."
+    },
+    "runtime_seconds": 82.83646990000125,
+    "wall_time_estimate": {
+      "estimate_before_full_run": "Expected under 30 minutes; no long-run flag required.",
+      "actual_seconds": 82.83646990000125
+    }
+  },
+  "baseline_comparison": [
+    {
+      "characteristic": "age_at_entry",
+      "type": "numeric",
+      "included": {
+        "n_nonmissing": 25642,
+        "mean": 46.23945090086577,
+        "sd": 16.048090061701213,
+        "median": 46.0
+      },
+      "excluded": {
+        "n_nonmissing": 69163,
+        "mean": 41.21916342553099,
+        "sd": 19.699376625026662,
+        "median": 38.0
+      }
+    },
+    {
+      "characteristic": "sex",
+      "type": "categorical",
+      "included": {
+        "n_nonmissing": 25824,
+        "levels": {
+          "1": {
+            "n": 11347,
+            "pct": 0.43939745972738536
+          },
+          "2": {
+            "n": 14477,
+            "pct": 0.5606025402726146
+          }
+        }
+      },
+      "excluded": {
+        "n_nonmissing": 71445,
+        "levels": {
+          "-1": {
+            "n": 1,
+            "pct": 1.3996780740429702e-05
+          },
+          "-2": {
+            "n": 2,
+            "pct": 2.7993561480859404e-05
+          },
+          "-9": {
+            "n": 68,
+            "pct": 0.0009517810903492197
+          },
+          "1": {
+            "n": 34579,
+            "pct": 0.4839946812233186
+          },
+          "2": {
+            "n": 36795,
+            "pct": 0.5150115473441108
+          }
+        }
+      }
+    },
+    {
+      "characteristic": "initial_hiqual_dv",
+      "type": "categorical",
+      "included": {
+        "n_nonmissing": 25824,
+        "levels": {
+          "-8": {
+            "n": 162,
+            "pct": 0.006273234200743495
+          },
+          "-9": {
+            "n": 35,
+            "pct": 0.0013553283767038413
+          },
+          "1": {
+            "n": 6515,
+            "pct": 0.25228469640644363
+          },
+          "2": {
+            "n": 3061,
+            "pct": 0.11853314745972739
+          },
+          "3": {
+            "n": 5062,
+            "pct": 0.1960192069392813
+          },
+          "4": {
+            "n": 5467,
+            "pct": 0.21170229244114003
+          },
+          "5": {
+            "n": 2404,
+            "pct": 0.09309169764560099
+          },
+          "9": {
+            "n": 3118,
+            "pct": 0.12074039653035935
+          }
+        }
+      },
+      "excluded": {
+        "n_nonmissing": 71445,
+        "levels": {
+          "-8": {
+            "n": 1287,
+            "pct": 0.018013856812933025
+          },
+          "-9": {
+            "n": 2035,
+            "pct": 0.02848344880677444
+          },
+          "1": {
+            "n": 13434,
+            "pct": 0.1880327524669326
+          },
+          "2": {
+            "n": 6060,
+            "pct": 0.08482049128700399
+          },
+          "3": {
+            "n": 14063,
+            "pct": 0.19683672755266288
+          },
+          "4": {
+            "n": 17251,
+            "pct": 0.24145846455315279
+          },
+          "5": {
+            "n": 5807,
+            "pct": 0.08127930575967528
+          },
+          "9": {
+            "n": 11508,
+            "pct": 0.161074952760865
+          }
+        }
+      }
+    },
+    {
+      "characteristic": "initial_employment_status",
+      "type": "categorical",
+      "included": {
+        "n_nonmissing": 25824,
+        "levels": {
+          "E": {
+            "n": 15670,
+            "pct": 0.6067998760842627
+          },
+          "I": {
+            "n": 8909,
+            "pct": 0.34498915737298635
+          },
+          "U": {
+            "n": 1245,
+            "pct": 0.04821096654275093
+          }
+        }
+      },
+      "excluded": {
+        "n_nonmissing": 71445,
+        "levels": {
+          "E": {
+            "n": 34028,
+            "pct": 0.4762824550353419
+          },
+          "I": {
+            "n": 32210,
+            "pct": 0.45083630764924065
+          },
+          "U": {
+            "n": 5207,
+            "pct": 0.07288123731541746
+          }
+        }
+      }
+    },
+    {
+      "characteristic": "initial_income_band",
+      "type": "categorical",
+      "included": {
+        "n_nonmissing": 25824,
+        "levels": {
+          "H": {
+            "n": 14607,
+            "pct": 0.5656366171003717
+          },
+          "L": {
+            "n": 4758,
+            "pct": 0.18424721189591078
+          },
+          "M": {
+            "n": 6459,
+            "pct": 0.25011617100371747
+          }
+        }
+      },
+      "excluded": {
+        "n_nonmissing": 71445,
+        "levels": {
+          "H": {
+            "n": 35884,
+            "pct": 0.5022604800895794
+          },
+          "L": {
+            "n": 16445,
+            "pct": 0.23017705927636645
+          },
+          "M": {
+            "n": 19116,
+            "pct": 0.26756246063405414
+          }
+        }
+      }
+    },
+    {
+      "characteristic": "birth_cohort",
+      "type": "categorical",
+      "included": {
+        "n_nonmissing": 25824,
+        "levels": {
+          "1940s": {
+            "n": 4292,
+            "pct": 0.16620198265179678
+          },
+          "1950s": {
+            "n": 4986,
+            "pct": 0.19307620817843865
+          },
+          "1960s": {
+            "n": 5562,
+            "pct": 0.21538104089219332
+          },
+          "1970s": {
+            "n": 4488,
+            "pct": 0.1737918215613383
+          },
+          "1980s": {
+            "n": 2945,
+            "pct": 0.1140412019826518
+          },
+          "1990+": {
+            "n": 1445,
+            "pct": 0.055955700123915736
+          },
+          "pre1940": {
+            "n": 2106,
+            "pct": 0.08155204460966543
+          }
+        }
+      },
+      "excluded": {
+        "n_nonmissing": 71348,
+        "levels": {
+          "1940s": {
+            "n": 6072,
+            "pct": 0.08510399730896451
+          },
+          "1950s": {
+            "n": 7652,
+            "pct": 0.10724897684588215
+          },
+          "1960s": {
+            "n": 10238,
+            "pct": 0.14349386107529294
+          },
+          "1970s": {
+            "n": 11037,
+            "pct": 0.1546924931322532
+          },
+          "1980s": {
+            "n": 13548,
+            "pct": 0.18988619162415205
+          },
+          "1990+": {
+            "n": 15465,
+            "pct": 0.21675449907495656
+          },
+          "pre1940": {
+            "n": 7336,
+            "pct": 0.10281998093849863
+          }
+        }
+      }
+    }
+  ],
+  "representation_provenance": {
+    "canonical_n": 27280,
+    "raw_dims": 90,
+    "pca_dim": 20,
+    "pca_svd_solver": "full",
+    "pca_explained_variance": 0.48822522752636305,
+    "sign_flips_against_canonical_embeddings": [
+      13
+    ],
+    "embedding_refit_max_abs_diff": 18.875197215828543,
+    "embedding_refit_mean_abs_diff": 0.12660071225362726
+  },
+  "extraction_provenance": {
+    "ukhl_waves": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+      "f",
+      "g",
+      "h",
+      "i",
+      "j",
+      "k",
+      "l",
+      "m",
+      "n"
+    ],
+    "ukhl_years": [
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022
+    ],
+    "n_person_year_rows": 559970,
+    "wave_input_rows": {
+      "a": {
+        "indresp": 50994,
+        "hhresp": 30169,
+        "valid_merged": 50982
+      },
+      "b": {
+        "indresp": 54568,
+        "hhresp": 30484,
+        "valid_merged": 54551
+      },
+      "c": {
+        "indresp": 49692,
+        "hhresp": 27751,
+        "valid_merged": 49658
+      },
+      "d": {
+        "indresp": 47074,
+        "hhresp": 25817,
+        "valid_merged": 47027
+      },
+      "e": {
+        "indresp": 44837,
+        "hhresp": 24325,
+        "valid_merged": 44799
+      },
+      "f": {
+        "indresp": 45192,
+        "hhresp": 24454,
+        "valid_merged": 44284
+      },
+      "g": {
+        "indresp": 42170,
+        "hhresp": 23033,
+        "valid_merged": 41758
+      },
+      "h": {
+        "indresp": 39294,
+        "hhresp": 21746,
+        "valid_merged": 38672
+      },
+      "i": {
+        "indresp": 36058,
+        "hhresp": 20048,
+        "valid_merged": 35066
+      },
+      "j": {
+        "indresp": 34319,
+        "hhresp": 19252,
+        "valid_merged": 33460
+      },
+      "k": {
+        "indresp": 32008,
+        "hhresp": 18139,
+        "valid_merged": 31000
+      },
+      "l": {
+        "indresp": 29271,
+        "hhresp": 16856,
+        "valid_merged": 28062
+      },
+      "m": {
+        "indresp": 27998,
+        "hhresp": 16156,
+        "valid_merged": 26810
+      },
+      "n": {
+        "indresp": 35471,
+        "hhresp": 21385,
+        "valid_merged": 33841
+      }
+    },
+    "income_medians_by_year": {
+      "2009": 2216.34008789063,
+      "2010": 2427.42993164063,
+      "2011": 2544.4449462890652,
+      "2012": 2627.42993164063,
+      "2013": 2724.830078125,
+      "2014": 2866.3798828125,
+      "2015": 2894.800048828125,
+      "2016": 2941.0400390625,
+      "2017": 3033.0400390625,
+      "2018": 3094.9549560546902,
+      "2019": 3203.0,
+      "2020": 3307.15991210938,
+      "2021": 3352.169921875,
+      "2022": 3529.40991210938
+    }
+  },
+  "gmm_multistart_candidates": [
+    {
+      "seed": 942484272,
+      "converged": true,
+      "n_iter": 38,
+      "lower_bound": 27.848025383576058
+    },
+    {
+      "seed": 191664963,
+      "converged": true,
+      "n_iter": 25,
+      "lower_bound": 26.48358393651134
+    },
+    {
+      "seed": 1662057957,
+      "converged": true,
+      "n_iter": 60,
+      "lower_bound": 25.679979570247415
+    },
+    {
+      "seed": 929893137,
+      "converged": true,
+      "n_iter": 29,
+      "lower_bound": 23.4126820725797
+    },
+    {
+      "seed": 1405681631,
+      "converged": true,
+      "n_iter": 30,
+      "lower_bound": 23.07896275410906
+    }
+  ],
+  "checkpoint": {
+    "gmm_multistart_checkpoint": "results\\panel_methodology\\selection_sensitivity\\gmm_multistart_checkpoint_2026-06-07.json"
+  }
+}

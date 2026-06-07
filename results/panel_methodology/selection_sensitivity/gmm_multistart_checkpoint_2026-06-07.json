@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-06-07T11:41:33.546288+00:00",
+  "params": {
+    "gmm_k": 7,
+    "gmm_covariance_type": "full",
+    "gmm_n_init": 5,
+    "gmm_max_iter": 200,
+    "seed": 42,
+    "parallel_workers": 4,
+    "parallel_init_seeds": [
+      191664963,
+      1662057957,
+      1405681631,
+      942484272,
+      929893137
+    ]
+  },
+  "candidates": [
+    {
+      "seed": 942484272,
+      "converged": true,
+      "n_iter": 38,
+      "lower_bound": 27.848025383576058
+    },
+    {
+      "seed": 191664963,
+      "converged": true,
+      "n_iter": 25,
+      "lower_bound": 26.48358393651134
+    },
+    {
+      "seed": 1662057957,
+      "converged": true,
+      "n_iter": 60,
+      "lower_bound": 25.679979570247415
+    },
+    {
+      "seed": 929893137,
+      "converged": true,
+      "n_iter": 29,
+      "lower_bound": 23.4126820725797
+    },
+    {
+      "seed": 1405681631,
+      "converged": true,
+      "n_iter": 30,
+      "lower_bound": 23.07896275410906
+    }
+  ],
+  "selected_seed": 942484272
+}
