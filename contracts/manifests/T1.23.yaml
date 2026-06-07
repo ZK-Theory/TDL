@@ -1,4 +1,4 @@
-﻿scope_id: T1.23
+scope_id: T1.23
 scope_description: >
   ARI normalisation for P01-A reviewer response B9: reconstruct H0 tree-cut
   labels at eps*=0.54 from canonical embeddings, compare to locked GMM labels,

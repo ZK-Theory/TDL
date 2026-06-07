@@ -1,3 +1,6 @@
+# Research context: TDA-Research/03-Papers/P01-A-JRSSA/_project.md
+# Purpose: Normalised ARI (observed vs exact fixed-margin maximum) with
+#          permutation-null SE and bootstrap CI for H0 components vs GMM regimes.
 """Normalised ARI uncertainty for H0 components versus GMM regimes.
 
 Run from the task worktree root:
@@ -25,7 +28,7 @@ from scipy.sparse.csgraph import connected_components
 from sklearn.metrics import adjusted_rand_score
 from sklearn.neighbors import radius_neighbors_graph
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
 WORKTREE = Path.cwd()
 
 DEFAULT_EMBEDDINGS_PATH = PROJ_ROOT / "results/trajectory_tda_integration/embeddings.npy"
