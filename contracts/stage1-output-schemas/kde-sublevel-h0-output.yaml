@@ -1,0 +1,51 @@
+id: kde-sublevel-h0-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.11 KDE sub-level-set H0 density-mode positive complement.
+  The result computes sub-level-set persistence of a kernel-density estimator
+  on the PCA-20D trajectory embedding (cubical filtration on a fixed grid),
+  reports the H0 persistence summary and a tree-cut at prominence consistent
+  with k=7, and compares the resulting partition to the GMM regimes by ARI.
+
+spec_citation:
+  source: "P01-A response plan section 3 (H3); Spec 'H0 framing' (KDE sub-level-set H0 positive complement)"
+  vault_entry_date: "2026-06-07"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/density_topology/sublevel_kde_h0_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/kde-sublevel-h0/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.11 KDE sub-level-set H0'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-07 Stage-1 auxiliary-diagnostics pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain canonical_embedding_source, baseline_gmm_labels_source, n_trajectories, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain bandwidth_rule (str), grid_resolution, k_prominence == 7, seed == 42, and frozen_loadings == true."
+    - name: results
+      type: "dict[str, ...]"
+      description: "MUST include n_h0_features (int >= 0), tree_cut_k == 7, ari_vs_gmm (float in [-1, 1]), and substantial_recovery (bool; true iff ari_vs_gmm > 0.3)."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embedding must use frozen PCA loadings (post-T1.37), never per-call refit."
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py"
+  test_function: "test_kde_sublevel_h0_output_schema"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where
+    (a) params.k_prominence != 7 or params.seed != 42; (b) results.tree_cut_k
+    != 7; (c) results.ari_vs_gmm is outside [-1, 1]; (d) results.substantial_recovery
+    disagrees with results.ari_vs_gmm > 0.3; or (e) a forbidden key is present.

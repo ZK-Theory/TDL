@@ -1,0 +1,28 @@
+id: markov2-alpha-sweep-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for T1.8 Markov-2 alpha-sweep summary JSONs. Any
+  staged JSON under results/trajectory_tda_integration/post_audit matching
+  markov2_alpha_sweep_summary_*.json must conform to the
+  markov2-alpha-sweep-output schema, ensuring all four alpha values across
+  both datasets, frozen-loadings provenance, and p-value bounds are present.
+
+spec_citation:
+  source: "P01-B response plan section 11 (M5); Spec 'Markov-2 null with explicit Laplace smoothing'"
+  vault_entry_date: "2026-06-07"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_*.json"
+  schema_contracts:
+    - markov2-alpha-sweep-output
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py"
+  test_function: "test_markov2_alpha_sweep_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_*.json
+    is dispatched to the markov2-alpha-sweep-output schema; non-matching
+    post_audit JSONs are not accidentally captured.

@@ -1,0 +1,21 @@
+scope_id: T1.11
+scope_description: >
+  KDE sub-level-set H0 density-mode positive complement for P01-A H3: compute
+  sub-level-set persistence of a kernel-density estimator on the PCA-20D
+  trajectory embedding (frozen loadings), report the H0 summary and a
+  tree-cut at prominence consistent with k=7, and compare the partition to
+  the GMM regimes by ARI (substantial recovery iff ARI > 0.3).
+authored: "2026-06-07"
+authored_by: "Manager 9 (pre-dispatch coverage extraction)"
+
+contracts:
+  - stage1-output-schemas/kde-sublevel-h0-output
+  - stage1-output-schemas/kde-sublevel-h0-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker must implement the binding tests in
+  tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py and clear
+  pending only after the binding tests exist and pass. If binding
+  implementation is blocked, the Worker reports Partial and leaves the
+  result unaccepted for paper claims.

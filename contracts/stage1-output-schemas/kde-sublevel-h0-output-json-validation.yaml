@@ -1,0 +1,28 @@
+id: kde-sublevel-h0-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for T1.11 KDE sub-level-set H0 JSONs. Any staged
+  JSON under results/trajectory_tda_integration/density_topology matching
+  sublevel_kde_h0_*.json must conform to the kde-sublevel-h0-output schema,
+  ensuring the H0 feature summary, k=7 tree-cut, and ARI-vs-GMM comparison
+  are present and within bounds.
+
+spec_citation:
+  source: "P01-A response plan section 3 (H3); Spec 'H0 framing'"
+  vault_entry_date: "2026-06-07"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_integration/density_topology/sublevel_kde_h0_*.json"
+  schema_contracts:
+    - kde-sublevel-h0-output
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py"
+  test_function: "test_kde_sublevel_h0_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/trajectory_tda_integration/density_topology/sublevel_kde_h0_*.json
+    is dispatched to the kde-sublevel-h0-output schema; non-matching
+    density_topology JSONs are not accidentally captured.

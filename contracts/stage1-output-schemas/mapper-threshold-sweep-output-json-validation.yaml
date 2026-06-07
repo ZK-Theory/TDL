@@ -1,0 +1,28 @@
+id: mapper-threshold-sweep-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for T1.10 Mapper threshold-sweep JSONs. Any staged
+  JSON under results/trajectory_tda_integration/mapper_threshold matching
+  sub_regime_thresh_sweep_*.json must conform to the
+  mapper-threshold-sweep-output schema, ensuring all three |z| thresholds,
+  permutation counts, and BH-corrected node counts are present.
+
+spec_citation:
+  source: "P01-A response plan section B12; Spec 'Mapper threshold sensitivity'"
+  vault_entry_date: "2026-06-07"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_*.json"
+  schema_contracts:
+    - mapper-threshold-sweep-output
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py"
+  test_function: "test_mapper_threshold_sweep_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_*.json
+    is dispatched to the mapper-threshold-sweep-output schema; non-matching
+    mapper_threshold JSONs are not accidentally captured.

@@ -1,0 +1,57 @@
+id: markov2-alpha-sweep-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.8 Markov-2 Laplace-smoothing alpha sensitivity sweep.
+  The consolidated summary JSON reports, for alpha in {0, 0.5, 1, 5} crossed
+  with datasets {usoc, bhps} at L=5000 under frozen PCA loadings, the total
+  persistence, the mean obs-null Wasserstein-2 distance, and the permutation
+  p-value, plus a stability assessment used to decide whether alpha=1 remains
+  the canonical smoothing constant.
+
+spec_citation:
+  source: "P01-B response plan section 11 (M5); Spec 'Markov-2 null with explicit Laplace smoothing'; uses T0.4 smoothing implementation"
+  vault_entry_date: "2026-06-07"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/markov2-alpha-sweep/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.8 Markov-2 alpha sensitivity sweep'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-07 Stage-1 auxiliary-diagnostics pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain canonical_embedding_source, baseline_gmm_labels_source, n_trajectories, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain alphas exactly [0, 0.5, 1, 5], L == 5000, B >= 1000, seed == 42, datasets exactly ['usoc', 'bhps'], frozen_loadings == true, and p_value_formula == '(r+1)/(B+1)'."
+    - name: results
+      type: "list[dict]"
+      description: "MUST contain exactly 8 entries (4 alphas x 2 datasets). Each entry MUST include alpha in {0, 0.5, 1, 5}, dataset in {'usoc','bhps'}, total_persistence (float), w2_obs_null (float >= 0), and p_value (float in [0, 1])."
+    - name: stability
+      type: "dict[str, ...]"
+      description: "Conclusion-stability assessment. MUST include conclusion_stable (bool) and canonical_alpha (numeric; == 1 when conclusion_stable is true)."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings must use frozen PCA loadings (post-T1.37), never per-call refit."
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py"
+  test_function: "test_markov2_alpha_sweep_output_schema"
+  must_assert: >
+    The validator accepts a conforming 8-entry payload and rejects payloads
+    where (a) params.alphas != [0, 0.5, 1, 5] or params.L != 5000 or
+    params.seed != 42; (b) results does not contain all 8 alpha x dataset
+    cells; (c) any p_value is outside [0, 1] or any w2_obs_null is negative;
+    (d) stability.canonical_alpha != 1 while stability.conclusion_stable is
+    true; or (e) a forbidden key is present.
