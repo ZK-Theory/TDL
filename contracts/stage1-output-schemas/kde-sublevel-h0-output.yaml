@@ -1,6 +1,6 @@
 id: kde-sublevel-h0-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.11 KDE sub-level-set H0 density-mode positive complement.

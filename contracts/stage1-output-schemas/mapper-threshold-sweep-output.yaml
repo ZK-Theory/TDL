@@ -1,6 +1,6 @@
 id: mapper-threshold-sweep-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.10 Mapper sub-regime threshold sensitivity sweep. The

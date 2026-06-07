@@ -1,6 +1,6 @@
 id: mapper-threshold-sweep-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for T1.10 Mapper threshold-sweep JSONs. Any staged
