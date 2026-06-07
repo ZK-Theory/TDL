@@ -1,0 +1,29 @@
+id: sample-10of14-gmm-sensitivity-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for T1.27 gap-tolerant 10-of-14 GMM sensitivity
+  JSONs. Any staged JSON under results/panel_methodology/selection_sensitivity
+  matching gmm_10of14_*.json must conform to the
+  sample-10of14-gmm-sensitivity-output schema, ensuring the presence rule,
+  frozen-loadings provenance, ARI bounds, sample fraction, and the
+  included-vs-excluded baseline comparison are present.
+
+spec_citation:
+  source: "P01-A response plan section S1.5 Component 1; Spec 'Sample correction sequence: Option B for v2'"
+  vault_entry_date: "2026-06-07"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/selection_sensitivity/gmm_10of14_*.json"
+  schema_contracts:
+    - sample-10of14-gmm-sensitivity-output
+
+binding:
+  test_file: "tests/panel/test_sample_10of14_gmm_sensitivity_contracts.py"
+  test_function: "test_sample_10of14_gmm_sensitivity_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/panel_methodology/selection_sensitivity/gmm_10of14_*.json is
+    dispatched to the sample-10of14-gmm-sensitivity-output schema;
+    non-matching selection_sensitivity JSONs are not accidentally captured.

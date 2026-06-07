@@ -1,0 +1,33 @@
+{
+  "pre_registration_date": "2026-06-07",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 9",
+  "entries": [
+    {
+      "name": "T1.27 gap-tolerant 10-of-14 GMM sensitivity",
+      "task": "T1.27",
+      "outcome_contingent": true,
+      "papers": ["P01-A"],
+      "decision_rule": "Re-extract the analytical sample under a gap-tolerant 10-of-14 presence rule with length-variance standardisation; re-embed with FROZEN PCA loadings; refit a k=7 GMM; compute ARI between the gap-tolerant regimes and the original locked regimes. Report the sample size (target ~45-55% of the eligible population) and an included-vs-excluded comparison on at least five baseline characteristics. High ARI indicates the regime structure is stable to the gap-tolerant rule; low ARI indicates the strict-presence rule materially shapes the regimes and Stage-4 Option A is the consequential re-extraction. This is GMM-only sensitivity; no full TDA pipeline rerun.",
+      "prose_direction": {
+        "high_ari": "Report the regime structure as stable to the gap-tolerant presence rule; the strict-presence sample is not a material driver of the regimes.",
+        "low_ari": "Report that the presence rule materially shapes the regimes; flag Stage-4 Option A as the consequential full re-extraction and temper any regime-stability claim."
+      },
+      "key_params": {
+        "presence_rule": "10-of-14",
+        "length_variance_standardisation": true,
+        "pca_dim": 20,
+        "pca_svd_solver": "full",
+        "frozen_loadings": true,
+        "gmm_k": 7,
+        "gmm_covariance_type": "full",
+        "seed": 42
+      },
+      "inputs": [
+        "eligible population (USoc/BHPS waves)",
+        "original locked regimes from results/trajectory_tda_integration/05_analysis.json[gmm_labels]"
+      ],
+      "manifest": "contracts/manifests/T1.27.yaml"
+    }
+  ]
+}

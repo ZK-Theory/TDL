@@ -1,0 +1,22 @@
+scope_id: T1.27
+scope_description: >
+  Gap-tolerant 10-of-14 sample sensitivity (GMM only) for P01-A reviewer
+  response S1.5 Component 1 (Option B, sensitivity-only): re-extract the
+  analytical sample under a gap-tolerant 10-of-14 presence rule with
+  length-variance standardisation, re-embed with frozen PCA loadings, refit a
+  k=7 GMM, compare to the original regimes by ARI, and report an
+  included-vs-excluded baseline comparison. No full TDA pipeline rerun.
+authored: "2026-06-07"
+authored_by: "Manager 9 (pre-dispatch coverage extraction)"
+
+contracts:
+  - panel-output-schemas/sample-10of14-gmm-sensitivity-output
+  - panel-output-schemas/sample-10of14-gmm-sensitivity-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker must implement the binding tests in
+  tests/panel/test_sample_10of14_gmm_sensitivity_contracts.py and clear
+  pending only after the binding tests exist and pass. If binding
+  implementation is blocked, the Worker reports Partial and leaves the
+  result unaccepted for paper claims.
