@@ -533,6 +533,7 @@ def _single_permutation(
     statistic: str,
     markov_order: int,
     embed_kwargs: dict | None,
+    alpha: float = 1.0,
     frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
     dedup: bool = False,
@@ -574,7 +575,14 @@ def _single_permutation(
     elif null_type == "order_shuffle":
         X_perm = _order_shuffle(trajectories or [], rng, embed_kwargs, frozen_models)
     elif null_type == "markov":
-        X_perm = _markov_shuffle(trajectories or [], rng, markov_order, embed_kwargs, frozen_models=frozen_models)
+        X_perm = _markov_shuffle(
+            trajectories or [],
+            rng,
+            markov_order,
+            embed_kwargs,
+            alpha=alpha,
+            frozen_models=frozen_models,
+        )
     elif null_type == "stratified_markov1":
         regime_labels = (metadata or {}).get("regime_labels")
         if regime_labels is None:
@@ -689,6 +697,7 @@ def permutation_test_trajectories(
     n_landmarks: int = 5000,
     statistic: str = "total_persistence",
     markov_order: int = 1,
+    alpha: float = 1.0,
     n_jobs: int = -1,
     seed: int = 42,
     embed_kwargs: dict | None = None,
@@ -706,6 +715,7 @@ def permutation_test_trajectories(
         n_landmarks: Landmarks for subsampling
         statistic: 'total_persistence', 'max_persistence', or 'wasserstein'
         markov_order: Order for Markov null (1 or 2)
+        alpha: Laplace smoothing parameter for Markov-2 nulls
         n_jobs: Number of parallel jobs (-1 = all cores)
         seed: Random seed base
         embed_kwargs: Kwargs passed to ngram_embed for re-embedding nulls
@@ -762,6 +772,7 @@ def permutation_test_trajectories(
             statistic,
             markov_order,
             embed_kwargs,
+            alpha=alpha,
             frozen_models=frozen_models,
             ph_observed=ph_obs if statistic == "wasserstein" else None,
         )
