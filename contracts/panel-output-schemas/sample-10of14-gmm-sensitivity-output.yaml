@@ -1,0 +1,60 @@
+id: sample-10of14-gmm-sensitivity-output
+kind: schema
+pending: false
+
+description: >
+  Schema for the T1.27 gap-tolerant 10-of-14 sample sensitivity (GMM only).
+  The result re-extracts the analytical sample under a gap-tolerant 10-of-14
+  presence rule with length-variance standardisation, re-embeds with FROZEN
+  PCA loadings, refits a k=7 GMM, compares the resulting regimes to the
+  original locked regimes by ARI, and reports an included-vs-excluded
+  comparison on at least five baseline characteristics. No full TDA pipeline
+  rerun (that is the Stage-4 Option A scope).
+
+spec_citation:
+  source: "P01-A response plan section S1.5 Component 1 (Option B sensitivity-only); Spec 'Sample correction sequence: Option B for v2'"
+  vault_entry_date: "2026-06-07"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/selection_sensitivity/gmm_10of14_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/sample-10of14-gmm-sensitivity/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.27 gap-tolerant 10-of-14 GMM sensitivity'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-07 T1.27 pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain eligible_population_source, original_gmm_labels_source (canonical 05_analysis.json), n_eligible, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain presence_rule == '10-of-14', length_variance_standardisation == true, pca_dim == 20, pca_svd_solver == 'full', frozen_loadings == true, gmm_k == 7, gmm_covariance_type == 'full', and seed == 42."
+    - name: results
+      type: "dict[str, ...]"
+      description: "MUST include n_sample (int > 0), sample_fraction_of_eligible (float in [0, 1]), gmm_converged (bool), and ari_vs_original (float in [-1, 1])."
+    - name: baseline_comparison
+      type: "list[dict]"
+      description: "MUST contain at least 5 entries, each with characteristic (str) plus included and excluded summaries, comparing the included vs excluded individuals."
+  forbidden_keys:
+    - name: full_tda_rerun
+      reason: "T1.27 is GMM-only (Option B sensitivity); the full TDA pipeline rerun is Stage-4 Option A, not this Task."
+    - name: per_call_pca
+      reason: "Re-embedding must use frozen PCA loadings to maintain comparability with the original regimes."
+
+binding:
+  test_file: "tests/panel/test_sample_10of14_gmm_sensitivity_contracts.py"
+  test_function: "test_sample_10of14_gmm_sensitivity_output_schema"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where
+    (a) params.presence_rule != '10-of-14' or params.pca_svd_solver != 'full'
+    or params.frozen_loadings != true or params.gmm_k != 7 or params.seed != 42;
+    (b) results.sample_fraction_of_eligible is outside [0, 1]; (c)
+    results.ari_vs_original is outside [-1, 1]; (d) baseline_comparison has
+    fewer than 5 entries; or (e) a forbidden key is present.
