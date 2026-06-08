@@ -1,0 +1,59 @@
+id: h2-positive-control-diagnostics-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.5 auxiliary-diagnostics consolidated summary. The summary
+  JSON records the three distinct numerical checks: (i) H2 persistence at
+  L=2000 (maxdim=2) with its Markov-1 null at n=50; (ii) the positive-control
+  Markov-1 simulation expected to fail to reject (p near 0.5); and (iii) the
+  doubled-n W2 Markov-1 sanity check (n_perms=200, n_nullnull=2000). It binds
+  the calibration acceptance rule for the positive control and the H2 decision
+  rule from the 2026-05-13 H2-Check pre-registration. The three detailed
+  per-diagnostic JSONs remain as raw outputs alongside this summary.
+
+spec_citation:
+  source: "P01-A plan sections 10.2, B1, 8; Spec 'H2 check'; H2-Check pre-registration 2026-05-13"
+  vault_entry_date: "2026-06-08"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/h2_check/diagnostics_summary_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/h2-positive-control-diagnostics/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.5 H2 + positive control + doubled-n W2'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-05-13 H2-Check pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain canonical_embedding_source, fitted_markov1_source, and git_head."
+    - name: h2_check
+      type: "dict[str, ...]"
+      description: "MUST include maxdim == 2, L (int; 2000, or 1000 with a documented fallback_reason str), seed == 42, n_h2_features (int >= 0), total_persistence_h2 (float >= 0), and markov1_null_p (float in [0, 1])."
+    - name: positive_control
+      type: "dict[str, ...]"
+      description: "MUST include null == 'markov-1', seed == 42, frozen_loadings == true, p_h0 (float in [0, 1]), p_h1 (float in [0, 1]), tolerance_band exactly [0.3, 0.7], and calibrated (bool; true iff both p_h0 and p_h1 fall in the tolerance_band)."
+    - name: doubled_n_w2
+      type: "dict[str, ...]"
+      description: "MUST include n_perms == 200, n_nullnull == 2000, L == 5000, seed == 42, p_value (float in [0, 1]), and stable_vs_t1_2 (bool)."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings (incl. the positive-control re-embed) must use frozen PCA loadings, never per-call refit."
+
+binding:
+  test_file: "tests/trajectory_tda/test_t1_5_diagnostics_contracts.py"
+  test_function: "test_h2_positive_control_diagnostics_output_schema"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where
+    (a) h2_check.maxdim != 2 or any seed != 42; (b) positive_control.tolerance_band
+    != [0.3, 0.7] or positive_control.calibrated disagrees with both p-values
+    lying in the band; (c) doubled_n_w2.n_perms != 200 or doubled_n_w2.n_nullnull
+    != 2000; (d) any p-value is outside [0, 1] or any persistence value is
+    negative; or (e) a forbidden key is present.
