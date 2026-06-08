@@ -1,3 +1,7 @@
+# Research context: TDA-Research/03-Papers/P01/_project.md
+# Purpose: T1.27 gap-tolerant 10-of-14 presence-rule GMM sensitivity — re-embed
+#   under frozen loadings and compare the refit k=7 regime partition to the
+#   locked regimes by ARI, to test whether the wave-presence rule shapes regimes.
 """Gap-tolerant 10-of-14 GMM sensitivity for the trajectory regimes."""
 
 from __future__ import annotations
@@ -5,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import time
 from dataclasses import dataclass
@@ -25,7 +30,7 @@ from trajectory_tda.embedding.ngram_embed import _compute_bigrams, _compute_unig
 
 LOGGER = logging.getLogger(__name__)
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
 CANONICAL_DIR = PROJ_ROOT / "results/trajectory_tda_integration"
 DATA_TAB = PROJ_ROOT / "data/UKDA-6614-tab/tab"
 UKHLS_DIR = DATA_TAB / "ukhls"
@@ -68,6 +73,16 @@ GMM_COVARIANCE_TYPE = "full"
 
 @dataclass(frozen=True)
 class WaveFrame:
+    """One UKHLS wave's merged individual/household frame and row provenance.
+
+    Attributes:
+        wave: UKHLS wave letter (a-n).
+        year: Calendar year of the wave.
+        frame: Merged valid employment-income state rows for the wave.
+        n_indresp_rows: Row count of the individual-response input.
+        n_hhresp_rows: Row count of the household-response input.
+    """
+
     wave: str
     year: int
     frame: pd.DataFrame
@@ -247,6 +262,14 @@ def _metadata_from_checkpoint(path: Path) -> pd.DataFrame:
 
 
 def build_raw_ngram_features(trajectories: list[list[str]]) -> NDArray[np.float64]:
+    """Build the 90-D unigram+bigram frequency features for each trajectory.
+
+    Args:
+        trajectories: Observed state sequences (one list of state codes each).
+
+    Returns:
+        Array of shape (n_trajectories, 90) of within-trajectory n-gram rates.
+    """
     features = np.zeros((len(trajectories), 90), dtype=np.float64)
     for idx, trajectory in enumerate(trajectories):
         features[idx] = np.concatenate([_compute_unigrams(trajectory), _compute_bigrams(trajectory)])
@@ -254,6 +277,16 @@ def build_raw_ngram_features(trajectories: list[list[str]]) -> NDArray[np.float6
 
 
 def fit_frozen_reference_transform() -> tuple[StandardScaler, PCA, dict[str, Any], pd.DataFrame, NDArray[np.int64]]:
+    """Fit the frozen scaler + PCA-20 once on the canonical checkpoint.
+
+    The reference transform is fit on the canonical 27,280-row trajectory
+    checkpoint and applied transform-only to the sensitivity sample (no per-call
+    refit), per the post-T1.37 frozen-loadings rule.
+
+    Returns:
+        Tuple of (fitted scaler, fitted PCA, provenance dict, canonical
+        metadata frame, canonical GMM labels read from 05_analysis.json).
+    """
     canonical_sequences = json.loads((CANONICAL_DIR / "01_trajectories_sequences.json").read_text(encoding="utf-8"))
     canonical_metadata = _metadata_from_checkpoint(CANONICAL_DIR / "01_trajectories.json")
     with (CANONICAL_DIR / "05_analysis.json").open("r", encoding="utf-8") as handle:
@@ -313,6 +346,16 @@ def fit_gmm_parallel(
     n_jobs: int,
     checkpoint_path: Path,
 ) -> tuple[GaussianMixture, list[dict[str, Any]]]:
+    """Fit k=7 full-covariance GMMs in parallel and return the best by lower bound.
+
+    Args:
+        embedding: Frozen PCA-20 embedding of the sensitivity sample.
+        n_jobs: Worker count for the parallel multi-start fit.
+        checkpoint_path: Path to write the per-start candidate checkpoint.
+
+    Returns:
+        Tuple of (best-lower-bound fitted GMM, list of all candidate records).
+    """
     rng = np.random.default_rng(SEED)
     init_seeds = [int(seed) for seed in rng.integers(0, np.iinfo(np.int32).max, size=GMM_N_INIT)]
     workers = max(1, min(n_jobs, GMM_N_INIT))
@@ -368,6 +411,14 @@ def _categorical_summary(series: pd.Series) -> dict[str, Any]:
 
 
 def build_baseline_comparison(eligible: pd.DataFrame) -> list[dict[str, Any]]:
+    """Summarise included vs excluded baseline characteristics.
+
+    Args:
+        eligible: Eligible population frame with an ``included_10of14`` flag.
+
+    Returns:
+        One summary dict per characteristic with included/excluded statistics.
+    """
     included = eligible[eligible["included_10of14"]].copy()
     excluded = eligible[~eligible["included_10of14"]].copy()
     specs = [
@@ -405,6 +456,15 @@ def _git_head() -> str:
 
 
 def validate_sample_10of14_gmm_output(payload: dict[str, Any]) -> None:
+    """Validate a T1.27 result payload against the pinned output contract.
+
+    Args:
+        payload: The result dict to validate.
+
+    Raises:
+        ValueError: If any required key, pinned parameter, range, or forbidden-key
+            rule in the contract is violated.
+    """
     errors: list[str] = []
     required = [
         "schema_version",
@@ -481,6 +541,14 @@ def validate_sample_10of14_gmm_output(payload: dict[str, Any]) -> None:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    """Execute the full T1.27 sensitivity pipeline and write the result JSON.
+
+    Args:
+        args: Parsed CLI arguments (``date``, ``n_jobs``, ``high_ari_threshold``).
+
+    Returns:
+        The validated result payload that was written to disk.
+    """
     started = time.perf_counter()
     output_dir = Path.cwd() / OUT_DIR_REL
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -596,7 +664,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "extraction_provenance": sample_info["provenance"],
         "gmm_multistart_candidates": candidates,
         "checkpoint": {
-            "gmm_multistart_checkpoint": str(checkpoint_path.relative_to(Path.cwd())),
+            "gmm_multistart_checkpoint": checkpoint_path.relative_to(Path.cwd()).as_posix(),
         },
     }
     validate_sample_10of14_gmm_output(result)
@@ -606,6 +674,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns:
+        Parsed argument namespace.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", default=datetime.now(UTC).date().isoformat())
     parser.add_argument("--n-jobs", type=int, default=4)
@@ -614,6 +687,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """CLI entry point: configure logging, parse args, and run the pipeline."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
     args = parse_args()
     if args.n_jobs < 4:

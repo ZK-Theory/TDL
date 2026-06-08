@@ -1,3 +1,6 @@
+# Research context: TDA-Research/03-Papers/P01/_project.md
+# Purpose: Contract bindings for the T1.27 gap-tolerant 10-of-14 GMM sensitivity
+#   result schema and JSON-validation dispatch.
 """Contract bindings for gap-tolerant 10-of-14 GMM sensitivity results."""
 
 from __future__ import annotations
@@ -40,7 +43,9 @@ def _valid_payload() -> dict[str, Any]:
         "pre_registration": "2026-06-07 T1.27 pre-registration",
         "inputs": {
             "eligible_population_source": "UKHLS waves a-n valid employment-income states",
-            "original_gmm_labels_source": "results/trajectory_tda_integration/05_analysis.json[gmm_labels]",
+            "original_gmm_labels_source": (
+                "results/trajectory_tda_integration/05_analysis.json[gmm_labels]"
+            ),
             "n_eligible": 100,
             "git_head": "abc123",
         },
@@ -125,6 +130,11 @@ def test_sample_10of14_gmm_sensitivity_output_schema() -> None:
 
 
 def test_sample_10of14_gmm_sensitivity_json_validation_dispatch() -> None:
+    """Dispatch contract targets the result glob and validates matched JSONs.
+
+    Returns:
+        None.
+    """
     output_validation = _load_contract(OUTPUT_VALIDATION_REL)
     ov = output_validation["output_validation"]
     assert ov["applies_to_glob"] == OUTPUT_GLOB
@@ -147,6 +157,11 @@ def test_sample_10of14_gmm_sensitivity_json_validation_dispatch() -> None:
 
 
 def test_sample_10of14_validator_is_pure_for_valid_payload() -> None:
+    """Validator does not mutate a valid payload.
+
+    Returns:
+        None.
+    """
     payload = _valid_payload()
     before = copy.deepcopy(payload)
     _assert_valid(payload)
