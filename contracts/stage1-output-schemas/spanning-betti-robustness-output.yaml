@@ -1,0 +1,58 @@
+id: spanning-betti-robustness-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.9 spanning-individual Betti robustness summary. The
+  consolidated JSON reports, at each epsilon-star in {0.54, 0.65, 0.70, 0.80},
+  the newcomer-vs-spanning comparison in three forms — single-epsilon Betti
+  ratio, AUC ratio over the full filtration, and W2 between H0 diagrams at
+  matched sample sizes — plus a decision on whether the headline (newcomers
+  show more topological structure than spanning individuals) holds consistently
+  across all statistics and all epsilon-star values, per the M3 pre-registration.
+
+spec_citation:
+  source: "P01-B response plan section 9 (M3); Spec 'epsilon-star robustness'; M3 pre-registration 2026-05-13"
+  vault_entry_date: "2026-06-08"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_spanning/knee_robustness/spanning_AUC_W2_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/spanning-betti-robustness/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.9 spanning Betti AUC + W2 + epsilon-star robustness'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-05-13 M3 epsilon-star robustness pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain spanning_source, newcomer_source, knee_algorithm_source (the Task 0.6 formalised knee function), and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain eps_stars exactly [0.54, 0.65, 0.7, 0.8], eps_star_locked == 0.54, seed == 42, and statistics exactly ['single_eps_ratio', 'auc_ratio', 'w2_matched']."
+    - name: results
+      type: "list[dict]"
+      description: "MUST contain exactly 4 entries (one per epsilon-star). Each entry MUST include eps_star in {0.54, 0.65, 0.7, 0.8}, single_eps_ratio (float), auc_ratio (float), w2_matched (float >= 0), and newcomers_gt_spanning (bool; true iff the newcomer summary exceeds spanning at that eps_star for the primary statistic)."
+    - name: decision
+      type: "dict[str, ...]"
+      description: "M3 decision. MUST include consistent (bool; true iff newcomers_gt_spanning agrees across all 4 eps_stars and all 3 statistics) and outcome (str; 'robust' when consistent is true, else 'divergent')."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings must use frozen PCA loadings (post-T1.37), never per-call refit."
+
+binding:
+  test_file: "tests/trajectory_tda/test_t1_9_spanning_robustness_contracts.py"
+  test_function: "test_spanning_betti_robustness_output_schema"
+  must_assert: >
+    The validator accepts a conforming 4-entry payload and rejects payloads
+    where (a) params.eps_stars != [0.54, 0.65, 0.7, 0.8] or params.seed != 42 or
+    params.statistics != ['single_eps_ratio', 'auc_ratio', 'w2_matched'];
+    (b) results does not contain exactly one entry per epsilon-star; (c) any
+    w2_matched is negative; (d) decision.outcome disagrees with decision.consistent
+    ('robust' iff consistent is true); or (e) a forbidden key is present.
