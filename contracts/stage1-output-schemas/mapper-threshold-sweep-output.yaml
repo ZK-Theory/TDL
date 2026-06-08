@@ -1,0 +1,55 @@
+id: mapper-threshold-sweep-output
+kind: schema
+pending: false
+
+description: >
+  Schema for the T1.10 Mapper sub-regime threshold sensitivity sweep. The
+  result recomputes the sub-regime node count at |z| in {1.0, 1.5, 2.0},
+  reports the number of permutations B, and applies a Benjamini-Hochberg FDR
+  correction to per-node z-scores for individual-node identification.
+
+spec_citation:
+  source: "P01-A response plan section B12; Spec 'Mapper threshold sensitivity'"
+  vault_entry_date: "2026-06-07"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/mapper-threshold-sweep/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.10 Mapper threshold sensitivity sweep'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-07 Stage-1 auxiliary-diagnostics pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain mapper_graph_source, baseline_gmm_labels_source, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain z_thresholds exactly [1.0, 1.5, 2.0], B (int >= 1000), seed == 42, and fdr_method == 'benjamini-hochberg'."
+    - name: results
+      type: "list[dict]"
+      description: "MUST contain exactly 3 entries (one per |z| threshold). Each entry MUST include z_threshold in {1.0, 1.5, 2.0}, n_subregime_nodes (int >= 0), B (int >= 1000), and n_bh_significant_nodes (int >= 0, <= n_subregime_nodes)."
+    - name: high_confidence_nodes
+      type: "list[...]"
+      description: "Node ids flagged BH-significant at all three thresholds (may be empty)."
+  forbidden_keys:
+    - name: uncorrected_only
+      reason: "Per-node identification requires BH-corrected z-scores, not raw uncorrected flags alone."
+
+binding:
+  test_file: "tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py"
+  test_function: "test_mapper_threshold_sweep_output_schema"
+  must_assert: >
+    The validator accepts a conforming 3-threshold payload and rejects
+    payloads where (a) params.z_thresholds != [1.0, 1.5, 2.0] or
+    params.fdr_method != 'benjamini-hochberg'; (b) results does not have one
+    entry per threshold; (c) any entry has n_bh_significant_nodes greater
+    than n_subregime_nodes or any negative count; or (d) a forbidden key is
+    present.

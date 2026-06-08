@@ -1,0 +1,21 @@
+scope_id: T1.8
+scope_description: >
+  Markov-2 Laplace-smoothing alpha sensitivity sweep for P01-B M5: run the
+  Markov-2 null at alpha in {0, 0.5, 1, 5} on USoc and BHPS at L=5000 under
+  frozen PCA loadings, report total persistence, mean obs-null Wasserstein-2,
+  and the (r+1)/(B+1) permutation p-value per cell, and assess whether the
+  rejection conclusion is stable across alpha (locking alpha=1 as canonical).
+authored: "2026-06-07"
+authored_by: "Manager 9 (pre-dispatch coverage extraction)"
+
+contracts:
+  - stage1-output-schemas/markov2-alpha-sweep-output
+  - stage1-output-schemas/markov2-alpha-sweep-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker must implement the binding tests in
+  tests/trajectory_tda/test_stage1_aux_diagnostics_contracts.py and clear
+  pending only after the binding tests exist and pass. If binding
+  implementation is blocked, the Worker reports Partial and leaves the
+  result unaccepted for paper claims.

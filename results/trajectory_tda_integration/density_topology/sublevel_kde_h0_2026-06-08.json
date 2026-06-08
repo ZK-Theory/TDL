@@ -1,0 +1,41 @@
+{
+  "schema_version": "stage1/kde-sublevel-h0/v1",
+  "generated_at": "2026-06-08T21:31:16+00:00",
+  "task": "T1.11 KDE sub-level-set H0",
+  "pre_registration": "2026-06-07 Stage-1 auxiliary-diagnostics pre-registration",
+  "inputs": {
+    "canonical_embedding_source": "results/trajectory_tda_integration/embeddings.npy",
+    "baseline_gmm_labels_source": "results/trajectory_tda_integration/05_analysis.json[gmm_labels]",
+    "n_trajectories": 27280,
+    "git_head": "f773016916e7ffb01c9549482487579b39e5cb35"
+  },
+  "params": {
+    "bandwidth_rule": "silverman-on-standardized-pca20-kde-fit-sample",
+    "bandwidth": 0.6626190970210483,
+    "grid_resolution": 50,
+    "k_prominence": 7,
+    "seed": 42,
+    "frozen_loadings": true,
+    "kde_fit_sample_size": 5000,
+    "tree_cut_method": "merge density-gradient basins to nearest of top-k density peaks"
+  },
+  "results": {
+    "n_h0_features": 1,
+    "n_finite_h0_features": 0,
+    "tree_cut_k": 7,
+    "ari_vs_gmm": 0.0,
+    "substantial_recovery": false,
+    "partition_label_counts": {
+      "0": 27280
+    },
+    "density_tree_initial_modes": 6030,
+    "h0_persistence_summary": {
+      "grid_projection": "first_two_standardized_pca_axes_with_remaining_axes_at_median",
+      "grid_resolution": 50,
+      "n_h0_features": 1,
+      "n_finite_h0_features": 0,
+      "max_finite_persistence": 0.0,
+      "median_finite_persistence": 0.0
+    }
+  }
+}

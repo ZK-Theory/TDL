@@ -1,0 +1,60 @@
+{
+  "pre_registration_date": "2026-06-07",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 9",
+  "entries": [
+    {
+      "name": "T1.8 Markov-2 alpha sensitivity sweep",
+      "task": "T1.8",
+      "outcome_contingent": true,
+      "papers": ["P01-B"],
+      "decision_rule": "Run the Markov-2 null at alpha in {0, 0.5, 1, 5} on USoc and BHPS at L=5000 under frozen PCA loadings. If the rejection direction of the Markov-2 W2 test is the same (reject or fail-to-reject) at every alpha for a given dataset, the conclusion is stable and alpha=1 is locked as the canonical smoothing constant via a [DECISION]. If the rejection direction changes across alpha, the alpha-sensitivity is reported as a caveat and alpha=1 is NOT promoted as immaterial.",
+      "prose_direction": {
+        "stable_across_alpha": "Report Markov-2 conclusion as robust to smoothing; cite alpha=1 as canonical with a one-line sensitivity footnote.",
+        "unstable_across_alpha": "Report the alpha-dependence explicitly; do not claim smoothing is immaterial."
+      },
+      "key_params": {
+        "alphas": [0, 0.5, 1, 5],
+        "datasets": ["usoc", "bhps"],
+        "L": 5000,
+        "B": 1000,
+        "seed": 42,
+        "frozen_loadings": true,
+        "p_value_formula": "(r+1)/(B+1)"
+      },
+      "manifest": "contracts/manifests/T1.8.yaml"
+    },
+    {
+      "name": "T1.10 Mapper threshold sensitivity sweep",
+      "task": "T1.10",
+      "outcome_contingent": false,
+      "papers": ["P01-A"],
+      "decision_rule": "Descriptive sensitivity: recompute the Mapper sub-regime node count at |z| in {1.0, 1.5, 2.0}, report B, and BH-correct per-node z-scores. High-confidence sub-regime nodes are those flagged BH-significant at all three thresholds. No prose-direction lock; the result is reported as a robustness sweep.",
+      "key_params": {
+        "z_thresholds": [1.0, 1.5, 2.0],
+        "B": 1000,
+        "seed": 42,
+        "fdr_method": "benjamini-hochberg"
+      },
+      "manifest": "contracts/manifests/T1.10.yaml"
+    },
+    {
+      "name": "T1.11 KDE sub-level-set H0",
+      "task": "T1.11",
+      "outcome_contingent": true,
+      "papers": ["P01-A"],
+      "decision_rule": "Compute KDE sub-level-set H0 on the PCA-20D embedding (frozen loadings), tree-cut at prominence consistent with k=7, and compute ARI against the GMM regimes. ARI > 0.3 indicates substantial recovery of the density-mode regime structure by the correct (density-based) topological summary; ARI <= 0.3 indicates the KDE H0 partition does not substantially recover the GMM regimes.",
+      "prose_direction": {
+        "ari_gt_0_3": "Report the KDE sub-level-set H0 as the correct topological evidence for density-mode regimes (positive complement to the VR H0 connectivity caveat).",
+        "ari_le_0_3": "Report that the density-mode topological summary only partially recovers the GMM regimes; temper the positive-complement framing accordingly."
+      },
+      "key_params": {
+        "k_prominence": 7,
+        "seed": 42,
+        "frozen_loadings": true,
+        "ari_recovery_threshold": 0.3
+      },
+      "manifest": "contracts/manifests/T1.11.yaml"
+    }
+  ]
+}
