@@ -1,4 +1,6 @@
 {
+  "model": "opus",
+  "effortLevel": "xhigh",
   "hooks": {
     "PreToolUse": [
       {
