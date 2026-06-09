@@ -1,0 +1,150 @@
+{
+  "schema_version": "stage1/spanning-betti-robustness/v1",
+  "generated_at": "2026-06-09T10:35:28.865690+00:00",
+  "task": "T1.9 spanning Betti AUC + W2 + epsilon-star robustness",
+  "pre_registration": "2026-05-13 M3 epsilon-star Robustness Check",
+  "inputs": {
+    "spanning_source": "results/trajectory_tda_full/01_trajectories.json::metadata.survey_era == 'spanning'",
+    "newcomer_source": "results/trajectory_tda_full/01_trajectories.json::metadata.survey_era == 'usoc_only'",
+    "knee_algorithm_source": "trajectory_tda.scripts.run_zigzag_sensitivity.detect_eps_star_knee; results/trajectory_tda_zigzag/sensitivity_2d/knee_analysis.json",
+    "git_head": "b28af1683bd903ce7003595bf02ab0179da2756c",
+    "full_embedding_cache": {
+      "status": "reused_existing_proj_root_cache",
+      "embedding_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_full\\embeddings.npy",
+      "metadata_source": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-spanning-betti-robustness\\results\\trajectory_tda_full\\01_trajectories.json",
+      "regeneration_command": "uv run python trajectory_tda/scripts/build_full_checkpoint.py --data-dir trajectory_tda/data --checkpoint results/trajectory_tda_full --min-years 10 --max-gap 2 --pca-dim 20"
+    }
+  },
+  "params": {
+    "eps_stars": [
+      0.54,
+      0.65,
+      0.7,
+      0.8
+    ],
+    "eps_star_locked": 0.54,
+    "seed": 42,
+    "statistics": [
+      "single_eps_ratio",
+      "auc_ratio",
+      "w2_matched"
+    ],
+    "homology_dimension": "H0",
+    "matched_sample_size": 8000,
+    "requested_matched_sample_size": 8000,
+    "matching_rule": "Use matched_n = min(requested_matched_n, n_spanning, n_usoc_only); draw independent simple random samples without replacement with seed offsets 101 (spanning) and 202 (newcomers).",
+    "frozen_loadings": true,
+    "pca_scope": "single full-checkpoint PCA basis; no per-group or per-epsilon PCA refit",
+    "w2_order": 2,
+    "w2_internal_p": 2,
+    "w2_ground_metric": "l2",
+    "auc_filtration": "[0, eps_star]"
+  },
+  "results": [
+    {
+      "eps_star": 0.54,
+      "single_eps_ratio": 1.6,
+      "auc_ratio": 0.9378960191104395,
+      "w2_matched": 2.536260410018281,
+      "newcomers_gt_spanning": true,
+      "all_statistics_support_headline": false,
+      "statistic_support": {
+        "single_eps_ratio": true,
+        "auc_ratio": false,
+        "w2_matched": true
+      },
+      "single_eps": {
+        "spanning_beta0": 30,
+        "newcomer_beta0": 48
+      },
+      "auc": {
+        "filtration_interval": [
+          0.0,
+          0.54
+        ],
+        "spanning_auc_beta0": 1061.5567402511265,
+        "newcomer_auc_beta0": 995.6298407413864
+      }
+    },
+    {
+      "eps_star": 0.65,
+      "single_eps_ratio": 1.5,
+      "auc_ratio": 0.9389603600755404,
+      "w2_matched": 2.536260410018281,
+      "newcomers_gt_spanning": true,
+      "all_statistics_support_headline": false,
+      "statistic_support": {
+        "single_eps_ratio": true,
+        "auc_ratio": false,
+        "w2_matched": true
+      },
+      "single_eps": {
+        "spanning_beta0": 8,
+        "newcomer_beta0": 12
+      },
+      "auc": {
+        "filtration_interval": [
+          0.0,
+          0.65
+        ],
+        "spanning_auc_beta0": 1063.295163419786,
+        "newcomer_auc_beta0": 998.3920095112228
+      }
+    },
+    {
+      "eps_star": 0.7,
+      "single_eps_ratio": 1.25,
+      "auc_ratio": 0.9391089908592571,
+      "w2_matched": 2.536260410018281,
+      "newcomers_gt_spanning": true,
+      "all_statistics_support_headline": false,
+      "statistic_support": {
+        "single_eps_ratio": true,
+        "auc_ratio": false,
+        "w2_matched": true
+      },
+      "single_eps": {
+        "spanning_beta0": 4,
+        "newcomer_beta0": 5
+      },
+      "auc": {
+        "filtration_interval": [
+          0.0,
+          0.7
+        ],
+        "spanning_auc_beta0": 1063.5983791976598,
+        "newcomer_auc_beta0": 998.8348005678558
+      }
+    },
+    {
+      "eps_star": 0.8,
+      "single_eps_ratio": 1.5,
+      "auc_ratio": 0.939175680699411,
+      "w2_matched": 2.536260410018281,
+      "newcomers_gt_spanning": true,
+      "all_statistics_support_headline": false,
+      "statistic_support": {
+        "single_eps_ratio": true,
+        "auc_ratio": false,
+        "w2_matched": true
+      },
+      "single_eps": {
+        "spanning_beta0": 2,
+        "newcomer_beta0": 3
+      },
+      "auc": {
+        "filtration_interval": [
+          0.0,
+          0.8
+        ],
+        "spanning_auc_beta0": 1063.9161914497045,
+        "newcomer_auc_beta0": 999.2042133119011
+      }
+    }
+  ],
+  "decision": {
+    "consistent": false,
+    "outcome": "divergent",
+    "rule": "consistent is true iff every epsilon-star has single_eps_ratio > 1, auc_ratio > 1, and W2(D0_newcomer, D0_spanning) > 0."
+  }
+}

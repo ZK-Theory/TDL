@@ -1,6 +1,6 @@
 id: spanning-betti-robustness-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for T1.9 spanning Betti robustness JSONs. Any staged

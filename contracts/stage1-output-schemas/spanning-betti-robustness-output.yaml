@@ -1,6 +1,6 @@
 id: spanning-betti-robustness-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.9 spanning-individual Betti robustness summary. The
