@@ -1,0 +1,29 @@
+id: spanning-betti-inference-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for the T1.9b spanning-vs-newcomer H0 inferential
+  re-analysis. Any staged JSON under results/trajectory_tda_spanning/knee_robustness
+  matching spanning_betti_inference_*.json must conform to the
+  spanning-betti-inference-output schema, ensuring the permutation p-values,
+  bootstrap CIs, discriminating windowed AUC, and dual-metric decision are present.
+
+spec_citation:
+  source: "P01-B response plan section 9 (M3); Spec 'epsilon-star robustness'; T1.9b pre-registration amendment 2026-06-09"
+  vault_entry_date: "2026-06-09"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_spanning/knee_robustness/spanning_betti_inference_*.json"
+  schema_contracts:
+    - spanning-betti-inference-output
+
+binding:
+  test_file: "tests/trajectory_tda/test_t1_9b_spanning_inference_contracts.py"
+  test_function: "test_spanning_betti_inference_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/trajectory_tda_spanning/knee_robustness/spanning_betti_inference_*.json
+    is dispatched to the spanning-betti-inference-output schema; the T1.9
+    spanning_AUC_W2_*.json and spanning_betti_eps_*.json files are not
+    accidentally captured by this glob.

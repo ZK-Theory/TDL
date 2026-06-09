@@ -1,0 +1,62 @@
+id: spanning-betti-inference-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.9b spanning-vs-newcomer H0 inferential re-analysis. Resolves
+  the T1.9 M3 divergence by attaching a label-permutation null (two-sided p) and
+  a within-group bootstrap CI to each statistic, and by reporting a discriminating
+  windowed/normalized AUC (excluding the trivial all-isolated near-zero region)
+  in addition to the single-epsilon ratio and W2. The decision classifies the
+  newcomer-vs-spanning H0 difference as newcomers_robust, spanning_robust, or
+  no_robust_difference under the 2026-06-09 dual-metric pre-reg amendment.
+
+spec_citation:
+  source: "P01-B response plan section 9 (M3); Spec 'epsilon-star robustness'; T1.9b pre-registration amendment 2026-06-09"
+  vault_entry_date: "2026-06-09"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_spanning/knee_robustness/spanning_betti_inference_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/spanning-betti-inference/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.9b spanning vs newcomer H0 inferential re-analysis'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-09 T1.9b pre-registration amendment."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain spanning_source, newcomer_source, t19_result_source, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain matched_sample_size == 8000, eps_stars exactly [0.54, 0.65, 0.7, 0.8], eps_star_locked == 0.54, B_permutation >= 1000, B_bootstrap >= 1000, seed == 42, dual_metric == true, eps_lo (float > 0; the discriminating-window lower bound), and p_value_formula == '(r+1)/(B+1)'."
+    - name: results
+      type: "list[dict]"
+      description: "MUST contain exactly 4 entries (one per epsilon-star). Each entry MUST include eps_star in {0.54, 0.65, 0.7, 0.8}, single_eps_ratio (float), single_eps_perm_p (float in [0,1]), auc_ratio_windowed (float), auc_perm_p (float in [0,1]), auc_boot_ci ([lo, hi] floats with lo <= hi), w2_matched (float >= 0), w2_perm_p (float in [0,1]), and direction_newcomers_gt (bool; the discriminating-statistic direction at that eps_star)."
+    - name: decision
+      type: "dict[str, ...]"
+      description: "MUST include outcome (str in {'newcomers_robust', 'spanning_robust', 'no_robust_difference'}), significant_at_locked (bool; true iff the discriminating auc_perm_p at eps_star_locked < 0.05), direction_consistent (bool; discriminating-statistic direction agrees across all 4 eps_stars), and headline (str)."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings must use frozen PCA loadings (post-T1.37), never per-call refit."
+
+binding:
+  test_file: "tests/trajectory_tda/test_t1_9b_spanning_inference_contracts.py"
+  test_function: "test_spanning_betti_inference_output_schema"
+  must_assert: >
+    The validator accepts a conforming 4-entry payload and rejects payloads
+    where (a) params.B_permutation < 1000 or params.B_bootstrap < 1000 or
+    params.seed != 42 or params.dual_metric != true or params.eps_stars !=
+    [0.54, 0.65, 0.7, 0.8]; (b) results does not have one entry per epsilon-star;
+    (c) any *_perm_p is outside [0,1], any auc_boot_ci has lo > hi, or any
+    w2_matched is negative; (d) decision.outcome is not one of the three allowed
+    values, or decision.outcome == 'newcomers_robust'/'spanning_robust' while
+    decision.significant_at_locked is false, or decision.outcome ==
+    'no_robust_difference' while significant_at_locked is true AND
+    direction_consistent is true; or (e) a forbidden key is present.

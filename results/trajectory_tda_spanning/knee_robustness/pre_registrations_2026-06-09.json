@@ -1,0 +1,58 @@
+{
+  "pre_registration_date": "2026-06-09",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 9 (T1.9b inferential re-analysis; User decision 2026-06-09)",
+  "amends": "results/trajectory_tda_integration/stage1/pre_registrations_2026-05-13.json (M3 epsilon-star Robustness Check)",
+  "amendment_reason": "T1.9 returned a divergent M3 result: single-epsilon Beta0 ratios > 1 (newcomers > spanning) at all four epsilon-star, but the integrated AUC ratio < 1 (spanning > newcomers, ~0.938, stable across epsilon-star). The single-epsilon ratios rest on tiny residual component counts (Beta0 2-48 of 8,000) at near-fully-merged scales (low information), while the AUC is bulk-dominated; and NO statistic carried a significance test (single matched draw). This amendment adds inferential grounding (permutation null + bootstrap CI) and a discriminating statistic so P01-A section 6 / P01-B section 3.4.2 can be locked on an inferential, not point-estimate, basis.",
+  "entries": [
+    {
+      "name": "Spanning vs newcomer H0 inferential re-analysis",
+      "task": "T1.9b",
+      "papers": ["P01-A", "P01-B"],
+      "outcome_contingent": true,
+      "depends_on": "results/trajectory_tda_spanning/knee_robustness/spanning_AUC_W2_2026-06-09.json (T1.9 point estimates)",
+      "objective": "Attach inferential grounding to the spanning-vs-newcomer H0 comparison and resolve the M3 divergence: is there a robust, significant structural difference, and in which direction?",
+      "inference": {
+        "permutation_null": {
+          "description": "Label-shuffle null: pool the matched spanning + newcomer samples, randomly relabel into two groups of the original sizes, recompute each statistic; two-sided empirical p-value = (r+1)/(B+1).",
+          "B": 1000,
+          "seed": 42
+        },
+        "bootstrap_ci": {
+          "description": "Within-group resample with replacement, recompute each statistic, report 95% percentile CI.",
+          "B": 1000,
+          "seed": 42
+        },
+        "statistics": ["single_eps_ratio", "auc_ratio_windowed", "w2_matched"]
+      },
+      "discriminating_statistic": {
+        "description": "Replace the trivial-region-dominated AUC over [0, eps_star] with a non-trivial windowed / normalized statistic so the comparison is not swamped by the shared near-zero filtration where every point is isolated.",
+        "definition": "AUC of the normalized Beta0 curve (Beta0(eps)/n) integrated over a non-trivial window [eps_lo, eps_star], with eps_lo set to the first scale at which the mean across both groups drops below n/2 (i.e. exclude the all-isolated region). Report eps_lo used.",
+        "rationale": "Isolates the scales that actually discriminate the two groups."
+      },
+      "key_params": {
+        "matched_sample_size": 8000,
+        "eps_stars": [0.54, 0.65, 0.7, 0.8],
+        "eps_star_locked": 0.54,
+        "B_permutation": 1000,
+        "B_bootstrap": 1000,
+        "p_value_formula": "(r+1)/(B+1)",
+        "alpha_level": 0.05,
+        "frozen_loadings": true,
+        "dual_metric": true,
+        "w2_order": 2,
+        "w2_internal_p": 2,
+        "seed": 42
+      },
+      "decision_rule": {
+        "newcomers_robust": "The discriminating statistic shows newcomers > spanning with permutation p < 0.05 AND the direction is consistent across all four epsilon-star -> P01-A section 6 / P01-B section 3.4.2 may claim newcomers show more H0 structure (robust).",
+        "spanning_robust": "The discriminating statistic shows spanning > newcomers with permutation p < 0.05 AND consistent across epsilon-star -> the headline is reversed; prose states spanning carry more / equal H0 structure.",
+        "no_robust_difference": "The discriminating statistic is not significant (permutation p >= 0.05 or bootstrap CI straddles parity) at the locked epsilon-star -> no robust newcomer-vs-spanning H0 difference; the original headline is withdrawn / heavily qualified.",
+        "dual_metric_note": "W2(D0_newcomer, D0_spanning) is reported with its own permutation null; a directional H0 claim must be consistent with the W2 evidence and must not rest on the noisy single-epsilon tail counts alone. Per CONVENTIONS, no conclusion on W2 (or any single statistic) alone."
+      },
+      "outputs": [
+        "results/trajectory_tda_spanning/knee_robustness/spanning_betti_inference_<date>.json"
+      ]
+    }
+  ]
+}
