@@ -1,0 +1,28 @@
+id: bhps-nonoverlap-reanalysis-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for the T1.26b BHPS non-overlap re-analysis result.
+  Any staged JSON under results/panel_methodology/bhps_nonoverlap matching
+  bhps_nonoverlap_reanalysis_*.json must conform to the
+  bhps-nonoverlap-reanalysis-output schema, ensuring both arms (matched-fraction
+  re-run and K=20 size control) and the dual-metric decision are present.
+
+spec_citation:
+  source: "P01-A response plan section S10; Spec 'BHPS overlap / replication reframing'; T1.26b pre-registration amendment 2026-06-09"
+  vault_entry_date: "2026-06-09"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_*.json"
+  schema_contracts:
+    - bhps-nonoverlap-reanalysis-output
+
+binding:
+  test_file: "tests/panel/test_bhps_nonoverlap_reanalysis_contracts.py"
+  test_function: "test_bhps_nonoverlap_reanalysis_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_*.json
+    is dispatched to the bhps-nonoverlap-reanalysis-output schema; the T1.26
+    bhps_only_gmm_ph_*.json result is not accidentally captured by this glob.

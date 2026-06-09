@@ -1,0 +1,64 @@
+id: bhps-nonoverlap-reanalysis-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.26b BHPS non-overlap re-analysis. Separates a genuine
+  overlap effect from a sample-size / landmark-fraction artefact behind the
+  T1.26 H1 W2 reversal, via two arms: (A) a matched-landmark-fraction re-run of
+  the non-overlap remainder, and (B) a K=20 random same-size (n=3,202)
+  subsample control drawn from the full BHPS. Both metrics (W2 and landscape
+  L2) are reported; the decision applies the 2026-06-09 dual-metric pre-reg
+  amendment governing P01-A section 6.2.
+
+spec_citation:
+  source: "P01-A response plan section S10; Spec 'BHPS overlap / replication reframing'; T1.26b pre-registration amendment 2026-06-09"
+  vault_entry_date: "2026-06-09"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/bhps-nonoverlap-reanalysis/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.26b BHPS non-overlap re-analysis'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-09 T1.26b pre-registration amendment."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain full_bhps_source, spanning_ids_source, t126_result_source, baseline_bhps_headline_source, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain matched_landmark_fraction (float in (0,1)), K_subsamples == 20, subsample_n == 3202, B >= 1000, seed == 42, frozen_loadings == true, dual_metric == true, and p_value_formula == '(r+1)/(B+1)'."
+    - name: arm_a
+      type: "dict[str, ...]"
+      description: "Matched-fraction remainder re-run. MUST include L (int > 0, < 3202), h1_w2_p (float in [0,1]), h1_w2_rejects (bool; true iff h1_w2_p < 0.05), h1_landscape_l2_p (float in [0,1]), and h0_w2_p (float in [0,1])."
+    - name: arm_b
+      type: "dict[str, ...]"
+      description: "Random same-size size control. MUST include K == 20, subsample_n == 3202, remainder_h1_w2_d_perm (float), null_band (dict with d_perm_mean, d_perm_sd, d_perm_q025, d_perm_q975 all float), remainder_within_band (bool; true iff remainder_h1_w2_d_perm in [d_perm_q025, d_perm_q975]), and n_subsamples_h1_w2_reject (int in [0, 20])."
+    - name: decision
+      type: "dict[str, ...]"
+      description: "MUST include overlap_specific (bool) and outcome (str in {'size_or_fraction_artefact', 'overlap_dependent'}). overlap_specific MUST be false (outcome 'size_or_fraction_artefact') iff arm_a.h1_w2_rejects OR arm_b.remainder_within_band; otherwise overlap_specific true (outcome 'overlap_dependent')."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings must use frozen PCA loadings (post-T1.37), never per-call refit."
+
+binding:
+  test_file: "tests/panel/test_bhps_nonoverlap_reanalysis_contracts.py"
+  test_function: "test_bhps_nonoverlap_reanalysis_output_schema"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where
+    (a) params.K_subsamples != 20 or params.subsample_n != 3202 or params.seed
+    != 42 or params.dual_metric != true; (b) arm_a.h1_w2_rejects disagrees with
+    arm_a.h1_w2_p < 0.05; (c) arm_b.remainder_within_band disagrees with
+    remainder_h1_w2_d_perm lying in [d_perm_q025, d_perm_q975], or
+    n_subsamples_h1_w2_reject is outside [0, 20]; (d) decision.outcome /
+    overlap_specific disagree with the rule (artefact iff arm_a.h1_w2_rejects OR
+    arm_b.remainder_within_band); (e) any p-value is out of [0,1]; or (f) a
+    forbidden key is present.
