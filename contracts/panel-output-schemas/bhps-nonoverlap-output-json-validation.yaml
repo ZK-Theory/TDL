@@ -1,6 +1,5 @@
 id: bhps-nonoverlap-output-json-validation
 kind: output_validation
-pending: true
 
 description: >
   Commit-time validation for the T1.26 BHPS non-overlap result. Any staged

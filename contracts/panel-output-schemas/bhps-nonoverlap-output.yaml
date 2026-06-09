@@ -1,6 +1,5 @@
 id: bhps-nonoverlap-output
 kind: schema
-pending: true
 
 description: >
   Schema for the T1.26 BHPS non-overlap sensitivity. The result excludes the
