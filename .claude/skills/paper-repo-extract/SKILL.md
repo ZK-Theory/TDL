@@ -1,3 +1,8 @@
+---
+name: paper-repo-extract
+description: Use before journal submission to extract a standalone reproducibility repository for a paper from the TDL monorepo (required for the Zenodo DOI cited in submission statements).
+---
+
 # /paper-repo-extract — Extract a Standalone Paper Repository
 
 Create a standalone reproducibility repository from the TDL monorepo for a paper.

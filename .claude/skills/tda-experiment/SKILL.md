@@ -1,3 +1,8 @@
+---
+name: tda-experiment
+description: Use when scaffolding and running a new TDA experiment — follows codebase conventions (domain data/topology/analysis modules, results output, seed recording).
+---
+
 # /tda-experiment — Run a TDA Experiment
 
 Scaffold a new TDA experiment following codebase conventions.
