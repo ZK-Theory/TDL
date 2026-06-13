@@ -131,6 +131,7 @@ papers/submission guidelines/
 # Gitignore runtime traffic and Worker Task Logs to keep main free of coordination churn.
 .apm/bus/
 .apm/memory/stage-*/
+.apm/memory/handoffs/
 .apm/worktrees/
 
 # Test-generated pending-contract reports (auto-regenerated each test run,
@@ -152,6 +153,9 @@ papers/submission guidelines/
 results/trajectory_tda_integration/stage1/launches/
 results/trajectory_tda_integration/stage1/cache/
 results/**/.partial/
+# - per-task checkpoint/resume dirs under stage1/ (regenerable intermediates;
+#   deliverable JSONs live under their own results/ paths and are committed)
+results/trajectory_tda_integration/stage1/bhps_nonoverlap_reanalysis/
 
 # repomix dump (regenerable; 108MB blob was rejected by GitHub LFS limit
 # in commit 52af787 and removed from history via filter-repo 2026-05-22)
