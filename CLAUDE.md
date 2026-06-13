@@ -23,7 +23,7 @@ The research record lives in a separate Obsidian vault at `C:\Users\steph\Docume
 | `02-Notes/Permanent/` | Crystallised methodological insights |
 | `VAULT-MAP.md` | Full vault navigation index |
 
-**CONVENTIONS.md is repo-canonical (single source for all agents).** The always/never rules live in the committed **repo-root `CONVENTIONS.md`**; the vault's copy is a symlink to the repo file (one inode). **Load `CONVENTIONS.md` at session start; read/edit it at the repo root, never via the vault path.** Newly-locked decisions are added to the repo-root file and surface in the vault through the symlink.
+**CONVENTIONS.md is repo-canonical (single source for all agents).** The always/never rules live in the committed **repo-root `CONVENTIONS.md`**; the vault's copy is a **hardlink** to the repo file (same inode — a hardlink, not a symlink, because symlinks need Developer Mode/admin on Windows; if git ever rewrites the file and breaks the link, re-create it). **Load `CONVENTIONS.md` at session start; read/edit it at the repo root, never via the vault path.** Newly-locked decisions are added to the repo-root file and surface in the vault through the hardlink.
 
 **Access modes.** A gitignored Windows junction at `c:\Users\steph\TDL\vault\` mirrors the vault root — use `vault/<path>` with `Read`/`Edit`/`Write` for content work (Computational-Log appends, daily notes); edits land in the real vault file. Use the vault-engine MCP (`vault_query`, `vault_skeleton`, `vault_graph`, `vault_status`, `cross_vault`) for wikilink-graph navigation — graph context the filesystem cannot provide. Entry formats and templates: `.claude/rules/vault-templates.md`.
 

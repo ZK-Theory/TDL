@@ -66,4 +66,11 @@ if content is not None:
          % fp)
 
 emit('allow')
-" 2>/dev/null || printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+" 2>/dev/null || {
+  # Fail open so a broken hook never blocks all writes — but make it LOUD so a
+  # timeout/error that bypasses the immutability check is not silent. The only
+  # potentially slow path is the byte-compare read of an existing .json
+  # (sub-second even at tens of MB); .npy/.npz are denied without reading.
+  printf 'results-no-overwrite: hook errored or timed out — FAILING OPEN (write allowed). Verify the results-immutability rule manually (date-suffixed records, never overwrite).\n' >&2
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
+}

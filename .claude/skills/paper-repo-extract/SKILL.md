@@ -18,12 +18,21 @@ Example: `/paper-repo-extract P01-B`
 
 **Precondition:** All paper computation must be complete and results files must exist.
 
+**Confirmation gate (required, human-in-the-loop).** This skill performs
+high-impact, hard-to-reverse operations: it creates a new directory tree
+outside the repo (`../pXX-[slug]/`), scaffolds a repository, rewrites imports
+across copied files, and generates synthetic data. Before creating or modifying
+any file, present the target path and the list of operations below, then obtain
+explicit user confirmation. Do not proceed on assumption; if the target
+directory already exists, stop and ask rather than overwriting.
+
 ---
 
 ## Process overview
 
 | Step | Action | Output |
 |---|---|---|
+| 0 | **Confirm with user** | Explicit go-ahead on target path `../pXX-[slug]/` + the operation list |
 | 1 | Confirm paper readiness | `papers/PXX/_project.md` status check |
 | 2 | Trace imports from entry scripts | Module dependency list |
 | 3 | Create repo manifest | `papers/PXX/repo-manifest.yaml` |

@@ -15,7 +15,7 @@
           {
             "type": "command",
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/results-no-overwrite.sh",
-            "timeout": 10,
+            "timeout": 30,
             "statusMessage": "Checking results no-overwrite rule..."
           }
         ]
