@@ -1,0 +1,68 @@
+{
+  "pre_registration_date": "2026-06-13",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 10 (T1.6 re-scope; User-approved 2026-06-13)",
+  "amends": "results/trajectory_tda_integration/stage1/pre_registrations_2026-05-13.json entry 'BHPS H4 Negative-Control Diagnostics' (null='label-shuffle + double-null')",
+  "amendment_reason": "The 2026-05-13 H4 pre-registration keyed the geometry/variance/calibration discrimination on the BHPS label-shuffle p approx 0.036. The 2026-05-25 [NEGATIVE] proved _label_shuffle / _cohort_shuffle are PH-row-order-invariant (vacuous): that p-value is landmark-subsampling noise, explicitly 'not a BHPS asymmetry'. The premise is void. This amendment replaces the vacuous label-shuffle null with a VALID frozen Markov-1 null, drops the geometry diagnostic (uninformative under a valid null, where the surrogate is a different point cloud by construction), and reframes the Task as POSITIVE credibility evidence for the BHPS Markov-1 W2 rejection.",
+  "entries": [
+    {
+      "name": "BHPS Markov-1 rejection credibility under valid nulls",
+      "task": "T1.6",
+      "papers": ["P01-B", "P01-A"],
+      "outcome_contingent": true,
+      "objective": "Establish whether the BHPS Markov-1 W2 rejection is credible (not a calibration or variance-inflation artefact) using valid frozen-loadings nulls, and lock the P01-B section 4.2.3 prose direction.",
+      "diagnostics": {
+        "calibration": {
+          "construction": "Double-null p-value uniformity under the frozen Markov-1 null: draw n_calibration_trials synthetic 'observed' BHPS samples from the frozen Markov-1 generator; for each, compute the mean-vs-mean T_ratio W2 p-value against a shared frozen Markov-1 null bank; collect the trial p-values; test their distribution against Uniform(0,1).",
+          "statistic": "one-sample Kolmogorov-Smirnov of the n_calibration_trials p-values vs Uniform(0,1); report ks_statistic, ks_p, and mean_pvalue. A binned chi-square goodness-of-fit reported as a discreteness-robust companion (trial p-values are discrete at (r+1)/(B+1) resolution).",
+          "reports": ["ks_statistic", "ks_p", "mean_pvalue", "calibrated"]
+        },
+        "variance": {
+          "construction": "Null-null coefficient of variation (CV = sd/mean) of the frozen Markov-1 null-null W2 distances at L=5000 for BHPS and for USoc; reuse the cached frozen Markov-1 null diagrams from T1.37 (no fresh PH where a cache exists).",
+          "reports": ["bhps_nullnull_cv", "usoc_nullnull_cv", "variance_flag"]
+        }
+      },
+      "key_params": {
+        "null_model": "markov-1",
+        "frozen_loadings": true,
+        "L": 5000,
+        "seed": 42,
+        "n_calibration_trials": 100,
+        "calibration_null_bank_B": 200,
+        "calibration_null_bank_B_floor": 100,
+        "p_value_formula": "(r+1)/(B+1)",
+        "alpha_level": 0.05,
+        "variance_flag_rule": "bhps_nullnull_cv < 0.5 * usoc_nullnull_cv",
+        "reuse_cache": "T1.37 frozen Markov-1 null diagrams (BHPS + USoc) where present"
+      },
+      "decision_rule": {
+        "credible": "calibrated (ks_p >= 0.05) AND NOT variance_flag -> section 4.2.3 reports the BHPS Markov-1 rejection as credible; the earlier label-shuffle 'anomaly' is disclosed as an invalid-null (PH-invariant) artefact per the 2026-05-25 [NEGATIVE].",
+        "conditionally_credible": "calibrated (ks_p >= 0.05) AND variance_flag (BHPS null-null materially tighter than USoc) -> section 4.2.3 reports the rejection with an explicit variance-inflation caveat.",
+        "suspect": "NOT calibrated (ks_p < 0.05; the test deviates from uniform under its own null) -> section 4.2.3 must temper the BHPS rejection; report the direction of miscalibration (anti-conservative if mean_pvalue < 0.5 / excess mass near 0) and escalate to the User before locking prose."
+      },
+      "execution_guardrails": "Long stochastic compute. Benchmark the per-trial W2 cost first; >=4-worker single reusable executor; checkpoint per trial; resumable; pause for Manager direction if the projection exceeds 12h at 4 workers (reduce calibration_null_bank_B toward the floor, or reuse more of the cached null bank). The variance diagnostic is near-free (cache reuse).",
+      "outputs": [
+        "results/trajectory_tda_bhps/diagnostics/markov1_calibration_<date>.json",
+        "results/trajectory_tda_bhps/diagnostics/markov1_nullnull_variance_<date>.json"
+      ],
+      "planned_contracts": [
+        {
+          "id": "bhps-markov1-credibility-output",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_bhps/diagnostics/markov1_calibration_*.json",
+          "required_keys": "schema_version (str); generated_at (str); task ('T1.6 ...'); pre_registration (refs 2026-06-13 amendment); inputs (git_head + frozen null cache refs for BHPS and USoc); params (null_model=='markov-1', frozen_loadings==true, L==5000, seed==42, n_calibration_trials==100, calibration_null_bank_B>=100, p_value_formula=='(r+1)/(B+1)'); calibration (ks_statistic float>=0, ks_p float in [0,1], mean_pvalue float in [0,1], calibrated bool == (ks_p>=0.05)); variance (bhps_nullnull_cv float>0, usoc_nullnull_cv float>0, variance_flag bool == (bhps_nullnull_cv < 0.5*usoc_nullnull_cv)); decision (verdict in {credible, conditionally_credible, suspect} coupled: suspect iff NOT calibrated; conditionally_credible iff calibrated AND variance_flag; credible iff calibrated AND NOT variance_flag)",
+          "forbidden_keys": "per_call_pca",
+          "binding": "test_file tests/trajectory_tda/test_t1_6_markov1_credibility_contracts.py; must_assert rejects payloads where calibrated disagrees with ks_p>=0.05, variance_flag disagrees with the CV rule, decision.verdict disagrees with the coupling, any p/CV is out of range, or per_call_pca present (Worker authors the binding test, clears pending)."
+        },
+        {
+          "id": "bhps-markov1-credibility-output-json-validation",
+          "kind": "output_validation",
+          "pending": true,
+          "applies_to_glob": "results/trajectory_tda_bhps/diagnostics/markov1_calibration_*.json",
+          "schema_contracts": ["bhps-markov1-credibility-output"]
+        }
+      ]
+    }
+  ]
+}

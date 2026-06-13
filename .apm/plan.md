@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: "2026-06-04 (Manager 7): New Stage-0 workstream 'Contract-framework hardening (full teeth)' added (T0.14–T0.17) per User direction after recurring CodeRabbit-caught contract-enforcement defects. T0.14 hardens the meta-schema + contract_binding_check.py gates (expression-XOR-enforced_by, qualitative-language lint, claim↔assertion coverage, gate-4 type/bound with null-allowed grammar, pending-debt gate; warn-mode rollout) — Reproducibility Agent. T0.15 retrofits TDA-side contracts+binding tests — TDA Agent. T0.16 retrofits Panel-side contracts+binding tests and lands the E6 sample-provenance-ledger contract — Panel Statistics Agent (sequenced after PR #32 merge). T0.17 flips gates warn→enforce and bakes a pre-dispatch/pre-accept contract-quality checklist into the APM guides — Reproducibility Agent. Dependency flow T0.14 → (T0.15 ∥ T0.16) → T0.17 added to the Stage 0 subgraph. Previous modification record retained below. Modified by the Manager.\n2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
+modified: "2026-06-13 (Manager 10): Wave-2 batch-2 re-scope (User-approved). **T1.6** re-scoped from 'BHPS H4 negative-control three-hypothesis diagnostics' to 'BHPS Markov-1 rejection credibility under valid frozen-loadings nulls' — calibration double-null p-value uniformity + BHPS-vs-USoc null-null CV; the geometry KS diagnostic is dropped — after the 2026-05-25 [NEGATIVE] proved the label-shuffle premise vacuous; dependency now Task 1.37 (frozen pipeline); pre-registration AMENDMENT required before dispatch. **T1.28** re-scoped from panel-only 're-FDR' to a TDA-owned recompute of §6.1 per-subgroup Markov-1 W₂ under the locked pipeline (frozen loadings, B≥1000, mean-vs-mean T_ratio + BCa CI) for USoc AND BHPS, then per-family FDR (BH gender/NS-SEC, BY cohort); agent reassigned Panel Statistics → TDA; dependency Task 1.37; pre-registration required (the exact per-subgroup test model pinned against §B8 at authoring, not assumed). Dependency graph: T1_37 -.-> T1_6 and T1_37 -.-> T1_28 edges added; T1_28 node relabelled + recoloured to TDA. Both queued after the three in-flight heavy runs (T1.5/T1.8/T1.9b), staggered. Previous modification record retained below. Modified by the Manager.\n2026-06-04 (Manager 7): New Stage-0 workstream 'Contract-framework hardening (full teeth)' added (T0.14–T0.17) per User direction after recurring CodeRabbit-caught contract-enforcement defects. T0.14 hardens the meta-schema + contract_binding_check.py gates (expression-XOR-enforced_by, qualitative-language lint, claim↔assertion coverage, gate-4 type/bound with null-allowed grammar, pending-debt gate; warn-mode rollout) — Reproducibility Agent. T0.15 retrofits TDA-side contracts+binding tests — TDA Agent. T0.16 retrofits Panel-side contracts+binding tests and lands the E6 sample-provenance-ledger contract — Panel Statistics Agent (sequenced after PR #32 merge). T0.17 flips gates warn→enforce and bakes a pre-dispatch/pre-accept contract-quality checklist into the APM guides — Reproducibility Agent. Dependency flow T0.14 → (T0.15 ∥ T0.16) → T0.17 added to the Stage 0 subgraph. Previous modification record retained below. Modified by the Manager.\n2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
 ---
 
 # APM Plan
@@ -54,7 +54,7 @@ subgraph S1["Stage 1: Locked numerical and statistical results"]
   T1_1 --> T1_3["1.3 Stratified Markov-1<br/><i>TDA Agent</i>"]
   T1_1 --> T1_4["1.4 Threshold + intrinsic dim<br/><i>TDA Agent</i>"]
   T1_2 --> T1_5["1.5 H₂ + pos control + 2n W₂<br/><i>TDA Agent</i>"]
-  T1_2 --> T1_6["1.6 BHPS H4 diagnostics<br/><i>TDA Agent</i>"]
+  T1_2 --> T1_6["1.6 BHPS Markov-1 credibility<br/><i>TDA Agent</i>"]
   T1_2 --> T1_7["1.7 BHPS H1 length-matched<br/><i>TDA Agent</i>"]
   T1_2 --> T1_8["1.8 Markov-2 α sweep<br/><i>TDA Agent</i>"]
   T1_1 --> T1_9["1.9 Spanning AUC + W₂ + ε*<br/><i>TDA Agent</i>"]
@@ -76,7 +76,7 @@ subgraph S1["Stage 1: Locked numerical and statistical results"]
   T1_25["1.25 Sparse U-state 6vs9<br/><i>Panel Statistics Agent</i>"]
   T1_26["1.26 BHPS non-overlap<br/><i>Panel Statistics Agent</i>"]
   T1_27["1.27 10-of-14 sensitivity GMM<br/><i>Panel Statistics Agent</i>"]
-  T1_28["1.28 FDR families redefine<br/><i>Panel Statistics Agent</i>"]
+  T1_28["1.28 §6.1 per-subgroup W₂ + FDR<br/><i>TDA Agent</i>"]
   T1_13 --> T1_29["1.29 IPW structural eligibility<br/><i>Panel Statistics Agent</i>"]
   T1_33["1.33 Topological FOO signature<br/><i>TDA Agent</i>"]
   T1_34["1.34 Regression refit + svyglm sensitivity<br/><i>Panel Statistics Agent</i>"]
@@ -193,6 +193,8 @@ T1_37 -.-> T2_3
 T1_37 -.-> T2_8
 T1_37 -.-> T2_10
 T1_37 -.-> T2_20
+T1_37 -.-> T1_6
+T1_37 -.-> T1_28
 T1_23 -.-> T2_5
 T1_24 -.-> T2_5
 T1_26 -.-> T2_8
@@ -256,7 +258,7 @@ style T1_24 fill:#f4a261,color:#000
 style T1_25 fill:#f4a261,color:#000
 style T1_26 fill:#f4a261,color:#000
 style T1_27 fill:#f4a261,color:#000
-style T1_28 fill:#f4a261,color:#000
+style T1_28 fill:#2d6a4f,color:#000
 style T1_33 fill:#2d6a4f,color:#000
 style T1_34 fill:#f4a261,color:#000
 style T1_35 fill:#f4a261,color:#000
@@ -626,19 +628,21 @@ style T4_10 fill:#a8dadc,color:#000
 3. Run doubled-n W₂ sanity at n_perms=200, n_nullnull=2000 (long-running; background dispatch).
 4. Write three vault `[RESULT]` entries.
 
-### Task 1.6: BHPS H4 negative-control three-hypothesis diagnostics - TDA Agent
+### Task 1.6: BHPS Markov-1 rejection credibility under valid nulls (re-scoped from H4 negative-control diagnostics) - TDA Agent
 
-* **Objective:** Run the three diagnostics that discriminate between geometry / variance-inflation / p-value-miscalibration as the cause of BHPS label-shuffle p ≈ 0.036; lock the explanation against the pre-registered decision rule.
-* **Output:** `results/trajectory_tda_bhps/diagnostics/label_shuffle_geometry_check_<date>.json` (KS test of pairwise-distance distributions); `..._variance_check_<date>.json` (CV statistics + L=5000 rerun); `..._pvalue_calibration_<date>.json` (100-trial double-null p-value uniformity); diagnostic table; vault `[RESULT]` plus `[DECISION]` entry locking the explanation.
-* **Validation:** All three hypotheses tested; the resulting explanation is locked against the pre-registration; the §4.2.3 prose direction in P01-B is determined.
-* **Guidance:** See P01-B response plan §6 (H4) and Spec §"BHPS H4 negative-control hypothesis discrimination".
-* **Dependencies:** Task 1.1, Task 1.2.
+> **Re-scope note (2026-06-13, Manager 10; User-approved).** The original Task explained the BHPS label-shuffle p≈0.036 via geometry / variance-inflation / calibration. The 2026-05-25 `[NEGATIVE]` established that `_label_shuffle`/`_cohort_shuffle` are PH-row-order-invariant (vacuous) and that p≈0.036 is landmark-subsampling noise, explicitly "not a BHPS asymmetry" — the premise is void. Re-scoped to provide POSITIVE credibility evidence for the BHPS Markov-1 W₂ rejection under VALID frozen-loadings nulls. A pre-registration AMENDMENT is filed before dispatch.
 
-1. Geometry diagnostic: KS test of pairwise embedding-vector ℓ² distance distributions on observed BHPS vs a label-shuffled surrogate.
-2. Variance diagnostic: compute null-null CV at L=2000 (existing) and at L=5000 (new rerun); compare USoc and BHPS CVs.
-3. Calibration diagnostic: 100 double-null label-shuffle trials; KS-test the resulting p-value distribution against uniform(0,1).
-4. Decide explanation against pre-registration.
-5. Write vault `[RESULT]` and `[DECISION]` entries.
+* **Objective:** Establish that the BHPS Markov-1 W₂ rejection is credible — not a variance-inflation or calibration artefact — using valid frozen-loadings nulls, and lock the P01-B §4.2.3 prose direction against the amended decision rule.
+* **Output:** `results/trajectory_tda_bhps/diagnostics/markov1_calibration_<date>.json` (≈100-trial double-null p-value uniformity under frozen Markov-1: KS statistic + p vs Uniform(0,1)); `results/trajectory_tda_bhps/diagnostics/markov1_nullnull_variance_<date>.json` (BHPS-vs-USoc null-null CV at L=5000); diagnostic table; vault `[RESULT]` plus `[DECISION]` entry locking the §4.2.3 explanation (credible / conditionally credible / suspect). The "label-shuffle was an invalid negative control" point is carried in prose from the 2026-05-25 `[NEGATIVE]`, not recomputed.
+* **Validation:** Both diagnostics run under frozen loadings; the calibration p-value distribution is KS-tested against Uniform(0,1); BHPS and USoc null-null CVs reported side by side; the amended decision rule is applied and the §4.2.3 prose direction determined; seeds recorded in script header and JSON.
+* **Guidance:** See P01-B response plan §6 (H4), the 2026-05-25 `[NEGATIVE]`, and the re-scope note. The geometry KS diagnostic from the original H4 is DROPPED — under a valid Markov null the surrogate is a different point cloud by construction, so it is uninformative about credibility. Use the frozen Markov-1 generator + frozen scaler/PCA bundle from T1.36/T1.37. Long stochastic compute → ≥4 workers, chunked checkpointing, resumable, up-front wall-time estimate. Complementary to (not redundant with) T1.5's USoc positive control: T1.6 is BHPS-specific.
+* **Dependencies:** Task 1.2, **Task 1.37 by TDA Agent** (frozen-loadings null pipeline).
+
+1. File the pre-registration AMENDMENT (valid-null calibration + variance decision rule; §4.2.3 prose-direction rule per outcome) before any run.
+2. Calibration: generate ≈100 double-null BHPS samples under the frozen Markov-1 null, compute each one's W₂ p-value against a shared frozen Markov-1 null bank, KS-test the p-value distribution against Uniform(0,1).
+3. Variance: compute BHPS and USoc null-null CV at L=5000 under frozen Markov-1; compare.
+4. Apply the amended decision rule; decide the §4.2.3 prose direction.
+5. Write vault `[RESULT]` and `[DECISION]` entries referencing the pre-registration amendment.
 
 ### Task 1.7: BHPS H1 length-matched analysis (truncation + first-13 windowing) - TDA Agent
 
@@ -933,19 +937,22 @@ style T4_10 fill:#a8dadc,color:#000
 6. Included-vs-excluded baseline comparison.
 7. Write vault `[RESULT]` entry.
 
-### Task 1.28: FDR families redefinition for §6.1 stratified W₂ tests - Panel Statistics Agent
+### Task 1.28: Recompute §6.1 per-subgroup W₂ under the locked pipeline, then per-family FDR (re-scoped) - TDA Agent
 
-* **Objective:** Recompute FDR-corrected p-values for §6.1 with three separate BH families (2 gender, 6 NS-SEC, 42 cohort), with BY correction for the cohort family.
-* **Output:** `results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json`; vault `[RESULT]` entry.
-* **Validation:** Three families reported separately; cohort family uses BY correction; effect sizes reported alongside corrected p-values.
-* **Guidance:** See P01-A response plan §B8.
-* **Dependencies:** **Task 1.2 by TDA Agent**.
+> **Re-scope note (2026-06-13, Manager 10; User-approved).** Re-FDR alone is insufficient: the only §6.1 per-stratum W₂ data is the legacy `06_stratified.json` — B=100, pre-frozen-loadings, old mean-vs-individual W₂ construction, structured as pairwise-between-subgroup comparisons. §B2.6 (R3 plan) requires the mean-vs-mean construction on ALL W₂ batteries including the stratified ones, so v2 citability needs a RECOMPUTE under the locked pipeline before any FDR. Agent reassigned Panel Statistics → TDA (the recompute is the heavy TDA part; FDR is arithmetic). USoc AND BHPS strata (User-approved 2026-06-13). A pre-registration is filed before dispatch; the exact v2 test model (per-subgroup-vs-own-Markov-1-null vs pairwise-between-subgroup) is pinned against §B8 at pre-reg authoring — do NOT assume.
 
-1. Define three families (gender, NS-SEC, cohort).
-2. BH per family for gender and NS-SEC.
-3. BY for cohort.
-4. Effect sizes alongside.
-5. Write vault `[RESULT]` entry.
+* **Objective:** Recompute each demographic subgroup's Markov-1 W₂ test under the locked pipeline (frozen loadings, B≥1000, mean-vs-mean T_ratio + BCa CI) for USoc and BHPS, then apply per-family FDR.
+* **Output:** `results/panel_methodology/fdr/stratified_w2_recompute_<date>.json` (per-subgroup T_ratio, BCa CI, raw p, for each stratifier × dataset); `results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json` (BH within gender + NS-SEC, BY within cohort; adjusted p + family assignment + effect sizes); vault `[RESULT]` entry.
+* **Validation:** Per-subgroup W₂ recomputed under frozen loadings at B≥1000 with the mean-vs-mean construction; gender + NS-SEC families use BH, cohort family uses BY; effect sizes (T_ratio + BCa CI) reported alongside every corrected p; USoc and BHPS reported separately; legacy `06_stratified.json` preserved (not overwritten); date-suffixed JSONs; seeds recorded.
+* **Guidance:** See P01-A response plan §B8 (FDR families) and §B2 (mean-vs-mean W₂ construction + BCa CI). Read §B8 in full at pre-reg authoring to confirm the exact per-subgroup test model before any run. Subgroup membership from the analytical sample: gender (2), NS-SEC (6), cohort (42) — confirm the NS-SEC variable and cohort binning against the v1 §6.1 / the legacy `06_stratified.json` keys (gender/parental_nssec/cohort/gor). Use `_battery_core.run_headline_from_embeddings` on each subgroup subset with the frozen scaler/PCA bundle from T1.36/T1.37. ~50 subgroup runs × 2 datasets at B≥1000 → heavy: ≥4 workers, chunked checkpointing, resumable, up-front wall-time estimate.
+* **Dependencies:** Task 1.2, **Task 1.37 by TDA Agent** (frozen-loadings pipeline).
+
+1. File the pre-registration (per-subgroup test model confirmed against §B8; family structure; BH/BY assignment; effect-size reporting) before any run.
+2. Assemble subgroup membership for gender, NS-SEC, cohort on the USoc and BHPS analytical samples.
+3. Recompute each subgroup's Markov-1 W₂ headline (frozen loadings, B≥1000, mean-vs-mean T_ratio + BCa CI), checkpointing per subgroup.
+4. Apply BH within gender + NS-SEC; BY within cohort; per dataset.
+5. Report effect sizes (T_ratio + BCa CI) beside every corrected p.
+6. Write vault `[RESULT]` entry.
 
 ### Task 1.29: IPW structural eligibility sensitivity - Panel Statistics Agent
 
