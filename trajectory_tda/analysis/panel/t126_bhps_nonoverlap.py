@@ -313,6 +313,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     started = time.perf_counter()
     worktree = Path(args.worktree)
     proj_root = Path(args.proj_root)
+    # Align core's root resolution with the CLI args before any core side
+    # effect: core.write_launch_marker() resolves its destination via
+    # core.proj_root() (STAGE1_PROJ_ROOT-aware), so a non-default --proj-root
+    # would otherwise split provenance across two trees.
+    os.environ["STAGE1_PROJ_ROOT"] = str(proj_root)
     output_dir = worktree / OUT_DIR_REL
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"bhps_only_gmm_ph_{args.date}.json"
@@ -520,8 +525,8 @@ def parse_args() -> argparse.Namespace:
         raise ValueError(f"--L must remain locked to {core.DEFAULT_L}")
     if args.B < 1000:
         raise ValueError("--B must be >= 1000")
-    if args.n_jobs < 1:
-        raise ValueError("--n-jobs must be >= 1")
+    if args.n_jobs < 4:
+        raise ValueError("--n-jobs must be >= 4 (CONVENTIONS >=4-worker rule)")
     return args
 
 
