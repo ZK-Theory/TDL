@@ -38,8 +38,7 @@ BASELINE_HEADLINE_REL = Path("results/trajectory_tda_bhps/stage1/bhps_headline_f
 SCHEMA_VERSION = "stage1/bhps-nonoverlap/v1"
 TASK_NAME = "T1.26 BHPS non-overlap sensitivity"
 PRE_REGISTRATION_REF = (
-    "2026-06-08 T1.26 pre-registration: "
-    "results/panel_methodology/bhps_nonoverlap/pre_registrations_2026-06-08.json"
+    "2026-06-08 T1.26 pre-registration: results/panel_methodology/bhps_nonoverlap/pre_registrations_2026-06-08.json"
 )
 
 GMM_K = 8
@@ -62,9 +61,31 @@ def _git_head() -> str:
 
 
 def _ordered_metadata_column(metadata: dict[str, Any], key: str) -> list[Any]:
+    """Return ``metadata[key]`` as an ordered list.
+
+    Handles both list-valued columns and JSON-object columns keyed by the
+    string indices ``"0".."n-1"`` (how some checkpoints serialise arrays).
+
+    Args:
+        metadata: Checkpoint ``metadata`` mapping.
+        key: Column name to extract.
+
+    Returns:
+        The column values in index order.
+
+    Raises:
+        ValueError: If the column is a dict whose keys are not the contiguous
+            string indices ``"0".."n-1"``.
+    """
     values = metadata[key]
     if not isinstance(values, dict):
         return list(values)
+    missing = [str(i) for i in range(len(values)) if str(i) not in values]
+    if missing:
+        raise ValueError(
+            f"_ordered_metadata_column: metadata[{key!r}] is a dict but not a "
+            f"contiguous 0..n-1 index map; missing keys {missing}"
+        )
     return [values[str(i)] for i in range(len(values))]
 
 
@@ -83,9 +104,7 @@ def _load_baseline_labels(analysis_path: Path, expected_n: int) -> NDArray[np.in
     payload = json.loads(analysis_path.read_text(encoding="utf-8"))
     labels = np.asarray(payload["gmm_labels"], dtype=np.int64)
     if len(labels) != expected_n:
-        raise ValueError(
-            f"Baseline GMM labels length {len(labels)} does not match BHPS checkpoint length {expected_n}"
-        )
+        raise ValueError(f"Baseline GMM labels length {len(labels)} does not match BHPS checkpoint length {expected_n}")
     return labels
 
 
@@ -276,7 +295,21 @@ def validate_bhps_nonoverlap_payload(payload: dict[str, Any]) -> None:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
-    """Execute the non-overlap sensitivity and write the date-suffixed JSON."""
+    """Execute the non-overlap sensitivity and write the date-suffixed JSON.
+
+    Args:
+        args: Parsed CLI arguments (``date``, ``worktree``, ``proj_root``,
+            ``L``, ``B``, ``seed``, landscape/null-pair settings, ``n_jobs``).
+
+    Returns:
+        The result payload that was validated and written to disk.
+
+    Raises:
+        FileExistsError: If the date-suffixed result JSON or the null-diagram
+            cache already exists (no-overwrite policy).
+        ValueError: If spanning exclusion removes the full sample or the
+            assembled payload fails schema validation.
+    """
     started = time.perf_counter()
     worktree = Path(args.worktree)
     proj_root = Path(args.proj_root)
@@ -460,6 +493,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse and validate the command-line arguments.
+
+    Returns:
+        The parsed arguments namespace.
+
+    Raises:
+        ValueError: If ``--seed`` or ``--L`` are moved off their locked values,
+            ``--B`` is below 1000, or ``--n-jobs`` is below 1.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", default=datetime.now(UTC).date().isoformat())
     parser.add_argument("--proj-root", default=str(PROJ_ROOT))
@@ -484,6 +526,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Configure logging and run the analysis from parsed CLI arguments."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
     run(parse_args())
 

@@ -101,7 +101,14 @@ def _write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _configure_core_output_roots(proj_root: Path) -> None:
-    """Route canonical core launch markers and partials to PROJ_ROOT."""
+    """Route canonical core launch markers and partials to PROJ_ROOT.
+
+    ``core.proj_root()`` honours the ``STAGE1_PROJ_ROOT`` env var, but
+    ``core.worktree_root()`` returns ``Path.cwd()`` and exposes no setter or
+    reload hook. To keep launch markers and ``.partial`` artifacts under
+    PROJ_ROOT (not the worktree), we override the attribute directly — the
+    documented fallback when the module provides no configuration API.
+    """
     os.environ["STAGE1_PROJ_ROOT"] = str(proj_root)
     core.worktree_root = lambda: proj_root  # type: ignore[assignment]
 
@@ -125,7 +132,9 @@ def _metric_cell(cell: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _flatten_arm_a(out: dict[str, Any], L: int, n: int, cache_path: Path, checkpoint_path: Path, runtime: float) -> dict[str, Any]:
+def _flatten_arm_a(
+    out: dict[str, Any], L: int, n: int, cache_path: Path, checkpoint_path: Path, runtime: float
+) -> dict[str, Any]:
     h0 = _metric_cell(out["h0"])
     h1 = _metric_cell(out["h1"])
     return {
@@ -188,7 +197,17 @@ def _flatten_subsample(
 def validate_bhps_nonoverlap_reanalysis_payload(payload: dict[str, Any]) -> None:
     """Validate a T1.26b BHPS non-overlap re-analysis payload."""
     errors: list[str] = []
-    required = ["schema_version", "generated_at", "task", "pre_registration", "inputs", "params", "arm_a", "arm_b", "decision"]
+    required = [
+        "schema_version",
+        "generated_at",
+        "task",
+        "pre_registration",
+        "inputs",
+        "params",
+        "arm_a",
+        "arm_b",
+        "decision",
+    ]
     for key in required:
         if key not in payload:
             errors.append(f"missing required key: {key}")
@@ -205,7 +224,13 @@ def validate_bhps_nonoverlap_reanalysis_payload(payload: dict[str, Any]) -> None
         errors.append("pre_registration must reference the 2026-06-09 T1.26b pre-registration amendment")
 
     inputs = payload["inputs"]
-    for key in ("full_bhps_source", "spanning_ids_source", "t126_result_source", "baseline_bhps_headline_source", "git_head"):
+    for key in (
+        "full_bhps_source",
+        "spanning_ids_source",
+        "t126_result_source",
+        "baseline_bhps_headline_source",
+        "git_head",
+    ):
         if key not in inputs:
             errors.append(f"inputs missing {key}")
     if "trajectory_tda_bhps" not in str(inputs.get("full_bhps_source", "")):
@@ -259,7 +284,9 @@ def validate_bhps_nonoverlap_reanalysis_payload(payload: dict[str, Any]) -> None
     seeds = arm_b.get("per_subsample_seeds")
     if not isinstance(seeds, list) or len(seeds) != K_SUBSAMPLES or not all(isinstance(seed, int) for seed in seeds):
         errors.append("arm_b.per_subsample_seeds must be a list of 20 ints")
-    _range_check_number(arm_b.get("remainder_h1_w2_d_perm"), -math.inf, math.inf, "arm_b.remainder_h1_w2_d_perm", errors)
+    _range_check_number(
+        arm_b.get("remainder_h1_w2_d_perm"), -math.inf, math.inf, "arm_b.remainder_h1_w2_d_perm", errors
+    )
     null_band = arm_b.get("null_band", {})
     if not isinstance(null_band, dict):
         errors.append("arm_b.null_band must be a dict")
@@ -271,7 +298,10 @@ def validate_bhps_nonoverlap_reanalysis_payload(payload: dict[str, Any]) -> None
             errors.append("arm_b.null_band.d_perm_q025 must be <= d_perm_q975")
     if not isinstance(arm_b.get("remainder_within_band"), bool):
         errors.append("arm_b.remainder_within_band must be bool")
-    elif all(_is_number(value) for value in (arm_b.get("remainder_h1_w2_d_perm"), null_band.get("d_perm_q025"), null_band.get("d_perm_q975"))):
+    elif all(
+        _is_number(value)
+        for value in (arm_b.get("remainder_h1_w2_d_perm"), null_band.get("d_perm_q025"), null_band.get("d_perm_q975"))
+    ):
         d_perm = float(arm_b["remainder_h1_w2_d_perm"])
         q025 = float(null_band["d_perm_q025"])
         q975 = float(null_band["d_perm_q975"])
@@ -285,7 +315,9 @@ def validate_bhps_nonoverlap_reanalysis_payload(payload: dict[str, Any]) -> None
         if not isinstance(subsamples, list) or len(subsamples) != K_SUBSAMPLES:
             errors.append("arm_b.subsamples must contain 20 entries when present")
         else:
-            rejects = sum(1 for sample in subsamples if isinstance(sample, dict) and sample.get("h1_w2_rejects") is True)
+            rejects = sum(
+                1 for sample in subsamples if isinstance(sample, dict) and sample.get("h1_w2_rejects") is True
+            )
             if isinstance(n_reject, int) and n_reject != rejects:
                 errors.append("arm_b.n_subsamples_h1_w2_reject must match subsample rejection count")
 
@@ -553,8 +585,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     full_embedding, frozen_models, representation_info = _fit_full_bhps_reference(full_sequences)
 
     spanning_pidp_set = set(spanning_pidps)
-    remainder_indices = np.asarray([idx for idx, pidp in enumerate(full_pidps) if pidp not in spanning_pidp_set], dtype=np.int64)
-    excluded_indices = np.asarray([idx for idx, pidp in enumerate(full_pidps) if pidp in spanning_pidp_set], dtype=np.int64)
+    remainder_indices = np.asarray(
+        [idx for idx, pidp in enumerate(full_pidps) if pidp not in spanning_pidp_set], dtype=np.int64
+    )
+    excluded_indices = np.asarray(
+        [idx for idx, pidp in enumerate(full_pidps) if pidp in spanning_pidp_set], dtype=np.int64
+    )
     if len(remainder_indices) != SUBSAMPLE_N:
         raise ValueError(f"Expected BHPS-only remainder n={SUBSAMPLE_N}, got {len(remainder_indices)}")
     remainder_sequences = [full_sequences[int(idx)] for idx in remainder_indices]
@@ -578,7 +614,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         LOGGER.info("Loaded Arm A checkpoint: %s", arm_a_checkpoint)
     else:
         arm_a_started = time.perf_counter()
-        arm_a_cache = cache_dir / f"null_diagrams_bhps_nonoverlap_reanalysis_arm_a_B{args.B}_L{arm_a_L}_seed{args.seed}_{args.date}.npz"
+        arm_a_cache = (
+            cache_dir
+            / f"null_diagrams_bhps_nonoverlap_reanalysis_arm_a_B{args.B}_L{arm_a_L}_seed{args.seed}_{args.date}.npz"
+        )
         arm_a_out = _run_headline_and_cache(
             embeddings=remainder_embedding,
             trajectories=remainder_sequences,
@@ -710,7 +749,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "d_perm_max": float(d_perm_values.max()),
         },
         "remainder_within_band": remainder_within_band,
-        "remainder_on_band_boundary": bool(t126_remainder_h1_w2_d_perm == float(q025) or t126_remainder_h1_w2_d_perm == float(q975)),
+        "remainder_on_band_boundary": bool(
+            t126_remainder_h1_w2_d_perm == float(q025) or t126_remainder_h1_w2_d_perm == float(q975)
+        ),
         "n_subsamples_h1_w2_reject": int(sum(sample["h1_w2_rejects"] for sample in subsamples)),
         "n_subsamples_h1_landscape_l2_reject": int(sum(sample["h1_landscape_l2_rejects"] for sample in subsamples)),
         "subsamples": subsamples,
@@ -778,7 +819,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "cache_dir": str(cache_dir),
             "launch_marker": str(marker_path),
             "progress_path": str(checkpoint_dir / f"progress_{args.date}.json"),
-            "partial_json_glob": str(proj_root / "results/trajectory_tda_integration/stage1/.partial/bhps_nonoverlap_reanalysis_*"),
+            "partial_json_glob": str(
+                proj_root / "results/trajectory_tda_integration/stage1/.partial/bhps_nonoverlap_reanalysis_*"
+            ),
             "regeneration_command": (
                 ".\\.venv\\Scripts\\python.exe -m trajectory_tda.analysis.panel.t126b_bhps_nonoverlap_reanalysis "
                 f"--date {args.date} --B {args.B} --seed {args.seed} --n-jobs {args.n_jobs}"
@@ -808,7 +851,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n-jobs", type=int, default=4)
     parser.add_argument("--joblib-backend", choices=("loky", "threading"), default="loky")
     parser.add_argument("--permutation-chunk-size", type=int, default=0)
-    parser.add_argument("--max-hours", type=float, default=0.0, help="Stop before a new subsample once this wall-time budget is reached; 0 means no limit.")
+    parser.add_argument(
+        "--max-hours",
+        type=float,
+        default=0.0,
+        help="Stop before a new subsample once this wall-time budget is reached; 0 means no limit.",
+    )
     args = parser.parse_args()
     if args.seed != SEED:
         raise ValueError(f"--seed must remain locked to {SEED}")
