@@ -1,3 +1,8 @@
+---
+name: wasserstein-audit
+description: Use to scan manuscript drafts and the codebase for W₁ vs W₂ inconsistencies — project convention mandates Wasserstein-2 as the primary persistence-diagram metric.
+---
+
 # /wasserstein-audit — Audit Wasserstein Order Consistency
 
 Scan all manuscript drafts and codebase for W₁ vs W₂ inconsistencies. Resolves the blocking

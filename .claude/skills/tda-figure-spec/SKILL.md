@@ -1,3 +1,8 @@
+---
+name: tda-figure-spec
+description: Use when producing publication-ready TDA figures — scaffolds matplotlib code from the trajectory_tda/viz conventions (PUBLICATION_RC, DPI, FIGSIZE_*, STATE_COLORS, _save_figure); never ad-hoc sizes or colours.
+---
+
 # /tda-figure-spec — Generate Publication-Ready TDA Figures
 
 Scaffold matplotlib figure code following the established `trajectory_tda/viz/` conventions.

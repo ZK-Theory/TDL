@@ -1,3 +1,8 @@
+---
+name: vault-sync
+description: Use at session close to route results, decisions, negative findings, and pipeline changes from the session into the correct TDA-Research vault files (replaces the manual "repo bridge" task).
+---
+
 # /vault-sync — Sync Session Outputs to the Research Vault
 
 Route results, decisions, negative findings, and pipeline changes from the current session

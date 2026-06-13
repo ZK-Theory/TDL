@@ -1,15 +1,5 @@
 {
   "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-github"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
-      }
-    },
     "vault-engine": {
       "type": "stdio",
       "command": "python",
@@ -22,16 +12,6 @@
         "LLAMA_CUDA": "0",
         "NODE_LLAMA_CPP_GPU": "false"
       }
-    },
-    "repowise": {
-      "command": "repowise",
-      "args": [
-        "mcp",
-        "C:/Users/steph/TDL",
-        "--transport",
-        "stdio"
-      ],
-      "description": "repowise: codebase intelligence \u2014 docs, graph, git signals, dead code, decisions"
     }
   }
 }

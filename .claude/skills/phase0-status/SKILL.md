@@ -1,3 +1,8 @@
+---
+name: phase0-status
+description: Use to render the single-screen Phase 0 status dashboard for P01-A, P01-B, and shared notation infrastructure — reads _project.md files, notation.md, and draft directories. Read-only; never modifies files.
+---
+
 # /phase0-status — Phase 0 Status Dashboard
 
 Produce a single-screen status view for P01-A, P01-B, and the shared notation
