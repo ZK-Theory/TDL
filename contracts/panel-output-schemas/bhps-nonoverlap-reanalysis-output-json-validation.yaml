@@ -1,6 +1,6 @@
 id: bhps-nonoverlap-reanalysis-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for the T1.26b BHPS non-overlap re-analysis result.

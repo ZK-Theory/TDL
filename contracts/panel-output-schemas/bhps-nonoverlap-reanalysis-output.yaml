@@ -1,6 +1,6 @@
 id: bhps-nonoverlap-reanalysis-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.26b BHPS non-overlap re-analysis. Separates a genuine

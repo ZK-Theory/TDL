@@ -1,0 +1,18 @@
+scope_id: T1.26b
+scope_description: >
+  BHPS non-overlap re-analysis for P01-A reviewer-response section 6.2:
+  re-run the BHPS-only remainder at a matched full-BHPS landmark fraction and
+  compare its T1.26 H1 W2 statistic against K=20 same-size full-BHPS controls,
+  while reporting the mandatory landscape-L2 complement throughout.
+authored: "2026-06-09"
+authored_by: "Manager 9 (wave-2 batch-1 follow-up dispatch)"
+
+contracts:
+  - panel-output-schemas/bhps-nonoverlap-reanalysis-output
+  - panel-output-schemas/bhps-nonoverlap-reanalysis-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker implements the binding tests in
+  tests/panel/test_bhps_nonoverlap_reanalysis_contracts.py and clears pending
+  only after the bindings exist and pass.
