@@ -1,0 +1,141 @@
+{
+  "schema_version": "stage1/bhps-nonoverlap/v1",
+  "generated_at": "2026-06-09T06:19:34.734488+00:00",
+  "task": "T1.26 BHPS non-overlap sensitivity",
+  "pre_registration": "2026-06-08 T1.26 pre-registration: results/panel_methodology/bhps_nonoverlap/pre_registrations_2026-06-08.json",
+  "inputs": {
+    "full_bhps_source": "results\\trajectory_tda_bhps\\01_trajectories.json",
+    "full_bhps_sequences_source": "results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+    "spanning_ids_source": "results\\trajectory_tda_spanning\\01_trajectories.json[metadata.pidp]",
+    "baseline_bhps_gmm_labels_source": "results\\trajectory_tda_bhps\\05_analysis.json[gmm_labels]",
+    "baseline_bhps_headline_source": "results\\trajectory_tda_bhps\\stage1\\bhps_headline_frozen_2026-05-28.json",
+    "git_head": "ff14c1766af9e35b1940c6b220ae5344a0778316"
+  },
+  "params": {
+    "gmm_k": 8,
+    "gmm_covariance_type": "full",
+    "gmm_n_init": 5,
+    "gmm_max_iter": 200,
+    "seed": 42,
+    "pca_dim": 20,
+    "pca_svd_solver": "full",
+    "frozen_loadings": true,
+    "L": 5000,
+    "actual_landmarks": 3202,
+    "B": 1000,
+    "n_null_pairs_cap": 500,
+    "landscape_k_max": 5,
+    "landscape_n_points": 200,
+    "null_model": "markov-1",
+    "p_value_formula": "(r+1)/(B+1)",
+    "alpha_level": 0.05,
+    "ari_stability_threshold": 0.9,
+    "n_jobs": 4
+  },
+  "results": {
+    "n_bhps_full": 8509,
+    "n_spanning_excluded": 5307,
+    "n_bhps_only": 3202,
+    "n_spanning_source": 8459,
+    "ari_vs_full": 0.8241888823351193,
+    "regime_stable": false,
+    "persistence": {
+      "h0_w2_p": 0.000999000999000999,
+      "h1_w2_p": 0.995004995004995,
+      "h0_rejects": true,
+      "h1_asymmetry_preserved": false,
+      "baseline_h1_direction": "obs_null_gt_null_null",
+      "bhps_only_h1_direction": "obs_null_lt_null_null",
+      "h0_mean_obs_null": 22.03840471261844,
+      "h0_mean_null_null": 4.459841820172443,
+      "h1_mean_obs_null": 114.28108905294752,
+      "h1_mean_null_null": 123.79060097553005
+    },
+    "gmm": {
+      "converged": true,
+      "n_iter": 31,
+      "lower_bound": 30.311364722321304,
+      "label_counts": {
+        "0": 234,
+        "1": 800,
+        "2": 218,
+        "3": 331,
+        "4": 804,
+        "5": 319,
+        "6": 288,
+        "7": 208
+      },
+      "baseline_label_counts_on_remainder": {
+        "0": 287,
+        "1": 799,
+        "2": 252,
+        "3": 154,
+        "4": 240,
+        "5": 804,
+        "6": 302,
+        "7": 364
+      },
+      "n_common_pidps": 3202
+    },
+    "runtime_seconds": 2916.6583689999825
+  },
+  "decision": {
+    "primary_preserved": false,
+    "outcome": "overlap_dependent",
+    "rule": "supported iff BHPS-only H0 W2 rejects at alpha=0.05 and the H1 asymmetry direction is unchanged versus full BHPS",
+    "paper_section": "P01-A section 6.2",
+    "ari_descriptor": "unstable"
+  },
+  "representation_provenance": {
+    "reference": "full BHPS checkpoint",
+    "reference_n": 8509,
+    "raw_dims": 90,
+    "pca_dim": 20,
+    "pca_svd_solver": "full",
+    "frozen_loadings": true,
+    "pca_explained_variance": 0.4944638279317434
+  },
+  "output_provenance": {
+    "result_path": "results\\panel_methodology\\bhps_nonoverlap\\bhps_only_gmm_ph_2026-06-09.json",
+    "null_diagram_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz",
+    "launch_marker": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\launches\\launch_bhps_nonoverlap_2026-06-09T05-30-58Z.pid",
+    "partial_json_glob": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-bhps-non-overlap\\results\\trajectory_tda_integration\\stage1\\.partial\\bhps_nonoverlap_*",
+    "regeneration_command": ".\\.venv\\Scripts\\python.exe -m trajectory_tda.analysis.panel.t126_bhps_nonoverlap --date 2026-06-09 --L 5000 --B 1000 --seed 42 --n-jobs 4",
+    "no_overwrite": true
+  },
+  "headline_result": {
+    "h0": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 4.941521605751998,
+      "bca_ci_lower": 4.7979877238404,
+      "bca_ci_upper": 5.085386130098102,
+      "d_perm": 11.917588812996307,
+      "mean_obs_null": 22.03840471261844,
+      "mean_null_null": 4.459841820172443,
+      "landscape_t_ratio": 4.165885314343048,
+      "landscape_bca_ci_lower": 3.925085773451469,
+      "landscape_bca_ci_upper": 4.409829974570311,
+      "landscape_d_perm": 4.80605661198061,
+      "lower_tail_pvalue": 1.0
+    },
+    "h1": {
+      "w2_pvalue": 0.995004995004995,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.000999000999000999,
+      "t_ratio": 0.9231806627672622,
+      "bca_ci_lower": 0.9207443799386494,
+      "bca_ci_upper": 0.9257105539142167,
+      "d_perm": -2.854533606986761,
+      "mean_obs_null": 114.28108905294752,
+      "mean_null_null": 123.79060097553005,
+      "landscape_t_ratio": 1.8842695331813613,
+      "landscape_bca_ci_lower": 1.8551346498440244,
+      "landscape_bca_ci_upper": 1.9125102504369396,
+      "landscape_d_perm": 5.342917543227134
+    }
+  }
+}

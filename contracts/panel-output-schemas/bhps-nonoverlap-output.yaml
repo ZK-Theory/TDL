@@ -1,0 +1,58 @@
+id: bhps-nonoverlap-output
+kind: schema
+
+description: >
+  Schema for the T1.26 BHPS non-overlap sensitivity. The result excludes the
+  spanning (BHPS-USoc overlap) individuals, refits the k=8 GMM and recomputes
+  persistence on the BHPS-only remainder under frozen loadings, and reports the
+  regime-agreement ARI and the persistence headline (H0 W2 rejection and H1
+  asymmetry) versus full BHPS, plus the pre-registered decision on whether the
+  P01-A section 6.2 non-overlap reframing is supportable.
+
+spec_citation:
+  source: "P01-A response plan section S10; Spec 'BHPS overlap / replication reframing'; T1.26 pre-registration 2026-06-08"
+  vault_entry_date: "2026-06-08"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/bhps_nonoverlap/bhps_only_gmm_ph_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/bhps-nonoverlap/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST be 'T1.26 BHPS non-overlap sensitivity'."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-08 T1.26 BHPS non-overlap pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Input provenance. MUST contain full_bhps_source, spanning_ids_source, baseline_bhps_gmm_labels_source, and git_head."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain gmm_k == 8, frozen_loadings == true, pca_svd_solver == 'full', L == 5000, B >= 1000, seed == 42, alpha_level == 0.05, ari_stability_threshold == 0.9, and p_value_formula == '(r+1)/(B+1)'."
+    - name: results
+      type: "dict[str, ...]"
+      description: "MUST include n_bhps_full (int > 0), n_spanning_excluded (int >= 0), n_bhps_only (int > 0, == n_bhps_full - n_spanning_excluded), ari_vs_full (float in [-1, 1]), regime_stable (bool; true iff ari_vs_full >= 0.9), and a persistence dict with h0_w2_p (float in [0, 1]), h1_w2_p (float in [0, 1]), h0_rejects (bool; true iff h0_w2_p < 0.05), and h1_asymmetry_preserved (bool)."
+    - name: decision
+      type: "dict[str, ...]"
+      description: "MUST include primary_preserved (bool; true iff results.persistence.h0_rejects and results.persistence.h1_asymmetry_preserved) and outcome (str; 'supported' when primary_preserved is true, else 'overlap_dependent')."
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings must use frozen PCA loadings (post-T1.37), never per-call refit."
+
+binding:
+  test_file: "tests/panel/test_bhps_nonoverlap_contracts.py"
+  test_function: "test_bhps_nonoverlap_output_schema"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where
+    (a) params.gmm_k != 8 or params.seed != 42 or params.ari_stability_threshold
+    != 0.9; (b) results.n_bhps_only != results.n_bhps_full - results.n_spanning_excluded;
+    (c) results.regime_stable disagrees with ari_vs_full >= 0.9, or
+    results.persistence.h0_rejects disagrees with h0_w2_p < 0.05; (d) any
+    p-value or ari is out of range; (e) decision.outcome disagrees with
+    decision.primary_preserved ('supported' iff true); or (f) a forbidden key
+    is present.

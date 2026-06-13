@@ -1,0 +1,48 @@
+{
+  "pre_registration_date": "2026-06-09",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 9 (T1.26b re-analysis; User decision 2026-06-09)",
+  "amends": "results/panel_methodology/bhps_nonoverlap/pre_registrations_2026-06-08.json (T1.26)",
+  "amendment_reason": "The T1.26 primary rule keyed the H1 decision on W2 direction alone and yielded outcome=overlap_dependent. RA review found this contradicted by the mandatory landscape-L2 complement (H1 landscape L2 still rejects on the remainder, p=0.000999, same as full BHPS) and confounded by the n=3,202 / 100% landmark-fraction reduction (full BHPS ran L=5000 on n=8,509, ~59% fraction), where H1 is known landmark-sensitive (T1.2). This amendment adds a dual-metric rule and a two-arm test to separate a genuine overlap effect from a sample-size/landmark-fraction artefact before locking P01-A section 6.2.",
+  "entries": [
+    {
+      "name": "BHPS non-overlap re-analysis (overlap vs size/landmark artefact)",
+      "task": "T1.26b",
+      "papers": ["P01-A"],
+      "outcome_contingent": true,
+      "depends_on": "results/panel_methodology/bhps_nonoverlap/bhps_only_gmm_ph_2026-06-09.json (T1.26; H0 cleanly preserved on both metrics; H1 W2 flip = the object of this re-analysis)",
+      "objective": "Determine whether the T1.26 H1 W2 reversal on the non-overlap BHPS remainder reflects genuine dependence on the spanning/overlap individuals, or a sample-size / landmark-fraction artefact, using a dual-metric (W2 + landscape L2) decision rule.",
+      "arms": {
+        "arm_a_matched_fraction": {
+          "description": "Re-run the non-overlap remainder (n=3,202) at a landmark count matching the full-BHPS landmark fraction (~0.588), i.e. L ~= round(0.588 * 3202) ~= 1882, instead of the 100% fraction used in T1.26.",
+          "reports": ["h1_w2_p", "h1_w2_rejects", "h1_landscape_l2_p", "h0_w2_p", "h0_landscape_l2_p"]
+        },
+        "arm_b_size_control": {
+          "description": "Draw K=20 seeded random subsamples of the FULL BHPS (n=8,509, INCLUDING spanning individuals) at n=3,202 each; run the H1 W2 + landscape headline on each at the same landmark setting as the non-overlap remainder. Build the same-size null band for the H1 W2 d_perm (and p).",
+          "K": 20,
+          "subsample_n": 3202,
+          "reports": ["null_band over d_perm (mean, sd, q025, q975)", "remainder_within_band", "n_subsamples_h1_w2_reject"]
+        }
+      },
+      "key_params": {
+        "matched_landmark_fraction": 0.588,
+        "K_subsamples": 20,
+        "subsample_n": 3202,
+        "B": 1000,
+        "p_value_formula": "(r+1)/(B+1)",
+        "alpha_level": 0.05,
+        "frozen_loadings": true,
+        "dual_metric": true,
+        "seed": 42
+      },
+      "decision_rule": {
+        "size_or_fraction_artefact": "If Arm A H1 W2 rejects at the matched fraction OR the T1.26 remainder H1 W2 d_perm lies WITHIN the Arm B same-size null band (inside [q025, q975]), the W2 flip is attributable to sample size / landmark fraction, NOT to the overlap individuals -> P01-A section 6.2 non-overlap / replication reframing is SUPPORTED (with disclosure of the small-n sensitivity).",
+        "overlap_dependent": "If Arm A H1 W2 does NOT reject at the matched fraction AND the T1.26 remainder is an OUTLIER versus the Arm B null band (outside [q025, q975] on the suppression side), the H1 asymmetry is genuinely overlap-dependent -> section 6.2 discloses overlap-dependence, reframing NOT licensed.",
+        "dual_metric_note": "The landscape-L2 complement is reported throughout. A W2 'artefact' conclusion is corroborated by landscape L2 continuing to reject (signal present); a W2 'overlap_dependent' conclusion must note whether landscape L2 also weakens. Per CONVENTIONS, no H1 conclusion rests on W2 alone."
+      },
+      "outputs": [
+        "results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_<date>.json"
+      ]
+    }
+  ]
+}
