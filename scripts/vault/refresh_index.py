@@ -63,8 +63,21 @@ def _run(qmd_js: str, sub: str, env: dict, timeout: int) -> tuple[int, str]:
 
 
 def main() -> int:
-    # QMD prints non-ASCII glyphs (e.g. ✓); the default Windows console codec
-    # (cp1252) cannot encode them. Make stdout/stderr tolerant.
+    """Refresh the QMD vault index: `qmd update` (required) then `qmd embed`.
+
+    Parses CLI flags (``--no-embed`` to skip the slow CPU embed step,
+    ``--embed-timeout`` for the embed cap) and runs the QMD subcommands with
+    ``XDG_CACHE_HOME`` and ``QMD_LLAMA_GPU`` set so it targets the same index
+    as the MCP server on CPU. Embedding is best-effort — an embed failure does
+    not fail the job, since BM25 search works without vectors.
+
+    Returns:
+        Process exit code: ``0`` on success, ``2`` if ``qmd.js`` is not found,
+        or the non-zero return code from ``qmd update`` if the update step
+        fails (embed failures are swallowed).
+    """
+    # QMD prints non-ASCII glyphs (e.g. the check mark); the default Windows
+    # console codec (cp1252) cannot encode them. Make stdout/stderr tolerant.
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")

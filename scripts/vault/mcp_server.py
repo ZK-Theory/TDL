@@ -28,6 +28,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -79,7 +80,13 @@ for _candidate in _QMD_JS_CANDIDATES:
 # multiple CUDA contexts, which node-llama-cpp's CUDA backend aborts on
 # (ggml-cuda.cu GGML_ABORT). The primary search path is BM25, which loads no
 # model at all, so CPU here costs nothing for interactive queries.
-_DEFAULT_CACHE = str(Path.home() / ".cache")
+try:
+    _DEFAULT_CACHE = str(Path.home() / ".cache")
+except RuntimeError:
+    # Path.home() raises if no home directory can be resolved (e.g. both HOME
+    # and USERPROFILE unset). Fall back to the system temp dir so the server
+    # still starts; an explicit XDG_CACHE_HOME override still takes precedence.
+    _DEFAULT_CACHE = str(Path(tempfile.gettempdir()) / ".cache")
 QMD_ENV = {
     **os.environ,
     "XDG_CACHE_HOME": os.environ.get("XDG_CACHE_HOME", _DEFAULT_CACHE),
@@ -235,6 +242,9 @@ def _rebuild_index(conn: sqlite3.Connection) -> dict:
 # full-text index fresh per-session; embedding refresh is left to the
 # scheduled refresh_index.py job (it is slow and runs on CPU).
 QMD_REFRESH_INTERVAL = float(os.environ.get("VAULT_ENGINE_QMD_REFRESH_SEC", "3600"))
+# Hard cap (seconds) on the in-tool `qmd update` subprocess. Default 60 is ample
+# for the ~2s re-index; raise via env if a very large vault needs more headroom.
+QMD_UPDATE_TIMEOUT = int(os.environ.get("VAULT_ENGINE_QMD_UPDATE_TIMEOUT", "60"))
 
 
 def _maybe_refresh_qmd(conn: sqlite3.Connection) -> None:
@@ -254,7 +264,7 @@ def _maybe_refresh_qmd(conn: sqlite3.Connection) -> None:
         subprocess.run(
             ["node", QMD_JS, "update"],
             capture_output=True,
-            timeout=60,
+            timeout=QMD_UPDATE_TIMEOUT,
             env=QMD_ENV,
             encoding="utf-8",
             errors="replace",

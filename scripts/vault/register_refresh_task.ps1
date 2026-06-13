@@ -16,14 +16,16 @@
 $ErrorActionPreference = "Stop"
 
 $taskName = "VaultEngine-IndexRefresh"
-$repo     = "C:\Users\steph\TDL"
+# Derive the repo root from the script location (scripts\vault\ -> repo root)
+# so this works on any checkout, not just one machine.
+$repo     = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $script   = Join-Path $repo "scripts\vault\refresh_index.py"
 $python   = Join-Path $repo ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { $python = "python" }   # fall back to PATH
 
 # No env injection needed: refresh_index.py defaults XDG_CACHE_HOME to
-# ~/.cache (Path.home()), which resolves to C:\Users\steph\.cache for the
-# logged-in user — the same index the MCP server uses.
+# ~/.cache (Path.home()), which resolves to the logged-in user's cache dir -
+# the same index the MCP server uses.
 $run = "`"$python`" `"$script`""
 
 schtasks /Create /TN $taskName /TR $run /SC DAILY /ST 04:30 /F | Out-Null
