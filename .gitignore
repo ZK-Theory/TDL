@@ -142,7 +142,8 @@ papers/submission guidelines/
 # `C:\Users\steph\Documents\TDA-Research\` for direct content access from
 # the repo (Edit/Read against vault/<path> rather than vault_get through
 # the vault-engine MCP). Machine-local setup; not for commit.
-vault/
+# Anchored to repo root so it does NOT also ignore scripts/vault/ (tracked).
+/vault/
 
 # Stage-1 battery gitignored intermediates (T0.12 two-path rule)
 # - launches/ : PID markers written before any heavy work (launch ground truth)
