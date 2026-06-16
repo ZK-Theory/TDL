@@ -1,6 +1,6 @@
 id: h2-positive-control-diagnostics-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.5 auxiliary-diagnostics consolidated summary. The summary
@@ -42,7 +42,7 @@ schema_def:
       description: "MUST include null == 'markov-1', seed == 42, frozen_loadings == true, p_h0 (float in [0, 1]), p_h1 (float in [0, 1]), tolerance_band exactly [0.3, 0.7], and calibrated (bool; true iff both p_h0 and p_h1 fall in the tolerance_band)."
     - name: doubled_n_w2
       type: "dict[str, ...]"
-      description: "MUST include n_perms == 200, n_nullnull == 2000, L == 5000, seed == 42, p_value (float in [0, 1]), and stable_vs_t1_2 (bool)."
+      description: "MUST include n_perms == 200, n_nullnull == 2000, L == 5000, seed == 42, p_value (float in [0, 1]), stable_vs_t1_2 (bool), and per_pair_w2 with obs_null.H0/H1 arrays of length 200 plus null_null.H0/H1 arrays of length 2000, null_null.pair_indices length 2000, and pair_draw_seed == 42."
   forbidden_keys:
     - name: per_call_pca
       reason: "Embeddings (incl. the positive-control re-embed) must use frozen PCA loadings, never per-call refit."
@@ -56,4 +56,5 @@ binding:
     != [0.3, 0.7] or positive_control.calibrated disagrees with both p-values
     lying in the band; (c) doubled_n_w2.n_perms != 200 or doubled_n_w2.n_nullnull
     != 2000; (d) any p-value is outside [0, 1] or any persistence value is
-    negative; or (e) a forbidden key is present.
+    negative; (e) per_pair_w2 arrays have wrong length, non-finite values, invalid
+    pair indices, or a pair_draw_seed other than 42; or (f) a forbidden key is present.

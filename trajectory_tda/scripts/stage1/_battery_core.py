@@ -212,6 +212,25 @@ def _null_null_w2_worker(d_i: NDArray[np.float64], d_j: NDArray[np.float64], dim
     return float(wasserstein_distance(ph_i, ph_j, dim=dim))
 
 
+def wasserstein_distance_between_diagrams(d_i: NDArray[np.float64], d_j: NDArray[np.float64], dim: int) -> float:
+    """Compute canonical W2 between two raw persistence diagrams.
+
+    Public wrapper for cache-driven diagnostics that need the same exact
+    Gudhi Wasserstein-2 path without reaching into private worker helpers.
+    The direct import is intentional: falling back to the approximate
+    project-level wrapper silently changes the H1 distance scale.
+    """
+    from gudhi.wasserstein import wasserstein_distance as _gudhi_wasserstein_distance
+
+    arr_i = np.asarray(d_i, dtype=np.float64).reshape(-1, 2)
+    arr_j = np.asarray(d_j, dtype=np.float64).reshape(-1, 2)
+    if arr_i.shape[0] > 0:
+        arr_i = arr_i[np.isfinite(arr_i).all(axis=1)]
+    if arr_j.shape[0] > 0:
+        arr_j = arr_j[np.isfinite(arr_j).all(axis=1)]
+    return float(_gudhi_wasserstein_distance(arr_i, arr_j, order=2, internal_p=2))
+
+
 # --- Diagram extraction from PHResult ----------------------------------------
 
 

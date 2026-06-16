@@ -1,13 +1,15 @@
 id: h2-positive-control-diagnostics-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for the T1.5 consolidated diagnostics summary. Any
   staged JSON under results/trajectory_tda_integration/h2_check matching
   diagnostics_summary_*.json must conform to the
   h2-positive-control-diagnostics-output schema, ensuring the H2 check, the
-  positive-control calibration, and the doubled-n W2 sanity are all present.
+  positive-control calibration, and the doubled-n W2 sanity are all present,
+  including the retained per-pair W2 distance arrays used for the doubled-n
+  p-value computation.
 
 spec_citation:
   source: "P01-A plan sections 10.2, B1, 8; Spec 'H2 check'; H2-Check pre-registration 2026-05-13"

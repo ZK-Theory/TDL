@@ -1,0 +1,19 @@
+scope_id: T1.5
+scope_description: >
+  Auxiliary diagnostics for P01-A: H2 persistence with Markov-1 null,
+  positive-control Markov-1 calibration under frozen loadings, and doubled-n
+  W2 Markov-1 sanity check at L=5000.
+authored: "2026-06-08"
+authored_by: "Manager 9 (pre-dispatch coverage extraction)"
+
+contracts:
+  - stage1-output-schemas/h2-positive-control-diagnostics-output
+  - stage1-output-schemas/h2-positive-control-diagnostics-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker must implement the binding tests in
+  tests/trajectory_tda/test_t1_5_diagnostics_contracts.py and clear pending
+  only after the binding tests exist and pass. If binding implementation is
+  blocked, the Worker reports Partial and leaves the result unaccepted for
+  paper claims.
