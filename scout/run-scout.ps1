@@ -1,4 +1,4 @@
-# scout/run-scout.ps1 — weekly Scout gather via Codex CLI.
+# scout/run-scout.ps1 - weekly Scout gather via Codex CLI.
 # Registered as a Windows Task Scheduler job (~20:00 local, weekly). Runs as the logged-in
 # user so Codex uses the per-user auth in ~/.codex. Part of the TDL Discovery harness:
 # docs/plans/strategy/Discovery-Harness-Plan-16-06-2026.md
@@ -8,7 +8,7 @@
 # line as a terminating NativeCommandError, so a single benign Codex log line aborts the
 # run. Start-Process writes the streams straight to files and never does that.
 #
-# NOT yet scheduled — run this once interactively first to confirm Codex reaches the
+# NOT yet scheduled - run this once interactively first to confirm Codex reaches the
 # network and writes the inbox note under `-s workspace-write`. If network is blocked in
 # that sandbox mode, switch to the $codexArgs line with the network override (confirm the
 # exact key for your Codex version with `codex exec --help` / `codex doctor`).
@@ -29,7 +29,7 @@ if (-not (Test-Path $job))   { Write-Error "Scout job prompt not found at $job";
 # Gather only, no commits. workspace-write lets Codex create the inbox note; the repo's
 # .codex/hooks.json still applies. Prompt is fed on stdin from the job file.
 $codexArgs = @('exec', '--cd', $repo, '--sandbox', 'workspace-write', '-')
-# 2026-06-16 test: workspace-write reached OpenAlex + arXiv fine — the override below is NOT needed.
+# 2026-06-16 test: workspace-write reached OpenAlex + arXiv fine - the override below is NOT needed.
 # Network-enabled variant (only if a future run shows workspace-write blocks outbound HTTP):
 # $codexArgs = @('exec','--cd',$repo,'--sandbox','workspace-write','-c','sandbox_workspace_write.network_access=true','-')
 

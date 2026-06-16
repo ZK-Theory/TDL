@@ -14,8 +14,10 @@ a `/assay` pass at all, and gets each survivor a one-line reason tied to the pro
 ## When to run
 
 Whenever you sit down and a new `vault/00-Meta/Discovery/_inbox/YYYY-Www.md` exists that
-hasn't been triaged yet (no corresponding entries in `_backlog.md` with that inbox week
-as source). Triggered manually — there is no scheduler for this half.
+hasn't been triaged yet — i.e. the inbox note has **no `## Triage` section** (the completion
+marker written in step 6). A week can be fully triaged with **zero** `_backlog.md` entries
+(all hits dropped), so backlog presence is NOT the trigger. Triggered manually — there is no
+scheduler for this half.
 
 ## Pre-flight self-check (re-read before emitting)
 
@@ -41,7 +43,7 @@ Before writing the triage output, re-confirm:
 
 ## Procedure
 
-1. **Locate the input.** Read the most recent untriaged `vault/00-Meta/Discovery/_inbox/YYYY-Www.md`
+1. **Locate the input.** Read the most recent inbox note with **no `## Triage` section** yet, `vault/00-Meta/Discovery/_inbox/YYYY-Www.md`
    (`Glob` does not cross the `vault/` junction — use `Read` on the known path or
    PowerShell `Get-ChildItem` to list `_inbox/`). Note the `week`, `since`, and hit count
    from the frontmatter.
@@ -73,7 +75,9 @@ Before writing the triage output, re-confirm:
    method to be aware of, not a candidate research direction).
 6. **Write the triage output** back into the inbox note itself (append a `## Triage`
    section after `## Hits`, top of that section is fine since hits don't change) — do
-   not create a separate triage file. Use the table format in Output below.
+   not create a separate triage file. Use the table format in Output below. **This
+   `## Triage` section is the completion marker** checked by "When to run" — its presence
+   means the week is triaged even if it produced zero `_backlog.md` entries.
 7. **Update `_backlog.md`** — add a new top-of-page entry (reverse-chronological) per
    PROMOTE candidate, `state: triaged`, with the source inbox week and the one-line
    relevance note carried over. If `_backlog.md` does not exist yet, create it with the
