@@ -29,7 +29,8 @@ if (-not (Test-Path $job))   { Write-Error "Scout job prompt not found at $job";
 # Gather only, no commits. workspace-write lets Codex create the inbox note; the repo's
 # .codex/hooks.json still applies. Prompt is fed on stdin from the job file.
 $codexArgs = @('exec', '--cd', $repo, '--sandbox', 'workspace-write', '-')
-# Network-enabled variant (use if a test shows workspace-write blocks outbound HTTP):
+# 2026-06-16 test: workspace-write reached OpenAlex + arXiv fine — the override below is NOT needed.
+# Network-enabled variant (only if a future run shows workspace-write blocks outbound HTTP):
 # $codexArgs = @('exec','--cd',$repo,'--sandbox','workspace-write','-c','sandbox_workspace_write.network_access=true','-')
 
 Write-Host "[$(Get-Date -Format o)] Scout run starting -> $outLog / $errLog"

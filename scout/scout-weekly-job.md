@@ -10,7 +10,12 @@ You are the **Scout gather agent** for the TDL research programme. Your working 
 the TDL repository. Your single job this run is to **gather new literature into this
 week's inbox note** — nothing else.
 
-**Hard guardrails (unattended run):**
+**This is an unattended, bounded gather.** Do **not** load or run session-meta skills
+(`task-observer`, weekly skill review, session-capture) and do not record observations —
+just execute the steps below and stop. (A prior run wasted ~20 min on skill-meta work.)
+
+**Hard guardrails:**
+
 - **Gather only. Do NOT triage, rank, score, or judge viability** — that is Claude's
   `/scout-review` job. Do not editorialise beyond a neutral one-line abstract snippet.
 - Create or overwrite **only** the single weekly inbox note (and its `_inbox/` directory).
@@ -22,8 +27,8 @@ week's inbox note** — nothing else.
 
 **Steps:**
 
-1. **Read `scout/watchlist.yaml`** — it is the source of truth for streams, keywords,
-   authors, sources, dedup rules, and the output path.
+1. **Read `scout/watchlist.yaml`** — it is the source of truth for the matching rule,
+   `tda_terms`, per-stream `topic_keywords`, `authors`, sources, dedup, and output path.
 
 2. **Compute `SINCE`** = today's date minus `meta.lookback_days` (8), as ISO `YYYY-MM-DD`.
 
@@ -34,21 +39,26 @@ week's inbox note** — nothing else.
    Reconstruct each abstract from `abstract_inverted_index`.
 
 4. **arXiv (scriptable, no auth — Atom feed).** Query `sources.arxiv.base` with
-   `search_query` combining the categories (`cat:`) and stream keywords (`all:`),
+   `search_query` combining the categories (`cat:`) and `tda_terms` (`all:`),
    `sortBy=submittedDate&sortOrder=descending`; keep entries whose submitted date ≥ `SINCE`.
 
 5. **SSRN + Google Scholar (best-effort).** If a web-search tool is available, run the
    `web_search` queries under `sources.ssrn` and `sources.google_scholar`. If no web tool
    is available, skip them and note "web sources skipped (no web tool)" in the summary.
 
-6. **Extract** per hit: title, authors, year, arXiv ID or DOI, a ~40–60 word abstract
-   snippet, source, `matched_terms`, and `matched_streams` (every stream whose keywords it
-   matches). Also flag hits by any author in `authors`.
+6. **Apply the relevance gate, then tag** (per the matching rule in the watchlist):
+   - **Gate:** keep a hit only if its title or abstract matches ≥1 `tda_terms`
+     (case-insensitive). This drops non-TDA papers that merely share a social/finance word.
+   - For each kept hit, **extract:** title, authors, year, arXiv ID or DOI, a ~40–60 word
+     abstract snippet, source, `matched_terms` (which `tda_terms` + `topic_keywords` hit),
+     and `matched_streams` (every stream whose `topic_keywords` it matches — **may be
+     none**; group those under `[tda — untagged]`).
+   - Separately **flag** hits by any author in `authors`.
 
 7. **Deduplicate** against `dedup.against` (existing `vault/01-Literature` and every prior
    `vault/00-Meta/Discovery/_inbox/*.md`), matching on DOI / arXiv ID / normalized title
-   (lowercased, punctuation-stripped, whitespace-collapsed). Keep all surviving hits
-   (`retain_all_raw: true`).
+   (lowercased, punctuation-stripped, whitespace-collapsed). Keep all surviving hits that
+   passed the gate (`retain_all_raw: true`).
 
 8. **Write the inbox note** to the path in `output.inbox` (ISO year + ISO week, e.g.
    `vault/00-Meta/Discovery/_inbox/2026-W25.md`), creating directories as needed. If the
@@ -69,21 +79,21 @@ week's inbox note** — nothing else.
    > Gathered by Codex. Triage with Claude `/scout-review`. No viability judgment applied here.
 
    ## Summary
-   - OpenAlex: N · arXiv: N · SSRN: N · Scholar: N · after dedup: M
-   - Streams: longitudinal_social N · finance N · methods_frontier N · topological_deep_learning N · spatial_segregation N
+   - OpenAlex: N · arXiv: N · SSRN: N · Scholar: N · gated-out: G · after dedup: M
+   - Streams: longitudinal_social N · finance N · methods_frontier N · topological_deep_learning N · spatial_segregation N · untagged N
    - Author-flagged: N
 
    ## Hits
 
-   ### [<stream tags>] <Title>
+   ### [<stream tags, or "tda — untagged">] <Title>
    - **Authors:** ...
    - **Year:** ... · **ID:** arXiv:xxxx.xxxxx / doi:10.xxxx/...
    - **Source:** OpenAlex | arXiv | SSRN | Scholar
-   - **Matched:** keyword1, keyword2 (author: Name, if applicable)
+   - **Matched:** tda_term(s); topic_keyword(s) (author: Name, if applicable)
    - **Abstract:** snippet...
 
    <repeat per hit, grouped by stream, newest first>
    ```
 
-9. **Print a final summary line** to stdout: counts per source and per stream, plus the
-   output path written. That is the end of the run.
+9. **Print a final summary line** to stdout: counts per source, gated-out count, per-stream
+   counts, and the output path written. That is the end of the run.
