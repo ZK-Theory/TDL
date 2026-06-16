@@ -43,6 +43,7 @@ from pathlib import Path
 # Add every new research-assurance skill here as it is authored.
 SYNC_SKILLS: set[str] = {
     # Domain + coordination skills (already present in both trees)
+    "assay",
     "bhps-wave-crosswalk",
     "commit-log",
     "humanizer",
@@ -53,6 +54,7 @@ SYNC_SKILLS: set[str] = {
     "paper-repo-extract",
     "phase0-status",
     "scout-review",
+    "spike",
     "tda-experiment",
     "tda-figure-spec",
     "validate-topology",
