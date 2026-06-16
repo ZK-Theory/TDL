@@ -44,6 +44,8 @@ plt.rcParams.update(PUBLICATION_RC)
 ## Save function (always use this pattern)
 
 ```python
+from pathlib import Path
+
 def _save_figure(fig, output_dir: Path, name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_dir / f"{name}.pdf", format="pdf")

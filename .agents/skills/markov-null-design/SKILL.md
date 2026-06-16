@@ -1,3 +1,8 @@
+---
+name: markov-null-design
+description: Use when designing or scaffolding a Markov null model for the trajectory TDA permutation pipeline — enforces explicit Markov order k, generates the permutation_test_trajectories call, result logging stub, and Computational-Log reminder.
+---
+
 # /markov-null-design — Scaffold a Markov Null Model
 
 Design and scaffold a correctly-specified Markov null model for the trajectory TDA

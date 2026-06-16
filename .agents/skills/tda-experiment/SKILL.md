@@ -1,3 +1,8 @@
+---
+name: tda-experiment
+description: Use when scaffolding and running a new TDA experiment — follows codebase conventions (domain data/topology/analysis modules, results output, seed recording).
+---
+
 # /tda-experiment — Run a TDA Experiment
 
 Scaffold a new TDA experiment following codebase conventions.
@@ -43,7 +48,7 @@ if __name__ == "__main__":
 ## Conventions
 
 - All numeric outputs serialised to JSON in `results/`
-- Include `metadata` dict in results JSON: `{n_permutations, n_landmarks, runtime_s, date}`
+- Include `metadata` dict in results JSON: `{n_permutations, n_landmarks, seed, runtime_s, date}` — record `seed` so any seeded stochastic run is reproducible from the results file alone
 - PCA loadings **frozen** from full-sample fit — do not refit on surrogates
 - Maxmin landmarks re-selected on each surrogate (do not couple landmark geometry to observed data)
 - Permutation nulls use fixed seeds when reproducibility matters: `np.random.seed(42)`
@@ -67,6 +72,7 @@ if __name__ == "__main__":
     "date": "2026-03-24",
     "n_permutations": 100,
     "n_landmarks": 2000,
+    "seed": 42,
     "runtime_s": 471.2,
     "hardware": "i7/32GB"
   },

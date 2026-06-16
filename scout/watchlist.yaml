@@ -1,0 +1,100 @@
+# scout/watchlist.yaml — Scout surveillance configuration (Discovery & Triage harness)
+#
+# Single source of truth for the weekly Scout gather. Consumed by the Codex CLI cron
+# job (scout/scout-weekly-job.md), run ~20:00 local, weekly, via Windows Task Scheduler.
+# Free sources only — no paid API keys. Plain YAML so any agent (Codex or Claude) can read it.
+# Plan: docs/plans/strategy/Discovery-Harness-Plan-16-06-2026.md
+# Seeded 2026-06-16 from the user's proven schedule-job prompts; revised after the first
+# test run (which showed shared method-keywords were polluting every stream tag).
+
+meta:
+  cadence: weekly
+  run_time_local: "20:00"
+  lookback_days: 8            # 1-day overlap vs the 7-day cadence — the weekly boundary never drops a day
+  runner: codex-cli           # Codex owns the gather; Claude does deferred /scout-review triage + /assay
+  date_placeholder: "{SINCE}" # ISO date computed at run time = today - lookback_days
+
+# ── Matching rule (two-stage: gate, then label) ───────────────────────────────
+# 1. RELEVANCE GATE: keep a hit only if its title/abstract matches >=1 `tda_terms`.
+#    This is what makes a paper relevant to THIS programme — it must actually be TDA.
+#    (First test run retained EEG/MCI and Bayesian survival papers purely because they
+#     contained "segregation"/"longitudinal"; the gate drops those.)
+# 2. STREAM TAGS: tag a kept hit with every stream whose `topic_keywords` it matches.
+#    tda_terms NEVER assign a stream (they are shared across streams, so they would tag
+#    everything as social+finance). A hit may match zero streams → list as "[tda — untagged]".
+# 3. AUTHOR FLAG: separately flag hits by any `authors` entry (surfaced even if untagged).
+
+tda_terms: [persistent homology, topological data analysis, persistent Laplacian,
+  persistence diagram, persistence landscape, persistence image, mapper, zigzag persistence,
+  multiparameter persistence, multi-parameter persistent homology, betti, topological deep learning,
+  vietoris-rips, persistent cohomology]
+
+# ── Streams: DISCRIMINATING topic terms only (no generic TDA method words) ─────
+streams:
+  longitudinal_social:
+    label: "Longitudinal / social-stratification TDA (P01 line)"
+    topic_keywords: [social inequality, social stratification, social mobility, income mobility,
+      poverty, life course, employment trajectory, income trajectory, panel data, longitudinal cohort,
+      labour market, intergenerational]
+  finance:
+    label: "Financial TDA (FIN-01 seed stream)"
+    topic_keywords: [market regime, stock market, financial crisis, market crash, volatility,
+      financial time series, asset returns, systemic risk, early warning signal, cryptocurrency]
+  methods_frontier:
+    label: "TDA methods frontier"
+    topic_keywords: [multiparameter persistence, zigzag persistence, mapper, persistence landscape,
+      signed barcode, persistence image, persistent Laplacian, persistence vectorisation,
+      hypothesis test persistence, stability theorem]
+  topological_deep_learning:
+    label: "Topological & geometric deep learning (Stage 3)"
+    topic_keywords: [topological deep learning, geometric deep learning, graph neural network,
+      combinatorial complex neural network, sheaf neural network, persistence-based loss,
+      differentiable persistence, topological layer]
+  spatial_segregation:
+    label: "Spatial inequality / segregation"
+    topic_keywords: [spatial segregation, residential segregation, spatial inequality,
+      neighbourhood effect, urban topology, geospatial inequality]
+
+# ── Seed authors (surface anything new from these, even if untagged) ──────────
+authors: [Gunnar Carlsson, Peter Bubenik, Marian Gidea, Yuri Katz, Jose Perea,
+  Facundo Mémoli, Ulrich Bauer, David Loiseaux, Guo-Wei Wei, Michael Bronstein,
+  Mathieu Carrière, Steve Oudot, Bernadette Stolz, Heather Harrington]
+
+# ── Sources (free; no auth) ───────────────────────────────────────────────────
+sources:
+  openalex:                  # scriptable HTTP, no auth — primary, most reliable
+    base: "https://api.openalex.org/works"
+    select: "id,doi,title,authorships,publication_year,primary_location,abstract_inverted_index"
+    per_page: 25
+    filter: "from_publication_date:{SINCE},type:article|preprint"
+    sort: "publication_date:desc"
+    queries:                 # one search= per stream; URL-encode the spaces (+) at run time
+      - persistent homology social inequality segregation
+      - persistent homology persistent Laplacian financial regime
+      - multiparameter persistence Mapper topological data analysis
+      - topological deep learning persistence machine learning
+      - spatial segregation topological data analysis
+  arxiv:                     # scriptable HTTP, no auth (Atom feed)
+    base: "http://export.arxiv.org/api/query"
+    categories: [math.AT, stat.AP, stat.ME, q-fin.ST, q-fin.MF, cs.LG, cs.SI, cs.CG, physics.soc-ph]
+    sort_by: submittedDate
+    sort_order: descending
+    # search_query = (cat:<any category>) AND (all:<any tda_term>); keep entries with submitted >= {SINCE}
+  ssrn:                      # no API → web search (best-effort, needs the runner's web tool)
+    web_search:
+      - 'site:ssrn.com ("persistent homology" OR "topological data analysis") ("inequality" OR "segregation" OR "social" OR "financial")'
+  google_scholar:            # no API → web search (best-effort, needs the runner's web tool)
+    web_search:
+      - '"persistent homology" OR "persistent Laplacian" "social inequality" OR "spatial segregation" OR "social stratification" 2025 OR 2026'
+      - 'site:arxiv.org ("persistent homology" OR "topological data analysis") ("financial" OR "market regime" OR "stock market") 2025 OR 2026'
+
+# ── Deduplication ─────────────────────────────────────────────────────────────
+dedup:
+  against: [vault/01-Literature, vault/00-Meta/Discovery/_inbox]   # curated lit + prior weeks
+  keys: [doi, arxiv_id, normalized_title]
+
+# ── Output ────────────────────────────────────────────────────────────────────
+output:
+  inbox: "vault/00-Meta/Discovery/_inbox/{YEAR}-W{WEEK}.md"   # ISO year-week
+  per_result_fields: [title, authors, year, arxiv_id_or_doi, abstract_snippet, source, matched_terms, matched_streams]
+  retain_all_raw: true       # keep every deduped hit that passes the gate; /scout-review caps at triage
