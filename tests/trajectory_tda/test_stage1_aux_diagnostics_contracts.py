@@ -14,6 +14,7 @@ import yaml
 
 from trajectory_tda.scripts.run_stage1_aux_diagnostics import (
     MAPPER_THRESHOLDS,
+    validate_markov2_alpha_payload,
     validate_kde_sublevel_payload,
     validate_mapper_threshold_payload,
 )
@@ -22,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_DIR = REPO_ROOT / "contracts"
 MAPPER_OUTPUT_GLOB = "results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_*.json"
 KDE_OUTPUT_GLOB = "results/trajectory_tda_integration/density_topology/sublevel_kde_h0_*.json"
+MARKOV2_ALPHA_OUTPUT_GLOB = "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_*.json"
 
 
 def _load_contract(rel_path: str) -> dict[str, Any]:
@@ -135,6 +137,62 @@ def _assert_no_errors(errors: list[str]) -> None:
     assert not errors, "; ".join(errors)
 
 
+def test_markov2_alpha_sweep_output_schema() -> None:
+    """Representative payload passes; contract-listed violations reject."""
+    _assert_no_errors(validate_markov2_alpha_payload(_markov_payload()))
+
+    # (a) params.alphas != [0, 0.5, 1, 5] or params.L != 5000 or params.seed != 42
+    bad = _markov_payload()
+    bad["params"]["alphas"] = [1]
+    bad["params"]["L"] = 2500
+    bad["params"]["seed"] = 7
+    with pytest.raises(AssertionError):
+        _assert_no_errors(validate_markov2_alpha_payload(bad))
+
+    # (b) results does not contain all 8 alpha x dataset cells
+    bad = _markov_payload()
+    bad["results"] = bad["results"][:7]
+    with pytest.raises(AssertionError):
+        _assert_no_errors(validate_markov2_alpha_payload(bad))
+
+    # (c) any p_value is outside [0, 1] or any w2_obs_null is negative
+    bad = _markov_payload()
+    bad["results"][0]["p_value"] = 1.5
+    bad["results"][1]["w2_obs_null"] = -0.01
+    with pytest.raises(AssertionError):
+        _assert_no_errors(validate_markov2_alpha_payload(bad))
+
+    # (d) stability.canonical_alpha != 1 while stability.conclusion_stable is true
+    bad = _markov_payload()
+    bad["stability"]["canonical_alpha"] = 0.5
+    with pytest.raises(AssertionError):
+        _assert_no_errors(validate_markov2_alpha_payload(bad))
+
+    # (e) a forbidden key is present
+    bad = _markov_payload()
+    bad["per_call_pca"] = True
+    with pytest.raises(AssertionError):
+        _assert_no_errors(validate_markov2_alpha_payload(bad))
+
+
+def test_markov2_alpha_sweep_json_validation_dispatch() -> None:
+    output_validation = _load_contract("stage1-output-schemas/markov2-alpha-sweep-output-json-validation.yaml")
+    ov = output_validation["output_validation"]
+    assert ov["applies_to_glob"] == MARKOV2_ALPHA_OUTPUT_GLOB
+    assert ov["schema_contracts"] == ["markov2-alpha-sweep-output"]
+    assert Path("results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_2026-06-08.json").full_match(
+        ov["applies_to_glob"]
+    )
+    assert not Path(
+        "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_notes_2026-06-08.json"
+    ).full_match(ov["applies_to_glob"])
+    matched = _matched_jsons(ov["applies_to_glob"])
+    assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
+    for json_path in matched:
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        _assert_no_errors(validate_markov2_alpha_payload(payload))
+
+
 def test_mapper_threshold_sweep_output_schema() -> None:
     """Representative payload passes; contract-listed violations reject."""
     _assert_no_errors(validate_mapper_threshold_payload(_mapper_payload()))
@@ -171,12 +229,12 @@ def test_mapper_threshold_sweep_json_validation_dispatch() -> None:
     ov = output_validation["output_validation"]
     assert ov["applies_to_glob"] == MAPPER_OUTPUT_GLOB
     assert ov["schema_contracts"] == ["mapper-threshold-sweep-output"]
-    assert Path("results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_2026-06-07.json").full_match(
-        ov["applies_to_glob"]
-    )
-    assert not Path("results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_notes_2026-06-07.json").full_match(
-        ov["applies_to_glob"]
-    )
+    assert Path(
+        "results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_2026-06-07.json"
+    ).full_match(ov["applies_to_glob"])
+    assert not Path(
+        "results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_notes_2026-06-07.json"
+    ).full_match(ov["applies_to_glob"])
     matched = _matched_jsons(ov["applies_to_glob"])
     assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
     for json_path in matched:
@@ -228,9 +286,9 @@ def test_kde_sublevel_h0_json_validation_dispatch() -> None:
     assert Path("results/trajectory_tda_integration/density_topology/sublevel_kde_h0_2026-06-07.json").full_match(
         ov["applies_to_glob"]
     )
-    assert not Path("results/trajectory_tda_integration/density_topology/sublevel_kde_notes_2026-06-07.json").full_match(
-        ov["applies_to_glob"]
-    )
+    assert not Path(
+        "results/trajectory_tda_integration/density_topology/sublevel_kde_notes_2026-06-07.json"
+    ).full_match(ov["applies_to_glob"])
     matched = _matched_jsons(ov["applies_to_glob"])
     assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
     for json_path in matched:
@@ -239,8 +297,12 @@ def test_kde_sublevel_h0_json_validation_dispatch() -> None:
 
 
 def test_auxiliary_payload_validators_are_pure() -> None:
-    payloads = [_mapper_payload(), _kde_payload()]
-    validators = [validate_mapper_threshold_payload, validate_kde_sublevel_payload]
+    payloads = [_mapper_payload(), _kde_payload(), _markov_payload()]
+    validators = [
+        validate_mapper_threshold_payload,
+        validate_kde_sublevel_payload,
+        validate_markov2_alpha_payload,
+    ]
     for payload, validator in zip(payloads, validators, strict=True):
         before = copy.deepcopy(payload)
         validator(payload)

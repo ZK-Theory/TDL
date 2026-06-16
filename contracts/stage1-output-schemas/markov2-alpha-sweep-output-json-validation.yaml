@@ -1,6 +1,6 @@
 id: markov2-alpha-sweep-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for T1.8 Markov-2 alpha-sweep summary JSONs. Any

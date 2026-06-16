@@ -153,7 +153,7 @@ def _markov_shuffle(
     For Markov-2, conditional probabilities are smoothed with Laplace smoothing:
     P(s_t | s_{t-2}, s_{t-1}) = (count(s_{t-2}, s_{t-1}, s_t) + alpha) /
                                   (sum_s count(s_{t-2}, s_{t-1}, s) + alpha * n_states)
-    Unobserved bigrams receive uniform probability (alpha / alpha * n_states = 1/n_states).
+    Unobserved bigrams receive uniform probability (alpha / (alpha * n_states) = 1/n_states).
 
     Args:
         trajectories: Raw state sequences.
@@ -163,7 +163,13 @@ def _markov_shuffle(
         alpha: Laplace smoothing parameter for Markov-2 conditional probabilities.
             Default 1 (add-one smoothing). Use alpha=0 to recover raw MLE.
         frozen_models: Optional fitted-model bundle from ngram_embed()[1]["fitted_models"].
+
+    Raises:
+        ValueError: If ``alpha`` is negative (invalid Laplace smoothing).
     """
+    if alpha < 0:
+        raise ValueError(f"alpha must be non-negative for Markov smoothing, got {alpha}")
+
     state_to_idx = {s: i for i, s in enumerate(STATES)}
     n_states = len(STATES)
 
@@ -533,6 +539,7 @@ def _single_permutation(
     statistic: str,
     markov_order: int,
     embed_kwargs: dict | None,
+    alpha: float = 1.0,
     frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
     dedup: bool = False,
@@ -574,7 +581,14 @@ def _single_permutation(
     elif null_type == "order_shuffle":
         X_perm = _order_shuffle(trajectories or [], rng, embed_kwargs, frozen_models)
     elif null_type == "markov":
-        X_perm = _markov_shuffle(trajectories or [], rng, markov_order, embed_kwargs, frozen_models=frozen_models)
+        X_perm = _markov_shuffle(
+            trajectories or [],
+            rng,
+            markov_order,
+            embed_kwargs,
+            alpha=alpha,
+            frozen_models=frozen_models,
+        )
     elif null_type == "stratified_markov1":
         regime_labels = (metadata or {}).get("regime_labels")
         if regime_labels is None:
@@ -620,9 +634,7 @@ def _single_permutation(
     elif dedup:
         from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
 
-        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(
-            landmarks
-        )
+        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(landmarks)
         landmarks_for_ph = landmarks[dedup_idx]
 
     ph_kwargs: dict = {"max_dim": max_dim}
@@ -689,6 +701,7 @@ def permutation_test_trajectories(
     n_landmarks: int = 5000,
     statistic: str = "total_persistence",
     markov_order: int = 1,
+    alpha: float = 1.0,
     n_jobs: int = -1,
     seed: int = 42,
     embed_kwargs: dict | None = None,
@@ -706,6 +719,7 @@ def permutation_test_trajectories(
         n_landmarks: Landmarks for subsampling
         statistic: 'total_persistence', 'max_persistence', or 'wasserstein'
         markov_order: Order for Markov null (1 or 2)
+        alpha: Laplace smoothing parameter for Markov-2 nulls
         n_jobs: Number of parallel jobs (-1 = all cores)
         seed: Random seed base
         embed_kwargs: Kwargs passed to ngram_embed for re-embedding nulls
@@ -762,6 +776,7 @@ def permutation_test_trajectories(
             statistic,
             markov_order,
             embed_kwargs,
+            alpha=alpha,
             frozen_models=frozen_models,
             ph_observed=ph_obs if statistic == "wasserstein" else None,
         )

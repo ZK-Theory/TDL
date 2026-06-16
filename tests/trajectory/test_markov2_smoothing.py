@@ -11,6 +11,7 @@ import numpy as np
 
 from tests.trajectory.conftest import make_synthetic_trajectories
 from trajectory_tda.embedding.ngram_embed import STATES
+from trajectory_tda.topology import permutation_nulls
 from trajectory_tda.topology.permutation_nulls import _markov_shuffle
 
 N_STATES = len(STATES)
@@ -201,3 +202,70 @@ class TestAlphaZeroMLE:
         )
         assert smoothed[0] < mle[0], "Smoothing must reduce peak probability"
         assert np.all(smoothed[1:] > mle[1:]), "Smoothing must assign mass to unseen successors"
+
+
+class TestPublicRunnerAlphaThreading:
+    def test_public_runner_threads_alpha_to_markov2(self, monkeypatch):
+        """The public permutation runner must pass alpha into Markov-2 draws."""
+        embeddings = np.zeros((4, 2), dtype=float)
+        trajectories = [["EL", "EM", "EH", "EL"] for _ in range(4)]
+        seen: list[dict[str, np.ndarray | float]] = []
+
+        class FakePH:
+            def __init__(self, points):
+                self.points = np.asarray(points, dtype=float)
+
+        def fake_markov_shuffle(
+            trajectories,
+            rng,
+            markov_order=1,
+            embed_kwargs=None,
+            alpha=1.0,
+            frozen_models=None,
+        ):
+            assert markov_order == 2
+            counts = np.zeros(N_STATES, dtype=float)
+            counts[0] = 6.0
+            probs = counts / counts.sum() if alpha == 0 else (counts + alpha) / (counts.sum() + alpha * N_STATES)
+            np.testing.assert_allclose(probs.sum(), 1.0)
+            seen.append({"alpha": float(alpha), "probs": probs.copy()})
+            return np.full((len(trajectories), 2), float(probs[0]))
+
+        def fake_compute_rips_ph(points, max_dim=0):
+            return FakePH(points)
+
+        def fake_persistence_summary(ph):
+            return {"H0": {"total_persistence": float(ph.points[:, 0].mean())}}
+
+        monkeypatch.setattr(permutation_nulls, "_markov_shuffle", fake_markov_shuffle)
+        monkeypatch.setattr(permutation_nulls, "compute_rips_ph", fake_compute_rips_ph)
+        monkeypatch.setattr(permutation_nulls, "persistence_summary", fake_persistence_summary)
+
+        result_alpha0 = permutation_nulls.permutation_test_trajectories(
+            embeddings,
+            trajectories=trajectories,
+            null_type="markov",
+            markov_order=2,
+            alpha=0.0,
+            n_permutations=1,
+            max_dim=0,
+            n_landmarks=4,
+            n_jobs=1,
+            seed=42,
+        )
+        result_alpha1 = permutation_nulls.permutation_test_trajectories(
+            embeddings,
+            trajectories=trajectories,
+            null_type="markov",
+            markov_order=2,
+            alpha=1.0,
+            n_permutations=1,
+            max_dim=0,
+            n_landmarks=4,
+            n_jobs=1,
+            seed=42,
+        )
+
+        assert [row["alpha"] for row in seen] == [0.0, 1.0]
+        assert not np.allclose(seen[0]["probs"], seen[1]["probs"])
+        assert result_alpha0["H0"]["null_distribution"] != result_alpha1["H0"]["null_distribution"]

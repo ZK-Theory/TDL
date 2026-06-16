@@ -1,0 +1,439 @@
+{
+  "schema_version": "stage1/markov2-alpha-sweep/v1",
+  "generated_at": "2026-06-16T03:19:22+00:00",
+  "task": "T1.8 Markov-2 alpha sensitivity sweep",
+  "pre_registration": "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-07.json",
+  "inputs": {
+    "canonical_embedding_source": {
+      "usoc": "results/trajectory_tda_integration/embeddings.npy",
+      "bhps": "results/trajectory_tda_bhps/embeddings.npy"
+    },
+    "baseline_gmm_labels_source": {
+      "usoc": "results/trajectory_tda_integration/05_analysis.json[gmm_labels]",
+      "bhps": "results/trajectory_tda_bhps/05_analysis.json[gmm_labels]"
+    },
+    "n_trajectories": {
+      "usoc": 27280,
+      "bhps": 8509
+    },
+    "git_head": "6b71cb2e4f9c9e40edb930a8ba6f6a85389b2fc1"
+  },
+  "params": {
+    "alphas": [
+      0,
+      0.5,
+      1,
+      5
+    ],
+    "L": 5000,
+    "B": 1000,
+    "seed": 42,
+    "datasets": [
+      "usoc",
+      "bhps"
+    ],
+    "frozen_loadings": true,
+    "p_value_formula": "(r+1)/(B+1)",
+    "markov_order": 2,
+    "wasserstein_order": 2,
+    "wasserstein_internal_p": 2,
+    "summary_dimension": "h1",
+    "n_jobs": 1,
+    "cell_worker_count": 1,
+    "permutation_jobs": 4,
+    "n_null_pairs": 500,
+    "cell_parallelism": "alpha x dataset cells"
+  },
+  "results": [
+    {
+      "alpha": 0,
+      "dataset": "usoc",
+      "dimension": "h1",
+      "total_persistence": 2258.335467815399,
+      "w2_obs_null": 282.40905390211407,
+      "p_value": 0.000999000999000999,
+      "rejected_at_005": true,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 20482.18425154686,
+          "w2_obs_null": 105.36693706206381,
+          "w2_null_null": 5.534497784562855,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 19.038211083209653,
+          "d_perm": 65.27360754342988,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 2258.335467815399,
+          "w2_obs_null": 282.40905390211407,
+          "w2_null_null": 192.90670181331987,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 1.463967043381456,
+          "d_perm": 29.270669254948228,
+          "rejected_at_005": true
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0_B1000_L5000_seed42_2026-06-08.json",
+      "runtime_seconds": 82055.23244357109
+    },
+    {
+      "alpha": 0,
+      "dataset": "bhps",
+      "dimension": "h1",
+      "total_persistence": 828.5428774356842,
+      "w2_obs_null": 255.02360829542513,
+      "p_value": 0.9760239760239761,
+      "rejected_at_005": false,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 10548.498369455338,
+          "w2_obs_null": 114.31200900996144,
+          "w2_null_null": 7.278626680794796,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 15.705161704691118,
+          "d_perm": 53.386259824192564,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 828.5428774356842,
+          "w2_obs_null": 255.02360829542513,
+          "w2_null_null": 263.84549514203206,
+          "p_value": 0.9760239760239761,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 0.9665641937837219,
+          "d_perm": -1.9279159483155508,
+          "rejected_at_005": false
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0_B1000_L5000_seed42_2026-06-08.json",
+      "runtime_seconds": 25704.247991085052
+    },
+    {
+      "alpha": 0.5,
+      "dataset": "usoc",
+      "dimension": "h1",
+      "total_persistence": 2258.335467815399,
+      "w2_obs_null": 286.4518801107632,
+      "p_value": 0.000999000999000999,
+      "rejected_at_005": true,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 20482.18425154686,
+          "w2_obs_null": 108.94598829938181,
+          "w2_null_null": 5.563005555815101,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 19.584015727882704,
+          "d_perm": 69.2939063650119,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 2258.335467815399,
+          "w2_obs_null": 286.4518801107632,
+          "w2_null_null": 193.63412567556057,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 1.4793460559257072,
+          "d_perm": 30.2578493204346,
+          "rejected_at_005": true
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+      "runtime_seconds": 81901.07118749619
+    },
+    {
+      "alpha": 0.5,
+      "dataset": "bhps",
+      "dimension": "h1",
+      "total_persistence": 828.5428774356842,
+      "w2_obs_null": 266.70009810975785,
+      "p_value": 0.988011988011988,
+      "rejected_at_005": false,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 10548.498369455338,
+          "w2_obs_null": 124.55191302144075,
+          "w2_null_null": 7.658974104619614,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 16.262218845512947,
+          "d_perm": 49.906315254849424,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 828.5428774356842,
+          "w2_obs_null": 266.70009810975785,
+          "w2_null_null": 277.5523279934689,
+          "p_value": 0.988011988011988,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 0.96090023830041,
+          "d_perm": -2.341225658697924,
+          "rejected_at_005": false
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+      "runtime_seconds": 25818.35696220398
+    },
+    {
+      "alpha": 1,
+      "dataset": "usoc",
+      "dimension": "h1",
+      "total_persistence": 2258.335467815399,
+      "w2_obs_null": 290.3656855166012,
+      "p_value": 0.000999000999000999,
+      "rejected_at_005": true,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 20482.18425154686,
+          "w2_obs_null": 112.43796734803679,
+          "w2_null_null": 5.531748662775696,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 20.325935649364478,
+          "d_perm": 69.24112479152599,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 2258.335467815399,
+          "w2_obs_null": 290.3656855166012,
+          "w2_null_null": 194.94296775816304,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 1.4894904333087566,
+          "d_perm": 31.087919029386644,
+          "rejected_at_005": true
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
+      "runtime_seconds": 31390.39056777954
+    },
+    {
+      "alpha": 1,
+      "dataset": "bhps",
+      "dimension": "h1",
+      "total_persistence": 828.5428774356842,
+      "w2_obs_null": 277.025639429492,
+      "p_value": 0.997002997002997,
+      "rejected_at_005": false,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 10548.498369455338,
+          "w2_obs_null": 133.6577902848909,
+          "w2_null_null": 7.885973313325047,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 16.948800734469557,
+          "d_perm": 56.763401224418544,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 828.5428774356842,
+          "w2_obs_null": 277.025639429492,
+          "w2_null_null": 289.86721082937567,
+          "p_value": 0.997002997002997,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 0.955698433903093,
+          "d_perm": -2.775293329651924,
+          "rejected_at_005": false
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json",
+      "runtime_seconds": 107407.56631875038
+    },
+    {
+      "alpha": 5,
+      "dataset": "usoc",
+      "dimension": "h1",
+      "total_persistence": 2258.335467815399,
+      "w2_obs_null": 317.54672494370783,
+      "p_value": 0.000999000999000999,
+      "rejected_at_005": true,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 20482.18425154686,
+          "w2_obs_null": 136.34817186940816,
+          "w2_null_null": 5.746785079996279,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 23.725991136159983,
+          "d_perm": 76.29154673850545,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 2258.335467815399,
+          "w2_obs_null": 317.54672494370783,
+          "w2_null_null": 200.75036787048083,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 1.5817989690986825,
+          "d_perm": 38.90017746763402,
+          "rejected_at_005": true
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha5_B1000_L5000_seed42_2026-06-16.json",
+      "runtime_seconds": 10874.203749418259
+    },
+    {
+      "alpha": 5,
+      "dataset": "bhps",
+      "dimension": "h1",
+      "total_persistence": 828.5428774356842,
+      "w2_obs_null": 340.633682722637,
+      "p_value": 0.8571428571428571,
+      "rejected_at_005": false,
+      "per_dimension": {
+        "h0": {
+          "total_persistence": 10548.498369455338,
+          "w2_obs_null": 189.73919107482678,
+          "w2_null_null": 8.614574305877293,
+          "p_value": 0.000999000999000999,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 22.02537053344322,
+          "d_perm": 76.48375427020186,
+          "rejected_at_005": true
+        },
+        "h1": {
+          "total_persistence": 828.5428774356842,
+          "w2_obs_null": 340.633682722637,
+          "w2_null_null": 346.7245569494753,
+          "p_value": 0.8571428571428571,
+          "pvalue_null_draws": 1000,
+          "t_ratio": 0.9824331040165526,
+          "d_perm": -1.0443821590687072,
+          "rejected_at_005": false
+        }
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha5_B1000_L5000_seed42_2026-06-08.json",
+      "runtime_seconds": 106969.66950440407
+    }
+  ],
+  "stability": {
+    "conclusion_stable": true,
+    "canonical_alpha": 1,
+    "alpha_lock_decision": "alpha=1 remains canonical; all H0/H1 dataset-specific W2 rejection directions are stable",
+    "per_dataset": {
+      "usoc": {
+        "h0": {
+          "stable": true,
+          "conclusion": "reject",
+          "directions_by_alpha": [
+            {
+              "alpha": 0,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 0.5,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 1,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 5,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            }
+          ]
+        },
+        "h1": {
+          "stable": true,
+          "conclusion": "reject",
+          "directions_by_alpha": [
+            {
+              "alpha": 0,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 0.5,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 1,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 5,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            }
+          ]
+        }
+      },
+      "bhps": {
+        "h0": {
+          "stable": true,
+          "conclusion": "reject",
+          "directions_by_alpha": [
+            {
+              "alpha": 0,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 0.5,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 1,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            },
+            {
+              "alpha": 5,
+              "rejected_at_005": true,
+              "p_value": 0.000999000999000999
+            }
+          ]
+        },
+        "h1": {
+          "stable": true,
+          "conclusion": "fail_to_reject",
+          "directions_by_alpha": [
+            {
+              "alpha": 0,
+              "rejected_at_005": false,
+              "p_value": 0.9760239760239761
+            },
+            {
+              "alpha": 0.5,
+              "rejected_at_005": false,
+              "p_value": 0.988011988011988
+            },
+            {
+              "alpha": 1,
+              "rejected_at_005": false,
+              "p_value": 0.997002997002997
+            },
+            {
+              "alpha": 5,
+              "rejected_at_005": false,
+              "p_value": 0.8571428571428571
+            }
+          ]
+        }
+      }
+    }
+  },
+  "checkpoints": [
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha5_B1000_L5000_seed42_2026-06-16.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha5_B1000_L5000_seed42_2026-06-08.json"
+  ],
+  "regeneration_command": "uv run --env-file .env python trajectory_tda/scripts/run_stage1_aux_diagnostics.py markov2-alpha-sweep --B 1000 --L 5000 --seed 42 --n-jobs 1 --permutation-jobs 4 --run-date 2026-06-16 --summary-dim h1"
+}

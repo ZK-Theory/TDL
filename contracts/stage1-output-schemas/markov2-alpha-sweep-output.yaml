@@ -1,6 +1,6 @@
 id: markov2-alpha-sweep-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.8 Markov-2 Laplace-smoothing alpha sensitivity sweep.
