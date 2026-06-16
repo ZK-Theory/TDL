@@ -1,3 +1,8 @@
+---
+name: validate-topology
+description: Use when checking mathematical correctness of TDA results against known benchmarks and internal consistency checks — before trusting or reporting a topological result.
+---
+
 # /validate-topology — Validate Topological Results
 
 Check mathematical correctness of TDA results against known benchmarks and internal consistency checks.
