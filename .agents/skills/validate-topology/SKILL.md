@@ -55,6 +55,6 @@ Example: `/validate-topology trajectory_tda results/trajectory_tda_integration/0
 | USoc order-shuffle H₀ (total persistence, L=5000) | p < 0.005 | P01 v5 Table 2 |
 | USoc Markov-1 H₀ (total persistence) | p = 1.000 | P01 v5 Table 2 |
 | USoc Markov-1 H₀ (Wasserstein, L=2000) | p = 0.002 | P01 v5 Table 2b |
-| BHPS order-shuffle H₀ | p < 0.001 | P01 v5 §4.7 |
+| BHPS order-shuffle H₀ | p = 0.002 | P01 v5 §4.7 |
 | BHPS Markov-1 H₀ | p = 1.000 | P01 v5 §4.7 |
 | GMM bootstrap ARI | 0.646 ± 0.086 | P01 v5 §3.5 |
