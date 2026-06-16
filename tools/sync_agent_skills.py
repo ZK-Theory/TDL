@@ -52,6 +52,7 @@ SYNC_SKILLS: set[str] = {
     "paper-draft",
     "paper-repo-extract",
     "phase0-status",
+    "scout-review",
     "tda-experiment",
     "tda-figure-spec",
     "validate-topology",
