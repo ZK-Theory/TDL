@@ -1,2 +1,0 @@
-"""Discovery Harness utilities."""
-

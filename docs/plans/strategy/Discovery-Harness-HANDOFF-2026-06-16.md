@@ -18,15 +18,14 @@ SCOUT → ASSAY → SPIKE ──(pre-registration)──► APM execution → as
 (watch) (score) (probe)                         (existing, untouched)
 ```
 
-- **SCOUT** = weekly literature gather → inbox note. **BUILT, TESTED, SCHEDULED.**
-- **ASSAY** = 3-axis viability scorecard → ranked backlog. **BUILT and used for STRAND.**
-- **SPIKE** = time-boxed feasibility probe → pre-registration. **BUILT and used for STRAND.**
+- **SCOUT** = weekly literature gather → inbox note. **BUILT & LIVE.**
+- **ASSAY** = 3-axis viability scorecard → ranked backlog. **NOT BUILT.**
+- **SPIKE** = time-boxed feasibility probe → pre-registration. **NOT BUILT.**
 
 ## 2. Current state (what is done)
 
-- **Branch `docs/discovery-harness`** contains the design lock, Scout fixes, frontmatter
-  fix, `/scout-review`, and the current uncommitted Assay/Spike/Phase-C execution work.
-  **Unmerged** — Manager/User merges per APM rules.
+- **Branch `docs/discovery-harness`**, commits `926ac66` ([DECISION] design lock) and
+  `e7bb371` ([EXPLORE] post-test fixes). **Unmerged** — Manager/User merges per APM rules.
 - **Scout is built, tested, and scheduled:**
   - `scout/watchlist.yaml` — sources, streams, the gate-vs-label matching rule.
   - `scout/scout-weekly-job.md` — the Codex `codex exec` prompt (gather only).
@@ -34,11 +33,8 @@ SCOUT → ASSAY → SPIKE ──(pre-registration)──► APM execution → as
   - Windows Task **`TDL-Scout-Weekly`**, Sundays 20:00, interactive (runs as the user).
   - First test produced `vault/00-Meta/Discovery/_inbox/2026-W25.md` (9 real hits;
     arXiv:2606.11911 verified live). Network works under Codex `workspace-write`.
-- **Assay/Spike:** STRAND (`arXiv:2606.11911`) was triaged from the W25 inbox, assayed
-  PROMOTE, explicitly approved for Spike, computed at toy scale, and converted into a
-  dispatch-ready `/pre-reg-to-dispatch` packet.
-- **Vault index:** `00-Meta/Discovery-Harness.md`. Discovery vault artifacts now include
-  `_inbox/2026-W25.md`, `_backlog.md`, STRAND assay, Spike pre-reg, and Spike result.
+- **Vault index:** `00-Meta/Discovery-Harness.md`. **Session log:** Computational-Log
+  2026-06-16 entry + daily note `05-Daily/2026-06-16.md`.
 
 ## 3. Locked decisions (do not re-litigate — see plan §2/§2a)
 
@@ -59,21 +55,28 @@ one weekly inbox note. **Gather only — no triage/scoring/commit.** Web sources
 
 ## 5. Open threads / blockers
 
-- The old Codex skill-loading blocker is resolved by the frontmatter fix commit
-  `ac857a3`; do not reintroduce skills without YAML frontmatter.
-- The Scout scheduled task exists locally as `TDL-Scout-Weekly` and next runs Sunday
-  2026-06-21 at 20:00 local. If migrating machines, recreate that OS-level state.
+- **BLOCKER for the Codex-co-worker goal (Phase C):** all 14 `.agents/skills/*/SKILL.md`
+  lack YAML frontmatter, so **Codex loads zero TDL skills** (see `scout/logs/*.err.log`).
+  Scout doesn't need them, but Assay/Spike-as-Codex would. Before fixing, find out how
+  `.agents/skills/` is generated (hand-maintained vs synced from `.superpowers`).
 
 ## 6. Next tasks (priority order)
 
-1. **APM Manager dispatch for STRAND** — use
-   `vault/00-Meta/Discovery/strand-persistence-survival-testing-pre-reg-to-dispatch.md`
-   to open a bounded STRAND-vs-W2/landscape comparison task. Do not treat the Spike result
-   as paper-facing evidence.
-2. **Commit/merge hygiene** — review the untracked Discovery Harness implementation files,
-   commit with the project prefix convention, then Manager/User merges per APM rules.
-3. **Next weekly Scout cycle** — let `TDL-Scout-Weekly` produce the next inbox; run
-   `/scout-review` only after the gather lands.
+1. **`/scout-review`** (Claude) — read the latest `_inbox/*.md`, cluster, drop noise, and
+   for survivors draft a one-line relevance note; promote the strongest into Assay. This is
+   the deferred judgment half of Scout (D5).
+2. **`/assay`** (Claude) — the 3-axis scorecard (plan §5). Axis-1 *topology-earns-its-keep*
+   is an **adversarial pass/fail gate run first** (argue why TDA is NOT needed; require a
+   named baseline + a falsifiable feature→claim mapping). Back it with a **scorecard JSON
+   schema in `contracts/`** authored via `schema-contract-design` + a binding test. Output
+   PROMOTE/PARK/KILL as a **user-decision point**; write to `00-Meta/Discovery/_backlog.md`.
+3. **`00-Meta/Discovery/_backlog.md`** — the living ranked candidate list (single source of
+   truth for lifecycle states: inbox → triaged → assayed → spiked → registered → …).
+4. **`/spike`** (Claude) — time-boxed feasibility probe (reuse `new-analysis`,
+   `tda-experiment`, `null-operation-invariance-audit`, `statistical-design-audit`,
+   `representation-freeze-audit`) emitting a pre-reg consumed by `pre-reg-to-dispatch`.
+5. **Phase C** — agent-neutral task contract + Codex playbooks (after the `.agents/skills`
+   fix); optionally promote Scout to an automated cloud routine.
 
 ## 7. Conventions & gotchas (learned this session)
 
