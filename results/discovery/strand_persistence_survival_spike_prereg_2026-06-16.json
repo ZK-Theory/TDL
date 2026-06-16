@@ -1,0 +1,55 @@
+{
+  "approval": {
+    "approved": true,
+    "approved_at": "2026-06-16",
+    "approved_by": "Stephen"
+  },
+  "baselines": [
+    "W2 permutation test",
+    "landscape L2 permutation test"
+  ],
+  "candidate_slug": "strand-persistence-survival-testing",
+  "decision_rule": {
+    "failure_criteria": [
+      "No implementable STRAND summary is available from existing diagrams.",
+      "The null operation is invariant to the STRAND input.",
+      "Result provenance is insufficient to reconstruct source diagrams, subset size, statistic, and seed."
+    ],
+    "success_criteria": [
+      "STRAND finite-lifetime summaries can be computed for H0 and H1 on the toy subset.",
+      "A survival-effect statistic and Monte Carlo/permutation null are explicitly defined.",
+      "The null operation changes the STRAND input summaries for at least one non-identity null draw.",
+      "The toy result can be compared in direction against existing W2 and landscape L2 outputs."
+    ]
+  },
+  "metric_space": "Existing P01-B Vietoris-Rips persistence diagrams represented by finite feature lifetimes and empirical persistence-survival functions.",
+  "next_on_failure": "write [NEGATIVE] note and update Discovery backlog",
+  "next_on_success": "/pre-reg-to-dispatch",
+  "null_model": {
+    "invariance_risk": "The null must perturb the diagram lifetimes consumed by STRAND, not merely reorder features within a fixed diagram.",
+    "operation": "Compare observed persistence-lifetime survival summaries to cached permutation-null diagrams; toy p-values permute observed-vs-null labels across diagram-level STRAND statistics."
+  },
+  "outcome_to_prose": {
+    "failure": "Write a NEGATIVE note and keep current W2/landscape testing.",
+    "partial": "Record the implementation or design gap and park until method details or artifacts improve.",
+    "success": "Open a pre-reg-to-dispatch handoff for a bounded APM task comparing STRAND against current baselines."
+  },
+  "planned_contracts": [
+    "spike-result-summary"
+  ],
+  "registered_at": "2026-06-16",
+  "research_question": "Can STRAND persistence-survival summaries be computed on existing P01-B persistence diagrams and produce a calibrated toy contrast against current W2 and landscape L2 baselines?",
+  "schema_version": "discovery/spike-pre-registration/v1",
+  "source_scorecard": "vault/00-Meta/Discovery/strand-persistence-survival-testing.md",
+  "time_box_hours": 4,
+  "topology_gate": {
+    "assay_gate_passed": true,
+    "feature_claim_map": "STRAND survival curves summarise persistence-feature lifetimes and can localise whether observed diagrams have heavier persistence tails than permutation-null diagrams.",
+    "named_baseline": "Existing P01-B Wasserstein-2 and persistence-landscape L2 permutation tests."
+  },
+  "toy_scope": {
+    "compute_budget": "Bounded toy compute using at most 100 cached null diagrams per dataset and existing diagram files only.",
+    "dataset": "existing P01-B USoc and BHPS observed diagrams plus cached permutation-null diagrams",
+    "max_units": 100
+  }
+}

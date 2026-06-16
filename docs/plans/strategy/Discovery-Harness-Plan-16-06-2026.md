@@ -7,7 +7,9 @@
 > document specifies the **living, repeatable harness** that should produce and
 > triage candidate topics from now on.
 >
-> **Status:** design locked, not yet built. Vault companion:
+> **Status:** implemented through Phases A-C on branch `docs/discovery-harness`;
+> Scout is tested and scheduled locally, and the STRAND candidate has passed Assay
+> and Spike with a dispatch-ready pre-registration seam. Vault companion:
 > `vault/00-Meta/Discovery-Harness.md`.
 
 ---
@@ -69,9 +71,11 @@ Two structural observations:
 **Phase A artifacts seeded this session:** `scout/watchlist.yaml` (5 streams; query
 templates from the user's proven schedule-job prompts), `scout/scout-weekly-job.md` (the
 Codex gather prompt — gather only, no triage), `scout/run-scout.ps1` (Task Scheduler
-wrapper). **Not yet scheduled** — pending one interactive test run to confirm network
-access under `codex exec -s workspace-write`. Scout intake is **gather-only**: Codex
-collects and extracts; Claude's `/scout-review` does all triage/judgment.
+wrapper). The interactive 2026-06-16 test run confirmed network access under Codex
+`workspace-write` and wrote `vault/00-Meta/Discovery/_inbox/2026-W25.md`; Windows task
+`TDL-Scout-Weekly` is registered for Sundays at 20:00 local. Scout intake is
+**gather-only**: Codex collects and extracts; Claude's `/scout-review` does all
+triage/judgment.
 
 ## 3. The integrated loop
 
@@ -110,10 +114,11 @@ email), Semantic Scholar (free tier). These cover fetch + metadata + abstracts.
 
 **Two-step split (forced by the no-API constraint):**
 
-- **Fetch (free, automated):** a Python script (`scout/fetch.py`, run via
-  `uv run --env-file .env`) pulls entries since the last run, **dedupes against
-  `01-Literature`** and the previous inbox, and writes raw hits to a weekly inbox note.
-  Triggered by **Windows Task Scheduler** on a weekly cron — no model involved.
+- **Fetch/gather (free sources, automated):** the Codex gather prompt
+  (`scout/scout-weekly-job.md`, run by `scout/run-scout.ps1`) pulls entries since the
+  last run, **dedupes against `01-Literature`** and the previous inbox, and writes raw
+  hits to a weekly inbox note. Triggered by **Windows Task Scheduler** on a weekly cron;
+  the run is gather-only, with no triage, ranking, scoring, or commits.
 - **Triage-prep (model, deferred):** a new **`/scout-review`** skill, run when you next
   sit down, clusters the week's hits, drops obvious noise, and drafts a one-line
   "why this might matter to TDL" per surviving cluster. Promotes the strongest into Assay.
@@ -209,7 +214,7 @@ inbox → triaged → assayed ─(PROMOTE)→ spiked → registered → in-progr
 ## 9. Portability seam (Codex-later)
 
 Durable, tool-agnostic artifacts (no Claude-specific dependency):
-- `scout/watchlist.yaml`, `scout/fetch.py` (plain Python)
+- `scout/watchlist.yaml`, `scout/scout-weekly-job.md`, `scout/run-scout.ps1`
 - scorecard **JSON schema** in `contracts/` (+ binding test)
 - `_backlog.md`, scorecard notes, inbox notes (plain markdown)
 - pre-registration template + JSON (already tool-agnostic)
@@ -223,7 +228,7 @@ never API. No Codex instance is needed to *design* this.
 
 ## 10. Artifact locations
 
-- **Repo** (code): `scout/` (watchlist, fetch script), scorecard schema in `contracts/`,
+- **Repo** (code): `scout/` (watchlist, gather prompt, scheduler runner), scorecard schema in `contracts/`,
   the new skills (`scout-review`, `assay`, `spike`), Codex playbooks (Phase C).
 - **Vault** (research record): new **`00-Meta/Discovery/`** folder — `_inbox/`,
   per-candidate scorecards, `_backlog.md`. Keeps the low-folder-count vault philosophy
@@ -234,7 +239,7 @@ never API. No Codex instance is needed to *design* this.
 
 | Phase | Deliverables | Done when |
 |---|---|---|
-| **A** (cheap, Claude-only, 0 API) | `scout/watchlist.yaml`, `scout/fetch.py` + Task Scheduler entry, `00-Meta/Discovery/` + inbox, `/scout-review`, `/assay` + scorecard schema/contract, `_backlog.md` | A real week's arXiv/OpenAlex hits land in the inbox automatically; `/scout-review` triages them; one candidate carried through `/assay` to a PROMOTE/PARK/KILL with a scorecard. |
+| **A** (cheap, zero paid API) | `scout/watchlist.yaml`, `scout/scout-weekly-job.md`, `scout/run-scout.ps1` + Task Scheduler entry, `00-Meta/Discovery/` + inbox, `/scout-review`, `/assay` + scorecard schema/contract, `_backlog.md` | A real week's arXiv/OpenAlex hits land in the inbox automatically; `/scout-review` triages them; one candidate carried through `/assay` to a PROMOTE/PARK/KILL with a scorecard. |
 | **B** | `/spike` skill + pre-reg seam; topology-earns-keep wired as a hard front gate | A promoted candidate runs a toy-scale Spike and emits a valid pre-reg that `/pre-reg-to-dispatch` accepts. |
 | **C** | agent-neutral task contract + Codex playbooks; optional promotion of Scout to a scheduled cloud routine | A documented contract a non-Claude worker can execute against the bus; (optional) Scout runs unattended on cron in the cloud. |
 

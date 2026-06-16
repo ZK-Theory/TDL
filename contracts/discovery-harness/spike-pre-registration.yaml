@@ -1,0 +1,77 @@
+id: spike-pre-registration
+kind: schema
+pending: false
+
+description: >
+  Schema for the Discovery Harness Spike pre-registration artifact. It enforces
+  the user-decision seam after PROMOTE, the toy-scale time box, the carried
+  topology gate, the null-model plan, and the handoff through pre-reg-to-dispatch.
+
+spec_citation:
+  source: "Discovery-Harness-Plan-16-06-2026 section 6 and section 11 Phase B acceptance"
+  vault_entry_date: "2026-06-16"
+
+schema_def:
+  applies_to: "YAML/JSON Spike pre-registration artifact emitted by /spike before any APM dispatch"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'discovery/spike-pre-registration/v1'."
+    - name: candidate_slug
+      type: str
+      description: "Discovery candidate slug from the Assay scorecard and backlog."
+    - name: source_scorecard
+      type: str
+      description: "Path to the validated Discovery Assay scorecard note."
+    - name: registered_at
+      type: str
+      description: "ISO date on which the Spike pre-registration was locked."
+    - name: approval
+      type: "dict[str, ...]"
+      description: "MUST include approved == true, approved_by, and approved_at before Spike execution."
+    - name: time_box_hours
+      type: int
+      description: "Toy Spike time box in hours; MUST be an integer between 1 and 4."
+    - name: research_question
+      type: str
+      description: "The specific feasibility question the Spike is allowed to answer."
+    - name: metric_space
+      type: str
+      description: "The metric-space object carried forward from the Assay gate."
+    - name: toy_scope
+      type: "dict[str, ...]"
+      description: "MUST contain dataset, max_units, and compute_budget for the toy-scale probe."
+    - name: topology_gate
+      type: "dict[str, ...]"
+      description: "MUST carry assay_gate_passed == true, feature_claim_map, and named_baseline."
+    - name: null_model
+      type: "dict[str, ...]"
+      description: "MUST name the null operation and the invariance risk to audit."
+    - name: baselines
+      type: "list[str]"
+      description: "Non-empty named baseline list the Spike must compare or reason against."
+    - name: decision_rule
+      type: "dict[str, ...]"
+      description: "MUST include non-empty success_criteria and failure_criteria lists."
+    - name: outcome_to_prose
+      type: "dict[str, ...]"
+      description: "MUST map success, partial, and failure outcomes to prose actions."
+    - name: planned_contracts
+      type: "list[str]"
+      description: "Non-empty list of planned contracts or validation artifacts for any promoted run."
+    - name: next_on_success
+      type: str
+      description: "MUST be '/pre-reg-to-dispatch' so Spike success enters APM through the pre-reg seam."
+    - name: next_on_failure
+      type: str
+      description: "Failure action, usually a NEGATIVE note and Discovery backlog update."
+
+binding:
+  test_file: "tests/discovery/test_spike_preregistration_contract.py"
+  test_function: "test_spike_preregistration_schema_rejects_invalid_seam_logic"
+  must_assert: >
+    The validator accepts a conforming Spike pre-registration and rejects
+    artifacts where (a) user approval is absent or false; (b) time_box_hours
+    exceeds the toy-scale limit; (c) the carried Assay topology gate did not
+    pass; (d) the named baseline, null operation, or outcome-to-prose mapping
+    is missing; or (e) success bypasses /pre-reg-to-dispatch.

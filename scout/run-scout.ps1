@@ -8,10 +8,10 @@
 # line as a terminating NativeCommandError, so a single benign Codex log line aborts the
 # run. Start-Process writes the streams straight to files and never does that.
 #
-# NOT yet scheduled — run this once interactively first to confirm Codex reaches the
-# network and writes the inbox note under `-s workspace-write`. If network is blocked in
-# that sandbox mode, switch to the $codexArgs line with the network override (confirm the
-# exact key for your Codex version with `codex exec --help` / `codex doctor`).
+# Scheduled task: TDL-Scout-Weekly, Sundays 20:00 local. The first interactive test
+# run on 2026-06-16 confirmed Codex workspace-write reached OpenAlex + arXiv and wrote
+# vault/00-Meta/Discovery/_inbox/2026-W25.md. If a future run shows workspace-write
+# blocks outbound HTTP, switch to the $codexArgs network-enabled variant below.
 
 $repo  = 'C:\Users\steph\TDL'
 $codex = 'C:\Users\steph\AppData\Local\Programs\OpenAI\Codex\bin\codex.exe'  # version-stable symlink

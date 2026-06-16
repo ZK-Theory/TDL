@@ -1,0 +1,341 @@
+{
+  "baselines": {
+    "landscape_l2": {
+      "bhps": {
+        "cells": {
+          "k10_np100": {
+            "h0_landscape_l2_pvalue": 0.10379241516966067,
+            "h1_landscape_l2_pvalue": 0.08782435129740519
+          },
+          "k10_np200": {
+            "h0_landscape_l2_pvalue": 0.10379241516966067,
+            "h1_landscape_l2_pvalue": 0.09381237524950099
+          },
+          "k10_np500": {
+            "h0_landscape_l2_pvalue": 0.10379241516966067,
+            "h1_landscape_l2_pvalue": 0.09181636726546906
+          },
+          "k3_np100": {
+            "h0_landscape_l2_pvalue": 0.17564870259481039,
+            "h1_landscape_l2_pvalue": 0.06986027944111776
+          },
+          "k3_np200": {
+            "h0_landscape_l2_pvalue": 0.17564870259481039,
+            "h1_landscape_l2_pvalue": 0.06986027944111776
+          },
+          "k3_np500": {
+            "h0_landscape_l2_pvalue": 0.17564870259481039,
+            "h1_landscape_l2_pvalue": 0.06986027944111776
+          },
+          "k5_np100": {
+            "h0_landscape_l2_pvalue": 0.15768463073852296,
+            "h1_landscape_l2_pvalue": 0.07984031936127745
+          },
+          "k5_np200": {
+            "h0_landscape_l2_pvalue": 0.15768463073852296,
+            "h1_landscape_l2_pvalue": 0.07984031936127745
+          },
+          "k5_np500": {
+            "h0_landscape_l2_pvalue": 0.15768463073852296,
+            "h1_landscape_l2_pvalue": 0.07984031936127745
+          }
+        },
+        "run_params": {
+          "B_from_cache": 1000,
+          "L_from_cache": 5000,
+          "cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_B1000_L5000_seed42_2026-05-24.npz",
+          "dataset_from_cache": "bhps",
+          "k_max_values": [
+            3,
+            5,
+            10
+          ],
+          "n_null_pairs_cap": 500,
+          "n_points_values": [
+            100,
+            200,
+            500
+          ],
+          "pvalue_formula": "(r+1)/(B+1)",
+          "seed": 42
+        },
+        "source": "results\\trajectory_tda_integration\\stage1\\landscape_sensitivity_bhps_2026-05-25.json"
+      },
+      "usoc": {
+        "cells": {
+          "k10_np100": {
+            "h0_landscape_l2_pvalue": 0.04790419161676647,
+            "h1_landscape_l2_pvalue": 0.011976047904191617
+          },
+          "k10_np200": {
+            "h0_landscape_l2_pvalue": 0.04790419161676647,
+            "h1_landscape_l2_pvalue": 0.011976047904191617
+          },
+          "k10_np500": {
+            "h0_landscape_l2_pvalue": 0.04790419161676647,
+            "h1_landscape_l2_pvalue": 0.011976047904191617
+          },
+          "k3_np100": {
+            "h0_landscape_l2_pvalue": 0.0998003992015968,
+            "h1_landscape_l2_pvalue": 0.01996007984031936
+          },
+          "k3_np200": {
+            "h0_landscape_l2_pvalue": 0.0998003992015968,
+            "h1_landscape_l2_pvalue": 0.01996007984031936
+          },
+          "k3_np500": {
+            "h0_landscape_l2_pvalue": 0.0998003992015968,
+            "h1_landscape_l2_pvalue": 0.01996007984031936
+          },
+          "k5_np100": {
+            "h0_landscape_l2_pvalue": 0.08183632734530938,
+            "h1_landscape_l2_pvalue": 0.017964071856287425
+          },
+          "k5_np200": {
+            "h0_landscape_l2_pvalue": 0.08183632734530938,
+            "h1_landscape_l2_pvalue": 0.015968063872255488
+          },
+          "k5_np500": {
+            "h0_landscape_l2_pvalue": 0.08183632734530938,
+            "h1_landscape_l2_pvalue": 0.015968063872255488
+          }
+        },
+        "run_params": {
+          "B_from_cache": 1000,
+          "L_from_cache": 5000,
+          "cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_B1000_L5000_seed42_2026-05-24.npz",
+          "dataset_from_cache": "usoc",
+          "k_max_values": [
+            3,
+            5,
+            10
+          ],
+          "n_null_pairs_cap": 500,
+          "n_points_values": [
+            100,
+            200,
+            500
+          ],
+          "pvalue_formula": "(r+1)/(B+1)",
+          "seed": 42
+        },
+        "source": "results\\trajectory_tda_integration\\stage1\\landscape_sensitivity_usoc_2026-05-25.json"
+      }
+    },
+    "wasserstein": {
+      "bhps": {
+        "cells": {
+          "markov": {
+            "H0": {
+              "mean_wasserstein_null_null": 7.963029310712156,
+              "mean_wasserstein_obs_null": 19.30598311602523,
+              "p_value": 0.0,
+              "significant_at_005": true
+            },
+            "H1": {
+              "mean_wasserstein_null_null": 139.20353883041884,
+              "mean_wasserstein_obs_null": 151.991861992512,
+              "p_value": 0.002,
+              "significant_at_005": true
+            }
+          },
+          "order_shuffle": {
+            "H0": {
+              "mean_wasserstein_null_null": 6.359961555709866,
+              "mean_wasserstein_obs_null": 16.1671071291984,
+              "p_value": 0.0,
+              "significant_at_005": true
+            },
+            "H1": {
+              "mean_wasserstein_null_null": 155.66028712506764,
+              "mean_wasserstein_obs_null": 161.59397858334304,
+              "p_value": 0.098,
+              "significant_at_005": false
+            }
+          }
+        },
+        "source": "results\\trajectory_tda_bhps\\04_nulls_wasserstein.json"
+      },
+      "usoc": {
+        "cells": {
+          "label_shuffle": {
+            "H0": {
+              "mean_wasserstein_null_null": 0.8303255234224914,
+              "mean_wasserstein_obs_null": 0.8355180750584849,
+              "p_value": 0.452,
+              "significant_at_005": false
+            },
+            "H1": {
+              "mean_wasserstein_null_null": 134.64342389805807,
+              "mean_wasserstein_obs_null": 134.8068556853525,
+              "p_value": 0.538,
+              "significant_at_005": false
+            }
+          },
+          "markov": {
+            "H0": {
+              "mean_wasserstein_null_null": 5.991850922560443,
+              "mean_wasserstein_obs_null": 11.422416331518534,
+              "p_value": 0.002,
+              "significant_at_005": true
+            },
+            "H1": {
+              "mean_wasserstein_null_null": 121.39408752243779,
+              "mean_wasserstein_obs_null": 126.8510465731424,
+              "p_value": 0.086,
+              "significant_at_005": false
+            }
+          },
+          "markov2": {
+            "H0": {
+              "mean_wasserstein_null_null": 7.187384103835828,
+              "mean_wasserstein_obs_null": 6.617092592160661,
+              "p_value": 0.546,
+              "significant_at_005": false
+            },
+            "H1": {
+              "mean_wasserstein_null_null": 123.20734581942268,
+              "mean_wasserstein_obs_null": 129.71295824784553,
+              "p_value": 0.078,
+              "significant_at_005": false
+            }
+          },
+          "order_shuffle": {
+            "H0": {
+              "mean_wasserstein_null_null": 6.617738515532723,
+              "mean_wasserstein_obs_null": 11.21719811265609,
+              "p_value": 0.058,
+              "significant_at_005": false
+            },
+            "H1": {
+              "mean_wasserstein_null_null": 144.6562542572055,
+              "mean_wasserstein_obs_null": 139.68837360989514,
+              "p_value": 0.854,
+              "significant_at_005": false
+            }
+          }
+        },
+        "source": "results\\trajectory_tda_integration\\04_nulls_wasserstein.json"
+      }
+    }
+  },
+  "candidate_slug": "strand-persistence-survival-testing",
+  "created_at": "2026-06-16",
+  "datasets": {
+    "bhps": {
+      "H0": {
+        "effect_direction": "observed_lighter_persistence_tail",
+        "null_diagrams_used": 100,
+        "null_lifetime_mean_mean": 2.474415801856469,
+        "null_lifetime_mean_median": 2.475646587746545,
+        "null_null_pairs_used": 100,
+        "null_null_statistic_mean": 0.07055278227756018,
+        "null_null_statistic_median": 0.0661173631162037,
+        "null_perturbs_input": true,
+        "observed_features": 4970,
+        "observed_lifetime_max": 12.190330505371094,
+        "observed_lifetime_mean": 2.1224342795684783,
+        "observed_lifetime_median": 1.4507633447647095,
+        "observed_vs_null_statistic": 0.4440816467245987,
+        "p_value": 0.009900990099009901
+      },
+      "H1": {
+        "effect_direction": "observed_heavier_persistence_tail",
+        "null_diagrams_used": 100,
+        "null_lifetime_mean_mean": 0.23760706755990108,
+        "null_lifetime_mean_median": 0.2374418128770515,
+        "null_null_pairs_used": 100,
+        "null_null_statistic_mean": 0.007285966740415159,
+        "null_null_statistic_median": 0.006373202689695794,
+        "null_perturbs_input": true,
+        "observed_features": 3458,
+        "observed_lifetime_max": 2.2311477661132812,
+        "observed_lifetime_mean": 0.23960175750019785,
+        "observed_lifetime_median": 0.16345739364624023,
+        "observed_vs_null_statistic": 0.01550472019567528,
+        "p_value": 0.0594059405940594
+      },
+      "cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_B1000_L5000_seed42_2026-05-24.npz",
+      "metadata": {
+        "B": 1000,
+        "L": 5000,
+        "dataset": "bhps",
+        "seed": 42,
+        "smoke": false,
+        "timestamp": "2026-05-24"
+      }
+    },
+    "usoc": {
+      "H0": {
+        "effect_direction": "observed_lighter_persistence_tail",
+        "null_diagrams_used": 100,
+        "null_lifetime_mean_mean": 4.233911207731235,
+        "null_lifetime_mean_median": 4.2344676682010896,
+        "null_null_pairs_used": 100,
+        "null_null_statistic_mean": 0.06913790816231866,
+        "null_null_statistic_median": 0.06442527030940236,
+        "null_perturbs_input": true,
+        "observed_features": 4999,
+        "observed_lifetime_max": 15.808710098266602,
+        "observed_lifetime_mean": 4.083042121930322,
+        "observed_lifetime_median": 3.4611399173736572,
+        "observed_vs_null_statistic": 0.35791054733558963,
+        "p_value": 0.009900990099009901
+      },
+      "H1": {
+        "effect_direction": "observed_heavier_persistence_tail",
+        "null_diagrams_used": 100,
+        "null_lifetime_mean_mean": 0.36790010067071655,
+        "null_lifetime_mean_median": 0.3680759589914047,
+        "null_null_pairs_used": 100,
+        "null_null_statistic_mean": 0.008171524616890555,
+        "null_null_statistic_median": 0.00729853810996139,
+        "null_perturbs_input": true,
+        "observed_features": 5961,
+        "observed_lifetime_max": 3.2130813598632812,
+        "observed_lifetime_mean": 0.3732065464541969,
+        "observed_lifetime_median": 0.29712367057800293,
+        "observed_vs_null_statistic": 0.009447018337285985,
+        "p_value": 0.25742574257425743
+      },
+      "cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_B1000_L5000_seed42_2026-05-24.npz",
+      "metadata": {
+        "B": 1000,
+        "L": 5000,
+        "dataset": "usoc",
+        "seed": 42,
+        "smoke": false,
+        "timestamp": "2026-05-24"
+      }
+    }
+  },
+  "decision_support": {
+    "detected_cells_p_le_0_05": [
+      "usoc.H0",
+      "bhps.H0"
+    ],
+    "metric_space_confirmed": true,
+    "null_perturbs_input": true,
+    "toy_signal_status": "detected"
+  },
+  "method": {
+    "name": "STRAND-style persistence-survival toy statistic",
+    "source": "arXiv:2606.11911",
+    "statistic": "Mean observed-vs-null area between empirical persistence-survival functions of finite feature lifetimes."
+  },
+  "null_model": {
+    "input_object": "finite persistence lifetimes consumed by empirical survival curves",
+    "operation": "cached permutation-null diagrams compared against observed diagrams",
+    "perturbs_input": true
+  },
+  "parameters": {
+    "homology_dimensions": [
+      "H0",
+      "H1"
+    ],
+    "max_null_diagrams_per_dataset": 100,
+    "null_null_pairing": "cyclic adjacent pairs among the bounded null subset",
+    "pvalue_formula": "(r + 1) / (n + 1), upper tail over null-null STRAND distances"
+  },
+  "schema_version": "discovery/strand-spike-compute/v1"
+}
