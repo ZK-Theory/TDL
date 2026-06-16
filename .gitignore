@@ -152,6 +152,11 @@ results/trajectory_tda_integration/stage1/launches/
 results/trajectory_tda_integration/stage1/cache/
 results/**/.partial/
 
+# - markov2 alpha-sweep per-cell checkpoints + status files (T1.8 intermediates;
+#   the committed summary JSON embeds every per-cell result inline)
+results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_*.json
+results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_*.status.json
+
 # repomix dump (regenerable; 108MB blob was rejected by GitHub LFS limit
 # in commit 52af787 and removed from history via filter-repo 2026-05-22)
 repomix-output.xml

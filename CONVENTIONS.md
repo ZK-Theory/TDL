@@ -379,6 +379,13 @@ Three journal-targeted papers replacing the original four technique-first papers
   persistent homology of the observed data exceeds what the null produces
   at each Markov order.
 
+- **Markov-2 Laplace smoothing:** For P01-B Markov-2 nulls, `alpha=1` is the
+  canonical Laplace smoothing value. A B=1000, L=5000, frozen-loadings sweep
+  over alpha in `{0, 0.5, 1, 5}` found stable H0/H1 rejection directions for
+  both USoc and BHPS; the committed summary is
+  `markov2_alpha_sweep_summary_2026-06-16.json` (commit `f190dad`). Locked
+  2026-06-16.
+
 - **ε\* canonical value:** The locked ε\* point estimate is **0.54**, the
   median knee across 32 years (1991–2022) from `detect_eps_star_knee()`
   sensitivity analysis (commit `4c73a1a`). Locked 2026-05-07. The robustness
