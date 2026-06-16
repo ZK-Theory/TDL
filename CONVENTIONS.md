@@ -449,4 +449,4 @@ Set `TRAJECTORY_TDA_DATA_DIR` when running `run_wasserstein_battery.py` outside 
 
 ---
 
-*Last updated: 2026-05-25*
+*Last updated: 2026-06-16*

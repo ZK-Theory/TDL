@@ -153,7 +153,7 @@ def _markov_shuffle(
     For Markov-2, conditional probabilities are smoothed with Laplace smoothing:
     P(s_t | s_{t-2}, s_{t-1}) = (count(s_{t-2}, s_{t-1}, s_t) + alpha) /
                                   (sum_s count(s_{t-2}, s_{t-1}, s) + alpha * n_states)
-    Unobserved bigrams receive uniform probability (alpha / alpha * n_states = 1/n_states).
+    Unobserved bigrams receive uniform probability (alpha / (alpha * n_states) = 1/n_states).
 
     Args:
         trajectories: Raw state sequences.
@@ -163,7 +163,13 @@ def _markov_shuffle(
         alpha: Laplace smoothing parameter for Markov-2 conditional probabilities.
             Default 1 (add-one smoothing). Use alpha=0 to recover raw MLE.
         frozen_models: Optional fitted-model bundle from ngram_embed()[1]["fitted_models"].
+
+    Raises:
+        ValueError: If ``alpha`` is negative (invalid Laplace smoothing).
     """
+    if alpha < 0:
+        raise ValueError(f"alpha must be non-negative for Markov smoothing, got {alpha}")
+
     state_to_idx = {s: i for i, s in enumerate(STATES)}
     n_states = len(STATES)
 
@@ -628,9 +634,7 @@ def _single_permutation(
     elif dedup:
         from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
 
-        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(
-            landmarks
-        )
+        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(landmarks)
         landmarks_for_ph = landmarks[dedup_idx]
 
     ph_kwargs: dict = {"max_dim": max_dim}

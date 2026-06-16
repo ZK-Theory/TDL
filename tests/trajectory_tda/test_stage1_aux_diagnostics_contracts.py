@@ -183,10 +183,12 @@ def test_markov2_alpha_sweep_json_validation_dispatch() -> None:
     assert Path("results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_2026-06-08.json").full_match(
         ov["applies_to_glob"]
     )
-    assert not Path("results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_notes_2026-06-08.json").full_match(
-        ov["applies_to_glob"]
-    )
-    for json_path in _matched_jsons(ov["applies_to_glob"]):
+    assert not Path(
+        "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_notes_2026-06-08.json"
+    ).full_match(ov["applies_to_glob"])
+    matched = _matched_jsons(ov["applies_to_glob"])
+    assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
+    for json_path in matched:
         payload = json.loads(json_path.read_text(encoding="utf-8"))
         _assert_no_errors(validate_markov2_alpha_payload(payload))
 
@@ -227,12 +229,12 @@ def test_mapper_threshold_sweep_json_validation_dispatch() -> None:
     ov = output_validation["output_validation"]
     assert ov["applies_to_glob"] == MAPPER_OUTPUT_GLOB
     assert ov["schema_contracts"] == ["mapper-threshold-sweep-output"]
-    assert Path("results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_2026-06-07.json").full_match(
-        ov["applies_to_glob"]
-    )
-    assert not Path("results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_notes_2026-06-07.json").full_match(
-        ov["applies_to_glob"]
-    )
+    assert Path(
+        "results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_sweep_2026-06-07.json"
+    ).full_match(ov["applies_to_glob"])
+    assert not Path(
+        "results/trajectory_tda_integration/mapper_threshold/sub_regime_thresh_notes_2026-06-07.json"
+    ).full_match(ov["applies_to_glob"])
     matched = _matched_jsons(ov["applies_to_glob"])
     assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
     for json_path in matched:
@@ -284,9 +286,9 @@ def test_kde_sublevel_h0_json_validation_dispatch() -> None:
     assert Path("results/trajectory_tda_integration/density_topology/sublevel_kde_h0_2026-06-07.json").full_match(
         ov["applies_to_glob"]
     )
-    assert not Path("results/trajectory_tda_integration/density_topology/sublevel_kde_notes_2026-06-07.json").full_match(
-        ov["applies_to_glob"]
-    )
+    assert not Path(
+        "results/trajectory_tda_integration/density_topology/sublevel_kde_notes_2026-06-07.json"
+    ).full_match(ov["applies_to_glob"])
     matched = _matched_jsons(ov["applies_to_glob"])
     assert matched, f"no result JSON matched dispatch glob {ov['applies_to_glob']}"
     for json_path in matched:
@@ -295,8 +297,12 @@ def test_kde_sublevel_h0_json_validation_dispatch() -> None:
 
 
 def test_auxiliary_payload_validators_are_pure() -> None:
-    payloads = [_mapper_payload(), _kde_payload()]
-    validators = [validate_mapper_threshold_payload, validate_kde_sublevel_payload]
+    payloads = [_mapper_payload(), _kde_payload(), _markov_payload()]
+    validators = [
+        validate_mapper_threshold_payload,
+        validate_kde_sublevel_payload,
+        validate_markov2_alpha_payload,
+    ]
     for payload, validator in zip(payloads, validators, strict=True):
         before = copy.deepcopy(payload)
         validator(payload)

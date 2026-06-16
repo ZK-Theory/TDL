@@ -81,6 +81,29 @@ def _write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
+def _repo_relpath(path: Path | str, root: Path) -> str:
+    """Reduce an absolute path to a repo-relative POSIX string.
+
+    Committed result JSONs must not embed machine-specific absolute paths (they
+    leak the local user directory and break portability). Paths under ``root``
+    are returned relative to it with forward slashes; paths outside ``root`` are
+    returned unchanged in POSIX form.
+
+    Args:
+        path: Absolute or relative filesystem path.
+        root: Repository root the result should be expressed relative to.
+
+    Returns:
+        Forward-slash path relative to ``root`` when possible, else POSIX
+        rendering of ``path``.
+    """
+    candidate = Path(path)
+    try:
+        return candidate.relative_to(root).as_posix()
+    except ValueError:
+        return candidate.as_posix()
+
+
 def _jsonable(obj: Any) -> Any:
     if isinstance(obj, np.ndarray):
         return obj.tolist()
@@ -440,7 +463,16 @@ def build_kde_sublevel_payload(
 
 def validate_markov2_alpha_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = ["schema_version", "generated_at", "task", "pre_registration", "inputs", "params", "results", "stability"]
+    required = [
+        "schema_version",
+        "generated_at",
+        "task",
+        "pre_registration",
+        "inputs",
+        "params",
+        "results",
+        "stability",
+    ]
     errors.extend(f"missing required key: {key}" for key in required if key not in payload)
     if "per_call_pca" in payload:
         errors.append("forbidden key present: per_call_pca")
@@ -478,7 +510,16 @@ def validate_markov2_alpha_payload(payload: dict[str, Any]) -> list[str]:
 
 def validate_mapper_threshold_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = ["schema_version", "generated_at", "task", "pre_registration", "inputs", "params", "results", "high_confidence_nodes"]
+    required = [
+        "schema_version",
+        "generated_at",
+        "task",
+        "pre_registration",
+        "inputs",
+        "params",
+        "results",
+        "high_confidence_nodes",
+    ]
     errors.extend(f"missing required key: {key}" for key in required if key not in payload)
     if "uncorrected_only" in payload:
         errors.append("forbidden key present: uncorrected_only")
@@ -657,10 +698,7 @@ def _observed_total_persistence(ph_obs: Any) -> dict[str, float]:
     from poverty_tda.topology.multidim_ph import persistence_summary
 
     summary = persistence_summary(ph_obs)
-    return {
-        dim.lower(): float(summary.get(dim.upper(), {}).get("total_persistence", 0.0))
-        for dim in MARKOV_DIMS
-    }
+    return {dim.lower(): float(summary.get(dim.upper(), {}).get("total_persistence", 0.0)) for dim in MARKOV_DIMS}
 
 
 def _markov_per_dimension_summary(cell: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -734,6 +772,31 @@ def build_markov2_alpha_summary_payload(
     run_date: str,
     primary_dim: str = MARKOV_PRIMARY_DIM,
 ) -> dict[str, Any]:
+    """Assemble the committed alpha-sweep summary from per-cell checkpoints.
+
+    Args:
+        cell_payloads: The eight per-cell checkpoint payloads (one per
+            alpha x dataset cell).
+        proj_root: Repository root holding gitignored intermediates; used to
+            express embedded paths repo-relative.
+        worktree_root: Worktree checkout the summary is committed from; source
+            of the recorded ``git_head``.
+        b: Permutations per cell.
+        l_value: Landmarks per cell.
+        seed: Master random seed.
+        n_jobs: Cell-level worker count.
+        permutation_jobs: Per-cell permutation worker count.
+        n_null_pairs: Null-vs-null pair cap recorded in params.
+        run_date: Date suffix for the regeneration command.
+        primary_dim: Homology dimension promoted to the headline rows.
+
+    Returns:
+        The validated summary payload dict (schema ``markov2-alpha-sweep/v1``).
+
+    Raises:
+        ValueError: If ``primary_dim`` is invalid or the cell payloads do not
+            cover exactly the required alpha x dataset grid.
+    """
     if primary_dim not in MARKOV_DIMS:
         raise ValueError(f"summary dimension must be one of {MARKOV_DIMS}")
     if len(cell_payloads) != len(MARKOV_ALPHAS) * len(MARKOV_DATASETS):
@@ -760,23 +823,22 @@ def build_markov2_alpha_summary_payload(
                     "p_value": primary["p_value"],
                     "rejected_at_005": primary["rejected_at_005"],
                     "per_dimension": per_dimension,
-                    "checkpoint_path": cell["checkpoint_path"],
+                    "checkpoint_path": _repo_relpath(cell["checkpoint_path"], proj_root),
                     "runtime_seconds": float(cell["runtime_seconds"]),
                 }
             )
 
     inputs = {
         "canonical_embedding_source": {
-            dataset: str(_markov_dataset_root(dataset, proj_root) / "embeddings.npy")
+            dataset: _repo_relpath(_markov_dataset_root(dataset, proj_root) / "embeddings.npy", proj_root)
             for dataset in MARKOV_DATASETS
         },
         "baseline_gmm_labels_source": {
-            dataset: str(_markov_dataset_root(dataset, proj_root) / "05_analysis.json[gmm_labels]")
+            dataset: _repo_relpath(_markov_dataset_root(dataset, proj_root) / "05_analysis.json[gmm_labels]", proj_root)
             for dataset in MARKOV_DATASETS
         },
         "n_trajectories": {
-            dataset: int(by_key[(MARKOV_ALPHAS[0], dataset)]["inputs"]["n_trajectories"])
-            for dataset in MARKOV_DATASETS
+            dataset: int(by_key[(MARKOV_ALPHAS[0], dataset)]["inputs"]["n_trajectories"]) for dataset in MARKOV_DATASETS
         },
         "git_head": git_head(worktree_root),
     }
@@ -794,7 +856,7 @@ def build_markov2_alpha_summary_payload(
         "schema_version": "stage1/markov2-alpha-sweep/v1",
         "generated_at": _now_iso(),
         "task": "T1.8 Markov-2 alpha sensitivity sweep",
-        "pre_registration": str(proj_root / PREREG_REL),
+        "pre_registration": _repo_relpath(proj_root / PREREG_REL, proj_root),
         "inputs": inputs,
         "params": {
             "alphas": MARKOV_ALPHAS,
@@ -821,6 +883,43 @@ def build_markov2_alpha_summary_payload(
     }
 
 
+def _assert_markov_checkpoint_consistent(
+    payload: dict[str, Any],
+    *,
+    n_null_pairs: int,
+    k_max: int,
+    n_points: int,
+) -> None:
+    """Reject reuse of a checkpoint whose diagnostics params differ from the run.
+
+    ``_latest_markov_cell_checkpoint`` already keys discovery by
+    dataset/alpha/B/L/seed; this closes the remaining gap so a checkpoint
+    produced under different ``n_null_pairs``/``k_max``/``n_points`` is not
+    silently reused into a mixed-provenance summary. Backward compatible: keys
+    absent from older checkpoints are skipped rather than treated as mismatches.
+
+    Args:
+        payload: A loaded per-cell checkpoint payload.
+        n_null_pairs: Requested null-vs-null pair cap.
+        k_max: Requested maximum homology dimension.
+        n_points: Requested landmark subsample size.
+
+    Raises:
+        ValueError: If a recorded diagnostics parameter disagrees with the run.
+    """
+    recorded = payload.get("params", {})
+    expected = {"n_null_pairs": n_null_pairs, "k_max": k_max, "n_points": n_points}
+    mismatches = [
+        f"{key}: checkpoint={recorded[key]} != requested={value}"
+        for key, value in expected.items()
+        if key in recorded and recorded[key] != value
+    ]
+    if mismatches:
+        raise ValueError(
+            f"stale checkpoint {payload.get('checkpoint_path')} cannot be reused: " + "; ".join(mismatches)
+        )
+
+
 def run_markov2_alpha_cell(
     dataset: str,
     alpha: float | int,
@@ -837,10 +936,39 @@ def run_markov2_alpha_cell(
     cell_worker_count: int,
     primary_dim: str,
 ) -> dict[str, Any]:
+    """Compute (or reuse) one alpha x dataset Markov-2 sweep cell.
+
+    Reuses an on-disk checkpoint when one exists for the dataset/alpha/B/L/seed
+    key and its diagnostics params match; otherwise runs the headline pipeline
+    and writes a fresh checkpoint.
+
+    Args:
+        dataset: ``"usoc"`` or ``"bhps"``.
+        alpha: Laplace smoothing constant for the Markov-2 null.
+        b: Permutations for the null distribution.
+        l_value: Landmarks for the witness complex.
+        seed: Master random seed.
+        run_date: Date suffix for the checkpoint filename.
+        proj_root: Repository root holding inputs and checkpoints.
+        worktree_root: Worktree checkout (source of ``git_head``).
+        permutation_jobs: Per-cell permutation worker count.
+        n_null_pairs: Null-vs-null pair cap.
+        k_max: Maximum homology dimension.
+        n_points: Landmark subsample size.
+        cell_worker_count: Number of cells run in parallel (recorded only).
+        primary_dim: Headline homology dimension.
+
+    Returns:
+        The per-cell checkpoint payload.
+
+    Raises:
+        ValueError: If a discovered checkpoint's diagnostics params are stale.
+    """
     existing = _latest_markov_cell_checkpoint(proj_root, dataset, alpha, b, l_value, seed)
     if existing is not None:
         payload = _read_json(existing)
         payload["checkpoint_path"] = str(existing)
+        _assert_markov_checkpoint_consistent(payload, n_null_pairs=n_null_pairs, k_max=k_max, n_points=n_points)
         payload["skipped_existing_checkpoint"] = True
         return payload
 
@@ -890,6 +1018,8 @@ def run_markov2_alpha_cell(
             "cell_worker_count": cell_worker_count,
             "permutation_jobs": permutation_jobs,
             "n_null_pairs": n_null_pairs,
+            "k_max": k_max,
+            "n_points": n_points,
             "summary_dimension": primary_dim,
         },
         "observed_total_persistence": _observed_total_persistence(ph_obs),
@@ -944,6 +1074,36 @@ def write_markov2_alpha_sweep(
     k_max: int,
     n_points: int,
 ) -> Path | None:
+    """Run the full alpha sweep and write the committed summary JSON.
+
+    Runs any missing alpha x dataset cells (respecting ``max_hours``), then
+    assembles and validates the summary once all eight checkpoints exist.
+    Non-canonical ``L``/``seed``/``B`` are rejected up front so a misconfigured
+    invocation fails fast rather than after hours of compute.
+
+    Args:
+        run_date: Date suffix for cell and summary filenames.
+        proj_root: Repository root for inputs and gitignored checkpoints.
+        worktree_root: Worktree the summary is committed to.
+        b: Permutations per cell (must be >= 1000).
+        l_value: Landmarks per cell (must equal 5000).
+        seed: Master random seed (must equal 42).
+        n_jobs: Number of cells to run in parallel.
+        max_hours: Optional wall-clock cap; partial progress is checkpointed.
+        primary_dim: Headline homology dimension.
+        permutation_jobs: Per-cell permutation worker count.
+        n_null_pairs: Null-vs-null pair cap.
+        k_max: Maximum homology dimension.
+        n_points: Landmark subsample size.
+
+    Returns:
+        Path to the written (or pre-existing valid) summary JSON, or ``None``
+        if the wall-clock cap was hit before all cells completed.
+
+    Raises:
+        ValueError: On invalid worker counts, dimension, or non-canonical
+            ``L``/``seed``/``B``, or if the assembled summary fails validation.
+    """
     from joblib import Parallel, delayed
 
     if n_jobs < 1:
@@ -952,6 +1112,12 @@ def write_markov2_alpha_sweep(
         raise ValueError("--permutation-jobs must be >= 1")
     if primary_dim not in MARKOV_DIMS:
         raise ValueError(f"--summary-dim must be one of {MARKOV_DIMS}")
+    if l_value != MARKOV_DEFAULT_L:
+        raise ValueError(f"--L must be {MARKOV_DEFAULT_L} for markov2-alpha-sweep outputs")
+    if seed != SEED:
+        raise ValueError(f"--seed must be {SEED} for markov2-alpha-sweep outputs")
+    if b < MARKOV_DEFAULT_B:
+        raise ValueError(f"--B must be >= {MARKOV_DEFAULT_B} for markov2-alpha-sweep outputs")
 
     cells = [(dataset, alpha) for alpha in MARKOV_ALPHAS for dataset in MARKOV_DATASETS]
     started = time.time()
@@ -1081,7 +1247,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--k-max", type=int, default=MARKOV_DEFAULT_K_MAX)
     parser.add_argument("--n-points", type=int, default=MARKOV_DEFAULT_N_POINTS)
-    parser.add_argument("--max-hours", type=float, default=None, help="Stop launching new cell batches after this wall time.")
+    parser.add_argument(
+        "--max-hours", type=float, default=None, help="Stop launching new cell batches after this wall time."
+    )
     parser.add_argument("--summary-dim", choices=MARKOV_DIMS, default=MARKOV_PRIMARY_DIM)
     return parser.parse_args()
 

@@ -2,15 +2,15 @@
   "schema_version": "stage1/markov2-alpha-sweep/v1",
   "generated_at": "2026-06-16T03:19:22+00:00",
   "task": "T1.8 Markov-2 alpha sensitivity sweep",
-  "pre_registration": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\pre_registrations_2026-06-07.json",
+  "pre_registration": "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-07.json",
   "inputs": {
     "canonical_embedding_source": {
-      "usoc": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\embeddings.npy",
-      "bhps": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\embeddings.npy"
+      "usoc": "results/trajectory_tda_integration/embeddings.npy",
+      "bhps": "results/trajectory_tda_bhps/embeddings.npy"
     },
     "baseline_gmm_labels_source": {
-      "usoc": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\05_analysis.json[gmm_labels]",
-      "bhps": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\05_analysis.json[gmm_labels]"
+      "usoc": "results/trajectory_tda_integration/05_analysis.json[gmm_labels]",
+      "bhps": "results/trajectory_tda_bhps/05_analysis.json[gmm_labels]"
     },
     "n_trajectories": {
       "usoc": 27280,
@@ -75,7 +75,7 @@
           "rejected_at_005": true
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha0_B1000_L5000_seed42_2026-06-08.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0_B1000_L5000_seed42_2026-06-08.json",
       "runtime_seconds": 82055.23244357109
     },
     {
@@ -108,7 +108,7 @@
           "rejected_at_005": false
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha0_B1000_L5000_seed42_2026-06-08.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0_B1000_L5000_seed42_2026-06-08.json",
       "runtime_seconds": 25704.247991085052
     },
     {
@@ -141,7 +141,7 @@
           "rejected_at_005": true
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
       "runtime_seconds": 81901.07118749619
     },
     {
@@ -174,7 +174,7 @@
           "rejected_at_005": false
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
       "runtime_seconds": 25818.35696220398
     },
     {
@@ -207,7 +207,7 @@
           "rejected_at_005": true
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
       "runtime_seconds": 31390.39056777954
     },
     {
@@ -240,7 +240,7 @@
           "rejected_at_005": false
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json",
       "runtime_seconds": 107407.56631875038
     },
     {
@@ -273,7 +273,7 @@
           "rejected_at_005": true
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha5_B1000_L5000_seed42_2026-06-16.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha5_B1000_L5000_seed42_2026-06-16.json",
       "runtime_seconds": 10874.203749418259
     },
     {
@@ -306,7 +306,7 @@
           "rejected_at_005": false
         }
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha5_B1000_L5000_seed42_2026-06-08.json",
+      "checkpoint_path": "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha5_B1000_L5000_seed42_2026-06-08.json",
       "runtime_seconds": 106969.66950440407
     }
   ],
@@ -426,14 +426,14 @@
     }
   },
   "checkpoints": [
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha0_B1000_L5000_seed42_2026-06-08.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha0_B1000_L5000_seed42_2026-06-08.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha5_B1000_L5000_seed42_2026-06-16.json",
-    "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_bhps_alpha5_B1000_L5000_seed42_2026-06-08.json"
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha0p5_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha5_B1000_L5000_seed42_2026-06-16.json",
+    "results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha5_B1000_L5000_seed42_2026-06-08.json"
   ],
   "regeneration_command": "uv run --env-file .env python trajectory_tda/scripts/run_stage1_aux_diagnostics.py markov2-alpha-sweep --B 1000 --L 5000 --seed 42 --n-jobs 1 --permutation-jobs 4 --run-date 2026-06-16 --summary-dim h1"
 }
