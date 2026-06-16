@@ -635,6 +635,7 @@ def _markov_regeneration_command(
     max_hours: float | None,
     run_date: str,
     primary_dim: str,
+    permutation_jobs: int | None = None,
 ) -> str:
     parts = [
         "uv run --env-file .env python trajectory_tda/scripts/run_stage1_aux_diagnostics.py",
@@ -643,9 +644,10 @@ def _markov_regeneration_command(
         f"--L {l_value}",
         f"--seed {seed}",
         f"--n-jobs {n_jobs}",
-        f"--run-date {run_date}",
-        f"--summary-dim {primary_dim}",
     ]
+    if permutation_jobs is not None:
+        parts.append(f"--permutation-jobs {permutation_jobs}")
+    parts.extend([f"--run-date {run_date}", f"--summary-dim {primary_dim}"])
     if max_hours is not None:
         parts.append(f"--max-hours {max_hours}")
     return " ".join(parts)
@@ -727,6 +729,8 @@ def build_markov2_alpha_summary_payload(
     l_value: int,
     seed: int,
     n_jobs: int,
+    permutation_jobs: int,
+    n_null_pairs: int,
     run_date: str,
     primary_dim: str = MARKOV_PRIMARY_DIM,
 ) -> dict[str, Any]:
@@ -784,6 +788,7 @@ def build_markov2_alpha_summary_payload(
         max_hours=None,
         run_date=run_date,
         primary_dim=primary_dim,
+        permutation_jobs=permutation_jobs,
     )
     return {
         "schema_version": "stage1/markov2-alpha-sweep/v1",
@@ -804,6 +809,9 @@ def build_markov2_alpha_summary_payload(
             "wasserstein_internal_p": 2,
             "summary_dimension": primary_dim,
             "n_jobs": n_jobs,
+            "cell_worker_count": n_jobs,
+            "permutation_jobs": permutation_jobs,
+            "n_null_pairs": n_null_pairs,
             "cell_parallelism": "alpha x dataset cells",
         },
         "results": rows,
@@ -896,6 +904,7 @@ def run_markov2_alpha_cell(
             max_hours=None,
             run_date=run_date,
             primary_dim=primary_dim,
+            permutation_jobs=permutation_jobs,
         ),
     }
     _write_json_no_overwrite(checkpoint_path, payload)
@@ -1011,6 +1020,8 @@ def write_markov2_alpha_sweep(
         l_value=l_value,
         seed=seed,
         n_jobs=n_jobs,
+        permutation_jobs=permutation_jobs,
+        n_null_pairs=n_null_pairs,
         run_date=run_date,
         primary_dim=primary_dim,
     )
