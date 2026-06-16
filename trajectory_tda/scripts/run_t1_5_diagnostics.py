@@ -438,6 +438,16 @@ def _compute_obs_null_w2_checkpointed(
                 h1_values[idx],
                 timings[idx]["H1_seconds"],
             )
+            completed = sum(v is not None for v in h0_values)
+            _write_progress(
+                args,
+                started,
+                "obs_null_w2_call",
+                completed=completed,
+                total=int(args.n_perms),
+                percent=completed / args.n_perms,
+                latest_timing=result,
+            )
         completed = sum(v is not None for v in h0_values)
         LOGGER.info("Doubled-n obs-null W2 checkpoint: %d/%d", completed, args.n_perms)
         _write_json_atomic(
@@ -453,15 +463,7 @@ def _compute_obs_null_w2_checkpointed(
                 "timings": timings,
             },
         )
-        _write_progress(
-            args,
-            started,
-            "obs_null_w2",
-            completed=completed,
-            total=int(args.n_perms),
-            percent=completed / args.n_perms,
-            latest_timings=chunk_results,
-        )
+        _write_progress(args, started, "obs_null_w2", completed=completed, total=int(args.n_perms), percent=completed / args.n_perms)
 
     return {
         "H0": [float(v) for v in h0_values if v is not None],
@@ -536,6 +538,17 @@ def _compute_null_null_w2_checkpointed(
                 float(result["value"]),
                 float(result["elapsed_seconds"]),
             )
+            completed = len(values) - sum(value is None for value in values)
+            _write_progress(
+                args,
+                started,
+                f"{kind}_call",
+                dim=dim,
+                completed=completed,
+                total=len(pair_indices),
+                percent=completed / len(pair_indices) if pair_indices else 1.0,
+                latest_timing=result,
+            )
         completed = len(values) - sum(value is None for value in values)
         _write_json_atomic(
             path,
@@ -559,7 +572,6 @@ def _compute_null_null_w2_checkpointed(
             completed=completed,
             total=len(pair_indices),
             percent=completed / len(pair_indices) if pair_indices else 1.0,
-            latest_timings=chunk_results,
         )
     return {
         "values": [float(value) for value in values if value is not None],
@@ -804,7 +816,7 @@ def run_doubled(args: argparse.Namespace) -> None:
         cache_elapsed_seconds=cache_elapsed,
         wall_time_estimate=estimate,
     )
-    with Parallel(n_jobs=args.aggregate_jobs, verbose=0) as parallel:
+    with Parallel(n_jobs=args.aggregate_jobs, return_as="generator_unordered", verbose=0) as parallel:
         obs_null = _compute_obs_null_w2_checkpointed(cache, obs_h0, obs_h1, args, started, parallel)
         result = _aggregate_doubled_checkpointed(cache, obs_h0, obs_h1, obs_null, args, started, parallel)
     baseline = json.loads(args.baseline_path.read_text(encoding="utf-8"))
