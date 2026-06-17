@@ -9,6 +9,8 @@ contracts:
   - discovery-harness/assay-scorecard
   - discovery-harness/spike-pre-registration
   - discovery-harness/spike-result-summary
+  - discovery-harness/strand-comparison-output
+  - discovery-harness/strand-comparison-output-json-validation
 
 notes: >
   The assay-scorecard, spike-pre-registration, and spike-result-summary
@@ -17,3 +19,7 @@ notes: >
   programme-fit from viability scoring, explicit user approval before Spike
   execution, non-invariant toy null evidence, research-assurance evidence, and
   the pre-reg-to-dispatch handoff seam.
+  The strand-comparison-output and strand-comparison-output-json-validation
+  contracts guard the T-STRAND-1 output JSON: finite-lifetimes-only, frozen
+  loadings, calibration gate coupling, verdict-calibration coupling, p-value
+  ranges, and absence of forbidden refit keys.
