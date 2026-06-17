@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
+import subprocess  # nosec B404 - used only for a fixed, trusted `git rev-parse`
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -125,7 +125,9 @@ def _classify(a_raw: float, a_matched: float, rejects: bool) -> str:
 def _git_head() -> str:
     """Return the current git HEAD SHA, or ``"unknown"`` if unavailable."""
     try:
-        out = subprocess.run(
+        # Fixed argv, no shell, no user input -> the Bandit subprocess warnings
+        # (B603/B607) are reviewed false positives for this provenance call.
+        out = subprocess.run(  # nosec B603 B607
             ["git", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,

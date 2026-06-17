@@ -305,10 +305,14 @@ def assert_null_non_invariance(
     perm_arr = np.array(perm_stats)
     any_different = bool(np.any(perm_arr != observed))
 
-    assert any_different, (
-        "STRAND null is INVARIANT: all label permutations reproduced the observed "
-        "log-rank statistic, so permutation p-values would not be trustworthy."
-    )
+    # Raise explicitly rather than `assert` (which `python -O` strips) while
+    # preserving the documented AssertionError contract — this is a
+    # research-assurance gate that must always fire.
+    if not any_different:
+        raise AssertionError(
+            "STRAND null is INVARIANT: all label permutations reproduced the observed "
+            "log-rank statistic, so permutation p-values would not be trustworthy."
+        )
 
     return {
         "observed_stat": float(observed),

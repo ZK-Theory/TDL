@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess  # nosec B404 - used only for a fixed, trusted `git rev-parse`
 import sys
 import time
 from datetime import datetime, timezone
@@ -111,10 +112,11 @@ def _finite_dgm(dgm: np.ndarray) -> np.ndarray:
 
 
 def _git_head() -> str:
+    """Return the current git HEAD SHA, or ``"unknown"`` if unavailable."""
     try:
-        import subprocess
-
-        result = subprocess.run(
+        # Fixed argv, no shell, no user input -> the Bandit subprocess warnings
+        # (B603/B607) are reviewed false positives for this provenance call.
+        result = subprocess.run(  # nosec B603 B607
             ["git", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
