@@ -1,0 +1,63 @@
+id: h2-edge-collapse-exactness
+kind: invariant
+
+description: >
+  Behavioural invariant for the T1.5 H2 Check method change: substituting the
+  GUDHI edge-collapse persistent-homology path for the dense ripser path on the
+  dimension-2 Vietoris-Rips filtration must not change the H2 persistence
+  diagram. For maxmin landmark samples of the frozen USoc embedding at small L
+  (L in {100, 200}, seed 42), the H2 diagram computed via gudhi edge collapse
+  (RipsComplex max_dimension=1 -> collapse_edges -> expansion(3) -> persistence,
+  at the 75th-percentile threshold) must equal the H2 diagram from the dense
+  ripser path (ripser maxdim=2, identical thresh, do_cocycles=False), with
+  bottleneck distance <= 1e-5 in H2 and identical finite-H2 feature counts. This
+  is the canary that licenses the L=1000 production H2 run (2026-06-17 amendment)
+  to use edge collapse for tractability without altering the estimand the
+  Markov-1 null test operates on.
+
+spec_citation:
+  source: >
+    2026-06-17 vault [DECISION] (pre-reg amendment) -- T1.5 H2 Check
+    L=2000->L=1000 infeasibility amendment, Method hardening section;
+    machine-readable
+    results/trajectory_tda_integration/stage1/pre_registrations_2026-06-17.json
+  vault_entry_date: "2026-06-17"
+
+pending: true
+
+invariant:
+  claim: >
+    Let P = X[maxmin(X, L, seed=42)] be a maxmin landmark sample of the frozen
+    USoc embedding X for L in {100, 200}, and thr = the 75th percentile of the
+    pairwise distances of P. Let PD_dense = ripser.ripser(P, maxdim=2,
+    thresh=thr, do_cocycles=False)["dgms"][2] and PD_collapse = the H2 intervals
+    from gudhi.RipsComplex(points=P, max_edge_length=thr) ->
+    create_simplex_tree(max_dimension=1) -> collapse_edges() -> expansion(3) ->
+    compute_persistence(). Restricting to finite features, the bottleneck
+    distance d_B(PD_dense, PD_collapse) must satisfy d_B <= 1e-5 for each L, and
+    the finite-H2 feature counts must be equal. If either assertion fails, the
+    2026-06-17 amendment's edge-collapse substitution is unsafe and the L=1000
+    production run must not be dispatched until reconciled.
+  preconditions:
+    - "ripser.ripser is from the pinned ripser 0.6.14; gudhi is 3.11.x with SimplexTree.collapse_edges available; persim provides bottleneck."
+    - "Both paths consume the identical maxmin landmark sample P and the identical threshold thr; collapse and dense differ only in the PH engine."
+    - "The frozen USoc embeddings.npy is present at the canonical PROJ_ROOT path results/trajectory_tda_integration/embeddings.npy, OR a pinned deterministic fixture is used for fast hook validation (mirroring dedup-equivalence-canary)."
+  counter_example_history: >
+    The 2026-05-25 [NEGATIVE] null-layer audit identified a class of failures in
+    which methodological changes to the PH computation silently invalidated
+    downstream cells. Swapping the H2 PH engine (dense ripser -> edge collapse)
+    under the 2026-06-17 amendment is a change of exactly that class; this canary
+    is the gate that prevents an analogous silent estimand shift on the H2 Check.
+    Empirically validated 2026-06-17: bottleneck ~9.5e-7 at L in {200,300,500}.
+
+binding:
+  test_file: "tests/trajectory_tda/test_h2_edge_collapse_contracts.py"
+  test_function: "test_h2_edge_collapse_exactness_vs_dense"
+  must_assert: >
+    For L in {100, 200} on a deterministic maxmin landmark sample (frozen USoc
+    embeddings.npy at PROJ_ROOT, else a pinned fixture), the test computes the H2
+    diagram via dense ripser (maxdim=2, 75th-percentile thresh, do_cocycles=False)
+    and via the gudhi edge-collapse path on the identical sample and threshold,
+    and asserts bottleneck(H2_dense, H2_collapse) <= 1e-5 and equal finite-H2
+    feature counts for each L. Authored by the T1.5 Worker; until present on the
+    base branch this contract is pending.
