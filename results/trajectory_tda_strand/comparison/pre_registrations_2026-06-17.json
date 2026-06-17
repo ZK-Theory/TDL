@@ -1,0 +1,104 @@
+{
+  "pre_registration_date": "2026-06-17",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager (Discovery Harness dispatch; Scout->Assay->Spike SUCCESS->/pre-reg-to-dispatch; PROMOTE + dispatch approved by Stephen 2026-06-17)",
+  "candidate": "strand-persistence-survival-testing (arXiv:2606.11911)",
+  "harness_provenance": "vault/00-Meta/Discovery/strand-persistence-survival-testing-dispatch-prereg.md (+ .json mirror); spike result vault/00-Meta/Discovery/strand-persistence-survival-testing-spike-result.md",
+  "amendments": [
+    {
+      "amended_at": "2026-06-17",
+      "by": "Manager (recovery from infeasible first run; User-approved 'fix & re-run')",
+      "changes": [
+        "Performance: log-rank vectorised O(n^2)->O(n log n) (sort + searchsorted). EQUIVALENCE-PRESERVING: identical statistic, verified vs the reference loop to max|diff|=2.22e-15 over 200 random cases incl. ties. Not a methodology change. The first run stalled because the O(n^2) loop x ~200k calls at n~5000 single-threaded projected to ~10h.",
+        "Parameter: B_baseline_pairs 200 -> 50. Rationale: exact W2 on ~5000-point diagrams is ~22s/pair; 200 pairs x 2 dims would be ~37 min and contend with the active T1.5 4-worker run. At B_baseline=50 the observed H0 cross-distance (W2~136.7) dwarfs the null-null pairs, so rejection is unambiguous; toy budget preserved.",
+        "Solver clarification: baseline W2 uses gudhi.hera.wasserstein_distance (exact, bundled C++, no POT dependency). POT (`ot`) is absent in the worktree .venv, so trajectory_tda.topology.vectorisation.wasserstein_distance would silently fall back to greedy matching; gudhi.hera is used directly to guarantee an EXACT W2 baseline. n_jobs reduced 4->2 to coexist with T1.5."
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "name": "STRAND vs W2/landscape testing comparison (toy scale)",
+      "task": "T-STRAND-1",
+      "papers": ["P01-B"],
+      "outcome_contingent": true,
+      "objective": "Decide whether STRAND (Kaplan-Meier persistence-survival + log-rank) adds calibrated two-sample testing power or localisation beyond the P01-B Wasserstein-2 + persistence-landscape-L2 permutation pipeline, or reduces to a persistence-lifetime reparameterisation, on a toy-scale comparison over FROZEN P01-B diagrams. No paper-facing claim is licensed; this task decides PROMOTE-to-full-scale / PARK / KILL only.",
+      "contrast": "BHPS observed vs USoc observed persistence diagrams (the P01-B headline cross-dataset contrast), H0 and H1 separately, using the frozen-loadings cached diagrams. All three methods test the SAME two-sample BHPS-vs-USoc contrast.",
+      "strand_construction": {
+        "persistence_value": "p = d - b per finite feature; the single infinite H0 essential class excluded",
+        "representation": "per-group Kaplan-Meier survival S(t) = P(p > t), each lifetime a fully-observed event time",
+        "statistic": "log-rank two-sample statistic between the BHPS and USoc lifetime groups (vectorised O(n log n) implementation; statistic unchanged)",
+        "vectorisation": "g = 25 grid; STRAND and STRAND-F (STRAND-F appends the birth-time survival curve)",
+        "homology_dims": ["H0", "H1"]
+      },
+      "baselines": [
+        "Wasserstein-2 two-sample test of BHPS-obs vs USoc-obs diagrams: observed statistic = W2(bhps_obs, usoc_obs) via gudhi.hera (exact, order=2, internal_p=2); null = W2 between independent BHPS-null and USoc-null diagram pairs (CROSS null-null), B_baseline=50 pairs subsampled (seed=42) from the 1000x1000 cached nulls; one-sided p=(r+1)/(B+1) (observed >= null = more different).",
+        "persistence-landscape L2 two-sample test, identical CROSS null-null construction (k_max=5, n_points=200), B_baseline=50. Reuses trajectory_tda._battery_core landscape helpers."
+      ],
+      "null_model": {
+        "strand": "pool all finite lifetimes from both groups, relabel into two groups of the original sizes, recompute per-group Kaplan-Meier + log-rank; B=1000, two-sided, p=(r+1)/(B+1)",
+        "invariance_requirement": "the permuted grouping must change the per-group KM curves and the log-rank statistic; assert non-invariance (null-operation-invariance-audit) before trusting any p-value",
+        "baselines": "cross null-null permutation: observed cross-dataset distance vs the distribution of BHPS-null-vs-USoc-null distances (B_baseline=50)"
+      },
+      "calibration": {
+        "construction": "Type-I error of STRAND under its own null on matched groups (two samples drawn from the SAME dataset's pooled lifetimes); n_calibration_trials=100; for each trial compute the STRAND log-rank permutation p-value (B=1000); KS of the trial p-values vs Uniform(0,1)",
+        "reports": ["ks_statistic", "ks_p", "mean_pvalue", "calibrated"],
+        "calibrated_rule": "calibrated == (ks_p >= 0.05)"
+      },
+      "key_params": {
+        "finite_lifetimes_only": true,
+        "grid_size_g": 25,
+        "null_model": "label-permutation (pool, relabel to original group sizes, recompute KM + log-rank)",
+        "B": 1000,
+        "B_baseline_pairs": 50,
+        "baseline_null": "cross null-null (BHPS-null vs USoc-null diagram pairs), subsampled seed=42 from the cached 1000x1000",
+        "baseline_solver": "gudhi.hera (exact W2; no POT dependency)",
+        "baseline_sidedness": "one-sided (observed >= null)",
+        "p_value_formula": "(r+1)/(B+1)",
+        "two_sided": true,
+        "n_calibration_trials": 100,
+        "frozen_loadings": true,
+        "L": 5000,
+        "seed": 42,
+        "alpha_level": 0.05,
+        "representation": "FROZEN P01-B PCA loadings + maxmin landmarks; transform-only; no refit"
+      },
+      "decision_rule": {
+        "miscalibrated": "NOT calibrated (ks_p < 0.05) OR STRAND not faithfully implementable from arXiv:2606.11911 OR the label-permutation null is invariant to STRAND's input -> Outcome C: KILL / [NEGATIVE]; keep W2/landscape; feed lesson to Scout. No power claim is interpretable under miscalibration.",
+        "additive": "calibrated (ks_p >= 0.05) AND on >=1 of the H0/H1 contrasts STRAND agrees in direction with W2/landscape where they reject AND adds lifetime-range localisation the omnibus cannot provide, OR detects a calibrated difference at comparable-or-greater power at toy scale -> Outcome A: PROMOTE to a full-scale P01-B methods-extension pre-reg (new APM task); candidate -> registered.",
+        "redundant": "calibrated (ks_p >= 0.05) but conclusions concordant-without-addition (no localisation beyond W2/landscape; reduces to lifetime reparameterisation) -> Outcome B: PARK with revisit trigger (a dataset where the omnibus is ambiguous but lifetime localisation matters); keep W2/landscape primary; candidate -> parked."
+      },
+      "outcome_to_prose": {
+        "additive": "No P01-B prose yet. Open a full-scale STRAND methods-extension APM task with its own pre-reg; only that task's result may license manuscript text (e.g. a complementary interpretable testing layer in P01-B methods/SI).",
+        "redundant": "No P01-B prose change; W2 + landscape-L2 remain the locked primary tests. Optional one-line SI note that a survival reparameterisation added no testing power.",
+        "miscalibrated": "Write a [NEGATIVE] note; keep W2/landscape; feed 'STRAND not calibrated on our diagrams / await reference implementation' to the Scout watchlist."
+      },
+      "execution_guardrails": "Toy scale: single observed BHPS-vs-USoc diagram pair per homology dimension from the frozen caches. STRAND main + calibration use the vectorised log-rank (~minutes total). Baseline B_baseline=50 cross null-null W2 pairs via gudhi.hera (~22s/pair, n_jobs=2 to coexist with T1.5; ~9-18 min). Verify both frozen caches exist at PROJ_ROOT before any compute. Do NOT refit the representation. Nothing is written outside results/trajectory_tda_strand/ and the vault. ANTI-FABRICATION: every number in the output JSON must be computed from the real cached diagrams; if any step is not faithfully implementable, report Partial - do NOT synthesize or place-hold p-values.",
+      "inputs": {
+        "bhps_frozen_cache": "results/trajectory_tda_integration/stage1/cache/null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz",
+        "usoc_frozen_cache": "results/trajectory_tda_integration/stage1/cache/null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+        "baseline_headline_jsons": "committed P01-B W2/landscape headline JSONs (T1.2a USoc, T1.2b BHPS) for sanity cross-check"
+      },
+      "outputs": [
+        "results/trajectory_tda_strand/comparison/strand_vs_baseline_<date>.json"
+      ],
+      "planned_contracts": [
+        {
+          "id": "strand-comparison-output",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_strand/comparison/strand_vs_baseline_*.json",
+          "required_keys": "schema_version (str); generated_at (str); task ('T-STRAND-1 ...'); pre_registration (refs results/trajectory_tda_strand/comparison/pre_registrations_2026-06-17.json); inputs (git_head + bhps/usoc frozen cache refs); params (finite_lifetimes_only==true, grid_size_g==25, null_model=='label-permutation', B>=1000, B_baseline_pairs>=1, p_value_formula=='(r+1)/(B+1)', frozen_loadings==true, L==5000, seed==42, alpha_level==0.05); calibration (ks_statistic float>=0, ks_p float in [0,1], mean_pvalue float in [0,1], calibrated bool == (ks_p>=0.05)); comparison (per dim H0/H1: strand_logrank_p float in [0,1], w2_p float in [0,1], landscape_l2_p float in [0,1]); decision (verdict in {additive, redundant, miscalibrated}; miscalibrated iff NOT calibrated; additive/redundant only when calibrated, per the decision rule)",
+          "forbidden_keys": "refit_pca, per_call_loadings",
+          "binding": "test_file tests/discovery/test_strand_comparison_contract.py; must_assert rejects payloads where calibrated disagrees with ks_p>=0.05, any p is out of [0,1], the verdict-calibration coupling is violated, or a forbidden refit key is present."
+        },
+        {
+          "id": "strand-comparison-output-json-validation",
+          "kind": "output_validation",
+          "pending": true,
+          "applies_to_glob": "results/trajectory_tda_strand/comparison/strand_vs_baseline_*.json",
+          "schema_contracts": ["strand-comparison-output"]
+        }
+      ]
+    }
+  ]
+}

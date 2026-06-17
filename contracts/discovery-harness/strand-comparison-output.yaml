@@ -1,0 +1,77 @@
+id: strand-comparison-output
+kind: schema
+pending: false
+
+description: >
+  Schema for the T-STRAND-1 STRAND vs W2/landscape two-sample testing comparison
+  output JSON. Guards: finite-lifetimes-only, frozen-loadings transform-only,
+  calibration gate (ks_p>=0.05 == calibrated), verdict-calibration coupling,
+  p-value range [0,1], and absence of forbidden refit keys.
+
+spec_citation:
+  source: "results/trajectory_tda_strand/comparison/pre_registrations_2026-06-17.json"
+  task: "T-STRAND-1"
+  authored: "2026-06-17"
+
+schema_def:
+  applies_to: "results/trajectory_tda_strand/comparison/strand_vs_baseline_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version, must be 'strand-comparison/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO timestamp of generation."
+    - name: task
+      type: str
+      description: "Task identifier string referencing T-STRAND-1."
+    - name: pre_registration
+      type: str
+      description: "Relative path to the governing pre-registration JSON."
+    - name: inputs
+      type: dict
+      description: "Must contain git_head (str), bhps_frozen_cache (str), usoc_frozen_cache (str)."
+    - name: params
+      type: dict
+      description: >
+        Must contain: finite_lifetimes_only==true, grid_size_g==25,
+        null_model=='label-permutation', B>=1000, B_baseline_pairs>=1,
+        p_value_formula=='(r+1)/(B+1)', frozen_loadings==true, L==5000,
+        seed==42, alpha_level==0.05.
+    - name: calibration
+      type: dict
+      description: >
+        Must contain: ks_statistic (float>=0), ks_p (float in [0,1]),
+        mean_pvalue (float in [0,1]), calibrated (bool, must equal ks_p>=0.05).
+    - name: comparison
+      type: dict
+      description: >
+        Must contain h0 and h1 sub-dicts, each with strand_logrank_p (float
+        in [0,1]), w2_p (float in [0,1]), landscape_l2_p (float in [0,1]).
+    - name: decision
+      type: dict
+      description: >
+        Must contain verdict in {additive, redundant, miscalibrated}.
+        miscalibrated iff NOT calibrated; additive or redundant only when calibrated.
+    - name: null_non_invariance
+      type: dict
+      description: >
+        Must contain h0 and h1 sub-dicts each with non_invariant==true,
+        confirming the label-permutation null changes the STRAND statistic.
+  forbidden_keys:
+    - name: refit_pca
+      reason: "Representation freeze: no PCA refit permitted (frozen-loadings-transform-only contract)."
+    - name: per_call_loadings
+      reason: "Representation freeze: per-call loadings refit is forbidden."
+
+binding:
+  test_file: "tests/discovery/test_strand_comparison_contract.py"
+  test_function: "test_strand_comparison_schema_rejects_invalid_payloads"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where:
+    (a) calibrated disagrees with ks_p>=0.05;
+    (b) any p-value is outside [0,1];
+    (c) the verdict-calibration coupling is violated (miscalibrated when
+        calibrated, or additive/redundant when not calibrated);
+    (d) a forbidden refit key (refit_pca, per_call_loadings) is present;
+    (e) required keys are missing.

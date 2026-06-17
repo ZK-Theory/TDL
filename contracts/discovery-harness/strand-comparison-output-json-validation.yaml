@@ -1,0 +1,25 @@
+id: strand-comparison-output-json-validation
+kind: output_validation
+pending: false
+
+description: >
+  Output-validation contract: asserts that every file matching
+  results/trajectory_tda_strand/comparison/strand_vs_baseline_*.json
+  passes the strand-comparison-output schema contract.
+
+spec_citation:
+  source: "results/trajectory_tda_strand/comparison/pre_registrations_2026-06-17.json"
+  task: "T-STRAND-1"
+  authored: "2026-06-17"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_strand/comparison/strand_vs_baseline_*.json"
+  schema_contracts:
+    - strand-comparison-output
+
+binding:
+  test_file: "tests/discovery/test_strand_comparison_contract.py"
+  test_function: "test_strand_comparison_output_json_validation"
+  must_assert: >
+    Every committed strand_vs_baseline_*.json passes validate_strand_comparison_output
+    without raising AssertionError.
