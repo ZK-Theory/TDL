@@ -31,6 +31,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -47,7 +48,9 @@ from trajectory_tda.discovery.strand_comparison import (
 )
 
 WORKTREE = Path(__file__).resolve().parents[2]
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+# PROJ_ROOT is the main checkout holding the gitignored frozen-diagram caches
+# (two-path rule); overridable via TDL_PROJ_ROOT for portability across machines.
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
 CACHE = PROJ_ROOT / "results/trajectory_tda_integration/stage1/cache"
 OUTPUT_DATE = "2026-06-17"
 OUTPUT_PATH = WORKTREE / f"results/trajectory_tda_strand/attribution/strand_attribution_probe_{OUTPUT_DATE}.json"
@@ -69,7 +72,15 @@ VARIANT_CONTROLS = {
 
 
 def _obs_lifetimes(npz_path: Path, dim_key: str) -> NDArray[np.float64]:
-    """Finite observed persistence lifetimes for one diagram dimension."""
+    """Finite observed persistence lifetimes for one diagram dimension.
+
+    Args:
+        npz_path: Path to a frozen diagram NPZ cache.
+        dim_key: Array key inside the NPZ (e.g. ``obs_h0_diagram``).
+
+    Returns:
+        1-D array of finite persistence lifetimes (p = d - b).
+    """
     with np.load(npz_path, allow_pickle=True) as data:
         dgm = np.asarray(data[dim_key], dtype=np.float64)
     return finite_lifetimes(dgm)
@@ -93,7 +104,17 @@ def probability_of_superiority(x: NDArray[np.float64], y: NDArray[np.float64]) -
 
 
 def _classify(a_raw: float, a_matched: float, rejects: bool) -> str:
-    """Per-control attribution verdict from the pre-stated rule."""
+    """Per-control attribution verdict from the pre-stated rule.
+
+    Args:
+        a_raw: Probability of superiority on the raw (uncontrolled) contrast;
+            retained for context/symmetry with the decision rule.
+        a_matched: Probability of superiority on the matched-control contrast.
+        rejects: Whether the STRAND log-rank test rejects at alpha=0.05.
+
+    Returns:
+        One of ``"robust"``, ``"attenuated"``, or ``"collapsed"``.
+    """
     if a_matched < 0.55 or not rejects:
         return "collapsed"
     if a_matched >= 0.70:
@@ -102,6 +123,7 @@ def _classify(a_raw: float, a_matched: float, rejects: bool) -> str:
 
 
 def _git_head() -> str:
+    """Return the current git HEAD SHA, or ``"unknown"`` if unavailable."""
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -115,6 +137,13 @@ def _git_head() -> str:
 
 
 def main() -> None:
+    """Run the Tier-1 reuse-path attribution probe and write the result JSON.
+
+    For each BHPS control variant and homology dimension, computes the
+    probability-of-superiority effect size and STRAND log-rank p-value against
+    USoc, applies the pre-stated robust/attenuated/collapsed rule, and records a
+    GO/NO-GO recommendation for the Tier-2 study. No new persistent homology.
+    """
     t0 = time.time()
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     if OUTPUT_PATH.exists():

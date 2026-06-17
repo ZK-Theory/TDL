@@ -16,7 +16,7 @@ Public API:
   compute_km_survival(lifetimes, t_grid)   -> ndarray  S(t) on grid
   log_rank_statistic(lts_a, lts_b)         -> float    observed statistic
   strand_pvalue(lts_a, lts_b, B, seed, two_sided) -> dict
-  strand_f_lifetimes(dgm)                  -> ndarray  concatenated lts + births
+  strand_f_augment(dgm)                    -> ndarray  concatenated lts + births
   calibrate_strand(lts_pool, n_a, n_b, ...)-> dict     KS calibration result
 """
 
@@ -305,6 +305,11 @@ def assert_null_non_invariance(
     perm_arr = np.array(perm_stats)
     any_different = bool(np.any(perm_arr != observed))
 
+    assert any_different, (
+        "STRAND null is INVARIANT: all label permutations reproduced the observed "
+        "log-rank statistic, so permutation p-values would not be trustworthy."
+    )
+
     return {
         "observed_stat": float(observed),
         "perm_stats_sample": perm_arr.tolist(),
@@ -445,7 +450,20 @@ def cross_null_null_baselines(
     n_bhps = len(bhps_null_h0)
     n_usoc = len(usoc_null_h0)
 
-    # Sample B_baseline (i,j) index pairs
+    # The same sampled (i, j) index pairs are reused for the H0 and H1 null
+    # pools, so each pool must share its length with the H0 pool the indices are
+    # drawn against; otherwise H1 indexing could run out of range or silently
+    # distort the sample.  The frozen null pools are equal-length by
+    # construction (same B); guard it loudly rather than trust that invariant.
+    if len(bhps_null_h1) != n_bhps or len(usoc_null_h1) != n_usoc:
+        raise ValueError(
+            "Null pool lengths differ across homology dimensions "
+            f"(bhps H0={n_bhps}, H1={len(bhps_null_h1)}; "
+            f"usoc H0={n_usoc}, H1={len(usoc_null_h1)}); "
+            "shared index sampling requires equal-length H0/H1 pools."
+        )
+
+    # Sample B_baseline (i,j) index pairs (valid for both H0 and H1 pools).
     bhps_indices = rng.randint(0, n_bhps, size=B_baseline)
     usoc_indices = rng.randint(0, n_usoc, size=B_baseline)
 
@@ -468,7 +486,8 @@ def cross_null_null_baselines(
         else:
             t_min, t_max = 0.0, 1.0
         t_vals = np.linspace(t_min, t_max, n_points)
-        dx = (t_vals[-1] - t_vals[0]) / n_points if n_points > 1 else 1.0
+        # Spacing of an n_points linspace grid is (max - min) / (n_points - 1).
+        dx = (t_vals[-1] - t_vals[0]) / (n_points - 1) if n_points > 1 else 1.0
 
         bhps_obs_land = landscape_on_grid(bhps_obs, t_vals, k_max)
         usoc_obs_land = landscape_on_grid(usoc_obs, t_vals, k_max)
@@ -529,8 +548,11 @@ def cross_null_null_baselines(
 def validate_strand_comparison_output(payload: dict[str, Any]) -> None:
     """Validate a strand_vs_baseline JSON payload against the contract.
 
+    Uses explicit ``raise ValueError`` rather than ``assert`` so the contract
+    is still enforced when Python runs under ``-O`` (which strips assertions).
+
     Raises:
-        AssertionError: On any contract violation.
+        ValueError: On any contract violation.
     """
     required_top = {
         "schema_version",
@@ -545,26 +567,36 @@ def validate_strand_comparison_output(payload: dict[str, Any]) -> None:
         "null_non_invariance",
     }
     missing = sorted(required_top - set(payload))
-    assert not missing, f"Missing required keys: {missing}"
+    if missing:
+        raise ValueError(f"Missing required keys: {missing}")
 
     forbidden = {"refit_pca", "per_call_loadings"}
     present_forbidden = sorted(forbidden & set(payload))
-    assert not present_forbidden, f"Forbidden keys present: {present_forbidden}"
+    if present_forbidden:
+        raise ValueError(f"Forbidden keys present: {present_forbidden}")
 
     # Params
     p = payload["params"]
-    assert p.get("finite_lifetimes_only") is True, "params.finite_lifetimes_only must be true"
-    assert p.get("grid_size_g") == 25, "params.grid_size_g must be 25"
-    assert p.get("null_model") == "label-permutation", "params.null_model must be 'label-permutation'"
-    assert isinstance(p.get("B"), int) and p["B"] >= 1000, "params.B must be >= 1000"
-    assert isinstance(p.get("B_baseline_pairs"), int) and p["B_baseline_pairs"] >= 1, (
-        "params.B_baseline_pairs must be >= 1"
-    )
-    assert p.get("p_value_formula") == "(r+1)/(B+1)", "params.p_value_formula must be '(r+1)/(B+1)'"
-    assert p.get("frozen_loadings") is True, "params.frozen_loadings must be true"
-    assert p.get("L") == 5000, "params.L must be 5000"
-    assert p.get("seed") == 42, "params.seed must be 42"
-    assert p.get("alpha_level") == 0.05, "params.alpha_level must be 0.05"
+    if p.get("finite_lifetimes_only") is not True:
+        raise ValueError("params.finite_lifetimes_only must be true")
+    if p.get("grid_size_g") != 25:
+        raise ValueError("params.grid_size_g must be 25")
+    if p.get("null_model") != "label-permutation":
+        raise ValueError("params.null_model must be 'label-permutation'")
+    if not (isinstance(p.get("B"), int) and p["B"] >= 1000):
+        raise ValueError("params.B must be >= 1000")
+    if not (isinstance(p.get("B_baseline_pairs"), int) and p["B_baseline_pairs"] >= 1):
+        raise ValueError("params.B_baseline_pairs must be >= 1")
+    if p.get("p_value_formula") != "(r+1)/(B+1)":
+        raise ValueError("params.p_value_formula must be '(r+1)/(B+1)'")
+    if p.get("frozen_loadings") is not True:
+        raise ValueError("params.frozen_loadings must be true")
+    if p.get("L") != 5000:
+        raise ValueError("params.L must be 5000")
+    if p.get("seed") != 42:
+        raise ValueError("params.seed must be 42")
+    if p.get("alpha_level") != 0.05:
+        raise ValueError("params.alpha_level must be 0.05")
 
     # Calibration
     cal = payload["calibration"]
@@ -572,36 +604,54 @@ def validate_strand_comparison_output(payload: dict[str, Any]) -> None:
     ks_p = cal.get("ks_p")
     mean_p = cal.get("mean_pvalue")
     calibrated = cal.get("calibrated")
-    assert isinstance(ks_stat, float) and ks_stat >= 0.0, "calibration.ks_statistic must be float >= 0"
-    assert isinstance(ks_p, float) and 0.0 <= ks_p <= 1.0, "calibration.ks_p must be in [0, 1]"
-    assert isinstance(mean_p, float) and 0.0 <= mean_p <= 1.0, "calibration.mean_pvalue must be in [0, 1]"
-    assert isinstance(calibrated, bool), "calibration.calibrated must be bool"
+    if not (isinstance(ks_stat, float) and ks_stat >= 0.0):
+        raise ValueError("calibration.ks_statistic must be float >= 0")
+    if not (isinstance(ks_p, float) and 0.0 <= ks_p <= 1.0):
+        raise ValueError("calibration.ks_p must be in [0, 1]")
+    if not (isinstance(mean_p, float) and 0.0 <= mean_p <= 1.0):
+        raise ValueError("calibration.mean_pvalue must be in [0, 1]")
+    if not isinstance(calibrated, bool):
+        raise ValueError("calibration.calibrated must be bool")
     # Critical: calibrated must equal ks_p >= 0.05
     expected_calibrated = ks_p >= 0.05
-    assert calibrated == expected_calibrated, (
-        f"calibration.calibrated ({calibrated}) disagrees with ks_p >= 0.05 ({expected_calibrated})"
-    )
+    if calibrated != expected_calibrated:
+        raise ValueError(f"calibration.calibrated ({calibrated}) disagrees with ks_p >= 0.05 ({expected_calibrated})")
 
     # Comparison
     comp = payload["comparison"]
     for dim in ("h0", "h1"):
-        assert dim in comp, f"comparison must contain '{dim}'"
+        if dim not in comp:
+            raise ValueError(f"comparison must contain '{dim}'")
         cell = comp[dim]
         for key in ("strand_logrank_p", "w2_p", "landscape_l2_p"):
             val = cell.get(key)
-            assert isinstance(val, float) and 0.0 <= val <= 1.0, f"comparison.{dim}.{key} must be float in [0, 1]"
+            if not (isinstance(val, float) and 0.0 <= val <= 1.0):
+                raise ValueError(f"comparison.{dim}.{key} must be float in [0, 1]")
+
+    # Null non-invariance: the label-permutation null must perturb the STRAND
+    # statistic on each dimension (schema requires non_invariant == true).  The
+    # canonical gate-4 only checks top-level keys, so this per-cell requirement
+    # is enforceable only here.
+    nni = payload["null_non_invariance"]
+    for dim in ("h0", "h1"):
+        if dim not in nni:
+            raise ValueError(f"null_non_invariance must contain '{dim}'")
+        if nni[dim].get("non_invariant") is not True:
+            raise ValueError(
+                f"null_non_invariance.{dim}.non_invariant must be true "
+                "(the permutation null must change the STRAND statistic)"
+            )
 
     # Decision
     decision = payload.get("decision")
-    assert isinstance(decision, dict), "decision must be a dict"
+    if not isinstance(decision, dict):
+        raise ValueError("decision must be a dict")
     verdict = decision.get("verdict")
-    assert verdict in {"additive", "redundant", "miscalibrated"}, (
-        f"decision.verdict must be one of additive/redundant/miscalibrated, got {verdict!r}"
-    )
+    if verdict not in {"additive", "redundant", "miscalibrated"}:
+        raise ValueError(f"decision.verdict must be one of additive/redundant/miscalibrated, got {verdict!r}")
     # Verdict-calibration coupling
     if not calibrated:
-        assert verdict == "miscalibrated", "decision.verdict must be 'miscalibrated' when calibration fails"
-    else:
-        assert verdict in {"additive", "redundant"}, (
-            f"calibrated result must have verdict additive or redundant, got {verdict!r}"
-        )
+        if verdict != "miscalibrated":
+            raise ValueError("decision.verdict must be 'miscalibrated' when calibration fails")
+    elif verdict not in {"additive", "redundant"}:
+        raise ValueError(f"calibrated result must have verdict additive or redundant, got {verdict!r}")

@@ -34,12 +34,14 @@ def _valid_payload() -> dict[str, Any]:
         "pre_registration": ("results/trajectory_tda_strand/comparison/pre_registrations_2026-06-17.json"),
         "inputs": {
             "git_head": "abc1234",
+            # Synthetic relative placeholders — the validator only checks these
+            # are present strings, never opens them; keep machine paths out.
             "bhps_frozen_cache": (
-                "C:/Users/steph/TDL/results/trajectory_tda_integration/stage1/cache/"
+                "results/trajectory_tda_integration/stage1/cache/"
                 "null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz"
             ),
             "usoc_frozen_cache": (
-                "C:/Users/steph/TDL/results/trajectory_tda_integration/stage1/cache/"
+                "results/trajectory_tda_integration/stage1/cache/"
                 "null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz"
             ),
         },
@@ -141,31 +143,31 @@ def test_strand_comparison_schema_rejects_invalid_payloads() -> None:
 
     # (a) calibrated disagrees with ks_p >= 0.05
     bad = _mutated(("calibration", "calibrated"), False)  # ks_p=0.42 -> should be True
-    with pytest.raises(AssertionError, match="disagrees"):
+    with pytest.raises(ValueError, match="disagrees"):
         validate_strand_comparison_output(bad)
 
     bad = _mutated(("calibration", "ks_p"), 0.01)  # ks_p<0.05 but calibrated=True
-    with pytest.raises(AssertionError, match="disagrees"):
+    with pytest.raises(ValueError, match="disagrees"):
         validate_strand_comparison_output(bad)
 
     # (b) p-values outside [0, 1]
     bad = _mutated(("comparison", "h0", "strand_logrank_p"), 1.5)
-    with pytest.raises(AssertionError, match=r"in \[0, 1\]"):
+    with pytest.raises(ValueError, match=r"in \[0, 1\]"):
         validate_strand_comparison_output(bad)
 
     bad = _mutated(("comparison", "h1", "w2_p"), -0.1)
-    with pytest.raises(AssertionError, match=r"in \[0, 1\]"):
+    with pytest.raises(ValueError, match=r"in \[0, 1\]"):
         validate_strand_comparison_output(bad)
 
     bad = _mutated(("calibration", "ks_p"), -0.01)
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_strand_comparison_output(bad)
 
     # (c) verdict-calibration coupling violated
     # miscalibrated verdict when calibrated=True
     bad = _mutated(("decision", "verdict"), "miscalibrated")
     # calibration.calibrated is True in valid payload
-    with pytest.raises(AssertionError, match="calibrated result must have verdict"):
+    with pytest.raises(ValueError, match="calibrated result must have verdict"):
         validate_strand_comparison_output(bad)
 
     # additive verdict when calibrated=False (miscalibrated)
@@ -173,24 +175,29 @@ def test_strand_comparison_schema_rejects_invalid_payloads() -> None:
     bad["calibration"]["ks_p"] = 0.01
     bad["calibration"]["calibrated"] = False
     bad["decision"]["verdict"] = "additive"
-    with pytest.raises(AssertionError, match="miscalibrated"):
+    with pytest.raises(ValueError, match="miscalibrated"):
         validate_strand_comparison_output(bad)
 
     # (d) forbidden refit keys
     bad = copy.deepcopy(_valid_payload())
     bad["refit_pca"] = True
-    with pytest.raises(AssertionError, match="Forbidden"):
+    with pytest.raises(ValueError, match="Forbidden"):
         validate_strand_comparison_output(bad)
 
     bad = copy.deepcopy(_valid_payload())
     bad["per_call_loadings"] = True
-    with pytest.raises(AssertionError, match="Forbidden"):
+    with pytest.raises(ValueError, match="Forbidden"):
         validate_strand_comparison_output(bad)
 
     # (e) missing required key
     bad = copy.deepcopy(_valid_payload())
     del bad["calibration"]
-    with pytest.raises(AssertionError, match="Missing required keys"):
+    with pytest.raises(ValueError, match="Missing required keys"):
+        validate_strand_comparison_output(bad)
+
+    # (f) null_non_invariance must assert non_invariant == true per dimension
+    bad = _mutated(("null_non_invariance", "h0", "non_invariant"), False)
+    with pytest.raises(ValueError, match="non_invariant must be true"):
         validate_strand_comparison_output(bad)
 
 
@@ -244,7 +251,8 @@ def test_strand_comparison_json_validation_contract_metadata() -> None:
     assert contract["id"] == "strand-comparison-output-json-validation"
     assert contract["kind"] == "output_validation"
     assert contract["pending"] is False
-    assert "strand-comparison-output" in contract["schema_contracts"]
+    # schema_contracts is nested under the output_validation key in the YAML.
+    assert "strand-comparison-output" in contract["output_validation"]["schema_contracts"]
 
 
 # ---------------------------------------------------------------------------
@@ -256,32 +264,32 @@ def test_params_validation_gates() -> None:
     """Required params values are enforced."""
     # finite_lifetimes_only must be True
     bad = _mutated(("params", "finite_lifetimes_only"), False)
-    with pytest.raises(AssertionError, match="finite_lifetimes_only"):
+    with pytest.raises(ValueError, match="finite_lifetimes_only"):
         validate_strand_comparison_output(bad)
 
     # frozen_loadings must be True
     bad = _mutated(("params", "frozen_loadings"), False)
-    with pytest.raises(AssertionError, match="frozen_loadings"):
+    with pytest.raises(ValueError, match="frozen_loadings"):
         validate_strand_comparison_output(bad)
 
     # grid_size_g must be 25
     bad = _mutated(("params", "grid_size_g"), 50)
-    with pytest.raises(AssertionError, match="grid_size_g"):
+    with pytest.raises(ValueError, match="grid_size_g"):
         validate_strand_comparison_output(bad)
 
     # B must be >= 1000
     bad = _mutated(("params", "B"), 999)
-    with pytest.raises(AssertionError, match="params.B"):
+    with pytest.raises(ValueError, match="params.B"):
         validate_strand_comparison_output(bad)
 
     # seed must be 42
     bad = _mutated(("params", "seed"), 0)
-    with pytest.raises(AssertionError, match="seed"):
+    with pytest.raises(ValueError, match="seed"):
         validate_strand_comparison_output(bad)
 
     # L must be 5000
     bad = _mutated(("params", "L"), 1000)
-    with pytest.raises(AssertionError, match="params.L"):
+    with pytest.raises(ValueError, match="params.L"):
         validate_strand_comparison_output(bad)
 
 

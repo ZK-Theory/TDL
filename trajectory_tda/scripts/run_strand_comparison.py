@@ -22,6 +22,7 @@ Output:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -34,7 +35,10 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 WORKTREE = Path(__file__).resolve().parents[2]
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+# PROJ_ROOT is the main checkout where the gitignored frozen-diagram caches live
+# (two-path rule, .claude/rules/apm-outputs.md). Overridable via TDL_PROJ_ROOT so
+# the script is not pinned to one machine.
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
 
 PRE_REG_PATH = WORKTREE / "results/trajectory_tda_strand/comparison/pre_registrations_2026-06-17.json"
 OUTPUT_DATE = "2026-06-17"
@@ -69,7 +73,15 @@ N_JOBS = 2  # coexist politely with the active T1.5 (4-worker) run
 
 
 def _convert(obj: object) -> object:
-    """Recursively convert numpy types to JSON-serialisable Python types."""
+    """Recursively convert numpy types to JSON-serialisable Python types.
+
+    Args:
+        obj: Any object; numpy scalars/arrays and nested dict/list/tuple
+            containers are converted recursively, other types pass through.
+
+    Returns:
+        The object with numpy types replaced by native Python equivalents.
+    """
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, np.integer):
@@ -86,7 +98,14 @@ def _convert(obj: object) -> object:
 
 
 def _finite_dgm(dgm: np.ndarray) -> np.ndarray:
-    """Filter infinite rows from a persistence diagram."""
+    """Filter infinite rows from a persistence diagram.
+
+    Args:
+        dgm: Array-like persistence diagram, reshaped to (n, 2).
+
+    Returns:
+        Array of rows where both birth and death are finite.
+    """
     arr = np.array(dgm, dtype=np.float64).reshape(-1, 2)
     return arr[np.isfinite(arr).all(axis=1)]
 
@@ -112,6 +131,13 @@ def _git_head() -> str:
 
 
 def main() -> None:
+    """Run the T-STRAND-1 comparison end to end and write the result JSON.
+
+    Loads the frozen BHPS/USoc diagrams, runs STRAND + STRAND-F, the KS
+    calibration gate, and the W2/landscape cross null-null baselines, applies
+    the pre-registered (floor-guarded) decision rule, validates the payload
+    against the schema contract, and writes the committed result JSON.
+    """
     t_total = time.time()
 
     # ------------------------------------------------------------------
@@ -123,9 +149,12 @@ def main() -> None:
     print(f"  n_calibration_trials={N_CALIBRATION_TRIALS}")
     print("=" * 70)
 
-    assert BHPS_CACHE.exists(), f"BHPS cache missing: {BHPS_CACHE}"
-    assert USOC_CACHE.exists(), f"USoc cache missing: {USOC_CACHE}"
-    assert PRE_REG_PATH.exists(), f"Pre-registration missing: {PRE_REG_PATH}"
+    if not BHPS_CACHE.exists():
+        raise FileNotFoundError(f"BHPS cache missing: {BHPS_CACHE}")
+    if not USOC_CACHE.exists():
+        raise FileNotFoundError(f"USoc cache missing: {USOC_CACHE}")
+    if not PRE_REG_PATH.exists():
+        raise FileNotFoundError(f"Pre-registration missing: {PRE_REG_PATH}")
 
     if OUTPUT_PATH.exists():
         print(f"ERROR: Output already exists: {OUTPUT_PATH}")
@@ -201,9 +230,8 @@ def main() -> None:
         # 2a. Non-invariance assertion
         print(f"  [{dim_label}] asserting null non-invariance...")
         inv_result = assert_null_non_invariance(lts_bhps, lts_usoc, seed=SEED, n_checks=10)
-        assert inv_result["non_invariant"], (
-            f"STOP: STRAND null is INVARIANT for {dim_label} — p-values are not trustworthy"
-        )
+        if not inv_result["non_invariant"]:
+            raise RuntimeError(f"STOP: STRAND null is INVARIANT for {dim_label} — p-values are not trustworthy")
         print(
             f"  [{dim_label}] non-invariance confirmed: obs stat={inv_result['observed_stat']:.4f}, "
             f"sample perm stats={[f'{x:.4f}' for x in inv_result['perm_stats_sample'][:3]]}..."
@@ -411,24 +439,57 @@ def main() -> None:
         # STRAND-only reject: dims STRAND rejects but baselines do not
         strand_only_dims = [d for d in dims_strand_reject if d not in dims_baselines_reject]
 
-        if dims_strand_reject and (agreement_dims or strand_only_dims):
+        # Permutation-floor guard. A p-value at its method's minimum (r=0,
+        # p=1/(B+1)) carries no information about *how much* smaller it could be,
+        # so concordant rejection where every method sits at its own floor is NOT
+        # evidence that STRAND adds testing power — the apparent separation
+        # (e.g. 1/1001 vs 1/51) is just unequal permutation budgets. "additive"
+        # therefore requires a genuine power differential: STRAND rejecting on a
+        # dimension where the baselines do not. Concordance alone -> "redundant".
+        eps = 1e-9
+        strand_floor = 1.0 / (B_STRAND + 1)
+        baseline_floor = 1.0 / (B_BASELINE + 1)
+
+        def _at_floor(pval: float, floor: float) -> bool:
+            return pval <= floor + eps
+
+        strand_reject_at_floor = bool(dims_strand_reject) and all(
+            _at_floor(strand_ps[d], strand_floor) for d in dims_strand_reject
+        )
+        baseline_reject_at_floor = bool(dims_baselines_reject) and all(
+            _at_floor(min(w2_ps[d], land_ps[d]), baseline_floor) for d in dims_baselines_reject
+        )
+        floor_saturated = strand_reject_at_floor and baseline_reject_at_floor
+        power_differential_demonstrated = bool(strand_only_dims)
+
+        if power_differential_demonstrated:
             verdict = "additive"
             rationale = (
-                f"STRAND calibrated (ks_p >= 0.05). "
-                f"STRAND rejects on dims {dims_strand_reject} at alpha={alpha}. "
-                f"Agreement with baselines on {agreement_dims}. "
-                f"STRAND-only rejection on {strand_only_dims}. "
-                f"Localisation adds interpretable lifetime-range information beyond W2/landscape. "
+                f"STRAND calibrated (ks_p >= 0.05) and rejects on {strand_only_dims} "
+                f"at alpha={alpha} where the W2/landscape baselines do not — a "
+                "demonstrated power differential, not mere concordance. Localisation "
+                "adds interpretable lifetime-range information beyond W2/landscape. "
                 "Verdict: PROMOTE to full-scale P01-B methods-extension pre-reg."
             )
         else:
             verdict = "redundant"
+            floor_note = (
+                f" All rejections sit at the permutation-budget floors (STRAND "
+                f"p={strand_floor:.4g} at B={B_STRAND}; baselines p={baseline_floor:.4g} "
+                f"at B={B_BASELINE}), so the apparent separation reflects unequal "
+                "permutation budgets, not demonstrated power."
+                if floor_saturated
+                else ""
+            )
             rationale = (
-                f"STRAND calibrated (ks_p >= 0.05) but no rejection at alpha={alpha}. "
-                f"STRAND dims rejected: {dims_strand_reject}. "
-                f"Baseline dims rejected: {dims_baselines_reject}. "
-                "STRAND adds no testing power or localisation beyond W2/landscape on this dataset. "
-                "Verdict: PARK with revisit trigger."
+                f"STRAND calibrated (ks_p >= 0.05) and concordant with the baselines "
+                f"on {agreement_dims} at alpha={alpha}, but shows no STRAND-only "
+                "rejection, so no additive testing power is demonstrated beyond the "
+                f"W2/landscape omnibus on this toy.{floor_note} STRAND does surface an "
+                "interpretable lifetime-range localisation (see comparison.localisation), "
+                "but additivity-beyond-omnibus is not established here. Verdict: PARK / "
+                "queue a Tier-2 design with matched permutation budgets and an explicit "
+                "power-differential test."
             )
 
         return {
@@ -438,6 +499,10 @@ def main() -> None:
             "dims_baselines_reject": dims_baselines_reject,
             "agreement_dims": agreement_dims,
             "strand_only_dims": strand_only_dims,
+            "floor_saturated": floor_saturated,
+            "power_differential_demonstrated": power_differential_demonstrated,
+            "strand_p_floor": strand_floor,
+            "baseline_p_floor": baseline_floor,
         }
 
     decision = _apply_decision_rule(
