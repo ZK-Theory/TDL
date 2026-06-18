@@ -13,8 +13,12 @@ All nulls use joblib parallelisation for the 1000-permutation regime.
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Literal
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -32,6 +36,45 @@ from trajectory_tda.topology.vectorisation import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
+
+
+def _jsonable(obj: Any) -> Any:
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, dict):
+        return {str(k): _jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonable(v) for v in obj]
+    return obj
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(json.dumps(_jsonable(payload), indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _ph_provenance(ph: PHResult) -> dict[str, Any]:
+    return {
+        "ph_method": ph.ph_method,
+        "do_cocycles": bool(ph.do_cocycles),
+        "threshold_rule": ph.threshold_rule,
+        "threshold_value": ph.threshold_value,
+        "edge_prop_at_thresh": ph.edge_prop_at_thresh,
+        "candidate_tetrahedra_burden": ph.candidate_tetrahedra_burden,
+        "wall_time_seconds": float(ph.elapsed_seconds),
+        "backend_versions": dict(ph.backend_versions),
+        "preflight": dict(ph.preflight),
+    }
 
 
 def _normalise_cohort_label(value: object) -> str:
@@ -538,6 +581,7 @@ def _single_permutation(
     dedup: bool = False,
     forced_n_dedup: int | None = None,
     pinned_thresh: float | None = None,
+    ph_kwargs: dict[str, Any] | None = None,
 ) -> dict:
     """Execute one permutation and return statistic values.
 
@@ -620,15 +664,17 @@ def _single_permutation(
     elif dedup:
         from poverty_tda.topology.multidim_ph import compute_greedy_dedup_count
 
-        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(
-            landmarks
-        )
+        n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(landmarks)
         landmarks_for_ph = landmarks[dedup_idx]
 
-    ph_kwargs: dict = {"max_dim": max_dim}
+    runtime_ph_kwargs: dict[str, Any] = dict(ph_kwargs or {})
+    runtime_ph_kwargs.setdefault("max_dim", max_dim)
     if pinned_thresh is not None:
-        ph_kwargs["thresh"] = float(pinned_thresh)
-    ph = compute_rips_ph(landmarks_for_ph, **ph_kwargs)
+        runtime_ph_kwargs["thresh"] = float(pinned_thresh)
+    ph = compute_rips_ph(landmarks_for_ph, **runtime_ph_kwargs)
+    provenance = _ph_provenance(ph)
+    provenance["seed"] = int(seed)
+    provenance["n_landmarks"] = int(landmarks_for_ph.shape[0])
 
     dedup_info: dict | None = None
     if n_perm_used is not None:
@@ -659,6 +705,7 @@ def _single_permutation(
             result[f"{key}_dgm"] = arr.tolist()
         if dedup_info is not None:
             result["_dedup_info"] = dedup_info
+        result["_ph_provenance"] = provenance
         return result
 
     summary = persistence_summary(ph)
@@ -670,7 +717,47 @@ def _single_permutation(
 
     if dedup_info is not None:
         result["_dedup_info"] = dedup_info
+    result["_ph_provenance"] = provenance
     return result
+
+
+def _single_permutation_indexed(
+    index: int,
+    null_type: str,
+    embeddings: np.ndarray,
+    trajectories: list[list[str]] | None,
+    metadata: dict | None,
+    seed: int,
+    max_dim: int,
+    n_landmarks: int,
+    statistic: str,
+    markov_order: int,
+    embed_kwargs: dict | None,
+    *,
+    frozen_models: dict | None = None,
+    ph_observed: PHResult | None = None,
+    ph_kwargs: dict[str, Any] | None = None,
+) -> tuple[int, dict[str, Any], float]:
+    started = time.time()
+    result = _single_permutation(
+        null_type,
+        embeddings,
+        trajectories,
+        metadata,
+        seed,
+        max_dim,
+        n_landmarks,
+        statistic,
+        markov_order,
+        embed_kwargs,
+        frozen_models=frozen_models,
+        ph_observed=ph_observed,
+        ph_kwargs=ph_kwargs,
+    )
+    elapsed = time.time() - started
+    result["_permutation_index"] = int(index)
+    result["_wall_time_seconds"] = float(elapsed)
+    return index, result, elapsed
 
 
 def permutation_test_trajectories(
@@ -693,6 +780,13 @@ def permutation_test_trajectories(
     seed: int = 42,
     embed_kwargs: dict | None = None,
     frozen_models: dict | None = None,
+    ph_kwargs: dict[str, Any] | None = None,
+    ph_observed: PHResult | None = None,
+    checkpoint_path: Path | None = None,
+    resume: bool = False,
+    max_hours: float = 0.0,
+    started_at: float | None = None,
+    parallel_timeout_seconds: float | None = None,
 ) -> dict:
     """Trajectory-aware permutation test for topological significance.
 
@@ -735,7 +829,9 @@ def permutation_test_trajectories(
     else:
         obs_landmarks = embeddings
 
-    ph_obs = compute_rips_ph(obs_landmarks, max_dim=max_dim)
+    runtime_ph_kwargs: dict[str, Any] = dict(ph_kwargs or {})
+    runtime_ph_kwargs.setdefault("max_dim", max_dim)
+    ph_obs = ph_observed if ph_observed is not None else compute_rips_ph(obs_landmarks, **runtime_ph_kwargs)
 
     if statistic != "wasserstein":
         obs_summary = persistence_summary(ph_obs)
@@ -750,23 +846,84 @@ def permutation_test_trajectories(
     # Run permutations in parallel
     seeds = [seed + i + 1 for i in range(n_permutations)]
 
-    null_results = Parallel(n_jobs=n_jobs, verbose=0)(
-        delayed(_single_permutation)(
-            null_type,
-            embeddings,
-            trajectories,
-            metadata,
-            s,
-            max_dim,
-            actual_lm,
-            statistic,
-            markov_order,
-            embed_kwargs,
-            frozen_models=frozen_models,
-            ph_observed=ph_obs if statistic == "wasserstein" else None,
-        )
-        for s in seeds
-    )
+    checkpoint_params = {
+        "null_type": null_type,
+        "n_permutations": int(n_permutations),
+        "max_dim": int(max_dim),
+        "n_landmarks": int(actual_lm),
+        "statistic": statistic,
+        "markov_order": int(markov_order),
+        "seed": int(seed),
+        "ph_kwargs": _jsonable(runtime_ph_kwargs),
+    }
+    completed: dict[str, dict[str, Any]] = {}
+    if checkpoint_path is not None:
+        checkpoint_path = Path(checkpoint_path)
+        if resume and checkpoint_path.exists():
+            payload = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+            if payload.get("params") == _jsonable(checkpoint_params):
+                completed = {str(k): v for k, v in payload.get("results_by_index", {}).items()}
+                logger.info("Loaded permutation checkpoint %s (%d/%d)", checkpoint_path, len(completed), n_permutations)
+            else:
+                logger.warning("Ignoring incompatible permutation checkpoint: %s", checkpoint_path)
+
+    def _save_checkpoint() -> None:
+        if checkpoint_path is None:
+            return
+        payload = {
+            "schema_version": "trajectory_tda/permutation-null-checkpoint/v1",
+            "updated_at": _now_iso(),
+            "params": checkpoint_params,
+            "completed_count": len(completed),
+            "total": int(n_permutations),
+            "results_by_index": completed,
+        }
+        _write_json_atomic(checkpoint_path, payload)
+
+    missing = [i for i in range(n_permutations) if str(i) not in completed]
+    if missing:
+        joblib_timeout = None if n_jobs == 1 else parallel_timeout_seconds
+        chunk_size = max(1, n_jobs if n_jobs > 0 else 4)
+        for offset in range(0, len(missing), chunk_size):
+            if max_hours > 0 and started_at is not None and (time.time() - started_at) / 3600.0 > max_hours:
+                _save_checkpoint()
+                raise TimeoutError(f"max_hours={max_hours} exceeded during permutation null")
+            chunk = missing[offset : offset + chunk_size]
+            parallel = Parallel(
+                n_jobs=n_jobs,
+                verbose=0,
+                return_as="generator_unordered",
+                timeout=joblib_timeout,
+            )
+            generated = parallel(
+                delayed(_single_permutation_indexed)(
+                    i,
+                    null_type,
+                    embeddings,
+                    trajectories,
+                    metadata,
+                    seeds[i],
+                    max_dim,
+                    actual_lm,
+                    statistic,
+                    markov_order,
+                    embed_kwargs,
+                    frozen_models=frozen_models,
+                    ph_observed=ph_obs if statistic == "wasserstein" else None,
+                    ph_kwargs=runtime_ph_kwargs,
+                )
+                for i in chunk
+            )
+            try:
+                for idx, result, _elapsed in generated:
+                    completed[str(idx)] = result
+                    _save_checkpoint()
+                    logger.info("  permutation %d/%d complete", len(completed), n_permutations)
+            except BaseException:
+                _save_checkpoint()
+                raise
+
+    null_results = [completed[str(i)] for i in range(n_permutations)]
 
     # Aggregate results
     results = {}
@@ -854,5 +1011,11 @@ def permutation_test_trajectories(
     results["null_type"] = null_type
     results["n_permutations"] = n_permutations
     results["statistic"] = statistic
+    results["ph_call_provenance"] = [
+        r.get("_ph_provenance", {"seed": int(seeds[i]), "missing": True}) for i, r in enumerate(null_results)
+    ]
+    results["permutation_wall_times_seconds"] = [float(r.get("_wall_time_seconds", 0.0)) for r in null_results]
+    results["checkpoint_path"] = None if checkpoint_path is None else str(checkpoint_path)
+    results["ph_kwargs"] = _jsonable(runtime_ph_kwargs)
 
     return results

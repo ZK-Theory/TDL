@@ -36,7 +36,7 @@ schema_def:
       description: "Input provenance. MUST contain canonical_embedding_source, fitted_markov1_source, and git_head."
     - name: h2_check
       type: "dict[str, ...]"
-      description: "MUST include maxdim == 2, L (int; 2000, or 1000 with a documented fallback_reason str), seed == 42, n_h2_features (int >= 0), total_persistence_h2 (float >= 0), and markov1_null_p (float in [0, 1])."
+      description: "MUST include maxdim == 2, L (int; amended fallback 1000 with documented fallback_reason str), seed == 42, ph_method in {'ripser', 'collapse'}, do_cocycles == false, threshold_rule/value, edge_prop_at_thresh, candidate_tetrahedra_burden, per-call PH wall times, backend_versions for gudhi+ripser, n_h2_features (int >= 0), total_persistence_h2 (float >= 0), and markov1_null_p (float in [0, 1])."
     - name: positive_control
       type: "dict[str, ...]"
       description: "MUST include null == 'markov-1', seed == 42, frozen_loadings == true, p_h0 (float in [0, 1]), p_h1 (float in [0, 1]), tolerance_band exactly [0.3, 0.7], and calibrated (bool; true iff both p_h0 and p_h1 fall in the tolerance_band)."
@@ -52,7 +52,7 @@ binding:
   test_function: "test_h2_positive_control_diagnostics_output_schema"
   must_assert: >
     The validator accepts a conforming payload and rejects payloads where
-    (a) h2_check.maxdim != 2 or any seed != 42; (b) positive_control.tolerance_band
+    (a) h2_check.maxdim != 2, h2_check.ph_method is not an allowed exact backend, or any seed != 42; (b) positive_control.tolerance_band
     != [0.3, 0.7] or positive_control.calibrated disagrees with both p-values
     lying in the band; (c) doubled_n_w2.n_perms != 200 or doubled_n_w2.n_nullnull
     != 2000; (d) any p-value is outside [0, 1] or any persistence value is

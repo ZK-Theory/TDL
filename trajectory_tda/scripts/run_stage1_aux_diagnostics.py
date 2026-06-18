@@ -432,7 +432,16 @@ def build_kde_sublevel_payload(
 
 def validate_markov2_alpha_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = ["schema_version", "generated_at", "task", "pre_registration", "inputs", "params", "results", "stability"]
+    required = [
+        "schema_version",
+        "generated_at",
+        "task",
+        "pre_registration",
+        "inputs",
+        "params",
+        "results",
+        "stability",
+    ]
     errors.extend(f"missing required key: {key}" for key in required if key not in payload)
     if "per_call_pca" in payload:
         errors.append("forbidden key present: per_call_pca")
@@ -566,6 +575,38 @@ def validate_h2_positive_control_diagnostics_payload(payload: dict[str, Any]) ->
             errors.append("h2_check must pin a Markov-1 null")
         if h2.get("wasserstein_order") != 2 or h2.get("wasserstein_internal_p") != 2:
             errors.append("h2_check must pin W2 with internal_p=2")
+        if h2.get("ph_method") not in {"ripser", "collapse"}:
+            errors.append("h2_check.ph_method must be ripser or collapse")
+        if h2.get("do_cocycles") is not False:
+            errors.append("h2_check.do_cocycles must be false")
+        if not isinstance(h2.get("threshold_rule"), str) or not h2.get("threshold_rule"):
+            errors.append("h2_check.threshold_rule must be a non-empty string")
+        threshold_value = h2.get("threshold_value")
+        if not _is_number(threshold_value) or float(threshold_value) <= 0:
+            errors.append("h2_check.threshold_value must be positive")
+        edge_prop = h2.get("edge_prop_at_thresh")
+        if not _is_number(edge_prop) or not 0 <= float(edge_prop) <= 1:
+            errors.append("h2_check.edge_prop_at_thresh must be in [0, 1]")
+        tetra_burden = h2.get("candidate_tetrahedra_burden")
+        if not _is_number(tetra_burden) or float(tetra_burden) < 0:
+            errors.append("h2_check.candidate_tetrahedra_burden must be non-negative")
+        observed_ph_wall_time = h2.get("observed_ph_wall_time_seconds")
+        if not _is_number(observed_ph_wall_time) or float(observed_ph_wall_time) <= 0:
+            errors.append("h2_check.observed_ph_wall_time_seconds must be positive")
+        errors.extend(
+            _finite_number_list_errors(
+                h2.get("null_ph_wall_times_seconds"),
+                "h2_check.null_ph_wall_times_seconds",
+                50,
+            )
+        )
+        backend_versions = h2.get("backend_versions")
+        if not isinstance(backend_versions, dict):
+            errors.append("h2_check.backend_versions must be a dict")
+        else:
+            for key in ("gudhi", "ripser"):
+                if not isinstance(backend_versions.get(key), str) or not backend_versions.get(key):
+                    errors.append(f"h2_check.backend_versions.{key} must be a non-empty string")
         n_features = h2.get("n_h2_features")
         if not isinstance(n_features, int) or n_features < 0:
             errors.append("h2_check.n_h2_features must be a non-negative int")
@@ -639,7 +680,16 @@ def validate_h2_positive_control_diagnostics_payload(payload: dict[str, Any]) ->
 
 def validate_mapper_threshold_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    required = ["schema_version", "generated_at", "task", "pre_registration", "inputs", "params", "results", "high_confidence_nodes"]
+    required = [
+        "schema_version",
+        "generated_at",
+        "task",
+        "pre_registration",
+        "inputs",
+        "params",
+        "results",
+        "high_confidence_nodes",
+    ]
     errors.extend(f"missing required key: {key}" for key in required if key not in payload)
     if "uncorrected_only" in payload:
         errors.append("forbidden key present: uncorrected_only")

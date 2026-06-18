@@ -12,6 +12,7 @@ outputs and refuse to overwrite existing deliverables.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import logging
 import os
@@ -30,7 +31,12 @@ WORKTREE_ROOT = Path(__file__).resolve().parents[2]
 if str(WORKTREE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKTREE_ROOT))
 
-from poverty_tda.topology.multidim_ph import PHResult, compute_rips_ph, persistence_summary
+from poverty_tda.topology.multidim_ph import (
+    H2_CANDIDATE_TETRA_BUDGET,
+    PHResult,
+    compute_rips_ph,
+    persistence_summary,
+)
 from trajectory_tda.embedding.ngram_embed import ngram_embed
 from trajectory_tda.scripts.run_positive_control import run_positive_control
 from trajectory_tda.scripts.run_stage1_aux_diagnostics import validate_h2_positive_control_diagnostics_payload
@@ -52,6 +58,30 @@ PREREG = "2026-05-13 H2-Check pre-registration"
 
 def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
+
+
+def _available_physical_memory_gb() -> float | None:
+    if os.name != "nt":
+        return None
+
+    class MEMORYSTATUSEX(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    status = MEMORYSTATUSEX()
+    status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return None
+    return float(status.ullAvailPhys) / (1024.0**3)
 
 
 def _jsonable(obj: Any) -> Any:
@@ -120,6 +150,59 @@ def _timed_w2(dgm_a: np.ndarray, dgm_b: np.ndarray, dim: int) -> tuple[float, fl
     return value, time.time() - started
 
 
+def _ph_provenance(ph: PHResult) -> dict[str, Any]:
+    return {
+        "ph_method": ph.ph_method,
+        "do_cocycles": bool(ph.do_cocycles),
+        "threshold_rule": ph.threshold_rule,
+        "threshold_value": ph.threshold_value,
+        "edge_prop_at_thresh": ph.edge_prop_at_thresh,
+        "candidate_tetrahedra_burden": ph.candidate_tetrahedra_burden,
+        "wall_time_seconds": float(ph.elapsed_seconds),
+        "backend_versions": dict(ph.backend_versions),
+        "preflight": dict(ph.preflight),
+    }
+
+
+def _h2_ph_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "max_dim": 2,
+        "do_cocycles": False,
+        "method": args.ph_method,
+        "feasibility_tetra_budget": float(args.h2_tetra_budget),
+        "collapse_iterations": int(args.collapse_iterations),
+    }
+
+
+def _h2_memory_preflight(args: argparse.Namespace) -> dict[str, Any]:
+    available_gb = _available_physical_memory_gb()
+    worker_count = int(args.n_jobs)
+    estimated_worker_gb = float(args.ph_worker_memory_gb)
+    reserve_gb = float(args.min_available_memory_gb)
+    estimated_required_gb = worker_count * estimated_worker_gb + reserve_gb
+    preflight = {
+        "available_memory_gb": available_gb,
+        "worker_count": worker_count,
+        "estimated_worker_memory_gb": estimated_worker_gb,
+        "min_available_memory_gb": reserve_gb,
+        "estimated_required_memory_gb": estimated_required_gb,
+    }
+    if available_gb is not None and estimated_required_gb > available_gb:
+        raise MemoryError(
+            "H2 null memory preflight failed: "
+            f"n_jobs={worker_count} needs about {estimated_required_gb:.2f} GB "
+            f"({estimated_worker_gb:.2f} GB/worker plus {reserve_gb:.2f} GB reserve), "
+            f"but only {available_gb:.2f} GB is currently available."
+        )
+    LOGGER.info(
+        "H2 memory preflight: available=%s GB estimated_required=%.2f GB n_jobs=%d",
+        None if available_gb is None else f"{available_gb:.2f}",
+        estimated_required_gb,
+        worker_count,
+    )
+    return preflight
+
+
 def _obs_null_w2_worker(
     idx: int,
     obs_h0: np.ndarray,
@@ -155,6 +238,19 @@ def _null_null_w2_worker_timed(
     }
 
 
+def _fill_h2_monitoring_paths(args: argparse.Namespace) -> None:
+    if args.command != "h2":
+        return
+    stem = f"04_nulls_wasserstein_h2_L{args.L}_{args.run_date}"
+    out_dir = args.proj_root / H2_REL / "intermediates" / stem
+    if args.checkpoint_dir is None:
+        args.checkpoint_dir = out_dir
+    if args.log_path is None:
+        args.log_path = out_dir / "run.log"
+    if args.progress_path is None:
+        args.progress_path = out_dir / "progress.json"
+
+
 def _fill_doubled_monitoring_paths(args: argparse.Namespace) -> None:
     if args.command != "doubled-n":
         return
@@ -183,18 +279,29 @@ def _write_progress(args: argparse.Namespace, started: float, phase: str, **fiel
     progress_path = getattr(args, "progress_path", None)
     if progress_path is None:
         return
-    payload = {
-        "schema_version": "stage1/t1-5-doubled-n-progress/v1",
-        "task": TASK_LABEL,
-        "phase": phase,
-        "heartbeat_at": _now_iso(),
-        "elapsed_seconds": time.time() - started,
-        "pid": os.getpid(),
-        "run_date": args.run_date,
-        "output_path": str(args.worktree_root / POST_AUDIT_REL / f"04_nulls_wasserstein_w2_L5000_doublen_{args.run_date}.json"),
-        "log_path": str(args.log_path) if getattr(args, "log_path", None) else None,
-        "checkpoint_dir": str(args.checkpoint_dir) if getattr(args, "checkpoint_dir", None) else None,
-        "params": {
+    if args.command == "h2":
+        schema_version = "stage1/t1-5-h2-progress/v1"
+        output_path = args.worktree_root / H2_REL / f"04_nulls_wasserstein_h2_L{args.L}_{args.run_date}.json"
+        params = {
+            "B": int(args.B),
+            "L": int(args.L),
+            "requested_L": int(args.requested_L),
+            "seed": int(args.seed),
+            "n_jobs": int(args.n_jobs),
+            "resume": bool(args.resume),
+            "ph_method": str(args.ph_method),
+            "ph_timeout_seconds": float(args.ph_timeout_seconds),
+            "h2_tetra_budget": float(args.h2_tetra_budget),
+            "ph_worker_memory_gb": float(args.ph_worker_memory_gb),
+            "min_available_memory_gb": float(args.min_available_memory_gb),
+            "allow_low_n_jobs": bool(args.allow_low_n_jobs),
+        }
+    else:
+        schema_version = "stage1/t1-5-doubled-n-progress/v1"
+        output_path = (
+            args.worktree_root / POST_AUDIT_REL / f"04_nulls_wasserstein_w2_L5000_doublen_{args.run_date}.json"
+        )
+        params = {
             "n_perms": int(args.n_perms),
             "n_nullnull": int(args.n_nullnull),
             "L": int(args.L),
@@ -204,7 +311,19 @@ def _write_progress(args: argparse.Namespace, started: float, phase: str, **fiel
             "resume": bool(args.resume),
             "estimate_h0_seconds": float(args.estimate_h0_seconds),
             "estimate_h1_seconds": float(args.estimate_h1_seconds),
-        },
+        }
+    payload = {
+        "schema_version": schema_version,
+        "task": TASK_LABEL,
+        "phase": phase,
+        "heartbeat_at": _now_iso(),
+        "elapsed_seconds": time.time() - started,
+        "pid": os.getpid(),
+        "run_date": args.run_date,
+        "output_path": str(output_path),
+        "log_path": str(args.log_path) if getattr(args, "log_path", None) else None,
+        "checkpoint_dir": str(args.checkpoint_dir) if getattr(args, "checkpoint_dir", None) else None,
+        "params": params,
         **fields,
     }
     _write_json_atomic(progress_path, payload)
@@ -258,12 +377,33 @@ def run_h2(args: argparse.Namespace) -> None:
     fallback_reason = args.fallback_reason
     if args.requested_L != args.L and not fallback_reason:
         raise ValueError("fallback_reason is required when requested_L differs from L")
+    if args.n_jobs < 1:
+        raise ValueError("H2 rerun requires n_jobs >= 1")
+    if args.n_jobs < 4 and not args.allow_low_n_jobs:
+        raise ValueError("H2 rerun with n_jobs < 4 requires --allow-low-n-jobs and a memory-safety rationale")
+    if args.checkpoint_dir is None:
+        raise ValueError("H2 rerun requires a checkpoint_dir")
+    args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    memory_preflight = _h2_memory_preflight(args)
+    ph_kwargs = _h2_ph_kwargs(args)
+    _write_progress(
+        args,
+        started,
+        "h2_start",
+        completed=0,
+        total=int(args.B),
+        L=int(actual_l),
+        requested_L=int(args.requested_L),
+        checkpoint_dir=str(args.checkpoint_dir),
+        memory_preflight=memory_preflight,
+    )
 
     LOGGER.info("H2 observed PH: L=%d requested_L=%d maxdim=2", actual_l, args.requested_L)
     _, obs_landmarks = maxmin_landmarks(embeddings, actual_l, seed=args.seed)
-    ph_obs = compute_rips_ph(obs_landmarks, max_dim=2)
+    ph_obs = compute_rips_ph(obs_landmarks, timeout_seconds=args.ph_timeout_seconds, **ph_kwargs)
     summary = persistence_summary(ph_obs)
     h2_summary = summary.get("H2", {})
+    ph_provenance = _ph_provenance(ph_obs)
 
     observed_payload = {
         "schema_version": "stage1/t1-5-h2-observed/v1",
@@ -283,6 +423,14 @@ def run_h2(args: argparse.Namespace) -> None:
             "frozen_loadings": True,
             "fallback_reason": fallback_reason,
             "max_hours": float(args.max_hours),
+            "ph_method": ph_provenance["ph_method"],
+            "do_cocycles": ph_provenance["do_cocycles"],
+            "threshold_rule": ph_provenance["threshold_rule"],
+            "threshold_value": ph_provenance["threshold_value"],
+            "edge_prop_at_thresh": ph_provenance["edge_prop_at_thresh"],
+            "candidate_tetrahedra_burden": ph_provenance["candidate_tetrahedra_burden"],
+            "ph_wall_time_seconds": ph_provenance["wall_time_seconds"],
+            "backend_versions": ph_provenance["backend_versions"],
         },
         "observed": {
             "H0": summary.get("H0", {}),
@@ -291,14 +439,30 @@ def run_h2(args: argparse.Namespace) -> None:
             "n_h2_features": int(h2_summary.get("n_finite", 0)),
             "total_persistence_h2": float(h2_summary.get("total_persistence", 0.0)),
         },
+        "ph_provenance": ph_provenance,
     }
     observed_path = args.worktree_root / H2_REL / f"ph_H2_L{actual_l}_{args.run_date}.json"
-    _write_json_no_overwrite(observed_path, observed_payload)
+    if observed_path.exists() and args.resume:
+        LOGGER.info("H2 observed JSON already exists under --resume, preserving: %s", observed_path)
+    else:
+        _write_json_no_overwrite(observed_path, observed_payload)
     LOGGER.info("H2 observed JSON: %s", observed_path)
+    _write_progress(
+        args,
+        started,
+        "h2_observed_complete",
+        completed=0,
+        total=int(args.B),
+        observed_path=str(observed_path),
+        observed_ph_seconds=float(ph_obs.elapsed_seconds),
+    )
 
     _check_hours(started, args.max_hours, "H2 Markov-1 null")
     LOGGER.info("H2 Markov-1 null: B=%d L=%d n_jobs=%d", args.B, actual_l, args.n_jobs)
     null_started = time.time()
+    null_checkpoint_path = args.checkpoint_dir / f"markov1_h2_L{actual_l}_B{args.B}_seed{args.seed}.json"
+    null_ph_kwargs = dict(ph_kwargs)
+    null_ph_kwargs["timeout_seconds"] = float(args.ph_timeout_seconds)
     null_result = permutation_test_trajectories(
         embeddings=embeddings,
         trajectories=trajectories,
@@ -312,6 +476,13 @@ def run_h2(args: argparse.Namespace) -> None:
         seed=args.seed,
         embed_kwargs=embed_kwargs,
         frozen_models=frozen_models,
+        ph_kwargs=null_ph_kwargs,
+        ph_observed=ph_obs,
+        checkpoint_path=null_checkpoint_path,
+        resume=args.resume,
+        max_hours=float(args.max_hours),
+        started_at=started,
+        parallel_timeout_seconds=args.ph_timeout_seconds,
     )
     null_result["elapsed_seconds"] = time.time() - null_started
     null_result["params"] = {
@@ -329,11 +500,39 @@ def run_h2(args: argparse.Namespace) -> None:
         "fallback_reason": fallback_reason,
         "max_hours": float(args.max_hours),
         "n_jobs": int(args.n_jobs),
+        "ph_method": ph_provenance["ph_method"],
+        "do_cocycles": ph_provenance["do_cocycles"],
+        "threshold_rule": ph_provenance["threshold_rule"],
+        "threshold_value": ph_provenance["threshold_value"],
+        "edge_prop_at_thresh": ph_provenance["edge_prop_at_thresh"],
+        "candidate_tetrahedra_burden": ph_provenance["candidate_tetrahedra_burden"],
+        "observed_ph_wall_time_seconds": ph_provenance["wall_time_seconds"],
+        "backend_versions": ph_provenance["backend_versions"],
+        "ph_timeout_seconds": float(args.ph_timeout_seconds),
+        "ph_worker_memory_gb": float(args.ph_worker_memory_gb),
+        "min_available_memory_gb": float(args.min_available_memory_gb),
+        "allow_low_n_jobs": bool(args.allow_low_n_jobs),
+        "memory_preflight": memory_preflight,
+        "checkpoint_path": str(null_checkpoint_path),
     }
     null_result["inputs"] = observed_payload["inputs"]
+    null_result["ph_provenance"] = {
+        "observed": ph_provenance,
+        "permutation_calls": null_result.get("ph_call_provenance", []),
+    }
     null_path = args.worktree_root / H2_REL / f"04_nulls_wasserstein_h2_L{actual_l}_{args.run_date}.json"
     _write_json_no_overwrite(null_path, {"markov": null_result})
     LOGGER.info("H2 null JSON: %s", null_path)
+    _write_progress(
+        args,
+        started,
+        "h2_null_complete",
+        completed=int(args.B),
+        total=int(args.B),
+        null_path=str(null_path),
+        checkpoint_path=str(null_checkpoint_path),
+        null_seconds=float(null_result["elapsed_seconds"]),
+    )
 
 
 def run_positive(args: argparse.Namespace) -> None:
@@ -366,8 +565,7 @@ def run_positive(args: argparse.Namespace) -> None:
         "p_h0": float(result["H0"]["p_value"]),
         "p_h1": float(result["H1"]["p_value"]),
         "tolerance_band": [0.3, 0.7],
-        "calibrated": 0.3 <= float(result["H0"]["p_value"]) <= 0.7
-        and 0.3 <= float(result["H1"]["p_value"]) <= 0.7,
+        "calibrated": 0.3 <= float(result["H0"]["p_value"]) <= 0.7 and 0.3 <= float(result["H1"]["p_value"]) <= 0.7,
     }
     _write_json_no_overwrite(out_path, result)
     LOGGER.info("Positive-control JSON: %s", out_path)
@@ -463,7 +661,9 @@ def _compute_obs_null_w2_checkpointed(
                 "timings": timings,
             },
         )
-        _write_progress(args, started, "obs_null_w2", completed=completed, total=int(args.n_perms), percent=completed / args.n_perms)
+        _write_progress(
+            args, started, "obs_null_w2", completed=completed, total=int(args.n_perms), percent=completed / args.n_perms
+        )
 
     return {
         "H0": [float(v) for v in h0_values if v is not None],
@@ -520,7 +720,9 @@ def _compute_null_null_w2_checkpointed(
             len(pair_indices),
         )
         chunk_results = parallel(
-            delayed(_null_null_w2_worker_timed)(positions_by_pair[key][0], key[0], key[1], dim, null_dgms[key[0]], null_dgms[key[1]])
+            delayed(_null_null_w2_worker_timed)(
+                positions_by_pair[key][0], key[0], key[1], dim, null_dgms[key[0]], null_dgms[key[1]]
+            )
             for key in chunk_keys
         )
         for result in chunk_results:
@@ -638,9 +840,7 @@ def _aggregate_doubled_dim_checkpointed(
     n_pvalue_pairs = min(args.n_perms, n_total_pairs)
     null_null_bundle = _compute_null_null_w2_checkpointed(dim, null_dgms, pair_indices_all, args, started, parallel)
     null_null_w2_all = null_null_bundle["values"]
-    null_null_l2_all = [
-        core.landscape_l2_distance(null_lands[i], null_lands[j], dx) for (i, j) in pair_indices_all
-    ]
+    null_null_l2_all = [core.landscape_l2_distance(null_lands[i], null_lands[j], dx) for (i, j) in pair_indices_all]
 
     null_null_w2 = null_null_w2_all[:n_null_pairs]
     pvalue_null_null_w2 = null_null_w2_all[:n_pvalue_pairs]
@@ -661,7 +861,9 @@ def _aggregate_doubled_dim_checkpointed(
         except Exception as exc:
             LOGGER.warning("BCa CI failed for W2 H%d: %s", dim, exc)
 
-    pvalue_null_null_w2_arr = np.array(pvalue_null_null_w2, dtype=np.float64) if pvalue_null_null_w2 else np.array([0.0])
+    pvalue_null_null_w2_arr = (
+        np.array(pvalue_null_null_w2, dtype=np.float64) if pvalue_null_null_w2 else np.array([0.0])
+    )
     r_w2 = int(np.sum(pvalue_null_null_w2_arr >= mean_obs_null_w2))
     n_w2 = len(pvalue_null_null_w2_arr)
     w2_pvalue = (r_w2 + 1) / (n_w2 + 1)
@@ -939,6 +1141,15 @@ def build_summary(args: argparse.Namespace) -> None:
             "null": "markov-1",
             "wasserstein_order": 2,
             "wasserstein_internal_p": 2,
+            "ph_method": h2_ph["params"]["ph_method"],
+            "do_cocycles": bool(h2_ph["params"]["do_cocycles"]),
+            "threshold_rule": h2_ph["params"]["threshold_rule"],
+            "threshold_value": float(h2_ph["params"]["threshold_value"]),
+            "edge_prop_at_thresh": float(h2_ph["params"]["edge_prop_at_thresh"]),
+            "candidate_tetrahedra_burden": float(h2_ph["params"]["candidate_tetrahedra_burden"]),
+            "observed_ph_wall_time_seconds": float(h2_ph["params"]["ph_wall_time_seconds"]),
+            "null_ph_wall_times_seconds": [float(value) for value in h2_null.get("permutation_wall_times_seconds", [])],
+            "backend_versions": h2_ph["params"]["backend_versions"],
             "n_h2_features": int(h2_ph["observed"]["n_h2_features"]),
             "total_persistence_h2": float(h2_ph["observed"]["total_persistence_h2"]),
             "markov1_null_p": float(h2_null["H2"]["p_value"]),
@@ -987,6 +1198,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--B", type=int, default=100)
     parser.add_argument("--requested-L", type=int, default=2000)
     parser.add_argument("--fallback-reason", default=None)
+    parser.add_argument("--ph-method", choices=["ripser", "collapse"], default="ripser")
+    parser.add_argument("--ph-timeout-seconds", type=float, default=1800.0)
+    parser.add_argument("--h2-tetra-budget", type=float, default=H2_CANDIDATE_TETRA_BUDGET)
+    parser.add_argument("--collapse-iterations", type=int, default=1)
+    parser.add_argument("--ph-worker-memory-gb", type=float, default=5.5)
+    parser.add_argument("--min-available-memory-gb", type=float, default=3.0)
+    parser.add_argument("--allow-low-n-jobs", action="store_true")
     parser.add_argument("--n-perms", type=int, default=200)
     parser.add_argument("--n-nullnull", type=int, default=2000)
     parser.add_argument("--k-max", type=int, default=5)
@@ -1002,7 +1220,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cache-path",
         type=Path,
-        default=PROJ_ROOT / "results/trajectory_tda_integration/stage1/cache/null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+        default=PROJ_ROOT
+        / "results/trajectory_tda_integration/stage1/cache/null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
     )
     parser.add_argument(
         "--baseline-path",
@@ -1019,6 +1238,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
+    _fill_h2_monitoring_paths(args)
     _fill_doubled_monitoring_paths(args)
     _configure_file_logging(args)
     if args.command == "h2":
@@ -1028,7 +1248,9 @@ def main() -> None:
     elif args.command == "doubled-n":
         run_doubled(args)
     elif args.command == "summary":
-        missing = [name for name in ("h2_ph", "h2_null", "positive_control", "doubled_n") if getattr(args, name) is None]
+        missing = [
+            name for name in ("h2_ph", "h2_null", "positive_control", "doubled_n") if getattr(args, name) is None
+        ]
         if missing:
             raise ValueError(f"summary requires paths for: {', '.join(missing)}")
         build_summary(args)

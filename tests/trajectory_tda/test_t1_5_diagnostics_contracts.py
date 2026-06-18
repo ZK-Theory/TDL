@@ -47,6 +47,7 @@ def _diagnostics_payload() -> dict[str, Any]:
     obs_h1 = [2.0 + i / 1000 for i in range(200)]
     null_h0 = [0.5 + i / 10000 for i in range(2000)]
     null_h1 = [0.75 + i / 10000 for i in range(2000)]
+    null_ph_wall_times = [60.0 + i / 100 for i in range(50)]
     pair_indices = [[i % 200, (i + 1) % 200] for i in range(2000)]
     return {
         "schema_version": "stage1/h2-positive-control-diagnostics/v1",
@@ -68,6 +69,15 @@ def _diagnostics_payload() -> dict[str, Any]:
             "null": "markov-1",
             "wasserstein_order": 2,
             "wasserstein_internal_p": 2,
+            "ph_method": "collapse",
+            "do_cocycles": False,
+            "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+            "threshold_value": 19.765,
+            "edge_prop_at_thresh": 0.7525,
+            "candidate_tetrahedra_burden": 7.52e9,
+            "observed_ph_wall_time_seconds": 61.4,
+            "null_ph_wall_times_seconds": null_ph_wall_times,
+            "backend_versions": {"gudhi": "3.11.0", "ripser": "0.6.14"},
             "n_h2_features": 9,
             "total_persistence_h2": 12.5,
             "markov1_null_p": 0.69,
@@ -161,6 +171,11 @@ def test_h2_positive_control_diagnostics_output_schema() -> None:
 
     bad = _diagnostics_payload()
     bad["h2_check"]["total_persistence_h2"] = -0.1
+    with pytest.raises(AssertionError):
+        _assert_no_errors(_validate_h2_payload(bad))
+
+    bad = _diagnostics_payload()
+    bad["h2_check"]["ph_method"] = "approximate"
     with pytest.raises(AssertionError):
         _assert_no_errors(_validate_h2_payload(bad))
 
