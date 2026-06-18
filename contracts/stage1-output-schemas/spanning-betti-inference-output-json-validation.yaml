@@ -1,6 +1,5 @@
 id: spanning-betti-inference-output-json-validation
 kind: output_validation
-pending: true
 
 description: >
   Commit-time validation for the T1.9b spanning-vs-newcomer H0 inferential

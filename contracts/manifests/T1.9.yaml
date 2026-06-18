@@ -1,0 +1,21 @@
+scope_id: T1.9
+scope_description: >
+  Spanning-vs-newcomer H0 robustness and inferential re-analysis for P01-B M3.
+  The robustness layer records the matched n=8,000 point estimates across the
+  four epsilon-star values, and the inference layer adds exact B=1000
+  label-permutation and within-group bootstrap draws with retained per-draw
+  statistics for recomputable p-values and confidence intervals.
+authored: "2026-06-09"
+authored_by: "Manager 9 / tda-agent-3 (spanning Betti robustness and inference)"
+
+contracts:
+  - stage1-output-schemas/spanning-betti-robustness-output
+  - stage1-output-schemas/spanning-betti-robustness-output-json-validation
+  - stage1-output-schemas/spanning-betti-inference-output
+  - stage1-output-schemas/spanning-betti-inference-output-json-validation
+
+notes: >
+  The T1.9b inference contracts are active once
+  tests/trajectory_tda/test_t1_9b_spanning_inference_contracts.py is present.
+  The long exact run remains checkpointed under PROJ_ROOT, while the committed
+  deliverable JSON is date-suffixed under the worktree results path.
