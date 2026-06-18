@@ -1,0 +1,49 @@
+{
+  "pre_registration_date": "2026-06-18",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 10",
+  "amends": {
+    "source": "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-17.json",
+    "entry": "H2 Check (amended)",
+    "chain": "2026-05-13 'H2 Check' -> 2026-06-17 (L 2000->1000) -> 2026-06-18 (threshold-comparability fix)"
+  },
+  "reason": "The 2026-06-17 L=1000 H2 rerun (commit 00089f3) REJECTED on the Markov-1 null in all three dimensions (H0 T=14.85 p=0.0; H1 T=7.35 p=0.0; H2 T=5.16 p=0.0), contradicting the 2026-05-02 baseline (H2 p=0.690 ns). Manager root-cause review found the rejection is NOT a trustworthy H2 void signal but a threshold-comparability artifact: compute_rips_ph applies a per-cloud adaptive 75th-percentile threshold, so the observed cloud (auto-thresh 22.26) and the 50 Markov-1 null clouds (auto-thresh ~15.5) are placed on DIFFERENT filtration scales. Global-Markov-1 surrogates are genuinely less dispersed than the heterogeneous real data (all draws share one transition matrix), so their n-gram embeddings cluster more tightly -> smaller scale AND small null-null W2 (~2.2). The W2 statistic on per-cloud-thresholded diagrams therefore confounds overall dispersion/scale with void topology. The signature is the monotone all-dimension rejection (T-ratio H0 14.85 > H1 7.35 > H2 5.16): a global scale offset propagating through every homological degree, strongest where the diagram carries most mass (H0), not a dimension-specific 2-void discovery. The apparent flip vs 2026-05-02 is further confounded by the 2026-05-28 embedding re-freeze (H2 diagram coordinates ~60-80 then vs ~9-18 now, ~4x), so that baseline is not a valid anchor. Loadings are correctly frozen and shared across observed and null paths, and per-null seeds vary correctly (null auto-thresholds span 15.1-16.1) -- this is a method-design confound, not an implementation bug.",
+  "fix": {
+    "name": "pinned common threshold (matched-scale H2 Check)",
+    "rule": "Compute PH for the observed cloud AND every Markov-1 null cloud at a single common threshold tau = enclosing radius of the observed landmark sample (tau = pdist(obs_landmarks).max()), so both diagrams are built on the same filtration scale and W2 reflects topology at matched scale rather than mismatched filtration ranges.",
+    "precedent": "Identical to trajectory_tda/scripts/stage1/_battery_core.py probe_pinned_thresh (lines ~575-589), the robustness probe that confirmed the P01-A H1 length-matched W2 rejection survives matched-thresh (results/trajectory_tda_bhps/stage1/bhps_length_matched_truncate_frozen_probe-pinned-thresh_2026-05-31.json). The H2 Check simply never received this treatment; the 2026-05-28 re-freeze's new scale regime exposed the confound.",
+    "no_dedup_asymmetry": "The H2 path uses dedup=False, so observed and null landmark counts are already equal (1000 each). The confound is threshold-only; forced_n_dedup / probe_symmetric_dedup is NOT required.",
+    "addresses_issue": "Resolves deferred ISSUE M3 (75th-percentile threshold sensitivity) for the H2 Check: the matched-scale pin removes the per-cloud auto-thresh divergence M3 flagged."
+  },
+  "feasibility": "The enclosing-radius pin drives both clouds toward full edge density, so the H2 tetrahedron burden (~C(L,4) at density->1) exceeds the 2e10 pre-flight budget for L beyond a few hundred; a comparability-correct pinned H2 is only feasible at small L. The matched-scale H2 Check therefore runs at the LARGEST L (<=1000) for which the observed enclosing-radius filtration keeps the H2 tetra burden <= 2e10 (deterministic, maxmin seed=42). This is a real limitation: the L=1000 auto-thresh run was only feasible BECAUSE the confounded per-cloud threshold held the nulls at ~75% density.",
+  "protocol": {
+    "phase_a_small_L_diagnostic": "At L in {200, 300} (optionally 150), run the H2 Check (observed + B=50 Markov-1 nulls, seed=42) under BOTH (1) production per-cloud auto-thresh and (2) pinned common threshold tau=enclosing-radius, on the identical landmark samples. Report H0/H1/H2 mean W(obs,null), mean W(null,null), T-ratio, and p under each. Decisive read: if the H2 T-ratio collapses toward ~1 (fail to reject) under the pinned threshold while persisting under auto-thresh, the rejection is confirmed as the threshold-scale artifact.",
+    "phase_b_decision_run": "GATED on Phase A and on Manager review. Run the pinned-threshold H2 Check at the largest feasible L (per the feasibility rule above) as the comparability-valid decision run; pair it with an auto-thresh run at the same L to document the confound. The decision rule is applied to the PINNED-threshold H2 p-value.",
+    "gating": "Phase A reports to the Manager bus before Phase B. If Phase A's pinned H2 still strongly rejects at small L, STOP and escalate before Phase B -- a genuine H2 signal candidate requires Manager review, not auto-promotion."
+  },
+  "entries": [
+    {
+      "name": "H2 Check (amended -- matched-scale)",
+      "outcome_contingent": true,
+      "decision_rule": "reject -> expand to H2; fail -> restriction stands",
+      "decision_statistic": "Markov-1 null W2 p-value computed under the PINNED common threshold (matched-scale); the auto-thresh result is retained only to exhibit the confound and is NOT decision-bearing.",
+      "papers": ["P01-A", "P01-B"],
+      "revised_key_params": {"L": "largest feasible <=1000 under enclosing-radius H2 tetra budget 2e10", "B": 50, "maxdim": 2, "null": "markov-1", "seed": 42, "threshold": "pinned common tau = enclosing radius of observed landmarks"},
+      "unchanged": ["B", "maxdim", "null", "seed", "decision_rule"],
+      "changed": {
+        "threshold": {"from": "per-cloud adaptive 75th-percentile (obs and null thresholded independently)", "to": "pinned common tau = observed enclosing radius (obs and null on the same filtration scale)", "reason": "remove obs/null filtration-scale divergence so W2 isolates void topology from cloud dispersion/scale"},
+        "L": {"from": 1000, "to": "largest feasible <=1000 under matched-scale H2 budget", "reason": "enclosing-radius pin is only H2-feasible at small L; L=1000 matched-scale H2 exceeds the tetra budget"}
+      },
+      "method_provenance": {
+        "ph_engine": "ripser 0.6.14 (dense), exact; do_cocycles=false",
+        "pinned_thresh_rule": "tau = pdist(obs_landmarks).max(); passed as ripser thresh to observed and all nulls (per _battery_core.probe_pinned_thresh)",
+        "auto_thresh_paired": "per-cloud random-500-pdist-p75-seed42, retained as the confound exhibit only",
+        "feasibility_gate": "pre-flight tetra-burden estimate, budget 2e10; determines the largest feasible L",
+        "do_cocycles": false,
+        "vertex_counts": "observed and null both 1000-landmark (dedup=False); no forced_n_dedup needed"
+      }
+    }
+  ],
+  "expected_outcome": "Under the pinned common threshold the H2 obs-null/null-null ratio collapses toward ~1 (fail to reject) -> 'restriction stands' (consistent with the 2026-05-02 ns finding and the absence of a robust 2-void signal). A surviving H2 rejection under matched scale would be a genuine signal candidate -> escalate before any manuscript claim. The 2026-06-17 auto-thresh rejection is treated as confounded and is NOT promoted.",
+  "filed_before_run": true
+}
