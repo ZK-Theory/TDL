@@ -2,45 +2,48 @@ id: h2-dispersion-normalization-scale-invariance
 kind: invariant
 
 description: >
-  Behavioural invariant for the H2 dispersion-control amendment: when a
-  landmark cloud is divided by its own median pairwise distance before
-  persistent homology, arbitrary global rescaling of that same cloud must not
-  change the normalized H2 diagram, the normalized H2 Wasserstein-2 distance to
-  a fixed normalized null diagram, or the normalized H2 persistence-landscape
-  L2 distance to that same fixed normalized null diagram.
+  Behavioural invariant for the H2 dispersion-control and residual
+  characterization amendments: when a landmark cloud is divided by its own
+  selected pairwise-distance normalizer before persistent homology, arbitrary
+  global rescaling of that same cloud must not change the normalized H2
+  diagram, the normalized H2 Wasserstein-2 distance to a fixed normalized null
+  diagram, or the normalized H2 persistence-landscape L2 distance to that same
+  fixed normalized null diagram.
 
 spec_citation:
   source: >
     results/trajectory_tda_integration/stage1/pre_registrations_h2_dispersion_2026-06-18.json,
-    H2 Check dispersion-control + dual-metric confirmatory amendment.
-  vault_entry_date: "2026-06-18"
+    results/trajectory_tda_integration/stage1/pre_registrations_h2_characterization_2026-06-19.json,
+    H2 Check dispersion-control + residual characterization amendments.
+  vault_entry_date: "2026-06-19"
 
 invariant:
   claim: >
     If X is an L-landmark cloud and c > 0 is a scalar rescaling, then PH2(X /
-    median_pdist(X)) and PH2((cX) / median_pdist(cX)) must be identical up to
-    numerical tolerance; consequently, the normalized H2 W2 and landscape-L2
-    distances from either diagram to a fixed normalized null diagram must agree
-    within 1e-6.
+    scale(X)) and PH2((cX) / scale(cX)) must be identical up to numerical
+    tolerance for each selected scale in median-pdist, max-pdist, and
+    mean-pdist; consequently, the normalized H2 W2 and landscape-L2 distances
+    from either diagram to a fixed normalized null diagram must agree within
+    1e-6.
   preconditions:
-    - "The landmark cloud has at least two distinct points and positive finite median pairwise distance."
+    - "The landmark cloud has at least two distinct points and positive finite median, max, and mean pairwise distances."
     - "The PH path uses dense ripser, maxdim=2, do_cocycles=false, and the per-cloud auto-threshold on normalized distances."
     - "Landscape-L2 uses k_max=5 and n_points=200, matching the project-standard Stage 1 battery settings."
   counter_example_history: >
     T1.5c showed that pinned-threshold H2 W2 still rejected because the
     observed H2 diagram was shifted to larger birth/death coordinates than the
-    Markov-1 null diagrams. T1.5d controls that dispersion by normalizing each
-    cloud by its own median pairwise distance; if this invariant fails, the
-    confirmatory statistic can still carry the global scale confound.
+    Markov-1 null diagrams. T1.5d controlled that dispersion by normalizing
+    each cloud by its own median pairwise distance; T1.5e extends the same
+    scale-invariance requirement to max-pdist and mean-pdist normalizers.
 
 binding:
   test_file: "tests/trajectory_tda/test_h2_dispersion_control.py"
   test_function: "test_h2_dispersion_normalization_scale_invariance_contract"
   must_assert: >
     On a deterministic icosahedron landmark fixture with non-empty H2, the test
-    computes normalized dense-ripser H2 diagrams for the original cloud and for
-    scalar rescalings c in {0.5, 2.0}; it asserts the normalized H2 diagrams
-    match within 1e-6, normalized H2 Wasserstein-2 distances to a fixed
-    normalized null diagram are unchanged within 1e-6, and normalized H2
-    landscape-L2 distances to that fixed normalized null diagram are unchanged
-    within 1e-6.
+    computes normalized dense-ripser H2 diagrams for median-pdist, max-pdist,
+    and mean-pdist normalizers on the original cloud and scalar rescalings c in
+    {0.5, 2.0}; it asserts the normalized H2 diagrams match within 1e-6,
+    normalized H2 Wasserstein-2 distances to a fixed normalized null diagram are
+    unchanged within 1e-6, and normalized H2 landscape-L2 distances to that
+    fixed normalized null diagram are unchanged within 1e-6.

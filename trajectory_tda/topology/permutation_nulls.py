@@ -37,6 +37,14 @@ from trajectory_tda.topology.vectorisation import (
 
 logger = logging.getLogger(__name__)
 
+LandmarkNormalizer = Literal["none", "median-pdist", "max-pdist", "mean-pdist"]
+_NORMALIZER_SCALE_LABELS: dict[LandmarkNormalizer, str] = {
+    "none": "median_pairwise_distance",
+    "median-pdist": "median_pairwise_distance",
+    "max-pdist": "max_pairwise_distance",
+    "mean-pdist": "mean_pairwise_distance",
+}
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
@@ -63,16 +71,40 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp_path.replace(path)
 
 
-def _median_pairwise_distance(X: np.ndarray) -> float:
-    """Characteristic cloud scale used by the H2 dispersion-control diagnostic."""
+def _pairwise_distance_scale(X: np.ndarray, normalizer: LandmarkNormalizer) -> float:
+    """Characteristic cloud scale for H2 dispersion-control diagnostics."""
     from scipy.spatial.distance import pdist
 
     if X.shape[0] < 2:
-        raise ValueError("median pairwise distance is undefined for fewer than two points")
-    scale = float(np.median(pdist(np.asarray(X, dtype=np.float64))))
+        raise ValueError("pairwise-distance scale is undefined for fewer than two points")
+    distances = pdist(np.asarray(X, dtype=np.float64))
+    if normalizer in ("none", "median-pdist"):
+        scale = float(np.median(distances))
+    elif normalizer == "max-pdist":
+        scale = float(np.max(distances))
+    elif normalizer == "mean-pdist":
+        scale = float(np.mean(distances))
+    else:
+        raise ValueError(f"unknown landmark normalizer: {normalizer!r}")
     if not np.isfinite(scale) or scale <= 0.0:
-        raise ValueError(f"median pairwise distance must be positive and finite; got {scale!r}")
+        raise ValueError(f"pairwise-distance scale must be positive and finite; got {scale!r}")
     return scale
+
+
+def _median_pairwise_distance(X: np.ndarray) -> float:
+    """Median pairwise cloud scale used by earlier H2 dispersion diagnostics."""
+    return _pairwise_distance_scale(X, "median-pdist")
+
+
+def _resolve_landmark_normalizer(
+    normalize_landmarks_by_median_pdist: bool,
+    landmark_normalizer: LandmarkNormalizer | None,
+) -> LandmarkNormalizer:
+    if landmark_normalizer is None:
+        return "median-pdist" if normalize_landmarks_by_median_pdist else "none"
+    if landmark_normalizer not in _NORMALIZER_SCALE_LABELS:
+        raise ValueError(f"unknown landmark normalizer: {landmark_normalizer!r}")
+    return landmark_normalizer
 
 
 def _ph_provenance(ph: PHResult) -> dict[str, Any]:
@@ -595,6 +627,7 @@ def _single_permutation(
     pinned_thresh: float | None = None,
     ph_kwargs: dict[str, Any] | None = None,
     normalize_landmarks_by_median_pdist: bool = False,
+    landmark_normalizer: LandmarkNormalizer | None = None,
 ) -> dict:
     """Execute one permutation and return statistic values.
 
@@ -680,15 +713,20 @@ def _single_permutation(
         n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(landmarks)
         landmarks_for_ph = landmarks[dedup_idx]
 
-    median_pdist = _median_pairwise_distance(landmarks_for_ph)
+    resolved_normalizer = _resolve_landmark_normalizer(
+        normalize_landmarks_by_median_pdist,
+        landmark_normalizer,
+    )
+    scale_value = _pairwise_distance_scale(landmarks_for_ph, resolved_normalizer)
     normalization = {
-        "enabled": bool(normalize_landmarks_by_median_pdist),
-        "scale": "median_pairwise_distance",
-        "scale_value": float(median_pdist),
+        "enabled": resolved_normalizer != "none",
+        "normalizer": resolved_normalizer,
+        "scale": _NORMALIZER_SCALE_LABELS[resolved_normalizer],
+        "scale_value": float(scale_value),
         "landmark_count_for_scale": int(landmarks_for_ph.shape[0]),
     }
-    if normalize_landmarks_by_median_pdist:
-        landmarks_for_ph = landmarks_for_ph / median_pdist
+    if resolved_normalizer != "none":
+        landmarks_for_ph = landmarks_for_ph / scale_value
 
     runtime_ph_kwargs: dict[str, Any] = dict(ph_kwargs or {})
     runtime_ph_kwargs.setdefault("max_dim", max_dim)
