@@ -63,6 +63,18 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp_path.replace(path)
 
 
+def _median_pairwise_distance(X: np.ndarray) -> float:
+    """Characteristic cloud scale used by the H2 dispersion-control diagnostic."""
+    from scipy.spatial.distance import pdist
+
+    if X.shape[0] < 2:
+        raise ValueError("median pairwise distance is undefined for fewer than two points")
+    scale = float(np.median(pdist(np.asarray(X, dtype=np.float64))))
+    if not np.isfinite(scale) or scale <= 0.0:
+        raise ValueError(f"median pairwise distance must be positive and finite; got {scale!r}")
+    return scale
+
+
 def _ph_provenance(ph: PHResult) -> dict[str, Any]:
     return {
         "ph_method": ph.ph_method,
@@ -582,6 +594,7 @@ def _single_permutation(
     forced_n_dedup: int | None = None,
     pinned_thresh: float | None = None,
     ph_kwargs: dict[str, Any] | None = None,
+    normalize_landmarks_by_median_pdist: bool = False,
 ) -> dict:
     """Execute one permutation and return statistic values.
 
@@ -667,6 +680,16 @@ def _single_permutation(
         n_perm_used, covering_radius_at_n_perm, dedup_idx = compute_greedy_dedup_count(landmarks)
         landmarks_for_ph = landmarks[dedup_idx]
 
+    median_pdist = _median_pairwise_distance(landmarks_for_ph)
+    normalization = {
+        "enabled": bool(normalize_landmarks_by_median_pdist),
+        "scale": "median_pairwise_distance",
+        "scale_value": float(median_pdist),
+        "landmark_count_for_scale": int(landmarks_for_ph.shape[0]),
+    }
+    if normalize_landmarks_by_median_pdist:
+        landmarks_for_ph = landmarks_for_ph / median_pdist
+
     runtime_ph_kwargs: dict[str, Any] = dict(ph_kwargs or {})
     runtime_ph_kwargs.setdefault("max_dim", max_dim)
     if pinned_thresh is not None:
@@ -675,6 +698,7 @@ def _single_permutation(
     provenance = _ph_provenance(ph)
     provenance["seed"] = int(seed)
     provenance["n_landmarks"] = int(landmarks_for_ph.shape[0])
+    provenance["normalization"] = normalization
 
     dedup_info: dict | None = None
     if n_perm_used is not None:

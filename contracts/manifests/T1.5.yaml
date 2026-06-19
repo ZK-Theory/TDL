@@ -9,6 +9,7 @@ authored_by: "Manager 9 (pre-dispatch coverage extraction)"
 contracts:
   - stage1-output-schemas/h2-positive-control-diagnostics-output
   - stage1-output-schemas/h2-positive-control-diagnostics-output-json-validation
+  - topology-invariants/h2-dispersion-normalization-scale-invariance
 
 notes: >
   Contracts are Manager-authored and pending before Worker execution. The
