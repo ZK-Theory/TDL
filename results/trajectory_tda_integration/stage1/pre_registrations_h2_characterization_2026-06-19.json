@@ -1,0 +1,39 @@
+{
+  "pre_registration_date": "2026-06-19",
+  "label": "H2 Check residual characterization (power + normalizer/embedding robustness)",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 10",
+  "amends": {
+    "source": "results/trajectory_tda_integration/stage1/pre_registrations_h2_dispersion_2026-06-18.json",
+    "entry": "H2 Check (amended -- dispersion-controlled dual-metric)",
+    "chain": "2026-05-13 -> 2026-06-17 (L->1000) -> 2026-06-18 (pinned) -> 2026-06-18 (dispersion dual-metric) -> 2026-06-19 (residual characterization)"
+  },
+  "reason": "T1.5d (commit de7b110, h2_dispersion_dualmetric_2026-06-19.json) showed the scale-normalization (divide each cloud by its median pairwise distance) HALVED the raw H2 T-ratios (W2 3.32->1.67 @L200, 3.84->2.09 @L300; landscape-L2 3.78->1.87, 4.41->1.86) and REVERSED the birth/death location shift (raw: obs births > null; normalized: obs births < null, 0.654 vs 0.694) -- confirming ~half the raw H2 rejection was cloud dispersion. BUT a residual SURVIVES: normalized W2 AND landscape-L2 both reject at L=200 and L=300, a clean 3.5-5.6 sigma obs-null vs null-null separation (B=50 floored p=0.0196 understates it). The scale-invariance binding test passed (rescaling <=1e-6), so the residual is not a normalization bug. The pre-registered 'reject' branch genuinely fired. Before expand-vs-restriction is locked, the residual must be characterized: it is MODEST (T~1.7-2.1), at SMALL L (200/300), EMBEDDING-DEPENDENT (absent on the 2026-05-02 pre-refreeze run), and -- critically -- median-pdist normalization REVERSED the location sign, so the residual could be a robust scale-invariant feature OR an over/under-correction artifact of an arbitrary normalizer choice. User decision 2026-06-19: characterize for a possible finding.",
+  "components": {
+    "power": "Primary median-pdist-normalized dual-metric (W2 + landscape-L2) H2 at L in {200,300}, seed 42, Markov-1, at B=1000 -- a real (non-floor) p-value to confirm the 3.5-5.6 sigma separation is not a B=50 artifact.",
+    "normalizer_robustness": "Repeat the normalized dual-metric H2 (B=50 sufficient -- the question is direction/existence, not a fine p) under >=2 additional scale normalizers: max pairwise distance (enclosing radius) and mean pairwise distance (optionally H0-max-death = single-linkage diameter). For each: report obs vs null H2 birth/death medians and the W2/landscape-L2 T-ratios. The residual is robust iff the observed differs from the null in the SAME direction across normalizers; if the sign flips or the rejection vanishes under an alternative normalizer, the median-pdist residual is a normalization-choice artifact.",
+    "stratification": "Persistence-stratified description of the residual (normalized diagrams): does the surviving obs-vs-null difference concentrate in a few moderate-persistence H2 features or the near-diagonal bulk? Report obs vs null feature counts and the W2 contribution by persistence band.",
+    "embedding_dependence": "BEST-EFFORT: re-run the median-pdist-normalized dual-metric H2 (B=50) on the 2026-05-02 pre-refreeze embedding IF it is recoverable from git history / a cache; if not recoverable without disproportionate effort, document the current-vs-2026-05-02 discrepancy as a representation-robustness caveat and escalate the feasibility. This probes whether the residual is a robust data feature or an artifact of the 2026-05-28 frozen representation."
+  },
+  "entries": [
+    {
+      "name": "H2 Check (amended -- residual characterization)",
+      "outcome_contingent": true,
+      "decision_rule": "reject -> expand to H2; fail -> restriction stands",
+      "decision_logic": {
+        "restriction_stands": "If the residual is NOT robust -- it vanishes at B=1000 (will not, given the clean separation, but tested) OR the obs-vs-null direction FLIPS or the rejection VANISHES under an alternative normalizer (max-pdist or mean-pdist) -- then the median-pdist residual is a normalization-choice artifact -> restriction stands, disclosed honestly (H2 differs from the null mostly via dispersion; the apparent scale-invariant residual is normalizer-dependent).",
+        "escalate_for_interpretation": "If the residual IS robust -- B=1000 confirms rejection (p<0.01, not floor) AND the obs-vs-null direction is CONSISTENT across >=2 of {median, max, mean}-pdist normalizers -- then there is a genuine scale-invariant H2 difference. STOP and escalate to Manager/User for the EXPAND-vs-RESTRICTION call: whether the difference is interpretable and ADDITIVE beyond the H0/H1 omnibus (human-judgment, informed by the stratification + embedding-dependence diagnostics + paper-claim-trace + topology-benchmark-review). This is NOT auto-expanded."
+      },
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"Ls": [200, 300], "B_primary": 1000, "B_robustness": 50, "null": "markov-1", "seed": 42, "normalizers": ["median-pdist", "max-pdist", "mean-pdist"], "metrics": ["wasserstein-2", "landscape-l2 (k_max=5, n_points=200)"], "p_value_formula": "(r+1)/(B+1)", "alpha": 0.05},
+      "unchanged": ["maxdim", "null", "seed", "decision_rule", "dual_metric"],
+      "method_provenance": {
+        "ph_engine": "ripser 0.6.14 (dense), exact; do_cocycles=false",
+        "normalization": "per-cloud distances / chosen scale; obs and each null normalized by own scale; scale-invariance enforced by the de-pended h2-dispersion-normalization-scale-invariance contract",
+        "reuses": "trajectory_tda/scripts/run_h2_dispersion_dualmetric.py + the normalize_landmarks_by_median_pdist null-worker flag (T1.5d, commit c58155f); extend the normalizer to a parameter"
+      }
+    }
+  ],
+  "expected_outcome": "Either (a) the residual is normalizer-dependent -> restriction stands with disclosure, or (b) it is robust across power + normalizers -> escalate for the interpretation/additivity expand-vs-restriction judgment. No auto-expand; no manuscript H2 claim until the interpretation review concludes.",
+  "filed_before_run": true
+}
