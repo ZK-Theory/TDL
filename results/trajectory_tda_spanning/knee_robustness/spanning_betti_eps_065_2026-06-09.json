@@ -1,0 +1,51 @@
+{
+  "schema_version": "stage1/spanning-betti-robustness/v1",
+  "generated_at": "2026-06-09T10:35:28.865354+00:00",
+  "task": "T1.9 spanning Betti AUC + W2 + epsilon-star robustness",
+  "eps_star": 0.65,
+  "params": {
+    "seed": 42,
+    "matched_sample_size": 8000,
+    "statistics": [
+      "single_eps_ratio",
+      "auc_ratio",
+      "w2_matched"
+    ],
+    "homology_dimension": "H0",
+    "w2_order": 2,
+    "w2_internal_p": 2
+  },
+  "sampling": {
+    "rule": "independent deterministic simple random samples without replacement from spanning and USoc-only newcomer rows; sampled row ids sorted before PH",
+    "seed": 42,
+    "spanning_population_n": 8459,
+    "newcomer_population_n": 21551,
+    "spanning_sample_sha256": "61029a734c66488f9a9e7d5b4b7794a57d9ae740c696951afedeba6d70abc260",
+    "newcomer_sample_sha256": "849aaf5b3201fd7aac22a2eaeacdffc1a7ea100ce04b75a480750c31c62fc2ae"
+  },
+  "result": {
+    "eps_star": 0.65,
+    "single_eps_ratio": 1.5,
+    "auc_ratio": 0.9389603600755404,
+    "w2_matched": 2.536260410018281,
+    "newcomers_gt_spanning": true,
+    "all_statistics_support_headline": false,
+    "statistic_support": {
+      "single_eps_ratio": true,
+      "auc_ratio": false,
+      "w2_matched": true
+    },
+    "single_eps": {
+      "spanning_beta0": 8,
+      "newcomer_beta0": 12
+    },
+    "auc": {
+      "filtration_interval": [
+        0.0,
+        0.65
+      ],
+      "spanning_auc_beta0": 1063.295163419786,
+      "newcomer_auc_beta0": 998.3920095112228
+    }
+  }
+}
