@@ -1,0 +1,62 @@
+{
+  "kind": "h1_null_null_w2",
+  "generated_at": "2026-06-16T06:10:34+00:00",
+  "params": {
+    "n_perms": 4,
+    "n_nullnull": 6,
+    "L": 5000,
+    "seed": 42,
+    "cache_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+    "k_max": 5,
+    "n_points": 200,
+    "aggregate_jobs": 1,
+    "checkpoint_every": 2,
+    "estimate_h0_seconds": 5.0,
+    "estimate_h1_seconds": 9.0
+  },
+  "completed": 6,
+  "total": 6,
+  "pair_indices": [
+    [
+      1,
+      3
+    ],
+    [
+      1,
+      3
+    ],
+    [
+      3,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      0,
+      1
+    ]
+  ],
+  "pair_draw_seed": 42,
+  "values": [
+    178.2220429788384,
+    178.2220429788384,
+    179.3539115677718,
+    177.44217969856254,
+    177.5578523101291,
+    177.44217969856254
+  ],
+  "timings": [
+    0.08571791648864746,
+    0.0903465747833252,
+    0.10680890083312988,
+    0.09133601188659668,
+    0.0839223861694336,
+    0.08658027648925781
+  ]
+}

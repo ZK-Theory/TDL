@@ -1,0 +1,69 @@
+2026-06-18 14:12:13,697 INFO Log file: C:\Users\steph\TDL\results\trajectory_tda_integration\h2_check\intermediates\04_nulls_wasserstein_h2_L1000_2026-06-17\run.log
+2026-06-18 14:12:13,746 INFO Loaded checkpoint: 27280 trajectories, 20D embeddings
+2026-06-18 14:12:13,746 INFO Embedding 27280 trajectories...
+2026-06-18 14:12:13,881 INFO   Unigrams: (27280, 9)
+2026-06-18 14:12:14,103 INFO   Bigrams: (27280, 81)
+2026-06-18 14:12:14,104 INFO   Raw embedding: (27280, 90)
+2026-06-18 14:12:14,171 INFO   PCA reduction: (27280, 20) (explained variance: 0.488)
+2026-06-18 14:12:14,171 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 14:12:14,173 INFO H2 memory preflight: available=10.52 GB estimated_required=7.50 GB n_jobs=1
+2026-06-18 14:12:14,174 INFO H2 observed PH: L=1000 requested_L=2000 maxdim=2
+2026-06-18 14:13:44,997 INFO H2 observed JSON already exists under --resume, preserving: C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\results\trajectory_tda_integration\h2_check\ph_H2_L1000_2026-06-17.json
+2026-06-18 14:13:44,998 INFO H2 observed JSON: C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\results\trajectory_tda_integration\h2_check\ph_H2_L1000_2026-06-17.json
+2026-06-18 14:13:45,000 INFO H2 Markov-1 null: B=50 L=1000 n_jobs=1
+2026-06-18 14:13:45,000 INFO Permutation test: markov, 50 perms, H0-H2, statistic=wasserstein
+2026-06-18 14:13:48,398 INFO   Wasserstein mode: computing W(null, observed) for each permutation
+2026-06-18 14:13:48,407 WARNING Ignoring incompatible permutation checkpoint: C:\Users\steph\TDL\results\trajectory_tda_integration\h2_check\intermediates\04_nulls_wasserstein_h2_L1000_2026-06-17\markov1_h2_L1000_B50_seed42.json
+2026-06-18 14:13:58,672 INFO Embedding 27280 trajectories...
+2026-06-18 14:13:58,788 INFO   Unigrams: (27280, 9)
+2026-06-18 14:13:59,031 INFO   Bigrams: (27280, 81)
+2026-06-18 14:13:59,032 INFO   Raw embedding: (27280, 90)
+2026-06-18 14:13:59,057 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 14:13:59,057 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 14:15:34,068 INFO   permutation 1/50 complete
+2026-06-18 14:15:44,445 INFO Embedding 27280 trajectories...
+2026-06-18 14:15:44,663 INFO   Unigrams: (27280, 9)
+2026-06-18 14:15:44,914 INFO   Bigrams: (27280, 81)
+2026-06-18 14:15:44,915 INFO   Raw embedding: (27280, 90)
+2026-06-18 14:15:44,938 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 14:15:44,938 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 14:17:10,054 INFO   permutation 2/50 complete
+2026-06-18 14:17:20,129 INFO Embedding 27280 trajectories...
+2026-06-18 14:17:20,250 INFO   Unigrams: (27280, 9)
+2026-06-18 14:17:20,464 INFO   Bigrams: (27280, 81)
+2026-06-18 14:17:20,464 INFO   Raw embedding: (27280, 90)
+2026-06-18 14:17:20,491 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 14:17:20,491 INFO   Final: 27280 points x 20 dims (method=pca)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 1260, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 1245, in main
+    run_h2(args)
+    ~~~~~~^^^^^^
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 466, in run_h2
+    null_result = permutation_test_trajectories(
+        embeddings=embeddings,
+    ...<17 lines>...
+        parallel_timeout_seconds=args.ph_timeout_seconds,
+    )
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\topology\permutation_nulls.py", line 918, in permutation_test_trajectories
+    for idx, result, _elapsed in generated:
+                                 ^^^^^^^^^
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\.venv\Lib\site-packages\joblib\parallel.py", line 1914, in _get_sequential_output
+    res = func(*args, **kwargs)
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\topology\permutation_nulls.py", line 742, in _single_permutation_indexed
+    result = _single_permutation(
+        null_type,
+    ...<11 lines>...
+        ph_kwargs=ph_kwargs,
+    )
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\topology\permutation_nulls.py", line 674, in _single_permutation
+    ph = compute_rips_ph(landmarks_for_ph, **runtime_ph_kwargs)
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\poverty_tda\topology\multidim_ph.py", line 675, in compute_rips_ph
+    return _compute_rips_ph_in_child(X, kwargs, float(timeout_seconds))
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\poverty_tda\topology\multidim_ph.py", line 634, in _compute_rips_ph_in_child
+    raise RuntimeError(f"Rips PH child process exited without a result; exitcode={proc.exitcode}")
+RuntimeError: Rips PH child process exited without a result; exitcode=3221225786

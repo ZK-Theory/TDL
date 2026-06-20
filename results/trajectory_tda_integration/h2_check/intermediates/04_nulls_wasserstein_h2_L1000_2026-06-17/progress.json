@@ -1,0 +1,31 @@
+{
+  "schema_version": "stage1/t1-5-h2-progress/v1",
+  "task": "T1.5 H2 + positive control + doubled-n W2",
+  "phase": "h2_null_complete",
+  "heartbeat_at": "2026-06-18T16:02:57+00:00",
+  "elapsed_seconds": 5344.190933704376,
+  "pid": 25828,
+  "run_date": "2026-06-17",
+  "output_path": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-h2-positive-control\\results\\trajectory_tda_integration\\h2_check\\04_nulls_wasserstein_h2_L1000_2026-06-17.json",
+  "log_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\04_nulls_wasserstein_h2_L1000_2026-06-17\\run.log",
+  "checkpoint_dir": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\04_nulls_wasserstein_h2_L1000_2026-06-17",
+  "params": {
+    "B": 50,
+    "L": 1000,
+    "requested_L": 2000,
+    "seed": 42,
+    "n_jobs": 1,
+    "resume": true,
+    "ph_method": "ripser",
+    "ph_timeout_seconds": 900.0,
+    "h2_tetra_budget": 20000000000.0,
+    "ph_worker_memory_gb": 5.5,
+    "min_available_memory_gb": 2.0,
+    "allow_low_n_jobs": true
+  },
+  "completed": 50,
+  "total": 50,
+  "null_path": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-h2-positive-control\\results\\trajectory_tda_integration\\h2_check\\04_nulls_wasserstein_h2_L1000_2026-06-17.json",
+  "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\04_nulls_wasserstein_h2_L1000_2026-06-17\\markov1_h2_L1000_B50_seed42.json",
+  "null_seconds": 5240.238916397095
+}

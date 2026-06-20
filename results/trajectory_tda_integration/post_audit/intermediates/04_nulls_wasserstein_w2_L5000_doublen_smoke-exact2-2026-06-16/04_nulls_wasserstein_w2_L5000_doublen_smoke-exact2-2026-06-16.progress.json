@@ -1,0 +1,27 @@
+{
+  "schema_version": "stage1/t1-5-doubled-n-progress/v1",
+  "task": "T1.5 H2 + positive control + doubled-n W2",
+  "phase": "complete",
+  "heartbeat_at": "2026-06-16T07:19:47+00:00",
+  "elapsed_seconds": 1111.4350817203522,
+  "pid": 25852,
+  "run_date": "smoke-exact2-2026-06-16",
+  "output_path": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-h2-positive-control\\results\\trajectory_tda_integration\\post_audit\\04_nulls_wasserstein_w2_L5000_doublen_smoke-exact2-2026-06-16.json",
+  "log_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\intermediates\\04_nulls_wasserstein_w2_L5000_doublen_smoke-exact2-2026-06-16\\04_nulls_wasserstein_w2_L5000_doublen_smoke-exact2-2026-06-16.log",
+  "checkpoint_dir": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\intermediates\\04_nulls_wasserstein_w2_L5000_doublen_smoke-exact2-2026-06-16\\checkpoint",
+  "params": {
+    "n_perms": 4,
+    "n_nullnull": 6,
+    "L": 5000,
+    "seed": 42,
+    "aggregate_jobs": 1,
+    "checkpoint_every": 2,
+    "resume": false,
+    "estimate_h0_seconds": 5.0,
+    "estimate_h1_seconds": 9.0
+  },
+  "completed": 1,
+  "total": 1,
+  "percent": 1.0,
+  "final_output": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-h2-positive-control\\results\\trajectory_tda_integration\\post_audit\\04_nulls_wasserstein_w2_L5000_doublen_smoke-exact2-2026-06-16.json"
+}

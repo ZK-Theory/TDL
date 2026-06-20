@@ -1,0 +1,852 @@
+{
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\__init__.py": {
+    "mtime": 1775609419.9512613,
+    "ast_hash": "980b94a8130822f55fe4ab1307b36eef",
+    "semantic_hash": "980b94a8130822f55fe4ab1307b36eef"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\__init__.py": {
+    "mtime": 1775609419.9547613,
+    "ast_hash": "247c84ac8c1d16426bd762af4cf26605",
+    "semantic_hash": "247c84ac8c1d16426bd762af4cf26605"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\age_stratified.py": {
+    "mtime": 1775609419.9552617,
+    "ast_hash": "0cabd1d23efa813dab33cd72a8a637d8",
+    "semantic_hash": "0cabd1d23efa813dab33cd72a8a637d8"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\annual_wasserstein.py": {
+    "mtime": 1775609419.9557552,
+    "ast_hash": "73b57bcc532217c5bd62254d32e95220",
+    "semantic_hash": "73b57bcc532217c5bd62254d32e95220"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\bootstrap_null_stability.py": {
+    "mtime": 1775609419.9557552,
+    "ast_hash": "1c0775137ed6d70085f1dc6cba646ff4",
+    "semantic_hash": "1c0775137ed6d70085f1dc6cba646ff4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\cycle_detection.py": {
+    "mtime": 1775609419.956262,
+    "ast_hash": "9b2aa911df045d31300d3653fd87e07d",
+    "semantic_hash": "9b2aa911df045d31300d3653fd87e07d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\escape_paths.py": {
+    "mtime": 1775609419.956262,
+    "ast_hash": "74cb29474a178bd1dfa3f6eecadf2190",
+    "semantic_hash": "74cb29474a178bd1dfa3f6eecadf2190"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\gmm_bootstrap.py": {
+    "mtime": 1775609419.956762,
+    "ast_hash": "f650cde15899a71140bc7b70b25e8778",
+    "semantic_hash": "f650cde15899a71140bc7b70b25e8778"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\group_comparison.py": {
+    "mtime": 1775609419.956762,
+    "ast_hash": "94b9fde6f2098c4e68b0b2d7541c71b9",
+    "semantic_hash": "94b9fde6f2098c4e68b0b2d7541c71b9"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\h0_gmm_overlap.py": {
+    "mtime": 1775609419.956762,
+    "ast_hash": "8ce7f61b0f620cc319b0887ec7be8204",
+    "semantic_hash": "8ce7f61b0f620cc319b0887ec7be8204"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\intra_regime_compactness.py": {
+    "mtime": 1775609419.957774,
+    "ast_hash": "30d66d92c7856021cbacc6abcfe8dba4",
+    "semantic_hash": "30d66d92c7856021cbacc6abcfe8dba4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\macro_correlation.py": {
+    "mtime": 1775609419.958131,
+    "ast_hash": "b8450242ed71f82022cbcc95c78c3aa9",
+    "semantic_hash": "b8450242ed71f82022cbcc95c78c3aa9"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\nssec_missingness.py": {
+    "mtime": 1775609419.958131,
+    "ast_hash": "81d1195a311cac7a14cddd56950a9e75",
+    "semantic_hash": "81d1195a311cac7a14cddd56950a9e75"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\build_window_assignments.py": {
+    "mtime": 1779004176.8569105,
+    "ast_hash": "e92059f011df0c1478fb00cc3943e6a7",
+    "semantic_hash": "e92059f011df0c1478fb00cc3943e6a7"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\foo_regression_contracts.py": {
+    "mtime": 1780768185.2763126,
+    "ast_hash": "6d27bf4c249b69d935cde1cfcbc0075a",
+    "semantic_hash": "6d27bf4c249b69d935cde1cfcbc0075a"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\ipw_construction.R": {
+    "mtime": 1779551392.7291293,
+    "ast_hash": "9a2b0f8e22b075cda851cf28c53a2719",
+    "semantic_hash": "9a2b0f8e22b075cda851cf28c53a2719"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\manski_bounds.R": {
+    "mtime": 1779004201.0872004,
+    "ast_hash": "b1f3d389dda47640095a29b0005834e8",
+    "semantic_hash": "b1f3d389dda47640095a29b0005834e8"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\manski_bounds_conditional.R": {
+    "mtime": 1778868331.8170896,
+    "ast_hash": "e7eed23dafcbd48345feb6dc257389ab",
+    "semantic_hash": "e7eed23dafcbd48345feb6dc257389ab"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\mice_income.R": {
+    "mtime": 1778928478.9057696,
+    "ast_hash": "915572895aa6d27640dcb49c03e6d670",
+    "semantic_hash": "915572895aa6d27640dcb49c03e6d670"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\nssec_sibling_mice.R": {
+    "mtime": 1778928478.9067671,
+    "ast_hash": "9e83faa0eddbb3b4eaf20f0524aa5aa1",
+    "semantic_hash": "9e83faa0eddbb3b4eaf20f0524aa5aa1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\regression_tier1.R": {
+    "mtime": 1778928478.9077709,
+    "ast_hash": "1030c1d1b50dace4dc08c8b2a1209a04",
+    "semantic_hash": "1030c1d1b50dace4dc08c8b2a1209a04"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\regression_tier2.R": {
+    "mtime": 1779007319.3375087,
+    "ast_hash": "59d99867307cbb57bf99c782749e8ce1",
+    "semantic_hash": "59d99867307cbb57bf99c782749e8ce1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t123_ari_normalisation.py": {
+    "mtime": 1780826317.0687068,
+    "ast_hash": "fc690df939ad7758bff21f003ef599f4",
+    "semantic_hash": "fc690df939ad7758bff21f003ef599f4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t126_bhps_nonoverlap.py": {
+    "mtime": 1781366997.0391343,
+    "ast_hash": "8806682f2b466cc6448a573a057e0495",
+    "semantic_hash": "8806682f2b466cc6448a573a057e0495"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t126b_bhps_nonoverlap_reanalysis.py": {
+    "mtime": 1781366997.0401337,
+    "ast_hash": "836a779f38d34e4368a360b9426842be",
+    "semantic_hash": "836a779f38d34e4368a360b9426842be"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t127_sample_10of14_gmm_sensitivity.py": {
+    "mtime": 1780954889.8241327,
+    "ast_hash": "a64e16ec2642a225c688439edc209979",
+    "semantic_hash": "a64e16ec2642a225c688439edc209979"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t134_diagnose_tier2_weights.R": {
+    "mtime": 1780521432.8841133,
+    "ast_hash": "4773ccd19434c27f64a397f29da06f0f",
+    "semantic_hash": "4773ccd19434c27f64a397f29da06f0f"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t134_regression_refit.R": {
+    "mtime": 1780521432.8841133,
+    "ast_hash": "6683a144a25df3bf212b5f3e8a1acf3e",
+    "semantic_hash": "6683a144a25df3bf212b5f3e8a1acf3e"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t134a_svyglm_headline.R": {
+    "mtime": 1780521432.885111,
+    "ast_hash": "597c6bba79bd4dceda4c6d2aca084f60",
+    "semantic_hash": "597c6bba79bd4dceda4c6d2aca084f60"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t134a_wemix_feasibility.R": {
+    "mtime": 1780521432.885111,
+    "ast_hash": "ecab33be32eb6b0b22f719592721404a",
+    "semantic_hash": "ecab33be32eb6b0b22f719592721404a"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t135_transparency_contracts.py": {
+    "mtime": 1780768185.2763126,
+    "ast_hash": "f05d1fb1dfea7c80f5cff5ba1ca7c8e3",
+    "semantic_hash": "f05d1fb1dfea7c80f5cff5ba1ca7c8e3"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t135_transparency_supplement.R": {
+    "mtime": 1780521432.887112,
+    "ast_hash": "9881aefce60532ac37be8795d6e217ad",
+    "semantic_hash": "9881aefce60532ac37be8795d6e217ad"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t1_16_export_weights.R": {
+    "mtime": 1778928478.9102871,
+    "ast_hash": "f6eae7a6bbc51f2d42230317944693bd",
+    "semantic_hash": "f6eae7a6bbc51f2d42230317944693bd"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t1_16_weighted_gmm.py": {
+    "mtime": 1778928478.911285,
+    "ast_hash": "6190af9faf147903a0472fc9bc1d8083",
+    "semantic_hash": "6190af9faf147903a0472fc9bc1d8083"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t1_17_spanning_balance.R": {
+    "mtime": 1778850465.5449128,
+    "ast_hash": "089b5e0a039efddc03b0692c2a973c92",
+    "semantic_hash": "089b5e0a039efddc03b0692c2a973c92"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t1_24_stability_se_wilson_ci.R": {
+    "mtime": 1778928478.9122858,
+    "ast_hash": "0a10f6331442229fb87cdcfdc6dfa00e",
+    "semantic_hash": "0a10f6331442229fb87cdcfdc6dfa00e"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\panel\\t1_29_ipw_structural_eligibility.R": {
+    "mtime": 1779004183.2109134,
+    "ast_hash": "1e93ac41e8edf9151a3cd6d3c32db65c",
+    "semantic_hash": "1e93ac41e8edf9151a3cd6d3c32db65c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\regime_discovery.py": {
+    "mtime": 1775609419.9587874,
+    "ast_hash": "c67dbd8a92fd9e2dc2970d58798ca5df",
+    "semantic_hash": "c67dbd8a92fd9e2dc2970d58798ca5df"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\regime_switching.py": {
+    "mtime": 1775609419.9592874,
+    "ast_hash": "548d005e3b98f87cb06bc8db7595786f",
+    "semantic_hash": "548d005e3b98f87cb06bc8db7595786f"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\data\\__init__.py": {
+    "mtime": 1775609419.9612813,
+    "ast_hash": "88ec45d8536ce8de220fdb3879b53494",
+    "semantic_hash": "88ec45d8536ce8de220fdb3879b53494"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\data\\annual_partition.py": {
+    "mtime": 1775609419.9612813,
+    "ast_hash": "9e7c09957530b13315098a587d9b6355",
+    "semantic_hash": "9e7c09957530b13315098a587d9b6355"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\data\\covariate_extractor.py": {
+    "mtime": 1775609419.9617805,
+    "ast_hash": "232ce0340e1fe880e344e8a7c5100fef",
+    "semantic_hash": "232ce0340e1fe880e344e8a7c5100fef"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\data\\employment_status.py": {
+    "mtime": 1775609419.9622874,
+    "ast_hash": "a77a3acf5ea78ad4042e973a509e9caa",
+    "semantic_hash": "a77a3acf5ea78ad4042e973a509e9caa"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\data\\income_band.py": {
+    "mtime": 1775609419.9622874,
+    "ast_hash": "436d7db124e82d0dd0a6a029d4d2d1af",
+    "semantic_hash": "436d7db124e82d0dd0a6a029d4d2d1af"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\data\\trajectory_builder.py": {
+    "mtime": 1775609419.9627874,
+    "ast_hash": "b12015771b0fcfbc47b09f73ff084b99",
+    "semantic_hash": "b12015771b0fcfbc47b09f73ff084b99"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\discovery\\__init__.py": {
+    "mtime": 1781650970.0044036,
+    "ast_hash": "86cd36d05e2997aed17888100f0be55c",
+    "semantic_hash": "86cd36d05e2997aed17888100f0be55c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\discovery\\assay_scorecard.py": {
+    "mtime": 1781650970.0054045,
+    "ast_hash": "36c942b62838fdd2d12358a6c1b9236d",
+    "semantic_hash": "36c942b62838fdd2d12358a6c1b9236d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\discovery\\spike_preregistration.py": {
+    "mtime": 1781650970.0054045,
+    "ast_hash": "b1c84627e677bbecf1b60f0971ad1b4c",
+    "semantic_hash": "b1c84627e677bbecf1b60f0971ad1b4c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\discovery\\spike_result.py": {
+    "mtime": 1781650970.0064013,
+    "ast_hash": "db51f8d513d4771fdc7c432f3ab9311a",
+    "semantic_hash": "db51f8d513d4771fdc7c432f3ab9311a"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\discovery\\strand_comparison.py": {
+    "mtime": 1781687070.1805594,
+    "ast_hash": "7523ea87c45316bb115e486c24f39bed",
+    "semantic_hash": "7523ea87c45316bb115e486c24f39bed"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\embedding\\__init__.py": {
+    "mtime": 1775609419.963287,
+    "ast_hash": "7072a6b825b3c1e0238ce2ebc1e0c6e0",
+    "semantic_hash": "7072a6b825b3c1e0238ce2ebc1e0c6e0"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\embedding\\ngram_embed.py": {
+    "mtime": 1779778632.6512506,
+    "ast_hash": "f559dd6d0abb4c1ddbd415b59d0d7278",
+    "semantic_hash": "f559dd6d0abb4c1ddbd415b59d0d7278"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\__init__.py": {
+    "mtime": 1775609419.963787,
+    "ast_hash": "55ef30a144627a78fe727d5ac715fbef",
+    "semantic_hash": "55ef30a144627a78fe727d5ac715fbef"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\correlation_analysis.py": {
+    "mtime": 1775609419.964287,
+    "ast_hash": "a3a7b59eb454569123bbb3012041699b",
+    "semantic_hash": "a3a7b59eb454569123bbb3012041699b"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\mapper_pipeline.py": {
+    "mtime": 1775609419.964287,
+    "ast_hash": "719fda1290bd39030d7892ab36b70c56",
+    "semantic_hash": "719fda1290bd39030d7892ab36b70c56"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\node_coloring.py": {
+    "mtime": 1775609419.964787,
+    "ast_hash": "8380e1a5951aa996d15ac9bd4650b57c",
+    "semantic_hash": "8380e1a5951aa996d15ac9bd4650b57c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\parameter_search.py": {
+    "mtime": 1775609419.965287,
+    "ast_hash": "9577eb7cbe05cc653bb42c131cb5ab0a",
+    "semantic_hash": "9577eb7cbe05cc653bb42c131cb5ab0a"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\permutation_null.py": {
+    "mtime": 1775609419.9657872,
+    "ast_hash": "12eb30ccd2323e553abebc8a0b5c09b5",
+    "semantic_hash": "12eb30ccd2323e553abebc8a0b5c09b5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\mapper\\validation.py": {
+    "mtime": 1775609419.9657872,
+    "ast_hash": "c4af7cb247fe78193c47bc1722c699db",
+    "semantic_hash": "c4af7cb247fe78193c47bc1722c699db"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\models\\__init__.py": {
+    "mtime": 1775609419.9662871,
+    "ast_hash": "ca7a7e13e3933038ee2a5907517926fb",
+    "semantic_hash": "ca7a7e13e3933038ee2a5907517926fb"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\__init__.py": {
+    "mtime": 1775609419.9672873,
+    "ast_hash": "fba276c39dcaac89ecf3768fb226d0b4",
+    "semantic_hash": "fba276c39dcaac89ecf3768fb226d0b4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_build_steps.py": {
+    "mtime": 1775609419.9672873,
+    "ast_hash": "4801bd5337e06ab1c9b89b92b9eb7fa4",
+    "semantic_hash": "4801bd5337e06ab1c9b89b92b9eb7fa4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_diagnose_income.py": {
+    "mtime": 1775609419.9672873,
+    "ast_hash": "d62e07232e4031fb84375c60db584119",
+    "semantic_hash": "d62e07232e4031fb84375c60db584119"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_pipeline.py": {
+    "mtime": 1775609419.968813,
+    "ast_hash": "299962731741662e5415eb55344cd414",
+    "semantic_hash": "299962731741662e5415eb55344cd414"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_rerun_nulls.py": {
+    "mtime": 1775609419.9692333,
+    "ast_hash": "91044c06c9ecd18c71fd71052fe85577",
+    "semantic_hash": "91044c06c9ecd18c71fd71052fe85577"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_result.json": {
+    "mtime": 1775609419.9692333,
+    "ast_hash": "33026e29255d56a1983ef5de7d0ff13d",
+    "semantic_hash": "33026e29255d56a1983ef5de7d0ff13d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_tda_pipeline.py": {
+    "mtime": 1778100763.5820365,
+    "ast_hash": "e3ae74e4916127d637dadb1d08a977f4",
+    "semantic_hash": "e3ae74e4916127d637dadb1d08a977f4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_test_income.py": {
+    "mtime": 1775609419.9703052,
+    "ast_hash": "634a0a6afc7ded2606ca05ad0c0cdbe0",
+    "semantic_hash": "634a0a6afc7ded2606ca05ad0c0cdbe0"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_trace_equiv.py": {
+    "mtime": 1775609419.970812,
+    "ast_hash": "05cf89de52744f0fcc795f2c0f494484",
+    "semantic_hash": "05cf89de52744f0fcc795f2c0f494484"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_verify_counts.py": {
+    "mtime": 1775609419.9712374,
+    "ast_hash": "14c68844adcbd4048f66d7d9b77679c3",
+    "semantic_hash": "14c68844adcbd4048f66d7d9b77679c3"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_verify_result.json": {
+    "mtime": 1775609419.9712374,
+    "ast_hash": "102f4826fdc1e990fa1e8c1f8158b589",
+    "semantic_hash": "102f4826fdc1e990fa1e8c1f8158b589"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_verify_trajectories.py": {
+    "mtime": 1775609419.9712374,
+    "ast_hash": "e574d9f9f498b901ff68fef9fef3bea1",
+    "semantic_hash": "e574d9f9f498b901ff68fef9fef3bea1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\build_full_checkpoint.py": {
+    "mtime": 1775609419.9718125,
+    "ast_hash": "a1dbb8b85a819ba87a2a775e8158be5d",
+    "semantic_hash": "a1dbb8b85a819ba87a2a775e8158be5d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\canary_rng.py": {
+    "mtime": 1778100763.582536,
+    "ast_hash": "cd66e7eb5deebaf14a6abfff6806c0f9",
+    "semantic_hash": "cd66e7eb5deebaf14a6abfff6806c0f9"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\estimate_intrinsic_dim.py": {
+    "mtime": 1779621865.8154204,
+    "ast_hash": "28d1097a6544e2cb6318fe5d4d7ea7a1",
+    "semantic_hash": "28d1097a6544e2cb6318fe5d4d7ea7a1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\generate_mapper_figures.py": {
+    "mtime": 1775609419.9723132,
+    "ast_hash": "2cb6c37cf5a8af61891af95d685b2d8f",
+    "semantic_hash": "2cb6c37cf5a8af61891af95d685b2d8f"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\p04_appendix_b.py": {
+    "mtime": 1775609419.9728124,
+    "ast_hash": "6caf1d46549e10434b35c1ed0afeaecb",
+    "semantic_hash": "6caf1d46549e10434b35c1ed0afeaecb"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\p04_endogeneity_check.py": {
+    "mtime": 1777581131.6199417,
+    "ast_hash": "a9b1bb3da5625a82bfc46bc3f1359ba7",
+    "semantic_hash": "a9b1bb3da5625a82bfc46bc3f1359ba7"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\p04_explore_discretisation.py": {
+    "mtime": 1775609419.973307,
+    "ast_hash": "5ff66826c1ae64ec0ca61a53382180c0",
+    "semantic_hash": "5ff66826c1ae64ec0ca61a53382180c0"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\p04_run_5k.py": {
+    "mtime": 1775609419.9738066,
+    "ast_hash": "e9bfe38fee697ec37b258fd342712e32",
+    "semantic_hash": "e9bfe38fee697ec37b258fd342712e32"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\p04_run_nulls.py": {
+    "mtime": 1775609419.974306,
+    "ast_hash": "9c23c2083f9008b4fcfb660eb90ab2ac",
+    "semantic_hash": "9c23c2083f9008b4fcfb660eb90ab2ac"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\reconstruct_trajectory_outcomes.py": {
+    "mtime": 1775609419.974306,
+    "ast_hash": "6324e5c3c75bca74db1e0dcafdc3b611",
+    "semantic_hash": "6324e5c3c75bca74db1e0dcafdc3b611"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\repair_checkpoint_birth_cohort.py": {
+    "mtime": 1775609419.9748135,
+    "ast_hash": "c2bc61f604bf00674cfd805445f8aeeb",
+    "semantic_hash": "c2bc61f604bf00674cfd805445f8aeeb"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\rerun_nulls.py": {
+    "mtime": 1775609419.9753122,
+    "ast_hash": "d1e9d417bf2ee7c46ad773202a5a4af5",
+    "semantic_hash": "d1e9d417bf2ee7c46ad773202a5a4af5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_bic_curve.py": {
+    "mtime": 1779004237.4747312,
+    "ast_hash": "cc5686c7e988b7181c6242d9452083fb",
+    "semantic_hash": "cc5686c7e988b7181c6242d9452083fb"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_embedding_sensitivity.py": {
+    "mtime": 1775609419.9753122,
+    "ast_hash": "8f50d04f9a334dfd64fd597f09ed750d",
+    "semantic_hash": "8f50d04f9a334dfd64fd597f09ed750d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_fdr_correction.py": {
+    "mtime": 1775609419.9758122,
+    "ast_hash": "d4261e173b10eee0721447214a8971df",
+    "semantic_hash": "d4261e173b10eee0721447214a8971df"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_foo_topology_signature.py": {
+    "mtime": 1780431103.0648685,
+    "ast_hash": "bff8659f1198e8ee90a6a84375088999",
+    "semantic_hash": "bff8659f1198e8ee90a6a84375088999"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_landmark_sensitivity.py": {
+    "mtime": 1775609419.9763117,
+    "ast_hash": "b39e293159b6ccd1e0ba91b93858aa73",
+    "semantic_hash": "b39e293159b6ccd1e0ba91b93858aa73"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_landscape_battery.py": {
+    "mtime": 1777726531.5468986,
+    "ast_hash": "14fd4faa38cfbbb2c1b71a818255a34b",
+    "semantic_hash": "14fd4faa38cfbbb2c1b71a818255a34b"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_length_matched_bhps.py": {
+    "mtime": 1777726531.5468986,
+    "ast_hash": "ca867704096c0e4e32b7b5a87b45738b",
+    "semantic_hash": "ca867704096c0e4e32b7b5a87b45738b"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_mapper.py": {
+    "mtime": 1775609419.9763117,
+    "ast_hash": "9b6652159eafe73b62d82190098e8678",
+    "semantic_hash": "9b6652159eafe73b62d82190098e8678"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_mapper_from_existing.py": {
+    "mtime": 1775609419.976812,
+    "ast_hash": "ba76dfd67cb135e2e76757bccd4abe10",
+    "semantic_hash": "ba76dfd67cb135e2e76757bccd4abe10"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_mapper_sensitivity_sweep.py": {
+    "mtime": 1775609419.977312,
+    "ast_hash": "16bba288b9a8c9c6801931a42d92bafe",
+    "semantic_hash": "16bba288b9a8c9c6801931a42d92bafe"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_missing_nulls_L5000.py": {
+    "mtime": 1775609419.977312,
+    "ast_hash": "c605f84aad7d9fd81a6c731522af76e5",
+    "semantic_hash": "c605f84aad7d9fd81a6c731522af76e5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_nonoverlapping_windows.py": {
+    "mtime": 1775609419.9778118,
+    "ast_hash": "c95e6061458c35cef86d9c98481285bd",
+    "semantic_hash": "c95e6061458c35cef86d9c98481285bd"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_om_baseline.py": {
+    "mtime": 1775609419.9778118,
+    "ast_hash": "97119c0dfd01366cf45ea810da39fb58",
+    "semantic_hash": "97119c0dfd01366cf45ea810da39fb58"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_p02_reviewer_analyses.py": {
+    "mtime": 1775609419.978312,
+    "ast_hash": "14ff4dddc97f8dae3d1eb7e22c2480f2",
+    "semantic_hash": "14ff4dddc97f8dae3d1eb7e22c2480f2"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_phase6.py": {
+    "mtime": 1775609419.978312,
+    "ast_hash": "f895e525baa80277a394e8bd857f8316",
+    "semantic_hash": "f895e525baa80277a394e8bd857f8316"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_phase_ordering.py": {
+    "mtime": 1775609419.978312,
+    "ast_hash": "379802916da29c39fb3d121daca6155a",
+    "semantic_hash": "379802916da29c39fb3d121daca6155a"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_pipeline.py": {
+    "mtime": 1778100763.5830362,
+    "ast_hash": "1a32ba772f9b9da07e71d0cfd4a63a7d",
+    "semantic_hash": "1a32ba772f9b9da07e71d0cfd4a63a7d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_pipeline_sensitivity.py": {
+    "mtime": 1775609419.9798293,
+    "ast_hash": "3d992b9ab4453b5c2e0b1746312e997c",
+    "semantic_hash": "3d992b9ab4453b5c2e0b1746312e997c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_positive_control.py": {
+    "mtime": 1777657728.5642667,
+    "ast_hash": "fc9f80c7d8a33ef8047ebe4f0dd7f067",
+    "semantic_hash": "fc9f80c7d8a33ef8047ebe4f0dd7f067"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_priority2.py": {
+    "mtime": 1775609419.9798293,
+    "ast_hash": "95b1aa6c4c990537618d04ef38d73154",
+    "semantic_hash": "95b1aa6c4c990537618d04ef38d73154"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_sparse_u_state_sensitivity.py": {
+    "mtime": 1780826317.0697062,
+    "ast_hash": "5e6b34796bf908f603d94b6a85c714bf",
+    "semantic_hash": "5e6b34796bf908f603d94b6a85c714bf"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_stage1_aux_diagnostics.py": {
+    "mtime": 1781612140.8825092,
+    "ast_hash": "ba68e68df60eb297fafabf5e5d48a9f4",
+    "semantic_hash": "ba68e68df60eb297fafabf5e5d48a9f4"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_stage1_battery.py": {
+    "mtime": 1779903189.5456364,
+    "ast_hash": "4efc98ff3004ee1d2632dee9a8049f45",
+    "semantic_hash": "4efc98ff3004ee1d2632dee9a8049f45"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_strand_attribution_probe.py": {
+    "mtime": 1781687070.181565,
+    "ast_hash": "d8118ac623af70fb3efc7dc26a3e5aec",
+    "semantic_hash": "d8118ac623af70fb3efc7dc26a3e5aec"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_strand_comparison.py": {
+    "mtime": 1781687070.1825573,
+    "ast_hash": "32bc13a32017238f6e8f01e695727bac",
+    "semantic_hash": "32bc13a32017238f6e8f01e695727bac"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_stratified.py": {
+    "mtime": 1775609419.9803357,
+    "ast_hash": "9371d8260f05e0661a552f177bfb3074",
+    "semantic_hash": "9371d8260f05e0661a552f177bfb3074"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_stratified_battery.py": {
+    "mtime": 1780078244.5688288,
+    "ast_hash": "892e767b899aaaa107ca6b7bca97b966",
+    "semantic_hash": "892e767b899aaaa107ca6b7bca97b966"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_umap_sensitivity.py": {
+    "mtime": 1775609419.9808354,
+    "ast_hash": "3db1242d264dc12c1241847e9cc0dd63",
+    "semantic_hash": "3db1242d264dc12c1241847e9cc0dd63"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_w2_internal_p_audit.py": {
+    "mtime": 1779007103.5401978,
+    "ast_hash": "6a71f67c6ae4a2946e7689f40091b85d",
+    "semantic_hash": "6a71f67c6ae4a2946e7689f40091b85d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_wasserstein_battery.py": {
+    "mtime": 1777657044.760209,
+    "ast_hash": "13090156d53a3239d3c85d95f0bd0770",
+    "semantic_hash": "13090156d53a3239d3c85d95f0bd0770"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_wasserstein_nulls.py": {
+    "mtime": 1775609419.9813354,
+    "ast_hash": "669df6fbaccd5f9b4e3f5db53d615f9e",
+    "semantic_hash": "669df6fbaccd5f9b4e3f5db53d615f9e"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_zigzag.py": {
+    "mtime": 1775609419.9813354,
+    "ast_hash": "afdbaa9042564d823bc278b886a18bc9",
+    "semantic_hash": "afdbaa9042564d823bc278b886a18bc9"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_zigzag_era_robustness.py": {
+    "mtime": 1775609419.9818356,
+    "ast_hash": "d58e5fbd18d82a8c0ec2624440701fe6",
+    "semantic_hash": "d58e5fbd18d82a8c0ec2624440701fe6"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_zigzag_era_specific.py": {
+    "mtime": 1775609419.9823356,
+    "ast_hash": "ec4705d866eb031835944ebb6c43ee78",
+    "semantic_hash": "ec4705d866eb031835944ebb6c43ee78"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\run_zigzag_sensitivity.py": {
+    "mtime": 1778190946.31666,
+    "ast_hash": "422e256f10af4a457382764affe37c0b",
+    "semantic_hash": "422e256f10af4a457382764affe37c0b"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\spanning_pipeline.py": {
+    "mtime": 1775609419.9833355,
+    "ast_hash": "3a93fc67ce4a82edf5e5ef10cb8727f9",
+    "semantic_hash": "3a93fc67ce4a82edf5e5ef10cb8727f9"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\__init__.py": {
+    "mtime": 1779492220.546256,
+    "ast_hash": "edfd7dfdf4f4f42e1bfd8c1a1fd9173c",
+    "semantic_hash": "edfd7dfdf4f4f42e1bfd8c1a1fd9173c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\_battery_core.py": {
+    "mtime": 1781612140.883512,
+    "ast_hash": "8a7f71d3a78d9c2c78bf324f0429f75d",
+    "semantic_hash": "8a7f71d3a78d9c2c78bf324f0429f75d"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\assemble_battery.py": {
+    "mtime": 1780078244.5688288,
+    "ast_hash": "2bc2f930b0323520e6d24267c2c4d0c1",
+    "semantic_hash": "2bc2f930b0323520e6d24267c2c4d0c1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\assemble_stratified_markov_partials.py": {
+    "mtime": 1780078244.5698292,
+    "ast_hash": "84f7f2656438683c47cdcd2dce5e0a95",
+    "semantic_hash": "84f7f2656438683c47cdcd2dce5e0a95"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\build_dedup_amendment_comparison.py": {
+    "mtime": 1780348367.0899682,
+    "ast_hash": "6929dbd11082ff94e4f0b8c45cbcd0ee",
+    "semantic_hash": "6929dbd11082ff94e4f0b8c45cbcd0ee"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\build_frozen_vs_provisional_comparison.py": {
+    "mtime": 1780078244.5708306,
+    "ast_hash": "c3c91907f1d99eb679b9405593769356",
+    "semantic_hash": "c3c91907f1d99eb679b9405593769356"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\build_pvalue_denominator_cleanup.py": {
+    "mtime": 1780078244.571829,
+    "ast_hash": "6525cd0d6abf20132f6c58fdd03fb3f0",
+    "semantic_hash": "6525cd0d6abf20132f6c58fdd03fb3f0"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\run_bhps_headline.py": {
+    "mtime": 1780078244.5728295,
+    "ast_hash": "4a8e24686db11bd8eda3a179a6dae58c",
+    "semantic_hash": "4a8e24686db11bd8eda3a179a6dae58c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\run_bhps_length_matched.py": {
+    "mtime": 1780346812.722806,
+    "ast_hash": "cef24dacb398d75e190fad7e9367140e",
+    "semantic_hash": "cef24dacb398d75e190fad7e9367140e"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\run_landscape_sensitivity.py": {
+    "mtime": 1779492220.5482538,
+    "ast_hash": "807599b5ea3142eb509d54463b35f38c",
+    "semantic_hash": "807599b5ea3142eb509d54463b35f38c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\run_lm_sensitivity.py": {
+    "mtime": 1780078244.5738292,
+    "ast_hash": "bb27ee9e9950677b3deed72de3bce252",
+    "semantic_hash": "bb27ee9e9950677b3deed72de3bce252"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\stage1\\run_usoc_headline.py": {
+    "mtime": 1780078244.5748296,
+    "ast_hash": "bce82ff2686f9a263edc3bdc2ed13dab",
+    "semantic_hash": "bce82ff2686f9a263edc3bdc2ed13dab"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\zigzag_dionysus_bridge.py": {
+    "mtime": 1775609419.9838355,
+    "ast_hash": "7a8c89c275348ad716ff5d346b29bd1c",
+    "semantic_hash": "7a8c89c275348ad716ff5d346b29bd1c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\__init__.py": {
+    "mtime": 1775609419.9838355,
+    "ast_hash": "4312ed5a990c563dd80f3c19a93788be",
+    "semantic_hash": "4312ed5a990c563dd80f3c19a93788be"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\mapper.py": {
+    "mtime": 1775609419.9843357,
+    "ast_hash": "4c3f3fdc27545ab479b41b84b15e2aa6",
+    "semantic_hash": "4c3f3fdc27545ab479b41b84b15e2aa6"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\markov_ladder.py": {
+    "mtime": 1778100763.5835378,
+    "ast_hash": "b0e1e4262ce9704de49aa0b8a4a0ef95",
+    "semantic_hash": "b0e1e4262ce9704de49aa0b8a4a0ef95"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\multipers_bifiltration.py": {
+    "mtime": 1775609419.9848354,
+    "ast_hash": "336b30c33160e123ae9cc6cc34fb3cb5",
+    "semantic_hash": "336b30c33160e123ae9cc6cc34fb3cb5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\permutation_nulls.py": {
+    "mtime": 1781612140.883512,
+    "ast_hash": "b8eae7e3c3eba5e6f9ee5df182f36500",
+    "semantic_hash": "b8eae7e3c3eba5e6f9ee5df182f36500"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\trajectory_ph.py": {
+    "mtime": 1775609419.985836,
+    "ast_hash": "5071e134acded0aeb4b4b5b772ea88b6",
+    "semantic_hash": "5071e134acded0aeb4b4b5b772ea88b6"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\vectorisation.py": {
+    "mtime": 1778703572.103786,
+    "ast_hash": "f1e5cffdb76e3fdd264fec4aa34fac3e",
+    "semantic_hash": "f1e5cffdb76e3fdd264fec4aa34fac3e"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\topology\\zigzag.py": {
+    "mtime": 1775609419.9867146,
+    "ast_hash": "652a9f18b79e6e70f9b2a2e4c43263d5",
+    "semantic_hash": "652a9f18b79e6e70f9b2a2e4c43263d5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\utils\\__init__.py": {
+    "mtime": 1775609419.9873295,
+    "ast_hash": "fe477ac92de227f1e0a0f1deaf6347ba",
+    "semantic_hash": "fe477ac92de227f1e0a0f1deaf6347ba"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\utils\\model_io.py": {
+    "mtime": 1775609419.9878297,
+    "ast_hash": "a1a8f1b61e28ac7a5ba968d4c30c2f1e",
+    "semantic_hash": "a1a8f1b61e28ac7a5ba968d4c30c2f1e"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\validation\\__init__.py": {
+    "mtime": 1775609419.9878297,
+    "ast_hash": "436044dcc74be39d2332444c9d3ab467",
+    "semantic_hash": "436044dcc74be39d2332444c9d3ab467"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\validation\\wasserstein_null_tests.py": {
+    "mtime": 1775609419.9883358,
+    "ast_hash": "06a12a8352d11f234b86f6f39c525017",
+    "semantic_hash": "06a12a8352d11f234b86f6f39c525017"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\validation\\zigzag_null_tests.py": {
+    "mtime": 1775609419.9888363,
+    "ast_hash": "292e8f09e2dd948ca2343ce7e5a19235",
+    "semantic_hash": "292e8f09e2dd948ca2343ce7e5a19235"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\viz\\__init__.py": {
+    "mtime": 1775609419.9888363,
+    "ast_hash": "6567513102d02b541dd6888543c0c0dc",
+    "semantic_hash": "6567513102d02b541dd6888543c0c0dc"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\viz\\constants.py": {
+    "mtime": 1775609419.9888363,
+    "ast_hash": "d0fdb4f677797dcdc87fc712c9161dc6",
+    "semantic_hash": "d0fdb4f677797dcdc87fc712c9161dc6"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\viz\\om_dendrogram_figure.py": {
+    "mtime": 1775609419.989848,
+    "ast_hash": "c513e92bdbe3c6c9fb63afa002546395",
+    "semantic_hash": "c513e92bdbe3c6c9fb63afa002546395"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\viz\\paper_figures.py": {
+    "mtime": 1775609419.9903622,
+    "ast_hash": "aa0202068b04e56283a49878b22f25f5",
+    "semantic_hash": "aa0202068b04e56283a49878b22f25f5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\viz\\phase6_figures.py": {
+    "mtime": 1775609419.9908617,
+    "ast_hash": "8b3ba51c8c2946987748610be42d78a5",
+    "semantic_hash": "8b3ba51c8c2946987748610be42d78a5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\00-orchestration.md": {
+    "mtime": 1775609419.9517612,
+    "ast_hash": "95e4fecf9f36c4dfa87b67a5d4e4c6fb",
+    "semantic_hash": "95e4fecf9f36c4dfa87b67a5d4e4c6fb"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\01-agent-bhps-pipeline.md": {
+    "mtime": 1775609419.9517612,
+    "ast_hash": "ed8e2fd72684dcccb00f363938be8951",
+    "semantic_hash": "ed8e2fd72684dcccb00f363938be8951"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\02-agent-null-compute.md": {
+    "mtime": 1775609419.9522612,
+    "ast_hash": "e7c044557a7648348d3e0624f3867969",
+    "semantic_hash": "e7c044557a7648348d3e0624f3867969"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\03-agent-new-analyses.md": {
+    "mtime": 1775609419.9522612,
+    "ast_hash": "525505c00dcb4a75d5cdedd8bf0ca34f",
+    "semantic_hash": "525505c00dcb4a75d5cdedd8bf0ca34f"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\04-agent-robustness-handoff.md": {
+    "mtime": 1775609419.9527614,
+    "ast_hash": "6ea6007f41a8e0dc96a5ab918eedf7e7",
+    "semantic_hash": "6ea6007f41a8e0dc96a5ab918eedf7e7"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\04-agent-robustness.md": {
+    "mtime": 1775609419.9527614,
+    "ast_hash": "e709e32f68d846d7b2d3463978981ef5",
+    "semantic_hash": "e709e32f68d846d7b2d3463978981ef5"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\05-agent-paper.md": {
+    "mtime": 1775609419.9532614,
+    "ast_hash": "d721587240a57ee83731395fc397beb1",
+    "semantic_hash": "d721587240a57ee83731395fc397beb1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\AGENT3_HANDOFF_AGENT5.md": {
+    "mtime": 1775609419.953755,
+    "ast_hash": "bcce28977b0fecea6f57afb3bdde615f",
+    "semantic_hash": "bcce28977b0fecea6f57afb3bdde615f"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\BHPS_HANDOFF_AGENT5.md": {
+    "mtime": 1775609419.953755,
+    "ast_hash": "430f99c1322f6031b0279eb928431f32",
+    "semantic_hash": "430f99c1322f6031b0279eb928431f32"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\agent-plans\\NULL_COMPUTE_HANDOFF_AGENT5.md": {
+    "mtime": 1775609419.954261,
+    "ast_hash": "aa36fb6a95af649e07c62c493fe1041c",
+    "semantic_hash": "aa36fb6a95af649e07c62c493fe1041c"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\## Key Findings from Results.md": {
+    "mtime": 1775609419.9547613,
+    "ast_hash": "bed00a52403c9d27eb6f01b468fe5ba7",
+    "semantic_hash": "bed00a52403c9d27eb6f01b468fe5ba7"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\analysis\\plan-trajectoryTdaExperimental.md": {
+    "mtime": 1775609419.9587874,
+    "ast_hash": "9a0c961103b972d5ffd60b72f4785aa1",
+    "semantic_hash": "9a0c961103b972d5ffd60b72f4785aa1"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\antigravity docs\\implementation_plan.md": {
+    "mtime": 1775609419.9597821,
+    "ast_hash": "d4e8ccec0907318d77e55f3e80872c75",
+    "semantic_hash": "d4e8ccec0907318d77e55f3e80872c75"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\antigravity docs\\task.md": {
+    "mtime": 1775609419.9602818,
+    "ast_hash": "2899481f6c6e3200df50553502b31dfc",
+    "semantic_hash": "2899481f6c6e3200df50553502b31dfc"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\antigravity docs\\walkthrough.md": {
+    "mtime": 1775609419.9607806,
+    "ast_hash": "b881d267dacadab38a76823b62446408",
+    "semantic_hash": "b881d267dacadab38a76823b62446408"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_nulls_500_output.txt": {
+    "mtime": 1775609419.968299,
+    "ast_hash": "6c2fe7c62335ec5bd05133c657171118",
+    "semantic_hash": "6c2fe7c62335ec5bd05133c657171118"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_pipeline_output.txt": {
+    "mtime": 1775609419.968813,
+    "ast_hash": "346e7b0ff6c356fc99486e07a9749add",
+    "semantic_hash": "346e7b0ff6c356fc99486e07a9749add"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\bhps_tda_output.txt": {
+    "mtime": 1775609419.969806,
+    "ast_hash": "c62e734ee86b123b47cb622ca5791919",
+    "semantic_hash": "c62e734ee86b123b47cb622ca5791919"
+  },
+  "C:\\Users\\steph\\TDL\\trajectory_tda\\scripts\\spanning_output.txt": {
+    "mtime": 1775609419.9828355,
+    "ast_hash": "63e087192094d6c76c913ab0e08a5eff",
+    "semantic_hash": "63e087192094d6c76c913ab0e08a5eff"
+  }
+}

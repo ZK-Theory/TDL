@@ -39,6 +39,33 @@ amendment before dispatch*; (b) the extracted parameters / decision rule /
 outcome-to-prose mapping; (c) the filled `Research Assurance Requirements` block
 ready to paste into the Task Prompt.
 
+## Pre-Dispatch Scoping (No Branch Yet)
+
+When a Manager scopes a task **well before dispatch** — and no task branch exists yet —
+do NOT write contract YAMLs into `contracts/` on `main`. They become orphan files:
+the future worktree (created from committed `main`) will not contain them, and they can
+trip the contract gate.
+
+**Clean path:** embed the complete contract specification **inside the pre-registration**
+as a `planned_contracts` array:
+
+```json
+"planned_contracts": [
+  {
+    "id": "wr-result",
+    "kind": "result",
+    "applies_to": "results/trajectory_tda/*_*.json",
+    "required_keys": {"w2_pvalue": "float", "n_permutations": "int"},
+    "decision_coupling_invariants": ["n_permutations >= 500"],
+    "forbidden_keys": ["synthetic"],
+    "binding_test": {"file": "tests/trajectory_tda/test_result_contract.py", "function": "test_wr_result_schema", "must_assert": true}
+  }
+]
+```
+
+Dispatch becomes mechanical: the Manager materialises the YAMLs from this spec onto
+the task branch at dispatch time. Nothing lands on `main` prematurely.
+
 ## Escalate Or Stop When
 
 - No pre-registration exists for an outcome-contingent run.

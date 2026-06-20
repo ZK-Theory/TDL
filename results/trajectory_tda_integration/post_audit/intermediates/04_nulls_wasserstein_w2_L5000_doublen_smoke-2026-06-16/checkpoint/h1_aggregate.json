@@ -1,0 +1,106 @@
+{
+  "kind": "h1_aggregate",
+  "generated_at": "2026-06-16T06:10:34+00:00",
+  "params": {
+    "n_perms": 4,
+    "n_nullnull": 6,
+    "L": 5000,
+    "seed": 42,
+    "cache_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+    "k_max": 5,
+    "n_points": 200,
+    "aggregate_jobs": 1,
+    "checkpoint_every": 2,
+    "estimate_h0_seconds": 5.0,
+    "estimate_h1_seconds": 9.0
+  },
+  "cell": {
+    "w2_pvalue": 0.2,
+    "pvalue_null_draws": 4,
+    "effect_null_pairs": 6,
+    "landscape_l2_pvalue": 0.2,
+    "t_ratio": 1.3217807608469316,
+    "bca_ci_lower": 1.3154760104686605,
+    "bca_ci_upper": 1.3268559868717553,
+    "d_perm": 84.77874894567836,
+    "mean_obs_null": 235.32989275448128,
+    "mean_null_null": 178.04003487211716,
+    "obs_null_w2_values": [
+      234.77047493353368,
+      234.48259375847837,
+      235.81838193814858,
+      236.24812038776452
+    ],
+    "obs_null_w2_timings": [
+      {
+        "H0_seconds": 0.1520674228668213,
+        "H1_seconds": 0.09062433242797852
+      },
+      {
+        "H0_seconds": 0.07268238067626953,
+        "H1_seconds": 0.07786059379577637
+      },
+      {
+        "H0_seconds": 0.08001971244812012,
+        "H1_seconds": 0.09099030494689941
+      },
+      {
+        "H0_seconds": 0.06763362884521484,
+        "H1_seconds": 0.08295822143554688
+      }
+    ],
+    "null_null_w2_values": [
+      178.2220429788384,
+      178.2220429788384,
+      179.3539115677718,
+      177.44217969856254,
+      177.5578523101291,
+      177.44217969856254
+    ],
+    "null_null_w2_timings": [
+      0.08571791648864746,
+      0.0903465747833252,
+      0.10680890083312988,
+      0.09133601188659668,
+      0.0839223861694336,
+      0.08658027648925781
+    ],
+    "null_null_pair_indices": [
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        3,
+        0
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "pair_draw_seed": 42,
+    "landscape_t_ratio": 3.7996757891558572,
+    "landscape_bca_ci_lower": 3.5162961633516536,
+    "landscape_bca_ci_upper": 4.627115081895801,
+    "landscape_d_perm": 20.451840560728648
+  },
+  "diagnostics": {
+    "obs_null_count": 4,
+    "null_null_pair_draws": 6,
+    "effect_null_pairs": 6,
+    "pvalue_null_pairs": 4
+  }
+}

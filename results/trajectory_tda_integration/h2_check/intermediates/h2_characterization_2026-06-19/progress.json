@@ -1,0 +1,28 @@
+﻿{
+    "schema_version":  "stage1/h2-characterization-progress/v1",
+    "updated_at":  "2026-06-20T19:55:22+00:00",
+    "status":  "cancelled",
+    "run_date":  "2026-06-20",
+    "estimate":  {
+                     "estimated_ph_calls":  6006,
+                     "estimated_observed_calls":  6,
+                     "estimated_null_calls":  6000,
+                     "estimate_seconds_per_observed":  20.0,
+                     "estimate_seconds_per_null":  25.0,
+                     "estimated_wall_seconds":  75120.0,
+                     "estimated_wall_minutes":  1252.0,
+                     "estimated_wall_hours":  20.866666666666667,
+                     "available_memory_gb_at_start":  17.833938598632812,
+                     "note":  "Primary median-pdist B=1000 cells dominate; max/mean B=1000 cells add robustness coverage."
+                 },
+    "completed_cells":  [
+                            {
+                                "L":  200,
+                                "normalizer":  "median-pdist",
+                                "B":  1000,
+                                "role":  "power"
+                            }
+                        ],
+    "cancellation_reason":  "T1.5f prompt corrected on 2026-06-20: no PH recompute and no B=1000 robustness run; use cached B=50 diagrams for old-grid vs corrected-grid landscape comparison.",
+    "cancelled_at":  "2026-06-20T20:08:05+00:00"
+}

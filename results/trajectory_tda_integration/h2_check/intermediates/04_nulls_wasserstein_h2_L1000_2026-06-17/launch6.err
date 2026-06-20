@@ -1,0 +1,356 @@
+2026-06-18 15:33:53,699 INFO Log file: C:\Users\steph\TDL\results\trajectory_tda_integration\h2_check\intermediates\04_nulls_wasserstein_h2_L1000_2026-06-17\run.log
+2026-06-18 15:33:53,720 INFO Loaded checkpoint: 27280 trajectories, 20D embeddings
+2026-06-18 15:33:53,720 INFO Embedding 27280 trajectories...
+2026-06-18 15:33:53,782 INFO   Unigrams: (27280, 9)
+2026-06-18 15:33:53,904 INFO   Bigrams: (27280, 81)
+2026-06-18 15:33:53,904 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:33:53,948 INFO   PCA reduction: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:33:53,948 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:33:53,949 INFO H2 memory preflight: available=10.79 GB estimated_required=7.50 GB n_jobs=1
+2026-06-18 15:33:53,952 INFO H2 observed PH: L=1000 requested_L=2000 maxdim=2
+2026-06-18 15:35:37,638 INFO H2 observed JSON already exists under --resume, preserving: C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\results\trajectory_tda_integration\h2_check\ph_H2_L1000_2026-06-17.json
+2026-06-18 15:35:37,638 INFO H2 observed JSON: C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\results\trajectory_tda_integration\h2_check\ph_H2_L1000_2026-06-17.json
+2026-06-18 15:35:37,648 INFO H2 Markov-1 null: B=50 L=1000 n_jobs=1
+2026-06-18 15:35:37,648 INFO Permutation test: markov, 50 perms, H0-H2, statistic=wasserstein
+2026-06-18 15:35:41,510 INFO   Wasserstein mode: computing W(null, observed) for each permutation
+2026-06-18 15:35:41,520 INFO Loaded permutation checkpoint C:\Users\steph\TDL\results\trajectory_tda_integration\h2_check\intermediates\04_nulls_wasserstein_h2_L1000_2026-06-17\markov1_h2_L1000_B50_seed42.json (2/50)
+2026-06-18 15:35:52,770 INFO Embedding 27280 trajectories...
+2026-06-18 15:35:52,899 INFO   Unigrams: (27280, 9)
+2026-06-18 15:35:53,131 INFO   Bigrams: (27280, 81)
+2026-06-18 15:35:53,131 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:35:53,155 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:35:53,155 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:37:26,601 INFO   permutation 3/50 complete
+2026-06-18 15:37:37,081 INFO Embedding 27280 trajectories...
+2026-06-18 15:37:37,204 INFO   Unigrams: (27280, 9)
+2026-06-18 15:37:37,428 INFO   Bigrams: (27280, 81)
+2026-06-18 15:37:37,429 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:37:37,457 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:37:37,457 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:39:10,657 INFO   permutation 4/50 complete
+2026-06-18 15:39:20,673 INFO Embedding 27280 trajectories...
+2026-06-18 15:39:20,796 INFO   Unigrams: (27280, 9)
+2026-06-18 15:39:21,009 INFO   Bigrams: (27280, 81)
+2026-06-18 15:39:21,010 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:39:21,033 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:39:21,034 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:40:53,080 INFO   permutation 5/50 complete
+2026-06-18 15:41:02,985 INFO Embedding 27280 trajectories...
+2026-06-18 15:41:03,101 INFO   Unigrams: (27280, 9)
+2026-06-18 15:41:03,309 INFO   Bigrams: (27280, 81)
+2026-06-18 15:41:03,309 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:41:03,332 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:41:03,333 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:42:27,976 INFO   permutation 6/50 complete
+2026-06-18 15:42:37,946 INFO Embedding 27280 trajectories...
+2026-06-18 15:42:38,063 INFO   Unigrams: (27280, 9)
+2026-06-18 15:42:38,271 INFO   Bigrams: (27280, 81)
+2026-06-18 15:42:38,271 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:42:38,295 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:42:38,295 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:44:03,885 INFO   permutation 7/50 complete
+2026-06-18 15:44:13,892 INFO Embedding 27280 trajectories...
+2026-06-18 15:44:14,011 INFO   Unigrams: (27280, 9)
+2026-06-18 15:44:14,216 INFO   Bigrams: (27280, 81)
+2026-06-18 15:44:14,217 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:44:14,240 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:44:14,240 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:45:40,772 INFO   permutation 8/50 complete
+2026-06-18 15:45:50,583 INFO Embedding 27280 trajectories...
+2026-06-18 15:45:50,700 INFO   Unigrams: (27280, 9)
+2026-06-18 15:45:50,906 INFO   Bigrams: (27280, 81)
+2026-06-18 15:45:50,906 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:45:50,928 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:45:50,929 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:47:18,118 INFO   permutation 9/50 complete
+2026-06-18 15:47:27,413 INFO Embedding 27280 trajectories...
+2026-06-18 15:47:27,537 INFO   Unigrams: (27280, 9)
+2026-06-18 15:47:27,763 INFO   Bigrams: (27280, 81)
+2026-06-18 15:47:27,763 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:47:27,787 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:47:27,787 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:48:54,910 INFO   permutation 10/50 complete
+2026-06-18 15:49:04,707 INFO Embedding 27280 trajectories...
+2026-06-18 15:49:04,827 INFO   Unigrams: (27280, 9)
+2026-06-18 15:49:05,035 INFO   Bigrams: (27280, 81)
+2026-06-18 15:49:05,035 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:49:05,062 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:49:05,062 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:50:38,166 INFO   permutation 11/50 complete
+2026-06-18 15:50:48,225 INFO Embedding 27280 trajectories...
+2026-06-18 15:50:48,303 INFO   Unigrams: (27280, 9)
+2026-06-18 15:50:48,519 INFO   Bigrams: (27280, 81)
+2026-06-18 15:50:48,519 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:50:48,548 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:50:48,549 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:52:17,186 INFO   permutation 12/50 complete
+2026-06-18 15:52:27,093 INFO Embedding 27280 trajectories...
+2026-06-18 15:52:27,214 INFO   Unigrams: (27280, 9)
+2026-06-18 15:52:27,426 INFO   Bigrams: (27280, 81)
+2026-06-18 15:52:27,426 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:52:27,450 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:52:27,450 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:53:55,435 INFO   permutation 13/50 complete
+2026-06-18 15:54:05,068 INFO Embedding 27280 trajectories...
+2026-06-18 15:54:05,193 INFO   Unigrams: (27280, 9)
+2026-06-18 15:54:05,411 INFO   Bigrams: (27280, 81)
+2026-06-18 15:54:05,411 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:54:05,437 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:54:05,437 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:55:27,000 INFO   permutation 14/50 complete
+2026-06-18 15:55:36,919 INFO Embedding 27280 trajectories...
+2026-06-18 15:55:37,042 INFO   Unigrams: (27280, 9)
+2026-06-18 15:55:37,253 INFO   Bigrams: (27280, 81)
+2026-06-18 15:55:37,253 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:55:37,275 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:55:37,276 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:57:03,390 INFO   permutation 15/50 complete
+2026-06-18 15:57:13,259 INFO Embedding 27280 trajectories...
+2026-06-18 15:57:13,378 INFO   Unigrams: (27280, 9)
+2026-06-18 15:57:13,592 INFO   Bigrams: (27280, 81)
+2026-06-18 15:57:13,593 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:57:13,616 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:57:13,616 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 15:58:36,396 INFO   permutation 16/50 complete
+2026-06-18 15:58:46,949 INFO Embedding 27280 trajectories...
+2026-06-18 15:58:47,076 INFO   Unigrams: (27280, 9)
+2026-06-18 15:58:47,292 INFO   Bigrams: (27280, 81)
+2026-06-18 15:58:47,292 INFO   Raw embedding: (27280, 90)
+2026-06-18 15:58:47,320 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 15:58:47,320 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:00:07,302 INFO   permutation 17/50 complete
+2026-06-18 16:00:17,823 INFO Embedding 27280 trajectories...
+2026-06-18 16:00:17,950 INFO   Unigrams: (27280, 9)
+2026-06-18 16:00:18,185 INFO   Bigrams: (27280, 81)
+2026-06-18 16:00:18,186 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:00:18,209 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:00:18,209 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:01:43,658 INFO   permutation 18/50 complete
+2026-06-18 16:01:53,917 INFO Embedding 27280 trajectories...
+2026-06-18 16:01:54,037 INFO   Unigrams: (27280, 9)
+2026-06-18 16:01:54,254 INFO   Bigrams: (27280, 81)
+2026-06-18 16:01:54,255 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:01:54,281 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:01:54,282 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:03:13,560 INFO   permutation 19/50 complete
+2026-06-18 16:03:23,523 INFO Embedding 27280 trajectories...
+2026-06-18 16:03:23,639 INFO   Unigrams: (27280, 9)
+2026-06-18 16:03:23,859 INFO   Bigrams: (27280, 81)
+2026-06-18 16:03:23,859 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:03:23,882 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:03:23,883 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:04:52,774 INFO   permutation 20/50 complete
+2026-06-18 16:05:02,618 INFO Embedding 27280 trajectories...
+2026-06-18 16:05:02,745 INFO   Unigrams: (27280, 9)
+2026-06-18 16:05:02,952 INFO   Bigrams: (27280, 81)
+2026-06-18 16:05:02,952 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:05:02,975 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:05:02,975 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:06:28,948 INFO   permutation 21/50 complete
+2026-06-18 16:06:39,275 INFO Embedding 27280 trajectories...
+2026-06-18 16:06:39,395 INFO   Unigrams: (27280, 9)
+2026-06-18 16:06:39,618 INFO   Bigrams: (27280, 81)
+2026-06-18 16:06:39,618 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:06:39,643 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:06:39,644 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:08:06,686 INFO   permutation 22/50 complete
+2026-06-18 16:08:16,388 INFO Embedding 27280 trajectories...
+2026-06-18 16:08:16,504 INFO   Unigrams: (27280, 9)
+2026-06-18 16:08:16,708 INFO   Bigrams: (27280, 81)
+2026-06-18 16:08:16,708 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:08:16,731 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:08:16,731 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:09:42,732 INFO   permutation 23/50 complete
+2026-06-18 16:09:52,501 INFO Embedding 27280 trajectories...
+2026-06-18 16:09:52,618 INFO   Unigrams: (27280, 9)
+2026-06-18 16:09:52,821 INFO   Bigrams: (27280, 81)
+2026-06-18 16:09:52,821 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:09:52,846 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:09:52,846 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:11:23,540 INFO   permutation 24/50 complete
+2026-06-18 16:11:33,967 INFO Embedding 27280 trajectories...
+2026-06-18 16:11:34,092 INFO   Unigrams: (27280, 9)
+2026-06-18 16:11:34,301 INFO   Bigrams: (27280, 81)
+2026-06-18 16:11:34,301 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:11:34,326 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:11:34,326 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:12:56,585 INFO   permutation 25/50 complete
+2026-06-18 16:13:06,855 INFO Embedding 27280 trajectories...
+2026-06-18 16:13:06,973 INFO   Unigrams: (27280, 9)
+2026-06-18 16:13:07,182 INFO   Bigrams: (27280, 81)
+2026-06-18 16:13:07,182 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:13:07,206 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:13:07,206 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:14:34,810 INFO   permutation 26/50 complete
+2026-06-18 16:14:44,980 INFO Embedding 27280 trajectories...
+2026-06-18 16:14:45,108 INFO   Unigrams: (27280, 9)
+2026-06-18 16:14:45,332 INFO   Bigrams: (27280, 81)
+2026-06-18 16:14:45,332 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:14:45,356 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:14:45,356 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:16:09,085 INFO   permutation 27/50 complete
+2026-06-18 16:16:18,761 INFO Embedding 27280 trajectories...
+2026-06-18 16:16:18,877 INFO   Unigrams: (27280, 9)
+2026-06-18 16:16:19,081 INFO   Bigrams: (27280, 81)
+2026-06-18 16:16:19,081 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:16:19,103 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:16:19,103 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:17:41,586 INFO   permutation 28/50 complete
+2026-06-18 16:17:51,542 INFO Embedding 27280 trajectories...
+2026-06-18 16:17:51,663 INFO   Unigrams: (27280, 9)
+2026-06-18 16:17:51,882 INFO   Bigrams: (27280, 81)
+2026-06-18 16:17:51,882 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:17:51,905 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:17:51,906 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:19:16,130 INFO   permutation 29/50 complete
+2026-06-18 16:19:26,382 INFO Embedding 27280 trajectories...
+2026-06-18 16:19:26,503 INFO   Unigrams: (27280, 9)
+2026-06-18 16:19:26,714 INFO   Bigrams: (27280, 81)
+2026-06-18 16:19:26,714 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:19:26,741 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:19:26,741 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:20:51,079 INFO   permutation 30/50 complete
+2026-06-18 16:21:01,366 INFO Embedding 27280 trajectories...
+2026-06-18 16:21:01,486 INFO   Unigrams: (27280, 9)
+2026-06-18 16:21:01,721 INFO   Bigrams: (27280, 81)
+2026-06-18 16:21:01,721 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:21:01,747 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:21:01,747 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:22:27,501 INFO   permutation 31/50 complete
+2026-06-18 16:22:37,759 INFO Embedding 27280 trajectories...
+2026-06-18 16:22:37,891 INFO   Unigrams: (27280, 9)
+2026-06-18 16:22:38,109 INFO   Bigrams: (27280, 81)
+2026-06-18 16:22:38,109 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:22:38,134 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:22:38,134 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:24:03,272 INFO   permutation 32/50 complete
+2026-06-18 16:24:13,666 INFO Embedding 27280 trajectories...
+2026-06-18 16:24:13,797 INFO   Unigrams: (27280, 9)
+2026-06-18 16:24:14,006 INFO   Bigrams: (27280, 81)
+2026-06-18 16:24:14,006 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:24:14,029 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:24:14,029 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:25:38,354 INFO   permutation 33/50 complete
+2026-06-18 16:25:48,656 INFO Embedding 27280 trajectories...
+2026-06-18 16:25:48,778 INFO   Unigrams: (27280, 9)
+2026-06-18 16:25:48,991 INFO   Bigrams: (27280, 81)
+2026-06-18 16:25:48,991 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:25:49,018 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:25:49,018 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:27:15,954 INFO   permutation 34/50 complete
+2026-06-18 16:27:25,825 INFO Embedding 27280 trajectories...
+2026-06-18 16:27:25,944 INFO   Unigrams: (27280, 9)
+2026-06-18 16:27:26,160 INFO   Bigrams: (27280, 81)
+2026-06-18 16:27:26,161 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:27:26,185 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:27:26,185 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:28:46,275 INFO   permutation 35/50 complete
+2026-06-18 16:28:56,365 INFO Embedding 27280 trajectories...
+2026-06-18 16:28:56,486 INFO   Unigrams: (27280, 9)
+2026-06-18 16:28:56,699 INFO   Bigrams: (27280, 81)
+2026-06-18 16:28:56,699 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:28:56,726 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:28:56,727 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:30:23,969 INFO   permutation 36/50 complete
+2026-06-18 16:30:34,018 INFO Embedding 27280 trajectories...
+2026-06-18 16:30:34,144 INFO   Unigrams: (27280, 9)
+2026-06-18 16:30:34,351 INFO   Bigrams: (27280, 81)
+2026-06-18 16:30:34,352 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:30:34,375 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:30:34,375 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:32:02,414 INFO   permutation 37/50 complete
+2026-06-18 16:32:12,666 INFO Embedding 27280 trajectories...
+2026-06-18 16:32:12,790 INFO   Unigrams: (27280, 9)
+2026-06-18 16:32:13,018 INFO   Bigrams: (27280, 81)
+2026-06-18 16:32:13,018 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:32:13,043 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:32:13,043 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:33:45,864 INFO   permutation 38/50 complete
+2026-06-18 16:33:56,868 INFO Embedding 27280 trajectories...
+2026-06-18 16:33:56,994 INFO   Unigrams: (27280, 9)
+2026-06-18 16:33:57,212 INFO   Bigrams: (27280, 81)
+2026-06-18 16:33:57,212 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:33:57,237 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:33:57,237 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:35:33,158 INFO   permutation 39/50 complete
+2026-06-18 16:35:44,111 INFO Embedding 27280 trajectories...
+2026-06-18 16:35:44,236 INFO   Unigrams: (27280, 9)
+2026-06-18 16:35:44,477 INFO   Bigrams: (27280, 81)
+2026-06-18 16:35:44,477 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:35:44,503 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:35:44,503 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:37:14,999 INFO   permutation 40/50 complete
+2026-06-18 16:37:24,914 INFO Embedding 27280 trajectories...
+2026-06-18 16:37:25,033 INFO   Unigrams: (27280, 9)
+2026-06-18 16:37:25,240 INFO   Bigrams: (27280, 81)
+2026-06-18 16:37:25,240 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:37:25,263 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:37:25,264 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:38:56,008 INFO   permutation 41/50 complete
+2026-06-18 16:39:06,500 INFO Embedding 27280 trajectories...
+2026-06-18 16:39:06,625 INFO   Unigrams: (27280, 9)
+2026-06-18 16:39:06,861 INFO   Bigrams: (27280, 81)
+2026-06-18 16:39:06,862 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:39:06,886 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:39:06,886 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:40:33,280 INFO   permutation 42/50 complete
+2026-06-18 16:40:43,121 INFO Embedding 27280 trajectories...
+2026-06-18 16:40:43,239 INFO   Unigrams: (27280, 9)
+2026-06-18 16:40:43,446 INFO   Bigrams: (27280, 81)
+2026-06-18 16:40:43,446 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:40:43,475 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:40:43,476 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:42:05,798 INFO   permutation 43/50 complete
+2026-06-18 16:42:15,634 INFO Embedding 27280 trajectories...
+2026-06-18 16:42:15,752 INFO   Unigrams: (27280, 9)
+2026-06-18 16:42:15,959 INFO   Bigrams: (27280, 81)
+2026-06-18 16:42:15,959 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:42:15,982 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:42:15,982 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:43:45,550 INFO   permutation 44/50 complete
+2026-06-18 16:43:55,580 INFO Embedding 27280 trajectories...
+2026-06-18 16:43:55,697 INFO   Unigrams: (27280, 9)
+2026-06-18 16:43:55,906 INFO   Bigrams: (27280, 81)
+2026-06-18 16:43:55,906 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:43:55,929 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:43:55,929 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:45:14,300 INFO   permutation 45/50 complete
+2026-06-18 16:45:23,521 INFO Embedding 27280 trajectories...
+2026-06-18 16:45:23,641 INFO   Unigrams: (27280, 9)
+2026-06-18 16:45:23,865 INFO   Bigrams: (27280, 81)
+2026-06-18 16:45:23,865 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:45:23,894 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:45:23,895 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:46:49,136 INFO   permutation 46/50 complete
+2026-06-18 16:46:59,063 INFO Embedding 27280 trajectories...
+2026-06-18 16:46:59,180 INFO   Unigrams: (27280, 9)
+2026-06-18 16:46:59,390 INFO   Bigrams: (27280, 81)
+2026-06-18 16:46:59,390 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:46:59,414 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:46:59,414 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:48:30,720 INFO   permutation 47/50 complete
+2026-06-18 16:48:40,655 INFO Embedding 27280 trajectories...
+2026-06-18 16:48:40,783 INFO   Unigrams: (27280, 9)
+2026-06-18 16:48:40,993 INFO   Bigrams: (27280, 81)
+2026-06-18 16:48:40,993 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:48:41,016 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:48:41,016 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:50:07,478 INFO   permutation 48/50 complete
+2026-06-18 16:50:17,425 INFO Embedding 27280 trajectories...
+2026-06-18 16:50:17,559 INFO   Unigrams: (27280, 9)
+2026-06-18 16:50:17,770 INFO   Bigrams: (27280, 81)
+2026-06-18 16:50:17,770 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:50:17,793 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:50:17,793 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:51:47,983 INFO   permutation 49/50 complete
+2026-06-18 16:51:57,929 INFO Embedding 27280 trajectories...
+2026-06-18 16:51:58,047 INFO   Unigrams: (27280, 9)
+2026-06-18 16:51:58,254 INFO   Bigrams: (27280, 81)
+2026-06-18 16:51:58,254 INFO   Raw embedding: (27280, 90)
+2026-06-18 16:51:58,278 INFO   Frozen PCA transform: (27280, 20) (explained variance: 0.488)
+2026-06-18 16:51:58,278 INFO   Final: 27280 points x 20 dims (method=pca)
+2026-06-18 16:53:23,307 INFO   permutation 50/50 complete
+2026-06-18 16:56:35,752 INFO   H0: mean_W(obs,null)=57.8102, mean_W(null,null)=3.8937, T_ratio=14.8472, p=0.0000
+2026-06-18 16:59:52,594 INFO   H1: mean_W(obs,null)=23.0648, mean_W(null,null)=3.1385, T_ratio=7.3490, p=0.0000
+2026-06-18 17:02:57,870 INFO   H2: mean_W(obs,null)=11.2130, mean_W(null,null)=2.1727, T_ratio=5.1609, p=0.0000
+2026-06-18 17:02:57,890 INFO H2 null JSON: C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\results\trajectory_tda_integration\h2_check\04_nulls_wasserstein_h2_L1000_2026-06-17.json

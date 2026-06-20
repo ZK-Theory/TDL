@@ -1,0 +1,24 @@
+2026-06-18 11:43:15,610 INFO Log file: C:\Users\steph\TDL\results\trajectory_tda_integration\h2_check\intermediates\04_nulls_wasserstein_h2_L1000_2026-06-17\run.log
+2026-06-18 11:43:15,634 INFO Loaded checkpoint: 27280 trajectories, 20D embeddings
+2026-06-18 11:43:15,634 INFO Embedding 27280 trajectories...
+2026-06-18 11:43:15,696 INFO   Unigrams: (27280, 9)
+2026-06-18 11:43:15,819 INFO   Bigrams: (27280, 81)
+2026-06-18 11:43:15,819 INFO   Raw embedding: (27280, 90)
+2026-06-18 11:43:15,868 INFO   PCA reduction: (27280, 20) (explained variance: 0.488)
+2026-06-18 11:43:15,868 INFO   Final: 27280 points x 20 dims (method=pca)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 1260, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 1245, in main
+    run_h2(args)
+    ~~~~~~^^^^^^
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 387, in run_h2
+    memory_preflight = _h2_memory_preflight(args)
+  File "C:\Users\steph\TDL\.apm\worktrees\run-h2-positive-control\trajectory_tda\scripts\run_t1_5_diagnostics.py", line 191, in _h2_memory_preflight
+    raise MemoryError(
+    ...<4 lines>...
+    )
+MemoryError: H2 null memory preflight failed: n_jobs=1 needs about 7.50 GB (5.50 GB/worker plus 2.00 GB reserve), but only 6.49 GB is currently available.
