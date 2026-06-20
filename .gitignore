@@ -131,6 +131,7 @@ papers/submission guidelines/
 # Gitignore runtime traffic and Worker Task Logs to keep main free of coordination churn.
 .apm/bus/
 .apm/memory/stage-*/
+.apm/memory/handoffs/
 .apm/worktrees/
 
 # Test-generated pending-contract reports (auto-regenerated each test run,
@@ -142,7 +143,8 @@ papers/submission guidelines/
 # `C:\Users\steph\Documents\TDA-Research\` for direct content access from
 # the repo (Edit/Read against vault/<path> rather than vault_get through
 # the vault-engine MCP). Machine-local setup; not for commit.
-vault/
+# Anchored to repo root so it does NOT also ignore scripts/vault/ (tracked).
+/vault/
 
 # Stage-1 battery gitignored intermediates (T0.12 two-path rule)
 # - launches/ : PID markers written before any heavy work (launch ground truth)
@@ -151,6 +153,14 @@ vault/
 results/trajectory_tda_integration/stage1/launches/
 results/trajectory_tda_integration/stage1/cache/
 results/**/.partial/
+# - per-task checkpoint/resume dirs under stage1/ (regenerable intermediates;
+#   deliverable JSONs live under their own results/ paths and are committed)
+results/trajectory_tda_integration/stage1/bhps_nonoverlap_reanalysis/
+
+# - markov2 alpha-sweep per-cell checkpoints + status files (T1.8 intermediates;
+#   the committed summary JSON embeds every per-cell result inline)
+results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_*.json
+results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_*.status.json
 
 # repomix dump (regenerable; 108MB blob was rejected by GitHub LFS limit
 # in commit 52af787 and removed from history via filter-repo 2026-05-22)

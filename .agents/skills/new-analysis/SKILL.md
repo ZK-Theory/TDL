@@ -1,3 +1,8 @@
+---
+name: new-analysis
+description: Use when starting a new computational TDA analysis for a paper — scaffolds the data → topology → analysis structure, output paths, and logging conventions for the research programme.
+---
+
 # /new-analysis — Start a New TDA Analysis
 
 Scaffold and run a new computational analysis for a paper in the research programme.

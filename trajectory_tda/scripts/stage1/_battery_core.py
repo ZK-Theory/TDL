@@ -463,6 +463,7 @@ def run_headline_from_embeddings(
     n_jobs: int = 4,
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
+    alpha: float = 1.0,
     frozen_models: dict[str, Any] | None = None,
     dedup_length_matched: bool = False,
     probe_symmetric_dedup: bool = False,
@@ -491,6 +492,7 @@ def run_headline_from_embeddings(
         n_jobs: Permutation parallelism (locked to 4 at L >= 2000 per OOM finding).
         n_null_pairs_cap: Cap on null-null symmetric pairs (default 500).
         markov_order: Markov order ``k`` of the permutation null (default 1).
+        alpha: Laplace smoothing parameter forwarded to Markov-2 null draws.
         frozen_models: Optional fitted-model bundle forwarded into trajectory-level null embeddings.
         dedup_length_matched: When True, observed and null PDs are computed via
             ``ripser.ripser(..., n_perm=N)`` with N determined by
@@ -532,9 +534,20 @@ def run_headline_from_embeddings(
     )
 
     t_phase = time.time()
-    write_status(f"PHASE {label} START", f"L={n_landmarks} B={n_permutations} n_jobs={n_jobs}")
+    write_status(
+        f"PHASE {label} START",
+        f"L={n_landmarks} B={n_permutations} n_jobs={n_jobs} markov_order={markov_order} alpha={alpha}",
+    )
     logger.info("=" * 70)
-    logger.info("[PHASE %s] start (L=%d, B=%d, n_jobs=%d)", label, n_landmarks, n_permutations, n_jobs)
+    logger.info(
+        "[PHASE %s] start (L=%d, B=%d, n_jobs=%d, markov_order=%d, alpha=%s)",
+        label,
+        n_landmarks,
+        n_permutations,
+        n_jobs,
+        markov_order,
+        alpha,
+    )
     logger.info("=" * 70)
 
     n = embeddings.shape[0]
@@ -633,6 +646,7 @@ def run_headline_from_embeddings(
                 "wasserstein",
                 markov_order,
                 embed_kwargs,
+                alpha=alpha,
                 frozen_models=frozen_models,
                 ph_observed=ph_obs,
                 dedup=dedup_length_matched,
@@ -744,6 +758,7 @@ def run_headline(
     n_jobs: int = 4,
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
+    alpha: float = 1.0,
     frozen_loadings: bool = False,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Run a headline dataset W2 + landscape L2 battery.
@@ -795,6 +810,7 @@ def run_headline(
         n_jobs=n_jobs,
         n_null_pairs_cap=n_null_pairs_cap,
         markov_order=markov_order,
+        alpha=alpha,
         frozen_models=frozen_models,
     )
 

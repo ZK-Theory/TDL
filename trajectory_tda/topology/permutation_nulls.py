@@ -116,17 +116,16 @@ def _resolve_landmark_normalizer(
 
 def _ph_provenance(ph: PHResult) -> dict[str, Any]:
     return {
-        "ph_method": ph.ph_method,
-        "do_cocycles": bool(ph.do_cocycles),
-        "threshold_rule": ph.threshold_rule,
-        "threshold_value": ph.threshold_value,
-        "edge_prop_at_thresh": ph.edge_prop_at_thresh,
-        "candidate_tetrahedra_burden": ph.candidate_tetrahedra_burden,
-        "wall_time_seconds": float(ph.elapsed_seconds),
-        "backend_versions": dict(ph.backend_versions),
-        "preflight": dict(ph.preflight),
+        "ph_method": getattr(ph, "ph_method", "unknown"),
+        "do_cocycles": bool(getattr(ph, "do_cocycles", False)),
+        "threshold_rule": getattr(ph, "threshold_rule", None),
+        "threshold_value": getattr(ph, "threshold_value", None),
+        "edge_prop_at_thresh": getattr(ph, "edge_prop_at_thresh", None),
+        "candidate_tetrahedra_burden": getattr(ph, "candidate_tetrahedra_burden", None),
+        "wall_time_seconds": float(getattr(ph, "elapsed_seconds", 0.0)),
+        "backend_versions": dict(getattr(ph, "backend_versions", {})),
+        "preflight": dict(getattr(ph, "preflight", {})),
     }
-
 
 def _normalise_cohort_label(value: object) -> str:
     """Map missing cohort labels to a stable string bucket."""
@@ -247,7 +246,7 @@ def _markov_shuffle(
     For Markov-2, conditional probabilities are smoothed with Laplace smoothing:
     P(s_t | s_{t-2}, s_{t-1}) = (count(s_{t-2}, s_{t-1}, s_t) + alpha) /
                                   (sum_s count(s_{t-2}, s_{t-1}, s) + alpha * n_states)
-    Unobserved bigrams receive uniform probability (alpha / alpha * n_states = 1/n_states).
+    Unobserved bigrams receive uniform probability (alpha / (alpha * n_states) = 1/n_states).
 
     Args:
         trajectories: Raw state sequences.
@@ -257,7 +256,13 @@ def _markov_shuffle(
         alpha: Laplace smoothing parameter for Markov-2 conditional probabilities.
             Default 1 (add-one smoothing). Use alpha=0 to recover raw MLE.
         frozen_models: Optional fitted-model bundle from ngram_embed()[1]["fitted_models"].
+
+    Raises:
+        ValueError: If ``alpha`` is negative (invalid Laplace smoothing).
     """
+    if alpha < 0:
+        raise ValueError(f"alpha must be non-negative for Markov smoothing, got {alpha}")
+
     state_to_idx = {s: i for i, s in enumerate(STATES)}
     n_states = len(STATES)
 
@@ -627,6 +632,7 @@ def _single_permutation(
     statistic: str,
     markov_order: int,
     embed_kwargs: dict | None,
+    alpha: float = 1.0,
     frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
     dedup: bool = False,
@@ -671,7 +677,14 @@ def _single_permutation(
     elif null_type == "order_shuffle":
         X_perm = _order_shuffle(trajectories or [], rng, embed_kwargs, frozen_models)
     elif null_type == "markov":
-        X_perm = _markov_shuffle(trajectories or [], rng, markov_order, embed_kwargs, frozen_models=frozen_models)
+        X_perm = _markov_shuffle(
+            trajectories or [],
+            rng,
+            markov_order,
+            embed_kwargs,
+            alpha=alpha,
+            frozen_models=frozen_models,
+        )
     elif null_type == "stratified_markov1":
         regime_labels = (metadata or {}).get("regime_labels")
         if regime_labels is None:
@@ -724,17 +737,17 @@ def _single_permutation(
         normalize_landmarks_by_median_pdist,
         landmark_normalizer,
     )
-    scale_value = _pairwise_distance_scale(landmarks_for_ph, resolved_normalizer)
     normalization = {
         "enabled": resolved_normalizer != "none",
         "normalizer": resolved_normalizer,
         "scale": _NORMALIZER_SCALE_LABELS[resolved_normalizer],
-        "scale_value": float(scale_value),
+        "scale_value": None,
         "landmark_count_for_scale": int(landmarks_for_ph.shape[0]),
     }
     if resolved_normalizer != "none":
+        scale_value = _pairwise_distance_scale(landmarks_for_ph, resolved_normalizer)
+        normalization["scale_value"] = float(scale_value)
         landmarks_for_ph = landmarks_for_ph / scale_value
-
     runtime_ph_kwargs: dict[str, Any] = dict(ph_kwargs or {})
     runtime_ph_kwargs.setdefault("max_dim", max_dim)
     if pinned_thresh is not None:
@@ -803,6 +816,7 @@ def _single_permutation_indexed(
     markov_order: int,
     embed_kwargs: dict | None,
     *,
+    alpha: float = 1.0,
     frozen_models: dict | None = None,
     ph_observed: PHResult | None = None,
     ph_kwargs: dict[str, Any] | None = None,
@@ -819,6 +833,7 @@ def _single_permutation_indexed(
         statistic,
         markov_order,
         embed_kwargs,
+        alpha=alpha,
         frozen_models=frozen_models,
         ph_observed=ph_observed,
         ph_kwargs=ph_kwargs,
@@ -845,6 +860,7 @@ def permutation_test_trajectories(
     n_landmarks: int = 5000,
     statistic: str = "total_persistence",
     markov_order: int = 1,
+    alpha: float = 1.0,
     n_jobs: int = -1,
     seed: int = 42,
     embed_kwargs: dict | None = None,
@@ -869,6 +885,7 @@ def permutation_test_trajectories(
         n_landmarks: Landmarks for subsampling
         statistic: 'total_persistence', 'max_persistence', or 'wasserstein'
         markov_order: Order for Markov null (1 or 2)
+        alpha: Laplace smoothing parameter for Markov-2 nulls
         n_jobs: Number of parallel jobs (-1 = all cores)
         seed: Random seed base
         embed_kwargs: Kwargs passed to ngram_embed for re-embedding nulls
@@ -922,6 +939,7 @@ def permutation_test_trajectories(
         "n_landmarks": int(actual_lm),
         "statistic": statistic,
         "markov_order": int(markov_order),
+        "alpha": float(alpha),
         "seed": int(seed),
         "ph_kwargs": _jsonable(runtime_ph_kwargs),
     }
@@ -977,6 +995,7 @@ def permutation_test_trajectories(
                     statistic,
                     markov_order,
                     embed_kwargs,
+                    alpha=alpha,
                     frozen_models=frozen_models,
                     ph_observed=ph_obs if statistic == "wasserstein" else None,
                     ph_kwargs=runtime_ph_kwargs,

@@ -28,6 +28,7 @@ import re
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -69,7 +70,28 @@ for _candidate in _QMD_JS_CANDIDATES:
         QMD_JS = str(_candidate)
         break
 
-QMD_ENV = {**os.environ, "LLAMA_CUDA": "0", "NODE_LLAMA_CPP_GPU": "false"}
+# QMD stores its index under $XDG_CACHE_HOME/qmd. This MCP server is launched
+# as a subprocess with HOME unset and no XDG_CACHE_HOME, so without this QMD
+# falls back to /tmp/.cache (empty) and every search returns "No results found".
+# Point it at the populated index (~/.cache/qmd), respecting an explicit override.
+#
+# GPU is controlled by QMD_LLAMA_GPU (NOT LLAMA_CUDA / NODE_LLAMA_CPP_GPU, which
+# QMD ignores). Force CPU: QMD's embedBatch runs concurrent inference across
+# multiple CUDA contexts, which node-llama-cpp's CUDA backend aborts on
+# (ggml-cuda.cu GGML_ABORT). The primary search path is BM25, which loads no
+# model at all, so CPU here costs nothing for interactive queries.
+try:
+    _DEFAULT_CACHE = str(Path.home() / ".cache")
+except RuntimeError:
+    # Path.home() raises if no home directory can be resolved (e.g. both HOME
+    # and USERPROFILE unset). Fall back to the system temp dir so the server
+    # still starts; an explicit XDG_CACHE_HOME override still takes precedence.
+    _DEFAULT_CACHE = str(Path(tempfile.gettempdir()) / ".cache")
+QMD_ENV = {
+    **os.environ,
+    "XDG_CACHE_HOME": os.environ.get("XDG_CACHE_HOME", _DEFAULT_CACHE),
+    "QMD_LLAMA_GPU": os.environ.get("QMD_LLAMA_GPU", "false"),
+}
 
 
 # ── Database layer ──────────────────────────────────────────────────
@@ -216,11 +238,51 @@ def _rebuild_index(conn: sqlite3.Connection) -> dict:
     return stats
 
 
+# How often (seconds) to run `qmd update` from a tool call. Keeps the BM25
+# full-text index fresh per-session; embedding refresh is left to the
+# scheduled refresh_index.py job (it is slow and runs on CPU).
+QMD_REFRESH_INTERVAL = float(os.environ.get("VAULT_ENGINE_QMD_REFRESH_SEC", "3600"))
+# Hard cap (seconds) on the in-tool `qmd update` subprocess. Default 60 is ample
+# for the ~2s re-index; raise via env if a very large vault needs more headroom.
+QMD_UPDATE_TIMEOUT = int(os.environ.get("VAULT_ENGINE_QMD_UPDATE_TIMEOUT", "60"))
+
+
+def _maybe_refresh_qmd(conn: sqlite3.Connection) -> None:
+    """Run `qmd update` at most once per QMD_REFRESH_INTERVAL.
+
+    `qmd update` re-indexes changed markdown into QMD's full-text store
+    (~2s) so BM25 search reflects recent vault edits without waiting for the
+    scheduled job. Throttled via the meta table; non-fatal and best-effort.
+    """
+    if not QMD_JS:
+        return
+    row = conn.execute("SELECT value FROM meta WHERE key='last_qmd_update'").fetchone()
+    now = time.time()
+    if row and (now - float(row[0])) < QMD_REFRESH_INTERVAL:
+        return
+    try:
+        subprocess.run(
+            ["node", QMD_JS, "update"],
+            capture_output=True,
+            timeout=QMD_UPDATE_TIMEOUT,
+            env=QMD_ENV,
+            encoding="utf-8",
+            errors="replace",
+        )
+        _log("qmd update completed")
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        _log(f"qmd update skipped: {exc}")
+    # Record the attempt either way so failures don't retry on every call.
+    conn.execute("INSERT OR REPLACE INTO meta VALUES ('last_qmd_update', ?)", (str(now),))
+    conn.commit()
+
+
 def _ensure_index() -> sqlite3.Connection:
     """Get a connection with a fresh-enough index."""
     conn = _ensure_db()
     if _needs_rebuild(conn):
         _rebuild_index(conn)
+    _maybe_refresh_qmd(conn)
     return conn
 
 
@@ -302,21 +364,23 @@ def _qmd_search(query: str, collection: str | None = None, n: int = 10) -> list[
 
 
 def _qmd_query(query: str, collection: str | None = None, n: int = 10) -> list[dict]:
-    """Hybrid search via QMD CLI (BM25 + vector, no reranker).
+    """Search via QMD CLI. BM25 (`qmd search`) is the primary path.
 
-    The Qwen3-Reranker-0.6B GGUF crashes with STATUS_STACK_BUFFER_OVERRUN
-    on Windows (node-llama-cpp NAPI binding issue). Skip it — the RRF
-    fusion of BM25 + vector scores is good enough for ~300 documents.
-    Falls back to BM25-only search if hybrid also fails.
+    BM25 loads no model — it is ~0.5s and strong for a ~600-document vault,
+    where the vault-engine value-add is the wikilink-graph expansion layered
+    on top of the hits. Hybrid (`qmd query`) is avoided by default: it loads
+    the 1.7B expansion model (slow on CPU) and the embedding model, and QMD's
+    GPU paths abort (see QMD_ENV note). Set VAULT_ENGINE_HYBRID=1 to opt into
+    hybrid; it still falls back to BM25 on failure.
     """
-    args = ["query", query, "--json", "-n", str(n), "--no-rerank"]
-    if collection:
-        args.extend(["-c", collection])
-    results = _qmd_cmd(args, timeout=30)
-    if results:
-        return results
-    # Fallback to BM25-only search
-    _log("QMD query failed, falling back to BM25 search")
+    if os.environ.get("VAULT_ENGINE_HYBRID") == "1":
+        args = ["query", query, "--json", "-n", str(n), "--no-rerank"]
+        if collection:
+            args.extend(["-c", collection])
+        results = _qmd_cmd(args, timeout=30)
+        if results:
+            return results
+        _log("QMD hybrid query failed, falling back to BM25 search")
     return _qmd_search(query, collection=collection, n=n)
 
 

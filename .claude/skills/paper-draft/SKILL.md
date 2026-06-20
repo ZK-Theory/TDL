@@ -1,3 +1,8 @@
+---
+name: paper-draft
+description: Use when starting or continuing a paper draft — loads _project.md status and open items, reads the current draft, and enforces the versioned vN-YYYY-MM draft convention (never overwrite a previous draft).
+---
+
 # /paper-draft — Start or Continue a Paper Draft
 
 Create or update a paper draft following the programme structure.

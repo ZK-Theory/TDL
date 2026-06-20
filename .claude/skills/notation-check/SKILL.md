@@ -1,3 +1,8 @@
+---
+name: notation-check
+description: Run after every prose change to a paper draft — compares the draft against papers/shared/notation.md and flags symbol drift (wrong Wasserstein subscripts, divergent persistence-diagram symbols, unlabelled filtration scales, cross-paper leakage).
+---
+
 # /notation-check — Check Paper Draft Against Notation Standard
 
 Compare a paper draft against `papers/shared/notation.md` and flag symbol drift.

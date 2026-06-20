@@ -1,0 +1,131 @@
+{
+  "schema_version": "strand-attribution-probe/v1",
+  "generated_at": "2026-06-17T05:09:28.192990+00:00",
+  "task": "T-STRAND-1 Tier-1 attribution probe (reuse-path)",
+  "git_head": "800b200cc10a1890775d68431c7fcfe3cb27abb5",
+  "inputs": {
+    "usoc_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+    "bhps_variants": {
+      "raw": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz",
+      "length_matched": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_B1000_L5000_seed42_2026-05-30.npz",
+      "non_overlap": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz"
+    }
+  },
+  "params": {
+    "B": 1000,
+    "seed": 42,
+    "effect_size": "probability_of_superiority A = P(USoc>BHPS)",
+    "decision_rule": "robust: both matched A>=0.70 and log-rank rejects; attenuated: A in [0.55,0.70) and rejects; collapsed: any matched A<0.55 or no rejection. Tier-2 recommended unless H0 collapsed.",
+    "no_new_persistent_homology": true
+  },
+  "contrasts": {
+    "raw": {
+      "control": "none (baseline)",
+      "dims": {
+        "h0": {
+          "n_usoc": 4999,
+          "n_bhps": 4970,
+          "median_usoc": 3.4829108715057373,
+          "median_bhps": 1.4507633447647095,
+          "mean_usoc": 4.0972563015696855,
+          "mean_bhps": 2.1224342795684783,
+          "prob_superiority_usoc_gt_bhps": 0.8408581716343269,
+          "logrank_stat": -42.30498863822791,
+          "logrank_p": 0.000999000999000999,
+          "rejects": true
+        },
+        "h1": {
+          "n_usoc": 6004,
+          "n_bhps": 3458,
+          "median_usoc": 0.301372766494751,
+          "median_bhps": 0.16345739364624023,
+          "mean_usoc": 0.37613848564546953,
+          "mean_bhps": 0.23960175750019785,
+          "prob_superiority_usoc_gt_bhps": 0.6408775246808663,
+          "logrank_stat": -22.792171703945794,
+          "logrank_p": 0.000999000999000999,
+          "rejects": true
+        }
+      }
+    },
+    "length_matched": {
+      "control": "trajectory observation horizon (truncate to USoc)",
+      "dims": {
+        "h0": {
+          "n_usoc": 4999,
+          "n_bhps": 4828,
+          "median_usoc": 3.4829108715057373,
+          "median_bhps": 1.312320590019226,
+          "mean_usoc": 4.0972563015696855,
+          "mean_bhps": 2.0063722372964,
+          "prob_superiority_usoc_gt_bhps": 0.8454102999556,
+          "logrank_stat": -43.1535410762807,
+          "logrank_p": 0.000999000999000999,
+          "rejects": true
+        },
+        "h1": {
+          "n_usoc": 6004,
+          "n_bhps": 3146,
+          "median_usoc": 0.301372766494751,
+          "median_bhps": 0.16899532079696655,
+          "mean_usoc": 0.37613848564546953,
+          "mean_bhps": 0.2559209655915865,
+          "prob_superiority_usoc_gt_bhps": 0.629014832451178,
+          "logrank_stat": -18.496796091611984,
+          "logrank_p": 0.000999000999000999,
+          "rejects": true
+        }
+      }
+    },
+    "non_overlap": {
+      "control": "BHPS sample size / wave overlap",
+      "dims": {
+        "h0": {
+          "n_usoc": 4999,
+          "n_bhps": 2440,
+          "median_usoc": 3.4829108715057373,
+          "median_bhps": 1.244711995124817,
+          "mean_usoc": 4.0972563015696855,
+          "mean_bhps": 1.8706630336072894,
+          "prob_superiority_usoc_gt_bhps": 0.8481722574023002,
+          "logrank_stat": -39.5246253495123,
+          "logrank_p": 0.000999000999000999,
+          "rejects": true
+        },
+        "h1": {
+          "n_usoc": 6004,
+          "n_bhps": 1181,
+          "median_usoc": 0.301372766494751,
+          "median_bhps": 0.180084228515625,
+          "mean_usoc": 0.37613848564546953,
+          "mean_bhps": 0.26316785040192436,
+          "prob_superiority_usoc_gt_bhps": 0.618205489312516,
+          "logrank_stat": -12.29184891836868,
+          "logrank_p": 0.000999000999000999,
+          "rejects": true
+        }
+      }
+    }
+  },
+  "decision": {
+    "h0": {
+      "a_raw": 0.8408581716343269,
+      "per_control": {
+        "length_matched": "robust",
+        "non_overlap": "robust"
+      },
+      "overall": "robust"
+    },
+    "h1": {
+      "a_raw": 0.6408775246808663,
+      "per_control": {
+        "length_matched": "attenuated",
+        "non_overlap": "attenuated"
+      },
+      "overall": "attenuated"
+    },
+    "tier2_recommended": true,
+    "rationale": "H0 shift is 'robust' under horizon- and size-matching. Horizon and BHPS-size are not the (sole) driver; the remaining USoc-scale / landmark-fraction confound is worth resolving -> Tier 2 (USoc-downsample control + matched-B power) is justified."
+  },
+  "wall_time_seconds": 18.0
+}

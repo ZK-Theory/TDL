@@ -1,0 +1,20 @@
+scope_id: T1.26
+scope_description: >
+  BHPS non-overlap sensitivity for P01-A reviewer-response section 6.2:
+  exclude BHPS individuals who also appear in USoc, refit the k=8 GMM on the
+  BHPS-only remainder under full-BHPS frozen PCA loadings, rerun the canonical
+  Stage-1 persistence headline, and map the result to the pre-registered
+  supported versus overlap_dependent decision rule.
+authored: "2026-06-08"
+authored_by: "Manager 9 (wave-2 batch-1 dispatch)"
+
+contracts:
+  - panel-output-schemas/bhps-nonoverlap-output
+  - panel-output-schemas/bhps-nonoverlap-output-json-validation
+
+notes: >
+  Contracts are Manager-authored and pending before Worker execution. The
+  Worker must implement the binding tests in
+  tests/panel/test_bhps_nonoverlap_contracts.py and clear pending only after
+  the binding tests exist and pass. If binding implementation is blocked, the
+  Worker reports Partial and leaves the result unaccepted for paper claims.

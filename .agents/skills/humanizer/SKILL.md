@@ -1,3 +1,8 @@
+---
+name: humanizer
+description: Final-pass gate before a paper draft is marked review-ready or submitted — removes AI writing tells from academic prose while preserving the scholarly register. Run at v2/v3 completion, not per-section.
+---
+
 # /humanizer — Academic Writing Anti-AI Pass
 
 Remove AI writing tells from academic paper drafts. Optimised for TDA/social science papers in this research programme.

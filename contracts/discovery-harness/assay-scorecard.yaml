@@ -1,0 +1,69 @@
+id: assay-scorecard
+kind: schema
+pending: false
+
+description: >
+  Schema for the Discovery Harness Assay machine-readable scorecard block.
+  It pins the topology-earns-its-keep gate, the 0-3 data-feasibility and
+  novelty axes, and the PROMOTE/PARK/KILL decision rule before any candidate
+  can proceed to a Spike.
+
+spec_citation:
+  source: "Discovery-Harness-Plan-16-06-2026 section 5 and section 2a OQ1 resolution"
+  vault_entry_date: "2026-06-16"
+
+schema_def:
+  applies_to: "YAML assay_scorecard fenced block embedded in vault/00-Meta/Discovery/<slug>.md"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'discovery/assay-scorecard/v1'."
+    - name: candidate_id
+      type: str
+      description: "Stable source identifier, such as an arXiv ID, DOI, or local candidate ID."
+    - name: candidate_slug
+      type: str
+      description: "Vault-note slug for the assayed candidate."
+    - name: assayed_at
+      type: str
+      description: "ISO date on which the Assay judgment was produced."
+    - name: source
+      type: str
+      description: "Source inbox/backlog entry that nominated this candidate for Assay."
+    - name: axis1_topology_gate
+      type: "dict[str, ...]"
+      description: >
+        Hard gate. MUST contain passes (bool), metric_space, feature_claim_map,
+        reducible_to_baseline (bool), named_baseline, and adversarial_null.
+        A failing gate MUST produce KILL, and PROMOTE requires passes == true.
+    - name: axis2_data_feasibility
+      type: "dict[str, ...]"
+      description: "MUST contain score as an integer in [0, 3] and a non-empty rationale."
+    - name: axis3_novelty_publishability
+      type: "dict[str, ...]"
+      description: "MUST contain score as an integer in [0, 3] and a non-empty rationale."
+    - name: decision
+      type: str
+      description: >
+        MUST be one of PROMOTE, PARK, or KILL. PROMOTE iff Axis-1 passes and
+        Axis2 + Axis3 >= 4 with neither scored 0.
+    - name: decision_rationale
+      type: str
+      description: "Short rationale tying the decision to the gate and scored axes."
+    - name: next
+      type: str
+      description: "Next harness action; PROMOTE scorecards MUST set this to '/spike'."
+  forbidden_keys:
+    - name: programme_fit
+      reason: "Discovery-Harness D2 deliberately excludes programme-fit from viability scoring."
+
+binding:
+  test_file: "tests/discovery/test_assay_scorecard_contract.py"
+  test_function: "test_assay_scorecard_schema_rejects_invalid_decision_logic"
+  must_assert: >
+    The validator accepts a conforming scorecard and rejects scorecards where
+    (a) Axis-1 gate failure is paired with PROMOTE; (b) Axis 2 or Axis 3
+    scores are non-integers or outside [0, 3]; (c) PROMOTE is emitted while
+    Axis2 + Axis3 < 4 or either score is 0; (d) the Axis-1 metric space,
+    feature-claim mapping, named baseline, or adversarial null is blank; or
+    (e) a programme_fit score is present.

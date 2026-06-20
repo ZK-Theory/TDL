@@ -43,6 +43,14 @@ USOC_N = 27280
 MAPPER_THRESHOLDS = [1.0, 1.5, 2.0]
 MARKOV_ALPHAS = [0, 0.5, 1, 5]
 MARKOV_DATASETS = ["usoc", "bhps"]
+MARKOV_ORDER = 2
+MARKOV_PRIMARY_DIM = "h1"
+MARKOV_DIMS = ["h0", "h1"]
+MARKOV_DEFAULT_B = 1000
+MARKOV_DEFAULT_L = 5000
+MARKOV_DEFAULT_N_NULL_PAIRS = 500
+MARKOV_DEFAULT_K_MAX = 5
+MARKOV_DEFAULT_N_POINTS = 200
 PRE_REGISTRATION = "2026-06-07 Stage-1 auxiliary-diagnostics pre-registration"
 
 
@@ -71,6 +79,29 @@ def _write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> Path:
         raise FileExistsError(f"refusing to overwrite existing result JSON: {path}")
     path.write_text(json.dumps(_jsonable(payload), indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def _repo_relpath(path: Path | str, root: Path) -> str:
+    """Reduce an absolute path to a repo-relative POSIX string.
+
+    Committed result JSONs must not embed machine-specific absolute paths (they
+    leak the local user directory and break portability). Paths under ``root``
+    are returned relative to it with forward slashes; paths outside ``root`` are
+    returned unchanged in POSIX form.
+
+    Args:
+        path: Absolute or relative filesystem path.
+        root: Repository root the result should be expressed relative to.
+
+    Returns:
+        Forward-slash path relative to ``root`` when possible, else POSIX
+        rendering of ``path``.
+    """
+    candidate = Path(path)
+    try:
+        return candidate.relative_to(root).as_posix()
+    except ValueError:
+        return candidate.as_posix()
 
 
 def _jsonable(obj: Any) -> Any:
@@ -768,6 +799,612 @@ def write_kde_sublevel(run_date: str, proj_root: Path, worktree_root: Path) -> P
     )
 
 
+def _markov_alpha_label(alpha: float | int) -> str:
+    return str(alpha).replace("-", "m").replace(".", "p")
+
+
+def _markov_dataset_root(dataset: str, proj_root: Path) -> Path:
+    if dataset == "usoc":
+        return proj_root / USOC_REL
+    if dataset == "bhps":
+        return proj_root / BHPS_REL
+    raise ValueError(f"unknown dataset: {dataset}")
+
+
+def _markov_cell_checkpoint_glob(dataset: str, alpha: float | int, b: int, l_value: int, seed: int) -> str:
+    alpha_label = _markov_alpha_label(alpha)
+    return f"markov2_alpha_sweep_cell_{dataset}_alpha{alpha_label}_B{b}_L{l_value}_seed{seed}_*.json"
+
+
+def _markov_cell_checkpoint_path(
+    proj_root: Path,
+    dataset: str,
+    alpha: float | int,
+    b: int,
+    l_value: int,
+    seed: int,
+    run_date: str,
+) -> Path:
+    alpha_label = _markov_alpha_label(alpha)
+    filename = f"markov2_alpha_sweep_cell_{dataset}_alpha{alpha_label}_B{b}_L{l_value}_seed{seed}_{run_date}.json"
+    return proj_root / MARKOV_OUTPUT_REL / filename
+
+
+def _latest_markov_cell_checkpoint(
+    proj_root: Path,
+    dataset: str,
+    alpha: float | int,
+    b: int,
+    l_value: int,
+    seed: int,
+) -> Path | None:
+    checkpoint_dir = proj_root / MARKOV_OUTPUT_REL
+    matches = sorted(
+        checkpoint_dir.glob(_markov_cell_checkpoint_glob(dataset, alpha, b, l_value, seed)),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return matches[0] if matches else None
+
+
+def _markov_input_metadata(dataset: str, proj_root: Path) -> dict[str, Any]:
+    root = _markov_dataset_root(dataset, proj_root)
+    embeddings = np.load(root / "embeddings.npy", mmap_mode="r")
+    trajectories = _read_json(root / "01_trajectories_sequences.json")
+    analysis = _read_json(root / "05_analysis.json")
+    labels = analysis["gmm_labels"]
+    if embeddings.shape[0] != len(trajectories):
+        raise ValueError(f"{dataset}: embeddings and trajectories are not row-aligned")
+    if len(labels) != embeddings.shape[0]:
+        raise ValueError(f"{dataset}: GMM labels are not row-aligned with embeddings")
+    label_counts = {str(k): int(v) for k, v in Counter(int(label) for label in labels).items()}
+    return {
+        "checkpoint_dir": str(root),
+        "canonical_embedding_source": str(root / "embeddings.npy"),
+        "baseline_gmm_labels_source": str(root / "05_analysis.json[gmm_labels]"),
+        "trajectory_source": str(root / "01_trajectories_sequences.json"),
+        "n_trajectories": int(embeddings.shape[0]),
+        "embedding_dim": int(embeddings.shape[1]),
+        "gmm_label_counts": label_counts,
+    }
+
+
+def _markov_regeneration_command(
+    b: int,
+    l_value: int,
+    seed: int,
+    n_jobs: int,
+    max_hours: float | None,
+    run_date: str,
+    primary_dim: str,
+    permutation_jobs: int | None = None,
+) -> str:
+    parts = [
+        "uv run --env-file .env python trajectory_tda/scripts/run_stage1_aux_diagnostics.py",
+        "markov2-alpha-sweep",
+        f"--B {b}",
+        f"--L {l_value}",
+        f"--seed {seed}",
+        f"--n-jobs {n_jobs}",
+    ]
+    if permutation_jobs is not None:
+        parts.append(f"--permutation-jobs {permutation_jobs}")
+    parts.extend([f"--run-date {run_date}", f"--summary-dim {primary_dim}"])
+    if max_hours is not None:
+        parts.append(f"--max-hours {max_hours}")
+    return " ".join(parts)
+
+
+def _observed_total_persistence(ph_obs: Any) -> dict[str, float]:
+    from poverty_tda.topology.multidim_ph import persistence_summary
+
+    summary = persistence_summary(ph_obs)
+    return {dim.lower(): float(summary.get(dim.upper(), {}).get("total_persistence", 0.0)) for dim in MARKOV_DIMS}
+
+
+def _markov_per_dimension_summary(cell: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    per_dimension: dict[str, dict[str, Any]] = {}
+    observed_total_persistence = cell["observed_total_persistence"]
+    result = cell["result"]
+    for dim in MARKOV_DIMS:
+        dim_result = result[dim]
+        p_value = float(dim_result["w2_pvalue"])
+        per_dimension[dim] = {
+            "total_persistence": float(observed_total_persistence[dim]),
+            "w2_obs_null": float(dim_result["mean_obs_null"]),
+            "w2_null_null": float(dim_result["mean_null_null"]),
+            "p_value": p_value,
+            "pvalue_null_draws": int(dim_result["pvalue_null_draws"]),
+            "t_ratio": float(dim_result["t_ratio"]),
+            "d_perm": float(dim_result["d_perm"]),
+            "rejected_at_005": bool(p_value < 0.05),
+        }
+    return per_dimension
+
+
+def _markov_stability(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    per_dataset: dict[str, Any] = {}
+    all_stable = True
+    for dataset in MARKOV_DATASETS:
+        per_dataset[dataset] = {}
+        dataset_rows = [row for row in rows if row["dataset"] == dataset]
+        for dim in MARKOV_DIMS:
+            directions = [bool(row["per_dimension"][dim]["rejected_at_005"]) for row in dataset_rows]
+            stable = len(set(directions)) == 1
+            all_stable = all_stable and stable
+            if stable:
+                conclusion = "reject" if directions[0] else "fail_to_reject"
+            else:
+                conclusion = "mixed"
+            per_dataset[dataset][dim] = {
+                "stable": stable,
+                "conclusion": conclusion,
+                "directions_by_alpha": [
+                    {
+                        "alpha": row["alpha"],
+                        "rejected_at_005": bool(row["per_dimension"][dim]["rejected_at_005"]),
+                        "p_value": float(row["per_dimension"][dim]["p_value"]),
+                    }
+                    for row in dataset_rows
+                ],
+            }
+    return {
+        "conclusion_stable": all_stable,
+        "canonical_alpha": 1 if all_stable else None,
+        "alpha_lock_decision": (
+            "alpha=1 remains canonical; all H0/H1 dataset-specific W2 rejection directions are stable"
+            if all_stable
+            else "alpha sensitivity detected; do not lock alpha=1 as immaterial"
+        ),
+        "per_dataset": per_dataset,
+    }
+
+
+def build_markov2_alpha_summary_payload(
+    cell_payloads: list[dict[str, Any]],
+    proj_root: Path,
+    worktree_root: Path,
+    b: int,
+    l_value: int,
+    seed: int,
+    n_jobs: int,
+    permutation_jobs: int,
+    n_null_pairs: int,
+    run_date: str,
+    primary_dim: str = MARKOV_PRIMARY_DIM,
+) -> dict[str, Any]:
+    """Assemble the committed alpha-sweep summary from per-cell checkpoints.
+
+    Args:
+        cell_payloads: The eight per-cell checkpoint payloads (one per
+            alpha x dataset cell).
+        proj_root: Repository root holding gitignored intermediates; used to
+            express embedded paths repo-relative.
+        worktree_root: Worktree checkout the summary is committed from; source
+            of the recorded ``git_head``.
+        b: Permutations per cell.
+        l_value: Landmarks per cell.
+        seed: Master random seed.
+        n_jobs: Cell-level worker count.
+        permutation_jobs: Per-cell permutation worker count.
+        n_null_pairs: Null-vs-null pair cap recorded in params.
+        run_date: Date suffix for the regeneration command.
+        primary_dim: Homology dimension promoted to the headline rows.
+
+    Returns:
+        The validated summary payload dict (schema ``markov2-alpha-sweep/v1``).
+
+    Raises:
+        ValueError: If ``primary_dim`` is invalid or the cell payloads do not
+            cover exactly the required alpha x dataset grid.
+    """
+    if primary_dim not in MARKOV_DIMS:
+        raise ValueError(f"summary dimension must be one of {MARKOV_DIMS}")
+    if len(cell_payloads) != len(MARKOV_ALPHAS) * len(MARKOV_DATASETS):
+        raise ValueError("all 8 alpha x dataset cell checkpoints are required before summary output")
+
+    by_key = {(cell["alpha"], cell["dataset"]): cell for cell in cell_payloads}
+    expected = {(alpha, dataset) for alpha in MARKOV_ALPHAS for dataset in MARKOV_DATASETS}
+    if set(by_key) != expected:
+        raise ValueError("cell checkpoints do not cover exactly the required alpha x dataset grid")
+
+    rows: list[dict[str, Any]] = []
+    for alpha in MARKOV_ALPHAS:
+        for dataset in MARKOV_DATASETS:
+            cell = by_key[(alpha, dataset)]
+            per_dimension = _markov_per_dimension_summary(cell)
+            primary = per_dimension[primary_dim]
+            rows.append(
+                {
+                    "alpha": alpha,
+                    "dataset": dataset,
+                    "dimension": primary_dim,
+                    "total_persistence": primary["total_persistence"],
+                    "w2_obs_null": primary["w2_obs_null"],
+                    "p_value": primary["p_value"],
+                    "rejected_at_005": primary["rejected_at_005"],
+                    "per_dimension": per_dimension,
+                    "checkpoint_path": _repo_relpath(cell["checkpoint_path"], proj_root),
+                    "runtime_seconds": float(cell["runtime_seconds"]),
+                }
+            )
+
+    inputs = {
+        "canonical_embedding_source": {
+            dataset: _repo_relpath(_markov_dataset_root(dataset, proj_root) / "embeddings.npy", proj_root)
+            for dataset in MARKOV_DATASETS
+        },
+        "baseline_gmm_labels_source": {
+            dataset: _repo_relpath(_markov_dataset_root(dataset, proj_root) / "05_analysis.json[gmm_labels]", proj_root)
+            for dataset in MARKOV_DATASETS
+        },
+        "n_trajectories": {
+            dataset: int(by_key[(MARKOV_ALPHAS[0], dataset)]["inputs"]["n_trajectories"]) for dataset in MARKOV_DATASETS
+        },
+        "git_head": git_head(worktree_root),
+    }
+    regeneration_command = _markov_regeneration_command(
+        b=b,
+        l_value=l_value,
+        seed=seed,
+        n_jobs=n_jobs,
+        max_hours=None,
+        run_date=run_date,
+        primary_dim=primary_dim,
+        permutation_jobs=permutation_jobs,
+    )
+    return {
+        "schema_version": "stage1/markov2-alpha-sweep/v1",
+        "generated_at": _now_iso(),
+        "task": "T1.8 Markov-2 alpha sensitivity sweep",
+        "pre_registration": _repo_relpath(proj_root / PREREG_REL, proj_root),
+        "inputs": inputs,
+        "params": {
+            "alphas": MARKOV_ALPHAS,
+            "L": l_value,
+            "B": b,
+            "seed": seed,
+            "datasets": MARKOV_DATASETS,
+            "frozen_loadings": True,
+            "p_value_formula": "(r+1)/(B+1)",
+            "markov_order": MARKOV_ORDER,
+            "wasserstein_order": 2,
+            "wasserstein_internal_p": 2,
+            "summary_dimension": primary_dim,
+            "n_jobs": n_jobs,
+            "cell_worker_count": n_jobs,
+            "permutation_jobs": permutation_jobs,
+            "n_null_pairs": n_null_pairs,
+            "cell_parallelism": "alpha x dataset cells",
+        },
+        "results": rows,
+        "stability": _markov_stability(rows),
+        "checkpoints": [row["checkpoint_path"] for row in rows],
+        "regeneration_command": regeneration_command,
+    }
+
+
+def _assert_markov_checkpoint_consistent(
+    payload: dict[str, Any],
+    *,
+    n_null_pairs: int,
+    k_max: int,
+    n_points: int,
+) -> None:
+    """Reject reuse of a checkpoint whose diagnostics params differ from the run.
+
+    ``_latest_markov_cell_checkpoint`` already keys discovery by
+    dataset/alpha/B/L/seed; this closes the remaining gap so a checkpoint
+    produced under different ``n_null_pairs``/``k_max``/``n_points`` is not
+    silently reused into a mixed-provenance summary. Backward compatible: keys
+    absent from older checkpoints are skipped rather than treated as mismatches.
+
+    Args:
+        payload: A loaded per-cell checkpoint payload.
+        n_null_pairs: Requested null-vs-null pair cap.
+        k_max: Requested maximum homology dimension.
+        n_points: Requested landmark subsample size.
+
+    Raises:
+        ValueError: If a recorded diagnostics parameter disagrees with the run.
+    """
+    recorded = payload.get("params", {})
+    expected = {"n_null_pairs": n_null_pairs, "k_max": k_max, "n_points": n_points}
+    mismatches = [
+        f"{key}: checkpoint={recorded[key]} != requested={value}"
+        for key, value in expected.items()
+        if key in recorded and recorded[key] != value
+    ]
+    if mismatches:
+        raise ValueError(
+            f"stale checkpoint {payload.get('checkpoint_path')} cannot be reused: " + "; ".join(mismatches)
+        )
+
+
+def run_markov2_alpha_cell(
+    dataset: str,
+    alpha: float | int,
+    b: int,
+    l_value: int,
+    seed: int,
+    run_date: str,
+    proj_root: Path,
+    worktree_root: Path,
+    permutation_jobs: int,
+    n_null_pairs: int,
+    k_max: int,
+    n_points: int,
+    cell_worker_count: int,
+    primary_dim: str,
+) -> dict[str, Any]:
+    """Compute (or reuse) one alpha x dataset Markov-2 sweep cell.
+
+    Reuses an on-disk checkpoint when one exists for the dataset/alpha/B/L/seed
+    key and its diagnostics params match; otherwise runs the headline pipeline
+    and writes a fresh checkpoint.
+
+    Args:
+        dataset: ``"usoc"`` or ``"bhps"``.
+        alpha: Laplace smoothing constant for the Markov-2 null.
+        b: Permutations for the null distribution.
+        l_value: Landmarks for the witness complex.
+        seed: Master random seed.
+        run_date: Date suffix for the checkpoint filename.
+        proj_root: Repository root holding inputs and checkpoints.
+        worktree_root: Worktree checkout (source of ``git_head``).
+        permutation_jobs: Per-cell permutation worker count.
+        n_null_pairs: Null-vs-null pair cap.
+        k_max: Maximum homology dimension.
+        n_points: Landmark subsample size.
+        cell_worker_count: Number of cells run in parallel (recorded only).
+        primary_dim: Headline homology dimension.
+
+    Returns:
+        The per-cell checkpoint payload.
+
+    Raises:
+        ValueError: If a discovered checkpoint's diagnostics params are stale.
+    """
+    existing = _latest_markov_cell_checkpoint(proj_root, dataset, alpha, b, l_value, seed)
+    if existing is not None:
+        payload = _read_json(existing)
+        payload["checkpoint_path"] = str(existing)
+        _assert_markov_checkpoint_consistent(payload, n_null_pairs=n_null_pairs, k_max=k_max, n_points=n_points)
+        payload["skipped_existing_checkpoint"] = True
+        return payload
+
+    from trajectory_tda.scripts.stage1 import _battery_core as core
+
+    start = time.time()
+    input_metadata = _markov_input_metadata(dataset, proj_root)
+    checkpoint_dir = _markov_dataset_root(dataset, proj_root)
+    phase_tag = f"markov2_alpha_{dataset}_alpha{_markov_alpha_label(alpha)}"
+    out, _null_results, ph_obs = core.run_headline(
+        checkpoint_dir=checkpoint_dir,
+        n_permutations=b,
+        n_landmarks=l_value,
+        k_max=k_max,
+        n_points=n_points,
+        seed=seed,
+        label=f"{dataset.upper()} Markov-2 alpha={alpha}",
+        phase_tag=phase_tag,
+        n_jobs=permutation_jobs,
+        n_null_pairs_cap=n_null_pairs,
+        markov_order=MARKOV_ORDER,
+        alpha=float(alpha),
+        frozen_loadings=True,
+    )
+    runtime_seconds = time.time() - start
+    checkpoint_path = _markov_cell_checkpoint_path(proj_root, dataset, alpha, b, l_value, seed, run_date)
+    payload = {
+        "schema_version": "stage1/markov2-alpha-sweep-cell/v1",
+        "generated_at": _now_iso(),
+        "task": "T1.8 Markov-2 alpha sensitivity sweep",
+        "dataset": dataset,
+        "alpha": alpha,
+        "inputs": {
+            **input_metadata,
+            "git_head": git_head(worktree_root),
+        },
+        "params": {
+            "L": l_value,
+            "B": b,
+            "seed": seed,
+            "markov_order": MARKOV_ORDER,
+            "alpha": alpha,
+            "frozen_loadings": True,
+            "p_value_formula": "(r+1)/(B+1)",
+            "wasserstein_order": 2,
+            "wasserstein_internal_p": 2,
+            "cell_worker_count": cell_worker_count,
+            "permutation_jobs": permutation_jobs,
+            "n_null_pairs": n_null_pairs,
+            "k_max": k_max,
+            "n_points": n_points,
+            "summary_dimension": primary_dim,
+        },
+        "observed_total_persistence": _observed_total_persistence(ph_obs),
+        "result": out,
+        "runtime_seconds": runtime_seconds,
+        "checkpoint_path": str(checkpoint_path),
+        "regeneration_command": _markov_regeneration_command(
+            b=b,
+            l_value=l_value,
+            seed=seed,
+            n_jobs=cell_worker_count,
+            max_hours=None,
+            run_date=run_date,
+            primary_dim=primary_dim,
+            permutation_jobs=permutation_jobs,
+        ),
+    }
+    _write_json_no_overwrite(checkpoint_path, payload)
+    return payload
+
+
+def _load_all_markov_cell_payloads(
+    proj_root: Path,
+    b: int,
+    l_value: int,
+    seed: int,
+) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for alpha in MARKOV_ALPHAS:
+        for dataset in MARKOV_DATASETS:
+            checkpoint = _latest_markov_cell_checkpoint(proj_root, dataset, alpha, b, l_value, seed)
+            if checkpoint is None:
+                continue
+            payload = _read_json(checkpoint)
+            payload["checkpoint_path"] = str(checkpoint)
+            payloads.append(payload)
+    return payloads
+
+
+def write_markov2_alpha_sweep(
+    run_date: str,
+    proj_root: Path,
+    worktree_root: Path,
+    b: int,
+    l_value: int,
+    seed: int,
+    n_jobs: int,
+    max_hours: float | None,
+    primary_dim: str,
+    permutation_jobs: int,
+    n_null_pairs: int,
+    k_max: int,
+    n_points: int,
+) -> Path | None:
+    """Run the full alpha sweep and write the committed summary JSON.
+
+    Runs any missing alpha x dataset cells (respecting ``max_hours``), then
+    assembles and validates the summary once all eight checkpoints exist.
+    Non-canonical ``L``/``seed``/``B`` are rejected up front so a misconfigured
+    invocation fails fast rather than after hours of compute.
+
+    Args:
+        run_date: Date suffix for cell and summary filenames.
+        proj_root: Repository root for inputs and gitignored checkpoints.
+        worktree_root: Worktree the summary is committed to.
+        b: Permutations per cell (must be >= 1000).
+        l_value: Landmarks per cell (must equal 5000).
+        seed: Master random seed (must equal 42).
+        n_jobs: Number of cells to run in parallel.
+        max_hours: Optional wall-clock cap; partial progress is checkpointed.
+        primary_dim: Headline homology dimension.
+        permutation_jobs: Per-cell permutation worker count.
+        n_null_pairs: Null-vs-null pair cap.
+        k_max: Maximum homology dimension.
+        n_points: Landmark subsample size.
+
+    Returns:
+        Path to the written (or pre-existing valid) summary JSON, or ``None``
+        if the wall-clock cap was hit before all cells completed.
+
+    Raises:
+        ValueError: On invalid worker counts, dimension, or non-canonical
+            ``L``/``seed``/``B``, or if the assembled summary fails validation.
+    """
+    from joblib import Parallel, delayed
+
+    if n_jobs < 1:
+        raise ValueError("--n-jobs must be >= 1")
+    if permutation_jobs < 1:
+        raise ValueError("--permutation-jobs must be >= 1")
+    if primary_dim not in MARKOV_DIMS:
+        raise ValueError(f"--summary-dim must be one of {MARKOV_DIMS}")
+    if l_value != MARKOV_DEFAULT_L:
+        raise ValueError(f"--L must be {MARKOV_DEFAULT_L} for markov2-alpha-sweep outputs")
+    if seed != SEED:
+        raise ValueError(f"--seed must be {SEED} for markov2-alpha-sweep outputs")
+    if b < MARKOV_DEFAULT_B:
+        raise ValueError(f"--B must be >= {MARKOV_DEFAULT_B} for markov2-alpha-sweep outputs")
+
+    cells = [(dataset, alpha) for alpha in MARKOV_ALPHAS for dataset in MARKOV_DATASETS]
+    started = time.time()
+    deadline = started + max_hours * 3600 if max_hours is not None else None
+    missing = [
+        (dataset, alpha)
+        for dataset, alpha in cells
+        if _latest_markov_cell_checkpoint(proj_root, dataset, alpha, b, l_value, seed) is None
+    ]
+
+    while missing:
+        if deadline is not None and time.time() >= deadline:
+            break
+        batch_size = min(n_jobs, len(missing))
+        batch = missing[:batch_size]
+        Parallel(n_jobs=batch_size, verbose=10)(
+            delayed(run_markov2_alpha_cell)(
+                dataset=dataset,
+                alpha=alpha,
+                b=b,
+                l_value=l_value,
+                seed=seed,
+                run_date=run_date,
+                proj_root=proj_root,
+                worktree_root=worktree_root,
+                permutation_jobs=permutation_jobs,
+                n_null_pairs=n_null_pairs,
+                k_max=k_max,
+                n_points=n_points,
+                cell_worker_count=n_jobs,
+                primary_dim=primary_dim,
+            )
+            for dataset, alpha in batch
+        )
+        missing = [
+            (dataset, alpha)
+            for dataset, alpha in cells
+            if _latest_markov_cell_checkpoint(proj_root, dataset, alpha, b, l_value, seed) is None
+        ]
+
+    cell_payloads = _load_all_markov_cell_payloads(proj_root, b, l_value, seed)
+    if len(cell_payloads) != len(MARKOV_ALPHAS) * len(MARKOV_DATASETS):
+        remaining = [
+            {"dataset": dataset, "alpha": alpha}
+            for dataset, alpha in cells
+            if _latest_markov_cell_checkpoint(proj_root, dataset, alpha, b, l_value, seed) is None
+        ]
+        print(
+            json.dumps(
+                {
+                    "status": "partial",
+                    "completed_cells": len(cell_payloads),
+                    "remaining_cells": remaining,
+                    "message": "summary not written until all 8 cell checkpoints exist",
+                },
+                indent=2,
+            )
+        )
+        return None
+
+    summary = build_markov2_alpha_summary_payload(
+        cell_payloads=cell_payloads,
+        proj_root=proj_root,
+        worktree_root=worktree_root,
+        b=b,
+        l_value=l_value,
+        seed=seed,
+        n_jobs=n_jobs,
+        permutation_jobs=permutation_jobs,
+        n_null_pairs=n_null_pairs,
+        run_date=run_date,
+        primary_dim=primary_dim,
+    )
+    errors = validate_markov2_alpha_payload(summary)
+    if errors:
+        raise ValueError("markov2 alpha summary invalid: " + "; ".join(errors))
+    summary_path = worktree_root / MARKOV_OUTPUT_REL / f"markov2_alpha_sweep_summary_{run_date}.json"
+    if summary_path.exists():
+        existing = _read_json(summary_path)
+        existing_errors = validate_markov2_alpha_payload(existing)
+        if existing_errors:
+            raise ValueError("existing markov2 alpha summary invalid: " + "; ".join(existing_errors))
+        return summary_path
+    return _write_json_no_overwrite(summary_path, summary)
+
+
 def markov2_walltime_estimate() -> dict[str, Any]:
     historical_seconds = 5139.5
     historical_b = 100
@@ -784,10 +1421,37 @@ def markov2_walltime_estimate() -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Stage-1 auxiliary diagnostics.")
-    parser.add_argument("command", choices=["mapper", "kde", "estimate-markov2"])
+    parser.add_argument("command", choices=["mapper", "kde", "estimate-markov2", "markov2-alpha-sweep"])
     parser.add_argument("--proj-root", type=Path, default=PROJ_ROOT)
     parser.add_argument("--worktree-root", type=Path, default=WORKTREE_ROOT)
     parser.add_argument("--run-date", default=datetime.now(UTC).date().isoformat())
+    parser.add_argument("--B", type=int, default=MARKOV_DEFAULT_B, help="Markov-2 permutations per alpha/dataset cell.")
+    parser.add_argument("--L", type=int, default=MARKOV_DEFAULT_L, help="Landmarks per alpha/dataset cell.")
+    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=4,
+        help="Parallel alpha/dataset cell workers for markov2-alpha-sweep.",
+    )
+    parser.add_argument(
+        "--permutation-jobs",
+        type=int,
+        default=1,
+        help="Joblib workers inside each cell. Default 1 avoids nested over-subscription.",
+    )
+    parser.add_argument(
+        "--n-null-pairs",
+        type=int,
+        default=MARKOV_DEFAULT_N_NULL_PAIRS,
+        help="Null-null pair cap for effect-size diagnostics.",
+    )
+    parser.add_argument("--k-max", type=int, default=MARKOV_DEFAULT_K_MAX)
+    parser.add_argument("--n-points", type=int, default=MARKOV_DEFAULT_N_POINTS)
+    parser.add_argument(
+        "--max-hours", type=float, default=None, help="Stop launching new cell batches after this wall time."
+    )
+    parser.add_argument("--summary-dim", choices=MARKOV_DIMS, default=MARKOV_PRIMARY_DIM)
     return parser.parse_args()
 
 
@@ -800,6 +1464,24 @@ def main() -> None:
         print(write_kde_sublevel(args.run_date, args.proj_root, args.worktree_root))
     elif args.command == "estimate-markov2":
         print(json.dumps(markov2_walltime_estimate(), indent=2))
+    elif args.command == "markov2-alpha-sweep":
+        path = write_markov2_alpha_sweep(
+            run_date=args.run_date,
+            proj_root=args.proj_root,
+            worktree_root=args.worktree_root,
+            b=args.B,
+            l_value=args.L,
+            seed=args.seed,
+            n_jobs=args.n_jobs,
+            max_hours=args.max_hours,
+            primary_dim=args.summary_dim,
+            permutation_jobs=args.permutation_jobs,
+            n_null_pairs=args.n_null_pairs,
+            k_max=args.k_max,
+            n_points=args.n_points,
+        )
+        if path is not None:
+            print(path)
     print(f"elapsed_seconds={time.time() - start:.3f}")
 
 

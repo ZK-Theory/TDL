@@ -1,0 +1,76 @@
+{
+  "pre_registration_date": "2026-06-13",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 10 (T1.28 re-scope; User-approved 2026-06-13)",
+  "supersedes": "legacy results/trajectory_tda_integration/06_stratified.json (B=100, pre-frozen-loadings, mean-vs-individual W2 construction, pairwise-between-subgroup) -- preserved, not citable",
+  "scope_reason": "P01-A response plan ISSUE B8: 50 stratification tests (2 gender + 6 NS-SEC + 42 cohort) were pooled into one BH family. v2 requires (1) recompute under the locked pipeline (frozen loadings, B>=1000, mean-vs-mean T_ratio + BCa CI per B2.6) because the legacy data uses the retired construction, then (2) three separate FDR families by axis with BY for the positively-correlated cohort family. The per-subgroup test model is fixed by B8's count (50 = 2+6+42 -> one test per subgroup), NOT the legacy pairwise-between-subgroup construction. USoc AND BHPS (User-approved 2026-06-13).",
+  "entries": [
+    {
+      "name": "Section 6.1 per-subgroup stratified W2 recompute + per-family FDR",
+      "task": "T1.28",
+      "papers": ["P01-A"],
+      "outcome_contingent": false,
+      "objective": "Recompute each demographic subgroup's Markov-1 W2 test under the locked pipeline for USoc and BHPS, then apply per-family FDR (BH gender, BH NS-SEC, BY cohort) with effect sizes.",
+      "test_model": {
+        "per_subgroup_test": "For each subgroup g (e.g. gender=Female), take the subgroup's trajectories, embed under the FROZEN full-sample scaler/PCA-20 loadings (transform-only), compute persistence, and run the canonical Markov-1 W2 headline (subgroup observed PD vs its own Markov-1 null). One test per subgroup -- NOT pairwise-between-subgroup. 50 tests per dataset: gender (2: Female, Male), NS-SEC (6 classes), cohort (42 bins).",
+        "statistic": "mean-vs-mean T_ratio = mean(W_obs-null) / mean(W_null-null), with 95% BCa CI (delta-method fallback if only summaries are stored), per B2 / B2.6.",
+        "complement": "landscape L2 reported alongside W2 per the mandatory dual-metric rule.",
+        "strata_to_confirm_at_assembly": "NS-SEC = the 6-class variable used in v1 section 6.1 (legacy key 'parental_nssec'); cohort = the 42-bin definition from v1 section 6.1 / legacy '06_stratified.json'. Confirm both against the legacy keys (gender/parental_nssec/cohort/gor) when assembling subgroup membership; region/gor is NOT a B8 family and is excluded."
+      },
+      "fdr_families": {
+        "gender": {"method": "BH", "n_tests": 2},
+        "nssec": {"method": "BH", "n_tests": 6},
+        "cohort": {"method": "BY", "n_tests": 42, "reference": "Benjamini & Yekutieli (2001), positively-correlated adjacent cohort tests"}
+      },
+      "key_params": {
+        "null_model": "markov-1",
+        "frozen_loadings": true,
+        "B": 1000,
+        "B_floor": 1000,
+        "L": 5000,
+        "landmark_note": "actual_landmarks = min(L, subgroup_n); small subgroups run at <100% to 100% landmark fraction -- report actual_landmarks per subgroup (per the T1.26/T1.26b landmark-fraction lesson, the varying fraction is a disclosed feature of stratified tests, not a defect).",
+        "seed": 42,
+        "p_value_formula": "(r+1)/(B+1)",
+        "alpha_level": 0.05,
+        "datasets": ["usoc", "bhps"],
+        "effect_sizes": "T_ratio + 95% BCa CI reported beside every raw and FDR-adjusted p"
+      },
+      "reporting_protocol": {
+        "rule": "Report each subgroup's raw p, FDR-adjusted p (by family/axis), and effect size; flag significance per family. This is a recompute + multiple-comparison correction, not an A/B/C prose-direction lock.",
+        "contingency": "If a subgroup heterogeneity claim asserted in v1 section 6.1 (e.g. a gender persistence difference) CHANGES significance status after recompute + FDR, surface it to the User before section 6.1 v2 prose is drafted (do not silently overturn a v1 claim)."
+      },
+      "outputs": [
+        "results/panel_methodology/fdr/stratified_w2_recompute_<date>.json",
+        "results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json"
+      ],
+      "execution_guardrails": "~50 subgroup runs x 2 datasets = ~100 mini-headline Markov-1 W2 runs at B>=1000, each with its own subgroup Markov-1 null bank. Heavy. Benchmark per-subgroup cost first; >=4-worker single reusable executor; checkpoint PER SUBGROUP; resumable; up-front wall-time estimate; pause for Manager direction if the projection exceeds 12h at 4 workers. Preserve legacy 06_stratified.json (no overwrite).",
+      "planned_contracts": [
+        {
+          "id": "stratified-w2-recompute-output",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/panel_methodology/fdr/stratified_w2_recompute_*.json",
+          "required_keys": "schema_version (str); generated_at (str); task ('T1.28 ...'); pre_registration (refs 2026-06-13); inputs (git_head + frozen-loadings provenance); params (null_model=='markov-1', frozen_loadings==true, B>=1000, seed==42, p_value_formula=='(r+1)/(B+1)'); datasets (dict with keys 'usoc' and 'bhps'); each dataset has subgroups[] where every item carries stratifier in {gender,nssec,cohort}, subgroup_id (str), n (int>0), actual_landmarks (int>0, <= min(5000,n)), t_ratio (float), bca_ci ([lo,hi] floats, lo<=hi), w2_p (float in [0,1]), w2_rejects (bool == w2_p<0.05), landscape_l2_p (float in [0,1]); per dataset family counts gender==2, nssec==6, cohort==42 (50 total)",
+          "forbidden_keys": "per_call_pca; B<1000",
+          "binding": "test_file tests/panel/test_t1_28_stratified_w2_contracts.py; must_assert rejects payloads where a family count != {2,6,42}, w2_rejects disagrees with w2_p<0.05, bca_ci is mis-ordered, B<1000, any p out of [0,1], actual_landmarks > min(5000,n), or per_call_pca present."
+        },
+        {
+          "id": "stratified-w2-fdr-families-output",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/panel_methodology/fdr/stratified_w2_bh_per_family_*.json",
+          "required_keys": "families (dict with gender/nssec/cohort); gender.method=='BH', nssec.method=='BH', cohort.method=='BY'; each family lists per-subgroup adjusted_p (float in [0,1]) with the matching n_tests (2/6/42) and retained effect sizes (t_ratio + bca_ci); per dataset (usoc, bhps)",
+          "forbidden_keys": "pooled_single_family",
+          "binding": "test_file tests/panel/test_t1_28_stratified_w2_contracts.py; must_assert rejects payloads where cohort.method != 'BY', gender/nssec.method != 'BH', a family n_tests is wrong, any adjusted_p out of [0,1], or effect sizes are dropped."
+        },
+        {
+          "id": "stratified-w2-fdr-output-json-validation",
+          "kind": "output_validation",
+          "pending": true,
+          "applies_to_glob": "results/panel_methodology/fdr/stratified_w2_*.json",
+          "schema_contracts": ["stratified-w2-recompute-output", "stratified-w2-fdr-families-output"]
+        }
+      ]
+    }
+  ]
+}
