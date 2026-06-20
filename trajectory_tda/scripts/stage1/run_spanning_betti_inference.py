@@ -311,6 +311,16 @@ def _load_progress(checkpoint_dir: Path) -> dict[str, Any] | None:
         return json.load(f)
 
 
+def _load_micro_benchmark_file(checkpoint_dir: Path) -> dict[str, Any] | None:
+    path = checkpoint_dir / "micro_benchmark.json"
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as f:
+        payload = json.load(f)
+    benchmark = payload.get("benchmark")
+    return benchmark if isinstance(benchmark, dict) else None
+
+
 def _run_lane(
     *,
     lane: Lane,
@@ -372,20 +382,26 @@ def _run_lane(
             )
             for draw in chunk_draws:
                 existing[int(draw["draw_index"])] = draw
-            _write_progress(
-                checkpoint_dir,
-                run_id=run_id,
-                progress={
+            progress = _load_progress(checkpoint_dir) or {}
+            progress.update(
+                {
                     "status": "running",
                     "current_lane": lane,
                     "completed": {
-                        "permutation": len(_existing_draws(checkpoint_dir, "permutation")),
+                        "permutation": len(
+                            _existing_draws(checkpoint_dir, "permutation")
+                        ),
                         "bootstrap": len(_existing_draws(checkpoint_dir, "bootstrap")),
                     },
                     "workers": workers,
                     "chunk_size": chunk_size,
                     "elapsed_current_lane_s": time.perf_counter() - t_lane,
-                },
+                }
+            )
+            _write_progress(
+                checkpoint_dir,
+                run_id=run_id,
+                progress=progress,
             )
 
     if len(existing) != b_draws:
@@ -491,6 +507,13 @@ def _load_or_run_micro_benchmark(
     progress = _load_progress(checkpoint_dir) if resume else None
     benchmark = (progress or {}).get("micro_benchmark")
     if isinstance(benchmark, dict):
+        return benchmark
+    benchmark = _load_micro_benchmark_file(checkpoint_dir) if resume else None
+    if isinstance(benchmark, dict):
+        progress = progress or {}
+        progress["micro_benchmark"] = benchmark
+        progress["status"] = progress.get("status", "benchmarked")
+        _write_progress(checkpoint_dir, run_id=run_id, progress=progress)
         return benchmark
     return _run_micro_benchmark(
         checkpoint_dir=checkpoint_dir,
