@@ -1,0 +1,45 @@
+{
+  "pre_registration_date": "2026-06-18",
+  "label": "H2 Check dispersion-control + dual-metric confirmatory amendment",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 10",
+  "amends": {
+    "source": "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-18.json",
+    "entry": "H2 Check (amended -- matched-scale)",
+    "chain": "2026-05-13 'H2 Check' -> 2026-06-17 (L 2000->1000) -> 2026-06-18 (pinned matched-scale) -> 2026-06-18 (dispersion-control + dual-metric)"
+  },
+  "reason": "The 2026-06-18 matched-scale (pinned-threshold) Phase A diagnostic (T1.5c, commits 5b226f5/c5c4f10) REFUTED the threshold-artifact hypothesis: pinning a common tau left the H2 W2 T-ratio unchanged (auto ~ pinned to 4 d.p.; L=200 T=3.3239, L=300 T=3.8424, both p=0.0). Manager inline scoping (User-approved 2026-06-18; persistence-floor + birth/death-location analysis on the committed Phase A diagrams + PROJ_ROOT checkpoints, null-null reproduced exactly at 1.865) then identified the true mechanism: the observed H2 diagram is the Markov-1 null H2 diagram SHIFTED ~35% to larger birth/death coordinates with similar persistence spans (L=200 obs birth median 15.03 vs null 11.15, death 16.26 vs 11.48; L=300 obs birth 13.56 vs null 10.17, death 14.66 vs 10.48). This is a cloud-DISPERSION shift -- the observed cloud is more dispersed than the memoryless global-Markov-1 surrogates -- NOT a distinct H2 void structure. It is the SAME dispersion that already drives the H0 (T~15) and H1 (T~5-7) rejections (the headline omnibus); the monotone H0>H1>H2 T-ratio ladder is its fingerprint. A persistence floor does not collapse the W2 T-ratio (stays ~2.5-3.6 to floor~1.0) precisely because flooring removes near-diagonal points but not the location offset. The raw pinned-W2 'rejection' is therefore confounded by cloud dispersion and is NOT a valid basis for 'expand to H2'; mechanically applying the pinned-W2 rule would double-count the H0/H1 signal as a spurious higher-dimensional section. Per the project dual-metric mandate (no H-conclusion rests on W2 alone), the decision requires a scale-normalized dual-metric test before any direction is locked.",
+  "fix": {
+    "name": "scale-normalized dual-metric H2 Check (dispersion control)",
+    "dispersion_control": "Before PH, normalize each point cloud by its own characteristic scale s(X) = median of the pairwise distances of the L-landmark sample, i.e. compute H2 persistence on distances divided by s. Observed and every Markov-1 null cloud are each normalized by their OWN s, removing the global scale/dispersion difference while preserving shape. A genuine scale-invariant H2 void survives normalization; a pure dispersion (location) shift vanishes.",
+    "dual_metric": "Compute BOTH Wasserstein-2 (order 2, internal_p 2) AND persistence-landscape L2 (k_max=5, n_points=200, the project-standard landscape settings) for H2, each with the obs-null distribution and the 500-pair null-null baseline, on the normalized diagrams. Per CONVENTIONS the landscape-L2 complement is co-primary; no H2 conclusion rests on W2 alone.",
+    "reference_raw": "Also report the RAW (unnormalized) W2 + landscape-L2 at the same settings as the confound exhibit, to show the raw metrics reject while the normalized metrics do not.",
+    "threshold_note": "Threshold choice is immaterial for H2 here (Phase A established pinned ~ auto to 4 d.p.); the normalized run uses the per-cloud auto-threshold on normalized distances."
+  },
+  "entries": [
+    {
+      "name": "H2 Check (amended -- dispersion-controlled dual-metric)",
+      "outcome_contingent": true,
+      "decision_rule": "reject -> expand to H2; fail -> restriction stands",
+      "decision_statistic": "The SCALE-NORMALIZED dual-metric H2 test vs the Markov-1 null: W2 AND landscape-L2 on per-cloud median-pdist-normalized H2 diagrams. The raw (unnormalized) and pinned-threshold W2 results are confounds/exhibits and are NOT decision-bearing.",
+      "decision_logic": {
+        "restriction_stands": "If BOTH normalized metrics FAIL to reject (W2 p>=0.05 AND landscape-L2 p>=0.05) at both L in {200,300}, the raw H2 rejection is a pure cloud-dispersion artifact (the same signal as H0/H1, not additive) -> restriction stands; no higher-dimensional homology section. H2 is disclosed as the cohort-vs-Markov dispersion already reported at H0/H1.",
+        "escalate_candidate": "If EITHER normalized metric REJECTS (p<0.05) at either L, there is scale-invariant H2 structure beyond dispersion -> STOP and escalate to the Manager before any prose; candidate 'expand to H2', NOT auto-promoted."
+      },
+      "papers": ["P01-A", "P01-B"],
+      "key_params": {"Ls": [200, 300], "B": 50, "maxdim": 2, "null": "markov-1", "seed": 42, "normalizer": "median pairwise distance of the L-landmark cloud", "metrics": ["wasserstein-2", "landscape-l2 (k_max=5, n_points=200)"], "p_value_formula": "(r+1)/(B+1)", "alpha": 0.05},
+      "unchanged": ["maxdim", "null", "seed", "decision_rule"],
+      "changed": {
+        "decision_statistic": {"from": "pinned matched-scale W2 (single metric)", "to": "scale-normalized dual-metric (W2 + landscape-L2)", "reason": "control for the cloud-dispersion confound identified by Manager scoping, and satisfy the dual-metric mandate"}
+      },
+      "method_provenance": {
+        "ph_engine": "ripser 0.6.14 (dense), exact; do_cocycles=false",
+        "normalization": "per-cloud distances / median(pdist(landmarks)); obs and each null normalized by own s",
+        "machine_checkable": "scale-invariance of the normalized statistic (rescaling a cloud by any c>0 leaves the normalized H2 diagram and distances invariant) is enforced by a binding test",
+        "vertex_counts": "obs and null both L-landmark (dedup=False); no forced dedup"
+      }
+    }
+  ],
+  "expected_outcome": "Both normalized metrics FAIL to reject -> 'restriction stands' (the H2 difference is the same cloud-dispersion as H0/H1, not a distinct void). A surviving normalized rejection on either metric -> escalate before any manuscript claim. The 2026-06-17 raw rejection and the 2026-06-18 pinned rejection are treated as dispersion-confounded and are NOT promoted.",
+  "filed_before_run": true
+}

@@ -1,0 +1,30 @@
+id: h2-positive-control-diagnostics-output-json-validation
+kind: output_validation
+pending: false
+
+description: >
+  Commit-time validation for the T1.5 consolidated diagnostics summary. Any
+  staged JSON under results/trajectory_tda_integration/h2_check matching
+  diagnostics_summary_*.json must conform to the
+  h2-positive-control-diagnostics-output schema, ensuring the H2 check, the
+  positive-control calibration, and the doubled-n W2 sanity are all present,
+  including the retained per-pair W2 distance arrays used for the doubled-n
+  p-value computation.
+
+spec_citation:
+  source: "P01-A plan sections 10.2, B1, 8; Spec 'H2 check'; H2-Check pre-registration 2026-05-13"
+  vault_entry_date: "2026-06-08"
+
+output_validation:
+  applies_to_glob: "results/trajectory_tda_integration/h2_check/diagnostics_summary_*.json"
+  schema_contracts:
+    - h2-positive-control-diagnostics-output
+
+binding:
+  test_file: "tests/trajectory_tda/test_t1_5_diagnostics_contracts.py"
+  test_function: "test_h2_positive_control_diagnostics_json_validation_dispatch"
+  must_assert: >
+    Every staged JSON matching
+    results/trajectory_tda_integration/h2_check/diagnostics_summary_*.json is
+    dispatched to the h2-positive-control-diagnostics-output schema; the detailed
+    per-diagnostic JSONs (ph_H2_L2000_*.json, etc.) are not accidentally captured.

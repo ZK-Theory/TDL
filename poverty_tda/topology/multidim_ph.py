@@ -24,16 +24,26 @@ Usage:
 
 from __future__ import annotations
 
+import importlib.metadata
 import logging
+import math
+import multiprocessing as mp
+import queue
+import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 import ripser
 from sklearn.preprocessing import StandardScaler
 
 logger = logging.getLogger("trajectory_tda.topology.multidim_ph")
+
+H2_CANDIDATE_TETRA_BUDGET: float = 2.0e10
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -86,15 +96,23 @@ class PHResult:
     """Container for persistent homology results."""
 
     # dgms: dict mapping dimension -> (N, 2) array of (birth, death) pairs
-    dgms: dict[int, np.ndarray] = field(default_factory=dict)
+    dgms: dict[int, NDArray[np.float64]] = field(default_factory=dict)
     n_points: int = 0
     n_dimensions: int = 0
     domain_names: list[str] = field(default_factory=list)
-    lsoa_codes: np.ndarray | None = None
-    point_cloud: np.ndarray | None = None
+    lsoa_codes: NDArray[np.str_] | None = None
+    point_cloud: NDArray[np.float64] | None = None
     elapsed_seconds: float = 0.0
     # cocycles from ripser (for representative cycle extraction)
     cocycles: dict | None = None
+    ph_method: str = "ripser"
+    do_cocycles: bool = True
+    threshold_rule: str | None = None
+    threshold_value: float | None = None
+    edge_prop_at_thresh: float | None = None
+    candidate_tetrahedra_burden: float | None = None
+    backend_versions: dict[str, str] = field(default_factory=dict)
+    preflight: dict[str, Any] = field(default_factory=dict)
 
     def h_features(self, dim: int, min_persistence: float = 0.0) -> list[tuple[float, float]]:
         """Get (birth, death) pairs for a specific homology dimension."""
@@ -126,7 +144,7 @@ def load_deprivation_cloud(
     region: str | None = None,
     subsample: int | None = None,
     random_state: int = 42,
-) -> tuple[np.ndarray, np.ndarray, list[str]]:
+) -> tuple[NDArray[np.float64], NDArray[np.str_], list[str]]:
     """
     Load IMD 2019 domain scores as a point cloud in R^7.
 
@@ -208,9 +226,9 @@ DEDUP_TOLERANCE: float = 1e-10
 
 
 def compute_greedy_dedup_count(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     tolerance: float = DEDUP_TOLERANCE,
-) -> tuple[int, float, np.ndarray]:
+) -> tuple[int, float, NDArray[np.int64]]:
     """Greedy-permutation deduplication count and selected indices.
 
     Runs a greedy (farthest-point) permutation starting from row 0 with
@@ -270,9 +288,9 @@ def compute_greedy_dedup_count(
 
 
 def greedy_first_k_indices_with_radius(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     k: int,
-) -> tuple[np.ndarray, float]:
+) -> tuple[NDArray[np.int64], float]:
     """Greedy-permutation first-k indices, ignoring covering-radius termination.
 
     Returns the first ``k`` indices of the greedy permutation starting from
@@ -310,8 +328,8 @@ def greedy_first_k_indices_with_radius(
     return np.asarray(selected, dtype=np.int64), float(min_dists.max())
 
 
-def compute_rips_ph(
-    X: np.ndarray,
+def _compute_rips_ph_legacy(
+    X: NDArray[np.float64],
     max_dim: int = 2,
     thresh: float | None = None,
 ) -> PHResult:
@@ -391,6 +409,279 @@ def compute_rips_ph(
     return ph
 
 
+def _package_version(package: str) -> str:
+    try:
+        return importlib.metadata.version(package)
+    except importlib.metadata.PackageNotFoundError:
+        return "not-installed"
+
+
+def _backend_versions() -> dict[str, str]:
+    return {"ripser": _package_version("ripser"), "gudhi": _package_version("gudhi")}
+
+
+def _resolve_rips_threshold(X: NDArray[np.float64], thresh: float | None) -> tuple[float, str]:
+    if thresh is not None:
+        return float(thresh), "explicit"
+
+    n = X.shape[0]
+    n_sample = min(500, n)
+    rng = np.random.RandomState(42)
+    idx = rng.choice(n, n_sample, replace=False)
+    from scipy.spatial.distance import pdist
+
+    dists = pdist(X[idx])
+    threshold = float(np.percentile(dists, 75))
+    logger.info("  Auto thresh = %.3f (75th percentile)", threshold)
+    return threshold, "random-500-pairwise-pdist-p75-seed42"
+
+
+def _estimate_edge_prop_at_thresh(
+    X: NDArray[np.float64],
+    thresh: float,
+    *,
+    max_exact_pairs: int = 5_000_000,
+    sample_pairs: int = 1_000_000,
+) -> tuple[float, int, str]:
+    """Estimate the Rips graph edge density at the chosen threshold."""
+    from scipy.spatial.distance import pdist
+
+    n = X.shape[0]
+    n_pairs = n * (n - 1) // 2
+    if n_pairs == 0:
+        return 0.0, 0, "degenerate"
+    if n_pairs <= max_exact_pairs:
+        dists = pdist(X)
+        return float(np.mean(dists <= thresh)), int(n_pairs), "exact-pdist"
+
+    rng = np.random.RandomState(42)
+    i = rng.randint(0, n, size=sample_pairs)
+    j = rng.randint(0, n - 1, size=sample_pairs)
+    j = j + (j >= i)
+    distances = np.linalg.norm(X[i] - X[j], axis=1)
+    return float(np.mean(distances <= thresh)), int(sample_pairs), "sampled-pairs-seed42"
+
+
+def _candidate_tetrahedra_burden(n_points: int, edge_prop: float) -> float:
+    if n_points < 4:
+        return 0.0
+    return float(math.comb(int(n_points), 4) * float(edge_prop) ** 6)
+
+
+def _assert_h2_feasible_from_density(
+    n_points: int,
+    edge_prop: float,
+    *,
+    tetra_budget: float = H2_CANDIDATE_TETRA_BUDGET,
+) -> dict[str, float | int | bool]:
+    burden = _candidate_tetrahedra_burden(n_points, edge_prop)
+    feasible = burden <= tetra_budget
+    metrics: dict[str, float | int | bool] = {
+        "n_points": int(n_points),
+        "edge_prop_at_thresh": float(edge_prop),
+        "candidate_tetrahedra_burden": float(burden),
+        "tetra_budget": float(tetra_budget),
+        "feasible": bool(feasible),
+    }
+    if not feasible:
+        raise RuntimeError(
+            "H2 Rips feasibility gate rejected this call: "
+            f"n={n_points}, edge_prop={edge_prop:.6f}, "
+            f"candidate_tetrahedra_burden={burden:.3e}, budget={tetra_budget:.3e}. "
+            "Use a smaller L, a lower threshold, or an amended backend plan."
+        )
+    return metrics
+
+
+def _assert_h2_feasible(
+    X: NDArray[np.float64],
+    thresh: float,
+    *,
+    tetra_budget: float = H2_CANDIDATE_TETRA_BUDGET,
+) -> dict[str, Any]:
+    edge_prop, edge_sample_n, edge_density_method = _estimate_edge_prop_at_thresh(X, thresh)
+    metrics = _assert_h2_feasible_from_density(X.shape[0], edge_prop, tetra_budget=tetra_budget)
+    metrics["edge_density_sample_n"] = int(edge_sample_n)
+    metrics["edge_density_method"] = edge_density_method
+    return metrics
+
+
+def _log_diagram_summary(dgms: dict[int, NDArray[np.float64]], max_dim: int) -> None:
+    for dim in range(max_dim + 1):
+        dgm = dgms.get(dim, np.empty((0, 2)))
+        finite = dgm[dgm[:, 1] != np.inf] if len(dgm) else np.empty((0, 2))
+        inf_count = len(dgm) - len(finite)
+        if len(finite) > 0:
+            lifetimes = finite[:, 1] - finite[:, 0]
+            top = sorted(lifetimes, reverse=True)[:5]
+            logger.info(
+                "  H%d: %d finite + %d infinite, top lifetimes: %s",
+                dim,
+                len(finite),
+                inf_count,
+                [round(float(lifetime), 3) for lifetime in top],
+            )
+        else:
+            logger.info("  H%d: 0 finite + %d infinite", dim, inf_count)
+
+
+def _compute_rips_ph_direct(
+    X: NDArray[np.float64],
+    max_dim: int = 2,
+    thresh: float | None = None,
+    *,
+    do_cocycles: bool = True,
+    method: str = "ripser",
+    feasibility_tetra_budget: float | None = None,
+    collapse_iterations: int = 1,
+) -> PHResult:
+    """Compute Rips PH directly in the current process."""
+    import time
+
+    if method not in {"ripser", "collapse"}:
+        raise ValueError("method must be 'ripser' or 'collapse'")
+
+    n, d = X.shape
+    logger.info("Computing Rips PH (%s): %d points, %d dims, max_dim=%d", method, n, d, max_dim)
+    t0 = time.time()
+    threshold, threshold_rule = _resolve_rips_threshold(X, thresh)
+    preflight: dict[str, Any] = {}
+    if max_dim >= 2 and (method == "collapse" or feasibility_tetra_budget is not None):
+        budget = H2_CANDIDATE_TETRA_BUDGET if feasibility_tetra_budget is None else float(feasibility_tetra_budget)
+        preflight = _assert_h2_feasible(X, threshold, tetra_budget=budget)
+        logger.info(
+            "  H2 preflight: edge_prop=%.4f candidate_tetrahedra=%.3e budget=%.3e",
+            preflight["edge_prop_at_thresh"],
+            preflight["candidate_tetrahedra_burden"],
+            preflight["tetra_budget"],
+        )
+
+    if method == "ripser":
+        result = ripser.ripser(X=X, maxdim=max_dim, do_cocycles=do_cocycles, thresh=threshold)
+        dgms = {dim: result["dgms"][dim] for dim in range(max_dim + 1)}
+        cocycles = result.get("cocycles")
+    else:
+        import gudhi
+
+        rips_complex = gudhi.RipsComplex(points=np.asarray(X, dtype=np.float64), max_edge_length=threshold)
+        simplex_tree = rips_complex.create_simplex_tree(max_dimension=1)
+        if collapse_iterations > 0:
+            simplex_tree.collapse_edges(nb_iterations=int(collapse_iterations))
+        simplex_tree.expansion(max_dim + 1)
+        simplex_tree.compute_persistence()
+        dgms = {
+            dim: np.asarray(simplex_tree.persistence_intervals_in_dimension(dim), dtype=np.float64).reshape(-1, 2)
+            for dim in range(max_dim + 1)
+        }
+        cocycles = None
+
+    elapsed = time.time() - t0
+    logger.info("  Completed in %.1fs", elapsed)
+    _log_diagram_summary(dgms, max_dim)
+
+    return PHResult(
+        dgms=dgms,
+        n_points=n,
+        n_dimensions=d,
+        elapsed_seconds=elapsed,
+        cocycles=cocycles,
+        ph_method=method,
+        do_cocycles=bool(do_cocycles),
+        threshold_rule=threshold_rule,
+        threshold_value=float(threshold),
+        edge_prop_at_thresh=None if not preflight else float(preflight["edge_prop_at_thresh"]),
+        candidate_tetrahedra_burden=None if not preflight else float(preflight["candidate_tetrahedra_burden"]),
+        backend_versions=_backend_versions(),
+        preflight=preflight,
+    )
+
+
+def _compute_rips_ph_child(
+    result_queue: mp.Queue,
+    X: NDArray[np.float64],
+    kwargs: dict[str, Any],
+) -> None:
+    try:
+        result_queue.put(("ok", _compute_rips_ph_direct(X, **kwargs)))
+    except BaseException:
+        result_queue.put(("error", traceback.format_exc()))
+
+
+def _compute_rips_ph_in_child(
+    X: NDArray[np.float64],
+    kwargs: dict[str, Any],
+    timeout_seconds: float,
+) -> PHResult:
+    ctx = mp.get_context("spawn")
+    result_queue: mp.Queue = ctx.Queue(maxsize=1)
+    proc = ctx.Process(target=_compute_rips_ph_child, args=(result_queue, X, kwargs))
+    proc.start()
+    deadline = time.time() + float(timeout_seconds)
+    status: str | None = None
+    payload: Any = None
+    while time.time() < deadline:
+        try:
+            status, payload = result_queue.get(timeout=0.5)
+            break
+        except queue.Empty:
+            if not proc.is_alive():
+                break
+    if status is None:
+        try:
+            status, payload = result_queue.get_nowait()
+        except queue.Empty:
+            pass
+    if status is None:
+        if proc.is_alive():
+            proc.terminate()
+            proc.join(5)
+            raise TimeoutError(f"Rips PH child process exceeded timeout_seconds={timeout_seconds}")
+        proc.join(5)
+        raise RuntimeError(f"Rips PH child process exited without a result; exitcode={proc.exitcode}")
+    proc.join(5)
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(5)
+    try:
+        result_queue.close()
+    except Exception:
+        pass
+    if status == "error":
+        raise RuntimeError(f"Rips PH child process failed:\n{payload}")
+    return payload
+
+
+def compute_rips_ph(
+    X: NDArray[np.float64],
+    max_dim: int = 2,
+    thresh: float | None = None,
+    *,
+    do_cocycles: bool = True,
+    method: str = "ripser",
+    feasibility_tetra_budget: float | None = None,
+    collapse_iterations: int = 1,
+    timeout_seconds: float | None = None,
+) -> PHResult:
+    """
+    Compute Vietoris-Rips persistent homology on a point cloud.
+
+    Defaults preserve the historical ripser path with cocycles enabled. H2
+    production runs can opt into ``method='collapse'`` plus the feasibility
+    gate and a child-process timeout.
+    """
+    kwargs = {
+        "max_dim": max_dim,
+        "thresh": thresh,
+        "do_cocycles": do_cocycles,
+        "method": method,
+        "feasibility_tetra_budget": feasibility_tetra_budget,
+        "collapse_iterations": collapse_iterations,
+    }
+    if timeout_seconds is not None:
+        return _compute_rips_ph_in_child(X, kwargs, float(timeout_seconds))
+    return _compute_rips_ph_direct(X, **kwargs)
+
+
 def persistence_summary(ph: PHResult, min_persistence: float = 0.0) -> dict:
     """
     Compute summary statistics of persistence diagram.
@@ -451,7 +742,7 @@ def persistence_summary(ph: PHResult, min_persistence: float = 0.0) -> dict:
     return summary
 
 
-def betti_curve(ph: PHResult, n_points: int = 200) -> dict[int, tuple[np.ndarray, np.ndarray]]:
+def betti_curve(ph: PHResult, n_points: int = 200) -> dict[int, tuple[NDArray[np.float64], NDArray[np.int_]]]:
     """
     Compute Betti curves β_k(ε) for k = 0, 1, 2.
 
@@ -488,7 +779,7 @@ def betti_curve(ph: PHResult, n_points: int = 200) -> dict[int, tuple[np.ndarray
 
 
 def permutation_test(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     n_permutations: int = 100,
     max_dim: int = 1,
     statistic: str = "total_persistence",

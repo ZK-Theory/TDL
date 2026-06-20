@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 
+from trajectory_tda.embedding.ngram_embed import ngram_embed
 from trajectory_tda.scripts.run_wasserstein_battery import load_checkpoint
 from trajectory_tda.topology.permutation_nulls import (
     _markov_shuffle,
@@ -46,6 +47,8 @@ def run_positive_control(
     n_landmarks: int = 5000,
     seed: int = 42,
     output_path: Path | None = None,
+    frozen_loadings: bool = False,
+    n_jobs: int = 1,
 ) -> dict[str, Any]:
     """Run positive-control W₂ Markov-1 test.
 
@@ -63,16 +66,28 @@ def run_positive_control(
         seed: RNG seed for generating the synthetic observed cloud.  Null draws
             use seed + 1 to avoid correlation.
         output_path: Where to write the JSON result.  If None, returns dict only.
+        frozen_loadings: If true, fit scaler/PCA once on the checkpoint trajectories
+            and transform both synthetic observed and null Markov draws with those models.
+        n_jobs: Number of parallel workers for null draws.
 
     Returns:
         Results dict with keys H0, H1, positive_control metadata.
     """
+    if n_jobs < 1:
+        raise ValueError("positive control requires n_jobs >= 1")
     _, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
+    embed_kwargs = dict(embed_kwargs)
     n_traj = len(trajectories)
+    frozen_models = None
+    if frozen_loadings:
+        frozen_embed_kwargs = dict(embed_kwargs)
+        frozen_embed_kwargs.setdefault("random_state", seed)
+        _, embedding_info = ngram_embed(trajectories, **frozen_embed_kwargs)
+        frozen_models = embedding_info["fitted_models"]
+        logger.info("Fitted frozen scaler/PCA models on checkpoint trajectories")
 
     logger.info(
-        "Positive control: generating Markov-1 synthetic cloud "
-        "(n=%d trajectories, seed=%d)",
+        "Positive control: generating Markov-1 synthetic cloud (n=%d trajectories, seed=%d)",
         n_traj,
         seed,
     )
@@ -85,6 +100,7 @@ def run_positive_control(
         rng_obs,
         markov_order=1,
         embed_kwargs=embed_kwargs,
+        frozen_models=frozen_models,
     )
     logger.info(
         "Synthetic cloud generated: shape %s (%.1fs)",
@@ -97,8 +113,7 @@ def run_positive_control(
     # trajectories — so null and "observed" come from the same generative
     # process.  Expected: p ≈ 0.5.
     logger.info(
-        "Running Markov-1 W₂ permutation test on synthetic cloud "
-        "(n_perms=%d, L=%d, seed=%d)",
+        "Running Markov-1 W₂ permutation test on synthetic cloud (n_perms=%d, L=%d, seed=%d)",
         n_permutations,
         n_landmarks,
         seed + 1,
@@ -112,9 +127,10 @@ def run_positive_control(
         n_landmarks=n_landmarks,
         statistic="wasserstein",
         markov_order=1,
-        n_jobs=1,
+        n_jobs=n_jobs,
         seed=seed + 1,
         embed_kwargs=embed_kwargs,
+        frozen_models=frozen_models,
     )
 
     elapsed = time.time() - t0
@@ -123,12 +139,14 @@ def run_positive_control(
     result["null_draws_seed"] = seed + 1
     result["n_landmarks"] = n_landmarks
     result["n_permutations"] = n_permutations
+    result["frozen_loadings"] = bool(frozen_loadings)
+    result["frozen_loadings_seed"] = int(seed) if frozen_loadings else None
+    result["n_jobs"] = int(n_jobs)
     result["checkpoint_dir"] = str(checkpoint_dir)
     result["elapsed_seconds"] = elapsed
 
     logger.info(
-        "Positive control complete (%.1fs): "
-        "H0 p=%.4f, H1 p=%.4f  (expected ≈ 0.5 for both)",
+        "Positive control complete (%.1fs): H0 p=%.4f, H1 p=%.4f  (expected ≈ 0.5 for both)",
         elapsed,
         result.get("H0", {}).get("p_value", float("nan")),
         result.get("H1", {}).get("p_value", float("nan")),
@@ -146,8 +164,7 @@ def run_positive_control(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Positive control: run W₂ Markov-1 test on a Markov-generated cloud. "
-            "Expected p ≈ 0.5 for both H₀ and H₁."
+            "Positive control: run W₂ Markov-1 test on a Markov-generated cloud. Expected p ≈ 0.5 for both H₀ and H₁."
         )
     )
     parser.add_argument(
@@ -159,6 +176,12 @@ def main() -> None:
     parser.add_argument("--n-perms", type=int, default=100)
     parser.add_argument("--landmarks", type=int, default=5000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--n-jobs", type=int, default=4)
+    parser.add_argument(
+        "--frozen-loadings",
+        action="store_true",
+        help="Fit scaler/PCA once on checkpoint trajectories and transform all Markov draws with those frozen models.",
+    )
     parser.add_argument(
         "--output",
         type=str,
@@ -179,6 +202,8 @@ def main() -> None:
         n_landmarks=args.landmarks,
         seed=args.seed,
         output_path=Path(args.output),
+        frozen_loadings=args.frozen_loadings,
+        n_jobs=args.n_jobs,
     )
 
 

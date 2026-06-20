@@ -18,6 +18,7 @@ dependencies = [
     # giotto-tda has no Python 3.13 wheels; commented out pending upstream release
     # "giotto-tda>=0.6.0",
     "gudhi==3.11.0",
+    "pot==0.9.6.post1",
     "yfinance>=0.2.52",
     "fredapi>=0.5.0",
     "requests>=2.28.0",

@@ -1,0 +1,35 @@
+{
+  "pre_registration_date": "2026-06-17",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 10",
+  "amends": {
+    "source": "results/trajectory_tda_integration/stage1/pre_registrations_2026-05-13.json",
+    "entry": "H2 Check",
+    "original_key_params": {"L": 2000, "B": 50, "maxdim": 2, "null": "markov-1", "seed": 42}
+  },
+  "reason": "Exact Vietoris-Rips H2 at L=2000 is computationally infeasible: at the 75th-percentile threshold (~0.75 edge density) the dimension-2 VR complex carries ~1.2e11 candidate tetrahedra, exhausting host memory on two 2026-06-17 attempts (no traceback; host froze), reproducing the documented 2026-05-02 RAM failure on the same complex. The decision-grounding H2 result is already on file at L=1000 (2026-05-03, commit a76308f): H2 W(obs,null)=65.063 vs W(null,null)=66.875, p=0.690 (ns).",
+  "entries": [
+    {
+      "name": "H2 Check (amended)",
+      "outcome_contingent": true,
+      "decision_rule": "reject -> expand to H2; fail -> restriction stands",
+      "papers": ["P01-A", "P01-B"],
+      "revised_key_params": {"L": 1000, "B": 50, "maxdim": 2, "null": "markov-1", "seed": 42},
+      "changed": {
+        "L": {"from": 2000, "to": 1000, "reason": "host-memory infeasibility; returns to the 2026-05-03 decision-grounding landmark count"}
+      },
+      "unchanged": ["B", "maxdim", "null", "seed", "decision_rule"],
+      "method_provenance": {
+        "ph_engine": "ripser 0.6.14 (dense) and gudhi 3.11 edge-collapse, both exact",
+        "edge_collapse_validation": "bottleneck ~9.5e-7 vs dense ripser H2 at L in {200,300,500} on frozen USoc embedding (2026-06-17)",
+        "do_cocycles": false,
+        "threshold": "75th-percentile of pairwise distances (UNCHANGED from the 2026-05-03 decision-grounding run); ISSUE M3 threshold sweep remains deferred",
+        "feasibility_gate": "pre-flight edge-density / tetrahedron-burden estimate; abort above budget (psutil/win32job unavailable, so prevention not RSS cap)",
+        "exactness_contract": "h2-edge-collapse-exactness (pending; binding test authored by the T1.5 Worker)",
+        "L2000_attempt": "not attempted; pre-registered infeasible"
+      }
+    }
+  ],
+  "expected_outcome": "H2 not significant (consistent with 2026-05-03 p=0.690); 'restriction stands' branch -> no higher-dimensional homology section. A reject is a surprise -> escalate before any manuscript claim.",
+  "filed_before_run": true
+}

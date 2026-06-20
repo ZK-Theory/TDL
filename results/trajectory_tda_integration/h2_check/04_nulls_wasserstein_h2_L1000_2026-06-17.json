@@ -1,0 +1,2736 @@
+{
+  "markov": {
+    "H0": {
+      "mean_wasserstein_obs_null": 57.810204360220894,
+      "std_wasserstein_obs_null": 1.1293590477214768,
+      "median_wasserstein_obs_null": 57.90266292976177,
+      "mean_wasserstein_null_null": 3.8936900153507232,
+      "std_wasserstein_null_null": 1.326758225297771,
+      "t_ratio": 14.84715119393336,
+      "bca_ci_lower": 14.415141524463822,
+      "bca_ci_upper": 15.309200899471199,
+      "p_value": 0.0,
+      "significant_at_005": true,
+      "obs_null_distribution": [
+        57.19446384433907,
+        58.40398670862389,
+        56.52212518319605,
+        57.98306291289985,
+        57.975866369574824,
+        58.0901702075327,
+        60.09539463700078,
+        59.60783131350386,
+        56.98881829613862,
+        55.88890559973957,
+        58.2044522656198,
+        58.49823770600587,
+        57.211753574313505,
+        57.98981562300638,
+        61.26497059939094,
+        58.224894083747955,
+        56.810748606237674,
+        58.013699975906675,
+        59.477452017083976,
+        56.03101706416086,
+        56.161358564432994,
+        58.857036802318405,
+        56.45364026926483,
+        57.541574626586275,
+        56.86255870953163,
+        56.397024833810555,
+        58.26829140046671,
+        58.988474905237716,
+        55.722968270581376,
+        57.54537599479372,
+        57.86438837879264,
+        57.69814250705715,
+        58.25284987772603,
+        57.04469002868249,
+        59.02921699967059,
+        57.2221921380738,
+        59.78766445896226,
+        57.55273567216113,
+        56.79659528396416,
+        58.01373511333411,
+        56.49811830662208,
+        58.04312446069266,
+        56.97526589657213,
+        59.06808034550712,
+        57.756390787975626,
+        57.836928415557395,
+        56.85164659738584,
+        57.940937480730895,
+        58.35217607166602,
+        58.64936822486324
+      ],
+      "n_null_null_pairs": 500
+    },
+    "H1": {
+      "mean_wasserstein_obs_null": 23.064846946579593,
+      "std_wasserstein_obs_null": 0.33457186469263406,
+      "median_wasserstein_obs_null": 23.010554966092634,
+      "mean_wasserstein_null_null": 3.13851113979804,
+      "std_wasserstein_null_null": 0.4445664543293424,
+      "t_ratio": 7.348977244052029,
+      "bca_ci_lower": 7.2523101774701155,
+      "bca_ci_upper": 7.4451179951751705,
+      "p_value": 0.0,
+      "significant_at_005": true,
+      "obs_null_distribution": [
+        22.737055633712163,
+        23.543349608648303,
+        23.054341500153967,
+        23.33855652004281,
+        23.003172905991082,
+        23.17772825181024,
+        23.31002990117317,
+        23.011447785718197,
+        22.85786063692899,
+        23.00966214646707,
+        23.07437933563656,
+        23.26527975698049,
+        22.266859916586355,
+        23.321272364583468,
+        23.882519127353238,
+        23.114975564287228,
+        22.773024725666637,
+        23.302480480170978,
+        23.06498004224478,
+        22.876698029709424,
+        22.64324814418775,
+        23.50961256389276,
+        22.885994360128308,
+        22.963007782208525,
+        22.84442056428785,
+        22.650211761742394,
+        23.564771833952218,
+        22.91629311177489,
+        22.630045515050067,
+        22.645112018570604,
+        23.4641768935958,
+        23.29601323183895,
+        22.6786050278857,
+        22.572951450729843,
+        23.561796054593238,
+        22.977994712372542,
+        23.149266259618884,
+        23.2281955302928,
+        22.79486643397888,
+        22.952530483790657,
+        22.728755389163425,
+        22.602022202436732,
+        22.837912118291246,
+        23.431740254882722,
+        23.00040931839077,
+        23.23657843684837,
+        23.66176997616204,
+        23.003720174221836,
+        23.595592507593135,
+        23.229058982631415
+      ],
+      "n_null_null_pairs": 500
+    },
+    "H2": {
+      "mean_wasserstein_obs_null": 11.212991180299063,
+      "std_wasserstein_obs_null": 0.21921626293760385,
+      "median_wasserstein_obs_null": 11.225225336052386,
+      "mean_wasserstein_null_null": 2.1726972844200656,
+      "std_wasserstein_null_null": 0.2990763415613271,
+      "t_ratio": 5.160862150795215,
+      "bca_ci_lower": 5.09256728088839,
+      "bca_ci_upper": 5.228707796264576,
+      "p_value": 0.0,
+      "significant_at_005": true,
+      "obs_null_distribution": [
+        11.144186205193929,
+        11.530302469943239,
+        11.11873432903225,
+        11.353697676222481,
+        10.747292141391439,
+        11.12106369009874,
+        11.137528458857433,
+        10.97183640395504,
+        11.271622313963828,
+        11.383286570396269,
+        11.288465485294578,
+        11.198017993508808,
+        11.202322580155466,
+        11.28346723780316,
+        11.388126556118225,
+        11.306135835649059,
+        11.312989517330635,
+        11.605363358669587,
+        11.160525335055192,
+        11.117903843592082,
+        11.307719866579045,
+        11.477857196215917,
+        10.96254649833034,
+        11.126592704203617,
+        10.9198556491923,
+        11.203162894204763,
+        11.402788729857008,
+        11.392492719224615,
+        11.004137628052094,
+        10.77339101611824,
+        11.231775168697537,
+        11.32870770290239,
+        10.892789220586941,
+        10.90759602254684,
+        11.511614390410177,
+        11.435314976130792,
+        10.817994190884484,
+        11.70281463914453,
+        10.859165953368317,
+        11.280989546618942,
+        11.218675503407237,
+        11.256456652307058,
+        11.086255861195315,
+        11.178604069164072,
+        11.442527477300725,
+        11.379995576371659,
+        11.340232043113701,
+        10.990171059612356,
+        11.542189186240373,
+        11.032276870740418
+      ],
+      "n_null_null_pairs": 500
+    },
+    "null_type": "markov",
+    "n_permutations": 50,
+    "statistic": "wasserstein",
+    "ph_call_provenance": [
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.739243070590385,
+        "edge_prop_at_thresh": 0.7624064064064064,
+        "candidate_tetrahedra_burden": 8133906351.673045,
+        "wall_time_seconds": 82.25628685951233,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7624064064064064,
+          "candidate_tetrahedra_burden": 8133906351.673045,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 43,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.266861531690623,
+        "edge_prop_at_thresh": 0.7424824824824825,
+        "candidate_tetrahedra_burden": 6939005256.24979,
+        "wall_time_seconds": 78.69881296157837,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7424824824824825,
+          "candidate_tetrahedra_burden": 6939005256.24979,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 44,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.761889897050771,
+        "edge_prop_at_thresh": 0.7604144144144144,
+        "candidate_tetrahedra_burden": 8007224234.212793,
+        "wall_time_seconds": 82.61319923400879,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7604144144144144,
+          "candidate_tetrahedra_burden": 8007224234.212793,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 45,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.48098399295123,
+        "edge_prop_at_thresh": 0.769007007007007,
+        "candidate_tetrahedra_burden": 8565677679.171684,
+        "wall_time_seconds": 87.19867014884949,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.769007007007007,
+          "candidate_tetrahedra_burden": 8565677679.171684,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 46,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.928469035073855,
+        "edge_prop_at_thresh": 0.7731791791791792,
+        "candidate_tetrahedra_burden": 8848320578.213997,
+        "wall_time_seconds": 86.29717898368835,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7731791791791792,
+          "candidate_tetrahedra_burden": 8848320578.213997,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 47,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.277652270706819,
+        "edge_prop_at_thresh": 0.7542122122122122,
+        "candidate_tetrahedra_burden": 7623270099.162734,
+        "wall_time_seconds": 78.67709398269653,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7542122122122122,
+          "candidate_tetrahedra_burden": 7623270099.162734,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 48,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.22741011859312,
+        "edge_prop_at_thresh": 0.7561061061061061,
+        "candidate_tetrahedra_burden": 7738849805.796479,
+        "wall_time_seconds": 79.67709136009216,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7561061061061061,
+          "candidate_tetrahedra_burden": 7738849805.796479,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 49,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.474512133821541,
+        "edge_prop_at_thresh": 0.7568168168168168,
+        "candidate_tetrahedra_burden": 7782597826.971606,
+        "wall_time_seconds": 80.61739706993103,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7568168168168168,
+          "candidate_tetrahedra_burden": 7782597826.971606,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 50,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.691316092245632,
+        "edge_prop_at_thresh": 0.7502422422422422,
+        "candidate_tetrahedra_burden": 7385655159.45451,
+        "wall_time_seconds": 81.21594405174255,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7502422422422422,
+          "candidate_tetrahedra_burden": 7385655159.45451,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 51,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.737410358275962,
+        "edge_prop_at_thresh": 0.762026026026026,
+        "candidate_tetrahedra_burden": 8109587653.871932,
+        "wall_time_seconds": 81.00053977966309,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.762026026026026,
+          "candidate_tetrahedra_burden": 8109587653.871932,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 52,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.671283083261798,
+        "edge_prop_at_thresh": 0.7587167167167167,
+        "candidate_tetrahedra_burden": 7900559782.728747,
+        "wall_time_seconds": 87.1547577381134,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7587167167167167,
+          "candidate_tetrahedra_burden": 7900559782.728747,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 53,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.5178233910799,
+        "edge_prop_at_thresh": 0.7588328328328329,
+        "candidate_tetrahedra_burden": 7907817300.840929,
+        "wall_time_seconds": 82.30032873153687,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7588328328328329,
+          "candidate_tetrahedra_burden": 7907817300.840929,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 54,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.818297642760607,
+        "edge_prop_at_thresh": 0.7644184184184184,
+        "candidate_tetrahedra_burden": 8263552722.506342,
+        "wall_time_seconds": 82.16264986991882,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7644184184184184,
+          "candidate_tetrahedra_burden": 8263552722.506342,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 55,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.423739331739961,
+        "edge_prop_at_thresh": 0.7543583583583584,
+        "candidate_tetrahedra_burden": 7632137508.467088,
+        "wall_time_seconds": 75.49870371818542,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7543583583583584,
+          "candidate_tetrahedra_burden": 7632137508.467088,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 56,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.135204590235245,
+        "edge_prop_at_thresh": 0.7570550550550551,
+        "candidate_tetrahedra_burden": 7797308695.751571,
+        "wall_time_seconds": 80.06970739364624,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7570550550550551,
+          "candidate_tetrahedra_burden": 7797308695.751571,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 57,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.156972164880843,
+        "edge_prop_at_thresh": 0.7344944944944944,
+        "candidate_tetrahedra_burden": 6502961982.588167,
+        "wall_time_seconds": 76.92653346061707,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7344944944944944,
+          "candidate_tetrahedra_burden": 6502961982.588167,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 58,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.366006121945906,
+        "edge_prop_at_thresh": 0.7434254254254254,
+        "candidate_tetrahedra_burden": 6992048086.093764,
+        "wall_time_seconds": 73.94604277610779,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7434254254254254,
+          "candidate_tetrahedra_burden": 6992048086.093764,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 59,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.365284275313986,
+        "edge_prop_at_thresh": 0.7358638638638638,
+        "candidate_tetrahedra_burden": 6576045435.232985,
+        "wall_time_seconds": 79.32411980628967,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7358638638638638,
+          "candidate_tetrahedra_burden": 6576045435.232985,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 60,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.239855067801136,
+        "edge_prop_at_thresh": 0.7265105105105105,
+        "candidate_tetrahedra_burden": 6090197211.82655,
+        "wall_time_seconds": 73.38933086395264,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7265105105105105,
+          "candidate_tetrahedra_burden": 6090197211.82655,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 61,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.642060080957766,
+        "edge_prop_at_thresh": 0.7653173173173173,
+        "candidate_tetrahedra_burden": 8322028314.564319,
+        "wall_time_seconds": 82.79162096977234,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7653173173173173,
+          "candidate_tetrahedra_burden": 8322028314.564319,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 62,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.723580250368094,
+        "edge_prop_at_thresh": 0.7608068068068068,
+        "candidate_tetrahedra_burden": 8032047777.338114,
+        "wall_time_seconds": 79.67696285247803,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7608068068068068,
+          "candidate_tetrahedra_burden": 8032047777.338114,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 63,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.703749853483812,
+        "edge_prop_at_thresh": 0.7536956956956957,
+        "candidate_tetrahedra_burden": 7591999248.513922,
+        "wall_time_seconds": 81.16422939300537,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7536956956956957,
+          "candidate_tetrahedra_burden": 7591999248.513922,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 64,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.79699826090097,
+        "edge_prop_at_thresh": 0.7676556556556556,
+        "candidate_tetrahedra_burden": 8475760367.64958,
+        "wall_time_seconds": 80.1261944770813,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7676556556556556,
+          "candidate_tetrahedra_burden": 8475760367.64958,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 65,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.682374772159356,
+        "edge_prop_at_thresh": 0.76201001001001,
+        "candidate_tetrahedra_burden": 8108565039.497429,
+        "wall_time_seconds": 84.72913694381714,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.76201001001001,
+          "candidate_tetrahedra_burden": 8108565039.497429,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 66,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.676711490047362,
+        "edge_prop_at_thresh": 0.7507527527527528,
+        "candidate_tetrahedra_burden": 7415860399.678976,
+        "wall_time_seconds": 75.69451856613159,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7507527527527528,
+          "candidate_tetrahedra_burden": 7415860399.678976,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 67,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.753101274839612,
+        "edge_prop_at_thresh": 0.773001001001001,
+        "candidate_tetrahedra_burden": 8836093117.921576,
+        "wall_time_seconds": 81.43799352645874,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.773001001001001,
+          "candidate_tetrahedra_burden": 8836093117.921576,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 68,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.414841625597493,
+        "edge_prop_at_thresh": 0.7468968968968969,
+        "candidate_tetrahedra_burden": 7190248111.409888,
+        "wall_time_seconds": 77.64216136932373,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7468968968968969,
+          "candidate_tetrahedra_burden": 7190248111.409888,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 69,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.456710066352288,
+        "edge_prop_at_thresh": 0.7538438438438438,
+        "candidate_tetrahedra_burden": 7600957453.938327,
+        "wall_time_seconds": 76.21168494224548,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7538438438438438,
+          "candidate_tetrahedra_burden": 7600957453.938327,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 70,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 16.07788263480191,
+        "edge_prop_at_thresh": 0.7720660660660661,
+        "candidate_tetrahedra_burden": 8772163837.710077,
+        "wall_time_seconds": 78.20537185668945,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7720660660660661,
+          "candidate_tetrahedra_burden": 8772163837.710077,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 71,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.71343935495755,
+        "edge_prop_at_thresh": 0.7661401401401401,
+        "candidate_tetrahedra_burden": 8375856860.737068,
+        "wall_time_seconds": 78.29580116271973,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7661401401401401,
+          "candidate_tetrahedra_burden": 8375856860.737068,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 72,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.567411740675444,
+        "edge_prop_at_thresh": 0.7663063063063064,
+        "candidate_tetrahedra_burden": 8386762480.892172,
+        "wall_time_seconds": 79.52872610092163,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7663063063063064,
+          "candidate_tetrahedra_burden": 8386762480.892172,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 73,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.384116592092132,
+        "edge_prop_at_thresh": 0.750054054054054,
+        "candidate_tetrahedra_burden": 7374546573.297109,
+        "wall_time_seconds": 78.95668816566467,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.750054054054054,
+          "candidate_tetrahedra_burden": 7374546573.297109,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 74,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.647094653819595,
+        "edge_prop_at_thresh": 0.7643103103103103,
+        "candidate_tetrahedra_burden": 8256543148.449376,
+        "wall_time_seconds": 78.32597160339355,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7643103103103103,
+          "candidate_tetrahedra_burden": 8256543148.449376,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 75,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.546290552953819,
+        "edge_prop_at_thresh": 0.757975975975976,
+        "candidate_tetrahedra_burden": 7854392345.555178,
+        "wall_time_seconds": 81.01768112182617,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.757975975975976,
+          "candidate_tetrahedra_burden": 7854392345.555178,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 76,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.195727656948211,
+        "edge_prop_at_thresh": 0.7448128128128129,
+        "candidate_tetrahedra_burden": 7070706016.080448,
+        "wall_time_seconds": 73.66165590286255,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7448128128128129,
+          "candidate_tetrahedra_burden": 7070706016.080448,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 77,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.491893236862696,
+        "edge_prop_at_thresh": 0.7483903903903903,
+        "candidate_tetrahedra_burden": 7276946136.029824,
+        "wall_time_seconds": 80.77139925956726,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7483903903903903,
+          "candidate_tetrahedra_burden": 7276946136.029824,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 78,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.416533582452052,
+        "edge_prop_at_thresh": 0.7534134134134134,
+        "candidate_tetrahedra_burden": 7574954587.715339,
+        "wall_time_seconds": 81.34450674057007,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7534134134134134,
+          "candidate_tetrahedra_burden": 7574954587.715339,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 79,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.364946722779269,
+        "edge_prop_at_thresh": 0.7491171171171171,
+        "candidate_tetrahedra_burden": 7319446997.517182,
+        "wall_time_seconds": 86.1163022518158,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7491171171171171,
+          "candidate_tetrahedra_burden": 7319446997.517182,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 80,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.531608366014595,
+        "edge_prop_at_thresh": 0.7484344344344345,
+        "candidate_tetrahedra_burden": 7279516077.8657675,
+        "wall_time_seconds": 88.44817733764648,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7484344344344345,
+          "candidate_tetrahedra_burden": 7279516077.8657675,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 81,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.561104166414387,
+        "edge_prop_at_thresh": 0.7587807807807808,
+        "candidate_tetrahedra_burden": 7904563243.932752,
+        "wall_time_seconds": 83.2523787021637,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7587807807807808,
+          "candidate_tetrahedra_burden": 7904563243.932752,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 82,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.754370907424388,
+        "edge_prop_at_thresh": 0.7732532532532532,
+        "candidate_tetrahedra_burden": 8853408052.177448,
+        "wall_time_seconds": 84.44932866096497,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7732532532532532,
+          "candidate_tetrahedra_burden": 8853408052.177448,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 83,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.662484778249603,
+        "edge_prop_at_thresh": 0.7596896896896896,
+        "candidate_tetrahedra_burden": 7961544740.373203,
+        "wall_time_seconds": 79.87631034851074,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7596896896896896,
+          "candidate_tetrahedra_burden": 7961544740.373203,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 84,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.424635749535332,
+        "edge_prop_at_thresh": 0.7452672672672672,
+        "candidate_tetrahedra_burden": 7096631075.605294,
+        "wall_time_seconds": 75.81294989585876,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7452672672672672,
+          "candidate_tetrahedra_burden": 7096631075.605294,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 85,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.72061774736723,
+        "edge_prop_at_thresh": 0.7581961961961962,
+        "candidate_tetrahedra_burden": 7868094253.580998,
+        "wall_time_seconds": 82.83226799964905,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7581961961961962,
+          "candidate_tetrahedra_burden": 7868094253.580998,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 86,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.25753350088612,
+        "edge_prop_at_thresh": 0.7339139139139139,
+        "candidate_tetrahedra_burden": 6472181298.805389,
+        "wall_time_seconds": 72.02954149246216,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7339139139139139,
+          "candidate_tetrahedra_burden": 6472181298.805389,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 87,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.273184422113786,
+        "edge_prop_at_thresh": 0.7437217217217217,
+        "candidate_tetrahedra_burden": 7008785070.444404,
+        "wall_time_seconds": 78.36297941207886,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7437217217217217,
+          "candidate_tetrahedra_burden": 7008785070.444404,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 88,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.693691578432988,
+        "edge_prop_at_thresh": 0.7741841841841842,
+        "candidate_tetrahedra_burden": 8917553331.48268,
+        "wall_time_seconds": 84.76772260665894,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7741841841841842,
+          "candidate_tetrahedra_burden": 8917553331.48268,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 89,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.432292885663117,
+        "edge_prop_at_thresh": 0.7542082082082082,
+        "candidate_tetrahedra_burden": 7623027277.3277445,
+        "wall_time_seconds": 79.97576141357422,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7542082082082082,
+          "candidate_tetrahedra_burden": 7623027277.3277445,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 90,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.650170702022466,
+        "edge_prop_at_thresh": 0.7684444444444445,
+        "candidate_tetrahedra_burden": 8528149344.45464,
+        "wall_time_seconds": 83.65744757652283,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7684444444444445,
+          "candidate_tetrahedra_burden": 8528149344.45464,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 91,
+        "n_landmarks": 1000
+      },
+      {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 15.398210206882748,
+        "edge_prop_at_thresh": 0.7464804804804804,
+        "candidate_tetrahedra_burden": 7166228995.745351,
+        "wall_time_seconds": 78.36032176017761,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7464804804804804,
+          "candidate_tetrahedra_burden": 7166228995.745351,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        },
+        "seed": 92,
+        "n_landmarks": 1000
+      }
+    ],
+    "permutation_wall_times_seconds": [
+      105.64780640602112,
+      95.95985007286072,
+      105.04060244560242,
+      104.00322675704956,
+      102.36310720443726,
+      94.8226969242096,
+      95.81954336166382,
+      96.78633427619934,
+      97.23023009300232,
+      96.6747510433197,
+      103.10280418395996,
+      98.87866163253784,
+      98.08262848854065,
+      91.39207243919373,
+      96.1947693824768,
+      92.79062628746033,
+      90.673166513443,
+      96.14650321006775,
+      89.68070077896118,
+      98.8587646484375,
+      95.9143590927124,
+      97.50990009307861,
+      95.76591897010803,
+      100.39509844779968,
+      92.735515832901,
+      97.78406047821045,
+      93.95965099334717,
+      92.07423543930054,
+      94.19288420677185,
+      94.48567771911621,
+      96.04981660842896,
+      95.37785816192627,
+      94.58505821228027,
+      97.17185878753662,
+      89.76737594604492,
+      97.09312295913696,
+      97.97623038291931,
+      102.82343769073486,
+      106.64838314056396,
+      101.36643123626709,
+      100.49867820739746,
+      96.6457953453064,
+      91.89511919021606,
+      99.05086469650269,
+      88.17899656295776,
+      94.18301963806152,
+      100.87862586975098,
+      96.05055856704712,
+      99.79390454292297,
+      94.5470085144043
+    ],
+    "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/04_nulls_wasserstein_h2_L1000_2026-06-17/markov1_h2_L1000_B50_seed42.json",
+    "ph_kwargs": {
+      "max_dim": 2,
+      "do_cocycles": false,
+      "method": "ripser",
+      "feasibility_tetra_budget": 20000000000.0,
+      "collapse_iterations": 1,
+      "timeout_seconds": 900.0
+    },
+    "elapsed_seconds": 5240.238916397095,
+    "params": {
+      "requested_L": 2000,
+      "L": 1000,
+      "B": 50,
+      "maxdim": 2,
+      "seed": 42,
+      "markov_order": 1,
+      "null": "markov-1",
+      "statistic": "wasserstein",
+      "wasserstein_order": 2,
+      "wasserstein_internal_p": 2,
+      "frozen_loadings": true,
+      "fallback_reason": "host-memory infeasibility at L=2000; see pre_registrations_2026-06-17.json",
+      "max_hours": 6.0,
+      "n_jobs": 1,
+      "ph_method": "ripser",
+      "do_cocycles": false,
+      "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+      "threshold_value": 22.259951405203797,
+      "edge_prop_at_thresh": 0.7525025025025025,
+      "candidate_tetrahedra_burden": 7520169637.835682,
+      "observed_ph_wall_time_seconds": 98.40237069129944,
+      "backend_versions": {
+        "ripser": "0.6.14",
+        "gudhi": "3.11.0"
+      },
+      "ph_timeout_seconds": 900.0,
+      "ph_worker_memory_gb": 5.5,
+      "min_available_memory_gb": 2.0,
+      "allow_low_n_jobs": true,
+      "memory_preflight": {
+        "available_memory_gb": 10.785297393798828,
+        "worker_count": 1,
+        "estimated_worker_memory_gb": 5.5,
+        "min_available_memory_gb": 2.0,
+        "estimated_required_memory_gb": 7.5
+      },
+      "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/04_nulls_wasserstein_h2_L1000_2026-06-17/markov1_h2_L1000_B50_seed42.json"
+    },
+    "inputs": {
+      "canonical_embedding_source": "results/trajectory_tda_integration/embeddings.npy",
+      "trajectory_source": "results/trajectory_tda_integration/01_trajectories_sequences.json",
+      "git_head": "00089f39c75b2ecde85705edef2bad7c9fa9684f"
+    },
+    "ph_provenance": {
+      "observed": {
+        "ph_method": "ripser",
+        "do_cocycles": false,
+        "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+        "threshold_value": 22.259951405203797,
+        "edge_prop_at_thresh": 0.7525025025025025,
+        "candidate_tetrahedra_burden": 7520169637.835682,
+        "wall_time_seconds": 98.40237069129944,
+        "backend_versions": {
+          "ripser": "0.6.14",
+          "gudhi": "3.11.0"
+        },
+        "preflight": {
+          "n_points": 1000,
+          "edge_prop_at_thresh": 0.7525025025025025,
+          "candidate_tetrahedra_burden": 7520169637.835682,
+          "tetra_budget": 20000000000.0,
+          "feasible": true,
+          "edge_density_sample_n": 499500,
+          "edge_density_method": "exact-pdist"
+        }
+      },
+      "permutation_calls": [
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.739243070590385,
+          "edge_prop_at_thresh": 0.7624064064064064,
+          "candidate_tetrahedra_burden": 8133906351.673045,
+          "wall_time_seconds": 82.25628685951233,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7624064064064064,
+            "candidate_tetrahedra_burden": 8133906351.673045,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 43,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.266861531690623,
+          "edge_prop_at_thresh": 0.7424824824824825,
+          "candidate_tetrahedra_burden": 6939005256.24979,
+          "wall_time_seconds": 78.69881296157837,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7424824824824825,
+            "candidate_tetrahedra_burden": 6939005256.24979,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 44,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.761889897050771,
+          "edge_prop_at_thresh": 0.7604144144144144,
+          "candidate_tetrahedra_burden": 8007224234.212793,
+          "wall_time_seconds": 82.61319923400879,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7604144144144144,
+            "candidate_tetrahedra_burden": 8007224234.212793,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 45,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.48098399295123,
+          "edge_prop_at_thresh": 0.769007007007007,
+          "candidate_tetrahedra_burden": 8565677679.171684,
+          "wall_time_seconds": 87.19867014884949,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.769007007007007,
+            "candidate_tetrahedra_burden": 8565677679.171684,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 46,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.928469035073855,
+          "edge_prop_at_thresh": 0.7731791791791792,
+          "candidate_tetrahedra_burden": 8848320578.213997,
+          "wall_time_seconds": 86.29717898368835,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7731791791791792,
+            "candidate_tetrahedra_burden": 8848320578.213997,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 47,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.277652270706819,
+          "edge_prop_at_thresh": 0.7542122122122122,
+          "candidate_tetrahedra_burden": 7623270099.162734,
+          "wall_time_seconds": 78.67709398269653,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7542122122122122,
+            "candidate_tetrahedra_burden": 7623270099.162734,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 48,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.22741011859312,
+          "edge_prop_at_thresh": 0.7561061061061061,
+          "candidate_tetrahedra_burden": 7738849805.796479,
+          "wall_time_seconds": 79.67709136009216,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7561061061061061,
+            "candidate_tetrahedra_burden": 7738849805.796479,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 49,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.474512133821541,
+          "edge_prop_at_thresh": 0.7568168168168168,
+          "candidate_tetrahedra_burden": 7782597826.971606,
+          "wall_time_seconds": 80.61739706993103,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7568168168168168,
+            "candidate_tetrahedra_burden": 7782597826.971606,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 50,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.691316092245632,
+          "edge_prop_at_thresh": 0.7502422422422422,
+          "candidate_tetrahedra_burden": 7385655159.45451,
+          "wall_time_seconds": 81.21594405174255,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7502422422422422,
+            "candidate_tetrahedra_burden": 7385655159.45451,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 51,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.737410358275962,
+          "edge_prop_at_thresh": 0.762026026026026,
+          "candidate_tetrahedra_burden": 8109587653.871932,
+          "wall_time_seconds": 81.00053977966309,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.762026026026026,
+            "candidate_tetrahedra_burden": 8109587653.871932,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 52,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.671283083261798,
+          "edge_prop_at_thresh": 0.7587167167167167,
+          "candidate_tetrahedra_burden": 7900559782.728747,
+          "wall_time_seconds": 87.1547577381134,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7587167167167167,
+            "candidate_tetrahedra_burden": 7900559782.728747,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 53,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.5178233910799,
+          "edge_prop_at_thresh": 0.7588328328328329,
+          "candidate_tetrahedra_burden": 7907817300.840929,
+          "wall_time_seconds": 82.30032873153687,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7588328328328329,
+            "candidate_tetrahedra_burden": 7907817300.840929,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 54,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.818297642760607,
+          "edge_prop_at_thresh": 0.7644184184184184,
+          "candidate_tetrahedra_burden": 8263552722.506342,
+          "wall_time_seconds": 82.16264986991882,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7644184184184184,
+            "candidate_tetrahedra_burden": 8263552722.506342,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 55,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.423739331739961,
+          "edge_prop_at_thresh": 0.7543583583583584,
+          "candidate_tetrahedra_burden": 7632137508.467088,
+          "wall_time_seconds": 75.49870371818542,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7543583583583584,
+            "candidate_tetrahedra_burden": 7632137508.467088,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 56,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.135204590235245,
+          "edge_prop_at_thresh": 0.7570550550550551,
+          "candidate_tetrahedra_burden": 7797308695.751571,
+          "wall_time_seconds": 80.06970739364624,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7570550550550551,
+            "candidate_tetrahedra_burden": 7797308695.751571,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 57,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.156972164880843,
+          "edge_prop_at_thresh": 0.7344944944944944,
+          "candidate_tetrahedra_burden": 6502961982.588167,
+          "wall_time_seconds": 76.92653346061707,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7344944944944944,
+            "candidate_tetrahedra_burden": 6502961982.588167,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 58,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.366006121945906,
+          "edge_prop_at_thresh": 0.7434254254254254,
+          "candidate_tetrahedra_burden": 6992048086.093764,
+          "wall_time_seconds": 73.94604277610779,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7434254254254254,
+            "candidate_tetrahedra_burden": 6992048086.093764,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 59,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.365284275313986,
+          "edge_prop_at_thresh": 0.7358638638638638,
+          "candidate_tetrahedra_burden": 6576045435.232985,
+          "wall_time_seconds": 79.32411980628967,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7358638638638638,
+            "candidate_tetrahedra_burden": 6576045435.232985,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 60,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.239855067801136,
+          "edge_prop_at_thresh": 0.7265105105105105,
+          "candidate_tetrahedra_burden": 6090197211.82655,
+          "wall_time_seconds": 73.38933086395264,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7265105105105105,
+            "candidate_tetrahedra_burden": 6090197211.82655,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 61,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.642060080957766,
+          "edge_prop_at_thresh": 0.7653173173173173,
+          "candidate_tetrahedra_burden": 8322028314.564319,
+          "wall_time_seconds": 82.79162096977234,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7653173173173173,
+            "candidate_tetrahedra_burden": 8322028314.564319,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 62,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.723580250368094,
+          "edge_prop_at_thresh": 0.7608068068068068,
+          "candidate_tetrahedra_burden": 8032047777.338114,
+          "wall_time_seconds": 79.67696285247803,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7608068068068068,
+            "candidate_tetrahedra_burden": 8032047777.338114,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 63,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.703749853483812,
+          "edge_prop_at_thresh": 0.7536956956956957,
+          "candidate_tetrahedra_burden": 7591999248.513922,
+          "wall_time_seconds": 81.16422939300537,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7536956956956957,
+            "candidate_tetrahedra_burden": 7591999248.513922,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 64,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.79699826090097,
+          "edge_prop_at_thresh": 0.7676556556556556,
+          "candidate_tetrahedra_burden": 8475760367.64958,
+          "wall_time_seconds": 80.1261944770813,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7676556556556556,
+            "candidate_tetrahedra_burden": 8475760367.64958,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 65,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.682374772159356,
+          "edge_prop_at_thresh": 0.76201001001001,
+          "candidate_tetrahedra_burden": 8108565039.497429,
+          "wall_time_seconds": 84.72913694381714,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.76201001001001,
+            "candidate_tetrahedra_burden": 8108565039.497429,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 66,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.676711490047362,
+          "edge_prop_at_thresh": 0.7507527527527528,
+          "candidate_tetrahedra_burden": 7415860399.678976,
+          "wall_time_seconds": 75.69451856613159,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7507527527527528,
+            "candidate_tetrahedra_burden": 7415860399.678976,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 67,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.753101274839612,
+          "edge_prop_at_thresh": 0.773001001001001,
+          "candidate_tetrahedra_burden": 8836093117.921576,
+          "wall_time_seconds": 81.43799352645874,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.773001001001001,
+            "candidate_tetrahedra_burden": 8836093117.921576,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 68,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.414841625597493,
+          "edge_prop_at_thresh": 0.7468968968968969,
+          "candidate_tetrahedra_burden": 7190248111.409888,
+          "wall_time_seconds": 77.64216136932373,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7468968968968969,
+            "candidate_tetrahedra_burden": 7190248111.409888,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 69,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.456710066352288,
+          "edge_prop_at_thresh": 0.7538438438438438,
+          "candidate_tetrahedra_burden": 7600957453.938327,
+          "wall_time_seconds": 76.21168494224548,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7538438438438438,
+            "candidate_tetrahedra_burden": 7600957453.938327,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 70,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 16.07788263480191,
+          "edge_prop_at_thresh": 0.7720660660660661,
+          "candidate_tetrahedra_burden": 8772163837.710077,
+          "wall_time_seconds": 78.20537185668945,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7720660660660661,
+            "candidate_tetrahedra_burden": 8772163837.710077,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 71,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.71343935495755,
+          "edge_prop_at_thresh": 0.7661401401401401,
+          "candidate_tetrahedra_burden": 8375856860.737068,
+          "wall_time_seconds": 78.29580116271973,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7661401401401401,
+            "candidate_tetrahedra_burden": 8375856860.737068,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 72,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.567411740675444,
+          "edge_prop_at_thresh": 0.7663063063063064,
+          "candidate_tetrahedra_burden": 8386762480.892172,
+          "wall_time_seconds": 79.52872610092163,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7663063063063064,
+            "candidate_tetrahedra_burden": 8386762480.892172,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 73,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.384116592092132,
+          "edge_prop_at_thresh": 0.750054054054054,
+          "candidate_tetrahedra_burden": 7374546573.297109,
+          "wall_time_seconds": 78.95668816566467,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.750054054054054,
+            "candidate_tetrahedra_burden": 7374546573.297109,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 74,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.647094653819595,
+          "edge_prop_at_thresh": 0.7643103103103103,
+          "candidate_tetrahedra_burden": 8256543148.449376,
+          "wall_time_seconds": 78.32597160339355,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7643103103103103,
+            "candidate_tetrahedra_burden": 8256543148.449376,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 75,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.546290552953819,
+          "edge_prop_at_thresh": 0.757975975975976,
+          "candidate_tetrahedra_burden": 7854392345.555178,
+          "wall_time_seconds": 81.01768112182617,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.757975975975976,
+            "candidate_tetrahedra_burden": 7854392345.555178,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 76,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.195727656948211,
+          "edge_prop_at_thresh": 0.7448128128128129,
+          "candidate_tetrahedra_burden": 7070706016.080448,
+          "wall_time_seconds": 73.66165590286255,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7448128128128129,
+            "candidate_tetrahedra_burden": 7070706016.080448,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 77,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.491893236862696,
+          "edge_prop_at_thresh": 0.7483903903903903,
+          "candidate_tetrahedra_burden": 7276946136.029824,
+          "wall_time_seconds": 80.77139925956726,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7483903903903903,
+            "candidate_tetrahedra_burden": 7276946136.029824,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 78,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.416533582452052,
+          "edge_prop_at_thresh": 0.7534134134134134,
+          "candidate_tetrahedra_burden": 7574954587.715339,
+          "wall_time_seconds": 81.34450674057007,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7534134134134134,
+            "candidate_tetrahedra_burden": 7574954587.715339,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 79,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.364946722779269,
+          "edge_prop_at_thresh": 0.7491171171171171,
+          "candidate_tetrahedra_burden": 7319446997.517182,
+          "wall_time_seconds": 86.1163022518158,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7491171171171171,
+            "candidate_tetrahedra_burden": 7319446997.517182,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 80,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.531608366014595,
+          "edge_prop_at_thresh": 0.7484344344344345,
+          "candidate_tetrahedra_burden": 7279516077.8657675,
+          "wall_time_seconds": 88.44817733764648,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7484344344344345,
+            "candidate_tetrahedra_burden": 7279516077.8657675,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 81,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.561104166414387,
+          "edge_prop_at_thresh": 0.7587807807807808,
+          "candidate_tetrahedra_burden": 7904563243.932752,
+          "wall_time_seconds": 83.2523787021637,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7587807807807808,
+            "candidate_tetrahedra_burden": 7904563243.932752,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 82,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.754370907424388,
+          "edge_prop_at_thresh": 0.7732532532532532,
+          "candidate_tetrahedra_burden": 8853408052.177448,
+          "wall_time_seconds": 84.44932866096497,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7732532532532532,
+            "candidate_tetrahedra_burden": 8853408052.177448,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 83,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.662484778249603,
+          "edge_prop_at_thresh": 0.7596896896896896,
+          "candidate_tetrahedra_burden": 7961544740.373203,
+          "wall_time_seconds": 79.87631034851074,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7596896896896896,
+            "candidate_tetrahedra_burden": 7961544740.373203,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 84,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.424635749535332,
+          "edge_prop_at_thresh": 0.7452672672672672,
+          "candidate_tetrahedra_burden": 7096631075.605294,
+          "wall_time_seconds": 75.81294989585876,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7452672672672672,
+            "candidate_tetrahedra_burden": 7096631075.605294,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 85,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.72061774736723,
+          "edge_prop_at_thresh": 0.7581961961961962,
+          "candidate_tetrahedra_burden": 7868094253.580998,
+          "wall_time_seconds": 82.83226799964905,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7581961961961962,
+            "candidate_tetrahedra_burden": 7868094253.580998,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 86,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.25753350088612,
+          "edge_prop_at_thresh": 0.7339139139139139,
+          "candidate_tetrahedra_burden": 6472181298.805389,
+          "wall_time_seconds": 72.02954149246216,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7339139139139139,
+            "candidate_tetrahedra_burden": 6472181298.805389,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 87,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.273184422113786,
+          "edge_prop_at_thresh": 0.7437217217217217,
+          "candidate_tetrahedra_burden": 7008785070.444404,
+          "wall_time_seconds": 78.36297941207886,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7437217217217217,
+            "candidate_tetrahedra_burden": 7008785070.444404,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 88,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.693691578432988,
+          "edge_prop_at_thresh": 0.7741841841841842,
+          "candidate_tetrahedra_burden": 8917553331.48268,
+          "wall_time_seconds": 84.76772260665894,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7741841841841842,
+            "candidate_tetrahedra_burden": 8917553331.48268,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 89,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.432292885663117,
+          "edge_prop_at_thresh": 0.7542082082082082,
+          "candidate_tetrahedra_burden": 7623027277.3277445,
+          "wall_time_seconds": 79.97576141357422,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7542082082082082,
+            "candidate_tetrahedra_burden": 7623027277.3277445,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 90,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.650170702022466,
+          "edge_prop_at_thresh": 0.7684444444444445,
+          "candidate_tetrahedra_burden": 8528149344.45464,
+          "wall_time_seconds": 83.65744757652283,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7684444444444445,
+            "candidate_tetrahedra_burden": 8528149344.45464,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 91,
+          "n_landmarks": 1000
+        },
+        {
+          "ph_method": "ripser",
+          "do_cocycles": false,
+          "threshold_rule": "random-500-pairwise-pdist-p75-seed42",
+          "threshold_value": 15.398210206882748,
+          "edge_prop_at_thresh": 0.7464804804804804,
+          "candidate_tetrahedra_burden": 7166228995.745351,
+          "wall_time_seconds": 78.36032176017761,
+          "backend_versions": {
+            "ripser": "0.6.14",
+            "gudhi": "3.11.0"
+          },
+          "preflight": {
+            "n_points": 1000,
+            "edge_prop_at_thresh": 0.7464804804804804,
+            "candidate_tetrahedra_burden": 7166228995.745351,
+            "tetra_budget": 20000000000.0,
+            "feasible": true,
+            "edge_density_sample_n": 499500,
+            "edge_density_method": "exact-pdist"
+          },
+          "seed": 92,
+          "n_landmarks": 1000
+        }
+      ]
+    }
+  }
+}

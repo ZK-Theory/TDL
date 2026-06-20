@@ -508,6 +508,215 @@ def validate_markov2_alpha_payload(payload: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(value, bool)
+
+
+def _has_forbidden_key(obj: Any, key: str) -> bool:
+    if isinstance(obj, dict):
+        return key in obj or any(_has_forbidden_key(value, key) for value in obj.values())
+    if isinstance(obj, list):
+        return any(_has_forbidden_key(value, key) for value in obj)
+    return False
+
+
+def _pvalue_errors(value: Any, label: str) -> list[str]:
+    if not _is_number(value) or not 0 <= float(value) <= 1:
+        return [f"{label} must be a number in [0, 1]"]
+    return []
+
+
+def _finite_number_list_errors(value: Any, label: str, expected_len: int) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{label} must be a list"]
+    if len(value) != expected_len:
+        return [f"{label} must contain {expected_len} values"]
+    bad = [idx for idx, item in enumerate(value) if not _is_number(item) or not np.isfinite(float(item))]
+    if bad:
+        return [f"{label} contains non-finite/non-numeric values at indices {bad[:5]}"]
+    return []
+
+
+def _pair_indices_errors(value: Any, label: str, expected_len: int, n_perms: int) -> list[str]:
+    if not isinstance(value, list):
+        return [f"{label} must be a list"]
+    if len(value) != expected_len:
+        return [f"{label} must contain {expected_len} pairs"]
+    for idx, pair in enumerate(value):
+        if (
+            not isinstance(pair, list)
+            or len(pair) != 2
+            or not all(isinstance(item, int) and not isinstance(item, bool) for item in pair)
+            or not all(0 <= item < n_perms for item in pair)
+            or pair[0] == pair[1]
+        ):
+            return [f"{label} has invalid pair at index {idx}"]
+    return []
+
+
+def validate_h2_positive_control_diagnostics_payload(payload: dict[str, Any]) -> list[str]:
+    """Validate the committed T1.5 summary payload without rerunning diagnostics.
+
+    Args:
+        payload: Parsed diagnostics summary JSON.
+
+    Returns:
+        List of schema or provenance errors; empty when valid.
+    """
+    errors: list[str] = []
+    required = [
+        "schema_version",
+        "generated_at",
+        "task",
+        "pre_registration",
+        "inputs",
+        "h2_check",
+        "positive_control",
+        "doubled_n_w2",
+    ]
+    errors.extend(f"missing required key: {key}" for key in required if key not in payload)
+    if _has_forbidden_key(payload, "per_call_pca"):
+        errors.append("forbidden key present: per_call_pca")
+    if errors:
+        return errors
+
+    if payload.get("schema_version") != "stage1/h2-positive-control-diagnostics/v1":
+        errors.append("schema_version must be stage1/h2-positive-control-diagnostics/v1")
+    if payload.get("task") != "T1.5 H2 + positive control + doubled-n W2":
+        errors.append("task literal mismatch")
+    prereg = payload.get("pre_registration")
+    if not isinstance(prereg, str) or "2026-05-13" not in prereg or "H2-Check" not in prereg:
+        errors.append("pre_registration must reference the 2026-05-13 H2-Check pre-registration")
+
+    inputs = payload.get("inputs", {})
+    if not isinstance(inputs, dict):
+        errors.append("inputs must be a dict")
+    else:
+        for key in ("canonical_embedding_source", "fitted_markov1_source", "git_head"):
+            if not isinstance(inputs.get(key), str) or not inputs.get(key):
+                errors.append(f"inputs.{key} must be a non-empty string")
+
+    h2 = payload.get("h2_check", {})
+    if not isinstance(h2, dict):
+        errors.append("h2_check must be a dict")
+    else:
+        if h2.get("maxdim") != 2:
+            errors.append("h2_check.maxdim must equal 2")
+        if h2.get("L") not in {1000, 2000}:
+            errors.append("h2_check.L must be 2000 or documented fallback 1000")
+        if h2.get("L") == 1000 and not isinstance(h2.get("fallback_reason"), str):
+            errors.append("h2_check.fallback_reason is required when L == 1000")
+        if h2.get("seed") != 42:
+            errors.append("h2_check.seed must equal 42")
+        if h2.get("B") != 50:
+            errors.append("h2_check.B must equal 50")
+        if h2.get("markov_order") != 1 or h2.get("null") != "markov-1":
+            errors.append("h2_check must pin a Markov-1 null")
+        if h2.get("wasserstein_order") != 2 or h2.get("wasserstein_internal_p") != 2:
+            errors.append("h2_check must pin W2 with internal_p=2")
+        if h2.get("ph_method") not in {"ripser", "collapse"}:
+            errors.append("h2_check.ph_method must be ripser or collapse")
+        if h2.get("do_cocycles") is not False:
+            errors.append("h2_check.do_cocycles must be false")
+        if not isinstance(h2.get("threshold_rule"), str) or not h2.get("threshold_rule"):
+            errors.append("h2_check.threshold_rule must be a non-empty string")
+        threshold_value = h2.get("threshold_value")
+        if not _is_number(threshold_value) or float(threshold_value) <= 0:
+            errors.append("h2_check.threshold_value must be positive")
+        edge_prop = h2.get("edge_prop_at_thresh")
+        if not _is_number(edge_prop) or not 0 <= float(edge_prop) <= 1:
+            errors.append("h2_check.edge_prop_at_thresh must be in [0, 1]")
+        tetra_burden = h2.get("candidate_tetrahedra_burden")
+        if not _is_number(tetra_burden) or float(tetra_burden) < 0:
+            errors.append("h2_check.candidate_tetrahedra_burden must be non-negative")
+        observed_ph_wall_time = h2.get("observed_ph_wall_time_seconds")
+        if not _is_number(observed_ph_wall_time) or float(observed_ph_wall_time) <= 0:
+            errors.append("h2_check.observed_ph_wall_time_seconds must be positive")
+        errors.extend(
+            _finite_number_list_errors(
+                h2.get("null_ph_wall_times_seconds"),
+                "h2_check.null_ph_wall_times_seconds",
+                50,
+            )
+        )
+        backend_versions = h2.get("backend_versions")
+        if not isinstance(backend_versions, dict):
+            errors.append("h2_check.backend_versions must be a dict")
+        else:
+            for key in ("gudhi", "ripser"):
+                if not isinstance(backend_versions.get(key), str) or not backend_versions.get(key):
+                    errors.append(f"h2_check.backend_versions.{key} must be a non-empty string")
+        n_features = h2.get("n_h2_features")
+        if not isinstance(n_features, int) or isinstance(n_features, bool) or n_features < 0:
+            errors.append("h2_check.n_h2_features must be a non-negative int")
+        total_persistence = h2.get("total_persistence_h2")
+        if not _is_number(total_persistence) or float(total_persistence) < 0:
+            errors.append("h2_check.total_persistence_h2 must be non-negative")
+        errors.extend(_pvalue_errors(h2.get("markov1_null_p"), "h2_check.markov1_null_p"))
+
+    pc = payload.get("positive_control", {})
+    if not isinstance(pc, dict):
+        errors.append("positive_control must be a dict")
+    else:
+        if pc.get("null") != "markov-1":
+            errors.append("positive_control.null must equal markov-1")
+        if pc.get("seed") != 42:
+            errors.append("positive_control.seed must equal 42")
+        if pc.get("frozen_loadings") is not True:
+            errors.append("positive_control.frozen_loadings must be true")
+        errors.extend(_pvalue_errors(pc.get("p_h0"), "positive_control.p_h0"))
+        errors.extend(_pvalue_errors(pc.get("p_h1"), "positive_control.p_h1"))
+        if pc.get("tolerance_band") != [0.3, 0.7]:
+            errors.append("positive_control.tolerance_band must equal [0.3, 0.7]")
+        if _is_number(pc.get("p_h0")) and _is_number(pc.get("p_h1")):
+            calibrated = 0.3 <= float(pc["p_h0"]) <= 0.7 and 0.3 <= float(pc["p_h1"]) <= 0.7
+            if pc.get("calibrated") is not calibrated:
+                errors.append("positive_control.calibrated disagrees with p_h0/p_h1 tolerance band")
+
+    doubled = payload.get("doubled_n_w2", {})
+    if not isinstance(doubled, dict):
+        errors.append("doubled_n_w2 must be a dict")
+    else:
+        if doubled.get("n_perms") != 200:
+            errors.append("doubled_n_w2.n_perms must equal 200")
+        if doubled.get("n_nullnull") != 2000:
+            errors.append("doubled_n_w2.n_nullnull must equal 2000")
+        if doubled.get("L") != 5000:
+            errors.append("doubled_n_w2.L must equal 5000")
+        if doubled.get("seed") != 42:
+            errors.append("doubled_n_w2.seed must equal 42")
+        if doubled.get("markov_order") != 1:
+            errors.append("doubled_n_w2.markov_order must equal 1")
+        if doubled.get("wasserstein_order") != 2 or doubled.get("wasserstein_internal_p") != 2:
+            errors.append("doubled_n_w2 must pin W2 with internal_p=2")
+        errors.extend(_pvalue_errors(doubled.get("p_value"), "doubled_n_w2.p_value"))
+        if not isinstance(doubled.get("stable_vs_t1_2"), bool):
+            errors.append("doubled_n_w2.stable_vs_t1_2 must be bool")
+        per_pair = doubled.get("per_pair_w2")
+        if not isinstance(per_pair, dict):
+            errors.append("doubled_n_w2.per_pair_w2 must be a dict")
+        else:
+            obs_null = per_pair.get("obs_null")
+            if not isinstance(obs_null, dict):
+                errors.append("doubled_n_w2.per_pair_w2.obs_null must be a dict")
+            else:
+                errors.extend(_finite_number_list_errors(obs_null.get("H0"), "per_pair_w2.obs_null.H0", 200))
+                errors.extend(_finite_number_list_errors(obs_null.get("H1"), "per_pair_w2.obs_null.H1", 200))
+            null_null = per_pair.get("null_null")
+            if not isinstance(null_null, dict):
+                errors.append("doubled_n_w2.per_pair_w2.null_null must be a dict")
+            else:
+                if null_null.get("pair_draw_seed") != 42:
+                    errors.append("per_pair_w2.null_null.pair_draw_seed must equal 42")
+                errors.extend(
+                    _pair_indices_errors(null_null.get("pair_indices"), "per_pair_w2.null_null.pair_indices", 2000, 200)
+                )
+                errors.extend(_finite_number_list_errors(null_null.get("H0"), "per_pair_w2.null_null.H0", 2000))
+                errors.extend(_finite_number_list_errors(null_null.get("H1"), "per_pair_w2.null_null.H1", 2000))
+
+    return errors
+
+
 def validate_mapper_threshold_payload(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     required = [
@@ -566,7 +775,7 @@ def validate_kde_sublevel_payload(payload: dict[str, Any]) -> list[str]:
     if results.get("tree_cut_k") != 7:
         errors.append("results.tree_cut_k must equal 7")
     n_features = results.get("n_h0_features")
-    if not isinstance(n_features, int) or n_features < 0:
+    if not isinstance(n_features, int) or isinstance(n_features, bool) or n_features < 0:
         errors.append("results.n_h0_features must be a non-negative int")
     ari = results.get("ari_vs_gmm")
     if not isinstance(ari, (int, float)) or not -1 <= ari <= 1:
