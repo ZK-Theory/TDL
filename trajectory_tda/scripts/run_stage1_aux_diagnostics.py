@@ -555,6 +555,14 @@ def _pair_indices_errors(value: Any, label: str, expected_len: int, n_perms: int
 
 
 def validate_h2_positive_control_diagnostics_payload(payload: dict[str, Any]) -> list[str]:
+    """Validate the committed T1.5 summary payload without rerunning diagnostics.
+
+    Args:
+        payload: Parsed diagnostics summary JSON.
+
+    Returns:
+        List of schema or provenance errors; empty when valid.
+    """
     errors: list[str] = []
     required = [
         "schema_version",
@@ -639,7 +647,7 @@ def validate_h2_positive_control_diagnostics_payload(payload: dict[str, Any]) ->
                 if not isinstance(backend_versions.get(key), str) or not backend_versions.get(key):
                     errors.append(f"h2_check.backend_versions.{key} must be a non-empty string")
         n_features = h2.get("n_h2_features")
-        if not isinstance(n_features, int) or n_features < 0:
+        if not isinstance(n_features, int) or isinstance(n_features, bool) or n_features < 0:
             errors.append("h2_check.n_h2_features must be a non-negative int")
         total_persistence = h2.get("total_persistence_h2")
         if not _is_number(total_persistence) or float(total_persistence) < 0:
@@ -767,7 +775,7 @@ def validate_kde_sublevel_payload(payload: dict[str, Any]) -> list[str]:
     if results.get("tree_cut_k") != 7:
         errors.append("results.tree_cut_k must equal 7")
     n_features = results.get("n_h0_features")
-    if not isinstance(n_features, int) or n_features < 0:
+    if not isinstance(n_features, int) or isinstance(n_features, bool) or n_features < 0:
         errors.append("results.n_h0_features must be a non-negative int")
     ari = results.get("ari_vs_gmm")
     if not isinstance(ari, (int, float)) or not -1 <= ari <= 1:

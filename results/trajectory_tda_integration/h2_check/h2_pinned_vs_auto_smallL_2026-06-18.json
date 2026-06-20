@@ -5,9 +5,9 @@
   "pre_registration": "2026-06-18 H2 threshold-comparability fix",
   "phase": "Phase A small-L diagnostic only; Phase B is manager-gated.",
   "inputs": {
-    "canonical_embedding_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\embeddings.npy",
-    "trajectory_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
-    "embedding_metadata_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\02_embedding.json",
+    "canonical_embedding_source": "results/trajectory_tda_integration/embeddings.npy",
+    "trajectory_source": "results/trajectory_tda_integration/01_trajectories_sequences.json",
+    "embedding_metadata_source": "results/trajectory_tda_integration/02_embedding.json",
     "git_head": "75d37c543fc32bf800645548026baf3af5c7e466"
   },
   "params": {
@@ -32,7 +32,7 @@
     "n_jobs": 4,
     "n_null_pairs_cap": 500,
     "available_memory_gb_at_start": 14.34371566772461,
-    "checkpoint_dir": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\h2_pinned_vs_auto_smallL_2026-06-18",
+    "checkpoint_dir": "results/trajectory_tda_integration/h2_check/intermediates/h2_pinned_vs_auto_smallL_2026-06-18",
     "regeneration_command": "trajectory_tda/scripts/run_h2_pinned_threshold_diagnostic.py --Ls 200 300 --B 50 --n-jobs 4 --ph-timeout-seconds 300 --run-date 2026-06-18 --resume"
   },
   "pre_launch_estimate": {
@@ -1710,7 +1710,7 @@
           18.212098121643066,
           17.976779460906982
         ],
-        "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\h2_pinned_vs_auto_smallL_2026-06-18\\L200\\L200_auto_B50_seed42.json",
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_pinned_vs_auto_smallL_2026-06-18/L200/L200_auto_B50_seed42.json",
         "pinned_threshold_verified": null,
         "stats": {
           "pair_draw_seed": 42,
@@ -7085,7 +7085,7 @@
           18.909560203552246,
           18.557119846343994
         ],
-        "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\h2_pinned_vs_auto_smallL_2026-06-18\\L200\\L200_pinned_B50_seed42.json",
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_pinned_vs_auto_smallL_2026-06-18/L200/L200_pinned_B50_seed42.json",
         "pinned_threshold_verified": true,
         "stats": {
           "pair_draw_seed": 42,
@@ -12490,7 +12490,7 @@
           20.2079656124115,
           19.42649483680725
         ],
-        "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\h2_pinned_vs_auto_smallL_2026-06-18\\L300\\L300_auto_B50_seed42.json",
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_pinned_vs_auto_smallL_2026-06-18/L300/L300_auto_B50_seed42.json",
         "pinned_threshold_verified": null,
         "stats": {
           "pair_draw_seed": 42,
@@ -17865,7 +17865,7 @@
           23.211397171020508,
           21.102495193481445
         ],
-        "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\h2_pinned_vs_auto_smallL_2026-06-18\\L300\\L300_pinned_B50_seed42.json",
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_pinned_vs_auto_smallL_2026-06-18/L300/L300_pinned_B50_seed42.json",
         "pinned_threshold_verified": true,
         "stats": {
           "pair_draw_seed": 42,

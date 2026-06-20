@@ -15,6 +15,8 @@ import argparse
 import ctypes
 import json
 import logging
+import math
+import os
 import subprocess
 import sys
 import time
@@ -26,8 +28,8 @@ import numpy as np
 from joblib import Parallel, delayed
 from scipy.spatial.distance import pdist
 
-PROJ_ROOT = Path(r"C:\Users\steph\TDL")
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", WORKTREE_ROOT)).resolve()
 if str(WORKTREE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKTREE_ROOT))
 
@@ -57,13 +59,26 @@ def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+def _repo_relpath(path: Path | str, root: Path) -> str:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        return candidate.as_posix()
+    try:
+        return candidate.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return candidate.as_posix()
+
+
 def _jsonable(obj: Any) -> Any:
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, np.integer):
         return int(obj)
     if isinstance(obj, np.floating):
-        return float(obj)
+        value = float(obj)
+        return value if math.isfinite(value) else None
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
     if isinstance(obj, dict):
         return {str(k): _jsonable(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -75,14 +90,14 @@ def _write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         raise FileExistsError(f"refusing to overwrite existing result JSON: {path}")
-    path.write_text(json.dumps(_jsonable(payload), indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(_jsonable(payload), indent=2, allow_nan=False) + "\n", encoding="utf-8")
     return path
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(path.name + ".tmp")
-    tmp_path.write_text(json.dumps(_jsonable(payload), indent=2) + "\n", encoding="utf-8")
+    tmp_path.write_text(json.dumps(_jsonable(payload), indent=2, allow_nan=False) + "\n", encoding="utf-8")
     tmp_path.replace(path)
 
 
@@ -170,12 +185,10 @@ def _wasserstein_from_diagrams(dgm_a: np.ndarray, dgm_b: np.ndarray, dim: int) -
 
 def _draw_null_pairs(n_permutations: int, seed: int, cap: int = 500) -> list[tuple[int, int]]:
     n_pairs = min(cap, n_permutations * (n_permutations - 1) // 2)
+    all_pairs = [(i, j) for i in range(n_permutations) for j in range(i + 1, n_permutations)]
     rng = np.random.RandomState(seed)
-    pairs: list[tuple[int, int]] = []
-    for _ in range(n_pairs):
-        i, j = rng.choice(n_permutations, size=2, replace=False)
-        pairs.append((int(i), int(j)))
-    return pairs
+    rng.shuffle(all_pairs)
+    return [(int(i), int(j)) for i, j in all_pairs[:n_pairs]]
 
 
 def _summary_stats(values: list[float]) -> dict[str, float | int | None]:
@@ -499,6 +512,14 @@ def _compare_conditions(auto_result: dict[str, Any], pinned_result: dict[str, An
 
 
 def run_diagnostic(args: argparse.Namespace) -> Path:
+    """Run the pinned-threshold diagnostic and write one no-overwrite JSON.
+
+    Args:
+        args: Parsed CLI arguments controlling frozen inputs, checkpointing, and PH parameters.
+
+    Returns:
+        Path to the freshly written pinned-threshold result JSON.
+    """
     started = time.time()
     checkpoint_root = args.proj_root / USOC_REL
     embeddings, trajectories, embed_kwargs, frozen_models = _load_frozen_usoc(checkpoint_root)
@@ -568,9 +589,9 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
         "pre_registration": PREREG,
         "phase": "Phase A small-L diagnostic only; Phase B is manager-gated.",
         "inputs": {
-            "canonical_embedding_source": str(checkpoint_root / "embeddings.npy"),
-            "trajectory_source": str(checkpoint_root / "01_trajectories_sequences.json"),
-            "embedding_metadata_source": str(checkpoint_root / "02_embedding.json"),
+            "canonical_embedding_source": _repo_relpath(checkpoint_root / "embeddings.npy", args.proj_root),
+            "trajectory_source": _repo_relpath(checkpoint_root / "01_trajectories_sequences.json", args.proj_root),
+            "embedding_metadata_source": _repo_relpath(checkpoint_root / "02_embedding.json", args.proj_root),
             "git_head": _git_head(args.worktree_root),
         },
         "params": {
@@ -589,7 +610,7 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
             "n_jobs": int(args.n_jobs),
             "n_null_pairs_cap": int(args.n_null_pairs_cap),
             "available_memory_gb_at_start": _available_physical_memory_gb(),
-            "checkpoint_dir": str(checkpoint_dir),
+            "checkpoint_dir": _repo_relpath(checkpoint_dir, args.proj_root),
             "regeneration_command": " ".join(sys.argv),
         },
         "pre_launch_estimate": estimate,
@@ -603,6 +624,7 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the pinned-threshold diagnostic."""
     parser = argparse.ArgumentParser(description="Run T1.5c H2 pinned-vs-auto small-L diagnostic.")
     parser.add_argument("--proj-root", type=Path, default=PROJ_ROOT)
     parser.add_argument("--worktree-root", type=Path, default=WORKTREE_ROOT)
@@ -624,6 +646,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the pinned-threshold diagnostic from the command line."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     run_diagnostic(parse_args())
 

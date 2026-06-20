@@ -37,6 +37,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 import ripser
 from sklearn.preprocessing import StandardScaler
 
@@ -95,12 +96,12 @@ class PHResult:
     """Container for persistent homology results."""
 
     # dgms: dict mapping dimension -> (N, 2) array of (birth, death) pairs
-    dgms: dict[int, np.ndarray] = field(default_factory=dict)
+    dgms: dict[int, NDArray[np.float64]] = field(default_factory=dict)
     n_points: int = 0
     n_dimensions: int = 0
     domain_names: list[str] = field(default_factory=list)
-    lsoa_codes: np.ndarray | None = None
-    point_cloud: np.ndarray | None = None
+    lsoa_codes: NDArray[np.str_] | None = None
+    point_cloud: NDArray[np.float64] | None = None
     elapsed_seconds: float = 0.0
     # cocycles from ripser (for representative cycle extraction)
     cocycles: dict | None = None
@@ -143,7 +144,7 @@ def load_deprivation_cloud(
     region: str | None = None,
     subsample: int | None = None,
     random_state: int = 42,
-) -> tuple[np.ndarray, np.ndarray, list[str]]:
+) -> tuple[NDArray[np.float64], NDArray[np.str_], list[str]]:
     """
     Load IMD 2019 domain scores as a point cloud in R^7.
 
@@ -225,9 +226,9 @@ DEDUP_TOLERANCE: float = 1e-10
 
 
 def compute_greedy_dedup_count(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     tolerance: float = DEDUP_TOLERANCE,
-) -> tuple[int, float, np.ndarray]:
+) -> tuple[int, float, NDArray[np.int64]]:
     """Greedy-permutation deduplication count and selected indices.
 
     Runs a greedy (farthest-point) permutation starting from row 0 with
@@ -287,9 +288,9 @@ def compute_greedy_dedup_count(
 
 
 def greedy_first_k_indices_with_radius(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     k: int,
-) -> tuple[np.ndarray, float]:
+) -> tuple[NDArray[np.int64], float]:
     """Greedy-permutation first-k indices, ignoring covering-radius termination.
 
     Returns the first ``k`` indices of the greedy permutation starting from
@@ -328,7 +329,7 @@ def greedy_first_k_indices_with_radius(
 
 
 def _compute_rips_ph_legacy(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     max_dim: int = 2,
     thresh: float | None = None,
 ) -> PHResult:
@@ -419,7 +420,7 @@ def _backend_versions() -> dict[str, str]:
     return {"ripser": _package_version("ripser"), "gudhi": _package_version("gudhi")}
 
 
-def _resolve_rips_threshold(X: np.ndarray, thresh: float | None) -> tuple[float, str]:
+def _resolve_rips_threshold(X: NDArray[np.float64], thresh: float | None) -> tuple[float, str]:
     if thresh is not None:
         return float(thresh), "explicit"
 
@@ -436,7 +437,7 @@ def _resolve_rips_threshold(X: np.ndarray, thresh: float | None) -> tuple[float,
 
 
 def _estimate_edge_prop_at_thresh(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     thresh: float,
     *,
     max_exact_pairs: int = 5_000_000,
@@ -493,7 +494,7 @@ def _assert_h2_feasible_from_density(
 
 
 def _assert_h2_feasible(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     thresh: float,
     *,
     tetra_budget: float = H2_CANDIDATE_TETRA_BUDGET,
@@ -505,7 +506,7 @@ def _assert_h2_feasible(
     return metrics
 
 
-def _log_diagram_summary(dgms: dict[int, np.ndarray], max_dim: int) -> None:
+def _log_diagram_summary(dgms: dict[int, NDArray[np.float64]], max_dim: int) -> None:
     for dim in range(max_dim + 1):
         dgm = dgms.get(dim, np.empty((0, 2)))
         finite = dgm[dgm[:, 1] != np.inf] if len(dgm) else np.empty((0, 2))
@@ -525,7 +526,7 @@ def _log_diagram_summary(dgms: dict[int, np.ndarray], max_dim: int) -> None:
 
 
 def _compute_rips_ph_direct(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     max_dim: int = 2,
     thresh: float | None = None,
     *,
@@ -597,7 +598,7 @@ def _compute_rips_ph_direct(
 
 def _compute_rips_ph_child(
     result_queue: mp.Queue,
-    X: np.ndarray,
+    X: NDArray[np.float64],
     kwargs: dict[str, Any],
 ) -> None:
     try:
@@ -607,7 +608,7 @@ def _compute_rips_ph_child(
 
 
 def _compute_rips_ph_in_child(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     kwargs: dict[str, Any],
     timeout_seconds: float,
 ) -> PHResult:
@@ -625,6 +626,11 @@ def _compute_rips_ph_in_child(
         except queue.Empty:
             if not proc.is_alive():
                 break
+    if status is None:
+        try:
+            status, payload = result_queue.get_nowait()
+        except queue.Empty:
+            pass
     if status is None:
         if proc.is_alive():
             proc.terminate()
@@ -646,7 +652,7 @@ def _compute_rips_ph_in_child(
 
 
 def compute_rips_ph(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     max_dim: int = 2,
     thresh: float | None = None,
     *,
@@ -736,7 +742,7 @@ def persistence_summary(ph: PHResult, min_persistence: float = 0.0) -> dict:
     return summary
 
 
-def betti_curve(ph: PHResult, n_points: int = 200) -> dict[int, tuple[np.ndarray, np.ndarray]]:
+def betti_curve(ph: PHResult, n_points: int = 200) -> dict[int, tuple[NDArray[np.float64], NDArray[np.int_]]]:
     """
     Compute Betti curves β_k(ε) for k = 0, 1, 2.
 
@@ -773,7 +779,7 @@ def betti_curve(ph: PHResult, n_points: int = 200) -> dict[int, tuple[np.ndarray
 
 
 def permutation_test(
-    X: np.ndarray,
+    X: NDArray[np.float64],
     n_permutations: int = 100,
     max_dim: int = 1,
     statistic: str = "total_persistence",

@@ -1452,7 +1452,7 @@
       99.79390454292297,
       94.5470085144043
     ],
-    "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\04_nulls_wasserstein_h2_L1000_2026-06-17\\markov1_h2_L1000_B50_seed42.json",
+    "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/04_nulls_wasserstein_h2_L1000_2026-06-17/markov1_h2_L1000_B50_seed42.json",
     "ph_kwargs": {
       "max_dim": 2,
       "do_cocycles": false,
@@ -1499,11 +1499,11 @@
         "min_available_memory_gb": 2.0,
         "estimated_required_memory_gb": 7.5
       },
-      "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\h2_check\\intermediates\\04_nulls_wasserstein_h2_L1000_2026-06-17\\markov1_h2_L1000_B50_seed42.json"
+      "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/04_nulls_wasserstein_h2_L1000_2026-06-17/markov1_h2_L1000_B50_seed42.json"
     },
     "inputs": {
-      "canonical_embedding_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\embeddings.npy",
-      "trajectory_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
+      "canonical_embedding_source": "results/trajectory_tda_integration/embeddings.npy",
+      "trajectory_source": "results/trajectory_tda_integration/01_trajectories_sequences.json",
       "git_head": "00089f39c75b2ecde85705edef2bad7c9fa9684f"
     },
     "ph_provenance": {

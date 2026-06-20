@@ -15,6 +15,8 @@ import argparse
 import ctypes
 import json
 import logging
+import math
+import os
 import subprocess
 import sys
 import time
@@ -25,8 +27,8 @@ from typing import Any, Literal
 import numpy as np
 from joblib import Parallel, delayed
 
-PROJ_ROOT = Path(r"C:\Users\steph\TDL")
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", WORKTREE_ROOT)).resolve()
 if str(WORKTREE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKTREE_ROOT))
 
@@ -86,13 +88,26 @@ def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
+def _repo_relpath(path: Path | str, root: Path) -> str:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        return candidate.as_posix()
+    try:
+        return candidate.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return candidate.as_posix()
+
+
 def _jsonable(obj: Any) -> Any:
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, np.integer):
         return int(obj)
     if isinstance(obj, np.floating):
-        return float(obj)
+        value = float(obj)
+        return value if math.isfinite(value) else None
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
     if isinstance(obj, dict):
         return {str(k): _jsonable(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -104,14 +119,14 @@ def _write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         raise FileExistsError(f"refusing to overwrite existing result JSON: {path}")
-    path.write_text(json.dumps(_jsonable(payload), indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(_jsonable(payload), indent=2, allow_nan=False) + "\n", encoding="utf-8")
     return path
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(path.name + ".tmp")
-    tmp_path.write_text(json.dumps(_jsonable(payload), indent=2) + "\n", encoding="utf-8")
+    tmp_path.write_text(json.dumps(_jsonable(payload), indent=2, allow_nan=False) + "\n", encoding="utf-8")
     for attempt in range(10):
         try:
             tmp_path.replace(path)
@@ -277,13 +292,18 @@ def _landscape_l2_between_diagrams(
     k_max: int,
     n_points: int,
 ) -> float:
-    if observed_dgm.shape[0] > 0:
-        t_min = float(observed_dgm[:, 0].min())
-        t_max = float(observed_dgm[:, 1].max())
+    if n_points < 1:
+        raise ValueError("n_points must be at least 1")
+    non_empty = [dgm for dgm in (observed_dgm, comparison_dgm) if dgm.shape[0] > 0]
+    if non_empty:
+        t_min = min(float(dgm[:, 0].min()) for dgm in non_empty)
+        t_max = max(float(dgm[:, 1].max()) for dgm in non_empty)
     else:
         t_min, t_max = 0.0, 1.0
+    if t_max <= t_min:
+        t_max = t_min + 1.0
     t_values = np.linspace(t_min, t_max, n_points)
-    dx = (t_values[-1] - t_values[0]) / n_points if n_points > 1 else 1.0
+    dx = (t_values[-1] - t_values[0]) / (n_points - 1) if n_points > 1 else 1.0
     obs_land = landscape_on_grid(observed_dgm, t_values, k_max)
     comp_land = landscape_on_grid(comparison_dgm, t_values, k_max)
     return landscape_l2_distance(obs_land, comp_land, dx)
@@ -958,14 +978,14 @@ def _embedding_dependence_assessment(args: argparse.Namespace) -> dict[str, Any]
         "status": status,
         "reason": reason,
         "checked_paths": {
-            "legacy_embedding": str(legacy_embedding),
+            "legacy_embedding": _repo_relpath(legacy_embedding, args.proj_root),
             "legacy_embedding_exists": legacy_embedding.exists(),
-            "legacy_metadata": str(legacy_metadata),
+            "legacy_metadata": _repo_relpath(legacy_metadata, args.proj_root),
             "legacy_metadata_exists": legacy_metadata.exists(),
-            "legacy_h2_result": str(legacy_h2_result),
+            "legacy_h2_result": _repo_relpath(legacy_h2_result, args.proj_root),
             "legacy_h2_result_exists": legacy_h2_result.exists(),
-            "model_candidates": [str(path) for path in model_candidates],
-            "found_model_candidates": [str(path) for path in found_models],
+            "model_candidates": [_repo_relpath(path, args.proj_root) for path in model_candidates],
+            "found_model_candidates": [_repo_relpath(path, args.proj_root) for path in found_models],
         },
         "caveat": (
             "The committed characterization result should be read as current frozen-representation evidence; "
@@ -999,11 +1019,19 @@ def _characterization_estimate(args: argparse.Namespace, n_l: int) -> dict[str, 
         "estimated_wall_minutes": float(estimated_wall_seconds / 60.0),
         "estimated_wall_hours": float(estimated_wall_seconds / 3600.0),
         "available_memory_gb_at_start": _available_physical_memory_gb(),
-        "note": "Primary median-pdist B=1000 cells dominate; max/mean B=50 cells add robustness coverage.",
+        "note": f"Primary median-pdist B={int(args.primary_B)} cells dominate; max/mean B={int(args.robustness_B)} cells add robustness coverage.",
     }
 
 
 def run_characterization(args: argparse.Namespace) -> Path:
+    """Run the residual-characterization suite and write one no-overwrite JSON.
+
+    Args:
+        args: Parsed CLI arguments controlling frozen inputs, checkpointing, and PH parameters.
+
+    Returns:
+        Path to the freshly written characterization result JSON.
+    """
     started = time.time()
     setattr(args, "_started_at", started)
     checkpoint_root = args.proj_root / USOC_REL
@@ -1077,12 +1105,12 @@ def run_characterization(args: argparse.Namespace) -> Path:
         "schema_version": CHARACTERIZATION_SCHEMA_VERSION,
         "generated_at": _now_iso(),
         "task": CHARACTERIZATION_TASK_LABEL,
-        "pre_registration": str(args.proj_root / CHARACTERIZATION_PREREG_REL),
+        "pre_registration": _repo_relpath(args.proj_root / CHARACTERIZATION_PREREG_REL, args.proj_root),
         "phase": "Residual characterization; no vault result claim by Worker.",
         "inputs": {
-            "canonical_embedding_source": str(checkpoint_root / "embeddings.npy"),
-            "trajectory_source": str(checkpoint_root / "01_trajectories_sequences.json"),
-            "embedding_metadata_source": str(checkpoint_root / "02_embedding.json"),
+            "canonical_embedding_source": _repo_relpath(checkpoint_root / "embeddings.npy", args.proj_root),
+            "trajectory_source": _repo_relpath(checkpoint_root / "01_trajectories_sequences.json", args.proj_root),
+            "embedding_metadata_source": _repo_relpath(checkpoint_root / "02_embedding.json", args.proj_root),
             "git_head": _git_head(args.worktree_root),
         },
         "params": {
@@ -1097,6 +1125,7 @@ def run_characterization(args: argparse.Namespace) -> Path:
             "metrics": ["wasserstein-2", "landscape-l2"],
             "landscape_k_max": int(args.landscape_k_max),
             "landscape_n_points": int(args.landscape_n_points),
+            "landscape_grid": "union of non-empty diagram birth/death supports; empty-both=(0.0, 1.0); dx=(t[-1]-t[0])/(n_points-1)",
             "p_value_formula": "(r + 1) / (n + 1), with n recorded as pvalue_null_draws per cell",
             "alpha": float(args.alpha),
             "power_alpha": float(args.power_alpha),
@@ -1107,8 +1136,8 @@ def run_characterization(args: argparse.Namespace) -> Path:
             "n_jobs": int(args.n_jobs),
             "max_hours": float(args.max_hours),
             "n_null_pairs_cap": int(args.n_null_pairs_cap),
-            "checkpoint_dir": str(checkpoint_dir),
-            "progress_path": str(progress_path),
+            "checkpoint_dir": _repo_relpath(checkpoint_dir, args.proj_root),
+            "progress_path": _repo_relpath(progress_path, args.proj_root),
             "regeneration_command": " ".join(sys.argv),
         },
         "pre_launch_estimate": estimate,
@@ -1126,7 +1155,7 @@ def run_characterization(args: argparse.Namespace) -> Path:
             "run_date": args.run_date,
             "estimate": estimate,
             "completed_cells": completed_cells,
-            "output_path": str(output_path),
+            "output_path": _repo_relpath(output_path, args.worktree_root),
             "decision_branch": decision["branch"],
             "elapsed_seconds": float(time.time() - started),
         },
@@ -1136,6 +1165,14 @@ def run_characterization(args: argparse.Namespace) -> Path:
 
 
 def run_diagnostic(args: argparse.Namespace) -> Path:
+    """Run the dispersion-control suite and write one no-overwrite JSON.
+
+    Args:
+        args: Parsed CLI arguments controlling frozen inputs, checkpointing, and PH parameters.
+
+    Returns:
+        Path to the freshly written diagnostic result JSON.
+    """
     started = time.time()
     setattr(args, "_started_at", started)
     checkpoint_root = args.proj_root / USOC_REL
@@ -1200,12 +1237,12 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
         "schema_version": SCHEMA_VERSION,
         "generated_at": _now_iso(),
         "task": TASK_LABEL,
-        "pre_registration": str(args.proj_root / PREREG_REL),
+        "pre_registration": _repo_relpath(args.proj_root / PREREG_REL, args.proj_root),
         "phase": "Confirmatory dispersion-control diagnostic; no vault result claim by Worker.",
         "inputs": {
-            "canonical_embedding_source": str(checkpoint_root / "embeddings.npy"),
-            "trajectory_source": str(checkpoint_root / "01_trajectories_sequences.json"),
-            "embedding_metadata_source": str(checkpoint_root / "02_embedding.json"),
+            "canonical_embedding_source": _repo_relpath(checkpoint_root / "embeddings.npy", args.proj_root),
+            "trajectory_source": _repo_relpath(checkpoint_root / "01_trajectories_sequences.json", args.proj_root),
+            "embedding_metadata_source": _repo_relpath(checkpoint_root / "02_embedding.json", args.proj_root),
             "git_head": _git_head(args.worktree_root),
         },
         "params": {
@@ -1221,6 +1258,7 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
             "metrics": ["wasserstein-2", "landscape-l2"],
             "landscape_k_max": int(args.landscape_k_max),
             "landscape_n_points": int(args.landscape_n_points),
+            "landscape_grid": "union of non-empty diagram birth/death supports; empty-both=(0.0, 1.0); dx=(t[-1]-t[0])/(n_points-1)",
             "p_value_formula": "(r + 1) / (B + 1), with B p-value null-null pair draws",
             "alpha": float(args.alpha),
             "ph_method": "ripser",
@@ -1229,7 +1267,7 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
             "ph_timeout_seconds": float(args.ph_timeout_seconds),
             "n_jobs": int(args.n_jobs),
             "n_null_pairs_cap": int(args.n_null_pairs_cap),
-            "checkpoint_dir": str(checkpoint_dir),
+            "checkpoint_dir": _repo_relpath(checkpoint_dir, args.proj_root),
             "regeneration_command": " ".join(sys.argv),
         },
         "pre_launch_estimate": estimate,
@@ -1244,6 +1282,7 @@ def run_diagnostic(args: argparse.Namespace) -> Path:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the H2 diagnostic runners."""
     parser = argparse.ArgumentParser(description="Run the H2 dispersion-control dual-metric diagnostic.")
     parser.add_argument("--suite", choices=["dispersion", "characterization"], default="dispersion")
     parser.add_argument("--proj-root", type=Path, default=PROJ_ROOT)
@@ -1273,6 +1312,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the selected H2 diagnostic suite from the command line."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
     if args.suite == "characterization":

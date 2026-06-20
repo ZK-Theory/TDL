@@ -102,6 +102,17 @@ def test_h2_dispersion_normalization_scale_invariance_contract(
         ) == pytest.approx(ref_landscape, abs=1e-6)
 
 
+def test_landscape_l2_between_diagrams_is_symmetric_on_union_grid() -> None:
+    dgm_a = np.asarray([[0.0, 1.0]], dtype=np.float64)
+    dgm_b = np.asarray([[2.0, 4.0], [2.5, 3.5]], dtype=np.float64)
+
+    ab = diagnostic._landscape_l2_between_diagrams(dgm_a, dgm_b, k_max=5, n_points=200)
+    ba = diagnostic._landscape_l2_between_diagrams(dgm_b, dgm_a, k_max=5, n_points=200)
+
+    assert ab > 0.0
+    assert ab == pytest.approx(ba, abs=1e-12)
+
+
 def test_aggregate_h2_dual_metric_uses_b_plus_one_pvalue_and_keeps_distributions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

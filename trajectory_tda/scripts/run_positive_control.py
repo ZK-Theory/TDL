@@ -73,17 +73,21 @@ def run_positive_control(
     Returns:
         Results dict with keys H0, H1, positive_control metadata.
     """
+    if n_jobs < 1:
+        raise ValueError("positive control requires n_jobs >= 1")
     _, trajectories, embed_kwargs = load_checkpoint(checkpoint_dir)
+    embed_kwargs = dict(embed_kwargs)
     n_traj = len(trajectories)
     frozen_models = None
     if frozen_loadings:
-        _, embedding_info = ngram_embed(trajectories, **embed_kwargs)
+        frozen_embed_kwargs = dict(embed_kwargs)
+        frozen_embed_kwargs.setdefault("random_state", seed)
+        _, embedding_info = ngram_embed(trajectories, **frozen_embed_kwargs)
         frozen_models = embedding_info["fitted_models"]
         logger.info("Fitted frozen scaler/PCA models on checkpoint trajectories")
 
     logger.info(
-        "Positive control: generating Markov-1 synthetic cloud "
-        "(n=%d trajectories, seed=%d)",
+        "Positive control: generating Markov-1 synthetic cloud (n=%d trajectories, seed=%d)",
         n_traj,
         seed,
     )
@@ -109,8 +113,7 @@ def run_positive_control(
     # trajectories — so null and "observed" come from the same generative
     # process.  Expected: p ≈ 0.5.
     logger.info(
-        "Running Markov-1 W₂ permutation test on synthetic cloud "
-        "(n_perms=%d, L=%d, seed=%d)",
+        "Running Markov-1 W₂ permutation test on synthetic cloud (n_perms=%d, L=%d, seed=%d)",
         n_permutations,
         n_landmarks,
         seed + 1,
@@ -137,13 +140,13 @@ def run_positive_control(
     result["n_landmarks"] = n_landmarks
     result["n_permutations"] = n_permutations
     result["frozen_loadings"] = bool(frozen_loadings)
+    result["frozen_loadings_seed"] = int(seed) if frozen_loadings else None
     result["n_jobs"] = int(n_jobs)
     result["checkpoint_dir"] = str(checkpoint_dir)
     result["elapsed_seconds"] = elapsed
 
     logger.info(
-        "Positive control complete (%.1fs): "
-        "H0 p=%.4f, H1 p=%.4f  (expected ≈ 0.5 for both)",
+        "Positive control complete (%.1fs): H0 p=%.4f, H1 p=%.4f  (expected ≈ 0.5 for both)",
         elapsed,
         result.get("H0", {}).get("p_value", float("nan")),
         result.get("H1", {}).get("p_value", float("nan")),
@@ -161,8 +164,7 @@ def run_positive_control(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Positive control: run W₂ Markov-1 test on a Markov-generated cloud. "
-            "Expected p ≈ 0.5 for both H₀ and H₁."
+            "Positive control: run W₂ Markov-1 test on a Markov-generated cloud. Expected p ≈ 0.5 for both H₀ and H₁."
         )
     )
     parser.add_argument(

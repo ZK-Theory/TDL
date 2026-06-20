@@ -1,0 +1,261 @@
+{
+  "schema_version": "stage1/t1-5f-h2-landscape-grid-correction/v1",
+  "generated_at": "2026-06-20T20:17:42+00:00",
+  "task": "T1.5f H2 landscape-L2 grid correction check",
+  "status": "partial_escalate_missing_cached_observed_diagrams",
+  "restriction_stands_confirmed": false,
+  "no_ph_recompute": true,
+  "pre_registration_chain": [
+    "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-17.json",
+    "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-18.json",
+    "results/trajectory_tda_integration/stage1/pre_registrations_h2_dispersion_2026-06-18.json",
+    "results/trajectory_tda_integration/stage1/pre_registrations_h2_characterization_2026-06-19.json"
+  ],
+  "inputs": {
+    "original_characterization_json": "results/trajectory_tda_integration/h2_check/h2_characterization_2026-06-19.json",
+    "checkpoint_root": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19",
+    "git_head": "f892bac0d37879576c41295a457c6bd47be94e77"
+  },
+  "params": {
+    "Ls": [
+      200,
+      300
+    ],
+    "seed": 42,
+    "normalizer_B": {
+      "median-pdist": 1000,
+      "max-pdist": 50,
+      "mean-pdist": 50
+    },
+    "landscape_k_max": 5,
+    "landscape_n_points": 200,
+    "old_grid": "support from first diagram only; dx=(t[-1]-t[0])/n_points",
+    "corrected_grid": "union support from both diagrams; dx=(t[-1]-t[0])/(n_points-1)",
+    "regeneration_command": "<WORKTREE_ROOT>/trajectory_tda/scripts/run_h2_landscape_grid_correction.py --proj-root <PROJ_ROOT> --worktree-root <WORKTREE_ROOT> --original-json <WORKTREE_ROOT>/results/trajectory_tda_integration/h2_check/h2_characterization_2026-06-19.json --checkpoint-root <PROJ_ROOT>/results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19 --output-path <WORKTREE_ROOT>/results/trajectory_tda_integration/h2_check/h2_landscape_grid_correction_2026-06-20.json --run-date 2026-06-20 --Ls 200 300 --landscape-k-max 5 --landscape-n-points 200"
+  },
+  "blocked_cells": [
+    {
+      "L": 200,
+      "normalizer": "median-pdist",
+      "status": "blocked_missing_observed_h2_diagram"
+    },
+    {
+      "L": 200,
+      "normalizer": "max-pdist",
+      "status": "blocked_missing_observed_h2_diagram"
+    },
+    {
+      "L": 200,
+      "normalizer": "mean-pdist",
+      "status": "blocked_missing_observed_h2_diagram"
+    },
+    {
+      "L": 300,
+      "normalizer": "median-pdist",
+      "status": "blocked_missing_observed_h2_diagram"
+    },
+    {
+      "L": 300,
+      "normalizer": "max-pdist",
+      "status": "blocked_missing_observed_h2_diagram"
+    },
+    {
+      "L": 300,
+      "normalizer": "mean-pdist",
+      "status": "blocked_missing_observed_h2_diagram"
+    }
+  ],
+  "changed_verdict_cells": [],
+  "results": {
+    "L200": {
+      "median-pdist": {
+        "L": 200,
+        "normalizer": "median-pdist",
+        "B": 1000,
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19/L200/L200_power_median-pdist_B1000_seed42.json",
+        "checkpoint_exists": true,
+        "original_landscape_l2": {
+          "p_value": 0.000999000999000999,
+          "t_ratio": 1.9253647643418585,
+          "mean_obs_null": 0.013482682075851866,
+          "mean_null_null": 0.007002663768213608,
+          "significant_at_005": true,
+          "pvalue_null_draws": 1000,
+          "effect_null_pairs": 500
+        },
+        "checkpoint_completed_count": 1000,
+        "checkpoint_total": 1000,
+        "observed_h2_diagram_cached": false,
+        "observed_h2_features_in_summary": 142,
+        "observed_h2_features_stored_in_summary": 20,
+        "null_null_grid_delta": {
+          "n": 1000,
+          "old_mean": 0.007100833486323774,
+          "corrected_mean": 0.007304538627960488,
+          "mean_delta": 0.00020370514163671447,
+          "mean_relative_delta": 0.02868749732394812,
+          "max_abs_delta": 0.0063930734244008235
+        },
+        "recompute_status": "blocked_missing_observed_h2_diagram",
+        "blocking_reason": "Cached null H2 diagrams are present, but the T1.5e result JSON stores only truncated observed H2 summaries (top-20 features), not the full observed H2 diagram required for obs-null landscape-L2 recomputation. No PH recompute was performed."
+      },
+      "max-pdist": {
+        "L": 200,
+        "normalizer": "max-pdist",
+        "B": 50,
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19/L200/L200_normalizer_robustness_max-pdist_B50_seed42.json",
+        "checkpoint_exists": true,
+        "original_landscape_l2": {
+          "p_value": 0.29411764705882354,
+          "t_ratio": 1.2304140723818042,
+          "mean_obs_null": 0.004782662789791361,
+          "mean_null_null": 0.00388703518363798,
+          "significant_at_005": false,
+          "pvalue_null_draws": 50,
+          "effect_null_pairs": 500
+        },
+        "checkpoint_completed_count": 50,
+        "checkpoint_total": 50,
+        "observed_h2_diagram_cached": false,
+        "observed_h2_features_in_summary": 142,
+        "observed_h2_features_stored_in_summary": 20,
+        "null_null_grid_delta": {
+          "n": 500,
+          "old_mean": 0.00388703518363798,
+          "corrected_mean": 0.00436185487628013,
+          "mean_delta": 0.00047481969264215,
+          "mean_relative_delta": 0.12215471952526902,
+          "max_abs_delta": 0.004157172231575893
+        },
+        "recompute_status": "blocked_missing_observed_h2_diagram",
+        "blocking_reason": "Cached null H2 diagrams are present, but the T1.5e result JSON stores only truncated observed H2 summaries (top-20 features), not the full observed H2 diagram required for obs-null landscape-L2 recomputation. No PH recompute was performed."
+      },
+      "mean-pdist": {
+        "L": 200,
+        "normalizer": "mean-pdist",
+        "B": 50,
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19/L200/L200_normalizer_robustness_mean-pdist_B50_seed42.json",
+        "checkpoint_exists": true,
+        "original_landscape_l2": {
+          "p_value": 0.0196078431372549,
+          "t_ratio": 1.8928549390523595,
+          "mean_obs_null": 0.013547695519002412,
+          "mean_null_null": 0.007157281437416933,
+          "significant_at_005": true,
+          "pvalue_null_draws": 50,
+          "effect_null_pairs": 500
+        },
+        "checkpoint_completed_count": 50,
+        "checkpoint_total": 50,
+        "observed_h2_diagram_cached": false,
+        "observed_h2_features_in_summary": 142,
+        "observed_h2_features_stored_in_summary": 20,
+        "null_null_grid_delta": {
+          "n": 500,
+          "old_mean": 0.007157281437416933,
+          "corrected_mean": 0.007302472041876212,
+          "mean_delta": 0.00014519060445927862,
+          "mean_relative_delta": 0.020285719616983233,
+          "max_abs_delta": 0.003018024135512225
+        },
+        "recompute_status": "blocked_missing_observed_h2_diagram",
+        "blocking_reason": "Cached null H2 diagrams are present, but the T1.5e result JSON stores only truncated observed H2 summaries (top-20 features), not the full observed H2 diagram required for obs-null landscape-L2 recomputation. No PH recompute was performed."
+      }
+    },
+    "L300": {
+      "median-pdist": {
+        "L": 300,
+        "normalizer": "median-pdist",
+        "B": 1000,
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19/L300/L300_power_median-pdist_B1000_seed42.json",
+        "checkpoint_exists": true,
+        "original_landscape_l2": {
+          "p_value": 0.002997002997002997,
+          "t_ratio": 1.8464200656103267,
+          "mean_obs_null": 0.012497561649054093,
+          "mean_null_null": 0.006768536522009185,
+          "significant_at_005": true,
+          "pvalue_null_draws": 1000,
+          "effect_null_pairs": 500
+        },
+        "checkpoint_completed_count": 1000,
+        "checkpoint_total": 1000,
+        "observed_h2_diagram_cached": false,
+        "observed_h2_features_in_summary": 245,
+        "observed_h2_features_stored_in_summary": 20,
+        "null_null_grid_delta": {
+          "n": 1000,
+          "old_mean": 0.006796341141759932,
+          "corrected_mean": 0.0069787737051461305,
+          "mean_delta": 0.0001824325633861984,
+          "mean_relative_delta": 0.02684276135952719,
+          "max_abs_delta": 0.004817994538034565
+        },
+        "recompute_status": "blocked_missing_observed_h2_diagram",
+        "blocking_reason": "Cached null H2 diagrams are present, but the T1.5e result JSON stores only truncated observed H2 summaries (top-20 features), not the full observed H2 diagram required for obs-null landscape-L2 recomputation. No PH recompute was performed."
+      },
+      "max-pdist": {
+        "L": 300,
+        "normalizer": "max-pdist",
+        "B": 50,
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19/L300/L300_normalizer_robustness_max-pdist_B50_seed42.json",
+        "checkpoint_exists": true,
+        "original_landscape_l2": {
+          "p_value": 0.45098039215686275,
+          "t_ratio": 1.174064883322227,
+          "mean_obs_null": 0.004469915272952466,
+          "mean_null_null": 0.003807213158700429,
+          "significant_at_005": false,
+          "pvalue_null_draws": 50,
+          "effect_null_pairs": 500
+        },
+        "checkpoint_completed_count": 50,
+        "checkpoint_total": 50,
+        "observed_h2_diagram_cached": false,
+        "observed_h2_features_in_summary": 245,
+        "observed_h2_features_stored_in_summary": 20,
+        "null_null_grid_delta": {
+          "n": 500,
+          "old_mean": 0.003807213158700429,
+          "corrected_mean": 0.004174819348073008,
+          "mean_delta": 0.000367606189372579,
+          "mean_relative_delta": 0.09655518985915129,
+          "max_abs_delta": 0.003654831163930059
+        },
+        "recompute_status": "blocked_missing_observed_h2_diagram",
+        "blocking_reason": "Cached null H2 diagrams are present, but the T1.5e result JSON stores only truncated observed H2 summaries (top-20 features), not the full observed H2 diagram required for obs-null landscape-L2 recomputation. No PH recompute was performed."
+      },
+      "mean-pdist": {
+        "L": 300,
+        "normalizer": "mean-pdist",
+        "B": 50,
+        "checkpoint_path": "results/trajectory_tda_integration/h2_check/intermediates/h2_characterization_2026-06-19/L300/L300_normalizer_robustness_mean-pdist_B50_seed42.json",
+        "checkpoint_exists": true,
+        "original_landscape_l2": {
+          "p_value": 0.0196078431372549,
+          "t_ratio": 1.8700368422045566,
+          "mean_obs_null": 0.012458134809407646,
+          "mean_null_null": 0.0066619729238708205,
+          "significant_at_005": true,
+          "pvalue_null_draws": 50,
+          "effect_null_pairs": 500
+        },
+        "checkpoint_completed_count": 50,
+        "checkpoint_total": 50,
+        "observed_h2_diagram_cached": false,
+        "observed_h2_features_in_summary": 245,
+        "observed_h2_features_stored_in_summary": 20,
+        "null_null_grid_delta": {
+          "n": 500,
+          "old_mean": 0.0066619729238708205,
+          "corrected_mean": 0.006817293756754504,
+          "mean_delta": 0.0001553208328836834,
+          "mean_relative_delta": 0.023314539800536598,
+          "max_abs_delta": 0.002500897049792208
+        },
+        "recompute_status": "blocked_missing_observed_h2_diagram",
+        "blocking_reason": "Cached null H2 diagrams are present, but the T1.5e result JSON stores only truncated observed H2 summaries (top-20 features), not the full observed H2 diagram required for obs-null landscape-L2 recomputation. No PH recompute was performed."
+      }
+    }
+  }
+}

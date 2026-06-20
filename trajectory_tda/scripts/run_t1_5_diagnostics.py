@@ -26,8 +26,8 @@ from typing import Any
 import numpy as np
 from joblib import Parallel, delayed
 
-PROJ_ROOT = Path(r"C:\Users\steph\TDL")
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", WORKTREE_ROOT)).resolve()
 if str(WORKTREE_ROOT) not in sys.path:
     sys.path.insert(0, str(WORKTREE_ROOT))
 
@@ -370,7 +370,12 @@ def _load_checkpoint(path: Path, args: argparse.Namespace, kind: str) -> dict[st
 
 
 def run_h2(args: argparse.Namespace) -> None:
+    """Run the contract-bound H2 rerun cell with checkpointed null draws."""
     started = time.time()
+    if args.B != 50:
+        raise ValueError("T1.5 H2 rerun contract requires B == 50")
+    if args.L not in {1000, 2000}:
+        raise ValueError("T1.5 H2 rerun contract requires L in {1000, 2000}")
     checkpoint_dir = args.proj_root / USOC_REL
     embeddings, trajectories, embed_kwargs, frozen_models = _load_frozen_usoc(checkpoint_dir)
     actual_l = min(args.L, embeddings.shape[0])
@@ -536,6 +541,7 @@ def run_h2(args: argparse.Namespace) -> None:
 
 
 def run_positive(args: argparse.Namespace) -> None:
+    """Run the Markov-1 positive control and write its result JSON."""
     out_path = args.worktree_root / POSITIVE_REL / f"markov1_simulation_{args.run_date}.json"
     result = run_positive_control(
         checkpoint_dir=args.proj_root / USOC_REL,
@@ -673,6 +679,8 @@ def _compute_obs_null_w2_checkpointed(
 
 
 def _doubled_pair_indices(args: argparse.Namespace) -> list[tuple[int, int]]:
+    if args.n_perms < 2:
+        raise ValueError("doubled-n requires n_perms >= 2")
     rng_pairs = np.random.RandomState(args.seed)
     n_total_pairs = args.n_perms * (args.n_perms - 1) // 2
     n_null_pairs = min(args.n_nullnull, n_total_pairs)
@@ -972,6 +980,7 @@ def _aggregate_doubled_checkpointed(
 
 
 def run_doubled(args: argparse.Namespace) -> None:
+    """Aggregate the doubled-n W2 sensitivity cell from frozen diagram caches."""
     started = time.time()
     if not 1 <= args.aggregate_jobs <= 6:
         raise ValueError("aggregate_jobs must be between 1 and 6 for this shared machine")
@@ -1109,6 +1118,7 @@ def run_doubled(args: argparse.Namespace) -> None:
 
 
 def build_summary(args: argparse.Namespace) -> None:
+    """Assemble the T1.5 summary JSON from completed component outputs."""
     h2_ph = json.loads(args.h2_ph.read_text(encoding="utf-8"))
     h2_null_all = json.loads(args.h2_null.read_text(encoding="utf-8"))
     h2_null = h2_null_all["markov"]
@@ -1186,6 +1196,7 @@ def build_summary(args: argparse.Namespace) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the T1.5 diagnostic runner."""
     parser = argparse.ArgumentParser(description="Run T1.5 auxiliary diagnostics.")
     parser.add_argument("command", choices=["h2", "positive-control", "doubled-n", "summary"])
     parser.add_argument("--proj-root", type=Path, default=PROJ_ROOT)
@@ -1236,6 +1247,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Dispatch the selected T1.5 diagnostic command."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
     _fill_h2_monitoring_paths(args)
