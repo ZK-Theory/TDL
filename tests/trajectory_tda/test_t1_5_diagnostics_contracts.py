@@ -55,8 +55,8 @@ def _diagnostics_payload() -> dict[str, Any]:
         "task": "T1.5 H2 + positive control + doubled-n W2",
         "pre_registration": "2026-05-13 H2-Check pre-registration",
         "inputs": {
-            "canonical_embedding_source": "C:/Users/steph/TDL/results/trajectory_tda_integration/embeddings.npy",
-            "fitted_markov1_source": "C:/Users/steph/TDL/results/trajectory_tda_integration/01_trajectories_sequences.json",
+            "canonical_embedding_source": "results/trajectory_tda_integration/embeddings.npy",
+            "fitted_markov1_source": "results/trajectory_tda_integration/01_trajectories_sequences.json",
             "git_head": "abc123",
         },
         "h2_check": {

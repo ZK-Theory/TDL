@@ -327,12 +327,13 @@ def _distribution_delta(old_values: list[float], corrected_values: list[float]) 
     old_arr = np.asarray(old_values, dtype=np.float64)
     new_arr = np.asarray(corrected_values, dtype=np.float64)
     delta = new_arr - old_arr
+    old_mean = float(np.mean(old_arr)) if len(old_arr) else None
     return {
         "n": int(len(delta)),
-        "old_mean": float(np.mean(old_arr)) if len(old_arr) else None,
+        "old_mean": old_mean,
         "corrected_mean": float(np.mean(new_arr)) if len(new_arr) else None,
         "mean_delta": float(np.mean(delta)) if len(delta) else None,
-        "mean_relative_delta": float(np.mean(delta) / np.mean(old_arr)) if len(delta) and np.mean(old_arr) else None,
+        "mean_relative_delta": float(np.mean(delta) / old_mean) if len(delta) and old_mean else None,
         "max_abs_delta": float(np.max(np.abs(delta))) if len(delta) else None,
     }
 
