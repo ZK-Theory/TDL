@@ -292,8 +292,9 @@ def build_mapper_threshold_payload(
         "pre_registration": PRE_REGISTRATION,
         "inputs": {
             "mapper_graph_source": str(graph_path),
-            "canonical_embedding_source": str(data.root / "embeddings.npy"),
-            "baseline_gmm_labels_source": str(data.root / "05_analysis.json[gmm_labels]"),
+            "canonical_embedding_source": (data.root / "embeddings.npy").relative_to(proj_root).as_posix(),
+            "baseline_gmm_labels_source": (data.root / "05_analysis.json").relative_to(proj_root).as_posix()
+            + "[gmm_labels]",
             "n_trajectories": int(len(data.embeddings)),
             "git_head": git_head(worktree_root),
         },
@@ -350,7 +351,10 @@ def _density_gradient_partition(
         return labels, {"initial_modes": int(len(unique_roots)), "merge_method": "none_needed"}
 
     root_density = np.array([log_density[root] for root in unique_roots])
-    candidate_order = np.lexsort((-counts, -root_density))[::-1]
+    # lexsort with negated keys already orders highest-density first (primary key
+    # -root_density ascending == density descending); do NOT reverse, or the
+    # k LOWEST-density spurious modes would be chosen as cluster centres.
+    candidate_order = np.lexsort((-counts, -root_density))
     top_roots = unique_roots[candidate_order[:k]]
     centers = x[top_roots]
     root_points = x[unique_roots]
@@ -433,8 +437,9 @@ def build_kde_sublevel_payload(
         "task": "T1.11 KDE sub-level-set H0",
         "pre_registration": PRE_REGISTRATION,
         "inputs": {
-            "canonical_embedding_source": str(data.root / "embeddings.npy"),
-            "baseline_gmm_labels_source": str(data.root / "05_analysis.json[gmm_labels]"),
+            "canonical_embedding_source": (data.root / "embeddings.npy").relative_to(proj_root).as_posix(),
+            "baseline_gmm_labels_source": (data.root / "05_analysis.json").relative_to(proj_root).as_posix()
+            + "[gmm_labels]",
             "n_trajectories": int(len(data.embeddings)),
             "git_head": git_head(worktree_root),
         },
