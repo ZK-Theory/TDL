@@ -3,9 +3,10 @@
 # Purpose: T1.5f cached-diagram landscape-L2 grid correction check.
 """Compare old and corrected landscape-L2 grids from cached H2 diagrams.
 
-This runner intentionally does not compute persistent homology. It reads the
-T1.5e characterization JSON plus its cached per-null diagrams, then reports
-whether a cached-only old-grid versus corrected-grid comparison can be made.
+By default this runner does not compute persistent homology. With explicit
+authorization via ``--regenerate-observed-ph``, it recomputes only the two raw
+observed H2 diagrams needed to complete the corrected-grid verdict and still
+reuses every cached null diagram unchanged.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -29,15 +31,21 @@ if str(WORKTREE_ROOT) not in sys.path:
 
 from trajectory_tda.scripts.run_h2_dispersion_dualmetric import (  # noqa: E402
     _landscape_l2_between_diagrams as _corrected_landscape_l2_between_diagrams,
+    _load_frozen_usoc,
+    _pairwise_distance_scale,
+    _ph_provenance,
 )
 from trajectory_tda.scripts.stage1._battery_core import (  # noqa: E402
     landscape_l2_distance,
     landscape_on_grid,
 )
+from trajectory_tda.topology.trajectory_ph import maxmin_landmarks  # noqa: E402
+from poverty_tda.topology.multidim_ph import PHResult, compute_rips_ph, persistence_summary  # noqa: E402
 
 USOC_REL = Path("results/trajectory_tda_integration")
 H2_REL = USOC_REL / "h2_check"
 SCHEMA_VERSION = "stage1/t1-5f-h2-landscape-grid-correction/v1"
+COMPLETE_SCHEMA_VERSION = "stage1/t1-5f-h2-landscape-grid-correction-complete/v1"
 TASK_LABEL = "T1.5f H2 landscape-L2 grid correction check"
 PREREG_CHAIN = [
     "results/trajectory_tda_integration/stage1/pre_registrations_2026-06-17.json",
@@ -129,12 +137,144 @@ def _diagram_from_result(result: dict[str, Any], key: str = "H2") -> np.ndarray:
     return arr
 
 
+def _finite_h2_from_ph(ph: PHResult) -> np.ndarray:
+    dgm = ph.dgms.get(2, np.empty((0, 2)))
+    arr = np.asarray(dgm, dtype=np.float64).reshape(-1, 2) if len(dgm) else np.empty((0, 2))
+    if arr.shape[0] > 0:
+        arr = arr[np.isfinite(arr).all(axis=1)]
+    return arr
+
+
+def _ph_from_h2(dgm: np.ndarray) -> PHResult:
+    return PHResult(dgms={2: np.asarray(dgm, dtype=np.float64).reshape(-1, 2)})
+
+
+def _top_features(dgm: np.ndarray, limit: int = 20) -> list[list[float]]:
+    if dgm.shape[0] == 0:
+        return []
+    persistence = dgm[:, 1] - dgm[:, 0]
+    order = np.argsort(persistence)[::-1][:limit]
+    return [
+        [float(dgm[idx, 0]), float(dgm[idx, 1]), float(persistence[idx])]
+        for idx in order
+        if np.isfinite(dgm[idx]).all() and np.isfinite(persistence[idx])
+    ]
+
+
+def _normalise_dgm(dgm: np.ndarray, scale: float) -> np.ndarray:
+    if scale <= 0 or not math.isfinite(scale):
+        raise ValueError(f"invalid observed normalization scale: {scale}")
+    return np.asarray(dgm, dtype=np.float64) / float(scale)
+
+
 def _observed_h2_diagram(cell: dict[str, Any]) -> np.ndarray | None:
     observed = cell.get("observed", {})
     for key in ("H2_dgm", "h2_dgm", "observed_h2_dgm"):
         if key in observed:
             return _diagram_from_result({"H2_dgm": observed[key]})
     return None
+
+
+def _sanity_check_observed(
+    *,
+    original_cell: dict[str, Any],
+    regenerated_h2: np.ndarray,
+    relative_threshold: float,
+) -> dict[str, Any]:
+    original_h2 = original_cell.get("observed", {}).get("ph_summary", {}).get("H2", {})
+    original_features = original_h2.get("features", [])
+    regenerated_features = _top_features(regenerated_h2, limit=len(original_features))
+    original_arr = (
+        np.asarray(original_features, dtype=np.float64).reshape(-1, 3)
+        if original_features
+        else np.empty((0, 3), dtype=np.float64)
+    )
+    regenerated_arr = (
+        np.asarray(regenerated_features, dtype=np.float64).reshape(-1, 3)
+        if regenerated_features
+        else np.empty((0, 3), dtype=np.float64)
+    )
+    n_compare = min(len(original_arr), len(regenerated_arr))
+    max_abs_delta = 0.0
+    max_relative_delta = 0.0
+    mean_relative_delta = 0.0
+    if n_compare:
+        delta = np.abs(regenerated_arr[:n_compare] - original_arr[:n_compare])
+        denom = np.maximum(np.abs(original_arr[:n_compare]), 1e-12)
+        rel = delta / denom
+        max_abs_delta = float(np.max(delta))
+        max_relative_delta = float(np.max(rel))
+        mean_relative_delta = float(np.mean(rel))
+    original_n_finite = int(original_h2.get("n_finite", original_h2.get("n_features", -1)))
+    regenerated_n_finite = int(regenerated_h2.shape[0])
+    material_drift = bool(
+        original_n_finite != regenerated_n_finite
+        or len(original_arr) != len(regenerated_arr)
+        or max_relative_delta > float(relative_threshold)
+    )
+    return {
+        "original_n_finite": original_n_finite,
+        "regenerated_n_finite": regenerated_n_finite,
+        "original_top_feature_count": int(len(original_arr)),
+        "regenerated_top_feature_count": int(len(regenerated_arr)),
+        "compared_top_feature_count": int(n_compare),
+        "max_abs_feature_delta": max_abs_delta,
+        "max_relative_feature_delta": max_relative_delta,
+        "mean_relative_feature_delta": mean_relative_delta,
+        "relative_threshold": float(relative_threshold),
+        "material_drift": material_drift,
+    }
+
+
+def _regenerate_observed_h2(args: argparse.Namespace) -> tuple[dict[int, dict[str, Any]], dict[str, Any]]:
+    embeddings, _trajectories, embed_kwargs, _frozen_models = _load_frozen_usoc(args.proj_root / USOC_REL)
+    observed_by_l: dict[int, dict[str, Any]] = {}
+    summaries: dict[str, Any] = {}
+    total_started = time.time()
+    for L in args.Ls:
+        actual_l = min(int(L), embeddings.shape[0])
+        _indices, landmarks = maxmin_landmarks(embeddings, actual_l, seed=int(args.seed))
+        started = time.time()
+        ph = compute_rips_ph(
+            np.asarray(landmarks, dtype=np.float64),
+            max_dim=2,
+            do_cocycles=False,
+            method="ripser",
+            feasibility_tetra_budget=float(args.h2_tetra_budget),
+            timeout_seconds=float(args.ph_timeout_seconds),
+        )
+        elapsed = time.time() - started
+        raw_h2 = _finite_h2_from_ph(ph)
+        scales = {
+            normalizer: float(_pairwise_distance_scale(landmarks, normalizer))
+            for normalizer in ("median-pdist", "max-pdist", "mean-pdist")
+        }
+        observed_by_l[actual_l] = {
+            "raw_h2": raw_h2,
+            "landmark_count": int(actual_l),
+            "landmark_seed": int(args.seed),
+            "raw_ph_elapsed_seconds": float(elapsed),
+            "raw_ph_provenance": _ph_provenance(ph),
+            "raw_h2_summary": persistence_summary(_ph_from_h2(raw_h2)).get("H2", {}),
+            "pairwise_scales": scales,
+        }
+        summaries[f"L{actual_l}"] = {
+            "raw_h2_feature_count": int(raw_h2.shape[0]),
+            "raw_ph_elapsed_seconds": float(elapsed),
+            "pairwise_scales": scales,
+            "raw_h2_dgm": raw_h2,
+            "raw_h2_top_features": _top_features(raw_h2, limit=20),
+        }
+    report = {
+        "enabled": True,
+        "fresh_observed_ph_calls": int(len(observed_by_l)),
+        "expected_fresh_observed_ph_calls": int(len(args.Ls)),
+        "elapsed_seconds": float(time.time() - total_started),
+        "embedding_loader": "trajectory_tda.scripts.run_h2_dispersion_dualmetric._load_frozen_usoc",
+        "embedding_kwargs": _jsonable(embed_kwargs),
+        "by_L": summaries,
+    }
+    return observed_by_l, report
 
 
 def _old_landscape_l2_between_diagrams(
@@ -217,6 +357,8 @@ def _summarize_cell(
     proj_root: Path,
     k_max: int,
     n_points: int,
+    observed_override: dict[str, Any] | None,
+    sanity_relative_threshold: float,
 ) -> dict[str, Any]:
     spec = CELL_SPECS[normalizer]
     original_metric = original_cell["metrics"]["H2"]
@@ -250,14 +392,35 @@ def _summarize_cell(
         return cell_payload
 
     null_h2 = [_diagram_from_result(completed[str(idx)], "H2") for idx in range(spec["B"])]
-    obs_h2 = _observed_h2_diagram(original_cell)
-    cell_payload["observed_h2_diagram_cached"] = obs_h2 is not None
+    cached_obs_h2 = _observed_h2_diagram(original_cell)
+    obs_h2 = cached_obs_h2
+    cell_payload["observed_h2_diagram_cached"] = cached_obs_h2 is not None
     cell_payload["observed_h2_features_in_summary"] = int(
         original_cell.get("observed", {}).get("ph_summary", {}).get("H2", {}).get("n_features", -1)
     )
     cell_payload["observed_h2_features_stored_in_summary"] = len(
         original_cell.get("observed", {}).get("ph_summary", {}).get("H2", {}).get("features", [])
     )
+    if obs_h2 is None and observed_override is not None:
+        scale = float(observed_override["pairwise_scales"][normalizer])
+        obs_h2 = _normalise_dgm(observed_override["raw_h2"], scale)
+        original_scale = original_cell.get("observed", {}).get("scale_value")
+        cell_payload["observed_h2_diagram_regenerated"] = True
+        cell_payload["observed_h2_regeneration"] = {
+            "source": "raw observed PH divided by observed landmark pairwise scale",
+            "raw_h2_feature_count": int(observed_override["raw_h2"].shape[0]),
+            "normalizer": normalizer,
+            "scale_value": scale,
+            "original_recorded_scale_value": original_scale,
+            "scale_abs_delta_vs_original": abs(scale - float(original_scale)) if original_scale is not None else None,
+            "sanity_check": _sanity_check_observed(
+                original_cell=original_cell,
+                regenerated_h2=obs_h2,
+                relative_threshold=sanity_relative_threshold,
+            ),
+        }
+    else:
+        cell_payload["observed_h2_diagram_regenerated"] = False
 
     full_pairs = _full_pair_indices(original_metric)
     null_null_old = [
@@ -300,7 +463,15 @@ def _summarize_cell(
     cell_payload["obs_null_grid_delta"] = _distribution_delta(obs_null_old, obs_null_corrected)
     cell_payload["old_grid_recomputed"] = old_stats
     cell_payload["corrected_grid"] = corrected_stats
-    cell_payload["verdict_preserved"] = old_stats["significant_at_005"] == corrected_stats["significant_at_005"]
+    original_verdict = bool(original_landscape["significant_at_005"])
+    cell_payload["original_verdict"] = {
+        "significant_at_005": original_verdict,
+        "expected_pattern_label": "reject" if original_verdict else "collapse/no-reject",
+    }
+    cell_payload["old_grid_matches_original_verdict"] = bool(old_stats["significant_at_005"]) == original_verdict
+    cell_payload["grid_verdict_preserved"] = old_stats["significant_at_005"] == corrected_stats["significant_at_005"]
+    cell_payload["expected_verdict_preserved"] = corrected_stats["significant_at_005"] == original_verdict
+    cell_payload["verdict_preserved"] = bool(cell_payload["expected_verdict_preserved"])
     cell_payload["recompute_status"] = "complete"
     return cell_payload
 
@@ -309,10 +480,15 @@ def run(args: argparse.Namespace) -> Path:
     original_path = args.original_json
     checkpoint_root = args.checkpoint_root
     original = _read_json(original_path)
+    observed_overrides: dict[int, dict[str, Any]] = {}
+    observed_regeneration: dict[str, Any] = {"enabled": False, "fresh_observed_ph_calls": 0}
+    if args.regenerate_observed_ph:
+        observed_overrides, observed_regeneration = _regenerate_observed_h2(args)
 
     results: dict[str, dict[str, Any]] = {}
     blocked_cells: list[dict[str, Any]] = []
     changed_verdict_cells: list[dict[str, Any]] = []
+    drift_cells: list[dict[str, Any]] = []
     for L in args.Ls:
         l_key = f"L{int(L)}"
         results[l_key] = {}
@@ -325,15 +501,22 @@ def run(args: argparse.Namespace) -> Path:
                 proj_root=args.proj_root,
                 k_max=int(args.landscape_k_max),
                 n_points=int(args.landscape_n_points),
+                observed_override=observed_overrides.get(int(L)),
+                sanity_relative_threshold=float(args.observed_sanity_relative_threshold),
             )
             results[l_key][normalizer] = cell
             if cell.get("recompute_status") != "complete":
                 blocked_cells.append({"L": int(L), "normalizer": normalizer, "status": cell.get("recompute_status")})
+            elif cell.get("observed_h2_regeneration", {}).get("sanity_check", {}).get("material_drift", False):
+                drift_cells.append({"L": int(L), "normalizer": normalizer})
             elif not cell.get("verdict_preserved", False):
                 changed_verdict_cells.append({"L": int(L), "normalizer": normalizer})
 
     if blocked_cells:
         status = "partial_escalate_missing_cached_observed_diagrams"
+        restriction_stands_confirmed = False
+    elif drift_cells:
+        status = "partial_escalate_observed_regeneration_drift"
         restriction_stands_confirmed = False
     elif changed_verdict_cells:
         status = "partial_escalate_verdict_changed"
@@ -343,12 +526,13 @@ def run(args: argparse.Namespace) -> Path:
         restriction_stands_confirmed = True
 
     payload = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": COMPLETE_SCHEMA_VERSION if args.regenerate_observed_ph else SCHEMA_VERSION,
         "generated_at": _now_iso(),
         "task": TASK_LABEL,
         "status": status,
         "restriction_stands_confirmed": restriction_stands_confirmed,
-        "no_ph_recompute": True,
+        "no_null_ph_recompute": True,
+        "observed_ph_regeneration": observed_regeneration,
         "pre_registration_chain": PREREG_CHAIN,
         "inputs": {
             "original_characterization_json": _repo_relpath(original_path, args.worktree_root),
@@ -357,17 +541,27 @@ def run(args: argparse.Namespace) -> Path:
         },
         "params": {
             "Ls": [int(L) for L in args.Ls],
-            "seed": 42,
+            "seed": int(args.seed),
             "normalizer_B": {normalizer: int(spec["B"]) for normalizer, spec in CELL_SPECS.items()},
             "landscape_k_max": int(args.landscape_k_max),
             "landscape_n_points": int(args.landscape_n_points),
+            "ph_method": "ripser",
+            "do_cocycles": False,
+            "h2_tetra_budget": float(args.h2_tetra_budget),
+            "ph_timeout_seconds": float(args.ph_timeout_seconds),
             "old_grid": "support from first diagram only; dx=(t[-1]-t[0])/n_points",
             "corrected_grid": "union support from both diagrams; dx=(t[-1]-t[0])/(n_points-1)",
+            "observed_regeneration_mode": (
+                "two raw observed H2 PH calls; per-normalizer diagrams derived by scale equivariance"
+                if args.regenerate_observed_ph
+                else "disabled"
+            ),
             "regeneration_command": _portable_command(
                 sys.argv, proj_root=args.proj_root, worktree_root=args.worktree_root
             ),
         },
         "blocked_cells": blocked_cells,
+        "drift_cells": drift_cells,
         "changed_verdict_cells": changed_verdict_cells,
         "results": results,
     }
@@ -393,11 +587,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-path", type=Path)
     parser.add_argument("--run-date", default=datetime.now(UTC).date().isoformat())
     parser.add_argument("--Ls", type=int, nargs="+", default=[200, 300])
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--landscape-k-max", type=int, default=5)
     parser.add_argument("--landscape-n-points", type=int, default=200)
+    parser.add_argument("--regenerate-observed-ph", action="store_true")
+    parser.add_argument("--ph-timeout-seconds", type=float, default=300.0)
+    parser.add_argument("--h2-tetra-budget", type=float, default=20_000_000_000.0)
+    parser.add_argument("--observed-sanity-relative-threshold", type=float, default=0.10)
     args = parser.parse_args()
     if args.output_path is None:
-        args.output_path = args.worktree_root / H2_REL / f"h2_landscape_grid_correction_{args.run_date}.json"
+        suffix = "complete_" if args.regenerate_observed_ph else ""
+        args.output_path = args.worktree_root / H2_REL / f"h2_landscape_grid_correction_{suffix}{args.run_date}.json"
     return args
 
 
