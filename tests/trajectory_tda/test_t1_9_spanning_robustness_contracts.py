@@ -100,6 +100,11 @@ def test_spanning_betti_robustness_output_schema() -> None:
     assert errors != []
 
     bad = copy.deepcopy(payload)
+    bad["params"]["eps_star_locked"] = 0.65
+    errors = _assert_error_message(bad, "params.eps_star_locked")
+    assert errors != []
+
+    bad = copy.deepcopy(payload)
     bad["results"] = bad["results"][:-1]
     errors = _assert_error_message(bad, "one entry per locked epsilon-star")
     assert errors != []
@@ -115,6 +120,11 @@ def test_spanning_betti_robustness_output_schema() -> None:
     assert errors != []
 
     bad = copy.deepcopy(payload)
+    bad["results"][0]["auc_ratio"] = 0.9
+    errors = _assert_error_message(bad, "decision.consistent must equal")
+    assert errors != []
+
+    bad = copy.deepcopy(payload)
     bad["decision"]["outcome"] = "divergent"
     errors = _assert_error_message(bad, "robust")
     assert errors != []
@@ -127,9 +137,7 @@ def test_spanning_betti_robustness_output_schema() -> None:
 
 def test_spanning_betti_robustness_json_validation_dispatch() -> None:
     """Dispatch only consolidated T1.9 JSONs and validate matched on-disk payloads."""
-    output_validation = _load_contract(
-        "stage1-output-schemas/spanning-betti-robustness-output-json-validation.yaml"
-    )
+    output_validation = _load_contract("stage1-output-schemas/spanning-betti-robustness-output-json-validation.yaml")
     ov = output_validation["output_validation"]
     glob_pattern = ov["applies_to_glob"]
     assert ov["schema_contracts"] == ["spanning-betti-robustness-output"]

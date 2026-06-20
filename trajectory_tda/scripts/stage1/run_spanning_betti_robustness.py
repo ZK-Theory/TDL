@@ -144,6 +144,22 @@ def validate_spanning_betti_robustness_payload(payload: dict[str, Any]) -> list[
         outcome = decision.get("outcome")
         if not isinstance(consistent, bool):
             errors.append("decision.consistent must be bool")
+        elif results:
+            recomputed = all(
+                isinstance(row, dict)
+                and isinstance(row.get("single_eps_ratio"), (int, float))
+                and isinstance(row.get("auc_ratio"), (int, float))
+                and isinstance(row.get("w2_matched"), (int, float))
+                and float(row["single_eps_ratio"]) > 1
+                and float(row["auc_ratio"]) > 1
+                and float(row["w2_matched"]) > 0
+                for row in results
+            )
+            if consistent != recomputed:
+                errors.append(
+                    "decision.consistent must equal all-epsilon support "
+                    "(single_eps_ratio > 1 AND auc_ratio > 1 AND w2_matched > 0)"
+                )
         expected = "robust" if consistent is True else "divergent" if consistent is False else None
         if outcome not in {"robust", "divergent"}:
             errors.append("decision.outcome must be 'robust' or 'divergent'")
@@ -156,7 +172,11 @@ def validate_spanning_betti_robustness_payload(payload: dict[str, Any]) -> list[
 def dispatches_spanning_betti_robustness_json(path: Path) -> bool:
     """Return True for consolidated T1.9 JSONs covered by the dispatch contract."""
     rel = path.as_posix()
-    return rel.startswith(OUTPUT_REL_DIR.as_posix() + "/") and path.name.startswith("spanning_AUC_W2_") and path.suffix == ".json"
+    return (
+        rel.startswith(OUTPUT_REL_DIR.as_posix() + "/")
+        and path.name.startswith("spanning_AUC_W2_")
+        and path.suffix == ".json"
+    )
 
 
 def _git_head(repo_root: Path) -> str:
@@ -459,6 +479,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     args = parser.parse_args()
 
+    if args.matched_n <= 0:
+        raise ValueError(f"--matched-n must be a positive integer, got {args.matched_n}")
     if args.seed != DEFAULT_SEED:
         raise ValueError(f"T1.9 seed is locked to {DEFAULT_SEED}")
 

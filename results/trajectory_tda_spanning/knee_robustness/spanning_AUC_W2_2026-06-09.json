@@ -10,8 +10,8 @@
     "git_head": "b28af1683bd903ce7003595bf02ab0179da2756c",
     "full_embedding_cache": {
       "status": "reused_existing_proj_root_cache",
-      "embedding_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_full\\embeddings.npy",
-      "metadata_source": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-spanning-betti-robustness\\results\\trajectory_tda_full\\01_trajectories.json",
+      "embedding_cache": "results/trajectory_tda_full/embeddings.npy",
+      "metadata_source": "results/trajectory_tda_full/01_trajectories.json",
       "regeneration_command": "uv run python trajectory_tda/scripts/build_full_checkpoint.py --data-dir trajectory_tda/data --checkpoint results/trajectory_tda_full --min-years 10 --max-gap 2 --pca-dim 20"
     }
   },
