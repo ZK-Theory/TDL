@@ -140,13 +140,17 @@ Headline categories:
       production W2 + landscape battery, not under length-matching).
       Sequencing: at next natural opportunity; not blocking any
       submission-critical work. Applies equally to P01-B headline cells.
-- [ ] **SI methodological-disclosure paragraph for the dedup amendment.**
-      Draft the SI section text from the
-      `methodological_disclosure_draft` field in the v2 comparison JSON
-      (`results/trajectory_tda_integration/stage1/dedup_amendment_comparison_2026-05-31.json`).
-      Covers (a) the rationale for external-indexing dedup, (b) the H1
-      W2 flip from p=0.350 to p=0.001 under the corrected methodology
-      and why this is mechanistic rather than tuning, (c) the two
-      robustness probes (symmetric_dedup, pinned_thresh) and their <1%
-      S/N drift defending Outcome A against the obs/null vertex-count
-      asymmetry and the auto-thresh divergence. Reviewer-facing.
+- [~] **SI methodological-disclosure paragraph for the dedup amendment —
+      DRAFTED 2026-06-21, pending User per-section review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/supplement-S6-length-matched-dedup.md`
+      (working §S6; final number at v2 assembly). Covers (a) the rationale
+      for external-indexing dedup, (b) the H1 W2 flip from p=0.350 to
+      p=0.000999 and why it is mechanistic (mean_obs_null 202.84→6.63 once
+      the ~139 near-zero-scale phantom H1 features are stripped; S/N
+      1.006→1.867), (c) the two robustness probes. **Drafted from the
+      CORRECTED 2026-06-01 comparison JSON, not the 2026-05-31 draft field:
+      the pinned_thresh H0 cell drifts +6.7% (T-ratio 7.87→8.40), not "<1%
+      everywhere" — rejection preserved in every cell regardless, Outcome A
+      unaffected.** notation-check: 1 borderline obs/null-superscript leakage
+      flag (kept, consistent with §S0 precedent). Applies equally to P01-B
+      headline cells (cross-reference from P01-B, do not duplicate).
