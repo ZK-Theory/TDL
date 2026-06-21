@@ -171,3 +171,15 @@ Headline categories:
       coefficient table. notation-check clean (0 drift). Provisional table
       labels — final numbers set at v2 assembly; coordinate Table 2/Table 3
       numbering with the ARI/escape-rate section.
+- [~] **§4.6 ARI + Table 2/3 uncertainty — DRAFTED PARTIAL 2026-06-22, pending
+      User review + Manager resolution.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-ari-stability.md`.
+      B11 (Table 3 Wilson CIs) complete and clean from `escape_wilson_ci_2026-05-16.json`.
+      **Two provenance gaps surfaced (not fabricated):** (B9) the only committed
+      normalised-ARI file (`ari_normalised_2026-06-06.json`) is H0-components-vs-GMM
+      (raw 0.2425, normalised 0.99999, p=0.0001999600), NOT the optimal-matching-vs-GMM
+      ARI=0.26 that §4.6/B9 concerns — needs reframe or a new OM-vs-GMM normalisation;
+      (B10) `stability_se_2026-05-16.json` gives SEs for the within-trajectory
+      `stability_from_seqs` metric, not the headline window-pair `stability_stored`
+      metric used in Table 2 — stored-metric SE regeneration needed. Section drafts the
+      supportable content and flags both gaps inline.
