@@ -183,3 +183,14 @@ Headline categories:
       `stability_from_seqs` metric, not the headline window-pair `stability_stored`
       metric used in Table 2 — stored-metric SE regeneration needed. Section drafts the
       supportable content and flags both gaps inline.
+- [~] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22,
+      pending User review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-mapper-vocabulary-audit.md`.
+      Independently re-verified the vocabulary audit (R1-10.3): grep confirms zero
+      `topolog` usages on Mapper-derived quantities in v1 §5 (matches are all §4
+      persistent-homology or references). Added the §5.x threshold-sensitivity
+      sub-section + table (B12) from `sub_regime_thresh_sweep_2026-06-07.json`
+      (PC1, B=1000: 358/134/40 nodes at |z|=1.0/1.5/2.0, all BH-significant) and
+      `03_multi_threshold.json` (PC1+L2 counts incl. |z|=0.5; per-regime local FDR —
+      only R0_L2, R1_L2 survive at 0.05). L2-norm lens explicitly distinguished from
+      landscape L². notation-check clean.
