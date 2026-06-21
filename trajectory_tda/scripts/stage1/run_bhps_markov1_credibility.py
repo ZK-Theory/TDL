@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,17 +55,19 @@ DEFAULT_N_TRIALS = 100
 DEFAULT_CALIBRATION_BANK_B = 200
 DEFAULT_VARIANCE_NULL_PAIRS = 1000
 P_VALUE_FORMULA = "(r+1)/(B+1)"
-# gudhi's exact-W2 C++ path holds the GIL, so the joblib `threading` backend
-# gives ~no parallelism here (measured 9.88 s/distance serial under 8 threads,
-# T1.6 attempt #2). `loky` (process backend, the rest of the battery's default)
-# gives true parallelism and per-process heaps, which also removes the shared-heap
-# OOM the threading run hit.
-DEFAULT_BACKEND = "loky"
-# Static memory-safe worker default: each in-flight exact-W2 solve on ~5000-point
-# H0 diagrams peaks at ~0.2-0.8 GB; 6 workers x <=0.8 GB << free RAM. Mirrors the
-# static-cap precedent in run_landmark_sensitivity.py:96-102. The corrected
-# --benchmark-only probe measures per-process RSS empirically to confirm the fit.
+# Exact W2 on ~5000-point H0 diagrams is memory-bandwidth bound and does NOT
+# parallelise on this hardware: T1.6 measured a flat ~15-18 s/distance from 1 to 6
+# loky workers, and `threading` gives ~no parallelism (gudhi's exact-W2 holds the
+# GIL) plus a shared-heap OOM. `serial` (plain in-process loop, no joblib) is both
+# the fastest path here (~9.88 s/distance vs loky's per-task pickling overhead) and
+# the default; `loky`/`threading` remain available for other (smaller-diagram) uses.
+DEFAULT_BACKEND = "serial"
+# Worker count for the parallel backends only (ignored by `serial`). Static
+# memory-safe default mirroring run_landmark_sensitivity.py:96-102.
 DEFAULT_WORKERS = 6
+# Measured serial exact-W2 throughput at L=5000 (T1.6 attempt #2, 100-sample
+# null-pair phase: 987.8 s / 100). Used only for the up-front runtime estimate.
+MEASURED_SERIAL_SECONDS_PER_DISTANCE = 9.88
 
 
 def _is_number(value: Any) -> bool:
@@ -412,6 +415,32 @@ def _available_physical_memory_bytes() -> int | None:
         return None
 
 
+class _SerialExecutor:
+    """In-process drop-in for ``joblib.Parallel`` that runs ``delayed`` tasks serially.
+
+    Exact W2 on ~5000-point H0 diagrams is memory-bandwidth bound and does not
+    parallelise on this hardware (T1.6: flat per-distance 1->6 workers), and joblib
+    carries per-task pickling overhead, so a plain in-process loop is the fastest and
+    simplest path. Accepts the same ``(func, args, kwargs)`` tuples ``delayed`` emits.
+    """
+
+    def __enter__(self) -> _SerialExecutor:
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def __call__(self, tasks: Any) -> list[Any]:
+        return [func(*args, **kwargs) for func, args, kwargs in tasks]
+
+
+def _make_executor(workers: int, backend: str) -> Any:
+    """Return a context-manager executor: serial in-process or joblib ``Parallel``."""
+    if backend == "serial":
+        return _SerialExecutor()
+    return Parallel(n_jobs=workers, backend=backend)
+
+
 def _w2_with_peak_rss(diagram_a: Any, diagram_b: Any, dim: int) -> tuple[float, int | None]:
     """Compute the W2 distance and report the worker's peak working set (bytes)."""
     return _w2(diagram_a, diagram_b, dim), _peak_working_set_bytes()
@@ -510,7 +539,7 @@ def compute_calibration(
     _write_json(checkpoint_path, progress, overwrite=True)
 
     benchmark_peak_rss_bytes: int | None = None
-    with Parallel(n_jobs=workers, backend=backend) as parallel:
+    with _make_executor(workers, backend) as parallel:
         if len(progress.get("calibration_null_pair_distances", [])) == active_null_pairs:
             null_pair_distances = [float(x) for x in progress["calibration_null_pair_distances"]]
         else:
@@ -550,6 +579,7 @@ def compute_calibration(
                 "rank_count": rank_count,
                 "p_value": p_value,
                 "pvalue_null_draws": pvalue_denominator,
+                "obs_null_distances": [float(x) for x in obs_null_distances],
                 "elapsed_s": time.time() - t0,
             }
             progress["trials"].append(row)
@@ -647,7 +677,7 @@ def compute_variance(
     diagrams = [_finite_diagram(dgm) for dgm in cache["h0_diagrams"]]
     pairs = _sample_pairs(len(diagrams), n_pairs, seed)
     t0 = time.time()
-    with Parallel(n_jobs=workers, backend=backend) as parallel:
+    with _make_executor(workers, backend) as parallel:
         distances = _distance_batch(parallel, pairs, diagrams, TARGET_DIM)
     arr = np.asarray(distances, dtype=np.float64)
     mean = float(np.mean(arr))
@@ -811,7 +841,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-date", default=datetime.now(timezone.utc).date().isoformat())
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
-    parser.add_argument("--backend", default=DEFAULT_BACKEND, choices=["threading", "loky"])
+    parser.add_argument("--backend", default=DEFAULT_BACKEND, choices=["serial", "threading", "loky"])
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--n-calibration-trials", type=int, default=DEFAULT_N_TRIALS)
     parser.add_argument("--calibration-null-bank-B", type=int, default=DEFAULT_CALIBRATION_BANK_B)
@@ -830,12 +860,23 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.workers < 4:
-        raise ValueError("workers must be >= 4 for this Task")
+    if args.backend != "serial" and args.workers < 4:
+        raise ValueError("workers must be >= 4 for the parallel backends")
     if args.n_calibration_trials != DEFAULT_N_TRIALS:
         raise ValueError(f"n_calibration_trials is locked at {DEFAULT_N_TRIALS}")
     if args.calibration_null_bank_B < 100:
         raise ValueError("calibration_null_bank_B floor is 100")
+
+    if not args.benchmark_only:
+        est_distances = args.n_calibration_trials * args.calibration_null_bank_B + 2 * args.variance_null_pairs
+        est_hours = est_distances * MEASURED_SERIAL_SECONDS_PER_DISTANCE / 3600
+        print(
+            f"[T1.6] backend={args.backend}: <= {est_distances} distances at "
+            f"~{MEASURED_SERIAL_SECONDS_PER_DISTANCE}s -> ~{est_hours:.1f}h "
+            "(cached null-pair bank reused; completed trials skipped on resume)",
+            file=sys.stderr,
+            flush=True,
+        )
 
     calibration_payload, variance_payload = build_outputs(args)
     if args.benchmark_only:

@@ -306,3 +306,75 @@ def test_benchmark_requires_more_distances_than_workers(tmp_path: Path) -> None:
             benchmark_trials=1,
             benchmark_null_pairs=2,
         )
+
+
+def test_serial_backend_computes_without_joblib(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """backend='serial' runs the distance loops in-process, never touching joblib."""
+    module = importlib.import_module(MODULE_NAME)
+
+    def fast_w2(a, b, dim):
+        return float(abs(float(a[0][1]) - float(b[0][1])))
+
+    def boom(*args, **kwargs):
+        raise AssertionError("joblib Parallel must not be used in serial mode")
+
+    monkeypatch.setattr(module, "_w2", fast_w2)
+    monkeypatch.setattr(module, "Parallel", boom)
+
+    cache = {"h0_diagrams": [np.array([[0.0, float(i + 1)]]) for i in range(40)]}
+    result = module.compute_calibration(
+        cache,
+        n_trials=3,
+        bank_b=5,
+        seed=42,
+        workers=6,
+        backend="serial",
+        checkpoint_path=tmp_path / "serial-progress.json",
+        benchmark_only=False,
+    )
+    assert len(result["trial_details"]) == 3
+    assert result["calibration_null_bank_B"] == 5
+    # Per-trial obs-to-bank distance array is persisted for provenance/resume.
+    assert all(len(row["obs_null_distances"]) == 5 for row in result["trial_details"])
+
+
+def test_serial_per_trial_checkpoint_resume_skips_completed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A resumed serial run reuses the cached null bank and skips completed trials."""
+    module = importlib.import_module(MODULE_NAME)
+    cache = {"h0_diagrams": [np.array([[0.0, float(i + 1)]]) for i in range(40)]}
+    checkpoint = tmp_path / "resume-progress.json"
+
+    monkeypatch.setattr(module, "_w2", lambda a, b, dim: 1.0)
+    first = module.compute_calibration(
+        cache,
+        n_trials=3,
+        bank_b=5,
+        seed=42,
+        workers=6,
+        backend="serial",
+        checkpoint_path=checkpoint,
+        benchmark_only=False,
+    )
+    assert len(first["trial_details"]) == 3
+
+    # Re-run against the same checkpoint: every distance must already be cached, so
+    # _w2 is never called again (null bank reused + all trials skipped).
+    calls = {"n": 0}
+
+    def counting_w2(a, b, dim):
+        calls["n"] += 1
+        return 1.0
+
+    monkeypatch.setattr(module, "_w2", counting_w2)
+    second = module.compute_calibration(
+        cache,
+        n_trials=3,
+        bank_b=5,
+        seed=42,
+        workers=6,
+        backend="serial",
+        checkpoint_path=checkpoint,
+        benchmark_only=False,
+    )
+    assert len(second["trial_details"]) == 3
+    assert calls["n"] == 0
