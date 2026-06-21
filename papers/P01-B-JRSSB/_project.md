@@ -110,3 +110,18 @@ Headline categories:
       will be superseded by locked-env JSONs in v2)
 - [ ] Prepare JRSS-B submission package and arXiv metadata (LaTeX class
       `papers/style_guides/JRSS/statsoc.cls`)
+- [~] **§4.3 spanning identification — DRAFTED 2026-06-22, pending User review +
+      two external dependencies.** Section file:
+      `papers/P01-B-JRSSB/drafts/sections/results-spanning-identification.md`.
+      Headline is the T1.9b inferential result (`spanning_betti_inference_2026-06-20.json`,
+      outcome `newcomers_robust`): windowed β₀-AUC ratio robust across all four ε*
+      (1.127–1.129, p=0.001, bootstrap CI excludes parity) + matched W₂=2.536 (p=0.001),
+      direction newcomers>spanning; single-ε ratio fragile (sig only at locked ε*=0.54).
+      Resolves the earlier T1.9 "divergent" point estimate (full-interval AUC artefact).
+      Table 4 = 3 statistics × 4 ε*. Balance table from `balance_2026-05-14.json` (age
+      SMD −0.617, hiqual 0.300, employed 0.193, sex 0.002) + matched/age-strat design
+      from `matched_subset_2026-05-14.json`. notation-check clean (W₂ order explicit;
+      landscape correctly omitted per response-plan §10). **Two dependencies flagged:**
+      (a) matched/age-stratified Betti rerun escalated to TDA agent, not yet committed —
+      stated as pending, not fabricated; (b) manuscript prose-direction lock Manager-deferred
+      per the result file — file the vault [DECISION] before v2 assembly.
