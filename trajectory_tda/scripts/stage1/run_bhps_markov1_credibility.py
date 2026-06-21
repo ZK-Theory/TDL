@@ -54,6 +54,17 @@ DEFAULT_N_TRIALS = 100
 DEFAULT_CALIBRATION_BANK_B = 200
 DEFAULT_VARIANCE_NULL_PAIRS = 1000
 P_VALUE_FORMULA = "(r+1)/(B+1)"
+# gudhi's exact-W2 C++ path holds the GIL, so the joblib `threading` backend
+# gives ~no parallelism here (measured 9.88 s/distance serial under 8 threads,
+# T1.6 attempt #2). `loky` (process backend, the rest of the battery's default)
+# gives true parallelism and per-process heaps, which also removes the shared-heap
+# OOM the threading run hit.
+DEFAULT_BACKEND = "loky"
+# Static memory-safe worker default: each in-flight exact-W2 solve on ~5000-point
+# H0 diagrams peaks at ~0.2-0.8 GB; 6 workers x <=0.8 GB << free RAM. Mirrors the
+# static-cap precedent in run_landmark_sensitivity.py:96-102. The corrected
+# --benchmark-only probe measures per-process RSS empirically to confirm the fit.
+DEFAULT_WORKERS = 6
 
 
 def _is_number(value: Any) -> bool:
@@ -323,6 +334,109 @@ def _obs_to_bank_distances(
     return list(parallel(delayed(_w2)(observed, candidate, dim) for candidate in bank))
 
 
+def _peak_working_set_bytes() -> int | None:
+    """Best-effort peak working set of the current process, in bytes.
+
+    Pure-stdlib (Windows ``ctypes``/``GetProcessMemoryInfo``); returns ``None`` on
+    platforms or runtimes where the query is unavailable. No ``psutil`` dependency.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        kernel32 = ctypes.windll.kernel32
+        psapi = ctypes.windll.psapi
+        # Set the pseudo-handle return type to a full-width HANDLE; the default
+        # c_int restype truncates it to -1 (32-bit) and corrupts the call.
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(_ProcessMemoryCounters),
+            wintypes.DWORD,
+        ]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+
+        counters = _ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(_ProcessMemoryCounters)
+        ok = psapi.GetProcessMemoryInfo(kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb)
+        if not ok:
+            return None
+        return int(counters.PeakWorkingSetSize)
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
+def _available_physical_memory_bytes() -> int | None:
+    """Best-effort available physical memory, in bytes (Windows ``ctypes``).
+
+    Returns ``None`` where unavailable. Pure-stdlib; no ``psutil`` dependency.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", wintypes.DWORD),
+                ("dwMemoryLoad", wintypes.DWORD),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        status = _MemoryStatusEx()
+        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        ok = ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+        if not ok:
+            return None
+        return int(status.ullAvailPhys)
+    except (OSError, AttributeError, ValueError):
+        return None
+
+
+def _w2_with_peak_rss(diagram_a: Any, diagram_b: Any, dim: int) -> tuple[float, int | None]:
+    """Compute the W2 distance and report the worker's peak working set (bytes)."""
+    return _w2(diagram_a, diagram_b, dim), _peak_working_set_bytes()
+
+
+def _obs_to_bank_with_rss(
+    parallel: Parallel,
+    observed: np.ndarray,
+    bank: list[np.ndarray],
+    dim: int,
+) -> tuple[list[float], int | None]:
+    """Benchmark obs-to-bank distances plus the max per-process peak RSS observed.
+
+    Falls back to plain distances (RSS ``None``) when ``parallel`` is not callable
+    (e.g. a test double), so the benchmark path stays unit-testable.
+    """
+    try:
+        results = list(parallel(delayed(_w2_with_peak_rss)(observed, candidate, dim) for candidate in bank))
+    except TypeError:
+        return _obs_to_bank_distances(parallel, observed, bank, dim), None
+    distances = [float(distance) for distance, _ in results]
+    rss_samples = [rss for _, rss in results if rss is not None]
+    return distances, (max(rss_samples) if rss_samples else None)
+
+
 def compute_calibration(
     bhps_cache: dict[str, Any],
     *,
@@ -347,9 +461,20 @@ def compute_calibration(
     active_bank_b = bank_b
     active_null_pairs = bank_b
     if benchmark_only:
-        active_bank_b = max(2, min(bank_b, benchmark_bank_B))
+        # Time strictly more distances than the worker pool so elapsed/count
+        # reflects steady-state per-distance throughput under genuine parallel
+        # saturation, not a sub-pool burst. (The attempt-#2 probe was 4.7x
+        # optimistic because it timed 4 distances against 8 workers.)
+        saturated_bank_b = max(benchmark_bank_B, 2 * workers)
+        active_bank_b = max(2, min(bank_b, saturated_bank_b))
         active_bank = bank[:active_bank_b]
         active_null_pairs = max(1, min(benchmark_null_pairs, active_bank_b))
+        if active_bank_b <= workers:
+            raise ValueError(
+                "benchmark must time more distances than workers to measure "
+                f"saturated throughput: active_bank_b={active_bank_b} <= workers={workers}; "
+                "increase --calibration-null-bank-B or reduce --workers"
+            )
     pair_indices = _sample_pairs(active_bank_b, active_null_pairs, seed)
     progress = _load_progress(checkpoint_path)
     expected_observed_indices = list(range(n_trials))
@@ -384,6 +509,7 @@ def compute_calibration(
 
     _write_json(checkpoint_path, progress, overwrite=True)
 
+    benchmark_peak_rss_bytes: int | None = None
     with Parallel(n_jobs=workers, backend=backend) as parallel:
         if len(progress.get("calibration_null_pair_distances", [])) == active_null_pairs:
             null_pair_distances = [float(x) for x in progress["calibration_null_pair_distances"]]
@@ -400,7 +526,14 @@ def compute_calibration(
             if trial_index in completed:
                 continue
             t0 = time.time()
-            obs_null_distances = _obs_to_bank_distances(parallel, observed[trial_index], active_bank, TARGET_DIM)
+            if benchmark_only:
+                obs_null_distances, trial_peak_rss = _obs_to_bank_with_rss(
+                    parallel, observed[trial_index], active_bank, TARGET_DIM
+                )
+                if trial_peak_rss is not None:
+                    benchmark_peak_rss_bytes = max(benchmark_peak_rss_bytes or 0, trial_peak_rss)
+            else:
+                obs_null_distances = _obs_to_bank_distances(parallel, observed[trial_index], active_bank, TARGET_DIM)
             mean_obs_null = float(np.mean(obs_null_distances))
             mean_null_null = float(np.mean(null_pair_distances))
             rank_count = int(np.sum(np.asarray(null_pair_distances, dtype=np.float64) >= mean_obs_null))
@@ -439,8 +572,14 @@ def compute_calibration(
             projected_calibration_s = (
                 null_seconds_per_distance * bank_b + trial_seconds_per_distance * n_trials * bank_b
             )
+        available_bytes = _available_physical_memory_bytes()
+        available_ram_gb = (available_bytes / 1e9) if available_bytes is not None else None
+        per_process_rss_gb = (benchmark_peak_rss_bytes / 1e9) if benchmark_peak_rss_bytes else None
+        projected_peak_memory_gb = per_process_rss_gb * workers if per_process_rss_gb is not None else None
         return {
             "benchmark_only": True,
+            "backend": backend,
+            "workers": workers,
             "completed_trials": len(trials),
             "mean_trial_elapsed_s": mean_elapsed,
             "projected_full_trials_s": mean_elapsed * n_trials if np.isfinite(mean_elapsed) else None,
@@ -453,6 +592,11 @@ def compute_calibration(
             else None,
             "benchmark_bank_B": active_bank_b,
             "benchmark_null_pairs": active_null_pairs,
+            "benchmark_distances_timed": active_bank_b,
+            "per_process_peak_rss_bytes": benchmark_peak_rss_bytes,
+            "per_process_peak_rss_gb": per_process_rss_gb,
+            "available_ram_gb": available_ram_gb,
+            "projected_peak_memory_gb": projected_peak_memory_gb,
             "full_design_distances_projected": bank_b + n_trials * bank_b,
             "checkpoint_path": str(checkpoint_path),
         }
@@ -576,6 +720,8 @@ def build_outputs(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, A
 
     generated_at = _utc_now()
     git_head = _git_head()
+    available_bytes = _available_physical_memory_bytes()
+    available_ram_gb = (available_bytes / 1e9) if available_bytes is not None else None
     cache_inputs = {
         "git_head": git_head,
         "bhps_null_cache": _cache_ref(bhps_cache_path, bhps_cache["metadata"]),
@@ -599,6 +745,20 @@ def build_outputs(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, A
         "wasserstein_function": "trajectory_tda.topology.vectorisation.wasserstein_distance",
         "fresh_ph_generated": False,
         "calibration_design": "cached_disjoint_split",
+        "backend": args.backend,
+        "workers": args.workers,
+        "worker_cap_basis": (
+            "static memory-safe default; ~0.2-0.8 GB per in-flight exact-W2 solve x "
+            "workers << free RAM under loky per-process heaps"
+        ),
+        "preflight": {
+            "backend": args.backend,
+            "workers": args.workers,
+            "available_ram_gb": available_ram_gb,
+            "benchmark_seconds_per_distance": args.preflight_seconds_per_distance,
+            "benchmark_per_process_peak_rss_gb": args.preflight_peak_rss_gb,
+            "benchmark_projected_calibration_s": args.preflight_projection_s,
+        },
     }
     variance_summary = {
         "homology_dim": TARGET_DIM_LABEL,
@@ -650,8 +810,8 @@ def build_outputs(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, A
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-date", default=datetime.now(timezone.utc).date().isoformat())
-    parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--backend", default="threading", choices=["threading", "loky"])
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
+    parser.add_argument("--backend", default=DEFAULT_BACKEND, choices=["threading", "loky"])
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--n-calibration-trials", type=int, default=DEFAULT_N_TRIALS)
     parser.add_argument("--calibration-null-bank-B", type=int, default=DEFAULT_CALIBRATION_BANK_B)
@@ -660,6 +820,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmark-trials", type=int, default=1)
     parser.add_argument("--benchmark-null-pairs", type=int, default=4)
     parser.add_argument("--benchmark-bank-B", type=int, default=4)
+    # Provenance: carry the corrected --benchmark-only probe figures into the full
+    # run's result JSON params (the confirm-then-launch gate reads them).
+    parser.add_argument("--preflight-seconds-per-distance", type=float, default=None)
+    parser.add_argument("--preflight-peak-rss-gb", type=float, default=None)
+    parser.add_argument("--preflight-projection-s", type=float, default=None)
     return parser.parse_args()
 
 

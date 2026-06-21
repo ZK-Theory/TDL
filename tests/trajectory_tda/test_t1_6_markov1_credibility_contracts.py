@@ -58,8 +58,7 @@ def _payload(
         "generated_at": "2026-06-20T00:00:00+00:00",
         "task": "T1.6 BHPS Markov-1 rejection credibility under valid frozen-loadings nulls",
         "pre_registration": (
-            "2026-06-13 T1.6 amendment at "
-            "results/trajectory_tda_bhps/diagnostics/pre_registrations_2026-06-13.json"
+            "2026-06-13 T1.6 amendment at " "results/trajectory_tda_bhps/diagnostics/pre_registrations_2026-06-13.json"
         ),
         "inputs": {
             "git_head": "d95ee9e",
@@ -233,6 +232,10 @@ def test_benchmark_only_limits_null_pair_work_and_checkpoints(monkeypatch: pytes
     assert checkpoint_path.exists()
     assert result["full_design_distances_projected"] == 60
     assert "projected_calibration_full_design_s" in result
+    # Benchmark saturates the timed trial batch to >= 2x workers (here 2*4=8) so
+    # elapsed/count reflects steady-state throughput, not a sub-pool burst.
+    assert result["benchmark_bank_B"] == 8
+    assert result["benchmark_distances_timed"] > 4
 
     seen_pair_counts.clear()
     full_result = module.compute_calibration(
@@ -281,3 +284,25 @@ def test_benchmark_only_limits_null_pair_work_and_checkpoints(monkeypatch: pytes
     )
 
     assert seen_pair_counts == [2]
+
+
+def test_benchmark_requires_more_distances_than_workers(tmp_path: Path) -> None:
+    """The benchmark must time more distances than workers, else elapsed/count
+    understates the true per-distance cost (the attempt-#2 4.7x-optimistic bug)."""
+    module = importlib.import_module(MODULE_NAME)
+    cache = {"h0_diagrams": [np.array([[0.0, float(i + 1)]]) for i in range(20)]}
+    # bank_b (4) cannot be saturated beyond a 10-worker pool -> guard must trip
+    # before any real W2 work is dispatched.
+    with pytest.raises(ValueError, match="more distances than workers"):
+        module.compute_calibration(
+            cache,
+            n_trials=5,
+            bank_b=4,
+            seed=42,
+            workers=10,
+            backend="loky",
+            checkpoint_path=tmp_path / "guard-progress.json",
+            benchmark_only=True,
+            benchmark_trials=1,
+            benchmark_null_pairs=2,
+        )
