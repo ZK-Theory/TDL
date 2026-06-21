@@ -30,20 +30,17 @@ from trajectory_tda.topology.vectorisation import wasserstein_distance
 SCHEMA_VERSION = "stage1/bhps-markov1-credibility/v1"
 TASK_LABEL = "T1.6 BHPS Markov-1 rejection credibility under valid frozen-loadings nulls"
 PRE_REGISTRATION_REF = (
-    "2026-06-13 T1.6 amendment at "
-    "results/trajectory_tda_bhps/diagnostics/pre_registrations_2026-06-13.json"
+    "2026-06-13 T1.6 amendment at " "results/trajectory_tda_bhps/diagnostics/pre_registrations_2026-06-13.json"
 )
 CALIBRATION_OUTPUT_GLOB = "results/trajectory_tda_bhps/diagnostics/markov1_calibration_*.json"
 
 PROJ_ROOT = Path("C:/Users/steph/TDL")
 WORKTREE_ROOT = Path.cwd
 BHPS_CACHE_REL = Path(
-    "results/trajectory_tda_integration/stage1/cache/"
-    "null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz"
+    "results/trajectory_tda_integration/stage1/cache/" "null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz"
 )
 USOC_CACHE_REL = Path(
-    "results/trajectory_tda_integration/stage1/cache/"
-    "null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz"
+    "results/trajectory_tda_integration/stage1/cache/" "null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz"
 )
 BHPS_HEADLINE_REL = Path("results/trajectory_tda_bhps/stage1/bhps_headline_frozen_2026-05-28.json")
 DIAGNOSTICS_REL = Path("results/trajectory_tda_bhps/diagnostics")
@@ -433,19 +430,27 @@ def compute_calibration(
         null_pair_elapsed = float(progress.get("calibration_null_pair_elapsed_s", float("nan")))
         trial_seconds_per_distance = mean_elapsed / active_bank_b if np.isfinite(mean_elapsed) else float("nan")
         null_seconds_per_distance = (
-            null_pair_elapsed / active_null_pairs if np.isfinite(null_pair_elapsed) and active_null_pairs else float("nan")
+            null_pair_elapsed / active_null_pairs
+            if np.isfinite(null_pair_elapsed) and active_null_pairs
+            else float("nan")
         )
         projected_calibration_s = None
         if np.isfinite(trial_seconds_per_distance) and np.isfinite(null_seconds_per_distance):
-            projected_calibration_s = null_seconds_per_distance * bank_b + trial_seconds_per_distance * n_trials * bank_b
+            projected_calibration_s = (
+                null_seconds_per_distance * bank_b + trial_seconds_per_distance * n_trials * bank_b
+            )
         return {
             "benchmark_only": True,
             "completed_trials": len(trials),
             "mean_trial_elapsed_s": mean_elapsed,
             "projected_full_trials_s": mean_elapsed * n_trials if np.isfinite(mean_elapsed) else None,
             "projected_calibration_full_design_s": projected_calibration_s,
-            "trial_seconds_per_distance": trial_seconds_per_distance if np.isfinite(trial_seconds_per_distance) else None,
-            "null_pair_seconds_per_distance": null_seconds_per_distance if np.isfinite(null_seconds_per_distance) else None,
+            "trial_seconds_per_distance": trial_seconds_per_distance
+            if np.isfinite(trial_seconds_per_distance)
+            else None,
+            "null_pair_seconds_per_distance": null_seconds_per_distance
+            if np.isfinite(null_seconds_per_distance)
+            else None,
             "benchmark_bank_B": active_bank_b,
             "benchmark_null_pairs": active_null_pairs,
             "full_design_distances_projected": bank_b + n_trials * bank_b,
@@ -483,7 +488,7 @@ def compute_calibration(
             "sd_w2": float(np.std(null_pair_distances, ddof=1)),
         },
         "checkpoint_path": str(checkpoint_path),
-        "discreteness_note": "Trial p-values have resolution 1/(B+1) from the shared B=200 null bank.",
+        "discreteness_note": f"Trial p-values have resolution 1/(B+1) from the shared B={bank_b} null bank.",
     }
 
 
@@ -617,7 +622,9 @@ def build_outputs(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, A
             "verdict": verdict,
             "rule": "credible if calibrated and not variance_flag; conditionally_credible if calibrated and variance_flag; suspect otherwise",
             "manager_locks_prose": True,
-            "suspect_direction": "anti-conservative" if verdict == "suspect" and calibration["mean_pvalue"] < 0.5 else None,
+            "suspect_direction": "anti-conservative"
+            if verdict == "suspect" and calibration["mean_pvalue"] < 0.5
+            else None,
         },
     }
     validation_errors = validate_bhps_markov1_credibility_payload(calibration_payload)
@@ -678,17 +685,23 @@ def main() -> None:
             raise FileExistsError(f"refusing to overwrite existing output: {output_path}")
     _write_json(variance_path, variance_payload, overwrite=False)
     _write_json(calibration_path, calibration_payload, overwrite=False)
-    print(json.dumps({
-        "calibration_path": str(calibration_path),
-        "variance_path": str(variance_path),
-        "ks_p": calibration_payload["calibration"]["ks_p"],
-        "mean_pvalue": calibration_payload["calibration"]["mean_pvalue"],
-        "calibrated": calibration_payload["calibration"]["calibrated"],
-        "bhps_nullnull_cv": calibration_payload["variance"]["bhps_nullnull_cv"],
-        "usoc_nullnull_cv": calibration_payload["variance"]["usoc_nullnull_cv"],
-        "variance_flag": calibration_payload["variance"]["variance_flag"],
-        "verdict": calibration_payload["decision"]["verdict"],
-    }, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "calibration_path": str(calibration_path),
+                "variance_path": str(variance_path),
+                "ks_p": calibration_payload["calibration"]["ks_p"],
+                "mean_pvalue": calibration_payload["calibration"]["mean_pvalue"],
+                "calibrated": calibration_payload["calibration"]["calibrated"],
+                "bhps_nullnull_cv": calibration_payload["variance"]["bhps_nullnull_cv"],
+                "usoc_nullnull_cv": calibration_payload["variance"]["usoc_nullnull_cv"],
+                "variance_flag": calibration_payload["variance"]["variance_flag"],
+                "verdict": calibration_payload["decision"]["verdict"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":
