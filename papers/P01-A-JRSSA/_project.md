@@ -154,3 +154,20 @@ Headline categories:
       unaffected.** notation-check: 1 borderline obs/null-superscript leakage
       flag (kept, consistent with §S0 precedent). Applies equally to P01-B
       headline cells (cross-reference from P01-B, do not duplicate).
+- [~] **§4.5 escape-regression + family-of-origin section — REWRITTEN
+      2026-06-21, pending User per-section review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md`.
+      Restructured to the Tier 1 (clustered Firth) → Tier 2 (household-RE
+      GLMM) → design-based `svyglm` headline build-up + §4.5.1 topological
+      FOO signature. **Provenance correction:** the prior draft's "Tier 1
+      broad escape" row cited the superseded `tier1_clustered_firth_2026-05-13`
+      (broad model, n=22,531); replaced with the canonical
+      `tier1_clustered_firth_2026-05-16` (conditional Firth, n=6,173). All
+      headline numbers traced to canonical JSONs (svyglm R6 OR 34.8691;
+      NS-SEC null in every tier; FOO p=0.0001999600, effect-size 0.8243,
+      SIGNAL_NOT_TOPOLOGY_SPECIFIC). Upstream-class point now carried by the
+      canonical descriptive cross-tab (p=0.7503), not a superseded regression;
+      formal mediation (T1.21/T1.22) deferred. Added full design-based
+      coefficient table. notation-check clean (0 drift). Provisional table
+      labels — final numbers set at v2 assembly; coordinate Table 2/Table 3
+      numbering with the ARI/escape-rate section.
