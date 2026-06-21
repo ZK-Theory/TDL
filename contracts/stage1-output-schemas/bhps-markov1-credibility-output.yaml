@@ -1,6 +1,5 @@
 id: bhps-markov1-credibility-output
 kind: schema
-pending: true
 
 description: >
   Schema for the T1.6 BHPS Markov-1 rejection-credibility diagnostics. The

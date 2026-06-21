@@ -1,6 +1,5 @@
 id: bhps-markov1-credibility-output-json-validation
 kind: output_validation
-pending: true
 
 description: >
   Commit-time validation for T1.6 BHPS Markov-1 credibility calibration JSONs.
