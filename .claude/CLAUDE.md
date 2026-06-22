@@ -33,4 +33,5 @@ Path-scoped rules (lazy-loaded): `.claude/rules/` — `papers.md`,
 
 - Hook configuration: `.claude/settings.json`
 - Hook scripts: `.claude/hooks/` (notation-guard, results-no-overwrite,
-  research-context-check, results-vault-reminder, git-commit-msg)
+  dispatch-readiness-guard, research-context-check, results-vault-reminder,
+  git-commit-msg)
