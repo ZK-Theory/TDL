@@ -154,8 +154,8 @@ Headline categories:
       unaffected.** notation-check: 1 borderline obs/null-superscript leakage
       flag (kept, consistent with §S0 precedent). Applies equally to P01-B
       headline cells (cross-reference from P01-B, do not duplicate).
-- [~] **§4.5 escape-regression + family-of-origin section — REWRITTEN
-      2026-06-21, pending User per-section review.** Section file:
+- [x] **§4.5 escape-regression + family-of-origin section — REWRITTEN
+      2026-06-21; Manager-ACCEPTED 2026-06-22 (2.4-A accept-the-loss, STANDS; vault [DECISION] filed 2026-06-22).** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md`.
       Restructured to the Tier 1 (clustered Firth) → Tier 2 (household-RE
       GLMM) → design-based `svyglm` headline build-up + §4.5.1 topological
@@ -171,20 +171,20 @@ Headline categories:
       coefficient table. notation-check clean (0 drift). Provisional table
       labels — final numbers set at v2 assembly; coordinate Table 2/Table 3
       numbering with the ARI/escape-rate section.
-- [~] **§4.6 ARI + Table 2/3 uncertainty — DRAFTED PARTIAL 2026-06-22, pending
-      User review + Manager resolution.** Section file:
+- [~] **§4.6 ARI + Table 2/3 uncertainty — PARTIAL; Manager-resolved path
+      2026-06-22, awaiting two recompute JSONs from panel-statistics-agent.** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-ari-stability.md`.
       B11 (Table 3 Wilson CIs) complete and clean from `escape_wilson_ci_2026-05-16.json`.
-      **Two provenance gaps surfaced (not fabricated):** (B9) the only committed
-      normalised-ARI file (`ari_normalised_2026-06-06.json`) is H0-components-vs-GMM
-      (raw 0.2425, normalised 0.99999, p=0.0001999600), NOT the optimal-matching-vs-GMM
-      ARI=0.26 that §4.6/B9 concerns — needs reframe or a new OM-vs-GMM normalisation;
-      (B10) `stability_se_2026-05-16.json` gives SEs for the within-trajectory
-      `stability_from_seqs` metric, not the headline window-pair `stability_stored`
-      metric used in Table 2 — stored-metric SE regeneration needed. Section drafts the
-      supportable content and flags both gaps inline.
-- [~] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22,
-      pending User review.** Section file:
+      Two provenance gaps were surfaced (B9: committed `ari_normalised_2026-06-06.json` is
+      H0-vs-GMM, not the OM-vs-GMM ARI=0.26 §4.6 concerns; B10:
+      `stability_se_2026-05-16.json` carries the within-trajectory metric SE, not the
+      headline stored metric). **FINALIZE when these land:** B9 →
+      `ari_om_gmm_normalised_<date>.json` (finalize §4.6 against the OM-vs-GMM normalised
+      ARI, NOT the H0-vs-GMM file); B10 → `stability_se_stored_<date>.json` (Table 2 ±
+      column against the STORED metric SE). Drafted supportable content + inline gap flags
+      hold until both JSONs are committed. As of 2026-06-22 neither has landed.
+- [x] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22;
+      Manager-accepted (FLAG 2.6-A no decision needed, STANDS).** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-mapper-vocabulary-audit.md`.
       Independently re-verified the vocabulary audit (R1-10.3): grep confirms zero
       `topolog` usages on Mapper-derived quantities in v1 §5 (matches are all §4

@@ -110,8 +110,11 @@ Headline categories:
       will be superseded by locked-env JSONs in v2)
 - [ ] Prepare JRSS-B submission package and arXiv metadata (LaTeX class
       `papers/style_guides/JRSS/statsoc.cls`)
-- [~] **§4.3 spanning identification — DRAFTED 2026-06-22, pending User review +
-      two external dependencies.** Section file:
+- [x] **§4.3 spanning identification — DRAFTED 2026-06-22; Manager-ACCEPTED
+      2026-06-22 (2.17-A: §4.3 inherits the 2026-06-20 prose-direction [DECISION], commit
+      `acb7f8a3` — no separate §4.3 lock needed; STANDS). Matched/age-stratified Betti
+      rerun stays a separate low-priority TDA task (held vs T1.6) — keep §4.3's "pending
+      robustness check" framing.** Section file:
       `papers/P01-B-JRSSB/drafts/sections/results-spanning-identification.md`.
       Headline is the T1.9b inferential result (`spanning_betti_inference_2026-06-20.json`,
       outcome `newcomers_robust`): windowed β₀-AUC ratio robust across all four ε*
@@ -125,8 +128,10 @@ Headline categories:
       (a) matched/age-stratified Betti rerun escalated to TDA agent, not yet committed —
       stated as pending, not fabricated; (b) manuscript prose-direction lock Manager-deferred
       per the result file — file the vault [DECISION] before v2 assembly.
-- [~] **§5 reproducibility statement (replay-drift → reproducibility) — DRAFTED
-      2026-06-22, pending User review.** Section file:
+- [x] **§5 reproducibility statement (replay-drift → reproducibility) — DRAFTED
+      2026-06-22; Manager-ACCEPTED AS DRAFTED 2026-06-22 (2.18-A single-machine scope
+      correct, STANDS; cross-machine upgrade to the response-plan wording is a future task
+      when T0.3 two-machine check completes).** Section file:
       `papers/P01-B-JRSSB/drafts/sections/results-reproducibility-statement.md`.
       Replaces the v1 §4.2.1/§5.3 replay-drift disclosure with a positive statement:
       locked env + `uv.lock` (Python 3.13 + gudhi/ripser/sklearn pinned), deterministic
