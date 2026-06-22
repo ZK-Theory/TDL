@@ -125,3 +125,16 @@ Headline categories:
       (a) matched/age-stratified Betti rerun escalated to TDA agent, not yet committed —
       stated as pending, not fabricated; (b) manuscript prose-direction lock Manager-deferred
       per the result file — file the vault [DECISION] before v2 assembly.
+- [~] **§5 reproducibility statement (replay-drift → reproducibility) — DRAFTED
+      2026-06-22, pending User review.** Section file:
+      `papers/P01-B-JRSSB/drafts/sections/results-reproducibility-statement.md`.
+      Replaces the v1 §4.2.1/§5.3 replay-drift disclosure with a positive statement:
+      locked env + `uv.lock` (Python 3.13 + gudhi/ripser/sklearn pinned), deterministic
+      seed propagation, single-machine run-to-run determinism verified by
+      `trajectory_tda/scripts/canary_rng.py`. No "drift"/"discrepancy"/"may not exactly
+      reproduce" in the main-text framing; legacy replay-provenance moved to supplement
+      (W1-ruling-out reworded as "order-1 Wasserstein" to satisfy the notation guard).
+      **Honesty constraint honored:** the two-machine bit-for-bit check (T0.3) is PAUSED
+      (second machine pending; `pipe/two-machine-check` worktree live), so cross-machine
+      determinism is framed as achievable/in-progress, NOT verified — deliberately weaker
+      than response-plan §5.4(5), flagged inline for upgrade when T0.3 completes.
