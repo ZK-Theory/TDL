@@ -1,0 +1,94 @@
+{
+  "schema_version": "stability-stored-se-v1",
+  "created_at": "2026-06-22",
+  "computed_on": "stability_stored",
+  "supersedes": {
+    "file": "results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json",
+    "column": "SE / CI95 (Table 2 stability uncertainty column)",
+    "reason": "The prior SE/CI95 were computed on stability_from_seqs (the within-trajectory state-stickiness diagnostic), not the declared canonical stability_stored (window-pair regime stickiness).",
+    "do_not_cite_for_table2": true,
+    "retained_valid": "The stability_stored point values in that file remain valid; only its SE/CI95 column is superseded for Table 2."
+  },
+  "source_file": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\run-b9-b10-recompute\\results\\panel_methodology\\uncertainty_addons\\stability_se_2026-05-16.json",
+  "method": "Per regime, SE = sqrt(stored*(1-stored)/n_members) on the Table 2 stability_stored proportion, with a Wilson 95% confidence interval on the stored proportion. Headline denominator is n_members (reviewer correspondence); n_transitions gives a tighter alternative.",
+  "denominator": "n_members",
+  "stability_by_regime": {
+    "R0": {
+      "regime": 0,
+      "stability_stored": 0.2341,
+      "n_members": 3787,
+      "SE": 0.006880802446126048,
+      "CI95_lo": 0.2208874674102166,
+      "CI95_hi": 0.2478514334705078,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 44694,
+      "SE_window_pair_alt": 0.0020029132025173643
+    },
+    "R1": {
+      "regime": 1,
+      "stability_stored": 0.7795,
+      "n_members": 7358,
+      "SE": 0.004833174382604717,
+      "CI95_lo": 0.7698826561541933,
+      "CI95_hi": 0.78882565385319,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 88364,
+      "SE_window_pair_alt": 0.0013946803214501644
+    },
+    "R2": {
+      "regime": 2,
+      "stability_stored": 0.3865,
+      "n_members": 5415,
+      "SE": 0.006617330139243859,
+      "CI95_lo": 0.3736150806046633,
+      "CI95_hi": 0.399545841459384,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 63304,
+      "SE_window_pair_alt": 0.0019353809247528984
+    },
+    "R3": {
+      "regime": 3,
+      "stability_stored": 0.2797,
+      "n_members": 3333,
+      "SE": 0.007774729425630462,
+      "CI95_lo": 0.26472208768524114,
+      "CI95_hi": 0.29518514251352174,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 39944,
+      "SE_window_pair_alt": 0.00224583147466983
+    },
+    "R4": {
+      "regime": 4,
+      "stability_stored": 0.4075,
+      "n_members": 3510,
+      "SE": 0.00829381656189677,
+      "CI95_lo": 0.39135411591049585,
+      "CI95_hi": 0.42384813279370914,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 42286,
+      "SE_window_pair_alt": 0.00238951456002442
+    },
+    "R5": {
+      "regime": 5,
+      "stability_stored": 0.4003,
+      "n_members": 1813,
+      "SE": 0.011506968319750796,
+      "CI95_lo": 0.3779804275973062,
+      "CI95_hi": 0.4230411759967374,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 21996,
+      "SE_window_pair_alt": 0.0033036038530511133
+    },
+    "R6": {
+      "regime": 6,
+      "stability_stored": 0.2891,
+      "n_members": 2064,
+      "SE": 0.009978688288609898,
+      "CI95_lo": 0.2699481696865093,
+      "CI95_hi": 0.3090354142404195,
+      "CI95_method": "Wilson score interval",
+      "n_transitions": 24984,
+      "SE_window_pair_alt": 0.002868119996074014
+    }
+  }
+}

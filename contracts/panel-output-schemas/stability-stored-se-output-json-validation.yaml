@@ -1,6 +1,6 @@
 id: stability-stored-se-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for T1.24b stored-metric stability SE result JSONs. Any

@@ -1,6 +1,6 @@
 id: stability-stored-se-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.24b stored-metric stability SE JSON (reviewer B10). Records
