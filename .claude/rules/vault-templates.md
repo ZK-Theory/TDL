@@ -21,10 +21,14 @@ Applies when writing to the research vault (via the `vault/` junction or absolut
 
 **Script/notebook:** `C:\Users\steph\TDL\[path]` (commit `[hash]`)
 **What was done:** [summary]
+**Referent:** [REQUIRED when the entry changes a prior analysis or closes a reviewer issue — the exact object computed (the two clusterings / estimand / metric + its denominator); for issue-closure, confirm it equals the object the issue names]
 **Key findings:** [table or bullets]
 **Decision:** [if any parameter/method locked]
+**Supersedes:** [REQUIRED when this replaces a prior result — old→new artifact (basename + date), the prior file marked do-not-cite, and which downstream claim moves]
 **Resolves:** [open items closed]
 ```
+
+The **Referent** and **Supersedes** lines are mandatory for any entry that changes a prior analysis (model re-spec, file supersession, metric choice) or claims to close a reviewer issue — a bare new date-suffixed file records *what* changed, only the decision entry records *why* (CONVENTIONS "ALWAYS log an experiment-change as a `[DECISION]`", locked 2026-06-22; [[Provenance-records-the-referent-and-decision-not-just-value-and-date]]).
 
 Pre-registration entries (written **before** outcome-contingent runs) record: parameter values, decision rule, prose-direction rule per outcome, timestamp. The post-run `[RESULT]` references the pre-registration.
 
