@@ -1,0 +1,56 @@
+id: stability-stored-se-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.24b stored-metric stability SE JSON (reviewer B10). Records
+  the binomial standard error of the Table 2 stability_stored proportion per
+  regime, computed on the stored (window-pair) metric — NOT the diagnostic
+  stability_from_seqs. Pins computed_on == 'stability_stored' (the CONVENTIONS
+  2026-06-22 R3 self-description lock) and the per-regime SE recomputation, so a
+  declared-vs-computed mismatch (the stability_se_2026-05-16 bug) cannot recur.
+
+spec_citation:
+  source: "P01-A reviewer response B10 stability SE; Manager 11 task-review 2026-06-22; CONVENTIONS R3 self-description lock"
+  vault_entry_date: "2026-06-22"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/uncertainty_addons/stability_se_stored_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stability-stored-se-v1'."
+    - name: created_at
+      type: str
+      description: "ISO date matching the output filename stability_se_stored_<created_at>.json."
+    - name: computed_on
+      type: str
+      description: "MUST equal 'stability_stored' — the CONVENTIONS R3 self-description field asserting the SE was computed on the headline window-pair metric, not stability_from_seqs."
+    - name: supersedes
+      type: "dict[str, ...]"
+      description: "MUST name the prior file results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json and record that its SE/CI column (on stability_from_seqs) is do-not-cite for Table 2 (CONVENTIONS R1 supersession)."
+    - name: source_file
+      type: str
+      description: "Input path ending in results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json."
+    - name: method
+      type: str
+      description: "MUST describe SE = sqrt(stored*(1-stored)/n_members) with a Wilson 95% CI on the stored proportion."
+    - name: stability_by_regime
+      type: "dict[str, ...]"
+      description: "Per regime R0..R6: stability_stored (float in [0, 1]), n_members (int > 0), SE (float >= 0), CI95_lo (float), CI95_hi (float). Each SE MUST equal sqrt(stored*(1-stored)/n_members) within 1e-4."
+  forbidden_keys:
+    - name: stability_from_seqs_se
+      reason: "This file reports the STORED-metric SE only; a from_seqs SE field indicates the declared-vs-computed bug this contract exists to prevent."
+
+binding:
+  test_file: "tests/panel/test_t124b_stability_stored_se_contracts.py"
+  test_function: "test_stability_stored_se_output_schema"
+  must_assert: >
+    The validator accepts a conforming stored-SE payload and rejects payloads where
+    (a) schema_version is not 'stability-stored-se-v1';
+    (b) computed_on is not exactly 'stability_stored' (the R3 self-description check);
+    (c) supersedes does not name stability_se_2026-05-16.json as do-not-cite for Table 2;
+    (d) any regime's SE does not equal sqrt(stored*(1-stored)/n_members) within 1e-4 (the R3 declared-vs-computed recomputation);
+    (e) any stability_stored is outside [0, 1] or n_members <= 0;
+    (f) any CI95 bounds are unordered; or
+    (g) the forbidden stability_from_seqs_se key is present.

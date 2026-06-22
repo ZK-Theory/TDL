@@ -1,0 +1,28 @@
+id: ari-om-gmm-normalised-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for T1.23b OM-vs-GMM ARI normalisation result JSONs.
+  Any staged JSON matching results/panel_methodology/ari/ari_om_gmm_normalised_*.json
+  must conform to the ari-om-gmm-normalised-output schema so the OM-vs-GMM
+  referent, ARI bounds, null/bootstrap uncertainty, and exact-vs-upper-bound
+  wording are enforced before this B9-closing result can be committed.
+
+spec_citation:
+  source: "P01-A reviewer response B9 ARI (OM-vs-GMM); Manager 11 task-review 2026-06-22"
+  vault_entry_date: "2026-06-22"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/ari/ari_om_gmm_normalised_*.json"
+  schema_contracts:
+    - ari-om-gmm-normalised-output
+
+binding:
+  test_file: "tests/panel/test_t123b_ari_om_gmm_contracts.py"
+  test_function: "test_ari_om_gmm_normalisation_json_validation_dispatch"
+  must_assert: >
+    The dispatch asserts that (a) every staged JSON matching
+    results/panel_methodology/ari/ari_om_gmm_normalised_*.json is routed to the
+    ari-om-gmm-normalised-output schema, and (b) the H0-tree-cut ari_normalised_*.json
+    files and other panel methodology JSONs are NOT captured by this glob.
