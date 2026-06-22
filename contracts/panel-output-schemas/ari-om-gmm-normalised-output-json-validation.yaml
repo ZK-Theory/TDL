@@ -1,6 +1,6 @@
 id: ari-om-gmm-normalised-output-json-validation
 kind: output_validation
-pending: true
+pending: false
 
 description: >
   Commit-time validation for T1.23b OM-vs-GMM ARI normalisation result JSONs.

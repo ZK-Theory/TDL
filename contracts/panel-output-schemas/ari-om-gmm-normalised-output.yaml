@@ -1,6 +1,6 @@
 id: ari-om-gmm-normalised-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.23b OM-vs-GMM ARI normalisation JSON comparing the
