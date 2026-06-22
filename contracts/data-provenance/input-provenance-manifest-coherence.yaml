@@ -1,0 +1,48 @@
+id: input-provenance-manifest-coherence
+kind: invariant
+
+description: >
+  Every enforced input-provenance manifest under
+  contracts/manifests/input-provenance/ declares input files whose on-disk
+  content and vintage match the recorded signature, and whose co-consumed
+  inputs fall within the declared vintage-spread bound. This is the commit-time
+  (R-C) half of the pre-dispatch data-coherence gate: an input that drifts
+  between dispatch and a Worker's commit fails the Worker's own pre-commit gate
+  instead of silently producing a result against the wrong data vintage.
+
+spec_citation:
+  source: >
+    Manager-11 Wave-1 task-review; pre-dispatch data-coherence gate (R-A ledger
+    / R-B manager_predispatch_check.py / R-C this contract). Authored after the
+    B9 OM-vs-GMM ARI dispatch shipped against a 2026-05-02 OM input incoherent
+    with 2026-04-08 GMM labels (ARI 0.2062 vs committed 0.2611807).
+  vault_entry_date: "2026-06-22"
+
+invariant:
+  claim: >
+    When an input-provenance manifest is marked enforced:true, every declared
+    input exists on disk, matches its recorded sha256 (when pinned) and
+    vintage_date (when pinned), and the set of co-consumed inputs satisfies
+    coherence.max_vintage_spread_days; a manifest failing any of these blocks
+    the commit. Manifests marked enforced:false are documented but not gated.
+  preconditions:
+    - "manifest declares enforced: true"
+    - "the manifest's declared input files are present in the working tree"
+  counter_example_history: >
+    B9 OM-vs-GMM normalised ARI, Manager-11 dispatch 2026-06-22: OM input
+    01_trajectories_sequences.json (mtime 2026-05-02) compared against GMM
+    labels 05_analysis.json (mtime 2026-04-08) yielded ARI 0.2062 instead of
+    the committed baseline 0.2611807 — a silent data-vintage mismatch a
+    presence-only check would not catch.
+
+binding:
+  test_file: "tests/provenance/test_input_provenance_manifests.py"
+  test_function: "test_active_input_provenance_manifests_match_disk"
+  must_assert: >
+    Asserts that (a) a manifest input absent from disk is rejected
+    (all_present is false); (b) an input whose recorded sha256 does not match
+    the on-disk file is rejected (signatures_ok is false); (c) a co-consumed
+    input set whose on-disk vintage spread exceeds the declared
+    max_vintage_spread_days is rejected (coherent is false); and that every
+    manifest currently marked enforced:true passes all three checks against the
+    working tree.
