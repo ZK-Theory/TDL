@@ -171,18 +171,16 @@ Headline categories:
       coefficient table. notation-check clean (0 drift). Provisional table
       labels — final numbers set at v2 assembly; coordinate Table 2/Table 3
       numbering with the ARI/escape-rate section.
-- [~] **§4.6 ARI + Table 2/3 uncertainty — PARTIAL; Manager-resolved path
-      2026-06-22, awaiting two recompute JSONs from panel-statistics-agent.** Section file:
-      `papers/P01-A-JRSSA/drafts/sections/results-ari-stability.md`.
-      B11 (Table 3 Wilson CIs) complete and clean from `escape_wilson_ci_2026-05-16.json`.
-      Two provenance gaps were surfaced (B9: committed `ari_normalised_2026-06-06.json` is
-      H0-vs-GMM, not the OM-vs-GMM ARI=0.26 §4.6 concerns; B10:
-      `stability_se_2026-05-16.json` carries the within-trajectory metric SE, not the
-      headline stored metric). **FINALIZE when these land:** B9 →
-      `ari_om_gmm_normalised_<date>.json` (finalize §4.6 against the OM-vs-GMM normalised
-      ARI, NOT the H0-vs-GMM file); B10 → `stability_se_stored_<date>.json` (Table 2 ±
-      column against the STORED metric SE). Drafted supportable content + inline gap flags
-      hold until both JSONs are committed. As of 2026-06-22 neither has landed.
+- [x] **§4.6 ARI + Table 2/3 uncertainty — FINALISED 2026-06-24, pending User
+      per-section review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-ari-stability.md`. All three closed:
+      **B9 §4.6** reframed to the OM-vs-GMM normalised ARI from
+      `ari_om_gmm_normalised_2026-06-24.json` (raw 0.2611; achievable-maximum certified as
+      the bracket [0.8397, 0.8607]; normalised ARI 0.31, bracket [0.3035, 0.3111], CI
+      [0.3030, 0.3195]; permutation null SE 5.80e-4, p=2.0e-4; descriptive-agreement
+      guardrails) — the superseded H0-vs-GMM material removed; **B10 Table 2** populated
+      with headline stored-metric SE/Wilson CI from `stability_se_stored_2026-06-22.json`
+      (denominator n_members); **B11 Table 3** Wilson CIs unchanged. notation-check clean.
 - [x] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22;
       Manager-accepted (FLAG 2.6-A no decision needed, STANDS).** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-mapper-vocabulary-audit.md`.
