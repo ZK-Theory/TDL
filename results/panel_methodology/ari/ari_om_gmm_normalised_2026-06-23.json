@@ -1,0 +1,107 @@
+{
+  "schema_version": "ari-om-gmm-normalisation-v1",
+  "created_at": "2026-06-23",
+  "git_head": "df620d91fb941934ce09c81e013aa0190c7ed0b2",
+  "referent": "optimal-matching (dynamic Hamming, Lesnard 2010) k=7 vs GMM k=7",
+  "input_paths": {
+    "trajectories": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
+    "analysis_json": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\05_analysis.json",
+    "gmm_labels_key": "gmm_labels"
+  },
+  "representation": {
+    "om_label_source": "fcluster(k=7) of recomputed Ward linkage (dynamic Hamming distance, Lesnard 2010)",
+    "gmm_label_source": "canonical 05_analysis.json['gmm_labels']",
+    "om_baseline_directory": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_robustness\\om_baseline",
+    "row_alignment": "same trajectory/GMM row order, both length 27,280",
+    "uses_pickle_or_joblib_labels": false,
+    "regenerated_linkage": true
+  },
+  "parameters": {
+    "om_k": 7,
+    "gmm_k": 7,
+    "om_distance": "dynamic Hamming distance (Lesnard 2010), Ward linkage",
+    "seed": 42,
+    "null_B_requested": 5000,
+    "bootstrap_B_requested": 1000,
+    "n_jobs": 8
+  },
+  "label_counts": {
+    "n": 27280,
+    "om_label_length": 27280,
+    "gmm_label_length": 27280,
+    "om_cluster_count": 7,
+    "om_cluster_counts": {
+      "0": 3438,
+      "1": 2086,
+      "2": 2949,
+      "3": 2489,
+      "4": 9003,
+      "5": 1775,
+      "6": 5540
+    },
+    "gmm_regime_count": 7,
+    "gmm_regime_counts": {
+      "0": 3787,
+      "1": 7358,
+      "2": 5415,
+      "3": 3333,
+      "4": 3510,
+      "5": 1813,
+      "6": 2064
+    }
+  },
+  "observed_ari": 0.2611807251002594,
+  "null_distribution": {
+    "procedure": "Permute GMM labels relative to fixed OM k=7 labels, preserving both cluster-size distributions under independence.",
+    "B": 5000,
+    "seed": 42,
+    "finite_count": 5000,
+    "failures_non_finite": 0,
+    "mean": 6.512099198941461e-06,
+    "se": 0.0005801955070075767,
+    "pvalue": 0.0001999600079984003,
+    "pvalue_definition": "(r + 1) / (B + 1), r = draws >= observed, B = finite draws",
+    "exceedances_observed_or_larger": 0,
+    "quantiles": {
+      "0.025": -0.0010758024195091753,
+      "0.5": -1.0352888841908213e-05,
+      "0.975": 0.0011676179704309395
+    }
+  },
+  "max_achievable_ari": {
+    "value": 1.0,
+    "exact": false,
+    "status": "upper_bound",
+    "method": "Uncertified greedy fixed-margin construction; treat as an upper bound only.",
+    "pair_overlap_sum": 0,
+    "unsplit_non_singleton_components": 6,
+    "split_non_singleton_components": 1,
+    "normalised_ari_upper_bound_scale": 0.2611807251002594
+  },
+  "bootstrap_ci": {
+    "procedure": "Resample paired individual rows (OM label, GMM label) with replacement.",
+    "resampling_unit": "individual",
+    "B": 1000,
+    "seed": 42,
+    "finite_count": 1000,
+    "failures_non_finite": 0,
+    "mean": 0.26110260518980893,
+    "se": 0.0035613649127599067,
+    "percentile_95": [
+      0.2544164494147627,
+      0.2682990777713208
+    ]
+  },
+  "interpretation": {
+    "statistic_role": "descriptive clustering-agreement statistic",
+    "closes_b9": true,
+    "claim": "Optimal-matching (dynamic Hamming) k=7 clusters and GMM k=7 regimes agree at ARI = 0.26 (closes reviewer B9).",
+    "causal_claim": "none",
+    "topological_distinctiveness_claim": "none",
+    "normalisation_basis": "upper_bound",
+    "paper_claim_guardrail": "Report as the OM-vs-GMM agreement only; do not imply causal mediation or topological distinctiveness."
+  },
+  "runtime": {
+    "wall_seconds": 203.3195603999775
+  }
+}
