@@ -97,6 +97,22 @@ Three journal-targeted papers replacing the original four technique-first papers
   "any-positive" sample check instead of the pinned `711/342`. See
   [[Enforcement-must-assert-value-not-key-presence]].
 
+- **ALWAYS make a result file's self-description fields machine-checkable
+  against what it actually computed.** When a result JSON carries a field that
+  names which of several candidate objects it computed (`use_stability`,
+  `comparison`, `estimand`, `metric`), the producing task's contract MUST assert
+  that the named object equals the one the payload was computed on — a recorded
+  `computed_on` field that must equal the declared selector, or a recomputation
+  check evaluating the *declared* object's value. Value-level schema checks
+  (types, bounds, key presence) all pass for a file that declares one object and
+  computes another; only a relational assertion catches it. Locked 2026-06-22
+  after `stability_se_2026-05-16.json` declared `use_stability = "stability_stored"`
+  canonical but computed its `SE`/`CI95` on `stability_from_seqs` — internally
+  inconsistent, invisible to every value-level check. Extends the 2026-06-03c
+  value-and-type enforcement lock. See
+  [[Enforcement-must-assert-value-not-key-presence]] and
+  [[Provenance-records-the-referent-and-decision-not-just-value-and-date]].
+
 - **ALWAYS keep the contract framework in default-enforce mode with every
   invariant grounded.** Every `formula.invariants[]` item carries exactly one of
   `expression` (a machine-checkable relationship) XOR `enforced_by` (a named
@@ -160,6 +176,27 @@ Three journal-targeted papers replacing the original four technique-first papers
   the same dataset disagree" is almost always a stage-of-measurement mismatch,
   not non-determinism. Enforcement contract + `result-provenance-review`
   judgment layer tracked in the research-assurance implementation plan.
+
+- **ALWAYS log an experiment-change as a `[DECISION]` carrying referent +
+  rationale + supersession + consequence — never as a bare new result file.**
+  When a task re-specifies a model, supersedes a result under the same basename,
+  swaps a comparison object, or selects among candidate metrics — or claims to
+  close a reviewer issue — the vault entry MUST record: (1) **referent**, the
+  exact object computed (the two clusterings, the estimand, the metric *and its
+  denominator*), and for issue-closure an explicit confirmation that this
+  referent equals the object the issue names; (2) **rationale**, the driving
+  reviewer issue / methodological constraint / decision rule; (3)
+  **supersession**, old→new artifact (basenames + dates) with the superseded
+  file marked do-not-cite; (4) **consequence**, which downstream claim moves. A
+  new date-suffixed file records *what* changed; only a decision entry records
+  *why*, and the why is unrecoverable weeks later if not captured at the change.
+  Make the pre-reg → `[RESULT]` → `[DECISION]`-lock pattern the standard for
+  every experiment-change, not only pre-registered runs. Locked 2026-06-22 after
+  a P01 Wave-1 audit found 3 of 4 experiment-changes (Tier-1 Firth
+  broad→conditional supersession; a B9 ARI object-swap logged as closing B9
+  while computing a different comparison; a B10 stability-metric pick) had no
+  change-time decision entry, so the reasoning had to be reverse-engineered. See
+  [[Provenance-records-the-referent-and-decision-not-just-value-and-date]].
 
 - **ALWAYS state the Monte Carlo permutation p-value denominator as the
   number of null draws used in the test**, not the diagnostic effect-size
@@ -449,4 +486,4 @@ Set `TRAJECTORY_TDA_DATA_DIR` when running `run_wasserstein_battery.py` outside 
 
 ---
 
-*Last updated: 2026-06-16*
+*Last updated: 2026-06-22*
