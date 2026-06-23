@@ -1,13 +1,14 @@
 id: b9-om-gmm-inputs
-task: T1.23b
-enforced: false
-# enforced:false — the OM-vs-GMM B9 ARI inputs are NOT currently vintage-coherent
-# (the OM input was regenerated 2026-05-02, after the GMM labels were fitted
-# 2026-04-08). This manifest documents the coherent state the B9 normalised-ARI
-# recompute requires; the Manager pre-dispatch check (R-B) reports the current
-# violation. Flip to enforced:true once a coherent Apr-8 trajectory build is
-# restored (or the vintage decision re-pins both inputs to one build), so the
-# commit-time binding test then guards it.
+task: T1.23c
+enforced: true
+# enforced:true — the OM input was recovered (T1.23c, 2026-06-23): rebuilding the
+# trajectory sequences from the deterministic, byte-identical-content code path
+# reproduced the committed OM baseline (comparison_at_gmm_k.ari = 0.2611807251)
+# to 10 dp against the Apr-8 GMM labels, so the two inputs are now coherent.
+# The 2026-05-02 orphan was a one-off divergence (preserved as
+# 01_trajectories_sequences.json.orphan_2026-05-02). The OM input is pinned by
+# sha256 (NOT vintage_date — regeneration resets mtime to the rebuild date), so
+# the commit-time binding test (R-C) guards content, not mtime.
 
 description: >
   The OM-vs-GMM normalised-ARI recompute (reviewer B9) compares an
@@ -32,9 +33,11 @@ inputs:
       sha256: "82afc3b56b9b06c64dccd9ba2195a541c716d27a7a66358b2a351c689c03e948"
   - path: results/trajectory_tda_integration/01_trajectories_sequences.json
     role: OM input trajectory sequences (drives DHD -> ward -> fcluster k=7)
-    root: proj_root          # gitignored intermediate -> lives at PROJ_ROOT, mtime is meaningful
+    root: proj_root          # gitignored intermediate -> lives at PROJ_ROOT
     expected:
-      # Coherent Apr-8 build. On disk this is currently the 2026-05-02
-      # regeneration; sha256 is left unpinned until the coherent build is
-      # restored, at which point pin it and flip enforced:true.
-      vintage_date: "2026-04-08"
+      # Recovered Apr-8-coherent build (T1.23c). Pinned by content sha256, not
+      # vintage_date: the recovery rebuild reset the mtime to 2026-06-23, but the
+      # bytes reproduce the Apr-8 sequences (canary ARI 0.2611807251 vs the
+      # committed OM baseline). Regenerate via
+      # trajectory_tda/scripts/recover_apr8_integration_sequences.py.
+      sha256: "7a4869170bb8c0f096c407a636ec09ee1926946372b27c18762734d96059e3b8"

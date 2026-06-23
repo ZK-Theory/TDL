@@ -1,0 +1,95 @@
+id: ari-om-gmm-normalised-output
+kind: schema
+pending: false
+
+description: >
+  Schema for the T1.23b OM-vs-GMM ARI normalisation JSON comparing the
+  optimal-matching (dynamic Hamming, Lesnard 2010) ward-linkage clustering at
+  k=7 with the locked GMM regime labels — the object reviewer B9 actually names
+  (v1 §4.6 ARI = 0.26). Structurally distinct from the H0-tree-cut
+  ari-normalised schema: this comparison has no eps* and no H0 components. The
+  result must reproduce the OM-vs-GMM observed ARI, record the
+  cluster-size-preserving null, the certified maximum-achievable ARI (a real
+  fixed-margin maximum < 1.0 with an achievable lower bound and a rigorous upper
+  bound, never the trivial 1.0), bootstrap uncertainty, and a referent naming the
+  two clusterings, without using stale pickle/joblib labels.
+
+spec_citation:
+  source: "P01-A reviewer response B9 ARI (the OM-vs-GMM object); Manager 11 task-review 2026-06-22; CONVENTIONS R1 referent rule"
+  vault_entry_date: "2026-06-22"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/ari/ari_om_gmm_normalised_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'ari-om-gmm-normalisation-v1'."
+    - name: created_at
+      type: str
+      description: "ISO date matching the output filename ari_om_gmm_normalised_<created_at>.json."
+    - name: git_head
+      type: str
+      description: "Git HEAD SHA or 'unknown'; provenance."
+    - name: referent
+      type: str
+      description: "MUST name the two clusterings compared: 'optimal-matching (dynamic Hamming, Lesnard 2010) k=7 vs GMM k=7' — the object reviewer B9 names (CONVENTIONS R1 referent)."
+    - name: input_paths
+      type: "dict[str, ...]"
+      description: "Canonical input paths. MUST contain trajectories ending in results/trajectory_tda_integration/01_trajectories_sequences.json, analysis_json ending in results/trajectory_tda_integration/05_analysis.json, and gmm_labels_key == 'gmm_labels'."
+    - name: representation
+      type: "dict[str, ...]"
+      description: "Provenance. MUST contain om_label_source naming the DHD ward-linkage fcluster at k=7, gmm_label_source == \"canonical 05_analysis.json['gmm_labels']\", and uses_pickle_or_joblib_labels == false."
+    - name: parameters
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain om_k == 7, gmm_k == 7, seed == 42, null_B_requested > 0, bootstrap_B_requested > 0."
+    - name: label_counts
+      type: "dict[str, ...]"
+      description: "MUST contain n == 27280, om_label_length == 27280, gmm_label_length == 27280, om_cluster_count == 7, gmm_regime_count >= 1, om_cluster_counts, gmm_regime_counts."
+    - name: observed_ari
+      type: "float [-1, 1]"
+      description: "ARI between OM k=7 labels and canonical GMM labels. MUST reproduce 0.2611807 within 1e-4."
+      derivation: "results/trajectory_tda_robustness/om_baseline/05_om_baseline_results.json comparison_at_gmm_k.ari"
+    - name: null_distribution
+      type: "dict[str, ...]"
+      description: "Cluster-size-preserving independence null. MUST contain procedure (str), B (int > 0), seed (int == 42), mean (float), se (float >= 0), finite_count (int > 0)."
+    - name: max_achievable_ari
+      type: "dict[str, ...]"
+      description: "Certified fixed-margin maximum (T1.23d). MUST contain value (float in [-1, 1] AND strictly < 1.0 — a real constrained maximum, never the trivial whole-cluster-packing 1.0), exact (bool, equal to status == 'exact'), status (str exactly 'exact' or 'bracket'), method (str), rigorous_upper_bound (dict with ari float >= value and method str), normalised_observed_ari (float that MUST differ from observed_ari), normalised_ari_bracket (two ordered finite floats; degenerate when status is 'exact'), normalised_ci_percentile_95 (two ordered finite floats)."
+      derivation: "max Sum_ij C(n_ij, 2) over the fixed OM/GMM k=7 margins via trajectory_tda.analysis.panel.fixed_margin_max_ari.certify_max_ari (achievable NW+2-opt lower bound; per-line concentration upper bound)"
+    - name: bootstrap_ci
+      type: "dict[str, ...]"
+      description: "MUST contain procedure (str), resampling_unit == 'individual', B (int > 0), seed (int == 42), percentile_95 as two ordered finite floats."
+    - name: interpretation
+      type: "dict[str, ...]"
+      description: "Paper-claim-safe. MUST state this is the OM-vs-GMM agreement (closes B9) and must not imply causal mediation or topological distinctiveness."
+    - name: runtime
+      type: "dict[str, ...]"
+      description: "MUST contain wall_seconds (float >= 0)."
+  forbidden_keys:
+    - name: eps_star
+      reason: "OM-vs-GMM has no eps*; presence indicates accidental reuse of the H0-tree-cut ari-normalised schema/payload."
+    - name: h0_components
+      reason: "This comparison uses OM clustering, not H0 tree-cut components — guards against object confusion with T1.23."
+    - name: pickle_labels_path
+      reason: "Locked GMM labels must come from 05_analysis.json[gmm_labels], not stale pickle/joblib artifacts."
+    - name: joblib_labels_path
+      reason: "Locked GMM labels must come from 05_analysis.json[gmm_labels], not stale pickle/joblib artifacts."
+    - name: causal_interpretation
+      reason: "ARI is a descriptive agreement statistic, not a causal or mediation estimand."
+
+binding:
+  test_file: "tests/panel/test_t123b_ari_om_gmm_contracts.py"
+  test_function: "test_ari_om_gmm_normalisation_output_schema"
+  must_assert: >
+    The validator accepts a conforming OM-vs-GMM ARI payload and rejects payloads where
+    (a) schema_version is not 'ari-om-gmm-normalisation-v1';
+    (b) referent does not name optimal-matching k=7 vs GMM k=7;
+    (c) input paths do not point to 01_trajectories_sequences.json and 05_analysis.json or gmm_labels_key is not 'gmm_labels';
+    (d) representation uses pickle/joblib labels;
+    (e) om_k != 7, gmm_k != 7, seed != 42, any label length/count is not 27280, or om_cluster_count != 7;
+    (f) observed_ari is outside [-1, 1] or does not reproduce 0.2611807 within 1e-4;
+    (g) null se is negative/non-finite or bootstrap CI bounds are unordered;
+    (h) the exact/status flags are inconsistent (status not in {exact, bracket}, or exact != (status == 'exact')) or the rigorous upper bound is below the achievable value;
+    (i) any forbidden key (eps_star, h0_components, pickle/joblib paths, causal_interpretation) is present;
+    (j) max_achievable_ari.value is not strictly below 1.0 (rejecting the vacuous whole-cluster-packing 1.0); or
+    (k) the normalised ARI does not differ from the observed ARI.
