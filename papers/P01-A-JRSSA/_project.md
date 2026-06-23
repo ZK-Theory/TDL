@@ -154,3 +154,41 @@ Headline categories:
       unaffected.** notation-check: 1 borderline obs/null-superscript leakage
       flag (kept, consistent with §S0 precedent). Applies equally to P01-B
       headline cells (cross-reference from P01-B, do not duplicate).
+- [x] **§4.5 escape-regression + family-of-origin section — REWRITTEN
+      2026-06-21; Manager-ACCEPTED 2026-06-22 (2.4-A accept-the-loss, STANDS; vault [DECISION] filed 2026-06-22).** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md`.
+      Restructured to the Tier 1 (clustered Firth) → Tier 2 (household-RE
+      GLMM) → design-based `svyglm` headline build-up + §4.5.1 topological
+      FOO signature. **Provenance correction:** the prior draft's "Tier 1
+      broad escape" row cited the superseded `tier1_clustered_firth_2026-05-13`
+      (broad model, n=22,531); replaced with the canonical
+      `tier1_clustered_firth_2026-05-16` (conditional Firth, n=6,173). All
+      headline numbers traced to canonical JSONs (svyglm R6 OR 34.8691;
+      NS-SEC null in every tier; FOO p=0.0001999600, effect-size 0.8243,
+      SIGNAL_NOT_TOPOLOGY_SPECIFIC). Upstream-class point now carried by the
+      canonical descriptive cross-tab (p=0.7503), not a superseded regression;
+      formal mediation (T1.21/T1.22) deferred. Added full design-based
+      coefficient table. notation-check clean (0 drift). Provisional table
+      labels — final numbers set at v2 assembly; coordinate Table 2/Table 3
+      numbering with the ARI/escape-rate section.
+- [x] **§4.6 ARI + Table 2/3 uncertainty — FINALISED 2026-06-24, pending User
+      per-section review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-ari-stability.md`. All three closed:
+      **B9 §4.6** reframed to the OM-vs-GMM normalised ARI from
+      `ari_om_gmm_normalised_2026-06-24.json` (raw 0.2611; achievable-maximum certified as
+      the bracket [0.8397, 0.8607]; normalised ARI 0.31, bracket [0.3035, 0.3111], CI
+      [0.3030, 0.3195]; permutation null SE 5.80e-4, p=2.0e-4; descriptive-agreement
+      guardrails) — the superseded H0-vs-GMM material removed; **B10 Table 2** populated
+      with headline stored-metric SE/Wilson CI from `stability_se_stored_2026-06-22.json`
+      (denominator n_members); **B11 Table 3** Wilson CIs unchanged. notation-check clean.
+- [x] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22;
+      Manager-accepted (FLAG 2.6-A no decision needed, STANDS).** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-mapper-vocabulary-audit.md`.
+      Independently re-verified the vocabulary audit (R1-10.3): grep confirms zero
+      `topolog` usages on Mapper-derived quantities in v1 §5 (matches are all §4
+      persistent-homology or references). Added the §5.x threshold-sensitivity
+      sub-section + table (B12) from `sub_regime_thresh_sweep_2026-06-07.json`
+      (PC1, B=1000: 358/134/40 nodes at |z|=1.0/1.5/2.0, all BH-significant) and
+      `03_multi_threshold.json` (PC1+L2 counts incl. |z|=0.5; per-regime local FDR —
+      only R0_L2, R1_L2 survive at 0.05). L2-norm lens explicitly distinguished from
+      landscape L². notation-check clean.

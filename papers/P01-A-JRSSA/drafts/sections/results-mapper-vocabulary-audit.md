@@ -68,3 +68,42 @@ approach adds" for items concerning $D_q(X)$; "the Mapper approach adds" for
 items concerning the cover-nerve graph. That edit belongs to a §2.3
 rewrite, which is gated on the v2 abstract / framing pass and is not
 authored here.
+
+## §5.x Mapper sub-regime threshold sensitivity (reviewer issue B12)
+
+The sub-regime node count reported in §5 depends on the |z| flagging threshold, and
+this dependence is now reported explicitly. Two committed analyses support the addition.
+The threshold sweep (T1.10; `sub_regime_thresh_sweep_2026-06-07.json`; B = 1,000
+permutations, seed 42, within-regime PC1-shuffle null on the fixed Mapper graph,
+Benjamini–Hochberg correction) shows that the count of flagged sub-regime nodes on the
+PC1 lens falls steeply as the threshold tightens — 358 nodes at |z| = 1.0, 134 at
+|z| = 1.5, and 40 at |z| = 2.0 — while at every threshold all flagged nodes survive
+per-node BH correction (358/358, 134/134, 40/40). The 40 nodes that persist at
+|z| = 2.0 form a high-confidence core. The multi-threshold lens comparison
+(`03_multi_threshold.json`) repeats the sweep across both Mapper lenses and adds the
+|z| = 0.5 level:
+
+**Table — Mapper sub-regime node counts by flagging threshold and lens** *(provisional label; final table number set at v2 assembly)*
+
+| z-threshold | PC1-lens nodes | L2-norm-lens nodes |
+|---:|---:|---:|
+| 0.5 | 703 | 638 |
+| 1.0 | 358 | 297 |
+| 1.5 | 134 | 130 |
+| 2.0 | 40 | 74 |
+
+(The "L2-norm lens" is the Mapper lens function — the ℓ²-norm eccentricity filter — and
+is distinct from the persistence-landscape $L^2$ distance used in §4/§6.)
+
+The qualitative claim that sub-regime structure exists on both lenses is robust to the
+threshold choice; the *number* of sub-regime nodes is not, and should not be reported as
+a fixed quantity. A local Benjamini–Hochberg correction applied at the regime level (per
+lens, in `03_multi_threshold.json`) further tempers the individual-node reading: after
+correction, only the Mixed-Churn (R0) and Secure-High-Employment (R1) regimes on the
+L2-norm lens remain significant at the 0.05 level (BH-adjusted p = 6.8×10⁻⁴ and
+8.7×10⁻⁵ respectively); the PC1-lens regime aggregates and the remaining L2-lens regimes
+do not survive correction. The §5 interpretation is therefore stated at the level the
+evidence supports: sub-regime heterogeneity is a real, threshold-robust qualitative
+feature of the Mapper graph, with regime-level statistical confidence concentrated in R0
+and R1 under the L2-norm lens, rather than a precise count of "significant" sub-regime
+nodes.

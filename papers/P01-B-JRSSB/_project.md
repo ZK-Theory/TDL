@@ -110,3 +110,36 @@ Headline categories:
       will be superseded by locked-env JSONs in v2)
 - [ ] Prepare JRSS-B submission package and arXiv metadata (LaTeX class
       `papers/style_guides/JRSS/statsoc.cls`)
+- [x] **§4.3 spanning identification — DRAFTED 2026-06-22; Manager-ACCEPTED
+      2026-06-22 (2.17-A: §4.3 inherits the 2026-06-20 prose-direction [DECISION], commit
+      `acb7f8a3` — no separate §4.3 lock needed; STANDS). Matched/age-stratified Betti
+      rerun stays a separate low-priority TDA task (held vs T1.6) — keep §4.3's "pending
+      robustness check" framing.** Section file:
+      `papers/P01-B-JRSSB/drafts/sections/results-spanning-identification.md`.
+      Headline is the T1.9b inferential result (`spanning_betti_inference_2026-06-20.json`,
+      outcome `newcomers_robust`): windowed β₀-AUC ratio robust across all four ε*
+      (1.127–1.129, p=0.001, bootstrap CI excludes parity) + matched W₂=2.536 (p=0.001),
+      direction newcomers>spanning; single-ε ratio fragile (sig only at locked ε*=0.54).
+      Resolves the earlier T1.9 "divergent" point estimate (full-interval AUC artefact).
+      Table 4 = 3 statistics × 4 ε*. Balance table from `balance_2026-05-14.json` (age
+      SMD −0.617, hiqual 0.300, employed 0.193, sex 0.002) + matched/age-strat design
+      from `matched_subset_2026-05-14.json`. notation-check clean (W₂ order explicit;
+      landscape correctly omitted per response-plan §10). **Two dependencies flagged:**
+      (a) matched/age-stratified Betti rerun escalated to TDA agent, not yet committed —
+      stated as pending, not fabricated; (b) manuscript prose-direction lock Manager-deferred
+      per the result file — file the vault [DECISION] before v2 assembly.
+- [x] **§5 reproducibility statement (replay-drift → reproducibility) — DRAFTED
+      2026-06-22; Manager-ACCEPTED AS DRAFTED 2026-06-22 (2.18-A single-machine scope
+      correct, STANDS; cross-machine upgrade to the response-plan wording is a future task
+      when T0.3 two-machine check completes).** Section file:
+      `papers/P01-B-JRSSB/drafts/sections/results-reproducibility-statement.md`.
+      Replaces the v1 §4.2.1/§5.3 replay-drift disclosure with a positive statement:
+      locked env + `uv.lock` (Python 3.13 + gudhi/ripser/sklearn pinned), deterministic
+      seed propagation, single-machine run-to-run determinism verified by
+      `trajectory_tda/scripts/canary_rng.py`. No "drift"/"discrepancy"/"may not exactly
+      reproduce" in the main-text framing; legacy replay-provenance moved to supplement
+      (W1-ruling-out reworded as "order-1 Wasserstein" to satisfy the notation guard).
+      **Honesty constraint honored:** the two-machine bit-for-bit check (T0.3) is PAUSED
+      (second machine pending; `pipe/two-machine-check` worktree live), so cross-machine
+      determinism is framed as achievable/in-progress, NOT verified — deliberately weaker
+      than response-plan §5.4(5), flagged inline for upgrade when T0.3 completes.
