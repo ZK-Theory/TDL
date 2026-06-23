@@ -65,7 +65,14 @@ CANARY_TOL = 1e-4
 
 
 def sha256_of(path: Path) -> str:
-    """Return the hex sha256 of a file's bytes."""
+    """Return the hex SHA-256 digest of a file's bytes.
+
+    Args:
+        path: File whose bytes are hashed.
+
+    Returns:
+        The hex-encoded SHA-256 digest.
+    """
 
     h = hashlib.sha256()
     with path.open("rb") as handle:
@@ -80,7 +87,17 @@ def regenerate_sequences(
     bhps_subdir: str = DEFAULT_BHPS_SUBDIR,
     usoc_subdir: str = DEFAULT_USOC_SUBDIR,
 ) -> list[list[str]]:
-    """Rebuild the integration state sequences and write them to out_path."""
+    """Rebuild the integration state sequences and write them to ``out_path``.
+
+    Args:
+        data_dir: Root directory passed to the trajectory builder.
+        out_path: Scratch JSON path the regenerated sequences are written to.
+        bhps_subdir: Sub-directory under ``data_dir`` holding the BHPS tab files.
+        usoc_subdir: Sub-directory under ``data_dir`` holding the USoc tab files.
+
+    Returns:
+        The trajectories as a list of per-individual state-code lists.
+    """
 
     trajectories, _metadata = build_trajectories(
         data_dir=data_dir,
@@ -98,7 +115,15 @@ def regenerate_sequences(
 
 
 def om_k7_ari_vs_gmm(trajectories: list[list[str]], analysis_json: Path = LIVE_ANALYSIS_JSON) -> float:
-    """Compute OM (DHD ward-linkage) k=7 vs canonical GMM k=7 ARI (the canary)."""
+    """Compute the OM (DHD ward-linkage) k=7 vs canonical GMM k=7 ARI (the canary).
+
+    Args:
+        trajectories: State-code sequences clustered via dynamic-Hamming Ward linkage.
+        analysis_json: Canonical ``05_analysis.json`` providing the locked GMM labels.
+
+    Returns:
+        The adjusted Rand index between the OM k=7 labels and the GMM labels.
+    """
 
     with analysis_json.open("r", encoding="utf-8") as handle:
         gmm_labels = np.asarray(json.load(handle)["gmm_labels"], dtype=np.int64)

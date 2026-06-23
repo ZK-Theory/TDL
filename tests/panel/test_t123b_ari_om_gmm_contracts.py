@@ -1,3 +1,4 @@
+import json
 import random
 from pathlib import Path
 
@@ -244,6 +245,31 @@ def test_ari_om_gmm_normalisation_json_validation_dispatch():
         Path("results/panel_methodology/regression/tier2_svyglm_headline_2026-06-03.json"),
         {"schema_version": "unrelated"},
     )
+
+
+def test_committed_om_gmm_artifacts_conform_to_schema():
+    """Every committed OM-vs-GMM ARI artifact still validates (catches stale files).
+
+    Routes each committed ``ari_om_gmm_normalised_*.json`` through the dispatcher,
+    so the legacy-exempt 2026-06-23 file is skipped and every other committed file
+    is held to the current schema. Skips when no artifacts are checked out.
+    """
+
+    ari_dir = Path(__file__).resolve().parents[2] / "results/panel_methodology/ari"
+    artifacts = sorted(ari_dir.glob("ari_om_gmm_normalised_*.json"))
+    if not artifacts:
+        pytest.skip("no committed OM-vs-GMM ARI artifacts present")
+
+    validated = 0
+    for path in artifacts:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        # dispatch_t123b_json validates non-exempt files and returns True; the
+        # superseded 2026-06-23 file is grandfathered (returns False).
+        if dispatch_t123b_json(path, payload):
+            validated += 1
+    # The certified 2026-06-24 result is present and must validate.
+    assert validated >= 1
 
 
 def _mutated(key, value):

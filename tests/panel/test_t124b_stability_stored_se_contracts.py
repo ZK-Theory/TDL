@@ -7,6 +7,7 @@ from trajectory_tda.analysis.panel.t124b_stability_stored_se import (
     dispatch_t124b_json,
     validate_stability_stored_se_output,
     wilson_ci,
+    write_json_no_overwrite,
 )
 
 
@@ -87,6 +88,25 @@ def test_stability_stored_se_json_validation_dispatch():
         Path("results/panel_methodology/uncertainty_addons/stability_se_2026-05-14.json"),
         {"schema_version": "legacy"},
     )
+
+
+def test_write_rejects_filename_date_payload_mismatch(tmp_path):
+    """The filename date must match the payload created_at (date-divergence guard).
+
+    The filename<->created_at contract is enforced by write_json_no_overwrite,
+    not by dispatch_t124b_json (which validates the payload schema only).
+    """
+
+    payload = _se_payload()  # created_at == "2026-06-22"
+    # Filename date diverges from created_at -> rejected before any write.
+    mismatch = tmp_path / "stability_se_stored_2026-06-23.json"
+    with pytest.raises(ValueError):
+        write_json_no_overwrite(mismatch, payload)
+    assert not mismatch.exists()
+    # Matching filename date writes successfully.
+    match = tmp_path / "stability_se_stored_2026-06-22.json"
+    write_json_no_overwrite(match, payload)
+    assert match.exists()
 
 
 def _mutated(key, value):

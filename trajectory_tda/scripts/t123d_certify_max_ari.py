@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from pathlib import Path
 from typing import Any
@@ -43,7 +42,6 @@ from trajectory_tda.analysis.panel.t123b_ari_om_gmm import (
     write_json_no_overwrite,
 )
 
-PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
 WORKTREE = Path.cwd()
 
 DEFAULT_ARI_DIR = WORKTREE / "results/panel_methodology/ari"
