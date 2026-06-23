@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -41,7 +42,8 @@ from sklearn.metrics import adjusted_rand_score
 from trajectory_tda.data.trajectory_builder import build_trajectories
 from trajectory_tda.scripts.run_om_baseline import compute_pairwise_dhd
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+_DEFAULT_PROJ_ROOT = Path(__file__).resolve().parents[2]
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", str(_DEFAULT_PROJ_ROOT)))
 DEFAULT_DATA_DIR = Path("trajectory_tda/data")
 # The raw UKDA tab files are gitignored and live only at PROJ_ROOT. The loader
 # rglobs b{w}_indresp.tab (BHPS) and {w}_indresp.tab (USoc); both subtrees are
@@ -120,7 +122,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
+def main() -> int:
+    """Run the recovery (and optional canary). Return a process exit code.
+
+    Returns 0 on success. When ``--canary`` is requested, returns 1 if the canary
+    fails or is skipped (cohort mismatch) — so automation never treats an
+    unverified recovery as success.
+    """
+
     args = parse_args()
     started = time.perf_counter()
     print("=== Recover Apr-8 integration trajectory sequences ===")
@@ -135,17 +144,22 @@ def main() -> None:
     if n != EXPECTED_N:
         print(f"WARNING: n={n} != expected {EXPECTED_N} — cohort mismatch, canary not meaningful")
 
+    exit_code = 0
     if args.canary:
         if n != EXPECTED_N:
             print("CANARY SKIPPED — n != 27,280, so ARI vs the 27,280 GMM labels is undefined")
+            exit_code = 1
         else:
             ari = om_k7_ari_vs_gmm(trajectories)
             ok = abs(ari - CANARY_ARI) <= CANARY_TOL
             print(f"CANARY OM-vs-GMM k=7 ARI = {ari:.10f} (target {CANARY_ARI}, tol {CANARY_TOL})")
             print(f"CANARY {'PASS' if ok else 'FAIL'}")
+            if not ok:
+                exit_code = 1
     print(f"elapsed={time.perf_counter() - started:.1f}s")
     print("=== complete ===")
+    return exit_code
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -264,7 +264,8 @@ def achievable_max_table(
             if sumsq > best_sumsq:
                 best_sumsq = sumsq
                 best_table = table
-    assert best_table is not None
+    if best_table is None:
+        raise RuntimeError("no feasible table found for the given fixed margins")
     return best_table
 
 

@@ -31,11 +31,21 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
 WORKTREE = Path.cwd()
 
 DEFAULT_SOURCE = WORKTREE / "results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json"
 DEFAULT_OUT_DIR = WORKTREE / "results/panel_methodology/uncertainty_addons"
+
+
+def _repo_relative(path: Path) -> str:
+    """Return a portable repo-relative POSIX path, avoiding host-specific roots."""
+
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(WORKTREE.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
 
 SCHEMA_VERSION = "stability-stored-se-v1"
 COMPUTED_ON = "stability_stored"
@@ -69,8 +79,15 @@ def wilson_ci(p: float, n: int, z: float = Z_95) -> tuple[float, float]:
     return centre - half, centre + half
 
 
-def compute_stored_se(source: Path = DEFAULT_SOURCE) -> dict[str, Any]:
-    """Compute per-regime stored-metric SE and Wilson CI from the prior file."""
+def compute_stored_se(source: Path = DEFAULT_SOURCE, created_at: str | None = None) -> dict[str, Any]:
+    """Compute per-regime stored-metric SE and Wilson CI from the prior file.
+
+    ``created_at`` sets the ISO date stamped into the payload; it must match the
+    output filename's date suffix (the no-overwrite writer enforces this).
+    Defaults to today when not supplied.
+    """
+
+    created_at = created_at or date.today().isoformat()
 
     with source.open("r", encoding="utf-8") as handle:
         prior = json.load(handle)
@@ -97,7 +114,7 @@ def compute_stored_se(source: Path = DEFAULT_SOURCE) -> dict[str, Any]:
 
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "created_at": date.today().isoformat(),
+        "created_at": created_at,
         "computed_on": COMPUTED_ON,
         "supersedes": {
             "file": SUPERSEDED_FILE,
@@ -113,7 +130,7 @@ def compute_stored_se(source: Path = DEFAULT_SOURCE) -> dict[str, Any]:
                 "only its SE/CI95 column is superseded for Table 2."
             ),
         },
-        "source_file": str(source),
+        "source_file": _repo_relative(source),
         "method": (
             "Per regime, SE = sqrt(stored*(1-stored)/n_members) on the Table 2 "
             "stability_stored proportion, with a Wilson 95% confidence interval "
@@ -125,6 +142,18 @@ def compute_stored_se(source: Path = DEFAULT_SOURCE) -> dict[str, Any]:
     }
     validate_payload(payload)
     return payload
+
+
+def _require(condition: object, message: str) -> None:
+    """Raise ``ValueError`` when an output-contract invariant fails.
+
+    Used instead of ``assert`` so the stored-SE output contract is enforced even
+    under ``python -O``, which strips ``assert`` statements and would otherwise
+    let an invalid artifact be written.
+    """
+
+    if not condition:
+        raise ValueError(message)
 
 
 def validate_payload(payload: dict[str, Any]) -> None:
@@ -139,45 +168,53 @@ def validate_payload(payload: dict[str, Any]) -> None:
         "method",
         "stability_by_regime",
     }
-    assert "stability_from_seqs_se" not in payload, "forbidden key stability_from_seqs_se present at top level"
+    _require("stability_from_seqs_se" not in payload, "forbidden key stability_from_seqs_se present at top level")
     missing_top = required_top - set(payload)
-    assert not missing_top, f"missing required top-level keys: {sorted(missing_top)}"
+    _require(not missing_top, f"missing required top-level keys: {sorted(missing_top)}")
 
-    assert payload["schema_version"] == SCHEMA_VERSION
+    _require(payload["schema_version"] == SCHEMA_VERSION, f"schema_version must be {SCHEMA_VERSION}")
     # R3 self-description lock: declared metric must be the stored proportion.
-    assert payload["computed_on"] == COMPUTED_ON, f"computed_on must be '{COMPUTED_ON}'"
+    _require(payload["computed_on"] == COMPUTED_ON, f"computed_on must be '{COMPUTED_ON}'")
 
     supersedes = payload["supersedes"]
-    assert isinstance(supersedes, Mapping)
-    assert (
+    _require(isinstance(supersedes, Mapping), "supersedes must be a mapping")
+    _require(
         supersedes["file"]
         .replace("\\", "/")
-        .endswith("results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json")
+        .endswith("results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json"),
+        "supersedes.file must name the prior stability_se_2026-05-16.json",
     )
-    assert supersedes["do_not_cite_for_table2"] is True
+    _require(supersedes["do_not_cite_for_table2"] is True, "supersedes.do_not_cite_for_table2 must be True")
 
-    assert (
+    _require(
         payload["source_file"]
         .replace("\\", "/")
-        .endswith("results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json")
+        .endswith("results/panel_methodology/uncertainty_addons/stability_se_2026-05-16.json"),
+        "source_file must name the prior stability_se_2026-05-16.json",
     )
-    assert "sqrt" in payload["method"] and "Wilson" in payload["method"]
+    _require("sqrt" in payload["method"] and "Wilson" in payload["method"], "method must describe sqrt SE + Wilson CI")
 
     regimes = payload["stability_by_regime"]
-    assert len(regimes) >= 1
+    _require(len(regimes) >= 1, "stability_by_regime must have at least one regime")
     for regime_key, block in regimes.items():
-        assert "stability_from_seqs_se" not in block, f"forbidden key stability_from_seqs_se present in {regime_key}"
+        _require(
+            "stability_from_seqs_se" not in block,
+            f"forbidden key stability_from_seqs_se present in {regime_key}",
+        )
         stored = float(block["stability_stored"])
         n_members = int(block["n_members"])
-        assert 0.0 <= stored <= 1.0, f"{regime_key}: stability_stored out of [0,1]"
-        assert n_members > 0, f"{regime_key}: n_members must be > 0"
+        _require(0.0 <= stored <= 1.0, f"{regime_key}: stability_stored out of [0,1]")
+        _require(n_members > 0, f"{regime_key}: n_members must be > 0")
         se = float(block["SE"])
-        assert se >= 0.0, f"{regime_key}: SE negative"
+        _require(se >= 0.0, f"{regime_key}: SE negative")
         expected_se = binomial_se(stored, n_members)
-        assert abs(se - expected_se) <= SE_TOL, f"{regime_key}: SE {se} != sqrt(p(1-p)/n) {expected_se} within {SE_TOL}"
+        _require(
+            abs(se - expected_se) <= SE_TOL,
+            f"{regime_key}: SE {se} != sqrt(p(1-p)/n) {expected_se} within {SE_TOL}",
+        )
         lo = float(block["CI95_lo"])
         hi = float(block["CI95_hi"])
-        assert lo <= hi, f"{regime_key}: CI95 bounds unordered"
+        _require(lo <= hi, f"{regime_key}: CI95 bounds unordered")
 
 
 def validate_stability_stored_se_output(payload: Mapping[str, Any]) -> None:
@@ -211,7 +248,9 @@ def write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> None:
 
     if path.exists():
         raise FileExistsError(f"refusing to overwrite existing result: {path}")
-    assert path.name == f"stability_se_stored_{payload['created_at']}.json"
+    expected_name = f"stability_se_stored_{payload['created_at']}.json"
+    if path.name != expected_name:
+        raise ValueError(f"filename {path.name} does not match created_at; expected {expected_name}")
     path.parent.mkdir(parents=True, exist_ok=True)
     validate_payload(payload)
     with path.open("x", encoding="utf-8") as handle:
@@ -233,7 +272,7 @@ def main() -> None:
     print("=== Stored-metric stability SE (Table 2, reviewer B10) ===")
     print(f"Source: {args.source}")
     print(f"Output: {out_path}")
-    payload = compute_stored_se(source=args.source)
+    payload = compute_stored_se(source=args.source, created_at=args.date)
     write_json_no_overwrite(out_path, payload)
     for regime_key, block in payload["stability_by_regime"].items():
         print(

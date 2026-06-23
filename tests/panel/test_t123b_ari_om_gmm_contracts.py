@@ -107,112 +107,112 @@ def test_ari_om_gmm_normalisation_output_schema():
     validate_ari_om_gmm_output(payload)
 
     # (a) schema_version must be the OM-vs-GMM tag.
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(_mutated("schema_version", "ari-normalisation-v1"))
 
     # (b) referent must name optimal-matching k=7 vs GMM k=7.
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(_mutated("referent", "H0 tree-cut vs GMM"))
 
     # (c) input paths and gmm_labels_key must be canonical.
     bad_paths = _om_payload()
     bad_paths["input_paths"]["trajectories"] = "results/other/stale_sequences.json"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_paths)
     bad_key = _om_payload()
     bad_key["input_paths"]["gmm_labels_key"] = "pickle_labels"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_key)
 
     # (d) representation must not use pickle/joblib labels.
     bad_repr = _om_payload()
     bad_repr["representation"]["uses_pickle_or_joblib_labels"] = True
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_repr)
 
     # (e) locked parameters and label counts.
     bad_om_k = _om_payload()
     bad_om_k["parameters"]["om_k"] = 6
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_om_k)
     bad_gmm_k = _om_payload()
     bad_gmm_k["parameters"]["gmm_k"] = 8
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_gmm_k)
     bad_seed = _om_payload()
     bad_seed["parameters"]["seed"] = 7
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_seed)
     bad_n = _om_payload()
     bad_n["label_counts"]["om_label_length"] = EXPECTED_N - 1
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_n)
     bad_cluster_count = _om_payload()
     bad_cluster_count["label_counts"]["om_cluster_count"] = 6
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_cluster_count)
 
     # (f) observed_ari must be in range and reproduce the canary.
     bad_range = _om_payload()
     bad_range["observed_ari"] = 1.5
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_range)
     bad_canary = _om_payload()
     bad_canary["observed_ari"] = 0.40
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_canary)
 
     # (g) null se sign and bootstrap CI ordering.
     bad_null = _om_payload()
     bad_null["null_distribution"]["se"] = -0.1
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_null)
     bad_ci = _om_payload()
     bad_ci["bootstrap_ci"]["percentile_95"] = [0.30, 0.10]
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_ci)
 
     # (h) exact / status logic must be consistent and the upper bound must
     #     dominate the achievable value.
     bad_status = _om_payload()
     bad_status["max_achievable_ari"]["status"] = "upper_bound"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_status)
     bad_exact_flag = _om_payload()
     bad_exact_flag["max_achievable_ari"]["exact"] = True  # exact True but status "bracket"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_exact_flag)
     bad_ub = _om_payload()
     bad_ub["max_achievable_ari"]["rigorous_upper_bound"]["ari"] = 0.50  # below value 0.84
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_ub)
 
     # (j) max_achievable_ari.value must be a real fixed-margin maximum < 1.0,
     #     never the vacuous 1.0 the trivial fallback produced.
     bad_vacuous = _om_payload()
     bad_vacuous["max_achievable_ari"]["value"] = 1.0
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_vacuous)
 
     # (k) the normalised ARI must differ from the observed ARI (a real
     #     maximum < 1 strictly rescales it upward).
     bad_norm = _om_payload()
     bad_norm["max_achievable_ari"]["normalised_observed_ari"] = bad_norm["observed_ari"]
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_norm)
 
     # (i) forbidden keys (object-confusion guard versus T1.23).
     bad_eps = _om_payload()
     bad_eps["eps_star"] = 0.54
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_eps)
     bad_h0 = _om_payload()
     bad_h0["h0_components"] = {"n_components": 2}
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_h0)
     bad_pickle = _om_payload()
     bad_pickle["pickle_labels_path"] = "old.pkl"
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         validate_ari_om_gmm_output(bad_pickle)
 
 
@@ -223,7 +223,7 @@ def test_ari_om_gmm_normalisation_json_validation_dispatch():
         Path("results/panel_methodology/ari/ari_om_gmm_normalised_2026-06-22.json"),
         payload,
     )
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         dispatch_t123b_json(
             Path("results/panel_methodology/ari/ari_om_gmm_normalised_2026-06-22.json"),
             _mutated("schema_version", "wrong"),
@@ -232,6 +232,12 @@ def test_ari_om_gmm_normalisation_json_validation_dispatch():
     assert not dispatch_t123b_json(
         Path("results/panel_methodology/ari/ari_normalised_2026-06-06.json"),
         {"schema_version": "ari-normalisation-v1"},
+    )
+    # The superseded legacy 2026-06-23 file is grandfathered out of validation
+    # (its vacuous max_achievable_ari is replaced by the 2026-06-24 file).
+    assert not dispatch_t123b_json(
+        Path("results/panel_methodology/ari/ari_om_gmm_normalised_2026-06-23.json"),
+        {"schema_version": "anything"},
     )
     # Other panel methodology JSONs are NOT captured.
     assert not dispatch_t123b_json(
@@ -253,14 +259,14 @@ def _om_payload():
         "git_head": "abc123",
         "referent": ("optimal-matching (dynamic Hamming, Lesnard 2010) k=7 vs GMM k=7"),
         "input_paths": {
-            "trajectories": ("C:/Users/steph/TDL/results/trajectory_tda_integration/01_trajectories_sequences.json"),
-            "analysis_json": ("C:/Users/steph/TDL/results/trajectory_tda_integration/05_analysis.json"),
+            "trajectories": "results/trajectory_tda_integration/01_trajectories_sequences.json",
+            "analysis_json": "results/trajectory_tda_integration/05_analysis.json",
             "gmm_labels_key": "gmm_labels",
         },
         "representation": {
             "om_label_source": "fcluster(k=7) of Ward linkage (dynamic Hamming)",
             "gmm_label_source": "canonical 05_analysis.json['gmm_labels']",
-            "om_baseline_directory": ("C:/Users/steph/TDL/results/trajectory_tda_robustness/om_baseline"),
+            "om_baseline_directory": "results/trajectory_tda_robustness/om_baseline",
             "row_alignment": "same trajectory/GMM row order, both length 27,280",
             "uses_pickle_or_joblib_labels": False,
             "regenerated_linkage": True,

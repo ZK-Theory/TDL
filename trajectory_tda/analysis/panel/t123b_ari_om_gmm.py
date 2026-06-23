@@ -45,7 +45,8 @@ from trajectory_tda.analysis.panel.t123_ari_normalisation import (
 )
 from trajectory_tda.scripts.run_om_baseline import compute_pairwise_dhd
 
-PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
+_DEFAULT_PROJ_ROOT = Path(__file__).resolve().parents[3]
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", str(_DEFAULT_PROJ_ROOT)))
 WORKTREE = Path.cwd()
 
 DEFAULT_SEQUENCES_PATH = PROJ_ROOT / "results/trajectory_tda_integration/01_trajectories_sequences.json"
@@ -216,6 +217,18 @@ def build_max_achievable_block(
     }
 
 
+def _require(condition: object, message: str) -> None:
+    """Raise ``ValueError`` when an output-contract invariant fails.
+
+    Used instead of ``assert`` so the OM-vs-GMM output contract is enforced even
+    under ``python -O``, which strips ``assert`` statements and would otherwise
+    let an invalid artifact be written.
+    """
+
+    if not condition:
+        raise ValueError(message)
+
+
 def validate_payload(payload: dict[str, Any]) -> None:
     """Machine-check OM-vs-GMM ARI output invariants required by the contract."""
 
@@ -243,113 +256,122 @@ def validate_payload(payload: dict[str, Any]) -> None:
         "joblib_labels_path",
         "causal_interpretation",
     ):
-        assert forbidden not in payload, f"forbidden key present: {forbidden}"
-    assert "eps_star" not in payload["parameters"], "eps_star leaked into parameters"
-    assert "h0_components" not in payload["label_counts"], "h0_components leaked"
+        _require(forbidden not in payload, f"forbidden key present: {forbidden}")
+    _require("eps_star" not in payload["parameters"], "eps_star leaked into parameters")
+    _require("h0_components" not in payload["label_counts"], "h0_components leaked")
 
     missing_top = required_top - set(payload)
-    assert not missing_top, f"missing required top-level keys: {sorted(missing_top)}"
-    assert payload["schema_version"] == SCHEMA_VERSION
+    _require(not missing_top, f"missing required top-level keys: {sorted(missing_top)}")
+    _require(payload["schema_version"] == SCHEMA_VERSION, f"schema_version must be {SCHEMA_VERSION}")
 
     referent = payload["referent"]
-    assert "optimal-matching" in referent.lower()
-    assert "k=7" in referent and "gmm" in referent.lower()
+    _require("optimal-matching" in referent.lower(), "referent must name optimal-matching")
+    _require("k=7" in referent and "gmm" in referent.lower(), "referent must name k=7 and GMM")
 
     input_paths = payload["input_paths"]
     for key in ("trajectories", "analysis_json", "gmm_labels_key"):
-        assert key in input_paths, f"missing input path field: {key}"
-    assert input_paths["gmm_labels_key"] == "gmm_labels"
-    assert (
+        _require(key in input_paths, f"missing input path field: {key}")
+    _require(input_paths["gmm_labels_key"] == "gmm_labels", "gmm_labels_key must be 'gmm_labels'")
+    _require(
         input_paths["trajectories"]
         .replace("\\", "/")
-        .endswith("results/trajectory_tda_integration/01_trajectories_sequences.json")
+        .endswith("results/trajectory_tda_integration/01_trajectories_sequences.json"),
+        "trajectories path must end with the canonical integration sequences path",
     )
-    assert (
-        input_paths["analysis_json"].replace("\\", "/").endswith("results/trajectory_tda_integration/05_analysis.json")
+    _require(
+        input_paths["analysis_json"].replace("\\", "/").endswith("results/trajectory_tda_integration/05_analysis.json"),
+        "analysis_json path must end with the canonical 05_analysis.json path",
     )
 
     representation = payload["representation"]
-    assert "k=7" in representation["om_label_source"]
-    assert representation["gmm_label_source"] == "canonical 05_analysis.json['gmm_labels']"
-    assert representation["uses_pickle_or_joblib_labels"] is False
+    _require("k=7" in representation["om_label_source"], "om_label_source must name k=7")
+    _require(
+        representation["gmm_label_source"] == "canonical 05_analysis.json['gmm_labels']",
+        "gmm_label_source must be the canonical 05_analysis.json labels",
+    )
+    _require(representation["uses_pickle_or_joblib_labels"] is False, "must not use pickle/joblib labels")
 
     parameters = payload["parameters"]
-    assert parameters["om_k"] == OM_K
-    assert parameters["gmm_k"] == GMM_K
-    assert parameters["seed"] == DEFAULT_SEED
-    assert parameters["null_B_requested"] > 0
-    assert parameters["bootstrap_B_requested"] > 0
+    _require(parameters["om_k"] == OM_K, "om_k must be 7")
+    _require(parameters["gmm_k"] == GMM_K, "gmm_k must be 7")
+    _require(parameters["seed"] == DEFAULT_SEED, "seed must be the locked DEFAULT_SEED (42)")
+    _require(parameters["null_B_requested"] > 0, "null_B_requested must be > 0")
+    _require(parameters["bootstrap_B_requested"] > 0, "bootstrap_B_requested must be > 0")
 
     counts = payload["label_counts"]
-    assert counts["n"] == EXPECTED_N
-    assert counts["om_label_length"] == EXPECTED_N
-    assert counts["gmm_label_length"] == EXPECTED_N
-    assert counts["om_cluster_count"] == OM_K
-    assert counts["gmm_regime_count"] >= 1
-    assert "om_cluster_counts" in counts
-    assert "gmm_regime_counts" in counts
+    _require(counts["n"] == EXPECTED_N, "n must be 27,280")
+    _require(counts["om_label_length"] == EXPECTED_N, "om_label_length must be 27,280")
+    _require(counts["gmm_label_length"] == EXPECTED_N, "gmm_label_length must be 27,280")
+    _require(counts["om_cluster_count"] == OM_K, "om_cluster_count must be 7")
+    _require(counts["gmm_regime_count"] >= 1, "gmm_regime_count must be >= 1")
+    _require("om_cluster_counts" in counts, "om_cluster_counts missing")
+    _require("gmm_regime_counts" in counts, "gmm_regime_counts missing")
 
     observed = float(payload["observed_ari"])
-    assert -1.0 <= observed <= 1.0
-    assert abs(observed - CANARY_OBSERVED_ARI) <= CANARY_TOL, (
-        f"observed_ari {observed} does not reproduce {CANARY_OBSERVED_ARI} within {CANARY_TOL}"
+    _require(-1.0 <= observed <= 1.0, "observed_ari out of [-1, 1]")
+    _require(
+        abs(observed - CANARY_OBSERVED_ARI) <= CANARY_TOL,
+        f"observed_ari {observed} does not reproduce {CANARY_OBSERVED_ARI} within {CANARY_TOL}",
     )
 
     null_block = payload["null_distribution"]
-    assert null_block["se"] >= 0.0
-    assert math.isfinite(float(null_block["se"]))
-    assert null_block["B"] > 0
-    assert null_block["seed"] == DEFAULT_SEED
-    assert null_block["finite_count"] > 0
-    assert null_block["procedure"]
-    assert 0.0 < float(null_block["pvalue"]) <= 1.0
+    _require(null_block["se"] >= 0.0, "null se must be >= 0")
+    _require(math.isfinite(float(null_block["se"])), "null se must be finite")
+    _require(null_block["B"] > 0, "null B must be > 0")
+    _require(null_block["seed"] == DEFAULT_SEED, "null seed must be the locked DEFAULT_SEED (42)")
+    _require(null_block["finite_count"] > 0, "null finite_count must be > 0")
+    _require(null_block["procedure"], "null procedure must be present")
+    _require(0.0 < float(null_block["pvalue"]) <= 1.0, "null pvalue must be in (0, 1]")
 
     max_block = payload["max_achievable_ari"]
     value = float(max_block["value"])
-    assert -1.0 <= value <= 1.0
-    assert math.isfinite(value), "max_ari value not finite"
+    _require(-1.0 <= value <= 1.0, "max_ari value out of [-1, 1]")
+    _require(math.isfinite(value), "max_ari value not finite")
     # (j) The certified maximum must be a real constrained maximum, never the
     # vacuous 1.0 the trivial whole-cluster-packing fallback produced.
-    assert value < 1.0, "max_achievable_ari.value must be a real fixed-margin maximum < 1.0"
-    assert isinstance(max_block["exact"], bool)
-    assert max_block["status"] in {"exact", "bracket"}
-    assert max_block["exact"] == (max_block["status"] == "exact")
-    assert max_block["method"]
+    _require(value < 1.0, "max_achievable_ari.value must be a real fixed-margin maximum < 1.0")
+    _require(isinstance(max_block["exact"], bool), "max exact must be a bool")
+    _require(max_block["status"] in {"exact", "bracket"}, "max status must be 'exact' or 'bracket'")
+    _require(max_block["exact"] == (max_block["status"] == "exact"), "exact flag must match status")
+    _require(max_block["method"], "max method must be present")
 
     ub_block = max_block["rigorous_upper_bound"]
     ub_ari = float(ub_block["ari"])
-    assert -1.0 <= ub_ari <= 1.0 and math.isfinite(ub_ari)
-    assert ub_ari + 1e-12 >= value, "rigorous upper bound is below the achievable value"
-    assert ub_block["method"]
+    _require(-1.0 <= ub_ari <= 1.0 and math.isfinite(ub_ari), "upper-bound ari out of [-1, 1] or non-finite")
+    _require(ub_ari + 1e-12 >= value, "rigorous upper bound is below the achievable value")
+    _require(ub_block["method"], "upper-bound method must be present")
 
     # (k) The normalisation must actually rescale: a real maximum < 1 forces the
     # normalised ARI strictly above the observed ARI.
     norm = float(max_block["normalised_observed_ari"])
-    assert math.isfinite(norm)
-    assert abs(norm - observed) > 1e-9, "normalised ARI must differ from observed ARI"
+    _require(math.isfinite(norm), "normalised ARI must be finite")
+    _require(abs(norm - observed) > 1e-9, "normalised ARI must differ from observed ARI")
     nlo, nhi = max_block["normalised_ari_bracket"]
-    assert float(nlo) <= float(nhi)
+    _require(float(nlo) <= float(nhi), "normalised bracket must be ordered")
     if max_block["status"] == "exact":
-        assert abs(float(nlo) - float(nhi)) <= 1e-9, "exact status requires a degenerate bracket"
+        _require(abs(float(nlo) - float(nhi)) <= 1e-9, "exact status requires a degenerate bracket")
     cilo, cihi = max_block["normalised_ci_percentile_95"]
-    assert float(cilo) <= float(cihi)
-    assert math.isfinite(float(cilo)) and math.isfinite(float(cihi))
+    _require(float(cilo) <= float(cihi), "normalised CI must be ordered")
+    _require(math.isfinite(float(cilo)) and math.isfinite(float(cihi)), "normalised CI must be finite")
 
     boot_block = payload["bootstrap_ci"]
     lo, hi = boot_block["percentile_95"]
-    assert lo <= hi
-    assert math.isfinite(float(lo)) and math.isfinite(float(hi))
-    assert boot_block["B"] > 0
-    assert boot_block["seed"] == DEFAULT_SEED
-    assert boot_block["resampling_unit"] == "individual"
+    _require(lo <= hi, "bootstrap CI must be ordered")
+    _require(math.isfinite(float(lo)) and math.isfinite(float(hi)), "bootstrap CI must be finite")
+    _require(boot_block["B"] > 0, "bootstrap B must be > 0")
+    _require(boot_block["seed"] == DEFAULT_SEED, "bootstrap seed must be the locked DEFAULT_SEED (42)")
+    _require(boot_block["resampling_unit"] == "individual", "bootstrap resampling_unit must be 'individual'")
 
     interpretation = payload["interpretation"]
-    assert isinstance(interpretation, Mapping)
-    assert interpretation["closes_b9"] is True
-    assert interpretation["causal_claim"] == "none"
-    assert interpretation["topological_distinctiveness_claim"] == "none"
+    _require(isinstance(interpretation, Mapping), "interpretation must be a mapping")
+    _require(interpretation["closes_b9"] is True, "interpretation.closes_b9 must be True")
+    _require(interpretation["causal_claim"] == "none", "causal_claim must be 'none'")
+    _require(
+        interpretation["topological_distinctiveness_claim"] == "none",
+        "topological_distinctiveness_claim must be 'none'",
+    )
 
-    assert float(payload["runtime"]["wall_seconds"]) >= 0.0
+    _require(float(payload["runtime"]["wall_seconds"]) >= 0.0, "runtime.wall_seconds must be >= 0")
 
 
 def validate_ari_om_gmm_output(payload: Mapping[str, Any]) -> None:
@@ -358,12 +380,22 @@ def validate_ari_om_gmm_output(payload: Mapping[str, Any]) -> None:
     validate_payload(dict(payload))
 
 
+# Superseded T1.23c intermediate: it records the correct observed ARI, null SE,
+# and bootstrap CI, but a vacuous ``max_achievable_ari`` (value 1.0) that the
+# T1.23d 2026-06-24 file replaces ("supersedes the normalisation block only").
+# Preserved on disk under the no-overwrite policy; grandfathered out of the
+# tightened validator so an ``--all-jsons`` sweep does not flag a known-defective
+# historical record.
+LEGACY_EXEMPT_NAMES = frozenset({"ari_om_gmm_normalised_2026-06-23.json"})
+
+
 def dispatch_t123b_json(path: Path, payload: Mapping[str, Any]) -> bool:
     """Route OM-vs-GMM ARI JSONs; leave unrelated panel JSONs untouched.
 
     Returns True only for ``ari_om_gmm_normalised_*.json`` files under
     ``results/panel_methodology/ari/``. The H0-tree-cut ``ari_normalised_*.json``
-    files and other panel JSONs are not captured.
+    files and other panel JSONs are not captured, and the superseded legacy file
+    in :data:`LEGACY_EXEMPT_NAMES` is grandfathered out of validation.
     """
 
     rel = path.as_posix()
@@ -371,6 +403,7 @@ def dispatch_t123b_json(path: Path, payload: Mapping[str, Any]) -> bool:
         path.name.startswith("ari_om_gmm_normalised_")
         and path.suffix == ".json"
         and "results/panel_methodology/ari/" in rel
+        and path.name not in LEGACY_EXEMPT_NAMES
     ):
         validate_ari_om_gmm_output(payload)
         return True
@@ -382,7 +415,9 @@ def write_json_no_overwrite(path: Path, payload: dict[str, Any]) -> None:
 
     if path.exists():
         raise FileExistsError(f"refusing to overwrite existing result: {path}")
-    assert path.name == f"ari_om_gmm_normalised_{payload['created_at']}.json"
+    expected_name = f"ari_om_gmm_normalised_{payload['created_at']}.json"
+    if path.name != expected_name:
+        raise ValueError(f"filename {path.name} does not match created_at; expected {expected_name}")
     path.parent.mkdir(parents=True, exist_ok=True)
     validate_payload(payload)
     with path.open("x", encoding="utf-8") as handle:
@@ -395,8 +430,13 @@ def build_result(
     null_b: int,
     boot_b: int,
     n_jobs: int,
+    created_at: str,
 ) -> dict[str, Any]:
-    """Run the full OM-vs-GMM ARI calculation and return a result payload."""
+    """Run the full OM-vs-GMM ARI calculation and return a result payload.
+
+    ``created_at`` sets the ISO date stamped into the payload; it must match the
+    output filename's date suffix (the no-overwrite writer enforces this).
+    """
 
     started = time.perf_counter()
     gmm_labels = load_gmm_labels()
@@ -443,7 +483,7 @@ def build_result(
     elapsed = time.perf_counter() - started
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
-        "created_at": date.today().isoformat(),
+        "created_at": created_at,
         "git_head": git_head_sha(),
         "referent": REFERENT,
         "input_paths": {
@@ -464,6 +504,7 @@ def build_result(
             "gmm_k": GMM_K,
             "om_distance": "dynamic Hamming distance (Lesnard 2010), Ward linkage",
             "seed": seed,
+            "rng_streams": "null draws use seed; bootstrap draws use seed + 1 (decorrelated stream)",
             "null_B_requested": null_b,
             "bootstrap_B_requested": boot_b,
             "n_jobs": n_jobs,
@@ -532,7 +573,9 @@ def build_result(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    # Seed is the locked canonical DEFAULT_SEED (42) and is not exposed: the
+    # output contract requires seed == 42, so any other value would fail
+    # validation post-compute.
     parser.add_argument("--null-B", type=int, default=DEFAULT_NULL_B)
     parser.add_argument("--boot-B", type=int, default=DEFAULT_BOOT_B)
     parser.add_argument("--n-jobs", type=int, default=min(8, os.cpu_count() or 1))
@@ -547,10 +590,11 @@ def main() -> None:
     print("=== OM (dynamic Hamming) k=7 versus GMM k=7 normalised ARI ===")
     print(f"Output: {out_path}")
     payload = build_result(
-        seed=args.seed,
+        seed=DEFAULT_SEED,
         null_b=args.null_B,
         boot_b=args.boot_B,
         n_jobs=args.n_jobs,
+        created_at=args.date,
     )
     write_json_no_overwrite(out_path, payload)
     max_block = payload["max_achievable_ari"]
