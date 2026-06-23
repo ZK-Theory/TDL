@@ -33,9 +33,12 @@ from numpy.typing import NDArray
 from scipy.cluster.hierarchy import fcluster, linkage
 from sklearn.metrics import adjusted_rand_score
 
+from trajectory_tda.analysis.panel.fixed_margin_max_ari import (
+    CertifiedMaxAri,
+    certify_max_ari,
+)
 from trajectory_tda.analysis.panel.t123_ari_normalisation import (
     adjusted_rand_fast,
-    compute_max_ari,
     finite_summary,
     git_head_sha,
     parallel_draws,
@@ -174,6 +177,45 @@ def load_om_k7_labels(
     return labels, diagnostics
 
 
+def build_max_achievable_block(
+    cert: CertifiedMaxAri,
+    bootstrap_ci_95: list[float],
+) -> dict[str, Any]:
+    """Assemble the ``max_achievable_ari`` block from a certified-maximum result.
+
+    The headline ``value`` is the achievable maximum ARI (a concrete feasible table,
+    so a rigorous lower bound on the true fixed-margin maximum); the rigorous upper
+    bound and the resulting normalised-ARI bracket are recorded alongside. The
+    bootstrap CI is rescaled by the achievable maximum (the point normaliser).
+    """
+
+    ach = cert.ari_max_achievable
+    boot_lo, boot_hi = float(bootstrap_ci_95[0]), float(bootstrap_ci_95[1])
+    return {
+        "value": ach,
+        "exact": cert.status == "exact",
+        "status": cert.status,
+        "method": cert.achievable_method,
+        "achievable_lower_bound": {
+            "ari": ach,
+            "pair_overlap_sum": cert.achievable_pair_overlap,
+            "method": cert.achievable_method,
+        },
+        "rigorous_upper_bound": {
+            "ari": cert.ari_max_upper_bound,
+            "pair_overlap_sum": cert.upper_bound_pair_overlap,
+            "method": cert.upper_bound_method,
+        },
+        "achieving_table": cert.achieving_table.tolist(),
+        "normalised_observed_ari": cert.normalised_observed_ari,
+        "normalised_ari_bracket": [
+            cert.normalised_lower_bound,
+            cert.normalised_observed_ari,
+        ],
+        "normalised_ci_percentile_95": [boot_lo / ach, boot_hi / ach],
+    }
+
+
 def validate_payload(payload: dict[str, Any]) -> None:
     """Machine-check OM-vs-GMM ARI output invariants required by the contract."""
 
@@ -263,19 +305,35 @@ def validate_payload(payload: dict[str, Any]) -> None:
     assert 0.0 < float(null_block["pvalue"]) <= 1.0
 
     max_block = payload["max_achievable_ari"]
-    assert -1.0 <= float(max_block["value"]) <= 1.0
-    assert math.isfinite(float(max_block["value"])), "max_ari value not finite"
+    value = float(max_block["value"])
+    assert -1.0 <= value <= 1.0
+    assert math.isfinite(value), "max_ari value not finite"
+    # (j) The certified maximum must be a real constrained maximum, never the
+    # vacuous 1.0 the trivial whole-cluster-packing fallback produced.
+    assert value < 1.0, "max_achievable_ari.value must be a real fixed-margin maximum < 1.0"
     assert isinstance(max_block["exact"], bool)
-    assert max_block["status"] in {"exact", "upper_bound"}
+    assert max_block["status"] in {"exact", "bracket"}
+    assert max_block["exact"] == (max_block["status"] == "exact")
     assert max_block["method"]
-    if max_block["exact"]:
-        assert max_block["status"] == "exact"
-        assert "normalised_observed_ari" in max_block
-        assert "normalised_ari_upper_bound_scale" not in max_block
-    else:
-        assert max_block["status"] == "upper_bound"
-        assert "normalised_ari_upper_bound_scale" in max_block
-        assert "normalised_observed_ari" not in max_block
+
+    ub_block = max_block["rigorous_upper_bound"]
+    ub_ari = float(ub_block["ari"])
+    assert -1.0 <= ub_ari <= 1.0 and math.isfinite(ub_ari)
+    assert ub_ari + 1e-12 >= value, "rigorous upper bound is below the achievable value"
+    assert ub_block["method"]
+
+    # (k) The normalisation must actually rescale: a real maximum < 1 forces the
+    # normalised ARI strictly above the observed ARI.
+    norm = float(max_block["normalised_observed_ari"])
+    assert math.isfinite(norm)
+    assert abs(norm - observed) > 1e-9, "normalised ARI must differ from observed ARI"
+    nlo, nhi = max_block["normalised_ari_bracket"]
+    assert float(nlo) <= float(nhi)
+    if max_block["status"] == "exact":
+        assert abs(float(nlo) - float(nhi)) <= 1e-9, "exact status requires a degenerate bracket"
+    cilo, cihi = max_block["normalised_ci_percentile_95"]
+    assert float(cilo) <= float(cihi)
+    assert math.isfinite(float(cilo)) and math.isfinite(float(cihi))
 
     boot_block = payload["bootstrap_ci"]
     lo, hi = boot_block["percentile_95"]
@@ -363,7 +421,7 @@ def build_result(
 
     row_counts = np.bincount(om_labels, minlength=n_om)
     col_counts = np.bincount(gmm_labels, minlength=n_gmm)
-    max_ari = compute_max_ari(row_counts, col_counts, observed)
+    max_cert = certify_max_ari(row_counts, col_counts, observed)
 
     null_values = parallel_draws(_null_batch_om, null_b, seed, n_jobs, om_labels, gmm_labels, n_om, n_gmm)
     null_finite, null_failures = finite_summary(null_values)
@@ -377,6 +435,11 @@ def build_result(
     if len(boot_finite) == 0:
         raise ValueError("all bootstrap ARI draws failed")
 
+    boot_ci_95 = [
+        float(np.quantile(boot_finite, 0.025)),
+        float(np.quantile(boot_finite, 0.975)),
+    ]
+    max_block = build_max_achievable_block(max_cert, boot_ci_95)
     elapsed = time.perf_counter() - started
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -435,15 +498,7 @@ def build_result(
                 "0.975": float(np.quantile(null_finite, 0.975)),
             },
         },
-        "max_achievable_ari": {
-            "value": max_ari.ari,
-            "exact": max_ari.exact,
-            "status": "exact" if max_ari.exact else "upper_bound",
-            "method": max_ari.method,
-            "pair_overlap_sum": max_ari.pair_overlap_sum,
-            "unsplit_non_singleton_components": max_ari.unsplit_non_singleton_components,
-            "split_non_singleton_components": max_ari.split_non_singleton_components,
-        },
+        "max_achievable_ari": max_block,
         "bootstrap_ci": {
             "procedure": ("Resample paired individual rows (OM label, GMM label) with replacement."),
             "resampling_unit": "individual",
@@ -453,10 +508,7 @@ def build_result(
             "failures_non_finite": boot_failures,
             "mean": float(np.mean(boot_finite)),
             "se": float(np.std(boot_finite, ddof=1)) if len(boot_finite) > 1 else 0.0,
-            "percentile_95": [
-                float(np.quantile(boot_finite, 0.025)),
-                float(np.quantile(boot_finite, 0.975)),
-            ],
+            "percentile_95": boot_ci_95,
         },
         "interpretation": {
             "statistic_role": "descriptive clustering-agreement statistic",
@@ -467,17 +519,13 @@ def build_result(
             ),
             "causal_claim": "none",
             "topological_distinctiveness_claim": "none",
-            "normalisation_basis": "exact" if max_ari.exact else "upper_bound",
+            "normalisation_basis": max_cert.status,
             "paper_claim_guardrail": (
                 "Report as the OM-vs-GMM agreement only; do not imply causal mediation or topological distinctiveness."
             ),
         },
         "runtime": {"wall_seconds": float(elapsed)},
     }
-    if max_ari.exact:
-        payload["max_achievable_ari"]["normalised_observed_ari"] = max_ari.normalised_observed
-    else:
-        payload["max_achievable_ari"]["normalised_ari_upper_bound_scale"] = max_ari.normalised_observed
     validate_payload(payload)
     return payload
 

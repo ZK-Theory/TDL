@@ -9,9 +9,10 @@ description: >
   (v1 §4.6 ARI = 0.26). Structurally distinct from the H0-tree-cut
   ari-normalised schema: this comparison has no eps* and no H0 components. The
   result must reproduce the OM-vs-GMM observed ARI, record the
-  cluster-size-preserving null, the exact maximum-achievable ARI, bootstrap
-  uncertainty, and a referent naming the two clusterings, without using stale
-  pickle/joblib labels.
+  cluster-size-preserving null, the certified maximum-achievable ARI (a real
+  fixed-margin maximum < 1.0 with an achievable lower bound and a rigorous upper
+  bound, never the trivial 1.0), bootstrap uncertainty, and a referent naming the
+  two clusterings, without using stale pickle/joblib labels.
 
 spec_citation:
   source: "P01-A reviewer response B9 ARI (the OM-vs-GMM object); Manager 11 task-review 2026-06-22; CONVENTIONS R1 referent rule"
@@ -53,7 +54,8 @@ schema_def:
       description: "Cluster-size-preserving independence null. MUST contain procedure (str), B (int > 0), seed (int == 42), mean (float), se (float >= 0), finite_count (int > 0)."
     - name: max_achievable_ari
       type: "dict[str, ...]"
-      description: "MUST contain value (float in [-1, 1]), exact (bool), status (str exactly 'exact' or 'upper_bound'), method (str). If exact == true, status MUST be 'exact' and normalised_observed_ari present; else status 'upper_bound' and normalised_ari_upper_bound_scale present."
+      description: "Certified fixed-margin maximum (T1.23d). MUST contain value (float in [-1, 1] AND strictly < 1.0 — a real constrained maximum, never the trivial whole-cluster-packing 1.0), exact (bool, equal to status == 'exact'), status (str exactly 'exact' or 'bracket'), method (str), rigorous_upper_bound (dict with ari float >= value and method str), normalised_observed_ari (float that MUST differ from observed_ari), normalised_ari_bracket (two ordered finite floats; degenerate when status is 'exact'), normalised_ci_percentile_95 (two ordered finite floats)."
+      derivation: "max Sum_ij C(n_ij, 2) over the fixed OM/GMM k=7 margins via trajectory_tda.analysis.panel.fixed_margin_max_ari.certify_max_ari (achievable NW+2-opt lower bound; per-line concentration upper bound)"
     - name: bootstrap_ci
       type: "dict[str, ...]"
       description: "MUST contain procedure (str), resampling_unit == 'individual', B (int > 0), seed (int == 42), percentile_95 as two ordered finite floats."
@@ -87,5 +89,7 @@ binding:
     (e) om_k != 7, gmm_k != 7, seed != 42, any label length/count is not 27280, or om_cluster_count != 7;
     (f) observed_ari is outside [-1, 1] or does not reproduce 0.2611807 within 1e-4;
     (g) null se is negative/non-finite or bootstrap CI bounds are unordered;
-    (h) exact/status/normalised key logic is inconsistent; or
-    (i) any forbidden key (eps_star, h0_components, pickle/joblib paths, causal_interpretation) is present.
+    (h) the exact/status flags are inconsistent (status not in {exact, bracket}, or exact != (status == 'exact')) or the rigorous upper bound is below the achievable value;
+    (i) any forbidden key (eps_star, h0_components, pickle/joblib paths, causal_interpretation) is present;
+    (j) max_achievable_ari.value is not strictly below 1.0 (rejecting the vacuous whole-cluster-packing 1.0); or
+    (k) the normalised ARI does not differ from the observed ARI.
