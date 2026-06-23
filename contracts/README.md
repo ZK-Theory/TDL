@@ -161,6 +161,27 @@ on artefacts that legitimately do not exist yet. Clear `pending` (delete
 the field) the moment the binding test is available on the base branch.
 The pending-debt hardening gate surfaces contracts that appear ready to flip.
 
+## Input-provenance manifests (pre-dispatch data-coherence gate)
+
+Contracts pin *output* correctness. A companion mechanism pins *input*
+correctness: that a Task consumes the files it was meant to, in a coherent
+data vintage. This is **not a fifth contract kind** — the four-kind cap holds.
+It is implemented as:
+
+- **Manifests** (data, not contracts) under `contracts/manifests/input-provenance/`.
+  Each declares a Task's inputs with a `root` (`worktree` → sha256-signed, since
+  git resets mtimes on checkout; `proj_root` → vintage-signed, for gitignored
+  intermediates at the main checkout) and an `expected` signature. They live
+  under `manifests/`, which the gate excludes from contract validation.
+- **R-B** `shared/manager_predispatch_check.py` — the Manager runs it at dispatch;
+  exits non-zero on a missing/mismatched/incoherent input.
+- **R-C** the `input-provenance-manifest-coherence` *invariant* contract, whose
+  binding test re-asserts every `enforced: true` manifest against disk at the
+  Worker's commit. A manifest with `enforced: false` is documented but not gated.
+
+See `.claude/rules/apm-outputs.md` § Input-provenance gate and
+`.claude/apm-guides/task-assignment.md` §2.2 Input-Provenance Gate.
+
 ## Adding a new topic directory
 
 Topic directories are created on demand. To add a new topic:

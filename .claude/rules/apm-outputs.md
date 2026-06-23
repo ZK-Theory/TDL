@@ -29,6 +29,19 @@ Every task **consuming** a gitignored intermediate must:
 
 The Manager verifies all cross-task gitignored dependencies are present in `PROJ_ROOT` before dispatching any consuming task and before removing any worktree.
 
+## Input-provenance gate (pre-dispatch data-coherence)
+
+Presence is necessary but **not sufficient** — co-consumed inputs must also share a coherent data vintage. (B9, 2026-06-22: the OM input `01_trajectories_sequences.json` was present but regenerated 2026-05-02, three weeks after the GMM labels it was matched against (2026-04-08); the dispatched ARI recompute returned 0.2062 instead of the committed 0.2611807.) Every Task that consumes input data carries an **input-provenance manifest** and an **Input Provenance Ledger**, enforced at two points:
+
+1. **Manifest** — a YAML data file under `contracts/manifests/input-provenance/<task>-inputs.yaml` (not a contract; it lives under `manifests/` so the contract gate does not validate it as one). Each input declares its `path`, `role`, `root`, and an `expected` signature:
+   - `root: worktree` (default) — a committed file, resolved under the running checkout. **Git does not preserve mtimes** (a fresh worktree resets them to checkout time), so the git-stable signature is the content `sha256`. Do not pin `vintage_date` for these.
+   - `root: proj_root` — a gitignored intermediate, which lives only at `PROJ_ROOT` (absent from worktrees). Its mtime there is meaningful, so pin `vintage_date` (and/or `sha256` if recorded). Vintage-spread coherence (`coherence.max_vintage_spread_days`) is computed only across `proj_root` inputs.
+   - `enforced: false` documents an expected-coherent state not yet satisfied (e.g. an open data-vintage decision): R-B still reports it, the commit gate skips it. Flip to `enforced: true` once coherent.
+
+2. **R-B — Manager pre-dispatch (mandatory before issuing the Task):** run `uv run --env-file .env python -m shared.manager_predispatch_check contracts/manifests/input-provenance/<task>-inputs.yaml`. It exits non-zero on any missing/mismatched/incoherent input. **Paste its output into the Task Prompt's Input Provenance Ledger section** — that pasted block, generated from a fresh on-disk check, is the ledger. Do not author the ledger from memory.
+
+3. **R-C — Worker commit-time:** the `input-provenance-manifest-coherence` invariant contract's binding test re-runs the same check over every `enforced: true` manifest, so an input that drifts between dispatch and the Worker's commit fails the Worker's own pre-commit gate. (Implemented on the existing four contract kinds — no meta-schema change.)
+
 ## General output rules
 
 - Numerical results use date-suffixed filenames (`<basename>_<YYYY-MM-DD>.json`). Never overwrite an existing results file — new date suffix; old file preserved as historical record.

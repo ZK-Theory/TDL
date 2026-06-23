@@ -1,0 +1,40 @@
+id: b9-om-gmm-inputs
+task: T1.23b
+enforced: false
+# enforced:false — the OM-vs-GMM B9 ARI inputs are NOT currently vintage-coherent
+# (the OM input was regenerated 2026-05-02, after the GMM labels were fitted
+# 2026-04-08). This manifest documents the coherent state the B9 normalised-ARI
+# recompute requires; the Manager pre-dispatch check (R-B) reports the current
+# violation. Flip to enforced:true once a coherent Apr-8 trajectory build is
+# restored (or the vintage decision re-pins both inputs to one build), so the
+# commit-time binding test then guards it.
+
+description: >
+  The OM-vs-GMM normalised-ARI recompute (reviewer B9) compares an
+  optimal-matching k=7 clustering against GMM k=7 labels. Both must be derived
+  from the SAME trajectory build. The committed baseline ARI 0.2611807 was
+  computed 2026-04-08; regenerating OM labels from the 2026-05-02 trajectory
+  build and comparing to the 2026-04-08 GMM labels moved the ARI to 0.2062 —
+  a data-vintage incoherence, not a code defect.
+
+coherence:
+  max_vintage_spread_days: 1
+  rationale: >
+    OM clustering and GMM labels must come from one trajectory build; a vintage
+    spread of more than one day means the two clusterings describe different
+    underlying sequences and their ARI is not interpretable.
+
+inputs:
+  - path: results/trajectory_tda_integration/05_analysis.json
+    role: GMM k=7 labels (gmm_labels)
+    root: worktree           # committed file -> content sha256 is the git-stable signature
+    expected:
+      sha256: "82afc3b56b9b06c64dccd9ba2195a541c716d27a7a66358b2a351c689c03e948"
+  - path: results/trajectory_tda_integration/01_trajectories_sequences.json
+    role: OM input trajectory sequences (drives DHD -> ward -> fcluster k=7)
+    root: proj_root          # gitignored intermediate -> lives at PROJ_ROOT, mtime is meaningful
+    expected:
+      # Coherent Apr-8 build. On disk this is currently the 2026-05-02
+      # regeneration; sha256 is left unpinned until the coherent build is
+      # restored, at which point pin it and flip enforced:true.
+      vintage_date: "2026-04-08"
