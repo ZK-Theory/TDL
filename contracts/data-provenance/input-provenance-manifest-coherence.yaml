@@ -27,7 +27,7 @@ invariant:
     the commit. Manifests marked enforced:false are documented but not gated.
   preconditions:
     - "manifest declares enforced: true"
-    - "the manifest's declared input files are present in the working tree"
+    - "manifest is evaluated against the current on-disk state at commit time"
   counter_example_history: >
     B9 OM-vs-GMM normalised ARI, Manager-11 dispatch 2026-06-22: OM input
     01_trajectories_sequences.json (mtime 2026-05-02) compared against GMM

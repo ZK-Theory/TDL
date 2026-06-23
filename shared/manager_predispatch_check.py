@@ -50,7 +50,12 @@ def _find_repo_root(start: Path | None = None) -> Path:
 def _format_result(result: ManifestResult) -> str:
     lines: list[str] = []
     flag = "enforced" if result.enforced else "advisory (enforced: false)"
-    verdict = "OK" if result.ok else "VIOLATION"
+    if result.ok:
+        verdict = "OK"
+    elif not result.enforced:
+        verdict = "ADVISORY"  # reported, does not block dispatch
+    else:
+        verdict = "VIOLATION"
     lines.append(f"manifest: {result.manifest_id}  task: {result.task or '-'}  [{flag}]  ->  {verdict}")
     for s in result.inputs:
         mark = "ok " if (s.exists and s.signature_ok) else "BAD"
@@ -103,21 +108,35 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     any_violation = False
+    any_advisory = False
     blocks: list[str] = []
     for p in paths:
         result = check_manifest(load_manifest(p), repo_root)
         blocks.append(_format_result(result))
+        # Only enforced manifests block dispatch; enforced:false is advisory
+        # (reported above, but not a hard failure) per the manifest design.
         if not result.ok:
-            any_violation = True
+            if result.enforced:
+                any_violation = True
+            else:
+                any_advisory = True
 
     print("\n\n".join(blocks))
     if any_violation:
         print(
-            "\nPre-dispatch gate: at least one manifest has missing or "
+            "\nPre-dispatch gate: at least one enforced manifest has missing or "
             "incoherent inputs. Resolve before issuing the Task.",
             file=sys.stderr,
         )
         return 0 if args.report_only else 1
+
+    if any_advisory:
+        print(
+            "\nPre-dispatch gate: no blocking issues, but an advisory "
+            "(enforced:false) manifest reports incoherent inputs (see above). "
+            "Flip it to enforced:true once resolved so the gate guards it."
+        )
+        return 0
 
     print("\nPre-dispatch gate: all checked inputs present and coherent.")
     return 0

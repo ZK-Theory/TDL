@@ -75,6 +75,26 @@ def test_active_input_provenance_manifests_match_disk(tmp_path: Path) -> None:
     assert not res_badhash.signatures_ok
     assert not res_badhash.ok
 
+    # (b2) a proj_root input whose pinned vintage_date does not match its on-disk
+    # mtime is rejected (b.json was written with mtime 2026-04-08).
+    res_bad_vintage = check_manifest(
+        {
+            "id": "syn-badvintage",
+            "inputs": [
+                {
+                    "path": "b.json",
+                    "role": "seq",
+                    "root": "proj_root",
+                    "expected": {"vintage_date": "2026-04-07"},
+                },
+            ],
+        },
+        tmp_path,
+        proj_root=tmp_path,
+    )
+    assert not res_bad_vintage.signatures_ok
+    assert not res_bad_vintage.ok
+
     # (c) a co-consumed set of proj_root inputs whose vintage spread exceeds the
     # declared bound (vintage coherence applies only to proj_root inputs, where
     # mtime is meaningful — worktree mtimes are reset on checkout).

@@ -49,11 +49,16 @@ from shared.input_provenance import check_manifest, load_manifest, resolve_proj_
 
 @dataclass
 class Check:
-    """One dispatch-readiness line item."""
+    """One dispatch-readiness line item.
+
+    ``advisory`` items (e.g. an ``enforced: false`` provenance manifest) are
+    reported but do not fail the gate; they render with a distinct marker.
+    """
 
     name: str
     ok: bool
     detail: str
+    advisory: bool = False
 
 
 def _worktree_paths(proj_root: Path) -> dict[str, str]:
@@ -159,11 +164,13 @@ def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) ->
         if result.ok:
             checks.append(Check(f"provenance:{result.manifest_id}", True, "inputs coherent"))
         elif not result.enforced:
+            # enforced:false -> advisory: reported, but does not block dispatch.
             checks.append(
                 Check(
                     f"provenance:{result.manifest_id}",
-                    False,
+                    True,
                     f"inputs NOT coherent (advisory, enforced:false): {result.violations}",
+                    advisory=True,
                 )
             )
         else:
@@ -180,7 +187,13 @@ def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) ->
 def render(agent: str, branch: str, mode: str, checks: list[Check]) -> str:
     """Render the Dispatch Readiness markdown block pasted into the envelope."""
     all_ok = all(c.ok for c in checks)
-    verdict = "PASS" if all_ok else "FAIL"
+    has_advisory = any(c.advisory for c in checks)
+    if not all_ok:
+        verdict = "FAIL"
+    elif has_advisory:
+        verdict = "PASS (with advisories)"
+    else:
+        verdict = "PASS"
     lines = [
         "## Dispatch Readiness",
         "",
@@ -188,7 +201,7 @@ def render(agent: str, branch: str, mode: str, checks: list[Check]) -> str:
         "",
     ]
     for c in checks:
-        mark = "x" if c.ok else " "
+        mark = "~" if c.advisory else ("x" if c.ok else " ")
         lines.append(f"- [{mark}] **{c.name}** — {c.detail}")
     return "\n".join(lines)
 
