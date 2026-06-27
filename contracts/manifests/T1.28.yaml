@@ -1,10 +1,12 @@
 scope_id: T1.28
 scope_description: >
-  Recompute each demographic subgroup's Markov-1 W2 test (gender, NS-SEC,
-  cohort) under the locked frozen-loadings pipeline for USoc and BHPS, then
-  apply per-family FDR (BH gender, BH NS-SEC, BY cohort) with effect sizes —
-  superseding the legacy pooled-single-family 06_stratified.json (B=100,
-  pre-frozen, pairwise-between-subgroup). Closes P01-A response-plan ISSUE B8.
+  One Markov-1 W2 test PER SUBGROUP (subgroup observed PD vs its own frozen
+  Markov-1 null; B2.6 mean-vs-mean T_ratio + BCa CI) across gender (2), NS-SEC
+  (3), cohort (7) = 12 tests/dataset for USoc and BHPS, then per-family FDR
+  (BH within each of gender, NS-SEC, cohort) with effect sizes — superseding the
+  legacy pooled-single-family pairwise 06_stratified.json. Closes P01-A
+  response-plan ISSUE B8. Design corrected by the 2026-06-27 pre-reg amendment
+  (count 50->12; strata 2/3/7 not 2/6/42; cohort BY->BH; substrate fixed).
 authored: "2026-06-27"
 authored_by: "Manager 12 (pre-dispatch contract + manifest preparation)"
 

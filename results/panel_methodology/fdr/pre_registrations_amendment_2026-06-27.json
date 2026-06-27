@@ -1,0 +1,75 @@
+{
+  "amendment_date": "2026-06-27",
+  "amends": "results/panel_methodology/fdr/pre_registrations_2026-06-13.json",
+  "amended_entry": "Section 6.1 per-subgroup stratified W2 recompute + per-family FDR (T1.28)",
+  "amended_by": "Manager 12 (pre-dispatch verification; User-approved 2026-06-27)",
+  "amendment_reason": "Pre-dispatch verification (vault Computational-Log + on-disk artifacts) found the 2026-06-13 entry internally inconsistent: it adopts a per-subgroup-vs-own-Markov-1-null test model (forced by B2.6, whose mean-vs-mean T_ratio = Wbar(obs-null)/Wbar(null-null) is an observed-vs-own-null statistic and is incompatible with a pairwise A-vs-B comparison) but carries the legacy PAIRWISE test count '50 = 2+6+42'. Those are pairwise-between-subgroup counts over 2/3/7 subgroups (counted per H0/H1): gender C(2,2)*2=2, NS-SEC C(3,2)*2=6, cohort C(7,2)*2=42, confirmed against results/trajectory_tda_integration/06_stratified.json. Under the per-subgroup model the count is the number of SUBGROUPS, not pairs.",
+  "outcome_contingent": false,
+  "corrections": [
+    {
+      "field": "test_count",
+      "from": "50 per dataset (2 + 6 + 42)",
+      "to": "12 per dataset (gender 2 + NS-SEC 3 + cohort 7)",
+      "rationale": "Per-subgroup model => one test per subgroup; 2/6/42 were pairwise counts."
+    },
+    {
+      "field": "strata_identity",
+      "from": "NS-SEC '6-class'; cohort '42-bin'",
+      "to": "NS-SEC = 3-class parental_nssec {Intermediate, Professional/Managerial, Routine/Manual}; cohort = 7 decade bins {1930s..1990s}",
+      "rationale": "The '6' and '42' were pairwise-comparison counts of the 3- and 7-group axes, not subgroup counts; legacy 06_stratified.json group_sizes confirm 2/3/7."
+    },
+    {
+      "field": "fdr_family_cohort_method",
+      "from": "BY (Benjamini-Yekutieli, positively-correlated adjacent-cohort tests)",
+      "to": "BH (Benjamini-Hochberg)",
+      "rationale": "BY's positive-dependence justification applied to adjacent-cohort PAIRWISE tests that shared panel observations. Per-subgroup-vs-own-null tests run on DISJOINT cohort subgroups => mutually independent => standard BH. Gender and NS-SEC families were already BH."
+    },
+    {
+      "field": "frozen_substrate",
+      "from": "'FROZEN full-sample scaler/PCA-20 loadings (transform-only)' (unspecified which pipeline)",
+      "to": "results/trajectory_tda_integration/embeddings.npy (27,280, USoc) and results/trajectory_tda_bhps/embeddings.npy (8,509, BHPS); subgroups are row-subsets of these locked embeddings",
+      "rationale": "The Computational-Log fixes the canonical P01 / section-6.1 substrate as the 27,280 integration embedding (locked PCA-20/GMM row order). The 32,763-row results/trajectory_tda_full bundle (tfidf=true, evr 0.89, the only persisted scaler/pca joblib) is a DIFFERENT pipeline and is NOT the section-6.1 substrate. The frozen full-sample loadings are already baked into the locked embeddings, so subgroup analysis is a row-subset; no separate joblib transform is required."
+    },
+    {
+      "field": "subgroup_membership_source",
+      "from": "(unspecified; 'confirm strata keys at assembly')",
+      "to": "per-individual gender / parental_nssec (3-class) / birth-decade cohort from the regression analytical frame (T1.20 assembly), ID-joined to the 27,280 (USoc) and 8,509 (BHPS) embedding rows; strata keys confirmed against legacy 06_stratified.json at assembly",
+      "rationale": "Membership is absent from the trajectory outputs (05_analysis.json has only regimes/cycles/gmm_labels); it lives in the regression covariate assembly and must be row-joined to the embeddings."
+    }
+  ],
+  "unchanged": {
+    "test_model": "one Markov-1 W2 test PER SUBGROUP (subgroup observed PD vs its own frozen Markov-1 null)",
+    "statistic": "mean-vs-mean T_ratio = mean(W_obs-null) / mean(W_null-null), with 95% BCa CI (B2 / B2.6)",
+    "complement": "persistence-landscape L2 reported alongside W2 (mandatory dual-metric rule)",
+    "key_params": {
+      "null_model": "markov-1",
+      "frozen_loadings": true,
+      "B": 1000,
+      "B_floor": 1000,
+      "L": 5000,
+      "landmark_note": "actual_landmarks = min(5000, subgroup_n); varying landmark fraction disclosed per the T1.26b lesson",
+      "seed": 42,
+      "p_value_formula": "(r+1)/(B+1)",
+      "alpha_level": 0.05,
+      "datasets": ["usoc", "bhps"],
+      "effect_sizes": "T_ratio + 95% BCa CI beside every raw and adjusted p"
+    },
+    "reporting_protocol": "report each subgroup's raw p, family-adjusted p, and effect size; flag significance per family. NOT an A/B/C prose-direction lock. Contingency: if a v1 section-6.1 subgroup heterogeneity claim CHANGES significance after recompute+FDR, surface to the User before section-6.1 v2 prose.",
+    "outputs": [
+      "results/panel_methodology/fdr/stratified_w2_recompute_<date>.json",
+      "results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json"
+    ],
+    "legacy_preservation": "results/trajectory_tda_integration/06_stratified.json preserved, not overwritten, not citable."
+  },
+  "corrected_fdr_families": {
+    "gender": { "method": "BH", "n_tests": 2 },
+    "nssec": { "method": "BH", "n_tests": 3 },
+    "cohort": { "method": "BH", "n_tests": 7 }
+  },
+  "contracts": [
+    "panel-output-schemas/stratified-w2-recompute-output (gender 2 / nssec 3 / cohort 7)",
+    "panel-output-schemas/stratified-w2-fdr-families-output (BH/BH/BH, 2/3/7)",
+    "panel-output-schemas/stratified-w2-fdr-output-json-validation"
+  ],
+  "scientific_note": "The per-subgroup model answers 'does each subgroup's topology exceed its own Markov-1 baseline?'. This is NOT the v1 section-6.1 pairwise heterogeneity question ('do subgroups differ from each other?'). The shift is a deliberate consequence of adopting the B2.6 mean-vs-mean obs-vs-null construction uniformly; section-6.1 v2 prose must frame the result as per-subgroup Markov-1 irreducibility, not between-subgroup difference. User-approved 2026-06-27."
+}
