@@ -1,0 +1,63 @@
+id: stratified-w2-fdr-families-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.28 per-family FDR JSON
+  (results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json). The 50
+  per-subgroup stratified W2 tests (per dataset) are corrected within three
+  SEPARATE families by demographic axis — NOT pooled into one BH family as in
+  v1: Benjamini-Hochberg within gender (2 tests) and within NS-SEC (6 tests),
+  and Benjamini-Yekutieli within cohort (42 positively-correlated adjacent-cohort
+  tests). Every adjusted p MUST sit beside its retained effect size (T_ratio +
+  BCa CI) so the FDR correction never strips the magnitude needed for the §6.1
+  table. Enforced per dataset (usoc and bhps).
+
+spec_citation:
+  source: "P01-A response plan ISSUE B8 (per-family FDR); T1.28 re-scope pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json (fdr_families + planned_contracts: stratified-w2-fdr-families-output); Benjamini & Yekutieli (2001)"
+  anchor: "results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json"
+  vault_entry_date: "2026-06-13"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/fdr/stratified_w2_bh_per_family_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stratified-w2-fdr-families-v1'."
+    - name: generated_at
+      type: str
+      description: "ISO date matching the output filename."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-13 T1.28 re-scope pre-registration."
+    - name: datasets
+      type: "dict[str, ...]"
+      description: >
+        MUST contain exactly keys 'usoc' and 'bhps'. Each dataset is a dict with a
+        'families' dict containing exactly gender, nssec, cohort. families.gender.method
+        == 'BH' (n_tests == 2); families.nssec.method == 'BH' (n_tests == 6);
+        families.cohort.method == 'BY' (n_tests == 42). Each family carries a tests list
+        whose every item has subgroup_id (str), raw_p (float in [0,1]), adjusted_p
+        (float in [0,1], adjusted_p >= raw_p), rejected (bool), t_ratio (float) and
+        bca_ci (two ordered finite floats) — the effect size retained beside the
+        corrected p.
+  conditional_keys: []
+  forbidden_keys:
+    - name: pooled_single_family
+      reason: "v1 pooled all 50 tests into one BH family; the v2 correction MUST use three separate per-axis families (BH gender, BH NS-SEC, BY cohort)."
+    - name: bonferroni
+      reason: "The pre-registered correction is BH/BY per family, not Bonferroni; presence signals a divergent method."
+
+binding:
+  test_file: "tests/panel/test_t1_28_stratified_w2_contracts.py"
+  test_function: "test_stratified_w2_fdr_families_output_schema"
+  must_assert: >
+    The validator accepts a conforming per-family FDR payload and rejects payloads where
+    (a) schema_version is not 'stratified-w2-fdr-families-v1';
+    (b) datasets does not contain exactly usoc and bhps;
+    (c) a dataset's families does not contain exactly gender, nssec, cohort;
+    (d) families.gender.method != 'BH', families.nssec.method != 'BH', or families.cohort.method != 'BY';
+    (e) family n_tests are not gender==2, nssec==6, cohort==42;
+    (f) any raw_p or adjusted_p is outside [0,1], or adjusted_p < raw_p for any test;
+    (g) a tests[] item drops its effect size (missing t_ratio or bca_ci, or bca_ci unordered); or
+    (h) any forbidden key (pooled_single_family, bonferroni) is present.

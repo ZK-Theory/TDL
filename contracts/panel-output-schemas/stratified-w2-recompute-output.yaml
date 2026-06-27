@@ -1,0 +1,67 @@
+id: stratified-w2-recompute-output
+kind: schema
+pending: true
+
+description: >
+  Schema for the T1.28 per-subgroup stratified Markov-1 W2 recompute JSON
+  (results/panel_methodology/fdr/stratified_w2_recompute_<date>.json). Each
+  demographic subgroup (gender, NS-SEC, cohort) is embedded under the FROZEN
+  full-sample loadings (transform-only) and tested with the canonical Markov-1
+  W2 headline (subgroup observed PD vs its OWN Markov-1 null) — one test per
+  subgroup, never the retired pairwise-between-subgroup or mean-vs-individual
+  construction. The result must reproduce, per dataset (usoc and bhps): the
+  per-subgroup mean-vs-mean T_ratio with 95% BCa CI, raw W2 p, landscape-L2 p
+  (mandatory dual-metric complement), actual_landmarks = min(5000, n), and the
+  exact per-family subgroup counts (gender 2, NS-SEC 6, cohort 42 = 50). It must
+  record frozen_loadings == true and B >= 1000 so a non-frozen or under-resampled
+  recompute cannot be committed.
+
+spec_citation:
+  source: "P01-A response plan ISSUE B8; T1.28 re-scope pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json (planned_contracts: stratified-w2-recompute-output); CONVENTIONS dual-metric + frozen-loadings rules"
+  anchor: "results/panel_methodology/fdr/stratified_w2_recompute_<date>.json"
+  vault_entry_date: "2026-06-13"
+
+schema_def:
+  applies_to: "JSON files matching results/panel_methodology/fdr/stratified_w2_recompute_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stratified-w2-recompute-v1'."
+    - name: generated_at
+      type: str
+      description: "ISO date matching the output filename stratified_w2_recompute_<generated_at>.json."
+    - name: task
+      type: str
+      description: "MUST begin 'T1.28' — names the producing Task."
+    - name: pre_registration
+      type: str
+      description: "MUST reference the 2026-06-13 T1.28 re-scope pre-registration."
+    - name: inputs
+      type: "dict[str, ...]"
+      description: "Provenance. MUST contain git_head (str) and frozen_loadings_provenance naming the per-dataset frozen embeddings source the subgroups were subset from."
+    - name: params
+      type: "dict[str, ...]"
+      description: "Locked parameters. MUST contain null_model == 'markov-1', frozen_loadings == true, B (int >= 1000), seed == 42, p_value_formula == '(r+1)/(B+1)', alpha == 0.05."
+    - name: datasets
+      type: "dict[str, ...]"
+      description: "MUST contain exactly keys 'usoc' and 'bhps'. Each is a dict with a subgroups list and per-family counts gender_n == 2, nssec_n == 6, cohort_n == 42 (50 total). Each subgroups[] item MUST carry stratifier in {gender, nssec, cohort}, subgroup_id (str), n (int > 0), actual_landmarks (int > 0 and <= min(5000, n)), t_ratio (float), bca_ci (two ordered finite floats lo <= hi), w2_p (float in [0,1]), w2_rejects (bool, equal to w2_p < 0.05), landscape_l2_p (float in [0,1])."
+  conditional_keys: []
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Frozen-loadings recompute is transform-only; a per-call/per-permutation PCA refit violates the frozen-loadings lock (T1.36/T1.37)."
+    - name: pairwise_wasserstein
+      reason: "T1.28 is one-test-per-subgroup (subgroup vs own Markov-1 null); presence of a pairwise-between-subgroup matrix indicates accidental reuse of the retired legacy 06_stratified construction."
+
+binding:
+  test_file: "tests/panel/test_t1_28_stratified_w2_contracts.py"
+  test_function: "test_stratified_w2_recompute_output_schema"
+  must_assert: >
+    The validator accepts a conforming per-subgroup recompute payload and rejects payloads where
+    (a) schema_version is not 'stratified-w2-recompute-v1';
+    (b) params.frozen_loadings is not true, B < 1000, seed != 42, null_model != 'markov-1', or p_value_formula != '(r+1)/(B+1)';
+    (c) datasets does not contain exactly usoc and bhps;
+    (d) any dataset's per-family counts are not gender==2, nssec==6, cohort==42 (50 total);
+    (e) a subgroup's w2_rejects disagrees with (w2_p < 0.05);
+    (f) a subgroup's bca_ci bounds are unordered/non-finite, or w2_p / landscape_l2_p is outside [0,1];
+    (g) actual_landmarks is <= 0 or exceeds min(5000, n), or n <= 0; or
+    (h) any forbidden key (per_call_pca, pairwise_wasserstein) is present.

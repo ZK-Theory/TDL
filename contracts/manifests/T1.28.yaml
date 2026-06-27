@@ -1,0 +1,37 @@
+scope_id: T1.28
+scope_description: >
+  Recompute each demographic subgroup's Markov-1 W2 test (gender, NS-SEC,
+  cohort) under the locked frozen-loadings pipeline for USoc and BHPS, then
+  apply per-family FDR (BH gender, BH NS-SEC, BY cohort) with effect sizes —
+  superseding the legacy pooled-single-family 06_stratified.json (B=100,
+  pre-frozen, pairwise-between-subgroup). Closes P01-A response-plan ISSUE B8.
+authored: "2026-06-27"
+authored_by: "Manager 12 (pre-dispatch contract + manifest preparation)"
+
+contracts:
+  # New T1.28 surfaces (pending until the Worker lands the binding tests).
+  - panel-output-schemas/stratified-w2-recompute-output
+  - panel-output-schemas/stratified-w2-fdr-families-output
+  - panel-output-schemas/stratified-w2-fdr-output-json-validation
+  # Reused locked contracts the per-subgroup canonical Markov-1 W2 headline runs under.
+  - stochastic-tests/monte-carlo-permutation-p-value
+  - topology-invariants/frozen-loadings-transform-only
+  - topology-invariants/frozen-loadings-null-threading
+  - stage1-output-schemas/stage1-aggregate-output-cell
+
+notes: >
+  The three new contracts are authored pending:true per the 2026-06-13 re-scope
+  pre-registration's planned_contracts block; the Worker authors the binding
+  tests in tests/panel/test_t1_28_stratified_w2_contracts.py and clears the
+  pending flags before committing the producing code or output JSONs. The
+  existing stochastic-tests/frozen-loadings/aggregate-cell contracts already
+  govern the (r+1)/(B+1) p-value, transform-only embedding, and per-regime W2 /
+  landscape cell — T1.28 reuses the canonical headline so it inherits them.
+  An input-provenance manifest (contracts/manifests/input-provenance/t128-inputs.yaml)
+  is NOT yet authored: two input-coherence questions block enforced pinning —
+  (1) which per-dataset frozen embeddings.npy is the canonical T1.37-locked input
+  (USoc embeddings.npy is Jun-9, post-dating the 2026-05-28 frozen headline; BHPS
+  is May-1), and (2) the per-individual subgroup-membership source requires an
+  ID-join from the regression covariate assembly (membership is absent from the
+  trajectory outputs). Both must be resolved (User ruling on the embeddings
+  vintage) before R-B and dispatch.

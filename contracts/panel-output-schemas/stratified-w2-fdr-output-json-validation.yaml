@@ -1,0 +1,38 @@
+id: stratified-w2-fdr-output-json-validation
+kind: output_validation
+pending: true
+
+description: >
+  Commit-time validation for the T1.28 stratified W2 recompute + per-family FDR
+  result JSONs. Any staged JSON matching
+  results/panel_methodology/fdr/stratified_w2_*.json must route to the correct
+  schema — the per-subgroup recompute file to stratified-w2-recompute-output and
+  the per-family FDR file to stratified-w2-fdr-families-output — so the frozen
+  one-test-per-subgroup construction, the 2/6/42 family structure, the BH/BH/BY
+  methods, and the retained effect sizes are all enforced before either B8-closing
+  result can be committed.
+
+spec_citation:
+  source: "T1.28 re-scope pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json (planned_contracts: stratified-w2-fdr-output-json-validation)"
+  vault_entry_date: "2026-06-13"
+
+output_validation:
+  applies_to_glob: "results/panel_methodology/fdr/stratified_w2_*.json"
+  file_dispatch:
+    - filename_pattern: "stratified_w2_recompute_*.json"
+      schema_contract: stratified-w2-recompute-output
+    - filename_pattern: "stratified_w2_bh_per_family_*.json"
+      schema_contract: stratified-w2-fdr-families-output
+  schema_contracts:
+    - stratified-w2-recompute-output
+    - stratified-w2-fdr-families-output
+
+binding:
+  test_file: "tests/panel/test_t1_28_stratified_w2_contracts.py"
+  test_function: "test_stratified_w2_fdr_json_validation_dispatch"
+  must_assert: >
+    The dispatch asserts that (a) a staged stratified_w2_recompute_*.json is routed to the
+    stratified-w2-recompute-output schema; (b) a staged stratified_w2_bh_per_family_*.json is
+    routed to the stratified-w2-fdr-families-output schema; and (c) the legacy
+    results/trajectory_tda_integration/06_stratified.json and other panel/fdr JSONs are NOT
+    captured by the stratified_w2_*.json glob.
