@@ -1,0 +1,56 @@
+id: t128-inputs
+task: T1.28
+enforced: true
+# enforced:true — all coherence anchors verified on disk (Manager 12, 2026-06-27).
+# The §6.1 per-subgroup stratified W2 recompute reads the LOCKED analytical-sample
+# embeddings (the frozen full-sample PCA-20 loadings are already baked in; subgroups
+# are row-subsets) and joins demographic membership (sex, parental_nssec, cohort) by
+# pidp. The critical invariant is positional: embeddings.npy row i corresponds to
+# trajectory metadata pidp[i]. Membership is extracted deterministically from the raw
+# UKDA extract by pidp via the committed trajectory_tda.data.covariate_extractor
+# (run_stratified.py), so it is reproducible and pidp-keyed — NOT a separate
+# vintage-coherence risk like B9 — and is therefore not pinned as a standalone input.
+
+description: >
+  T1.28 recomputes one Markov-1 W2 test per demographic subgroup (gender 2,
+  NS-SEC 3, cohort 7 = 12 tests/dataset) on the LOCKED §6.1 analytical-sample
+  embeddings for USoc (27,280) and BHPS (8,509). Subgroups are row-subsets of
+  these embeddings; demographic labels are joined by pidp from the trajectory
+  metadata (cohort) and the raw UKDA extract (sex, parental_nssec). The
+  embeddings, their pidp ordering, and the membership join must all describe the
+  same locked individuals — the embeddings.npy row order and the trajectory
+  metadata pidp array must be positionally aligned.
+
+coherence:
+  max_vintage_spread_days: 0
+  rationale: >
+    All pinned inputs belong to a single locked §6.1 build per dataset (the
+    integration pipeline for USoc, the bhps pipeline for BHPS). The frozen
+    full-sample PCA-20 loadings are baked into the locked embeddings, so a
+    subgroup is a row-subset — there is no separate transform step and no
+    cross-vintage join of loadings to data. Membership (sex, parental_nssec,
+    cohort) is extracted from the stable UKDA raw extract keyed by pidp via the
+    committed covariate_extractor, so it tracks the embeddings by pidp regardless
+    of file mtime. The one substantive invariant is embeddings.npy[i] <-> pidp[i].
+
+inputs:
+  - path: results/trajectory_tda_integration/embeddings.npy
+    role: USoc §6.1 substrate — locked analytical-sample PCA-20 embeddings (27,280), subgroup row-subsets
+    root: worktree            # committed file -> content sha256 is the git-stable signature
+    expected:
+      sha256: "69b2ba55902565960e8009004d2c21332d3786e2af3e83edc4ac0a2d3a5f5540"
+  - path: results/trajectory_tda_integration/01_trajectories.json
+    role: USoc pidp ordering + birth_cohort (join key for membership; positional alignment to embeddings)
+    root: worktree
+    expected:
+      sha256: "d356874922685ac7052124b8a7897f6a52e5cde2a124a1ec4816bc30e6748c39"
+  - path: results/trajectory_tda_bhps/embeddings.npy
+    role: BHPS §6.1 substrate — locked analytical-sample PCA-20 embeddings (8,509), subgroup row-subsets
+    root: proj_root           # gitignored intermediate -> lives only at PROJ_ROOT
+    expected:
+      sha256: "349fd443529a1212f03e8a1b8b189c02bdce6afffe82ea17c5ca8895e041b3c0"
+  - path: results/trajectory_tda_bhps/01_trajectories.json
+    role: BHPS pidp ordering + birth_cohort (join key for membership; positional alignment to embeddings)
+    root: worktree
+    expected:
+      sha256: "a872606a435478515daa8edd91ac58172c173d61c8a8c2e2f12e305dc1b07b47"
