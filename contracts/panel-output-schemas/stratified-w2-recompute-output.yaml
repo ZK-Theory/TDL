@@ -1,6 +1,6 @@
 id: stratified-w2-recompute-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.28 per-subgroup stratified Markov-1 W2 recompute JSON
@@ -9,15 +9,16 @@ description: >
   full-sample loadings (transform-only) and tested with the canonical Markov-1
   W2 headline (subgroup observed PD vs its OWN Markov-1 null) — one test per
   subgroup, never the retired pairwise-between-subgroup or mean-vs-individual
-  construction. The result must reproduce, per dataset (usoc and bhps): the
-  per-subgroup mean-vs-mean T_ratio with 95% BCa CI, raw W2 p, landscape-L2 p
-  (mandatory dual-metric complement), actual_landmarks = min(5000, n), and the
-  exact per-family subgroup counts (gender 2, NS-SEC 3, cohort 7 = 12). It must
-  record frozen_loadings == true and B >= 1000 so a non-frozen or under-resampled
-  recompute cannot be committed.
+  construction. The result must reproduce, per dataset: the per-subgroup
+  mean-vs-mean T_ratio with 95% BCa CI, raw W2 p, landscape-L2 p (mandatory
+  dual-metric complement), actual_landmarks = min(5000, n), and the exact
+  per-family subgroup counts. USoc: gender 2, NS-SEC 3, cohort 7 = 12 total.
+  BHPS: gender 2, NS-SEC 3, cohort 6 = 11 total (1990s cohort absent from BHPS;
+  see 2026-06-28 amendment). It must record frozen_loadings == true and B >= 1000
+  so a non-frozen or under-resampled recompute cannot be committed.
 
 spec_citation:
-  source: "P01-A response plan ISSUE B8; T1.28 pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json + 2026-06-27 per-subgroup amendment (pre_registrations_amendment_2026-06-27.json: count 50->12, strata 2/3/7, substrate = integration/bhps embeddings); CONVENTIONS dual-metric + frozen-loadings rules"
+  source: "P01-A response plan ISSUE B8; T1.28 pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json + 2026-06-27 amendment (count 50->12, strata 2/3/7, substrate) + 2026-06-28 amendment (bhps cohort 7->6, BHPS total 12->11); CONVENTIONS dual-metric + frozen-loadings rules"
   anchor: "results/panel_methodology/fdr/stratified_w2_recompute_<date>.json"
   vault_entry_date: "2026-06-27"
 
@@ -44,7 +45,7 @@ schema_def:
       description: "Locked parameters. MUST contain null_model == 'markov-1', frozen_loadings == true, B (int >= 1000), seed == 42, p_value_formula == '(r+1)/(B+1)', alpha == 0.05."
     - name: datasets
       type: "dict[str, ...]"
-      description: "MUST contain exactly keys 'usoc' and 'bhps'. Each is a dict with a subgroups list and per-family counts gender_n == 2, nssec_n == 3, cohort_n == 7 (12 total). Each subgroups[] item MUST carry stratifier in {gender, nssec, cohort}, subgroup_id (str), n (int > 0), actual_landmarks (int > 0 and <= min(5000, n)), t_ratio (float), bca_ci (two ordered finite floats lo <= hi), w2_p (float in [0,1]), w2_rejects (bool, equal to w2_p < 0.05), landscape_l2_p (float in [0,1])."
+      description: "MUST contain exactly keys 'usoc' and 'bhps'. Each is a dict with a subgroups list and per-family counts gender_n == 2, nssec_n == 3; cohort_n == 7 and total 12 for usoc; cohort_n == 6 and total 11 for bhps (1990s cohort absent from BHPS — see 2026-06-28 amendment). Each subgroups[] item MUST carry stratifier in {gender, nssec, cohort}, subgroup_id (str), n (int > 0), actual_landmarks (int > 0 and <= min(5000, n)), t_ratio (float), bca_ci (two ordered finite floats lo <= hi), w2_p (float in [0,1]), w2_rejects (bool, equal to w2_p < 0.05), landscape_l2_p (float in [0,1])."
   conditional_keys: []
   forbidden_keys:
     - name: per_call_pca
@@ -60,7 +61,8 @@ binding:
     (a) schema_version is not 'stratified-w2-recompute-v1';
     (b) params.frozen_loadings is not true, B < 1000, seed != 42, null_model != 'markov-1', or p_value_formula != '(r+1)/(B+1)';
     (c) datasets does not contain exactly usoc and bhps;
-    (d) any dataset's per-family counts are not gender==2, nssec==3, cohort==7 (12 total);
+    (d) usoc per-family counts are not gender==2, nssec==3, cohort==7 (12 total), or
+        bhps per-family counts are not gender==2, nssec==3, cohort==6 (11 total);
     (e) a subgroup's w2_rejects disagrees with (w2_p < 0.05);
     (f) a subgroup's bca_ci bounds are unordered/non-finite, or w2_p / landscape_l2_p is outside [0,1];
     (g) actual_landmarks is <= 0 or exceeds min(5000, n), or n <= 0; or
