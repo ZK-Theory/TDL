@@ -10,6 +10,7 @@ from pathlib import Path
 
 from shared.manager_dispatch_check import (
     Check,
+    _resolve_workspace,
     check_report_bus,
     check_worktree,
     render,
@@ -37,6 +38,32 @@ def test_check_report_bus(tmp_path: Path) -> None:
 
     (bus / "report.md").write_text("# prior report\nstuff", encoding="utf-8")
     assert not check_report_bus(tmp_path, "agent-x").ok  # uncleared
+
+
+def test_resolve_workspace_relative_not_doubled(tmp_path: Path) -> None:
+    """A relative --workspace resolves against proj_root, never doubled.
+
+    Regression for the path-doubling bug: a relative ``--workspace`` was kept
+    relative, then check_contracts ran with cwd=workspace AND a
+    workspace-relative hook path, yielding
+    ``.apm/worktrees/X/.apm/worktrees/X/...``.
+    """
+    rel = ".apm/worktrees/run-x"
+    ws = _resolve_workspace(rel, "run/x", {}, tmp_path)
+    assert ws.is_absolute()
+    assert ws == (tmp_path / ".apm" / "worktrees" / "run-x").resolve()
+    assert str(ws).count("run-x") == 1  # the segment appears exactly once
+
+
+def test_resolve_workspace_explicit_worktree_and_fallback(tmp_path: Path) -> None:
+    """Absolute --workspace is preserved; else the worktree, else proj_root."""
+    abs_ws = (tmp_path / "abs").resolve()
+    assert _resolve_workspace(str(abs_ws), "run/x", {}, tmp_path) == abs_ws
+
+    wt = str((tmp_path / "wt").resolve())
+    assert _resolve_workspace(None, "run/x", {"run/x": wt}, tmp_path) == Path(wt).resolve()
+
+    assert _resolve_workspace(None, "run/x", {}, tmp_path) == tmp_path.resolve()
 
 
 def test_check_worktree_mode(tmp_path: Path) -> None:

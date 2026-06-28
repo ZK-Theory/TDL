@@ -122,6 +122,40 @@ def check_worktree(proj_root: Path, branch: str, mode: str) -> list[Check]:
     return checks
 
 
+def _resolve_workspace(
+    workspace_arg: str | None,
+    branch: str,
+    wt_map: dict[str, str],
+    proj_root: Path,
+) -> Path:
+    """Resolve the contract-gate workspace to an ABSOLUTE, normalised path.
+
+    A relative ``--workspace`` is resolved against ``proj_root`` (not the
+    process cwd). This matters because ``check_contracts`` runs the gate with
+    ``cwd=workspace`` and a *workspace-relative* hook path; a relative workspace
+    would resolve the hook inside the already-relative cwd and double the path
+    (``.apm/worktrees/X/.apm/worktrees/X/...``). Falls back to the branch
+    worktree, then ``proj_root``.
+
+    Args:
+        workspace_arg: The raw ``--workspace`` value, or None.
+        branch: The dispatch feature branch.
+        wt_map: Branch -> worktree path mapping from ``git worktree list``.
+        proj_root: The project root (absolute).
+
+    Returns:
+        An absolute, normalised workspace directory.
+    """
+    if workspace_arg:
+        ws = Path(workspace_arg)
+        workspace = ws if ws.is_absolute() else proj_root / ws
+    elif branch in wt_map:
+        workspace = Path(wt_map[branch])
+    else:
+        workspace = proj_root
+    return workspace.resolve()
+
+
 def check_report_bus(proj_root: Path, agent: str) -> Check:
     """The incoming Worker's report bus must be cleared before dispatch."""
     report = proj_root / ".apm" / "bus" / agent / "report.md"
@@ -240,12 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     checks.append(check_report_bus(proj_root, args.agent))
 
     wt_map = _worktree_paths(proj_root)
-    if args.workspace:
-        workspace = Path(args.workspace)
-    elif args.branch in wt_map:
-        workspace = Path(wt_map[args.branch])
-    else:
-        workspace = proj_root
+    workspace = _resolve_workspace(args.workspace, args.branch, wt_map, proj_root)
     checks.append(check_contracts(workspace))
 
     manifests = [Path(m) for m in args.provenance_manifest]
