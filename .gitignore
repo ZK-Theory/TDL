@@ -57,6 +57,14 @@ docs/Research Papers
 docs/plans
 docs/ttk_installers
 
+# Version the Agentic Research System transition workspace.
+!docs/
+docs/*
+!docs/plans/
+docs/plans/*
+!docs/plans/agentic-research-system/
+!docs/plans/agentic-research-system/**
+
 # Jupyter checkpoints
 .ipynb_checkpoints/
 *.ipynb_checkpoints/

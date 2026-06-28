@@ -19,6 +19,13 @@ Accepts optional `[agent-id ...]` arguments. With arguments, checks those Worker
 
 3. Process report(s): for each Report Bus with content, process per `.codex/apm-guides/task-review.md` §3 Task Review Procedure.
 
+4. Before treating a final report as Stage-completing, reconcile the Stage
+   against the authoritative Plan. Enumerate every Plan Task and named milestone
+   gate, and map each to accepted Done work or an explicit deferred, superseded,
+   or removed state recorded through Plan modification. Absence from the Tracker
+   or Task Logs is unresolved scope, not removal; block Stage collapse and inform
+   the User.
+
 ---
 
 **End of Command**

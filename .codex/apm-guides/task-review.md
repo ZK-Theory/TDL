@@ -96,6 +96,14 @@ Use a bulleted list for both types - one item per note, each self-contained and 
 
 ### 2.8 Stage Verification Standards
 
+**Scope reconciliation is mandatory:** Before deciding that all Stage Tasks are
+Done, read the authoritative Plan Stage and enumerate every Task plus every named
+milestone gate. Map each item to accepted Done work or to an explicit deferred,
+superseded, or removed state recorded through Plan modification. A Task absent
+from the Tracker or Task Logs remains unresolved; mutable tracking state cannot
+silently reduce approved scope. Do not collapse the Stage or write its summary
+until this reconciliation passes.
+
 After all Tasks in a Stage are Done, assess whether the Stage's deliverables require holistic verification before writing the Stage summary and proceeding. This is a judgment call, not a mandatory step.
 
 **When to verify:** Stages where the User confirmed verification during the understanding summary approval, where Task Reviews surfaced edge cases or compatibility concerns, where follow-up prompts were required during the Stage, where Workers reported difficulties or important findings, where the Planner flagged complexity in Plan notes, or where accumulated working notes suggest deliverables should be checked as a whole. Simple Stages with clean Task Reviews and no flags can proceed directly to the summary.
@@ -148,7 +156,7 @@ Perform the following actions:
    - If planning documents need modification, proceed to §3.4 Planning Document Modification (returns to step 3 after completion).
 3. Update the Tracker per §4.1 Task Tracking Format: mark completed Tasks as Done, reassess Waiting Tasks for readiness, update branches. Execute pending merges per §2.5 Merge Standards before reassessing readiness. Assess whether the review yielded note-worthy context and add to working notes - both ephemeral coordination items and durable observations for later distillation. Remove stale working notes. Batch all changes from this review-dispatch cycle into a single Tracker edit.
 4. Assess next action per §2.4 Parallel Coordination Standards:
-   - If all Stage Tasks are Done and merged, collapse Stage per §4.1 Task Tracking Format and proceed to §3.5 Stage Summary Creation.
+   - If mandatory Plan-to-Tracker scope reconciliation passes and all Stage Tasks are Done and merged, collapse Stage per §4.1 Task Tracking Format and proceed to §3.5 Stage Summary Creation.
    - If Tasks are Ready, proceed to `.codex/apm-guides/task-assignment.md` §3.1 Dispatch Assessment in the same turn.
    - If no Tasks are Ready but Workers are active, communicate wait state per §2.4 Parallel Coordination Standards and direct User to return the next report.
 
@@ -167,10 +175,10 @@ Perform the following actions:
 
 ### 3.5 Stage Summary Creation
 
-Execute when all Tasks in a Stage are Done. A Task is Done when the review concludes with no outstanding follow-ups. Write the Stage summary once, after all follow-up cycles finish.
+Execute when all Tasks in a Stage are Done and the mandatory Plan-to-Tracker scope reconciliation in §2.8 passes. A Task is Done when the review concludes with no outstanding follow-ups. Write the Stage summary once, after all follow-up cycles finish.
 
 Perform the following actions:
-1. Enumerate Task Logs for the completed Stage using a directory listing, e.g., `ls .apm/memory/stage-<NN>/` (or platform equivalent). Synthesize from logs already reviewed during individual Task Reviews - re-reading is not needed when logs are unchanged and still in context.
+1. Enumerate the Stage's Tasks and named milestone gates from the Plan, then enumerate Task Logs using a directory listing, e.g., `ls .apm/memory/stage-<NN>/` (or platform equivalent). Confirm every Plan item is represented by accepted work or an explicit versioned scope decision. Synthesize from logs already reviewed during individual Task Reviews - re-reading is not needed when logs are unchanged and still in context.
 2. Assess whether Stage verification is needed per §2.8 Stage Verification Standards. When warranted, verify before proceeding.
 3. Distill working notes per §2.7 Note-Taking Standards: observations with lasting impact on future work become Memory notes in the Index, Stage-specific observations become Stage summary prose. Keep working notes that will be needed in the next Stage. When this review immediately triggers Stage summary (last Task in Stage), observations from this review can be written directly to their destinations rather than first passing through working notes.
 4. Synthesize Stage-level observations and append a Stage summary to the Index per §4.3 Index Format. The Index structure (Memory notes above Stage summaries) enables steps 3 and 4 as a single contiguous edit.
@@ -304,6 +312,7 @@ modified: Task 2.3 scope clarified based on task-02-02.log.md findings. Modified
 - *Unacknowledged recovery:* When a Worker report indicates auto-compaction occurred, factor this into the assessment - reconstructed context may have affected report completeness.
 - *Single-document tunnel vision:* Updating the Spec without checking whether the Plan references the same content, or modifying the Plan without assessing whether the Spec's design assumptions still hold. Changes to one planning document often cascade to the other.
 - *Symptom treatment:* Modifying one document to work around an issue that should be addressed in another. When an issue surfaces in execution, trace it to the document where the root cause lives rather than patching around it elsewhere.
+- *Tracker-defined completion:* Declaring a Stage complete from the Tasks visible in the Tracker without reconciling every Task and milestone gate in the authoritative Plan.
 
 ---
 

@@ -53,6 +53,33 @@ if __name__ == "__main__":
 - Maxmin landmarks re-selected on each surrogate (do not couple landmark geometry to observed data)
 - Permutation nulls use fixed seeds when reproducibility matters: `np.random.seed(42)`
 
+## Execution pre-flight
+
+Before launching compute:
+
+1. **Classify the changed stage.** State whether the request changes persistence-
+   diagram generation, pairwise metric aggregation, or downstream summary /
+   provenance. A downstream metric correction must reuse valid cached diagrams
+   and preserve the pre-registered B/cell design. Do not expand robustness cells
+   or regenerate PH unless the dispatch explicitly authorizes that design change.
+2. **Check process ownership.** On Windows, do not call
+   `compute_rips_ph(timeout_seconds=...)` from inside a joblib `loky` worker.
+   Use the joblib worker timeout as the wall-time guard; reserve the PH child-
+   process timeout for observed or otherwise serial calls.
+3. **Bound feasibility modes.** Benchmark-only and feasibility runs must cap
+   every expensive prerequisite, including shared null-null banks and observed-
+   to-bank distances. Write a launch/progress marker before the first PH or W2
+   batch, and report both sampled work and the projected full-design distance
+   count.
+
+## Pre-delivery verification
+
+- The corrected analysis stage and cache reuse boundary are explicit.
+- Parameters still match the governing pre-registration or authorized amendment.
+- No nested child-process timeout is used inside a `loky` worker.
+- A benchmark cannot silently perform a full-design prerequisite before its first
+  checkpoint.
+
 ## Null model parameters by test type
 
 | Null | n (standard) | n (publication) | Landmarks |
