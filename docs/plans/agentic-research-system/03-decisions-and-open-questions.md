@@ -1,0 +1,319 @@
+# Decisions and Open Questions
+
+**Decision register opened:** 2026-06-27  
+**Scope:** Agentic Research System transition
+
+## Accepted directions
+
+### D-001 — Create a dedicated working folder before implementation
+
+**Status:** Accepted  
+**Decision:** Capture the complete rationale, evidence, target architecture, transition plan, and future deliverables in a durable repository folder before producing implementation specifications.
+
+### D-002 — Treat this as a system redesign, not a collection of prompt edits
+
+**Status:** Accepted  
+**Decision:** The design scope includes task state, context, memory, agent roles, model routing, research assurance, provenance, evaluation, observability, runtime adapters, recovery, and portfolio governance.
+
+### D-003 — Preserve the strongest APM mechanisms
+
+**Status:** Accepted  
+**Decision:** Preserve and generalise the current bus concept, contracts, pre-registration, provenance manifests, worktrees, non-overwriting outputs, task logs, review lanes, and explicit Partial/blocking outcomes.
+
+### D-004 — Build a domain-general core
+
+**Status:** Accepted  
+**Decision:** The core system must support mathematical and social research beyond TDA. TDA-specific topology, Wasserstein, representation, and null-model controls will become optional domain assurance packs.
+
+### D-005 — Transition at a phase boundary
+
+**Status:** Accepted in principle  
+**Decision:** Use the end of Paper 1 Phase 1 as the design and transition window. Do not force already-developed Phase 2 work through a disruptive migration.
+
+### D-006 — Keep high-reasoning models on epistemically risky work
+
+**Status:** Accepted  
+**Decision:** Opus-class orchestration/design and Codex xhigh implementation remain the default for high-risk mathematical tasks until eval evidence supports a change. Efficiency work should first reduce irrelevant context, repeated work, and manual coordination.
+
+### D-007 — Separate scientific authorities
+
+**Status:** Accepted  
+**Decision:** For consequential tasks, the same agent must not be the sole author, implementer, verifier, and approver of a research contract or decision rule.
+
+### D-008 — Use a local, inspectable control plane first
+
+**Status:** Accepted  
+**Decision:** Begin with repository-managed schemas, append-only records, and generated views. Borrow protocol ideas such as task identity, lifecycle, messages, and artefacts without initially adopting a network service or external orchestration framework.
+
+## W1 proposals awaiting review
+
+Stephen approved these proposals on 2026-06-28. They remain pending current Manager confirmation and post-T1.28 reconciliation before becoming fully accepted design decisions.
+
+### P-001 — Canonical event storage and optional indexes
+
+**Date:** 2026-06-28  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Decision:** Use append-only JSONL and immutable manifests as canonical storage. SQLite, full-text, graph, vector, dashboard, Tracker, and bus views are disposable projections. Complete state must rebuild without them.  
+**Rationale:** This preserves local inspectability and version control while preventing a mutable database or view from becoming hidden authority.  
+**Evidence:** W0 fixtures F-001–F-006 and accepted direction D-008.  
+**Affected specifications:** W1, W2, W3, W6, W9.  
+**Migration consequence:** Existing APM files remain authoritative only for declared legacy-owned tasks; successor state is not reconstructed from mutable views.
+
+### P-002 — Neutral system root
+
+**Date:** 2026-06-28  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Decision:** Retain the working name Agentic Research System and place its provider-neutral installed core under `.research-system/`.  
+**Rationale:** The successor must be reusable beyond APM, TDL, TDA, Claude, and Codex while remaining repository-local.  
+**Evidence:** Accepted directions D-002, D-004, and D-008.  
+**Affected specifications:** W1, W7, W9, W10.  
+**Migration consequence:** `.apm/` becomes a guarded compatibility surface and frozen legacy source, not the successor's canonical root.
+
+### P-003 — Serialized command boundary
+
+**Date:** 2026-06-28  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Decision:** Use a modular-monolith architecture in which one local command boundary validates authority and serializes canonical event writes. Agents, Workers, hooks, adapters, and execution processes submit commands rather than editing state directly.  
+**Rationale:** Append-only files alone do not prevent concurrent corruption, stale writes, or unauthorized transitions. A narrow writer preserves simple local operation without introducing a distributed service.  
+**Evidence:** W0 fixtures F-001–F-004, F-009, and F-014.  
+**Affected specifications:** W1, W2, W7, W8.  
+**Migration consequence:** Legacy direct edits continue only inside declared legacy ownership; successor-owned tasks use commands and generated views.
+
+### P-004 — Exclusive compatibility ownership
+
+**Date:** 2026-06-28  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Decision:** Every bridged task is exactly one of `legacy_owned`, `successor_owned`, or `closed_reference`; a `dual_owned` state is prohibited.  
+**Rationale:** Dual canonical writes would preserve the overwrite and source-precedence failures that the redesign exists to remove.  
+**Evidence:** W0 no-migration set and fixtures F-001–F-006, plus the main-checkout/worktree split in the evidence register.  
+**Affected specifications:** W1, W2, W7, W9.  
+**Migration consequence:** T1.28, T0.3, unresolved Stage 2 work, and all other no-migration items remain `legacy_owned` until explicit closeout or cutover.
+
+### P-005 — Reserved human-approval transitions
+
+**Date:** 2026-06-28  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Decision:** Reserve pre-registration changes, R3 dispatch, decision-lock reversal, claim promotion, and upgrading imported evidence from provisional to authoritative for Stephen's explicit approval.  
+**Rationale:** These transitions change methodological authority, publication claims, or the interpretation of historical evidence and must not be inferred from agent output or operational acceptance.  
+**Evidence:** Accepted directions D-005–D-007 and the W0 source-precedence and no-migration findings.  
+**Affected specifications:** W1, W2, W4, W5, W9.  
+**Migration consequence:** Legacy wording such as `Success`, `Done`, or a merged draft cannot be imported as one of these approvals without an explicit decision record.
+
+## W2 proposals awaiting review
+
+These schema decisions are normative inside the W2 draft but remain proposed until the W2 review gate is recorded.
+
+### P-006 — Atomic event batch per accepted command
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Publish one immutable JSONL event-batch file per accepted command, using atomic rename as the commit point; prohibit concurrent raw appends to a shared event file.  
+**Rationale:** This preserves JSONL authority while making multi-event commands, crash recovery, and Git inspection reliable.  
+**Evidence:** W1 P-001/P-003 and W0 fixtures F-001–F-004.  
+**Affected specifications:** W2, W6, W8, W9.  
+**Migration consequence:** Legacy files remain observations or projections; successor state begins only at a committed event batch.
+
+### P-007 — Prefixed UUIDv7 canonical identities
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Use a three-letter kind prefix plus UUIDv7 for first-class canonical IDs; retain APM Task numbers, paper IDs, branch names, provider names, and agent slugs as scoped aliases.  
+**Rationale:** Canonical identity must remain stable across projects, providers, paths, retries, and migrations without sacrificing rough time locality.  
+**Evidence:** W0 overwrite, wrong-root, attempt, and source-precedence findings.  
+**Affected specifications:** W2–W10.  
+**Migration consequence:** Historical aliases resolve only with namespace and project scope and never become primary keys.
+
+### P-008 — Separate Task and operational state machines
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Keep research-governance Task status separate from dispatch, attempt, lease, checkpoint, review, and artefact state; derive `queued`, `claimed`, `running`, and `checkpoint_available` as operational projections.  
+**Rationale:** One status label cannot coherently represent readiness, process activity, evidence review, and scientific acceptance.  
+**Evidence:** W0 fixtures F-002, F-004, F-007–F-009 and the stale T1.6 Task log.  
+**Affected specifications:** W2, W3, W4, W6, W8, W9.  
+**Migration consequence:** APM status text requires explicit mapping and cannot directly produce an accepted successor state.
+
+### P-009 — Immutable messages and clearing-as-acknowledgement
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Record message publication, delivery, and acknowledgement as immutable events; treat clearing a generated APM task/report file as acknowledgement of a projection, never deletion of history.  
+**Rationale:** Communication must remain distinguishable from lifecycle mutation and must survive single-slot reuse.  
+**Evidence:** W0 fixtures F-001/F-002 and Task Observer Observation 7.  
+**Affected specifications:** W2, W6, W7, W9.  
+**Migration consequence:** Compatibility writes require matching Task, agent, message, source-position, and content-hash ownership markers and fail closed on collision.
+
+### P-010 — Partial and reopen preserve execution epochs
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Allow Partial as an attempt outcome and as a closed Task outcome; an authorized reopen creates a new execution epoch while preserving the original Partial evidence, claim restrictions, and stop reason.  
+**Rationale:** Long mathematical runs need resumability without rewriting an earlier guardrail-triggered or evidence-limited outcome as if it never occurred.  
+**Evidence:** T1.6 guarded attempts, T1.9b checkpoint recovery, and W1's Partial invariant.  
+**Affected specifications:** W2, W4, W5, W6, W8.  
+**Migration consequence:** Follow-up legacy work imports as linked attempts/epochs rather than replacement status prose.
+
+### P-011 — Multidimensional artefact authority
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Represent artefact availability, integrity, structural validation, scientific review, and use authority as separate dimensions; prohibit a single `valid` or `accepted` boolean from collapsing them.  
+**Rationale:** A file can exist and validate structurally while remaining scientifically invalid, superseded for claims, or usable only for comparison.  
+**Evidence:** W0 fixtures F-010–F-019 and accepted direction D-007.  
+**Affected specifications:** W2, W3, W5, W6, W9.  
+**Migration consequence:** Existing result statuses require consumer-scoped adoption and preserve superseded-but-live provenance.
+
+### P-012 — Versioned scope definitions govern milestone completion
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Require every stage/wave/milestone completion command to name an exact ScopeDefinition revision and a typed disposition for every required member.  
+**Rationale:** Completion is a claim about approved scope, not the subset currently visible in a mutable Tracker.  
+**Evidence:** W0 Stage 2 scope conflict, fixture F-005, and Task Observer Observation 6.  
+**Affected specifications:** W2, W6, W9, W10.  
+**Migration consequence:** The legacy “Stage 2 complete” projection cannot be adopted unless the fourteen unlogged tasks are reconciled or removed by a versioned scope amendment.
+
+### P-013 — Review verdicts bind to exact subject hashes
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Bind each review request and verdict to exact object/artefact hashes and declared independence requirements; changed subjects require a new or explicitly bounded-delta review.  
+**Rationale:** A review of an earlier implementation or result must not silently approve a changed producer output.  
+**Evidence:** W0 fixtures F-014–F-020 and W1 scientific-authority boundaries.  
+**Affected specifications:** W2, W4, W5, W6, W7.  
+**Migration consequence:** Legacy review prose is adopted only when its inspected subject and authority can be identified.
+
+## W6 initial-catalogue proposals awaiting review
+
+These evaluation decisions are normative inside the initial W6 catalogue but remain proposed until the first-pass review gate is recorded.
+
+### P-014 — Paired pre-control and post-control evidence
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Every active fixture must demonstrate the intended pre-control failure and a known-good post-control pass under versioned inputs and oracles.  
+**Rationale:** A fixture that only passes a preferred implementation does not prove it detects the historical defect.  
+**Evidence:** W0 fixture requirement and F-001–F-020.  
+**Affected specifications:** W6, W7, W9.  
+**Migration consequence:** Historical cases require minimized source-verified baselines before becoming release gates.
+
+### P-015 — Critical graders are non-compensable
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Required deterministic, trajectory, privacy, and scientific hard gates cannot be offset by a weighted aggregate score.  
+**Rationale:** Overwrite, invalid inference, unauthorized approval, provenance conflict, leakage, and claim overreach remain failures regardless of other metrics.  
+**Evidence:** W0 failure corpus and W1 evidence-before-status principle.  
+**Affected specifications:** W5, W6, W7.  
+**Migration consequence:** Existing benchmark averages cannot alone authorize an R2/R3 model, adapter, or workflow change.
+
+### P-016 — Deterministic-first grading
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Grade objective state, trace, schema, number, path, hash, authority, and ordering claims deterministically; reserve model/human graders for bounded conceptual and interpretive judgments.  
+**Rationale:** Model judgment should not add variance where an executable predicate can decide the requirement.  
+**Evidence:** W1 machine-check principle and W2 deterministic replay design.  
+**Affected specifications:** W5, W6.  
+**Migration consequence:** Each legacy review claim is classified as deterministic, model-graded, or human-authority before fixture materialization.
+
+### P-017 — Minimized and redacted fixture sources
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Fixtures use synthetic or minimized source bundles, hashes, and excerpts; raw UKDA data, secrets, full transcripts, and hidden reasoning are prohibited.  
+**Rationale:** Regression evidence must be reproducible without expanding confidentiality or prompt-leakage risk.  
+**Evidence:** W0 no-migration set and W1/W2 trust boundaries.  
+**Affected specifications:** W6, W9, W10.  
+**Migration consequence:** TDL-private fixtures remain separated from public project-template fixtures and may use opaque local references.
+
+### P-018 — Change-to-fixture coverage manifests
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** Every model, reasoning, prompt, policy, skill, hook, schema, reducer, context, grader, or adapter change declares affected fixtures, omissions, results, regressions, and authority.  
+**Rationale:** Harness changes are otherwise deployed without an auditable statement of regression coverage.  
+**Evidence:** W0 F-020 and W1 evaluation/observability boundary.  
+**Affected specifications:** W3–W8.  
+**Migration consequence:** Provider/model changes cannot rely on informal spot checks for the risk tiers they serve.
+
+### P-019 — P0 and P1 fixture gates
+
+**Date:** 2026-06-28  
+**Status:** Proposed  
+**Decision:** F-001–F-005, F-007–F-014, and F-020 are P0 implementation/release blockers; F-006 and F-015–F-019 are P1 gates before a research pilot promotes evidence or claims.  
+**Rationale:** The W0 priority set protects foundational state, operations, scientific validity, authority, and parity before higher-level claim workflow.  
+**Evidence:** W0 priority declaration and W2 fixture mapping.  
+**Affected specifications:** W6, W7, W9.  
+**Migration consequence:** Pilot selection cannot bypass an uncalibrated or failing relevant P0/P1 fixture.
+
+## Assumptions requiring confirmation
+
+### A-001 — T1.28 is the final Phase 1 task
+
+**W0 status (2026-06-28):** Confirmed as the current Manager's live coordination statement; Phase 1 closeout itself remains pending.  
+**Current basis:** Commit `c182e646` records T1.6 reviewed and merged and states that T1.28 is the sole open Stage 1 task. T1.28 remains prepared and queued with no task log, binding test, or producing output.  
+**Confirmation condition:** The current Manager confirms no additional Phase 1 computational or assurance task remains open after T1.28 review and closeout.  
+**Effect if false:** The design work can continue, but the migration pilot moves to the first clean boundary after the remaining task.
+
+### A-002 — Existing Phase 2 artefacts remain authoritative
+
+**W0 status (2026-06-28):** Partially confirmed and scope-qualified.  
+**Current basis:** Eight Wave-1 Stage 2 task logs are `Success` and their commits are ancestors of `main`. The Plan still defines twenty-two Stage 2 tasks; fourteen have no Stage 2 task log, including the T2.22 v2-completion gate.  
+**Confirmation condition:** The Manager and Stephen confirm whether those fourteen tasks remain required or formally supersede them in the Plan.  
+**Effect if false:** Provisional items are carried into the new ledger as imported history with explicit confidence and review state; they are not silently upgraded.
+
+## Bounded design decisions
+
+These questions must be resolved in the specifications. They are deliberately bounded so they do not become open-ended architecture debates.
+
+### Q-001 — Canonical event storage
+
+**Decision to make:** Append-only JSONL alone, or JSONL plus a rebuildable SQLite index.  
+**Default recommendation:** JSONL is canonical; SQLite is a disposable local projection for queries and dashboards.  
+**W1 disposition:** Proposed resolution P-001; pending W1 review.  
+**Acceptance test:** Complete state can be reconstructed from version-controlled records without the database.
+
+### Q-002 — System name and repository placement
+
+**Decision to make:** Retain the working name `Agentic Research System`, and decide whether the installed core remains under `.apm/` or moves to a neutral `.research-system/` root.  
+**Default recommendation:** Use `.research-system/` for the provider-neutral core and provide an `.apm/` compatibility adapter during migration.
+**W1 disposition:** Proposed resolution P-002, with compatibility ownership constrained by P-004; pending W1 review.
+
+### Q-003 — First pilot task
+
+**Decision to make:** Select the first new, bounded research task after the current phase boundary.  
+**Default recommendation:** Pilot a task that has a mathematical design, a modest implementation, deterministic contracts, and an independent review path, but no multi-day computation or paper-critical deadline.
+
+### Q-004 — Independent-review diversity
+
+**Decision to make:** When a verifier must use a different model family, a fresh context from the same family, or both.  
+**Default recommendation:** Different family for R3; independently compiled context and hidden implementation trace for R2; record exceptions explicitly.
+
+### Q-005 — Runtime support boundary
+
+**Decision to make:** Whether the first release officially supports only Claude and Codex or defines a generic adapter interface immediately.  
+**Default recommendation:** Define the generic interface in the schema, but implement and evaluate only Claude and Codex adapters in the first release.
+
+### Q-006 — Human approval points
+
+**Decision to make:** Which state transitions require Stephen's explicit approval.  
+**Default recommendation:** Require approval for pre-registration changes, R3 task dispatch, decision-lock reversal, claim promotion, and migration of imported evidence from provisional to authoritative.
+**W1 disposition:** Proposed resolution P-005; pending W1 review.
+
+### Q-007 — Historical import depth
+
+**Decision to make:** Import the complete APM history or only authoritative decisions, active dependencies, and selected failure fixtures.  
+**Default recommendation:** Do not normalize the entire tracker. Import authoritative decisions and active dependencies; preserve the old files as immutable historical evidence.
+
+## Decision protocol
+
+Each future decision entry must record:
+
+- identifier and date;
+- status: proposed, accepted, superseded, or rejected;
+- decision and rationale;
+- evidence references;
+- affected specifications;
+- migration consequence;
+- superseding decision, where applicable.
