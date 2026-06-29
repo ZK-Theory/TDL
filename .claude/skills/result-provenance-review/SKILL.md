@@ -47,6 +47,28 @@ Work through each item against the result under review:
     *exercises* the files it guards: a test that skips the exact stale/non-
     corrected files it is meant to catch (e.g. a `"corrected_" not in name`
     skip) is not enforcing anything.
+11. **Referent identity (revision / issue-closing tasks).** When a result closes a
+    reviewer issue or supplies a number already in a draft, confirm it computed the
+    *exact object the issue/claim names* — which two clusterings, which estimand,
+    which metric and denominator — not a topic-adjacent statistic. For an inherited
+    number, re-resolve it to the **canonical-latest** date-suffixed file for that
+    basename and confirm that file's model/comparison still matches the claim; the
+    newest file under a basename can be a *different* analysis. Flag — do not
+    silently swap — when the canonical file's object ≠ the claim.
+12. **Self-description matches payload.** If a file declares which of several
+    candidate objects it computed (`use_stability`, `comparison`, `estimand`,
+    `metric`), confirm the declared object equals the one actually computed. A
+    value-level schema check passes while a declared-vs-computed contradiction lies
+    silently; where feasible make it a relational assertion (e.g. recompute the SE
+    at the *declared* metric's `p`).
+13. **Input vintage + fail-closed canary (baseline reproductions).** "Regenerate
+    from the committed script" guarantees code, not data. Treat an input
+    mtime/vintage mismatch as a *trigger to run a fail-closed content canary*
+    (recompute must reproduce the stored baseline within tol), never as a verdict on
+    its own — re-extracted or relocated data routinely carries a new mtime with
+    identical bytes. Record a canary PASS as positive coherence evidence, not merely
+    "no mismatch found." See
+    `[[Regenerated-gitignored-intermediates-can-silently-break-baseline-reproducibility]]`.
 
 ## Output Format
 

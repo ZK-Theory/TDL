@@ -42,6 +42,22 @@ Before writing a Task Prompt:
 6. If the task needs a changed decision rule or parameter design, require a
    pre-registration amendment before dispatch.
 7. Add a `Research Assurance Requirements` section to the Task Prompt.
+8. **Expected/sanity values are inputs to falsify, not targets.** Any expected
+   value, sanity figure, or "lower bound" carried in a dispatch is to be
+   independently re-derived, never reproduced-and-stopped. A "bound" is a value to
+   test for tightness; a result landing suspiciously close to the quoted figure
+   warrants an explicit "did I anchor?" check before reporting.
+9. **Guard degenerate fallbacks.** For any statistic with a degenerate/identity
+   fallback (returns a constant on empty/edge input — `n<2 → 1.0`, empty →
+   identity), require an output-contract assertion that *excludes the degenerate
+   constant* in the normal regime (value strictly inside the open interval) plus a
+   binding test exercising the real computation against an independent oracle. A
+   plausible in-range constant from a broken path passes lint, unit, and smoke.
+10. **Verify supplied-source provenance.** When a task relies on an
+    externally-supplied "framing" / "reference" / "primary" document, confirm
+    authorship, venue, date, and authority class before weighting its claims, and
+    check downstream prose attributes only what the source actually states. A
+    source's authority is what it *is*, not what the prompt calls it.
 
 ## Task Prompt Block
 

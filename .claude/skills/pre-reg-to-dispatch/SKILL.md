@@ -66,12 +66,39 @@ as a `planned_contracts` array:
 Dispatch becomes mechanical: the Manager materialises the YAMLs from this spec onto
 the task branch at dispatch time. Nothing lands on `main` prematurely.
 
+**Authorship split at dispatch (who writes what).** The **Manager** materialises the
+`planned_contracts` YAMLs onto the task branch (`pending: true`, with the binding block
+naming the test file/functions the Worker will create) and runs the contract gate
+validate-only *before* the Worker starts; the **Worker** writes ONLY the binding test
+and clears `pending`. This keeps the spec independent of the party being validated.
+Pre-flight: if the Task Prompt tells the Worker to author the contract YAMLs, STOP — that
+collapses the spec/validation separation.
+
+## Confirmatory / Bug-Fix Re-Run Scoping
+
+When a dispatch corrects a *derived* statistic computed from an expensive *cached
+upstream artifact* (e.g. a landscape-L² distance downstream of cached persistence
+diagrams), scope the re-run to recompute only from that cache. Do NOT restate the
+original full compute parameters (B, n) unless the fix actually invalidates the upstream
+artifact — restating `B=1000` silently forces an unneeded PH recompute. Prefer an
+old-vs-new delta on the cached intermediate as the confirmation.
+
+When a task must **reproduce a stored baseline value**, diff each input's mtime/hash
+against the baseline's date and require the producing module to embed a **fail-closed
+canary** (refuse to write unless the recomputed value matches within tol). Code-level
+reproducibility ("regenerate from the committed script") does not guarantee the *input*
+is the same vintage the baseline used.
+
 ## Escalate Or Stop When
 
 - No pre-registration exists for an outcome-contingent run.
 - The task changes the decision rule or a parameter but no amendment is on file.
 - The outcome-to-prose mapping is missing, so a result could not be interpreted
   without a post-hoc choice.
+- A dispatch delegates contract-YAML authorship to the Worker (the Manager authors them
+  at dispatch; the Worker writes only the binding test).
+- A confirmatory/bug-fix dispatch restates full compute parameters (B, n) for a fix that
+  only touches a downstream derived statistic.
 
 ## Pressure Scenarios From This Repo
 
