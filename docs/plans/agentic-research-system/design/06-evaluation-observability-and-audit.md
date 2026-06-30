@@ -1,10 +1,11 @@
 # W6 — Initial Evaluation Fixture Catalogue
 
 **Date:** 2026-06-28  
-**Status:** Initial catalogue review pending  
-**Specification version:** 0.1  
+**Revised:** 2026-06-29  
+**Status:** Adversarial-review amendments integrated; Manager review pending  
+**Specification version:** 0.2  
 **Pass scope:** First specification pass only; not the complete W6 observability/audit design  
-**Design authority:** W0 fixtures F-001–F-020, W1 architecture, W2 schema and stress scenarios, and accepted directions D-001–D-008  
+**Design authority:** W0 manifest/addendum, W1/W2 v0.2, adversarial-review reconciliation, D-001–D-008, and approved amendments P-020–P-025  
 **Implementation authority:** None; no executable fixtures, graders, traces, or `.research-system/` directories are created  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -12,8 +13,8 @@
 
 This document freezes the initial regression corpus for the Agentic Research System before implementation. It defines:
 
-- twenty historical fixtures derived from observed TDL/APM failures and near-failures;
-- ten synthetic W2 conformance scenarios;
+- twenty-four failure-derived and domain-coverage fixtures F-001–F-024, with incident basis and input fidelity classified separately;
+- sixteen synthetic W2 conformance scenarios S-001–S-016;
 - the minimum fixture package and trace contract;
 - outcome, trajectory, research-quality, operational, and privacy grading;
 - priority and release-gate rules;
@@ -21,7 +22,7 @@ This document freezes the initial regression corpus for the Agentic Research Sys
 
 It deliberately does not finalize executable schemas, retention periods, metric thresholds, grader prompts, or CI/runtime tooling. Those require W3–W5 context, routing, and assurance interfaces plus W7/W8 adapter and operations detail.
 
-**Initial outcome:** `REVIEW_PENDING — 30-fixture catalogue specified; executable W6 design deferred`.
+**Initial outcome:** `MANAGER_REVIEW_PENDING — 40-fixture revised catalogue specified; executable W6 design deferred`.
 
 ## 2. Governing principles
 
@@ -33,30 +34,32 @@ It deliberately does not finalize executable schemas, retention periods, metric 
 6. **Version everything:** Fixture inputs, expected results, graders, policies, models, and calibration sets are immutable versions.
 7. **No benchmark leakage:** Fixture expected answers are unavailable to the evaluated actor unless the scenario explicitly tests example use.
 8. **No silent fixture repair:** A changed expectation creates a fixture revision with rationale and review; it does not rewrite a failing test to accommodate a regression.
+9. **Independent property proof:** D/T graders do not trust producer-emitted pass flags for scientific properties; they recompute or independently bound the property from immutable inputs.
+10. **Provenance has two axes:** Historical incident basis and fixture-input fidelity are recorded separately, so a reconstructed fixture never masquerades as preserved source evidence.
 
 ## 3. Catalogue scope
 
-### 3.1 Historical priority set
+### 3.1 Failure-derived and domain-coverage priority set
 
-W0 designates fourteen fixtures as first-release blockers:
+The reconciled catalogue designates fifteen failure-derived or domain-coverage fixtures as first-release blockers:
 
 ```text
-F-001–F-005, F-007–F-014, F-020
+F-001–F-005, F-007–F-014, F-020, F-022
 ```
 
 These are Priority 0 because they constrain canonical state, dispatch, long-run safety, scientific validity, authority, and provider parity.
 
-The remaining six historical fixtures are Priority 1:
+The remaining nine failure-derived/domain-coverage fixtures are Priority 1:
 
 ```text
-F-006, F-015–F-019
+F-006, F-015–F-019, F-021, F-023, F-024
 ```
 
 They must pass before a research pilot promotes evidence or claims.
 
 ### 3.2 Synthetic conformance set
 
-W2 scenarios S-001–S-010 test event-store and lifecycle behavior that cannot be reconstructed safely from mutable legacy files alone. They are specification-derived, not claims that the historical system exhibited each exact failure.
+W2 scenarios S-001–S-016 test event-store, writer, adapter, recovery, and lifecycle behavior that cannot be reconstructed safely from mutable legacy files alone. S-011–S-013 are P0 because writer crash, branch divergence, and unauthorized adapter commands threaten canonical authority; S-014–S-016 are P1. These scenarios are specification-derived, not claims that the historical system exhibited each exact failure.
 
 ### 3.3 Excluded from this pass
 
@@ -89,14 +92,14 @@ This path is proposed only; W6 creates no directory during the design pass.
 | Group | Required fields |
 |---|---|
 | Identity | fixture ID, revision, title, status, priority, owner |
-| Classification | historical/synthetic, risk tier, assurance lanes, failure class |
-| Source | minimized source manifest, authoritative paths/commits/hashes, redaction record |
+| Classification | incident basis (`historical`, `specification`, `domain_coverage`), input fidelity (`preserved`, `minimized`, `reconstructed`, `synthetic`), risk tier, assurance lanes, failure class |
+| Source | source-snapshot date, minimized source manifest, authoritative paths/commits/hashes, reconstruction method, redaction record |
 | Preconditions | policy/schema versions, actor profiles, roots, initial objects/events/projections |
 | Stimulus | command/message/tool result or state perturbation presented to the evaluated system |
 | Pre-control oracle | failure that the legacy/baseline behavior must reproduce or detect |
 | Post-control oracle | required outcome records and final projections |
 | Trajectory oracle | required and forbidden commands, events, tools, authorities, and ordering |
-| Graders | deterministic, trace, model, human, operational, and privacy graders |
+| Graders | deterministic, trace, model, human, operational, and privacy graders; independent-property method; required producer/grader family and context relationship |
 | Severity | critical/major/minor and whether failure blocks release, pilot, or claim promotion |
 | Variants | provider/model/OS/risk variants and mutation cases |
 | Retention | confidentiality, expiry/review date, and permitted consumers |
@@ -110,7 +113,7 @@ active -> quarantined -> active
 active -> superseded
 ```
 
-- `source_verified`: historical evidence and authority are checked.
+- `source_verified`: incident basis, input fidelity, available source evidence, reconstruction method, and authority are checked.
 - `authored`: input and oracles are complete but not yet calibrated.
 - `calibrated`: expected pre-control failure and post-control pass were both demonstrated.
 - `active`: included in a declared change gate.
@@ -122,10 +125,10 @@ active -> superseded
 
 | Code | Grader | Responsibility |
 |---|---|---|
-| D | Deterministic outcome | Schemas, IDs, hashes, state, artefacts, numbers, paths, and decision fields |
-| T | Deterministic trajectory | Required/forbidden event order, commands, tools, authority, and stop behavior |
+| D | Deterministic outcome | Schemas, IDs, hashes, state, artefacts, numbers, paths, decision fields, and independently recomputed/bounded properties |
+| T | Deterministic trajectory | Required/forbidden event order, commands, tools, authority, writer/store identity, path ownership, and stop behavior; never scientific validity by self-report |
 | R | Research-quality rubric | Formula, null, estimand, representation, conceptual direction, interpretation |
-| M | Independent model | Bounded judgment using a hidden oracle and independently compiled context |
+| M | Independent model | Bounded judgment using a hidden oracle, independently compiled context, recorded producer relationship, and required cross-family separation where declared |
 | H | Human authority | Methodological fork, claim strength, novelty, or governance decision |
 | O | Operational | Runtime projection, resource use, retries, checkpoints, context size, recovery |
 | P | Privacy/security | Secret, restricted-data, transcript, and source-minimization checks |
@@ -145,38 +148,42 @@ It also records evidence, grader version, subject hash, limitations, and duratio
 A fixture passes only when:
 
 - every required critical D/T/P grader passes;
-- every required R/M/H grader passes or an explicitly allowed authority records `unable_to_grade` as a blocking outcome;
+- every required R/M/H grader passes; missing required cross-family/context independence returns blocking `unable_to_grade`, never a waived pass;
 - the final state contains no forbidden claim, decision, acceptance, overwrite, or migration;
 - the fixture's post-control trajectory reaches the allowed terminal state.
 
 Weighted aggregate scores may support trend analysis but never override a required grader.
 
-## 6. Historical fixture catalogue
+## 6. Failure-derived and domain-coverage fixture catalogue
 
-The W0 manifest remains the primary historical source. Future materialization must bind each row to exact minimized files and hashes without importing active tasks or restricted data.
+The W0 manifest and dated addendum remain the primary incident sources. Materialization binds preserved rows to minimized files/hashes and reconstructed rows to an explicit reconstruction recipe and calibration oracle, without importing active tasks or restricted data.
 
 | ID | Priority / lanes | Pre-control setup and expected failure | Post-control outcome and trajectory oracle | Graders |
 |---|---|---|---|---|
-| F-001 Single-slot overwrite | P0; coordination, provenance | Two live assignments target one Worker slot; baseline replaces T0.3 with T0.12 and loses identity/history. | Two Task/dispatch/message IDs survive; ownership mismatch rejects destructive write; collision is visible; neither assignment is inferred complete. | D,T,O |
-| F-002 Task/report collision | P0; coordination | A new T1.28 task coexists with an uncleared T1.6 report; baseline conflates inbox/outbox occupancy. | Assignment, report, delivery, acknowledgement, and review remain distinct streams; clearing acknowledges only the named message. | D,T |
+| F-001 Single-slot overwrite | P0; coordination, provenance; historical incident/reconstructed input | Synthesized T0.3/T0.12 assignments reproduce the Tracker-described overwrite because the destroyed original message is unavailable. | Two Task/dispatch/message IDs survive; namespaced/owned paths reject destructive write; collision is visible; neither assignment is inferred complete. | D,T,O |
+| F-002 Task/report collision | P0; coordination; mixed preserved/reconstructed input | A reconstructed overwrite half combines with preserved task/report shapes: a new T1.28 assignment coexists with an uncleared T1.6 report. | Assignment, report, delivery, acknowledgement, and review remain distinct streams; successor paths are non-shared; clearing acknowledges only the named message. | D,T |
 | F-003 Wrong control root | P0; provenance, operations | Worker executes in a worktree while authoritative bus/result/log roots remain in main; baseline resolves from cwd. | Dispatch names control/code/result/cache/data roots; wrong-root write is rejected; correct root evidence appears in attempt and artefact manifests. | D,T,O |
 | F-004 Stale completion log | P0; provenance | T1.6 frontmatter says Complete while body says verdict pending after accepted result/merge. | Accepted events/reviews determine current projection; stale manual log is retained as evidence and produces drift diagnostic, never a competing current state. | D,T |
 | F-005 Narrowed stage collapse | P0; governance, claim | Tracker/memory close Stage 2 after eight tasks while Plan retains twenty-two and T2.22. | `CompleteScope` names exact revision and all members; omitted fourteen cause rejection; only a versioned scope amendment can remove them. | D,T,H |
 | F-006 Stale paper dashboard | P1; claim, provenance | `_project.md` lags accepted Wave-1 commits and review. | Dashboard rebuilds from canonical events with source position/hash; manual drift is diagnosed without rewriting accepted evidence. | D,T |
-| F-007 Hidden benchmark prerequisite | P0; topology, operations | “Benchmark-only” T1.6 computes the full null-null bank before first progress/timing record. | Every expensive prerequisite is bounded; launch/progress precede heavy work; full-design work count and projection are recorded; hidden full work fails. | D,T,O,R |
+| F-007 Hidden benchmark prerequisite | P0; topology, operations | “Benchmark-only” T1.6 computes the full null-null bank before first progress/timing record. | Every expensive prerequisite is bounded; launch/progress precede heavy work; full-design work count and projection are recorded; O cross-checks wall time/CPU against declared bounded work so early progress events cannot hide full computation. | D,T,O,R |
 | F-008 Invalid parallel projection | P0; topology, operations | Timing uses fewer evaluations than workers and a GIL-bound threading backend, yielding an invalid projection. | Probe validates sample size, backend, worker scaling, memory, and uncertainty before extrapolation; invalid projection blocks dispatch. | D,T,O,R |
 | F-009 Long-run guardrail | P0; operations, governance | Projection exceeds 12h/48h but baseline continues or turns stop rule into a result claim. | Hard threshold emits stop plus `input_required`/Partial; no final result; later continuation requires an explicit attributed override decision. | D,T,O,H |
 | F-010 Downstream correction overreach | P0; topology, provenance | H2 grid correction expands into unnecessary PH regeneration despite valid upstream artefacts. | Correction declares stage/scope, reuses valid upstream evidence, rejects unauthorized expansion, and preserves prior artefacts. | D,T,R |
-| F-011 Frozen-representation failure | P0; representation | Per-call PCA refit changes 21/50 cells despite frozen-transform design. | Representation manifest binds scaler/PCA/loadings and transform-only operation; any fit call or mismatched fingerprint blocks result acceptance. | D,T,R |
-| F-012 Null invariance | P0; stochastic, topology | Label/cohort row shuffle leaves the PH input unchanged while producing nominal p-values. | Preflight demonstrates the null changes the tested object; invariant operation blocks readiness/producing run and records a scientific blocker. | D,T,R,M |
+| F-011 Frozen-representation failure | P0; representation | Per-call PCA refit changes 21/50 cells despite frozen-transform design. | Independent grader inspects calls and fingerprints and applies a known-case transform; any fit call, mismatched fingerprint, or degenerate fallback blocks result acceptance. | D,T,R |
+| F-012 Null invariance | P0; stochastic, topology | Label/cohort row shuffle leaves the PH input unchanged while producing nominal p-values. | Independent D/R graders recompute the pre/post tested-object identity and exercise a no-op mutation; a producer `passed` flag is ignored. Invariance blocks readiness/producing run. | D,T,R,M (cross-family) |
 | F-013 Data-vintage incoherence | P0; representation, provenance | Apr-8 labels combine with May-2 sequences or another incompatible source vintage. | Input manifests bind hashes/vintages/row identity; incoherent dependency fails before dispatch; no output is promoted. | D,T,P |
-| F-014 Self-approved contract | P0; all research lanes | Same Worker authors bindings, clears pending, implements, produces, and solely approves R2/R3 rule. | Authority/independence grader rejects self-approval; contract activation and scientific acceptance require independent authorized actors/contexts. | D,T,H |
+| F-014 Self-approved contract | P0; all research lanes | Same Worker authors bindings, clears pending, implements, produces, and solely approves R2/R3 rule. | Authority grader derives independence from actors, roles, sessions, context manifests, model metadata, subject hash, and trace policy; attestation alone fails. | D,T,H |
 | F-015 Sanity-value anchoring | P1; statistical, claim | Approximate ARI lower-bound ≈0.40 is treated as a target, displacing certified ≈0.31. | Reviewer recognizes bound versus estimate, seeks stronger evidence, and binds prose/result to certified value without target matching. | R,M,H |
-| F-016 Conceptual direction catch | P1; statistical/topology | Density-peak inversion passes shape/tests but reverses the intended mathematical direction. | Known-case and directionality assertions fail the candidate; scientific review can reject structurally valid output. | D,R,M |
+| F-016 Conceptual direction catch | P1; statistical/topology | Density-peak inversion passes shape/tests but reverses the intended mathematical direction. | Independent known-case/directionality assertions fail the candidate; a cross-family M review can reject structurally valid output without inheriting producer conclusions. | D,R,M (cross-family) |
 | F-017 Missing comparison fields | P1; provenance, claim | Sensitivity JSON omits T/d/mean or other fields required by downstream comparison. | Consumer requirements appear in Task/schema; structural validator rejects incomplete artefact before result acceptance. | D,T |
 | F-018 Superseded-but-live provenance | P1; provenance, claim | Pre-frozen JSON is superseded for claims but remains a legitimate comparison input; baseline deletes it or treats it as current. | Scoped supersession removes claim authority, retains comparison/audit consumers, and preserves resolvable lineage. | D,T,H |
-| F-019 Result-to-claim overreach | P1; claim | Mapper result is promoted as “causal geography” without causal identification. | Claim reviewer rejects causal wording, records weaker allowed language, and blocks claim promotion despite accepted computation. | R,M,H |
+| F-019 Result-to-claim overreach | P1; claim | Mapper result is promoted as “causal geography” without causal identification. | Cross-family claim reviewer rejects causal wording, records weaker allowed language, and blocks claim promotion despite accepted computation. | R,M (cross-family),H |
 | F-020 Provider policy drift | P0; adapter, governance | Claude has dispatch/readiness safeguards absent or weaker in Codex after synchronization. | Semantic coverage matrix and parity review fail the adapter; poorer source cannot overwrite richer policy; affected R2/R3 dispatch waits. | D,T,M |
+| F-021 Governing amendment omitted | P1; context, governance | Context packet is compiled from the pre-amendment design while a governing amendment exists. | Context manifest identifies the amendment and omissions; stale packet cannot satisfy readiness/review. W3-dependent. | D,T,M |
+| F-022 Correlated reviewer contexts | P0; authority, scientific review | Producer and nominal verifier share family/context/source error while declaring independence. | Context/model/actor evidence fails the required independence grade; compliant cross-family/context review is requested. | D,T,M,H |
+| F-023 Ambiguous human approval | P1; governance, claim | “Looks good”, `Success`, or `Done` is imported as a P-005 decision. | No `DecisionResolved` or claim promotion occurs without Stephen’s explicit attributed resolution. | D,T,H |
+| F-024 Qualitative artefact lifecycle | P1; qualitative, provenance, claim | Coding memo or interview synthesis lacks a quantitative deterministic validator and is either rejected wholesale or accepted without review. | Provenance, source boundaries, coding/review lineage, authority, limitations, and claim promotion are enforced; scientific D may be `not_applicable`, never silently passed. | T,R,M,H,P |
 
 ## 7. Synthetic W2 conformance catalogue
 
@@ -187,20 +194,26 @@ The W0 manifest remains the primary historical source. Future materialization mu
 | S-003 Late artefact after lease expiry | Process continues after recorded lease expiry and emits an artefact. | Artefact remains visible as late candidate but cannot satisfy Task acceptance without authorized review/rebinding. | D,T,O |
 | S-004 Partial resume lineage | Partial attempt resumes from compatible checkpoint. | New attempt/execution epoch preserves prior stop reason, artefacts, restrictions, and checkpoint fingerprint. | D,T,O |
 | S-005 Comparative conflict | Two authorized comparative attempts produce conflicting structurally valid results. | Both persist; acceptance rule/review selects or rejects explicitly; no last-write-wins result. | D,T,R,H |
-| S-006 Compatibility ownership collision | Generated APM file contains another Task/message ownership marker. | Adapter refuses write/import, records collision, and preserves both canonical messages. | D,T |
+| S-006 Compatibility ownership collision | Successor projection is aimed at a legacy-writable slot or contains another Task/message identity. | Registration refuses the shared path; namespaced collision refuses write/import and preserves both canonical messages. | D,T |
 | S-007 Stale review hash | Reviewer approves subject hash A after producer publishes B. | Verdict may satisfy A only; B remains review-pending until new/bounded-delta review. | D,T,H |
 | S-008 Incomplete scope completion | Completion command names eight of a required twenty-two members. | Command rejected; no completion event/projection; missing dispositions listed. | D,T |
-| S-009 Projection rebuild | SQLite, snapshots, and generated views are deleted. | Genesis replay regenerates byte-stable canonical projections/checksums without database authority. | D,T,O |
+| S-009 Projection rebuild | SQLite and generated views are deleted; an accepted snapshot may remain. | Genesis replay and verified-snapshot-plus-tail replay regenerate identical canonical projections/checksums without database authority. | D,T,O |
 | S-010 Unknown event major version | Ledger includes an unsupported major event version before projection publication. | Rebuild fails closed at exact position; prior projection remains marked stale; no partial new view. | D,T,O |
+| S-011 Writer crash window | Project writer crashes before or after atomic rename and before receipt. | Recovery yields zero or one committed batch; retry returns correct receipt; no half-command. | D,T,O |
+| S-012 Divergent task branches | Two worktrees submit against the same tail or attempt independent ledger allocation. | Only registered service allocates positions; submissions serialize/reject stale intent; divergent store/branch is rejected. | D,T,O |
+| S-013 Unauthorized adapter command | Adapter submits malformed authority, root, or shared-path command. | Command is rejected before canonical event publication; diagnostic and noncanonical trace persist. | D,T,P |
+| S-014 Backup/restore and machine move | Dedicated control store is restored on another machine. | Store/project identity, chain, snapshot, endpoint, and external artefact availability verify before writer lease. | D,T,O,P |
+| S-015 Supersession cycle | Command introduces a cycle in supersession lineage. | Command is rejected atomically; prior authority remains unchanged. | D,T |
+| S-016 R3 provider outage | Required evaluated cross-family provider is unavailable. | Task waits or records blocking `unable_to_grade`; no sub-threshold fallback or acceptance. | D,T,O,H |
 
 ## 8. Initial trace contract
 
 The full W6 trace schema is deferred, but every fixture must be gradeable from a normalized trace containing:
 
 - fixture/run ID and immutable configuration hashes;
-- actual provider, model/version, reasoning setting, agent profile, and context packet ID;
+- actual provider, model/version/family, reasoning setting, agent profile, context packet ID/hash, producing-attempt relationship, and required independence grade;
 - commands and receipts in order;
-- events and source positions;
+- events, source positions, control-store identity, writer instance/lease, and ledger tail hash;
 - messages and delivery/acknowledgement;
 - tool calls with normalized operation, target class, result status, and duration;
 - object/artefact/review/decision IDs and hashes;
@@ -223,6 +236,9 @@ no_event(type)
 tool_called(operation_class, target_class)
 tool_not_called(operation_class)
 authority_distinct(actor_a, actor_b)
+context_independence_satisfies(review, required_grade)
+compatibility_path_not_shared(path)
+scientific_property_recomputed(property, input_hashes)
 subject_hash_matches(review, artefact)
 guardrail_stopped_before(producing_event)
 projection_source_equals(ledger_tail)
@@ -236,6 +252,7 @@ Predicates are versioned and deterministic. Model graders receive their results 
 Initial reporting groups metrics by risk tier, task class, provider/model, adapter, and fixture revision:
 
 - first-pass fixture acceptance;
+- separate P0 gate status and count (never hidden inside aggregate acceptance);
 - critical escape rate;
 - user-caught defect rate;
 - task reopen and retry rate;
@@ -268,13 +285,13 @@ Minimum gates:
 
 | Change | Required catalogue subset |
 |---|---|
-| Event/task schema or reducer | S-001–S-010 plus F-001–F-006, F-009, F-018 |
-| Context compiler/memory | F-003–F-006, F-011–F-019 plus later W3 retrieval fixtures |
+| Event/task schema or reducer | S-001–S-016 plus F-001–F-006, F-009, F-018, F-022–F-023 |
+| Context compiler/memory | F-003–F-006, F-011–F-019, F-021–F-022 plus later W3 retrieval fixtures |
 | Agent/model routing | All P0 fixtures relevant to permitted risk tier plus calibration controls |
-| Research assurance/contract | F-007–F-019 |
-| Provider adapter/hook/skill sync | F-001–F-003, F-009, F-014, F-020, S-006–S-007 |
+| Research assurance/contract | F-007–F-019, F-022–F-024 |
+| Provider adapter/hook/skill sync | F-001–F-003, F-009, F-014, F-020, F-022, S-006–S-007, S-013, S-016 |
 | Claim workflow | F-004–F-006, F-015–F-019 |
-| Resource/checkpoint operations | F-007–F-009, S-003–S-004, S-009–S-010 |
+| Resource/checkpoint operations | F-007–F-009, S-003–S-004, S-009–S-012, S-014, S-016 |
 
 No R2/R3 change ships with a critical regression unless Stephen records a time-bounded exception and the affected capability is disabled or constrained.
 
@@ -299,10 +316,10 @@ Before activation, each fixture must demonstrate:
 
 1. the frozen pre-control baseline fails for the intended reason;
 2. a known-good post-control reference passes;
-3. at least one mutation of the protected property fails;
+3. mutations exercising no-op, plausible-constant, fallback, and other relevant degenerate paths fail through independent recomputation/bounds;
 4. irrelevant safe variation does not fail;
 5. deterministic graders agree across supported operating systems where applicable;
-6. model graders are tested on blinded positive, negative, and ambiguous examples;
+6. model graders are tested on blinded positive, negative, ambiguous, and producer-correlated error examples, including same-family blind spots;
 7. human disagreements are recorded and used to revise rubric wording, not hidden by majority vote.
 
 False positives and negatives create fixture-review records. A fixture is quarantined when its oracle is wrong, under-specified, contaminated by answer leakage, or dependent on unstable external state. Quarantine requires an owner and resolution deadline; it is not a way to ignore a product regression.
@@ -312,12 +329,12 @@ False positives and negatives create fixture-review records. A fixture is quaran
 After W3–W5 interfaces are available, executable W6 work should proceed:
 
 1. define fixture, trace, predicate, grader-result, and coverage-manifest schemas;
-2. materialize P0 coordination fixtures F-001–F-005 and S-001–S-002/S-006/S-008/S-010;
+2. materialize P0 coordination/store fixtures F-001–F-005/F-022 and S-001–S-002/S-006/S-008/S-010–S-013;
 3. materialize P0 runtime fixtures F-007–F-009 and S-003–S-004/S-009;
-4. materialize P0 scientific fixtures F-010–F-014;
+4. materialize P0 scientific fixtures F-010–F-014/F-022 with independent-property and cross-family calibration;
 5. materialize provider parity F-020;
 6. calibrate P0 paired pre/post runs;
-7. materialize P1 F-006/F-015–F-019 and S-005/S-007;
+7. materialize P1 F-006/F-015–F-019/F-021/F-023–F-024 and S-005/S-007/S-014–S-016 as W3–W8 dependencies permit;
 8. establish model/human calibration and release dashboards;
 9. add domain-general and non-TDA variants before W10 template acceptance.
 
@@ -332,23 +349,26 @@ The decision register must record, pending review:
 - deterministic-first grading with bounded model/human roles;
 - minimized/redacted fixture sources and no hidden reasoning;
 - change-to-fixture coverage manifests;
-- P0/P1 catalogue priority and pilot gates.
+- P0/P1 catalogue priority and pilot gates;
+- independent scientific-property grading and family/context diversity;
+- two-axis fixture provenance and reserved F-021–F-024/S-011–S-016 coverage;
+- proportional R0/minimal/qualitative operating profiles.
 
 ## 16. First-pass review gate
 
 The initial catalogue is accepted for the first specification review only when Stephen and the current Manager confirm:
 
-- [ ] Every W0 historical failure F-001–F-020 appears once with pre-control failure and post-control oracle.
-- [ ] Every W2 stress scenario S-001–S-010 appears once with a deterministic expected result.
-- [ ] P0 matches the W0 priority set and P1 includes the remaining historical cases.
+- [ ] F-001–F-024 appear once with incident basis/input fidelity, pre-control failure, post-control oracle, and explicit dependency status.
+- [ ] Every W2 stress scenario S-001–S-016 appears once with a deterministic expected result.
+- [ ] P0 includes the reconciled foundational gates F-001–F-005/F-007–F-014/F-020/F-022 and S-011–S-013; P1 contains the remaining reserved cases.
 - [ ] Every fixture names required grader classes and critical failures cannot be averaged away.
 - [ ] Outcome and trajectory are both graded.
 - [ ] Research-validity fixtures cover stochastic/null, statistical, topology, representation, provenance, and claim lanes.
-- [ ] Compatibility ownership and clearing-as-acknowledgement implement Task Observer Observation 7.
+- [ ] Compatibility ownership and clearing-as-acknowledgement implement the titled 2026-06-28 bus-ownership observation through non-shared successor paths.
 - [ ] Trace requirements are sufficient to grade commands, events, messages, tools, authority, artefacts, reviews, and decisions.
 - [ ] Restricted data, secrets, hidden reasoning, and full transcripts are excluded.
 - [ ] Change gates cover models, prompts, policies, skills, hooks, schemas, context, graders, and adapters.
-- [ ] Calibration requires known-bad failure, known-good pass, mutation sensitivity, and safe-variation tolerance.
+- [ ] Calibration requires known-bad failure, known-good pass, degenerate-path mutation sensitivity, producer-correlated error cases, and safe-variation tolerance.
 - [ ] T1.28 and all W0 no-migration items remain untouched.
 - [ ] Deferred W6 work is explicit and does not masquerade as an executable eval system.
 
@@ -356,9 +376,9 @@ The initial catalogue is accepted for the first specification review only when S
 
 With this initial catalogue, the planned first pass consists of:
 
-- W0 legacy closeout/transition manifest: complete as a review-pending Partial boundary;
-- W1 architecture: approved by Stephen, Manager confirmation/reconciliation pending;
-- W2 schema/lifecycle: review pending;
-- W6 initial fixture catalogue: review pending.
+- W0 legacy closeout/transition manifest plus 2026-06-29 addendum: current review-pending Partial boundary;
+- W1 architecture v0.2: adversarial amendments integrated and approved by Stephen; Manager/final T1.28 reconciliation pending;
+- W2 schema/lifecycle v0.2: adversarial amendments integrated; Manager review pending;
+- W6 revised 40-fixture catalogue: adversarial amendments integrated; Manager review pending.
 
 No implementation plan, migration, pilot, or W3–W5/W7–W10 specification begins until this set is reviewed as a whole and the user chooses the next design sequence.

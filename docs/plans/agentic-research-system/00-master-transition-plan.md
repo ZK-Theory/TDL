@@ -1,7 +1,8 @@
 # Agentic Research System — Master Transition Plan
 
 **Date:** 2026-06-27  
-**Status:** Approved direction captured; detailed specifications not yet authored  
+**Revised:** 2026-06-29  
+**Status:** First specification pass revised after adversarial review; Manager and final transition gates remain pending  
 **Transition point:** Expected close of Paper 1 Phase 1, after T1.28  
 **First deployment context:** TDL mathematical and social research  
 **Long-term scope:** Domain-general research programmes with optional specialist assurance packs
@@ -148,7 +149,7 @@ Each proposed study or paper should record:
 - target population, data access, and representation requirements;
 - estimand or mathematical object;
 - falsification and negative-result value;
-- topology or specialist method's incremental value;
+- specialist-method incremental value;
 - feasibility evidence and resource envelope;
 - dependencies and blocking evidence;
 - promotion, redesign, pause, and abandonment criteria;
@@ -203,7 +204,7 @@ Required identifiers:
 - review ID;
 - decision ID.
 
-The current per-agent `task.md` and `report.md` can remain temporarily as generated inbox and outbox views. They cease to be authoritative storage.
+The current per-agent `task.md` and `report.md` remain authoritative only for `legacy_owned` work. Successor-owned work uses non-shared ARS-namespaced views. One project-wide command service owns a dedicated linear ledger outside task-worktree branches; worktrees submit commands and never advance canonical history directly.
 
 ### 6.3 Artefact and provenance layer
 
@@ -255,12 +256,12 @@ Initial role profiles:
 | Research Designer | Estimand, mathematical specification, pre-registration, decision rule | Highest-reasoning model |
 | Feasibility Analyst | Bounded benchmark, cost and memory projection, resource claim | Script-first; strong model for interpretation |
 | Implementer | Code, tests, runners, checkpointing, artefact production | Codex-class xhigh for R2/R3 |
-| Independent Verifier | Re-derive, challenge assumptions, inspect evidence, test counterexamples | Fresh context; different model family for R3 |
+| Independent Verifier | Re-derive, challenge assumptions, inspect evidence, test counterexamples | Distinct evidenced context for R2; cross-family and cross-context for R3 |
 | Provenance Auditor | Inputs, hashes, vintages, environment, output schema | Deterministic tools plus evaluated model |
 | Claim Reviewer | Map result and decision locks to prose strength | Highest-reasoning model plus human approval |
 | Operations Agent | State projection, queue, recovery, adapter parity | Deterministic automation where possible |
 
-Agent profiles declare capabilities, permitted tools, context policy, risk ceiling, expected outputs, review requirements, and escalation conditions. A role name is not sufficient evidence of capability.
+Agent profiles declare capabilities, permitted tools, context policy, risk ceiling, expected outputs, review requirements, and escalation conditions. A role name is not sufficient evidence of capability or independence. In a solo programme the system records contextual/model independence honestly; it does not claim independent human authorities that do not exist.
 
 ### 6.6 Risk and model-routing layer
 
@@ -268,10 +269,10 @@ Proposed epistemic risk tiers:
 
 | Tier | Character | Minimum control |
 |---|---|---|
-| R0 | Mechanical, deterministic, reversible | Script or evaluated lightweight model; deterministic verification |
+| R0 | Mechanical, deterministic, reversible | Minimal command/event/receipt envelope; script or evaluated lightweight model; deterministic verification |
 | R1 | Bounded implementation with stable specification | Implementer plus software review and tests |
 | R2 | Formula, estimand, null, representation, inference, or reusable research logic | Independent design lock, xhigh implementation, independent scientific verification |
-| R3 | Paper conclusion, decision reversal, causal claim, new methodology, or high-cost irreversible run | Dual independent review, explicit user approval, complete provenance and trace |
+| R3 | Paper conclusion, decision reversal, causal claim, new methodology, or high-cost irreversible run | Cross-family/cross-context review, Stephen’s explicit approval, complete provenance and trace |
 
 Routing records the actual model version, reasoning effort, context compiler version, and eval profile. Model changes trigger regression evaluation on the relevant task classes.
 
@@ -285,6 +286,8 @@ The current assurance lanes generalise into domain packs:
 - representation and measurement;
 - data and output provenance;
 - claim and disclosure;
+
+For qualitative or non-computational artefacts, the core still provides provenance, lifecycle, review, authority, and claim controls. Deterministic scientific validation may be `not_applicable`; the assurance burden shifts explicitly to bounded independent/human review rather than implying parity with quantitative validation.
 - domain-specific extensions such as topology.
 
 Each R2/R3 task should declare:

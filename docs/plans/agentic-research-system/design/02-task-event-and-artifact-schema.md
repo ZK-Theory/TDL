@@ -1,12 +1,13 @@
 # W2 — Task, Event, Artefact, Review, and Decision Schema
 
 **Date:** 2026-06-28  
-**Status:** Review pending  
-**Specification version:** 0.1  
-**Design authority:** W1 architecture, W0 transition manifest, accepted directions D-001–D-008, and W1 proposals P-001–P-005 approved by Stephen  
+**Revised:** 2026-06-29  
+**Status:** Adversarial-review amendments integrated; Manager review pending  
+**Specification version:** 0.2  
+**Design authority:** W1 v0.2, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-025  
 **Implementation authority:** None; this document specifies records and lifecycle semantics but creates no schemas, runtime, migration, or `.research-system/` state  
 **Review owners:** Stephen and the current research-programme Manager  
-**Reconciliation gate:** T1.28 completion, W0 addendum, full Stage 2 scope decision, and W1 Manager confirmation  
+**Reconciliation gate:** T1.28 terminal review and final W0 addendum, full Stage 2 scope decision, and W1/W2 Manager confirmation  
 
 ## 1. Decision summary
 
@@ -14,7 +15,7 @@ W2 replaces implicit identity and mutable status prose with typed immutable reco
 
 The draft makes these principal choices:
 
-1. Every accepted command commits one atomic JSONL event-batch file. There is no shared file to which agents append concurrently.
+1. Every accepted command reaches one project-wide command service and commits one atomic JSONL event-batch file in the dedicated linear control store. Agents and task worktrees never append or allocate positions independently.
 2. Canonical identifiers use a type prefix plus UUIDv7. Human labels such as `T1.28` remain aliases, never primary keys.
 3. Task status, dispatch status, attempt status, lease status, review status, and artefact authority are separate state machines.
 4. Commands express requested changes; events record accepted facts; messages communicate; artefacts carry outputs; reviews judge evidence; decisions exercise authority.
@@ -22,7 +23,7 @@ The draft makes these principal choices:
 6. Partial is a valid attempt outcome and may be a closed Task outcome. Resumption never overwrites the Partial record.
 7. Artefact existence, integrity, structural validation, scientific review, and acceptance-for-use are separate dimensions.
 8. Message delivery and acknowledgement are immutable events. Clearing an APM compatibility file acknowledges a view; it never deletes the message or history.
-9. Deterministic replay uses event positions, stream versions, object hashes, transaction boundaries, and pure reducers. Unknown or inconsistent records fail closed.
+9. Deterministic replay uses the dedicated ledger’s global positions/hash chain, stream versions, object hashes, transaction boundaries, pure reducers, and optional verified snapshot anchors. Unknown or inconsistent records fail closed.
 
 These choices are schema proposals pending the W2 review gate. They do not authorize implementation.
 
@@ -32,9 +33,10 @@ W2 implements:
 
 - W1 invariants: stable identity, one canonical owner, command-only mutation, no silent overwrite, provider-neutral authority, disposable projections, and fail-closed compatibility;
 - W0 fixtures F-001–F-020, especially overwrite, task/report collision, wrong root, stale projections, narrowed-stage completion, hard guardrails, self-approved contracts, superseded provenance, and provider drift;
-- the W0 source hierarchy and selective-import policy;
+- the W0 source hierarchy, 2026-06-29 currency addendum, and selective-import policy;
+- the adversarial-review reconciliation and approved amendments P-020–P-025;
 - the current APM task/report/log shapes, including frontmatter aliases, worktree roots, output requirements, assurance requirements, attempt narratives, Partial reports, and closeout bookkeeping;
-- Task Observer Observation 7: bus writes need explicit ownership and collision failure, not only read-before-write;
+- the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.Codex\skill-observations\log.md`): bus writes need explicit ownership and collision failure, not only read-before-write;
 - current research-assurance lanes: topology, stochastic/null, statistical/panel, representation, output/provenance, and paper claim;
 - the requirement that T1.28 and all W0 no-migration items remain legacy-owned.
 
@@ -278,25 +280,26 @@ Accepted idempotency outcomes are reconstructible from events. Rejected/conflict
 
 ### 9.1 Storage unit
 
-Each accepted command produces one immutable JSONL file:
+Each accepted command produces one immutable JSONL file in the dedicated project control root:
 
 ```text
-.research-system/events/<project-id>/<yyyy>/<mm>/
+<control-root>/events/<project-id>/<yyyy>/<mm>/
   <20-digit-start-position>-<transaction-id>.jsonl
 ```
 
-The writer:
+The one project-wide writer:
 
-1. acquires the repository-local command lock;
-2. verifies the canonical tail and expected stream version;
-3. writes any referenced immutable objects;
-4. builds the complete event batch in `runtime/`;
-5. validates every event and the batch hash chain;
-6. flushes and closes the temporary file;
-7. atomically renames it into `events/`;
-8. releases the lock and returns the receipt.
+1. validates `project_id`, control-store identity, endpoint, and caller root binding;
+2. acquires the control-store command lock and proves it is the registered writer instance;
+3. verifies the canonical global tail and every expected stream version;
+4. writes any referenced immutable objects into the same control store;
+5. builds the complete event batch in the control store’s `runtime/` area;
+6. validates every event, position allocation, and batch/global hash chain;
+7. flushes and closes the temporary file;
+8. atomically renames it into `events/`;
+9. advances the dedicated linear ledger history and returns the receipt.
 
-The atomic rename is the commit point. Objects written without a committed batch are inert. A crash cannot leave half an accepted command in the event ledger.
+The atomic rename is the event commit point. Objects written without a committed batch are inert. A crash cannot leave half an accepted command in the event ledger. Task worktrees never own this path, lock, or history and cannot publish a batch directly.
 
 ### 9.2 Event envelope
 
@@ -322,7 +325,7 @@ Every JSONL line contains:
 | `previous_event_hash` | Hash of prior global event or genesis marker |
 | `event_hash` | SHA-256 over canonical event content excluding `event_hash` |
 
-`recorded_at` and UUID time do not determine replay order. `global_position` does.
+`recorded_at` and UUID time do not determine replay order. `global_position` does. It is allocated only by the registered project writer; a task worktree cannot propose or reserve it.
 
 ### 9.3 Event naming
 
@@ -551,13 +554,15 @@ The tuple `(actor_id, authority_scope, command_type, idempotency_key)` identifie
 
 ### 13.2 Optimistic concurrency
 
-Every mutating command supplies `expected_stream_version`. The command lock protects physical publication; the expected version protects semantic intent. A stale command is rejected with the observed version and no automatic retry.
+Every mutating command supplies `expected_stream_version` for each affected stream and `expected_global_position`/tail hash for non-commutative project-wide mutations. The project command lock protects physical publication; expected versions protect semantic intent. A stale command is rejected with the observed versions and no automatic retry.
 
 Automatic resubmission is allowed only for commands declared commutative and only after revalidation against current state. Acceptance, cancellation, decision, contract activation, and claim promotion are never auto-rebased.
 
 ### 13.3 Transaction scope
 
 One command may produce several events across several streams in one batch. The batch declares its complete write set and expected versions. Either the entire file becomes visible or none of it does. Reducers reject a batch with missing indexes, duplicate positions, overlapping stream versions, or an invalid hash chain.
+
+There is exactly one writer lease per `project_id`. Worktrees and provider sessions are clients identified in the command envelope; they submit over the registered local endpoint or CLI and receive receipts. A second service instance, per-worktree control root, divergent ledger branch, or mismatched store identity is rejected before position allocation. Ledger history permits append and compensating events only; merge, rebase, reset, and event-file revert are invalid control-store operations.
 
 ## 14. Messages and compatibility ownership
 
@@ -588,7 +593,9 @@ The receiving actor or adapter submits the corresponding command with the messag
 
 ### 14.3 APM compatibility files
 
-For a `successor_owned` Task, generated `task.md` or `report.md` frontmatter includes:
+For a `successor_owned` Task, the adapter writes only a registered ARS-namespaced view such as `.apm/bus/<agent>/ars/<message-id>.task.md` or `.report.md`. It never writes the shared legacy `task.md` or `report.md` slot. If an unmodified legacy Worker must use that slot, the Task is `legacy_owned`.
+
+Generated namespaced frontmatter includes:
 
 ```yaml
 ars_projection: true
@@ -601,9 +608,9 @@ ars_projector_version: 1.0.0
 ars_content_hash: <sha256>
 ```
 
-The adapter writes only when every ownership field matches its registry and the target is empty or contains the same generated identity at the expected source position. Any other non-empty content is a collision and fails closed.
+The adapter writes only when every ownership field and registered namespaced path match and the target is empty or contains the same generated identity at the expected source position. Any other non-empty content is a collision and fails closed. Hooks may reject accidental direct writes but cannot authorize a shared legacy path.
 
-Clearing the file submits `AcknowledgeMessage`; it does not delete `MessagePublished`, delivery, prior content hash, or receipt. This directly applies Task Observer Observation 7.
+Clearing an ARS-aware namespaced view submits `AcknowledgeMessage`; it does not delete `MessagePublished`, delivery, prior content hash, or receipt. This applies the 2026-06-28 Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write.”
 
 ## 15. Blockers, input requirements, and Partial outcomes
 
@@ -686,12 +693,13 @@ No single `valid: true` or `status: accepted` field may collapse these dimension
 | Dimension | Values |
 |---|---|
 | Availability | `available`, `missing`, `inaccessible`, `quarantined` |
+| Regenerability | `not_declared`, `regenerable_verified`, `non_regenerable`, `unknown` |
 | Integrity | `unverified`, `verified`, `failed` |
 | Structural validation | `not_run`, `passed`, `failed`, `partial`, `not_applicable` |
 | Scientific review | `not_required`, `pending`, `approved`, `rejected`, `unable_to_verify` |
 | Use authority | `candidate`, `accepted_for_scope`, `rejected`, `superseded`, `restricted` |
 
-An artefact is usable by a consumer only if that consumer's policy predicate over all dimensions passes.
+An artefact is usable by a consumer only if that consumer's policy predicate over all dimensions passes. `regenerable_verified` requires pinned producer code/environment, input identities and hashes, parameters/seeds, a regeneration command, and a deterministic content or semantic canary. Missing-but-regenerable does not become available by assertion; the consumer policy decides whether regeneration is required before use.
 
 ### 16.3 Validation record
 
@@ -729,8 +737,8 @@ A review request is an immutable object with:
 - governing Task/design/decision/contract versions;
 - specific review questions;
 - required evidence and assurance lanes;
-- reviewer capability and independence constraints;
-- implementation trace visibility policy;
+- reviewer capability and required independence grade, including actor/session/context/model-family separation;
+- subject-artefact and implementation-trace visibility policy, including excluded implementer conclusions/hidden reasoning;
 - allowed verdicts;
 - authority required to satisfy the gate;
 - deadline and escalation rule.
@@ -754,13 +762,15 @@ unable_to_verify
 withdrawn
 ```
 
-The verdict records findings, evidence, limitations, conditions, reviewer actor/profile/context, independence attestation, and subject hash. `approve_with_conditions` satisfies a gate only when the acceptance policy declares the conditions non-blocking and records their owner.
+The verdict records findings, evidence, limitations, conditions, reviewer actor/profile/session/model metadata, context-manifest ID/hash, subject hash, producing-attempt relationship, trace-visibility evidence, and the independence grade established from those fields. A self-declared attestation alone establishes nothing. `approve_with_conditions` satisfies a gate only when the acceptance policy declares the conditions non-blocking and records their owner.
 
 ### 17.4 Review authority
 
 - A reviewer cannot approve a subject hash it did not inspect.
 - A changed subject requires a new review or an explicit bounded-delta review.
 - R2/R3 implementers cannot be the sole governing-rule or scientific approver.
+- R0/R1 may use delegated Manager acceptance when policy permits; R2 requires a distinct verifier context plus Manager acceptance; R3 and P-005 transitions require Stephen.
+- A verifier may inspect the exact subject artefact but cannot inherit the producer's conclusion or hidden reasoning unless a declared delta-review policy requires and records that exposure.
 - Passing software/provenance review cannot substitute for scientific review.
 - A review verdict never changes Task state directly; `AcceptTask` references the satisfied review set.
 
@@ -800,7 +810,7 @@ Reserved P-005 transitions require Stephen's explicit attributed resolution.
 
 ### 18.4 Mechanical rule evaluation
 
-A deterministic pre-registered outcome mapping is a `RuleEvaluation`, not automatically a human decision. It records rule version, exact inputs, calculation/validator, output, and evidence hash. A separate decision is required only when policy assigns interpretation, claim, amendment, or migration authority beyond the mechanical mapping.
+A deterministic pre-registered outcome mapping is a `RuleEvaluation`, not automatically a human decision. It records rule version, typed referent/estimand or mathematical object, compared subjects, metric and denominator, exact input IDs/hashes, calculation/validator, output, and evidence hash. A separate authorized Decision is required whenever policy promotes the output into interpretation, prose, claim, amendment, exception, or migration authority. Pure mechanical state projection may stand without a Decision. W5 owns the broader result-versus-decision policy.
 
 This preserves the distinction seen in T1.9b between a mechanical output and a manuscript-facing lock.
 
@@ -850,7 +860,7 @@ W4 defines exact profiles, but W2 requires every command/event to carry:
 - provider/model/profile/session metadata reference where applicable;
 - authority grant ID and scope;
 - delegating actor where applicable;
-- independence relationship to the subject;
+- independence-evidence profile: producing-attempt relationship, prior roles, context-manifest ID/hash, model family/version, session, and trace-visibility class;
 - actual time-bounded capability, not only a role name.
 
 Authority grants are immutable versions specifying allowed command types, subject scope, risk ceiling, effective interval, delegability, and revocation. Replay uses the authority snapshot recorded at acceptance; it does not query today's policy to decide whether a historical event happened.
@@ -882,7 +892,7 @@ Reducers cannot read the current clock, provider session, environment variables,
 
 ### 21.3 Snapshots and indexes
 
-Snapshots, SQLite, search indexes, dashboards, and APM views may accelerate startup but declare source position/hash and projector version. Rebuild from genesis remains the acceptance test. A snapshot mismatch triggers deletion/rebuild, not event repair.
+Snapshots, SQLite, search indexes, dashboards, and compatibility views may accelerate startup but declare source position/hash, state hash, reducer/schema versions, and projector version. A snapshot becomes an authoritative replay anchor only after a full verification records its preceding chain, terminal position/hash, state checksum, reducer set, and recovery test. Replay from an accepted anchor plus all later events is a release acceptance test; periodic genesis replay remains an audit while supported. This permits retirement of pre-anchor reducer implementations only through an attributed compatibility decision that preserves the verifying snapshot and audit evidence. A snapshot mismatch triggers deletion/rebuild or fail-closed recovery, never event repair.
 
 ### 21.4 Drift detection
 
@@ -915,7 +925,7 @@ Every imported observation contains:
 W1 modes remain exact:
 
 - `legacy_owned`: ARS records observations only and never writes legacy state;
-- `successor_owned`: ARS events are canonical and APM files are guarded projections/import channels;
+- `successor_owned`: ARS events are canonical and only non-shared ARS-namespaced compatibility views/import channels are permitted;
 - `closed_reference`: legacy source is frozen evidence with no synchronization.
 
 No command can change ownership mode without migration authority, collision checks, and an event naming the cutover position. `dual_owned` is schema-invalid.
@@ -935,9 +945,12 @@ T1.28, T0.3, unresolved Stage 2 work, retained worktrees, superseded-but-live ar
 | Crash after atomic rename before receipt | Retry discovers committed command and returns receipt |
 | Partial/corrupt batch file | Replay fails closed; file never treated as committed if publication protocol was followed |
 | Event position gap or overlap | Authoritative projection stops with diagnostic |
+| Second writer, divergent worktree ledger, or store-identity mismatch | Reject before allocation; preserve submission trace outside canonical lifecycle |
 | Missing referenced object | Projection stops at offending event; no silent null |
 | Lease expires while process runs | Record expiry; mark process/output orphan/late candidate; preserve evidence |
 | Compatibility file has foreign content | Refuse write/import; create collision diagnostic |
+| Successor task targets a shared legacy `task.md`/`report.md` slot | Reject path registration; Task remains legacy-owned or uses a namespaced view |
+| Independence grade relies only on attestation or reused producer context | Verdict cannot satisfy gate; request a compliant verifier context |
 | Attempt produces result after cancellation | Register as late candidate, never auto-accept |
 | Validation passes but scientific review fails | Preserve both records; block artefact use and Task acceptance |
 | Reviewer inspects stale hash | Verdict cannot satisfy gate |
@@ -1015,6 +1028,10 @@ Examples omit optional trace fields but are otherwise consistent with the propos
 18. Rebuild uses only canonical records and pure reducers.
 19. Legacy observation and successor adoption are separate events.
 20. Restricted data, secrets, and hidden reasoning never enter core records.
+21. One registered writer allocates all global positions for one project control store.
+22. Task-worktree branches never contain or merge independently advanced canonical ledgers.
+23. A successor-owned compatibility path is non-shared with unmodified legacy tooling.
+24. Review independence is computed from recorded evidence and cannot be satisfied by attestation alone.
 
 ## 26. Historical fixture acceptance matrix
 
@@ -1040,6 +1057,10 @@ Examples omit optional trace fields but are otherwise consistent with the propos
 | F-018 | Scoped supersession preserves comparison/audit consumers and full lineage |
 | F-019 | Claim-promotion decision requires claim review and cannot be inferred from result acceptance |
 | F-020 | Policy/adapter versions are event/object references; parity review gates adapter use |
+| F-021 | Context manifest binds the governing amendment and omission record; stale pre-amendment context cannot satisfy review/readiness |
+| F-022 | Independence grade compares producer/verifier actors, sessions, model families, context manifests, and trace visibility |
+| F-023 | P-005 decisions require an explicit attributed resolution; ambiguous prose/status cannot resolve them |
+| F-024 | Qualitative artefacts use provenance/lifecycle/review/authority records while deterministic scientific validation may be `not_applicable` |
 
 ### Required W2 stress scenarios
 
@@ -1053,6 +1074,12 @@ Examples omit optional trace fields but are otherwise consistent with the propos
 8. A stage completion command names only eight of twenty-two Tasks; command is rejected.
 9. SQLite/projections are deleted; replay recreates identical state and checksums.
 10. An unknown event major version stops authoritative rebuild before any new projection is published.
+11. The writer crashes before/after atomic rename; recovery produces zero or one committed batch and the correct receipt.
+12. Two task branches submit against the same tail; the single service allocates distinct positions or rejects stale intent, and no divergent ledger can be merged.
+13. A malformed or unauthorized adapter command is rejected without a canonical event.
+14. Backup/restore on another machine verifies store identity, chain, snapshots, and external artefact availability before service start.
+15. A supersession cycle is rejected without changing authority.
+16. No evaluated R3 provider is available; the Task waits rather than routing to a sub-threshold model.
 
 ## 27. Verification programme
 
@@ -1069,13 +1096,13 @@ Implementation planning must provide deterministic tests for:
 - transaction position, count, and hash-chain integrity;
 - supersession cycles and scope;
 - artefact multidimensional state;
-- review hash/independence binding;
+- review subject-hash and evidence-derived independence binding;
 - compatibility ownership markers;
 - secret/restricted-data rejection.
 
 ### 27.2 Replay verification
 
-- golden event ledgers rebuild expected projections;
+- golden dedicated ledgers rebuild expected projections from genesis and accepted snapshot anchors;
 - repeated replay is byte-stable except declared generated timestamps, which are excluded from canonical projections;
 - incremental replay equals full replay;
 - optional snapshot/index removal changes no projected state;
@@ -1086,7 +1113,7 @@ Implementation planning must provide deterministic tests for:
 
 W2 touches Output/Provenance and Paper Claim governance and defines carrying fields for all assurance lanes. It changes no formula, null, estimand, representation, topological result, or paper claim.
 
-Machine-checkable claims include identity, transition legality, version/hash integrity, authority presence, review independence declarations, artefact-field completeness, scope-member dispositions, ownership markers, and replay determinism.
+Machine-checkable claims include identity, transition legality, version/hash integrity, authority presence, review independence evidence, artefact-field completeness, regenerability evidence, scope-member dispositions, ownership paths, writer/store identity, and replay determinism.
 
 Human-review questions are:
 
@@ -1098,11 +1125,11 @@ Human-review questions are:
 
 ### W3
 
-Context packets, memory, and retrieval use canonical IDs/revisions/hashes; they cannot alter state. Context compilation references Task, dispatch, assurance, and source positions.
+Context packets, memory, and retrieval use canonical IDs/revisions/hashes; they cannot alter state. Context compilation references Task, dispatch, assurance, source positions, governing amendments, omission records, and producing-attempt relationships needed to establish independence.
 
 ### W4
 
-Profiles and routing instantiate actor, authority grant, independence, model/eval profile, risk ceiling, and fallback fields required here.
+Profiles and routing instantiate actor, authority grant, evidence-derived independence grade, model/eval profile, delegated acceptance, risk ceiling, and fallback fields required here.
 
 ### W5
 
@@ -1110,19 +1137,19 @@ Assurance packs define Task assurance requirements, validation types, review que
 
 ### W6
 
-Fixtures must generate commands/events/messages/artefacts/reviews and grade both outcome and trajectory. Rejected receipts and traces obey privacy/retention rules.
+Fixtures must generate commands/events/messages/artefacts/reviews and grade both outcome and trajectory. Scientific properties are independently recomputed or bounded; model-family/context independence is graded. Rejected receipts and traces obey privacy/retention rules.
 
 ### W7
 
-Adapters translate provider actions into commands/messages and expose receipts. They cannot write event batches or compatibility files without core ownership validation.
+Adapters translate provider actions into commands/messages and expose receipts. They cannot write event batches directly or register a successor view at a shared legacy path.
 
 ### W8
 
-Resource grants, heartbeat cadence, lease expiry, process identity, checkpoint fingerprinting, stop confirmation, and orphan handling extend the records defined here.
+Resource grants, heartbeat cadence, personal-machine sleep/resume handling, lease expiry, process identity, checkpoint fingerprinting, stop confirmation, control-store backup, and orphan handling extend the records defined here.
 
 ### W9
 
-Migration uses two-step observation/adoption, exclusive ownership modes, explicit cutover events, and no inferred acceptance from mutable legacy prose.
+Migration uses two-step observation/adoption, exclusive ownership modes, non-shared successor paths, explicit cutover events, and no inferred acceptance from mutable legacy prose.
 
 ## 29. Proposed decisions introduced by W2
 
@@ -1135,13 +1162,17 @@ The decision register must record, pending W2 review:
 - attempt and Task Partial/reopen semantics;
 - multidimensional artefact validation and authority;
 - exact ScopeDefinition revision for milestone completion;
-- review verdict binding to exact subject hash.
+- review verdict binding to exact subject hash;
+- project-wide writer/control-store identity and non-shared compatibility paths;
+- evidence-derived reviewer independence and delegated acceptance;
+- typed RuleEvaluation referents and regenerability evidence;
+- verified-snapshot replay anchors and reserved F-021–F-024/S-011–S-016 coverage.
 
 ## 30. W2 review gate
 
 W2 can move from `review_pending` to `accepted` only when Stephen and the current Manager confirm:
 
-- [ ] Atomic JSONL event batches satisfy W1's local canonical-storage decision without requiring SQLite.
+- [ ] Atomic JSONL batches in one dedicated linear ledger satisfy W1’s canonical-storage decision without SQLite or per-worktree ledgers.
 - [ ] ID format, aliases, revisions, and hashes are sufficiently stable and provider-neutral.
 - [ ] Command, receipt, event, object, message, artefact, validation, review, decision, and projection meanings are non-overlapping.
 - [ ] Task status is correctly separated from dispatch, attempt, lease, checkpoint, and review status.
@@ -1149,17 +1180,17 @@ W2 can move from `review_pending` to `accepted` only when Stephen and the curren
 - [ ] Dispatch, claim, lease, retry, cancellation, and idempotency preserve all attempts and messages.
 - [ ] Partial, blocked, input-required, pause, resume, reopen, and supersession semantics fit long-running mathematical work.
 - [ ] Artefact existence, integrity, structural validation, scientific review, and use authority remain distinct.
-- [ ] Review and decision records enforce W1's scientific-authority separation and P-005 human approvals.
+- [ ] Review and decision records enforce evidence-derived independence, delegated R0–R2 acceptance, and P-005/R3 human approvals.
 - [ ] Scope completion cannot omit Plan-defined work without a versioned scope amendment.
-- [ ] Deterministic replay fails closed on corruption, gaps, unknown schemas, and stale projections.
-- [ ] Compatibility ownership applies Observation 7 and prevents destructive bus writes.
+- [ ] Genesis and accepted-snapshot replay fail closed on corruption, gaps, unknown schemas, stale projections, and control-store identity mismatch.
+- [ ] Compatibility ownership applies the titled 2026-06-28 bus-ownership observation and prevents shared legacy/successor write paths.
 - [ ] Legacy observation cannot silently become successor acceptance.
-- [ ] F-001 through F-020 and all ten stress scenarios are representable without information loss.
+- [ ] F-001–F-024 and S-001–S-016 are representable with explicit provenance and dependency status.
 - [ ] T1.28 and the W0 no-migration set remain untouched.
 - [ ] W3–W9 can extend these records without reversing W1 dependency direction.
 
 ## 31. W2 outcome
 
-**Outcome:** `REVIEW_PENDING — schema and lifecycle semantics specified; implementation and migration prohibited`.
+**Outcome:** `MANAGER_REVIEW_PENDING — adversarial amendments integrated into schema/lifecycle v0.2; implementation and migration prohibited`.
 
 W2 may be reconciled with T1.28 and the final W0 addendum before approval. W3/W6 drafting may reference this proposal, but no implementation plan begins until W1/W2 governance gates are resolved.

@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** First specification pass assembled for review; W0/W1 Manager gates and W2/W6 review remain pending  
+**Status:** Adversarial first-pass review integrated into W0/W1/W2/W6; bounded Manager review pending; implementation remains prohibited  
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -23,17 +23,21 @@ The objective is not to automate research judgment away. It is to make agent act
 | [02-design-and-deliverables-roadmap.md](02-design-and-deliverables-roadmap.md) | Design work packages, dependencies, review gates, and intended deliverables |
 | [03-decisions-and-open-questions.md](03-decisions-and-open-questions.md) | Accepted directions, assumptions requiring confirmation, and bounded design decisions |
 | [transition/W0-legacy-closeout-transition-manifest-2026-06-28.md](transition/W0-legacy-closeout-transition-manifest-2026-06-28.md) | Commit-anchored legacy closeout inventory, no-migration boundary, and eval-fixture shortlist |
+| [transition/W0-legacy-closeout-transition-addendum-2026-06-29.md](transition/W0-legacy-closeout-transition-addendum-2026-06-29.md) | Dated currency update for T1.6, live T1.28 state, legacy bus backport, and A-001/A-002 status |
 | [design/README.md](design/README.md) | Structure and entry criteria for the forthcoming design specifications |
 | [design/01-system-architecture.md](design/01-system-architecture.md) | W1 component ownership, canonical/projected state, trust and filesystem boundaries, dependency direction, and `.apm/` compatibility architecture |
 | [design/02-task-event-and-artifact-schema.md](design/02-task-event-and-artifact-schema.md) | W2 identities, commands, atomic events, lifecycle state machines, messages, artefacts, reviews, decisions, and deterministic replay |
-| [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | Initial W6 catalogue: 20 historical fixtures, 10 synthetic conformance scenarios, graders, privacy, calibration, and change gates |
+| [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | Revised W6 catalogue: F-001–F-024 and S-001–S-016, grader independence, provenance, privacy, calibration, and change gates |
+| [reviews/adversarial-first-pass-review-2026-06-29.md](reviews/adversarial-first-pass-review-2026-06-29.md) | Independent review of the plan and W1/W2/W6 first pass; preserved unchanged |
+| [reviews/adversarial-review-reconciliation-2026-06-29.md](reviews/adversarial-review-reconciliation-2026-06-29.md) | Stephen-approved dispositions, evidence-timing reconciliation, and integration authority |
 
 ## Handover prompts
 
 | Prompt | Purpose |
 |---|---|
-| [handoffs/01-next-session-continuation-prompt.md](handoffs/01-next-session-continuation-prompt.md) | Straightforward continuity brief: files, status, settled decisions, safeguards, and next-session protocol |
-| [handoffs/02-adversarial-review-prompt.md](handoffs/02-adversarial-review-prompt.md) | Independent source-backed attack review of the plan, W1, W2, and initial W6 catalogue |
+| [handoffs/01-next-session-continuation-prompt.md](handoffs/01-next-session-continuation-prompt.md) | Historical pre-review continuity brief; superseded by handoff 03 |
+| [handoffs/02-adversarial-review-prompt.md](handoffs/02-adversarial-review-prompt.md) | Executed adversarial-review brief; retained as review provenance |
+| [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | Current continuity brief for bounded review of the reconciled W0/W1/W2/W6 package |
 
 ## Governing constraints
 

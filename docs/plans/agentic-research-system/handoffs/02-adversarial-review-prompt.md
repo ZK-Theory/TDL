@@ -1,5 +1,7 @@
 # Adversarial First-Pass Review Prompt
 
+> **Executed review prompt.** The resulting review is [../reviews/adversarial-first-pass-review-2026-06-29.md](../reviews/adversarial-first-pass-review-2026-06-29.md), and its approved dispositions are recorded in [../reviews/adversarial-review-reconciliation-2026-06-29.md](../reviews/adversarial-review-reconciliation-2026-06-29.md). Retain this file as provenance; do not re-run it as the current continuation brief.
+
 You are the independent adversarial reviewer for the proposed Agentic Research System in `C:\Users\steph\TDL`.
 
 ## Mission

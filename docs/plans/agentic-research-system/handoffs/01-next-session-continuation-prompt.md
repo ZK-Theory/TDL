@@ -1,5 +1,7 @@
 # Continuation Session Handover Prompt
 
+> **Historical handover — superseded.** This prompt records the pre-review state at 2026-06-28. Use [03-post-review-continuation-prompt.md](03-post-review-continuation-prompt.md) for current continuation. Do not treat the snapshot, fixture counts, decision statuses, or Observation 7 status below as current.
+
 You are taking over the Agentic Research System planning work in the TDL repository.
 
 ## Objective

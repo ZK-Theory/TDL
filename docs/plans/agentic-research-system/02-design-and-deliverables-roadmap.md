@@ -43,7 +43,7 @@ Specifications may be developed in parallel only when their interfaces are alrea
 
 **Purpose:** Lock component boundaries and ownership.
 
-**Current status (2026-06-28):** Stephen approved `design/01-system-architecture.md`; current Manager confirmation and post-T1.28 reconciliation remain pending. W2 design may proceed review-pending, but implementation and migration remain prohibited. The draft proposes JSONL as canonical storage, `.research-system/` as the neutral root, a serialized command boundary, and three exclusive `.apm/` ownership modes.
+**Current status (2026-06-29):** W1 v0.2 integrates the accepted adversarial-review amendments: one project-wide writer, a dedicated linear ledger/control root, non-shared successor compatibility paths, and graded independence/delegated acceptance. Stephen approved the revision; Manager confirmation and final post-T1.28 reconciliation remain pending. Implementation and migration remain prohibited.
 
 **Must define:**
 
@@ -60,7 +60,7 @@ Specifications may be developed in parallel only when their interfaces are alrea
 
 **Purpose:** Eliminate implicit identity and mutable single-slot state.
 
-**Current status (2026-06-28):** Draft written at `design/02-task-event-and-artifact-schema.md`; outcome `REVIEW_PENDING — schema and lifecycle semantics specified; implementation and migration prohibited`. The draft uses atomic JSONL event batches, prefixed UUIDv7 identities, separate state machines, immutable message acknowledgement, typed Partial/blocking outcomes, multidimensional artefact authority, exact scope revisions, and deterministic replay.
+**Current status (2026-06-29):** W2 v0.2 integrates project-wide writer/store identity, cross-worktree command submission, non-shared compatibility paths, evidence-derived independence, typed RuleEvaluation referents, regenerability, and verified-snapshot replay. Outcome remains Manager-review-pending; implementation and migration are prohibited.
 
 **Must define:**
 
@@ -129,7 +129,7 @@ Specifications may be developed in parallel only when their interfaces are alrea
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-06-28):** Initial fixture catalogue written at `design/06-evaluation-observability-and-audit.md`. It freezes F-001–F-020 and S-001–S-010, the minimum grader/trace contract, privacy rules, calibration, and change gates. Full executable W6 schemas, tooling, metrics thresholds, and retention remain deferred until W3–W5/W7–W8 interfaces are available.
+**Current status (2026-06-29):** W6 v0.2 reserves F-001–F-024 and S-001–S-016, separates incident basis from input fidelity, requires independent scientific-property grading and declared family/context diversity, and adds qualitative/proportional profiles. Full executable schemas, tooling, thresholds, and retention remain deferred to W3–W5/W7–W8 dependencies.
 
 **Must define:**
 
@@ -308,4 +308,4 @@ A design deliverable is complete when:
 
 ## 7. Recommended first specification pass
 
-After review of this working folder, author W0, W1, W2, and the initial W6 fixture catalogue. Those deliverables expose the most consequential assumptions early: the historical boundary, component ownership, task identity, state transitions, and what evidence will demonstrate improvement.
+The first specification pass now comprises the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, the adversarial review, and its reconciliation. The next action is deterministic cross-document verification followed by a bounded delta review; implementation remains out of scope.

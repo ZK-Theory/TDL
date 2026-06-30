@@ -139,7 +139,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 **Status:** Proposed  
 **Decision:** Record message publication, delivery, and acknowledgement as immutable events; treat clearing a generated APM task/report file as acknowledgement of a projection, never deletion of history.  
 **Rationale:** Communication must remain distinguishable from lifecycle mutation and must survive single-slot reuse.  
-**Evidence:** W0 fixtures F-001/F-002 and Task Observer Observation 7.  
+**Evidence:** W0 fixtures F-001/F-002, evidence register §4.3, and the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.Codex\skill-observations\log.md`).  
 **Affected specifications:** W2, W6, W7, W9.  
 **Migration consequence:** Compatibility writes require matching Task, agent, message, source-position, and content-hash ownership markers and fail closed on collision.
 
@@ -247,12 +247,71 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 **Affected specifications:** W6, W7, W9.  
 **Migration consequence:** Pilot selection cannot bypass an uncalibrated or failing relevant P0/P1 fixture.
 
+## Adversarial-review amendments approved 2026-06-29
+
+These amendments implement the approved reconciliation of review commit `33ab053e`. They preserve the earlier decision text as historical rationale and take precedence where they narrow or qualify it. Manager confirmation and the existing implementation gates still apply.
+
+### P-020 — Project-wide single writer and dedicated linear ledger
+
+**Date:** 2026-06-29  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Amends:** P-001, P-002, P-003, P-006; Q-001, Q-002  
+**Decision:** One project-wide command service owns one dedicated canonical control-store root with a protected linear history. Task worktrees submit commands and never allocate canonical positions, advance event chains, or hold independently writable ledger copies.  
+**Storage boundary:** The code repository's `.research-system/` root holds tracked schemas, policies, pack declarations, adapter/eval definitions, and a stable control-store binding. Dynamic canonical events, immutable objects, receipts, and accepted manifests live in the dedicated ledger repository/root outside task-worktree branches.  
+**History rule:** The global position and hash chain remain valid because one writer allocates them. Ledger history is never rebased, reset, merged from task branches, or corrected by reverting event files; corrections are compensating events.  
+**Rationale:** This retains plain-file/Git inspectability without reproducing the main-checkout/worktree split or creating a distributed merge algorithm.  
+**Affected specifications:** W1, W2, W6, W8, W9.
+
+### P-021 — Non-shared legacy compatibility paths
+
+**Date:** 2026-06-29  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Amends:** P-003, P-004, P-009  
+**Decision:** A successor-owned Task never shares the mutable legacy `task.md` or `report.md` slot. Compatibility projections use registered ARS-namespaced paths that unmodified legacy tooling does not write. If an unmodified APM Worker must use the legacy bus, the Task remains `legacy_owned`.  
+**Rationale:** Ownership markers checked only by ARS cannot prevent a direct legacy writer from overwriting a shared path. Hooks may add protection but do not establish authority.  
+**Affected specifications:** W1, W2, W6, W7, W9.
+
+### P-022 — Graded independence and delegated acceptance
+
+**Date:** 2026-06-29  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Amends:** D-007, P-005, P-013; Q-004, Q-006  
+**Decision:** Independence is a checkable evidence profile, not a role label or attestation. R0/R1 may use delegated Manager acceptance; R2 requires a verifier context distinct from the implementer plus Manager acceptance; R3 and every P-005 transition require Stephen. Solo operation records contextual/model independence honestly and never claims independent human authorities that do not exist.  
+**Evidence rule:** Review records bind actor, role, session, model family/version, context manifest, trace-visibility policy, subject hash, and relationship to the producing attempt. The verifier inspects the subject artefact but does not inherit implementer conclusions or hidden reasoning.  
+**Affected specifications:** W1, W2, W3, W4, W5, W6.
+
+### P-023 — Independent scientific-property grading
+
+**Date:** 2026-06-29  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Amends:** P-014, P-016  
+**Decision:** A deterministic or trajectory grader cannot certify a scientific property from a producer-emitted pass flag. It independently recomputes or bounds the property from immutable fixture inputs. Scientific model graders declare their relationship to the producer and use a different model family when the fixture requires family diversity; unavailable required diversity is blocking.  
+**Calibration rule:** Scientific fixtures include producer-correlated errors and mutations that exercise plausible constant, no-op, fallback, or otherwise degenerate paths.  
+**Affected specifications:** W5, W6.
+
+### P-024 — Fixture provenance and expanded coverage
+
+**Date:** 2026-06-29  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Amends:** P-014, P-018, P-019  
+**Decision:** Fixture provenance separates historical incident basis from input fidelity. F-001 and the overwrite portion of F-002 are `historical` incidents with `reconstructed` fixture inputs. Reserve F-021–F-024 and S-011–S-016 with the priorities and dependencies recorded in W6.  
+**Rationale:** A destroyed source message cannot be represented as preserved historical input, while the observed failure can still motivate a calibrated reconstruction.  
+**Affected specifications:** W3, W5, W6, W7, W8, W9, W10.
+
+### P-025 — Proportional operating profiles
+
+**Date:** 2026-06-29  
+**Status:** Approved by Stephen; Manager confirmation pending  
+**Decision:** Define a minimal R0 command/event/receipt fast path, a small-project profile, and an explicit qualitative/non-computational assurance boundary. Deterministic scientific validation may be `not_applicable` for qualitative artefacts, but provenance, lifecycle, review, authority, and claim controls still apply.  
+**Rationale:** Controls that are disproportionate to reversible work will be bypassed; domain-generality must not imply quantitative validation where none is meaningful.  
+**Affected specifications:** W1, W2, W4, W5, W6, W10.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task
 
-**W0 status (2026-06-28):** Confirmed as the current Manager's live coordination statement; Phase 1 closeout itself remains pending.  
-**Current basis:** Commit `c182e646` records T1.6 reviewed and merged and states that T1.28 is the sole open Stage 1 task. T1.28 remains prepared and queued with no task log, binding test, or producing output.  
+**W0 status (addendum 2026-06-29):** Pending; the current Manager's sole-open-task statement remains the coordination basis, but T1.28 is now active and Phase 1 closeout is not confirmed.  
+**Current basis:** T1.6 is authoritatively re-merged at `7e798464`. Commit `e7204373` records T1.28's extractor-defect blocker and follow-up; compute logs/checkpoints exist, but no final `stratified_w2_*.json` or task log existed at the addendum check.  
 **Confirmation condition:** The current Manager confirms no additional Phase 1 computational or assurance task remains open after T1.28 review and closeout.  
 **Effect if false:** The design work can continue, but the migration pilot moves to the first clean boundary after the remaining task.
 
@@ -271,14 +330,14 @@ These questions must be resolved in the specifications. They are deliberately bo
 
 **Decision to make:** Append-only JSONL alone, or JSONL plus a rebuildable SQLite index.  
 **Default recommendation:** JSONL is canonical; SQLite is a disposable local projection for queries and dashboards.  
-**W1 disposition:** Proposed resolution P-001; pending W1 review.  
-**Acceptance test:** Complete state can be reconstructed from version-controlled records without the database.
+**W1 disposition:** P-001 as amended by P-020: a project-wide single writer owns a dedicated linear ledger; SQLite remains a disposable projection.  
+**Acceptance test:** Complete state can be reconstructed from the dedicated versioned ledger and referenced manifests without a database or any task-worktree branch.
 
 ### Q-002 — System name and repository placement
 
 **Decision to make:** Retain the working name `Agentic Research System`, and decide whether the installed core remains under `.apm/` or moves to a neutral `.research-system/` root.  
 **Default recommendation:** Use `.research-system/` for the provider-neutral core and provide an `.apm/` compatibility adapter during migration.
-**W1 disposition:** Proposed resolution P-002, with compatibility ownership constrained by P-004; pending W1 review.
+**W1 disposition:** P-002 as amended by P-020/P-021: tracked provider-neutral definitions remain under `.research-system/`; dynamic canonical state is bound to the dedicated control root; legacy compatibility paths are non-shared.
 
 ### Q-003 — First pilot task
 
@@ -288,7 +347,7 @@ These questions must be resolved in the specifications. They are deliberately bo
 ### Q-004 — Independent-review diversity
 
 **Decision to make:** When a verifier must use a different model family, a fresh context from the same family, or both.  
-**Default recommendation:** Different family for R3; independently compiled context and hidden implementation trace for R2; record exceptions explicitly.
+**Disposition:** P-022/P-023. R3 requires cross-family and independently compiled context. R2 requires a distinct verifier context and the family-diversity policy declared by its assurance profile. Context provenance is checked; the exact subject artefact remains visible while implementer conclusions and hidden reasoning remain excluded.
 
 ### Q-005 — Runtime support boundary
 
@@ -299,7 +358,7 @@ These questions must be resolved in the specifications. They are deliberately bo
 
 **Decision to make:** Which state transitions require Stephen's explicit approval.  
 **Default recommendation:** Require approval for pre-registration changes, R3 task dispatch, decision-lock reversal, claim promotion, and migration of imported evidence from provisional to authoritative.
-**W1 disposition:** Proposed resolution P-005; pending W1 review.
+**W1 disposition:** P-005 as amended by P-022: R0/R1 may use delegated Manager acceptance, R2 requires independent verification plus Manager acceptance, and R3/P-005 transitions require Stephen.
 
 ### Q-007 — Historical import depth
 

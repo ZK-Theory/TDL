@@ -1,9 +1,10 @@
 # W1 — Agentic Research System Architecture
 
 **Date:** 2026-06-28  
-**Status:** Manager review pending; Stephen approved 2026-06-28  
-**Specification version:** 0.1  
-**Design authority:** `00-master-transition-plan.md`, W0 transition manifest, and accepted decisions D-001–D-008  
+**Revised:** 2026-06-29  
+**Status:** Adversarial-review amendments integrated; Stephen approved 2026-06-29; Manager confirmation pending  
+**Specification version:** 0.2  
+**Design authority:** `00-master-transition-plan.md`, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-025  
 **Implementation authority:** None; this document defines boundaries and does not authorize implementation or migration  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -11,7 +12,8 @@
 
 - **Stephen:** Approved on 2026-06-28 with the instruction to proceed to W2.
 - **Current Manager:** Confirmation pending.
-- **Post-T1.28 reconciliation:** Pending under the W0/W1 transition gate.
+- **Adversarial review:** `accept_with_required_changes` at `33ab053e`; dispositions approved and integrated through the 2026-06-29 reconciliation.
+- **Post-T1.28 reconciliation:** The 2026-06-29 W0 addendum records active incomplete execution; final closeout reconciliation remains pending.
 
 ## 1. Decision summary
 
@@ -19,11 +21,11 @@ The Agentic Research System (ARS) will be an evolutionary successor to APM, not 
 
 The architecture makes five binding choices, subject to this specification's review gate:
 
-1. Append-only JSONL records and immutable artefact manifests are canonical. A local SQLite database, graph index, search index, dashboard, Tracker, and bus file are rebuildable projections.
-2. A single control-plane command boundary serializes accepted state changes. Agents, hooks, adapters, and Workers submit commands; they do not edit canonical state directly.
+1. Append-only JSONL records and immutable artefact manifests are canonical in one dedicated project control store with a protected linear history. Task-worktree branches never contain independently writable ledgers. SQLite, graph/search indexes, dashboards, Tracker, and bus files are rebuildable projections.
+2. One project-wide control-plane command service serializes accepted state changes and allocates the global event position/hash chain. Agents, hooks, adapters, Workers, and task worktrees submit commands; they do not edit canonical state directly.
 3. Research outputs stay in their established domain locations. ARS records identity, provenance, validation, review, and decision links without copying large results into the control plane.
 4. Provider runtimes and domain-specific assurance logic are adapters or packs around a provider- and domain-neutral core. `CLAUDE.md`, `AGENTS.md`, hooks, and skills are not canonical policy.
-5. Legacy APM tasks remain governed by `.apm/` until their declared closeout boundary. New ARS tasks may expose guarded APM-compatible views, but there is never dual canonical write authority.
+5. Legacy APM tasks remain governed by `.apm/` until their declared closeout boundary. Successor-owned tasks may expose namespaced compatibility views, but never share a mutable legacy task/report slot or dual canonical write authority.
 
 These choices preserve APM's useful task-bus simplicity and research controls while removing mutable single-slot state, implicit identity, provider drift, and dependence on session memory.
 
@@ -35,7 +37,9 @@ This architecture implements:
 - `01-current-system-evidence.md`: context overload, state/projection mismatch, single-slot bus, main-checkout/worktree split, provider-policy drift, scientific-independence gap, and absent harness evals;
 - `02-design-and-deliverables-roadmap.md`: W1 component, state, trust, filesystem, index, dependency, and compatibility requirements;
 - `03-decisions-and-open-questions.md`: accepted directions D-001–D-008 and bounded decisions Q-001–Q-007;
-- `transition/W0-legacy-closeout-transition-manifest-2026-06-28.md`: live legacy boundary, source precedence, no-migration set, unresolved Stage 2 scope, and fixtures F-001–F-020;
+- `transition/W0-legacy-closeout-transition-manifest-2026-06-28.md`: dated legacy boundary, source precedence, no-migration set, unresolved Stage 2 scope, and fixtures F-001–F-020;
+- `transition/W0-legacy-closeout-transition-addendum-2026-06-29.md`: current T1.6/T1.28 anchors and pending A-001/A-002 status;
+- `reviews/adversarial-first-pass-review-2026-06-29.md` and its reconciliation: required changes M-1–M-10 and approved amendments P-020–P-025;
 - the supplied context-engineering material: separation of instructions, knowledge, memory, examples, tools, guardrails, event history, working context, tests, and evals;
 - the supplied agentic-SDLC material: specification-first work, explicit orchestration/execution boundaries, durable artefact handoff, and harness evaluation.
 
@@ -285,7 +289,7 @@ The following are non-authoritative and rebuildable:
 
 - current-state JSON or YAML views;
 - queue and inbox views;
-- `.apm/bus/*/task.md` and `report.md` for successor-owned compatibility tasks;
+- registered ARS-namespaced task/report compatibility views for successor-owned tasks;
 - Tracker-like status pages and paper dashboards;
 - SQLite databases;
 - full-text, vector, graph, or GraphRAG indexes;
@@ -297,33 +301,39 @@ Every projection records its source event position and projector version. A view
 
 ### 6.3 Canonical storage decision
 
-Q-001 is resolved in this draft as follows: JSONL is canonical; SQLite is an optional disposable projection. The system must rebuild complete current state from version-controlled records and referenced artefact manifests without SQLite.
+Q-001 is resolved by P-001/P-020 as follows: JSONL is canonical; SQLite is an optional disposable projection. Complete current state rebuilds from one dedicated versioned ledger and referenced artefact manifests without SQLite or any task-worktree branch.
 
-Raw concurrent appends are prohibited. The control-plane command service uses a repository-local lock, validates the expected stream position, writes an event atomically, and returns a receipt. The exact concurrency and recovery algorithm is W2 scope.
+One project-wide control-plane command service owns the control-store lock, validates the expected global tail and affected stream versions, atomically publishes one event batch, and returns a receipt. The dedicated ledger has one protected linear history. It is never merged from task branches, rebased, reset, or corrected by reverting event files; corrections are compensating events. Worktrees reach it only through the command port. W2 defines transaction and recovery details without introducing per-worktree writers.
 
 ## 7. Filesystem and index boundaries
 
 ### 7.1 Proposed provider-neutral root
 
-Q-002 is resolved in this draft by retaining the working name **Agentic Research System** and placing new canonical control-plane material under `.research-system/`. The eventual layout is constrained as follows; exact filenames are W2/W3/W6 scope.
+Q-002 is resolved by P-002/P-020 by retaining the working name **Agentic Research System** while separating tracked installed definitions from dynamic project authority:
 
 ```text
-.research-system/
-  config/          # canonical project policy references and enabled packs
-  schemas/         # versioned core interface schemas
-  objects/         # immutable portfolio and control object definitions
-  events/          # append-only canonical event streams
-  manifests/       # small artefact/provenance manifests
-  policies/        # provider-neutral policy and authority rules
-  packs/           # installed domain-pack declarations or references
-  projections/     # generated, disposable human and machine views
-  indexes/         # disposable SQLite/search/graph indexes
-  evals/           # fixture definitions and eval records, subject to W6 privacy rules
-  adapters/        # adapter configuration and semantic coverage declarations
-  runtime/         # ignored locks, cursors, receipts, and ephemeral process handles
+code repository (present in normal worktrees)
+  .research-system/
+    config/          # project identity and stable control-store binding
+    schemas/         # versioned core interface schemas
+    policies/        # provider-neutral policy and authority rules
+    packs/            # reviewed domain-pack declarations
+    evals/           # fixture definitions and accepted catalogue metadata
+    adapters/        # adapter definitions and semantic coverage declarations
+    projections/     # generated, disposable views
+    indexes/         # disposable SQLite/search/graph indexes
+    runtime/         # ignored local client caches and endpoint handles
+
+dedicated project control root (not a task-worktree branch)
+  objects/           # immutable portfolio/control objects
+  events/            # append-only event batches in one linear history
+  manifests/         # accepted artefact/provenance manifests
+  receipts/          # immutable command receipts and idempotency evidence
+  snapshots/         # verified replay anchors and audit exports
+  runtime/           # writer lock, service identity, cursors, process handle
 ```
 
-Canonical directories are `config`, `schemas`, `objects`, `events`, `manifests`, `policies`, and reviewed pack declarations. `projections`, `indexes`, and `runtime` are never canonical. Eval fixture definitions and accepted eval records are durable, while caches and raw sensitive traces are not.
+The code repository tracks the first group. The dedicated control root is bound by `project_id`, store identity, path/URI, service endpoint, and expected tail identity; it is the sole dynamic canonical store. Its default durable implementation is a dedicated Git repository or equivalently versioned linear store owned by the command service. It is never copied into or advanced by task worktrees. `projections`, `indexes`, and both runtime directories are non-canonical. Accepted eval results may be registered in the control store; raw sensitive traces and caches are not.
 
 ### 7.2 Research artefact roots
 
@@ -336,7 +346,7 @@ Research files remain where their domain workflow expects them:
 - permanent narrative decisions in the research vault where required;
 - restricted source data outside reusable templates and public packages.
 
-The registry stores paths relative to a declared root where possible, plus hashes and root identity. It records separate control, code, result, cache, and external-data roots so a worktree cannot silently redirect the bus or result authority.
+The registry stores paths relative to a declared root where possible, plus hashes and root identity. It records separate control, code, result, cache, and external-data roots plus `project_id`, control-store identity, service endpoint, and expected tail. Root resolution from the current working directory is prohibited, so a worktree cannot silently redirect control or result authority.
 
 ### 7.3 Optional indexes
 
@@ -385,7 +395,7 @@ This dependency direction allows any provider, index, dashboard, pack, or compat
 
 ### 9.1 Human authority boundary
 
-Stephen remains the final authority for pre-registration changes, R3 dispatch, decision-lock reversal, claim promotion, and upgrading imported evidence from provisional to authoritative. The current Manager may exercise delegated operational acceptance within the authority policy but cannot silently broaden methodological scope.
+Stephen remains the final authority for pre-registration changes, R3 dispatch, decision-lock reversal, claim promotion, and upgrading imported evidence from provisional to authoritative. The current Manager may accept R0/R1 and R2 work within an explicit authority grant; R2 acceptance requires its independent verification set. The Manager cannot broaden methodological scope or exercise a P-005 transition. This preserves genuine human gates without routing routine reversible work through Stephen.
 
 ### 9.2 Agent boundary
 
@@ -397,7 +407,7 @@ Hooks, schemas, tests, and scripts are trusted only for their declared assertion
 
 ### 9.4 Independent-review boundary
 
-For R2/R3 work, governing design, implementation, scientific verification, and acceptance are distinct authorities. W4/W5 may allow one human to oversee several roles, but the evidence must show an independent review context and prohibit implementer self-approval of the governing rule.
+For R2/R3 work, governing design, implementation, scientific verification, and acceptance are distinct authorities. Independence is graded evidence, not a role label: records identify actor, session, role, model family/version, context manifest, trace-visibility policy, subject hash, and producing-attempt relationship. A verifier inspects the exact subject artefact but does not inherit implementer conclusions or hidden reasoning. In a solo programme this provides contextual/model independence, not independent human authorities. R2 requires a distinct verifier context plus Manager acceptance; R3 requires cross-family/cross-context review plus Stephen.
 
 ### 9.5 Filesystem and process boundary
 
@@ -424,23 +434,24 @@ Every bridged task has exactly one mode:
 | Mode | Canonical authority | Adapter behavior |
 |---|---|---|
 | `legacy_owned` | Existing `.apm/` files plus W0 source precedence | ARS observes and may import explicitly accepted events; it does not write the task, report, Tracker, log, contract, result, branch, or worktree |
-| `successor_owned` | ARS canonical events and manifests | Adapter may generate guarded APM-compatible task/report views and import acknowledgements/reports as idempotent commands |
+| `successor_owned` | ARS canonical events and manifests | Adapter may generate registered ARS-namespaced views that legacy tooling cannot write; ARS-aware acknowledgements/reports return as idempotent commands |
 | `closed_reference` | Frozen legacy evidence | Read-only source links; no active synchronization |
 
 There is no `dual_owned` mode.
 
 ### 10.2 Guarded view behavior
 
-For a successor-owned task, the adapter may write a compatibility file only when:
+A successor-owned task never uses the mutable legacy `task.md` or `report.md` slot. Its compatibility views live at registered ARS-namespaced paths that unmodified APM tooling does not write. If a legacy Worker must use the legacy slot, the Task remains `legacy_owned` until explicit cutover.
 
-- the target path is registered to that task and agent identity;
+The adapter may write a namespaced view only when:
+
+- the target path is registered to that task, message, and recipient identity;
 - the existing file is empty or carries the same generated ownership marker and expected projection version;
-- no legacy-owned message would be overwritten;
-- the source event position is included;
+- the source event position and content hash are included;
 - write and import cursors make replay idempotent;
 - a conflict produces a diagnostic and stops rather than choosing a winner.
 
-Human-readable task and report files remain useful. Their content is rendered from typed records, and clearing them acknowledges a view rather than deleting history.
+Human-readable task and report views remain useful. Their content is rendered from typed records, and clearing an ARS-aware view acknowledges that named projection rather than deleting history. Hooks may block accidental writes but are defence-in-depth; they do not make a shared legacy path safe.
 
 ### 10.3 Legacy import behavior
 
@@ -450,7 +461,7 @@ Legacy imports preserve source path, commit or hash, observed time, import time,
 
 T1.28, T0.3, remaining Plan-defined Stage 2 work, retained worktrees, superseded-but-live results, caches, and external UKDA data remain in the W0 no-migration set. W1 does not create `.research-system/`, adapter files, or imported state for them.
 
-After T1.28 completes, W0 receives an addendum and W1 is reconciled before approval. The reconciliation checks whether T1.28 exposed a new control-plane failure, authority conflict, resource requirement, or compatibility constraint. W1 changes only through a dated revision; T1.28 history is never rewritten to match this design.
+The 2026-06-29 W0 addendum records T1.28 as active and incomplete. After T1.28 reaches a reviewed terminal disposition, W0 receives another addendum and W1 is reconciled again before acceptance. Reconciliation checks for new control-plane, authority, resource, and compatibility constraints; T1.28 history is never rewritten to match this design.
 
 ## 11. Core workflows
 
@@ -526,6 +537,9 @@ The system is not a security sandbox by itself. It coordinates and audits the sa
 13. Optional indexes are disposable and disclose freshness.
 14. Compatibility collisions fail closed.
 15. Legacy history remains governed by its original authority until an explicit cutover event.
+16. One project-wide writer allocates every global event position; task worktrees never advance canonical history.
+17. A successor-owned compatibility path is never shared with an unmodified legacy writer.
+18. Independence claims are derived from recorded context/model/actor evidence rather than attestation alone.
 
 ## 15. Historical fixture coverage required of this architecture
 
@@ -541,6 +555,8 @@ W1 must make the W0 failure corpus representable even though W2/W6 define exact 
 | F-014 | Independent authority boundary for R2/R3 contract activation and acceptance |
 | F-015, F-016, F-017, F-018, F-019 | Independent scientific review and conservative result-to-claim promotion |
 | F-020 | Canonical provider-neutral policy, evaluated adapters, and semantic parity gates |
+| F-021, F-022, F-023, F-024 | Governing-amendment inclusion, checkable reviewer independence, attributed approval, and qualitative lifecycle boundary |
+| S-011–S-016 | Writer crash, branch divergence, adapter rejection, backup/restore, supersession-cycle, and provider-outage controls |
 
 No fixture requires a distributed framework. Each can be exercised against local command, event, projection, adapter, and context interfaces.
 
@@ -561,15 +577,18 @@ No fixture requires a distributed framework. Each can be exercised against local
 W2/W6 must later mechanize these scenarios:
 
 1. Two tasks dispatched to one Worker remain separately queryable and neither assignment is overwritten.
-2. A Worker operating in a worktree receives the correct main control root and distinct result/cache roots.
+2. Two task worktrees submit concurrently to one project command service; the service allocates distinct global positions in the dedicated control store and neither worktree writes canonical files.
 3. A stale Tracker or paper dashboard is detected and rebuilt from accepted events.
 4. A result passes schema validation but fails independent scientific review and cannot become accepted.
 5. A context index is stale; direct retrieval succeeds and records the degraded path.
 6. Claude is unavailable for an R3 review; the task waits rather than silently routing to an unevaluated model.
-7. An APM compatibility task file already contains a legacy assignment; the adapter refuses to overwrite it.
-8. The SQLite index and all generated views are deleted; current state rebuilds exactly from canonical records.
+7. An unmodified legacy Worker targets `task.md`; a successor-owned projection uses a separate namespaced path and cannot collide with the legacy slot.
+8. The SQLite index and all generated views are deleted; current state rebuilds exactly from the dedicated ledger, verified manifests, and any accepted snapshot anchor.
 9. A Partial attempt registers valid diagnostic artefacts without promoting a decision or claim.
 10. A domain pack is removed; core history remains readable and identifies the missing pack version.
+11. A verifier receives the subject artefact but not the implementer's conclusion/hidden reasoning; context provenance proves the required independence grade.
+12. A producer emits a scientific passed flag from a degenerate fallback; independent recomputation fails the fixture.
+13. An R0 reversible command uses the minimal envelope without bypassing append-only history.
 
 ### 16.3 Research-assurance classification
 
@@ -590,7 +609,7 @@ W1 itself touches Output/Provenance and Paper Claim governance lanes and defines
 
 - Event, manifest, and adapter schemas add initial design and maintenance work.
 - A serialized command boundary is more formal than directly editing Markdown.
-- Compatibility requires temporary duplicate views, ownership markers, and conflict diagnostics.
+- Compatibility requires temporary namespaced views, explicit cutover ownership, and conflict diagnostics.
 - Independent review increases latency for R2/R3 work.
 - Provider parity and harness evals become release obligations.
 
@@ -600,7 +619,7 @@ These costs are intentional responses to observed failures. The design avoids th
 
 ### W2
 
-Define typed commands and events around the single-writer boundary; stable IDs; expected-position concurrency; attempts; reviews; decisions; Partial/blocking states; supersession; artefact manifests; deterministic replay; and projection freshness.
+Define typed commands and events around the project-wide single-writer boundary and dedicated control store; stable IDs; expected-position concurrency; attempts; reviews; decisions; Partial/blocking states; supersession; artefact manifests; verified-snapshot replay; and projection freshness.
 
 ### W3
 
@@ -608,7 +627,7 @@ Keep history, projected state, durable memory, and working context distinct. Mak
 
 ### W4
 
-Represent authority, capability, actual model metadata, independence, and risk ceiling in profiles. Routing must fail closed when no evaluated profile satisfies the task.
+Represent authority, capability, actual model metadata, checkable independence grade, delegated acceptance, and risk ceiling in profiles. Routing must fail closed when no evaluated profile satisfies the task.
 
 ### W5
 
@@ -616,7 +635,7 @@ Define domain-pack ports and two-key research validity. Machine validation and s
 
 ### W6
 
-Test outcomes and trajectories across all W0 fixture classes. Preserve privacy boundaries and distinguish operational trace from research evidence.
+Test outcomes and trajectories across all W0 fixture classes and reserved F-021–F-024/S-011–S-016 cases. Preserve privacy boundaries, require independent scientific-property grading, and distinguish operational trace from research evidence.
 
 ### W7
 
@@ -628,7 +647,7 @@ Implement explicit roots, resource grants, process/checkpoint evidence, guardrai
 
 ### W9
 
-Implement the three APM ownership modes, selective import, guarded compatibility views, rollback, and post-T1.28 reconciliation. Never introduce dual canonical writes.
+Implement the three APM ownership modes, selective import, non-shared namespaced compatibility views, rollback, and post-T1.28 reconciliation. Never introduce dual canonical writes or route successor-owned work through an unmodified legacy Worker.
 
 ### W10
 
@@ -639,22 +658,22 @@ Package the modular monolith and extension interfaces without TDL paths, TDA ass
 W1 can move from `review_pending` to `accepted` only when Stephen and the current Manager confirm:
 
 - [ ] The component catalogue is complete at architecture level and every component has one responsibility and explicit consumers.
-- [ ] JSONL canonical events plus disposable SQLite/search/graph projections is the correct local-first boundary.
-- [ ] `.research-system/` is accepted as the neutral installed root.
-- [ ] The single command-writer boundary is acceptable for the initial local implementation.
+- [ ] A dedicated linear JSONL ledger owned by one project-wide writer, plus disposable SQLite/search/graph projections, is the correct local-first boundary.
+- [ ] `.research-system/` is accepted for tracked definitions and a stable binding to the dedicated dynamic control root.
+- [ ] The project-wide command writer, protected ledger history, explicit worktree submission path, and root-binding rule are acceptable.
 - [ ] Research artefacts remain externally owned and are referenced rather than duplicated.
 - [ ] Trust boundaries preserve human authority and separate software, structural, scientific, and claim approval.
 - [ ] Provider files, hooks, skills, dashboards, indexes, Tracker, and bus files are non-canonical.
 - [ ] Dependency direction prevents adapters, projections, packs, and Workers from mutating core authority.
-- [ ] The three `.apm/` ownership modes preserve legacy work without dual writes.
+- [ ] The three `.apm/` ownership modes and non-shared successor paths preserve legacy work without dual writes.
 - [ ] The T1.28 post-completion reconciliation gate is sufficient and no active legacy task is migrated by this design.
-- [ ] W0 fixtures F-001–F-020 are representable by the architecture.
+- [ ] W0 fixtures F-001–F-020 and reserved F-021–F-024/S-011–S-016 are representable by the architecture.
 - [ ] The constraints passed to W2–W10 are correctly bounded.
 
 Until that review is recorded, W1 is a normative design proposal but not implementation authority.
 
 ## 20. W1 outcome
 
-**Outcome:** `MANAGER_REVIEW_PENDING — Stephen approved; implementation and migration prohibited pending Manager confirmation and post-T1.28 reconciliation`.
+**Outcome:** `MANAGER_REVIEW_PENDING — adversarial amendments integrated and Stephen-approved; implementation and migration prohibited pending Manager confirmation and final post-T1.28 reconciliation`.
 
 The next deliverable after W1 acceptance is W2, the task/event/artefact/review/decision schema. If W2 drafting begins before T1.28 completes, it remains review-pending and must preserve the same post-T1.28 reconciliation gate.

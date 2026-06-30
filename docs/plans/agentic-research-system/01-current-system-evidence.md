@@ -21,8 +21,10 @@ This order distinguishes evidence of research outcomes from guidance about how w
 
 ### 2.1 Context engineering and agentic SDLC
 
-- `C:\Users\steph\Documents\TDA-Research\02-Notes\Day_1_v3.pdf`
-- `C:\Users\steph\Documents\TDA-Research\02-Notes\2025_Day_3_Rewrite_v1_ContextEngineering.pdf`
+- `C:\Users\steph\Documents\TDA-Research\02-Notes\Day_1_v3.pdf` — *The New SDLC With Vibe Coding*, Addy Osmani, Hassan Saboo, and Christos Kartakis, Google Agents Whitepaper Series (May 2026).
+- `C:\Users\steph\Documents\TDA-Research\02-Notes\2025_Day_3_Rewrite_v1_ContextEngineering.pdf` — *Context Engineering: Sessions, Memory*, John Milam, Michael Gulli, and Kristopher Nawalgaria, Google Agents Whitepaper Series (May 2026).
+
+These are practitioner/vendor whitepapers rather than project authority. They inform terminology and harness-design principles; repository evidence, pre-registrations, contracts, and attributed project decisions outrank them.
 
 Materially relevant principles:
 

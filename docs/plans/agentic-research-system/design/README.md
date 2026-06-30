@@ -31,6 +31,6 @@ The filenames define decomposition, not permission to implement. Each specificat
 
 | Specification | Status | Outcome |
 |---|---|---|
-| [01-system-architecture.md](01-system-architecture.md) | `manager_review_pending` | Stephen approved 2026-06-28; Manager confirmation and post-T1.28 reconciliation remain pending |
-| [02-task-event-and-artifact-schema.md](02-task-event-and-artifact-schema.md) | `review_pending` | Schema and lifecycle semantics specified; implementation and migration prohibited pending review |
-| [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `initial_catalogue_review_pending` | 30-fixture catalogue specified; executable W6 design deferred |
+| [01-system-architecture.md](01-system-architecture.md) | `manager_review_pending` | Revision 0.2 integrates the adversarial amendments and Stephen's 2026-06-29 approval; Manager/final T1.28 reconciliation remains pending |
+| [02-task-event-and-artifact-schema.md](02-task-event-and-artifact-schema.md) | `manager_review_pending` | Revision 0.2 integrates concurrency, compatibility, independence, referent, retention, and replay amendments; implementation remains prohibited |
+| [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `manager_review_pending` | Revision 0.2 contains the revised 40-fixture catalogue; executable W6 design remains deferred |
