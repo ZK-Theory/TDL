@@ -45,14 +45,14 @@
 **Status:** Accepted  
 **Decision:** Begin with repository-managed schemas, append-only records, and generated views. Borrow protocol ideas such as task identity, lifecycle, messages, and artefacts without initially adopting a network service or external orchestration framework.
 
-## W1 proposals awaiting review
+## W1 decisions accepted under P-027
 
-Stephen approved these proposals on 2026-06-28. They remain pending current Manager confirmation and post-T1.28 reconciliation before becoming fully accepted design decisions.
+Stephen approved these decisions on 2026-06-28, and their review gate passed under P-027 on 2026-06-30. T1.28 remains a legacy-closeout and migration gate, not a condition on their accepted greenfield design authority.
 
 ### P-001 — Canonical event storage and optional indexes
 
 **Date:** 2026-06-28  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Decision:** Use append-only JSONL and immutable manifests as canonical storage. SQLite, full-text, graph, vector, dashboard, Tracker, and bus views are disposable projections. Complete state must rebuild without them.  
 **Rationale:** This preserves local inspectability and version control while preventing a mutable database or view from becoming hidden authority.  
 **Evidence:** W0 fixtures F-001–F-006 and accepted direction D-008.  
@@ -62,7 +62,7 @@ Stephen approved these proposals on 2026-06-28. They remain pending current Mana
 ### P-002 — Neutral system root
 
 **Date:** 2026-06-28  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Decision:** Retain the working name Agentic Research System and place its provider-neutral installed core under `.research-system/`.  
 **Rationale:** The successor must be reusable beyond APM, TDL, TDA, Claude, and Codex while remaining repository-local.  
 **Evidence:** Accepted directions D-002, D-004, and D-008.  
@@ -72,7 +72,7 @@ Stephen approved these proposals on 2026-06-28. They remain pending current Mana
 ### P-003 — Serialized command boundary
 
 **Date:** 2026-06-28  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Decision:** Use a modular-monolith architecture in which one local command boundary validates authority and serializes canonical event writes. Agents, Workers, hooks, adapters, and execution processes submit commands rather than editing state directly.  
 **Rationale:** Append-only files alone do not prevent concurrent corruption, stale writes, or unauthorized transitions. A narrow writer preserves simple local operation without introducing a distributed service.  
 **Evidence:** W0 fixtures F-001–F-004, F-009, and F-014.  
@@ -82,7 +82,7 @@ Stephen approved these proposals on 2026-06-28. They remain pending current Mana
 ### P-004 — Exclusive compatibility ownership
 
 **Date:** 2026-06-28  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Decision:** Every bridged task is exactly one of `legacy_owned`, `successor_owned`, or `closed_reference`; a `dual_owned` state is prohibited.  
 **Rationale:** Dual canonical writes would preserve the overwrite and source-precedence failures that the redesign exists to remove.  
 **Evidence:** W0 no-migration set and fixtures F-001–F-006, plus the main-checkout/worktree split in the evidence register.  
@@ -92,21 +92,21 @@ Stephen approved these proposals on 2026-06-28. They remain pending current Mana
 ### P-005 — Reserved human-approval transitions
 
 **Date:** 2026-06-28  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Decision:** Reserve pre-registration changes, R3 dispatch, decision-lock reversal, claim promotion, and upgrading imported evidence from provisional to authoritative for Stephen's explicit approval.  
 **Rationale:** These transitions change methodological authority, publication claims, or the interpretation of historical evidence and must not be inferred from agent output or operational acceptance.  
 **Evidence:** Accepted directions D-005–D-007 and the W0 source-precedence and no-migration findings.  
 **Affected specifications:** W1, W2, W4, W5, W9.  
 **Migration consequence:** Legacy wording such as `Success`, `Done`, or a merged draft cannot be imported as one of these approvals without an explicit decision record.
 
-## W2 proposals awaiting review
+## W2 decisions accepted under P-027
 
-These schema decisions are normative inside the W2 draft but remain proposed until the W2 review gate is recorded.
+These schema decisions passed the W2 review gate and are accepted under P-027.
 
 ### P-006 — Atomic event batch per accepted command
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Publish one immutable JSONL event-batch file per accepted command, using atomic rename as the commit point; prohibit concurrent raw appends to a shared event file.  
 **Rationale:** This preserves JSONL authority while making multi-event commands, crash recovery, and Git inspection reliable.  
 **Evidence:** W1 P-001/P-003 and W0 fixtures F-001–F-004.  
@@ -116,7 +116,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-007 — Prefixed UUIDv7 canonical identities
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Use a three-letter kind prefix plus UUIDv7 for first-class canonical IDs; retain APM Task numbers, paper IDs, branch names, provider names, and agent slugs as scoped aliases.  
 **Rationale:** Canonical identity must remain stable across projects, providers, paths, retries, and migrations without sacrificing rough time locality.  
 **Evidence:** W0 overwrite, wrong-root, attempt, and source-precedence findings.  
@@ -126,7 +126,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-008 — Separate Task and operational state machines
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Keep research-governance Task status separate from dispatch, attempt, lease, checkpoint, review, and artefact state; derive `queued`, `claimed`, `running`, and `checkpoint_available` as operational projections.  
 **Rationale:** One status label cannot coherently represent readiness, process activity, evidence review, and scientific acceptance.  
 **Evidence:** W0 fixtures F-002, F-004, F-007–F-009 and the stale T1.6 Task log.  
@@ -136,7 +136,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-009 — Immutable messages and clearing-as-acknowledgement
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Record message publication, delivery, and acknowledgement as immutable events; treat clearing a generated APM task/report file as acknowledgement of a projection, never deletion of history.  
 **Rationale:** Communication must remain distinguishable from lifecycle mutation and must survive single-slot reuse.  
 **Evidence:** W0 fixtures F-001/F-002, evidence register §4.3, and the canonical Task Observer observation titled “Bus writes need explicit ownership, not only read-before-write” (2026-06-28; `C:\Users\steph\.Codex\skill-observations\log.md`).  
@@ -146,7 +146,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-010 — Partial and reopen preserve execution epochs
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Allow Partial as an attempt outcome and as a closed Task outcome; an authorized reopen creates a new execution epoch while preserving the original Partial evidence, claim restrictions, and stop reason.  
 **Rationale:** Long mathematical runs need resumability without rewriting an earlier guardrail-triggered or evidence-limited outcome as if it never occurred.  
 **Evidence:** T1.6 guarded attempts, T1.9b checkpoint recovery, and W1's Partial invariant.  
@@ -156,7 +156,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-011 — Multidimensional artefact authority
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Represent artefact availability, integrity, structural validation, scientific review, and use authority as separate dimensions; prohibit a single `valid` or `accepted` boolean from collapsing them.  
 **Rationale:** A file can exist and validate structurally while remaining scientifically invalid, superseded for claims, or usable only for comparison.  
 **Evidence:** W0 fixtures F-010–F-019 and accepted direction D-007.  
@@ -166,7 +166,7 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-012 — Versioned scope definitions govern milestone completion
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Require every stage/wave/milestone completion command to name an exact ScopeDefinition revision and a typed disposition for every required member.  
 **Rationale:** Completion is a claim about approved scope, not the subset currently visible in a mutable Tracker.  
 **Evidence:** W0 Stage 2 scope conflict, fixture F-005, and Task Observer Observation 6.  
@@ -176,21 +176,21 @@ These schema decisions are normative inside the W2 draft but remain proposed unt
 ### P-013 — Review verdicts bind to exact subject hashes
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Bind each review request and verdict to exact object/artefact hashes and declared independence requirements; changed subjects require a new or explicitly bounded-delta review.  
 **Rationale:** A review of an earlier implementation or result must not silently approve a changed producer output.  
 **Evidence:** W0 fixtures F-014–F-020 and W1 scientific-authority boundaries.  
 **Affected specifications:** W2, W4, W5, W6, W7.  
 **Migration consequence:** Legacy review prose is adopted only when its inspected subject and authority can be identified.
 
-## W6 initial-catalogue proposals awaiting review
+## W6 initial-catalogue decisions accepted under P-027
 
-These evaluation decisions are normative inside the initial W6 catalogue but remain proposed until the first-pass review gate is recorded.
+These evaluation decisions passed the initial W6 catalogue review gate and are accepted under P-027.
 
 ### P-014 — Paired pre-control and post-control evidence
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Every active fixture must demonstrate the intended pre-control failure and a known-good post-control pass under versioned inputs and oracles.  
 **Rationale:** A fixture that only passes a preferred implementation does not prove it detects the historical defect.  
 **Evidence:** W0 fixture requirement and F-001–F-020.  
@@ -200,7 +200,7 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 ### P-015 — Critical graders are non-compensable
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Required deterministic, trajectory, privacy, and scientific hard gates cannot be offset by a weighted aggregate score.  
 **Rationale:** Overwrite, invalid inference, unauthorized approval, provenance conflict, leakage, and claim overreach remain failures regardless of other metrics.  
 **Evidence:** W0 failure corpus and W1 evidence-before-status principle.  
@@ -210,7 +210,7 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 ### P-016 — Deterministic-first grading
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Grade objective state, trace, schema, number, path, hash, authority, and ordering claims deterministically; reserve model/human graders for bounded conceptual and interpretive judgments.  
 **Rationale:** Model judgment should not add variance where an executable predicate can decide the requirement.  
 **Evidence:** W1 machine-check principle and W2 deterministic replay design.  
@@ -220,7 +220,7 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 ### P-017 — Minimized and redacted fixture sources
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Fixtures use synthetic or minimized source bundles, hashes, and excerpts; raw UKDA data, secrets, full transcripts, and hidden reasoning are prohibited.  
 **Rationale:** Regression evidence must be reproducible without expanding confidentiality or prompt-leakage risk.  
 **Evidence:** W0 no-migration set and W1/W2 trust boundaries.  
@@ -230,7 +230,7 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 ### P-018 — Change-to-fixture coverage manifests
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** Every model, reasoning, prompt, policy, skill, hook, schema, reducer, context, grader, or adapter change declares affected fixtures, omissions, results, regressions, and authority.  
 **Rationale:** Harness changes are otherwise deployed without an auditable statement of regression coverage.  
 **Evidence:** W0 F-020 and W1 evaluation/observability boundary.  
@@ -240,7 +240,7 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 ### P-019 — P0 and P1 fixture gates
 
 **Date:** 2026-06-28  
-**Status:** Proposed  
+**Status:** Accepted under P-027<br>
 **Decision:** F-001–F-005, F-007–F-014, and F-020 are P0 implementation/release blockers; F-006 and F-015–F-019 are P1 gates before a research pilot promotes evidence or claims.  
 **Rationale:** The W0 priority set protects foundational state, operations, scientific validity, authority, and parity before higher-level claim workflow.  
 **Evidence:** W0 priority declaration and W2 fixture mapping.  
@@ -249,12 +249,12 @@ These evaluation decisions are normative inside the initial W6 catalogue but rem
 
 ## Adversarial-review amendments approved 2026-06-29
 
-These amendments implement the approved reconciliation of review commit `33ab053e`. They preserve the earlier decision text as historical rationale and take precedence where they narrow or qualify it. Manager confirmation and the existing implementation gates still apply.
+These amendments implement the approved reconciliation of review commit `33ab053e`. They preserve the earlier decision text as historical rationale and take precedence where they narrow or qualify it. The review confirmation passed under P-027; the existing implementation and migration gates still apply.
 
 ### P-020 — Project-wide single writer and dedicated linear ledger
 
 **Date:** 2026-06-29  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Amends:** P-001, P-002, P-003, P-006; Q-001, Q-002  
 **Decision:** One project-wide command service owns one dedicated canonical control-store root with a protected linear history. Task worktrees submit commands and never allocate canonical positions, advance event chains, or hold independently writable ledger copies.  
 **Storage boundary:** The code repository's `.research-system/` root holds tracked schemas, policies, pack declarations, adapter/eval definitions, and a stable control-store binding. Dynamic canonical events, immutable objects, receipts, and accepted manifests live in the dedicated ledger repository/root outside task-worktree branches.  
@@ -265,7 +265,7 @@ These amendments implement the approved reconciliation of review commit `33ab053
 ### P-021 — Non-shared legacy compatibility paths
 
 **Date:** 2026-06-29  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Amends:** P-003, P-004, P-009  
 **Decision:** A successor-owned Task never shares the mutable legacy `task.md` or `report.md` slot. Compatibility projections use registered ARS-namespaced paths that unmodified legacy tooling does not write. If an unmodified APM Worker must use the legacy bus, the Task remains `legacy_owned`.  
 **Rationale:** Ownership markers checked only by ARS cannot prevent a direct legacy writer from overwriting a shared path. Hooks may add protection but do not establish authority.  
@@ -274,7 +274,7 @@ These amendments implement the approved reconciliation of review commit `33ab053
 ### P-022 — Graded independence and delegated acceptance
 
 **Date:** 2026-06-29  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Amends:** D-007, P-005, P-013; Q-004, Q-006  
 **Decision:** Independence is a checkable evidence profile, not a role label or attestation. R0/R1 may use delegated Manager acceptance; R2 requires a verifier context distinct from the implementer plus Manager acceptance; R3 and every P-005 transition require Stephen. Solo operation records contextual/model independence honestly and never claims independent human authorities that do not exist.  
 **Evidence rule:** Review records bind actor, role, session, model family/version, context manifest, trace-visibility policy, subject hash, and relationship to the producing attempt. The verifier inspects the subject artefact but does not inherit implementer conclusions or hidden reasoning.  
@@ -283,7 +283,7 @@ These amendments implement the approved reconciliation of review commit `33ab053
 ### P-023 — Independent scientific-property grading
 
 **Date:** 2026-06-29  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Amends:** P-014, P-016  
 **Decision:** A deterministic or trajectory grader cannot certify a scientific property from a producer-emitted pass flag. It independently recomputes or bounds the property from immutable fixture inputs. Scientific model graders declare their relationship to the producer and use a different model family when the fixture requires family diversity; unavailable required diversity is blocking.  
 **Calibration rule:** Scientific fixtures include producer-correlated errors and mutations that exercise plausible constant, no-op, fallback, or otherwise degenerate paths.  
@@ -292,7 +292,7 @@ These amendments implement the approved reconciliation of review commit `33ab053
 ### P-024 — Fixture provenance and expanded coverage
 
 **Date:** 2026-06-29  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Amends:** P-014, P-018, P-019  
 **Decision:** Fixture provenance separates historical incident basis from input fidelity. F-001 and the overwrite portion of F-002 are `historical` incidents with `reconstructed` fixture inputs. Reserve F-021–F-024 and S-011–S-016 with the priorities and dependencies recorded in W6.  
 **Rationale:** A destroyed source message cannot be represented as preserved historical input, while the observed failure can still motivate a calibrated reconstruction.  
@@ -301,7 +301,7 @@ These amendments implement the approved reconciliation of review commit `33ab053
 ### P-025 — Proportional operating profiles
 
 **Date:** 2026-06-29  
-**Status:** Approved by Stephen; Manager confirmation pending  
+**Status:** Accepted under P-027<br>
 **Decision:** Define a minimal R0 command/event/receipt fast path, a small-project profile, and an explicit qualitative/non-computational assurance boundary. Deterministic scientific validation may be `not_applicable` for qualitative artefacts, but provenance, lifecycle, review, authority, and claim controls still apply.  
 **Rationale:** Controls that are disproportionate to reversible work will be bypassed; domain-generality must not imply quantitative validation where none is meaningful.  
 **Affected specifications:** W1, W2, W4, W5, W6, W10.
@@ -311,12 +311,21 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Date:** 2026-06-30  
 **Status:** Accepted by Stephen  
 **Gate amendment:** Supersedes any W1/W2 wording that makes T1.28 terminal completion a prerequisite for a non-migrating greenfield foundation; it remains a prerequisite for legacy closeout and migration claims.  
-**Decision:** ARS specification work continues while T1.28 remains active. After W1/W2 Manager confirmation, accepted W3–W5 specifications, foundation-critical W6–W8 interface gates, and a separately approved implementation plan, a narrow production-intended ARS foundation may be built without waiting for T1.28 to finish. The first research pilot is the first paper initiated after the two papers currently governed by APM, created under ARS from inception.  
+**Decision:** ARS specification work continues while T1.28 remains active. After the now-satisfied W1/W2 review gate, accepted W3–W5 specifications, foundation-critical W6–W8 interface gates, and a separately approved implementation plan, a narrow production-intended ARS foundation may be built without waiting for T1.28 to finish. The first research pilot is the first paper initiated after the two papers currently governed by APM, created under ARS from inception.
 **Legacy boundary:** T1.28 and both current papers remain `legacy_owned`; the foundation cannot write, migrate, normalize, or promote their tasks, evidence, decisions, or claims. T1.28 terminal review still triggers a W0 addendum and bounded design reconciliation.  
 **Rationale:** A multi-day legacy computation is a valid migration boundary but not a useful global hold on independent successor design. A clean-paper pilot tests the permanent system without contaminating current research authority.  
 **Implementation rule:** This decision authorizes the specification sequence and later implementation planning. Runtime implementation begins only after the named gates and Stephen's approval of the exact implementation plan.  
 **Affected specifications:** W1, W2, W3, W4, W5, W6, W7, W8, W9, W10; master plan and continuation protocol.
 
+### P-027 — W1/W2/W6 review acceptance
+
+**Date:** 2026-06-30<br>
+**Status:** Accepted by Stephen<br>
+**Decision:** Stephen confirmed that W1 v0.3, W2 v0.3, and the W6 v0.2 initial catalogue had been reviewed and passed. Their pending review gates are closed and their interfaces may govern W3 and the remaining P-026 specification sequence.<br>
+**Boundary:** W6 acceptance covers the 40-fixture catalogue and its grading/provenance rules, not executable fixture materialization, thresholds, retention, or tooling. No runtime implementation, migration, pilot, or active APM change follows from this acceptance.<br>
+**Evidence:** `reviews/w1-w2-w6-review-acceptance-2026-06-30.md` and Stephen's direct 2026-06-30 confirmation.<br>
+**Remaining gates:** Accepted W3–W5, frozen foundation-critical W6–W8 interfaces, and Stephen's approval of a separately reviewed implementation plan. T1.28 remains the legacy-closeout/migration boundary only.<br>
+**Affected specifications:** W1, W2, W3, W4, W5, W6, W7, W8; package status and continuation protocol.
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task

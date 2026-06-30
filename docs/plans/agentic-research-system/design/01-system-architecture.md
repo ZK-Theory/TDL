@@ -2,16 +2,16 @@
 
 **Date:** 2026-06-28  
 **Revised:** 2026-06-30  
-**Status:** Adversarial-review amendments integrated; P-026 gate split recorded; Manager confirmation pending  
+**Status:** Accepted under P-027; P-026 gate split remains binding<br>
 **Specification version:** 0.3  
-**Design authority:** `00-master-transition-plan.md`, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-026  
+**Design authority:** `00-master-transition-plan.md`, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-027<br>
 **Implementation authority:** None; this document defines boundaries and does not authorize implementation or migration  
 **Review owners:** Stephen and the current research-programme Manager  
 
 ## Review record
 
 - **Stephen:** Approved on 2026-06-28 with the instruction to proceed to W2.
-- **Current Manager:** Confirmation pending.
+- **Review gate:** Passed under P-027 on Stephen's 2026-06-30 confirmation that W1 had been reviewed and passed.
 - **Adversarial review:** `accept_with_required_changes` at `33ab053e`; dispositions approved and integrated through the 2026-06-29 reconciliation.
 - **Post-T1.28 reconciliation:** The 2026-06-29 W0 addendum records active incomplete execution; final closeout reconciliation remains pending.
 
@@ -655,25 +655,25 @@ Package the modular monolith and extension interfaces without TDL paths, TDA ass
 
 ## 19. W1 review gate
 
-W1 can move from `review_pending` to `accepted` only when Stephen and the current Manager confirm:
+W1 moved from `review_pending` to `accepted` under P-027. The accepted review criteria are:
 
-- [ ] The component catalogue is complete at architecture level and every component has one responsibility and explicit consumers.
-- [ ] A dedicated linear JSONL ledger owned by one project-wide writer, plus disposable SQLite/search/graph projections, is the correct local-first boundary.
-- [ ] `.research-system/` is accepted for tracked definitions and a stable binding to the dedicated dynamic control root.
-- [ ] The project-wide command writer, protected ledger history, explicit worktree submission path, and root-binding rule are acceptable.
-- [ ] Research artefacts remain externally owned and are referenced rather than duplicated.
-- [ ] Trust boundaries preserve human authority and separate software, structural, scientific, and claim approval.
-- [ ] Provider files, hooks, skills, dashboards, indexes, Tracker, and bus files are non-canonical.
-- [ ] Dependency direction prevents adapters, projections, packs, and Workers from mutating core authority.
-- [ ] The three `.apm/` ownership modes and non-shared successor paths preserve legacy work without dual writes.
-- [ ] P-026 correctly separates the non-migrating greenfield-foundation gate from T1.28 closeout, while no active legacy task is migrated by this design.
-- [ ] W0 fixtures F-001–F-020 and reserved F-021–F-024/S-011–S-016 are representable by the architecture.
-- [ ] The constraints passed to W2–W10 are correctly bounded.
+- [x] The component catalogue is complete at architecture level and every component has one responsibility and explicit consumers.
+- [x] A dedicated linear JSONL ledger owned by one project-wide writer, plus disposable SQLite/search/graph projections, is the correct local-first boundary.
+- [x] `.research-system/` is accepted for tracked definitions and a stable binding to the dedicated dynamic control root.
+- [x] The project-wide command writer, protected ledger history, explicit worktree submission path, and root-binding rule are acceptable.
+- [x] Research artefacts remain externally owned and are referenced rather than duplicated.
+- [x] Trust boundaries preserve human authority and separate software, structural, scientific, and claim approval.
+- [x] Provider files, hooks, skills, dashboards, indexes, Tracker, and bus files are non-canonical.
+- [x] Dependency direction prevents adapters, projections, packs, and Workers from mutating core authority.
+- [x] The three `.apm/` ownership modes and non-shared successor paths preserve legacy work without dual writes.
+- [x] P-026 correctly separates the non-migrating greenfield-foundation gate from T1.28 closeout, while no active legacy task is migrated by this design.
+- [x] W0 fixtures F-001–F-020 and reserved F-021–F-024/S-011–S-016 are representable by the architecture.
+- [x] The constraints passed to W2–W10 are correctly bounded.
 
 Until that review is recorded, W1 is a normative design proposal but not implementation authority.
 
 ## 20. W1 outcome
 
-**Outcome:** `MANAGER_REVIEW_PENDING — foundation implementation prohibited pending Manager confirmation and P-026 downstream gates; legacy migration prohibited pending final post-T1.28 reconciliation`.
+**Outcome:** `ACCEPTED — foundation implementation still prohibited pending the remaining P-026 downstream gates; legacy migration prohibited pending final post-T1.28 reconciliation`.
 
-W2 v0.3 is complete as a review-pending proposal. W3 is the next deliverable under P-026. A greenfield-foundation implementation plan may proceed after W1/W2 Manager confirmation and the accepted W3–W5/foundation-critical W6–W8 gates; legacy migration remains separately blocked by W0/T1.28 closeout.
+W2 v0.3 and the W6 v0.2 initial catalogue are also accepted under P-027. W3 is the current review-pending deliverable under P-026. A greenfield-foundation implementation plan may proceed only after accepted W3–W5 and frozen foundation-critical W6–W8 gates; legacy migration remains separately blocked by W0/T1.28 closeout.

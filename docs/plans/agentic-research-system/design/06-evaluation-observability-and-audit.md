@@ -2,10 +2,10 @@
 
 **Date:** 2026-06-28  
 **Revised:** 2026-06-29  
-**Status:** Adversarial-review amendments integrated; Manager review pending  
+**Status:** Initial catalogue accepted under P-027; executable W6 design remains deferred<br>
 **Specification version:** 0.2  
 **Pass scope:** First specification pass only; not the complete W6 observability/audit design  
-**Design authority:** W0 manifest/addendum, W1/W2 v0.2, adversarial-review reconciliation, D-001–D-008, and approved amendments P-020–P-025  
+**Design authority:** W0 manifest/addendum, accepted W1/W2 v0.3, adversarial-review reconciliation, D-001–D-008, and approved amendments P-020–P-027<br>
 **Implementation authority:** None; no executable fixtures, graders, traces, or `.research-system/` directories are created  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -22,7 +22,7 @@ This document freezes the initial regression corpus for the Agentic Research Sys
 
 It deliberately does not finalize executable schemas, retention periods, metric thresholds, grader prompts, or CI/runtime tooling. Those require W3–W5 context, routing, and assurance interfaces plus W7/W8 adapter and operations detail.
 
-**Initial outcome:** `MANAGER_REVIEW_PENDING — 40-fixture revised catalogue specified; executable W6 design deferred`.
+**Initial outcome:** `ACCEPTED_CATALOGUE — 40-fixture revised catalogue passed review; executable W6 design deferred`.
 
 ## 2. Governing principles
 
@@ -342,7 +342,7 @@ Materialization must not use T1.28 or another active/critical-path research task
 
 ## 15. Proposed decisions introduced by the initial catalogue
 
-The decision register must record, pending review:
+The decision register records these accepted initial-catalogue decisions under P-027:
 
 - paired pre-control/post-control fixture evidence;
 - non-compensable critical graders;
@@ -356,29 +356,29 @@ The decision register must record, pending review:
 
 ## 16. First-pass review gate
 
-The initial catalogue is accepted for the first specification review only when Stephen and the current Manager confirm:
+The initial catalogue passed review under P-027. The accepted first-pass criteria are:
 
-- [ ] F-001–F-024 appear once with incident basis/input fidelity, pre-control failure, post-control oracle, and explicit dependency status.
-- [ ] Every W2 stress scenario S-001–S-016 appears once with a deterministic expected result.
-- [ ] P0 includes the reconciled foundational gates F-001–F-005/F-007–F-014/F-020/F-022 and S-011–S-013; P1 contains the remaining reserved cases.
-- [ ] Every fixture names required grader classes and critical failures cannot be averaged away.
-- [ ] Outcome and trajectory are both graded.
-- [ ] Research-validity fixtures cover stochastic/null, statistical, topology, representation, provenance, and claim lanes.
-- [ ] Compatibility ownership and clearing-as-acknowledgement implement the titled 2026-06-28 bus-ownership observation through non-shared successor paths.
-- [ ] Trace requirements are sufficient to grade commands, events, messages, tools, authority, artefacts, reviews, and decisions.
-- [ ] Restricted data, secrets, hidden reasoning, and full transcripts are excluded.
-- [ ] Change gates cover models, prompts, policies, skills, hooks, schemas, context, graders, and adapters.
-- [ ] Calibration requires known-bad failure, known-good pass, degenerate-path mutation sensitivity, producer-correlated error cases, and safe-variation tolerance.
-- [ ] T1.28 and all W0 no-migration items remain untouched.
-- [ ] Deferred W6 work is explicit and does not masquerade as an executable eval system.
+- [x] F-001–F-024 appear once with incident basis/input fidelity, pre-control failure, post-control oracle, and explicit dependency status.
+- [x] Every W2 stress scenario S-001–S-016 appears once with a deterministic expected result.
+- [x] P0 includes the reconciled foundational gates F-001–F-005/F-007–F-014/F-020/F-022 and S-011–S-013; P1 contains the remaining reserved cases.
+- [x] Every fixture names required grader classes and critical failures cannot be averaged away.
+- [x] Outcome and trajectory are both graded.
+- [x] Research-validity fixtures cover stochastic/null, statistical, topology, representation, provenance, and claim lanes.
+- [x] Compatibility ownership and clearing-as-acknowledgement implement the titled 2026-06-28 bus-ownership observation through non-shared successor paths.
+- [x] Trace requirements are sufficient to grade commands, events, messages, tools, authority, artefacts, reviews, and decisions.
+- [x] Restricted data, secrets, hidden reasoning, and full transcripts are excluded.
+- [x] Change gates cover models, prompts, policies, skills, hooks, schemas, context, graders, and adapters.
+- [x] Calibration requires known-bad failure, known-good pass, degenerate-path mutation sensitivity, producer-correlated error cases, and safe-variation tolerance.
+- [x] T1.28 and all W0 no-migration items remain untouched.
+- [x] Deferred W6 work is explicit and does not masquerade as an executable eval system.
 
 ## 17. First specification pass boundary
 
 With this initial catalogue, the planned first pass consists of:
 
 - W0 legacy closeout/transition manifest plus 2026-06-29 addendum: current review-pending Partial boundary;
-- W1 architecture v0.2: adversarial amendments integrated and approved by Stephen; Manager/final T1.28 reconciliation pending;
-- W2 schema/lifecycle v0.2: adversarial amendments integrated; Manager review pending;
-- W6 revised 40-fixture catalogue: adversarial amendments integrated; Manager review pending.
+- W1 architecture v0.3: accepted under P-027; final T1.28 reconciliation remains a legacy-migration gate;
+- W2 schema/lifecycle v0.3: accepted under P-027;
+- W6 revised 40-fixture catalogue v0.2: accepted under P-027; executable materialization remains deferred.
 
-No implementation plan, migration, pilot, or W3–W5/W7–W10 specification begins until this set is reviewed as a whole and the user chooses the next design sequence.
+W3 may proceed under P-026/P-027. No implementation plan, migration, or pilot begins until the remaining P-026 specification/interface gates and Stephen's approval of the exact implementation plan.

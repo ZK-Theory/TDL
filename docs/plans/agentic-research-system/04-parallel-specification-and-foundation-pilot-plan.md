@@ -1,7 +1,7 @@
 # Parallel Specification and Foundation Pilot Plan
 
 **Date:** 2026-06-30  
-**Status:** Approved programme direction; written-design review pending  
+**Status:** Approved programme direction; W1/W2/W6 review passed; W3 review pending<br>
 **Authority:** P-026, approved by Stephen on 2026-06-30  
 **Implementation authority:** None yet; foundation implementation requires the gates in section 4 and a separately approved implementation plan  
 **Pilot boundary:** The first paper initiated after the two current APM-managed papers
@@ -46,6 +46,8 @@ The lanes share lessons through dated evidence and decisions, not mutable task s
 
 ## 4. Sequence and gates
 
+**Gate status at 2026-06-30:** The W1 v0.3, W2 v0.3, and W6 v0.2 initial-catalogue review gates passed under P-027. Gate 1 remains open pending acceptance of the written W3 specification. No later gate or implementation authority follows yet.
+
 ### Gate 1 — W3 context contract
 
 Specify context packets and manifests, retrieval by role/risk, provenance, staleness/conflict handling, compaction, procedural-memory selection, size budgets, and retrieval-recall evaluation.
@@ -70,7 +72,7 @@ Full W6–W8 specifications may continue later, but no foundation code may depen
 
 ### Gate 4 — Foundation implementation plan
 
-The implementation plan must map every component to accepted W1–W5 decisions, the minimum W6–W8 gates, deterministic tests, fixtures, failure behavior, and rollback. W1/W2 Manager confirmation is required. T1.28 terminal completion is not.
+The implementation plan must map every component to accepted W1–W5 decisions, the minimum W6–W8 gates, deterministic tests, fixtures, failure behavior, and rollback. The W1/W2 review prerequisite passed under P-027. T1.28 terminal completion is not required.
 
 **Exit:** Stephen approves the implementation plan and its exact foundation scope.
 

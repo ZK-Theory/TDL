@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** Parallel ARS specification/foundation path approved; W3 is next; runtime implementation remains gated  
+**Status:** W1/W2/W6 accepted; W3 written and review-pending; runtime implementation remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -28,9 +28,11 @@ The objective is not to automate research judgment away. It is to make agent act
 | [design/README.md](design/README.md) | Structure and entry criteria for the forthcoming design specifications |
 | [design/01-system-architecture.md](design/01-system-architecture.md) | W1 component ownership, canonical/projected state, trust and filesystem boundaries, dependency direction, and `.apm/` compatibility architecture |
 | [design/02-task-event-and-artifact-schema.md](design/02-task-event-and-artifact-schema.md) | W2 identities, commands, atomic events, lifecycle state machines, messages, artefacts, reviews, decisions, and deterministic replay |
+| [design/03-context-memory-and-retrieval.md](design/03-context-memory-and-retrieval.md) | W3 immutable context packets/addenda, manifests, hard budgets, retrieval, memory provenance, staleness, and independence inputs |
 | [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | Revised W6 catalogue: F-001–F-024 and S-001–S-016, grader independence, provenance, privacy, calibration, and change gates |
 | [reviews/adversarial-first-pass-review-2026-06-29.md](reviews/adversarial-first-pass-review-2026-06-29.md) | Independent review of the plan and W1/W2/W6 first pass; preserved unchanged |
 | [reviews/adversarial-review-reconciliation-2026-06-29.md](reviews/adversarial-review-reconciliation-2026-06-29.md) | Stephen-approved dispositions, evidence-timing reconciliation, and integration authority |
+| [reviews/w1-w2-w6-review-acceptance-2026-06-30.md](reviews/w1-w2-w6-review-acceptance-2026-06-30.md) | Dated acceptance record closing the W1/W2/W6 review gates without authorizing implementation |
 
 ## Handover prompts
 
@@ -65,7 +67,7 @@ The recommended path is **evolutionary APM replacement**:
 
 This is preferable to either patching the current mutable files indefinitely or adopting a networked agent framework wholesale.
 
-The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. T1.28 and the two current papers remain outside that path except as dated evidence sources.
+The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. W1, W2, and the W6 initial catalogue passed review on 2026-06-30; W3 is the current review-pending specification. T1.28 and the two current papers remain outside that path except as dated evidence sources.
 
 ## Change discipline
 

@@ -47,7 +47,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Lock component boundaries and ownership.
 
-**Current status (2026-06-30):** W1 v0.3 integrates the adversarial-review amendments and P-026 gate split. Manager confirmation remains pending. Greenfield-foundation implementation requires the P-026 downstream gates; legacy migration remains blocked by final post-T1.28 reconciliation.
+**Current status (2026-06-30):** W1 v0.3 passed review under P-027. Greenfield-foundation implementation still requires the P-026 downstream gates; legacy migration remains blocked by final post-T1.28 reconciliation.
 
 **Must define:**
 
@@ -64,7 +64,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Eliminate implicit identity and mutable single-slot state.
 
-**Current status (2026-06-30):** W2 v0.3 integrates project-wide writer/store identity, cross-worktree command submission, non-shared compatibility paths, evidence-derived independence, typed RuleEvaluation referents, regenerability, verified-snapshot replay, and the P-026 foundation/migration gate split. Manager review remains pending.
+**Current status (2026-06-30):** W2 v0.3, including project-wide writer/store identity, cross-worktree command submission, non-shared compatibility paths, evidence-derived independence, typed RuleEvaluation referents, regenerability, verified-snapshot replay, and the P-026 foundation/migration gate split, passed review under P-027.
 
 **Must define:**
 
@@ -83,7 +83,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Replace full-history preloading with bounded, source-linked context.
 
-**Current status (2026-06-30):** Next authorized specification. W3 must freeze the context-manifest, omission, provenance, and independence inputs shared by W4, W5, and the minimum W6 evaluation slice.
+**Current status (2026-06-30):** Revision 0.1 written and review-pending. W3 freezes proposed context-manifest, omission, provenance, budget, staleness, and independence inputs shared by W4, W5, and the minimum W6 evaluation slice.
 
 **Must define:**
 
@@ -139,7 +139,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-06-29):** W6 v0.2 reserves F-001–F-024 and S-001–S-016, separates incident basis from input fidelity, requires independent scientific-property grading and declared family/context diversity, and adds qualitative/proportional profiles. Full executable schemas, tooling, thresholds, and retention remain deferred to W3–W5/W7–W8 dependencies.
+**Current status (2026-06-30):** The W6 v0.2 initial catalogue passed review under P-027. It reserves F-001–F-024 and S-001–S-016, separates incident basis from input fidelity, requires independent scientific-property grading and declared family/context diversity, and adds qualitative/proportional profiles. Full executable schemas, tooling, thresholds, and retention remain deferred to W3–W5/W7–W8 dependencies.
 
 **Must define:**
 
@@ -327,4 +327,4 @@ The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, th
 4. a bounded adversarial review of the combined foundation interfaces;
 5. a separately approved implementation plan for the narrow production-intended foundation.
 
-Runtime work remains unauthorized until those gates and W1/W2 Manager confirmation are recorded. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.
+Runtime work remains unauthorized until W3–W5, foundation-critical W6–W8, and the separately approved implementation-plan gate are complete. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.

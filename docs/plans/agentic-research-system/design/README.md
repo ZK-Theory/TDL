@@ -31,9 +31,9 @@ The filenames define decomposition, not permission to implement. Each specificat
 
 | Specification | Status | Outcome |
 |---|---|---|
-| [01-system-architecture.md](01-system-architecture.md) | `manager_review_pending` | Revision 0.3 integrates the adversarial amendments and P-026 gate split; Manager confirmation remains pending, while T1.28 continues to gate legacy migration only |
-| [02-task-event-and-artifact-schema.md](02-task-event-and-artifact-schema.md) | `manager_review_pending` | Revision 0.3 integrates concurrency, compatibility, independence, referent, retention, and replay amendments; foundation implementation still requires Manager confirmation |
-| `03-context-memory-and-retrieval.md` | `next_authorized` | W3 is the next bounded specification under P-026; it must freeze the context/independence interface consumed by W4/W5 |
+| [01-system-architecture.md](01-system-architecture.md) | `accepted` | Revision 0.3 passed review on 2026-06-30; implementation remains subject to the downstream P-026 gates |
+| [02-task-event-and-artifact-schema.md](02-task-event-and-artifact-schema.md) | `accepted` | Revision 0.3 passed review on 2026-06-30; no runtime/schema implementation follows yet |
+| [03-context-memory-and-retrieval.md](03-context-memory-and-retrieval.md) | `review_pending` | Revision 0.1 freezes the proposed context/independence interface for W4/W5 and awaits bounded written-specification review |
 | `04-agent-roles-and-model-routing.md` | `queued` | Begins after the W3 shared interface is reviewable |
 | `05-research-assurance-and-independent-review.md` | `queued` | May proceed alongside W4 only after the shared W3 interface is frozen |
-| [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `manager_review_pending` | Revision 0.2 contains the 40-fixture catalogue; its foundation-critical executable slice follows W3–W5 |
+| [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `accepted_catalogue` | Revision 0.2 initial 40-fixture catalogue passed review on 2026-06-30; its foundation-critical executable slice follows W3–W5 |

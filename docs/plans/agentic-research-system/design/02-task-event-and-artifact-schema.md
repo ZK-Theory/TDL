@@ -2,12 +2,12 @@
 
 **Date:** 2026-06-28  
 **Revised:** 2026-06-30  
-**Status:** Adversarial-review amendments integrated; P-026 gate split recorded; Manager review pending  
+**Status:** Accepted under P-027; P-026 gate split remains binding<br>
 **Specification version:** 0.3  
-**Design authority:** W1 v0.3, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-026  
+**Design authority:** Accepted W1 v0.3, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-027<br>
 **Implementation authority:** None; this document specifies records and lifecycle semantics but creates no schemas, runtime, migration, or `.research-system/` state  
 **Review owners:** Stephen and the current research-programme Manager  
-**Foundation gate:** W1/W2 Manager confirmation plus accepted W3–W5 and foundation-critical W6–W8 interfaces under P-026  
+**Foundation gate:** W1/W2 review passed; accepted W3–W5 and frozen foundation-critical W6–W8 interfaces remain required under P-026<br>
 **Legacy migration gate:** T1.28 terminal review/final W0 addendum and the full Stage 2 scope decision  
 
 ## 1. Decision summary
@@ -1154,7 +1154,7 @@ Migration uses two-step observation/adoption, exclusive ownership modes, non-sha
 
 ## 29. Proposed decisions introduced by W2
 
-The decision register must record, pending W2 review:
+The decision register records these accepted W2 decisions under P-027:
 
 - atomic JSONL batch-per-command storage;
 - prefixed UUIDv7 canonical IDs with scoped aliases;
@@ -1171,27 +1171,27 @@ The decision register must record, pending W2 review:
 
 ## 30. W2 review gate
 
-W2 can move from `review_pending` to `accepted` only when Stephen and the current Manager confirm:
+W2 moved from `review_pending` to `accepted` under P-027. The accepted review criteria are:
 
-- [ ] Atomic JSONL batches in one dedicated linear ledger satisfy W1’s canonical-storage decision without SQLite or per-worktree ledgers.
-- [ ] ID format, aliases, revisions, and hashes are sufficiently stable and provider-neutral.
-- [ ] Command, receipt, event, object, message, artefact, validation, review, decision, and projection meanings are non-overlapping.
-- [ ] Task status is correctly separated from dispatch, attempt, lease, checkpoint, and review status.
-- [ ] Every lifecycle transition has a typed command/event, precondition, and authority boundary.
-- [ ] Dispatch, claim, lease, retry, cancellation, and idempotency preserve all attempts and messages.
-- [ ] Partial, blocked, input-required, pause, resume, reopen, and supersession semantics fit long-running mathematical work.
-- [ ] Artefact existence, integrity, structural validation, scientific review, and use authority remain distinct.
-- [ ] Review and decision records enforce evidence-derived independence, delegated R0–R2 acceptance, and P-005/R3 human approvals.
-- [ ] Scope completion cannot omit Plan-defined work without a versioned scope amendment.
-- [ ] Genesis and accepted-snapshot replay fail closed on corruption, gaps, unknown schemas, stale projections, and control-store identity mismatch.
-- [ ] Compatibility ownership applies the titled 2026-06-28 bus-ownership observation and prevents shared legacy/successor write paths.
-- [ ] Legacy observation cannot silently become successor acceptance.
-- [ ] F-001–F-024 and S-001–S-016 are representable with explicit provenance and dependency status.
-- [ ] T1.28 and the W0 no-migration set remain untouched.
-- [ ] W3–W9 can extend these records without reversing W1 dependency direction.
+- [x] Atomic JSONL batches in one dedicated linear ledger satisfy W1’s canonical-storage decision without SQLite or per-worktree ledgers.
+- [x] ID format, aliases, revisions, and hashes are sufficiently stable and provider-neutral.
+- [x] Command, receipt, event, object, message, artefact, validation, review, decision, and projection meanings are non-overlapping.
+- [x] Task status is correctly separated from dispatch, attempt, lease, checkpoint, and review status.
+- [x] Every lifecycle transition has a typed command/event, precondition, and authority boundary.
+- [x] Dispatch, claim, lease, retry, cancellation, and idempotency preserve all attempts and messages.
+- [x] Partial, blocked, input-required, pause, resume, reopen, and supersession semantics fit long-running mathematical work.
+- [x] Artefact existence, integrity, structural validation, scientific review, and use authority remain distinct.
+- [x] Review and decision records enforce evidence-derived independence, delegated R0–R2 acceptance, and P-005/R3 human approvals.
+- [x] Scope completion cannot omit Plan-defined work without a versioned scope amendment.
+- [x] Genesis and accepted-snapshot replay fail closed on corruption, gaps, unknown schemas, stale projections, and control-store identity mismatch.
+- [x] Compatibility ownership applies the titled 2026-06-28 bus-ownership observation and prevents shared legacy/successor write paths.
+- [x] Legacy observation cannot silently become successor acceptance.
+- [x] F-001–F-024 and S-001–S-016 are representable with explicit provenance and dependency status.
+- [x] T1.28 and the W0 no-migration set remain untouched.
+- [x] W3–W9 can extend these records without reversing W1 dependency direction.
 
 ## 31. W2 outcome
 
-**Outcome:** `MANAGER_REVIEW_PENDING — greenfield-foundation implementation prohibited pending Manager confirmation and P-026 downstream gates; legacy migration separately prohibited`.
+**Outcome:** `ACCEPTED — greenfield-foundation implementation remains prohibited pending the remaining P-026 downstream gates; legacy migration remains separately prohibited`.
 
-W3 may now consume W2 v0.3 while Manager review remains pending. A foundation implementation plan begins only after W1/W2 Manager confirmation and the accepted P-026 downstream interfaces. T1.28 terminal evidence still requires a bounded W0/W2 reconciliation before any legacy adoption or migration, but does not hold the greenfield foundation.
+W3 may consume accepted W2 v0.3. A foundation implementation plan begins only after accepted W3–W5 and frozen foundation-critical W6–W8 interfaces. T1.28 terminal evidence still requires a bounded W0/W2 reconciliation before any legacy adoption or migration, but does not hold the greenfield foundation.
