@@ -1,9 +1,10 @@
 # Agentic Research System — Master Transition Plan
 
 **Date:** 2026-06-27  
-**Revised:** 2026-06-29  
-**Status:** First specification pass revised after adversarial review; Manager and final transition gates remain pending  
-**Transition point:** Expected close of Paper 1 Phase 1, after T1.28  
+**Revised:** 2026-06-30  
+**Status:** Parallel specification and greenfield-foundation path approved; W3 is next; implementation remains gated  
+**Foundation-development point:** After W3–W5 and foundation-critical W6–W8 gates, without waiting for T1.28  
+**Legacy migration point:** After the relevant APM work reaches reviewed closeout; no current-paper migration  
 **First deployment context:** TDL mathematical and social research  
 **Long-term scope:** Domain-general research programmes with optional specialist assurance packs
 
@@ -47,6 +48,8 @@ The expected completion of T1.28 creates a natural boundary:
 - the research programme is expanding beyond one paper and may expand beyond TDA;
 - further incremental additions to mutable Tracker and bus files will increase context and synchronization debt;
 - the cost of introducing stable task and evidence identities rises as more papers and domains are added.
+
+T1.28 is now expected to remain compute-bound for several days. Under P-026, that makes its completion a legacy-closeout and migration boundary, not a hold on independent successor design. W3–W5, foundation-critical W6–W8 interfaces, and a later non-migrating foundation may advance through their own gates while T1.28 remains entirely APM-owned.
 
 This is not permission to rewrite active history. The old APM material remains authoritative for the work it governed. The new system will import only the decisions and dependencies needed for future work and will reference, rather than normalize, the full historical record.
 
@@ -399,6 +402,10 @@ Parity tests verify semantic coverage, not byte identity. A source-to-adapter ge
 
 ## 8. Transition programme
 
+The programme now runs two isolated lanes. The legacy lane closes T1.28 and the two current APM papers under existing authority. The successor lane specifies ARS, then builds a narrow production-intended foundation and pilots it on the first paper initiated after those two. The lanes exchange dated lessons and decisions only; they never share mutable state or canonical ownership.
+
+Phase A may therefore remain open while the design portions of Phases B–E proceed. Foundation implementation requires the specification and review gates in `04-parallel-specification-and-foundation-pilot-plan.md`, but not T1.28 terminal completion.
+
 ### Phase A — Closeout and freeze
 
 **Objective:** Establish the historical boundary without disturbing active work.
@@ -463,17 +470,19 @@ Parity tests verify semantic coverage, not byte identity. A source-to-adapter ge
 
 **Exit condition:** An agent cannot approve its own R2/R3 methodological contract, and every accepted high-risk result has a traceable independent verdict.
 
-### Phase F — Pilot and migration decision
+### Phase F — Greenfield pilot and adoption decision
 
-**Objective:** Validate the new control plane on bounded real work.
+**Objective:** Validate the production-intended foundation on bounded real work without migrating the current papers.
 
-- select a new non-critical task after the phase boundary;
-- run it through both the legacy-compatible view and new ledger;
-- compare context size, defects, recovery, operator burden, and cost;
+- select the first paper initiated after the two current APM-managed papers;
+- initialize it under ARS from inception with one canonical successor authority;
+- begin with bounded R0/R1 tasks and one representative R2 workflow before paper-critical computation;
+- expose any legacy-style interface only as a non-shared generated view;
+- compare context size, evidence recall, defects, recovery, operator burden, and cost;
 - perform independent research review;
-- decide whether to expand, revise, or stop the migration.
+- decide whether to expand, revise, stop, or roll back the foundation.
 
-**Exit condition:** The pilot passes its scientific and operational acceptance criteria and the user explicitly authorizes wider adoption.
+**Exit condition:** The greenfield pilot passes its scientific and operational acceptance criteria and Stephen explicitly authorizes wider adoption. No conclusion about migrating the two APM papers follows automatically.
 
 ### Phase G — Reusable project template
 
@@ -493,6 +502,7 @@ Parity tests verify semantic coverage, not byte identity. A source-to-adapter ge
 | Risk | Consequence | Control |
 |---|---|---|
 | Overengineering the control plane | Research stalls under infrastructure work | Gate every component on historical failure evidence and pilot value |
+| Prototype outruns accepted specifications | Rework or hidden governance gaps enter the permanent foundation | Require W3–W5, foundation-critical W6–W8 interfaces, and an approved implementation plan before runtime work |
 | Migrating active tasks | Confused authority and broken provenance | Freeze boundary; compatibility adapter; pilot only new work |
 | False confidence from schemas | Structurally valid but scientifically wrong work | Independent assurance lanes and human-review questions |
 | Model monoculture | Correlated interpretation errors | Fresh context and cross-family review for R3 |
@@ -542,11 +552,12 @@ The transition should retire these practices:
 
 ## 12. Immediate next action
 
-The next action is to review this captured plan and then author the specification set listed in `design/README.md`, beginning with:
+The first specification pass and adversarial reconciliation are complete. Under P-026, the next sequence is:
 
-1. system architecture and boundaries;
-2. task/event/artefact schema and lifecycle;
-3. migration compatibility and historical boundary;
-4. evaluation fixtures and success metrics.
+1. author and review W3 context, memory, and retrieval;
+2. freeze W3's shared context/independence interface, then author W4 and W5;
+3. freeze the foundation-critical W6 fixture, W7 adapter, and W8 operations slices;
+4. produce a separately reviewed implementation plan for the narrow production-intended foundation;
+5. build and evaluate the foundation before selecting the first post-APM paper as its greenfield pilot.
 
-Implementation planning begins only after the relevant design specifications are reviewed and accepted.
+T1.28 closeout continues independently and triggers a dated reconciliation when its terminal evidence exists. It does not authorize migration and does not pause this design sequence.

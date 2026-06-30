@@ -1,10 +1,10 @@
 # W1 — Agentic Research System Architecture
 
 **Date:** 2026-06-28  
-**Revised:** 2026-06-29  
-**Status:** Adversarial-review amendments integrated; Stephen approved 2026-06-29; Manager confirmation pending  
-**Specification version:** 0.2  
-**Design authority:** `00-master-transition-plan.md`, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-025  
+**Revised:** 2026-06-30  
+**Status:** Adversarial-review amendments integrated; P-026 gate split recorded; Manager confirmation pending  
+**Specification version:** 0.3  
+**Design authority:** `00-master-transition-plan.md`, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-026  
 **Implementation authority:** None; this document defines boundaries and does not authorize implementation or migration  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -666,7 +666,7 @@ W1 can move from `review_pending` to `accepted` only when Stephen and the curren
 - [ ] Provider files, hooks, skills, dashboards, indexes, Tracker, and bus files are non-canonical.
 - [ ] Dependency direction prevents adapters, projections, packs, and Workers from mutating core authority.
 - [ ] The three `.apm/` ownership modes and non-shared successor paths preserve legacy work without dual writes.
-- [ ] The T1.28 post-completion reconciliation gate is sufficient and no active legacy task is migrated by this design.
+- [ ] P-026 correctly separates the non-migrating greenfield-foundation gate from T1.28 closeout, while no active legacy task is migrated by this design.
 - [ ] W0 fixtures F-001–F-020 and reserved F-021–F-024/S-011–S-016 are representable by the architecture.
 - [ ] The constraints passed to W2–W10 are correctly bounded.
 
@@ -674,6 +674,6 @@ Until that review is recorded, W1 is a normative design proposal but not impleme
 
 ## 20. W1 outcome
 
-**Outcome:** `MANAGER_REVIEW_PENDING — adversarial amendments integrated and Stephen-approved; implementation and migration prohibited pending Manager confirmation and final post-T1.28 reconciliation`.
+**Outcome:** `MANAGER_REVIEW_PENDING — foundation implementation prohibited pending Manager confirmation and P-026 downstream gates; legacy migration prohibited pending final post-T1.28 reconciliation`.
 
-The next deliverable after W1 acceptance is W2, the task/event/artefact/review/decision schema. If W2 drafting begins before T1.28 completes, it remains review-pending and must preserve the same post-T1.28 reconciliation gate.
+W2 v0.3 is complete as a review-pending proposal. W3 is the next deliverable under P-026. A greenfield-foundation implementation plan may proceed after W1/W2 Manager confirmation and the accepted W3–W5/foundation-critical W6–W8 gates; legacy migration remains separately blocked by W0/T1.28 closeout.

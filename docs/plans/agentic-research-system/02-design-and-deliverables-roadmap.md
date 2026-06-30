@@ -1,6 +1,8 @@
 # Design and Deliverables Roadmap
 
-**Purpose:** Decompose the transition into independently reviewable design products before implementation.
+**Purpose:** Decompose the transition into independently reviewable design products before implementation.  
+**Revised:** 2026-06-30  
+**Current programme decision:** P-026 authorizes a parallel specification → narrow foundation → greenfield pilot lane while T1.28 remains legacy-owned.
 
 ## 1. Delivery model
 
@@ -18,6 +20,8 @@ The redesign is too broad for one specification. It will be delivered as a coord
 - unresolved decision references.
 
 Specifications may be developed in parallel only when their interfaces are already locked. Schema and lifecycle work precedes context, routing, and dashboards because those systems consume task and artefact identity.
+
+T1.28 closeout is now isolated from successor delivery. It gates legacy migration and final W0 currency, but not W3–W5 design or a later non-migrating foundation that passes the P-026 gates in `04-parallel-specification-and-foundation-pilot-plan.md`.
 
 ## 2. Deliverable sequence
 
@@ -43,7 +47,7 @@ Specifications may be developed in parallel only when their interfaces are alrea
 
 **Purpose:** Lock component boundaries and ownership.
 
-**Current status (2026-06-29):** W1 v0.2 integrates the accepted adversarial-review amendments: one project-wide writer, a dedicated linear ledger/control root, non-shared successor compatibility paths, and graded independence/delegated acceptance. Stephen approved the revision; Manager confirmation and final post-T1.28 reconciliation remain pending. Implementation and migration remain prohibited.
+**Current status (2026-06-30):** W1 v0.3 integrates the adversarial-review amendments and P-026 gate split. Manager confirmation remains pending. Greenfield-foundation implementation requires the P-026 downstream gates; legacy migration remains blocked by final post-T1.28 reconciliation.
 
 **Must define:**
 
@@ -60,7 +64,7 @@ Specifications may be developed in parallel only when their interfaces are alrea
 
 **Purpose:** Eliminate implicit identity and mutable single-slot state.
 
-**Current status (2026-06-29):** W2 v0.2 integrates project-wide writer/store identity, cross-worktree command submission, non-shared compatibility paths, evidence-derived independence, typed RuleEvaluation referents, regenerability, and verified-snapshot replay. Outcome remains Manager-review-pending; implementation and migration are prohibited.
+**Current status (2026-06-30):** W2 v0.3 integrates project-wide writer/store identity, cross-worktree command submission, non-shared compatibility paths, evidence-derived independence, typed RuleEvaluation referents, regenerability, verified-snapshot replay, and the P-026 foundation/migration gate split. Manager review remains pending.
 
 **Must define:**
 
@@ -79,6 +83,8 @@ Specifications may be developed in parallel only when their interfaces are alrea
 
 **Purpose:** Replace full-history preloading with bounded, source-linked context.
 
+**Current status (2026-06-30):** Next authorized specification. W3 must freeze the context-manifest, omission, provenance, and independence inputs shared by W4, W5, and the minimum W6 evaluation slice.
+
 **Must define:**
 
 - event history, state, memory, and working-context distinctions;
@@ -94,6 +100,8 @@ Specifications may be developed in parallel only when their interfaces are alrea
 ### W4 — Agent profiles and model-routing specification
 
 **Purpose:** Make capability, risk, and independence explicit.
+
+**Current status (2026-06-30):** Queued after the W3 shared interface is reviewable; may then proceed alongside W5.
 
 **Must define:**
 
@@ -111,6 +119,8 @@ Specifications may be developed in parallel only when their interfaces are alrea
 ### W5 — Research assurance and independent-review specification
 
 **Purpose:** Generalise the strong TDL assurance approach and enforce two-key validity.
+
+**Current status (2026-06-30):** Queued after the W3 shared interface is reviewable; may then proceed alongside W4.
 
 **Must define:**
 
@@ -213,26 +223,26 @@ Specifications may be developed in parallel only when their interfaces are alrea
 ## 3. Dependency order
 
 ```text
-W0 Legacy boundary
- └─ W1 Architecture
-     ├─ W2 Schemas and lifecycle
-     │   ├─ W3 Context and memory
-     │   ├─ W4 Roles and routing
-     │   ├─ W5 Research assurance
-     │   └─ W8 Resources and operations
-     ├─ W6 Evals and observability
-     └─ W7 Runtime adapters
-          └─ W9 Migration and pilot
-               └─ W10 Project template
+W0 Legacy closeout ────────────────> dated reconciliation only
+
+W1 Architecture + W2 lifecycle
+ └─ W3 Context and memory
+     ├─ W4 Roles and routing
+     └─ W5 Research assurance
+          └─ foundation-critical W6/W7/W8 slices
+               └─ approved foundation implementation plan
+                    └─ narrow production-intended foundation
+                         └─ first post-APM paper pilot
+                              └─ W9/W10 wider migration/template work
 ```
 
-W6 begins with fixture collection during W0 but cannot finalize trace contracts until W2. W5 can reuse existing contracts and assurance skills while its general interface is being designed.
+W0 may remain open while the successor path advances; it cannot supply live pilot state. W4 and W5 may overlap only after W3 freezes their shared context and independence interface. W6 begins with the existing catalogue, while its minimum executable gate and the critical W7/W8 interfaces must be frozen before foundation implementation planning.
 
 ## 4. Pilot selection rubric
 
 The first pilot should:
 
-- be new work rather than an active migrated task;
+- be the first paper initiated after the two current APM-managed papers, not an active or historical migrated task;
 - have a clear mathematical or statistical design;
 - be bounded to hours rather than days;
 - use inputs whose existence and vintage can be independently verified;
@@ -241,11 +251,12 @@ The first pilot should:
 - benefit from an independent verifier;
 - not sit on the critical path to an imminent paper submission;
 - have meaningful negative or Partial outcomes;
-- be executable under both compatibility and new views.
+- initialize under ARS with one canonical authority;
+- expose a legacy-style view only as a non-shared projection if that materially helps evaluation.
 
 Avoid as the first pilot:
 
-- T1.28 while it is active;
+- T1.28 or any task from either current APM-managed paper;
 - a multi-day null battery;
 - a task requiring unresolved data access;
 - a paper-claim reversal;
@@ -306,6 +317,14 @@ A design deliverable is complete when:
 8. an independent reviewer has assessed R2/R3 logic;
 9. Stephen has accepted any methodological or governance decision it introduces.
 
-## 7. Recommended first specification pass
+## 7. Recommended second specification pass
 
-The first specification pass now comprises the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, the adversarial review, and its reconciliation. The next action is deterministic cross-document verification followed by a bounded delta review; implementation remains out of scope.
+The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, the adversarial review, and its reconciliation. P-026 then produced the current W1/W2 v0.3 gate split. The approved second pass is:
+
+1. W3 context, memory, and retrieval;
+2. W4 agent/model routing and W5 assurance after the W3 shared interface freezes;
+3. the foundation-critical W6 fixture, W7 adapter, and W8 operations slices;
+4. a bounded adversarial review of the combined foundation interfaces;
+5. a separately approved implementation plan for the narrow production-intended foundation.
+
+Runtime work remains unauthorized until those gates and W1/W2 Manager confirmation are recorded. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.

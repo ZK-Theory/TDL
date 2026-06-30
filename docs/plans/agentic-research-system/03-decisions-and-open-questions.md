@@ -306,6 +306,17 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Rationale:** Controls that are disproportionate to reversible work will be bypassed; domain-generality must not imply quantitative validation where none is meaningful.  
 **Affected specifications:** W1, W2, W4, W5, W6, W10.
 
+### P-026 — Parallel specification and clean-paper foundation pilot
+
+**Date:** 2026-06-30  
+**Status:** Accepted by Stephen  
+**Gate amendment:** Supersedes any W1/W2 wording that makes T1.28 terminal completion a prerequisite for a non-migrating greenfield foundation; it remains a prerequisite for legacy closeout and migration claims.  
+**Decision:** ARS specification work continues while T1.28 remains active. After W1/W2 Manager confirmation, accepted W3–W5 specifications, foundation-critical W6–W8 interface gates, and a separately approved implementation plan, a narrow production-intended ARS foundation may be built without waiting for T1.28 to finish. The first research pilot is the first paper initiated after the two papers currently governed by APM, created under ARS from inception.  
+**Legacy boundary:** T1.28 and both current papers remain `legacy_owned`; the foundation cannot write, migrate, normalize, or promote their tasks, evidence, decisions, or claims. T1.28 terminal review still triggers a W0 addendum and bounded design reconciliation.  
+**Rationale:** A multi-day legacy computation is a valid migration boundary but not a useful global hold on independent successor design. A clean-paper pilot tests the permanent system without contaminating current research authority.  
+**Implementation rule:** This decision authorizes the specification sequence and later implementation planning. Runtime implementation begins only after the named gates and Stephen's approval of the exact implementation plan.  
+**Affected specifications:** W1, W2, W3, W4, W5, W6, W7, W8, W9, W10; master plan and continuation protocol.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task

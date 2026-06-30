@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** Adversarial first-pass review integrated into W0/W1/W2/W6; bounded Manager review pending; implementation remains prohibited  
+**Status:** Parallel ARS specification/foundation path approved; W3 is next; runtime implementation remains gated  
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -10,7 +10,7 @@
 
 This folder is the durable planning workspace for moving from the current APM-based workflow to a more reliable, generalisable agentic research system.
 
-The transition is being planned at the end of the current Paper 1 Phase 1 run. T1.28 is treated as the expected final Phase 1 computational task, subject to confirmation from the live APM state. Phase 2 work already developed in parallel must be preserved. The new system will therefore be introduced through compatibility layers and a bounded pilot rather than by migrating active work in place.
+The transition began near the end of the current Paper 1 Phase 1 run. T1.28 remains an active, potentially multi-day APM computation and the two current papers retain legacy authority. Under P-026, that closeout gates legacy migration but not successor design. ARS will proceed through W3–W5, foundation-critical W6–W8 gates, a narrow production-intended foundation, and a greenfield pilot on the first paper initiated after the two current APM-managed papers.
 
 The objective is not to automate research judgment away. It is to make agent activity easier to bound, inspect, reproduce, challenge, and recover while retaining explicit human authority over methodological and paper-level decisions.
 
@@ -22,6 +22,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [01-current-system-evidence.md](01-current-system-evidence.md) | Auditable evidence and source register behind the diagnosis |
 | [02-design-and-deliverables-roadmap.md](02-design-and-deliverables-roadmap.md) | Design work packages, dependencies, review gates, and intended deliverables |
 | [03-decisions-and-open-questions.md](03-decisions-and-open-questions.md) | Accepted directions, assumptions requiring confirmation, and bounded design decisions |
+| [04-parallel-specification-and-foundation-pilot-plan.md](04-parallel-specification-and-foundation-pilot-plan.md) | P-026 parallel lanes, specification sequence, foundation scope, gates, and greenfield pilot boundary |
 | [transition/W0-legacy-closeout-transition-manifest-2026-06-28.md](transition/W0-legacy-closeout-transition-manifest-2026-06-28.md) | Commit-anchored legacy closeout inventory, no-migration boundary, and eval-fixture shortlist |
 | [transition/W0-legacy-closeout-transition-addendum-2026-06-29.md](transition/W0-legacy-closeout-transition-addendum-2026-06-29.md) | Dated currency update for T1.6, live T1.28 state, legacy bus backport, and A-001/A-002 status |
 | [design/README.md](design/README.md) | Structure and entry criteria for the forthcoming design specifications |
@@ -37,7 +38,7 @@ The objective is not to automate research judgment away. It is to make agent act
 |---|---|
 | [handoffs/01-next-session-continuation-prompt.md](handoffs/01-next-session-continuation-prompt.md) | Historical pre-review continuity brief; superseded by handoff 03 |
 | [handoffs/02-adversarial-review-prompt.md](handoffs/02-adversarial-review-prompt.md) | Executed adversarial-review brief; retained as review provenance |
-| [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | Current continuity brief for bounded review of the reconciled W0/W1/W2/W6 package |
+| [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | Current continuity brief: begin W3 while preserving the isolated T1.28/APM lane |
 
 ## Governing constraints
 
@@ -63,6 +64,8 @@ The recommended path is **evolutionary APM replacement**:
 - provide a domain-neutral core with TDA-specific assurance packs layered on top.
 
 This is preferable to either patching the current mutable files indefinitely or adopting a networked agent framework wholesale.
+
+The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. T1.28 and the two current papers remain outside that path except as dated evidence sources.
 
 ## Change discipline
 

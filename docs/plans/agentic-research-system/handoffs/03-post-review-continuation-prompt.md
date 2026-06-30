@@ -4,20 +4,22 @@ You are continuing the Agentic Research System planning work in `C:\Users\steph\
 
 ## Objective
 
-Perform the bounded review and next planning step from the reconciled W0/W1/W2/W6 package. Preserve earlier decisions and dated evidence. Do not implement ARS, migrate live work, or modify active APM/research state unless Stephen gives separate explicit authority.
+Begin the approved second specification pass from the reconciled W0/W1/W2/W6 package. W3 is next, followed by W4/W5 and the foundation-critical W6/W7/W8 slices. Preserve the isolated T1.28/APM lane. Do not implement the foundation, migrate live work, or modify active APM/research state until the P-026 gates and a separately approved implementation plan authorize it.
 
 ## Repository anchors
 
 - Planning root: `C:\Users\steph\TDL\docs\plans\agentic-research-system`
 - Initial specification commit: `bcc3c0739e17869315f8744a50eac32e995dda13`
 - Submitted adversarial-review commit: `33ab053e30fa5e564ac7cc999544dec2225e9ccb`
+- Adversarial integration commit: `6c9a5ac93d52361af4f0294ca3ce4213922ad057`
+- Parallel foundation authority: P-026, approved by Stephen on 2026-06-30
 - Legacy bus ownership backport: `7c8de855`
 - T1.6 authoritative merge anchor: `7e798464`
 - Review verdict: `accept_with_required_changes`
 - Review integration authority: Stephen, 2026-06-29
 - Implementation authority: none
 
-Verify the live cwd, branch, HEAD, status, and research state before writing. The integration files may be uncommitted if this prompt is opened before their dedicated commit; do not stage unrelated changes.
+Verify the live cwd, branch, HEAD, status, and research state before writing. Treat commit anchors as provenance, not proof of current T1.28 state. Do not stage unrelated compute, checkpoint, recovery, or application files.
 
 ## Mandatory startup
 
@@ -30,18 +32,19 @@ Verify the live cwd, branch, HEAD, status, and research state before writing. Th
 ## Read order
 
 1. `README.md`
-2. `reviews/adversarial-review-reconciliation-2026-06-29.md`
-3. `reviews/adversarial-first-pass-review-2026-06-29.md`
-4. `transition/W0-legacy-closeout-transition-manifest-2026-06-28.md`
-5. `transition/W0-legacy-closeout-transition-addendum-2026-06-29.md`
-6. `03-decisions-and-open-questions.md`
-7. `design/01-system-architecture.md`
-8. `design/02-task-event-and-artifact-schema.md`
-9. `design/06-evaluation-observability-and-audit.md`
-10. `00-master-transition-plan.md`
-11. `01-current-system-evidence.md`
-12. `02-design-and-deliverables-roadmap.md`
-13. `design/README.md`
+2. `04-parallel-specification-and-foundation-pilot-plan.md`
+3. `reviews/adversarial-review-reconciliation-2026-06-29.md`
+4. `reviews/adversarial-first-pass-review-2026-06-29.md`
+5. `transition/W0-legacy-closeout-transition-manifest-2026-06-28.md`
+6. `transition/W0-legacy-closeout-transition-addendum-2026-06-29.md`
+7. `03-decisions-and-open-questions.md`
+8. `design/01-system-architecture.md`
+9. `design/02-task-event-and-artifact-schema.md`
+10. `design/06-evaluation-observability-and-audit.md`
+11. `00-master-transition-plan.md`
+12. `01-current-system-evidence.md`
+13. `02-design-and-deliverables-roadmap.md`
+14. `design/README.md`
 
 The original PDFs and meta-research plan remain source material, not the first continuity read:
 
@@ -51,9 +54,9 @@ The original PDFs and meta-research plan remain source material, not the first c
 
 Use the PDF skill if the PDFs need to be re-inspected.
 
-## Settled review amendments
+## Settled decisions
 
-Treat P-020 through P-025 as Stephen-approved amendments pending the existing Manager/final-reconciliation gates:
+Treat P-020 through P-026 as Stephen-approved decisions. P-020–P-025 retain their Manager-confirmation gates, while final reconciliation applies to legacy migration and legacy-derived claims; P-026 defines which successor work may proceed independently of T1.28:
 
 - **P-020:** one project-wide command service writes one dedicated linear control store outside task-worktree branches; worktrees submit commands and never allocate canonical ledger positions.
 - **P-021:** successor-owned compatibility files use non-shared namespaced paths; any Task handled through unmodified legacy Worker slots remains `legacy_owned`.
@@ -61,8 +64,9 @@ Treat P-020 through P-025 as Stephen-approved amendments pending the existing Ma
 - **P-023:** scientific graders must independently establish the asserted property and record producer/grader family and context diversity; required diversity fails closed.
 - **P-024:** fixture provenance records both incident basis and input fidelity; the catalogue now reserves F-021–F-024 and S-011–S-016.
 - **P-025:** proportional profiles keep R0 minimal and support qualitative work without pretending deterministic scientific validation is available.
+- **P-026:** proceed W3 → W4/W5 → foundation-critical W6/W7/W8 → approved implementation plan → narrow permanent foundation → first post-APM paper pilot. T1.28 and both current papers remain legacy-owned and cannot be migrated into the prototype.
 
-Do not reopen these amendments by preference. A proposed supersession requires contrary evidence, a concrete failure mode, affected gates, and an attributed decision.
+Do not reopen these decisions by preference. A proposed supersession requires contrary evidence, a concrete failure mode, affected gates, and an attributed decision.
 
 ## Current status and gates
 
@@ -70,6 +74,7 @@ Do not reopen these amendments by preference. A proposed supersession requires c
 
 - Status remains `PARTIAL`: the manifest exists, but the legacy boundary is not sealed.
 - T1.28 was active and incomplete at the 2026-06-29 addendum check: compute/checkpoint evidence existed, but no final `stratified_w2_*.json` and no `task-01-28.log.md` existed.
+- Stephen expects the heavy computation may take up to a week. This is a planning estimate, not a result-state claim; inspect only the declared W0 currency triggers.
 - T1.28 and all related files/processes/contracts/checkpoints/bus state remain `legacy_owned` and in the no-migration set.
 - A-001 remains pending until T1.28 reaches a reviewed terminal disposition and the current Manager confirms Phase 1 closure.
 - A-002 remains scope-qualified: eight Wave-1 outputs retain their recorded authority, while fourteen Plan-defined Stage 2 tasks require acceptance, deferral, removal, or explicit supersession.
@@ -77,21 +82,30 @@ Do not reopen these amendments by preference. A proposed supersession requires c
 
 ### W1
 
-- Revision 0.2 integrates the adversarial architecture amendments and Stephen's approval.
-- Manager confirmation and final post-T1.28 reconciliation remain pending.
-- Outcome remains `MANAGER_REVIEW_PENDING`; implementation and migration are prohibited.
+- Revision 0.3 integrates the adversarial architecture amendments and the P-026 foundation/migration gate split.
+- Manager confirmation remains pending; final post-T1.28 reconciliation remains a legacy-migration gate.
+- Outcome remains `MANAGER_REVIEW_PENDING`; greenfield-foundation implementation also requires the P-026 downstream gates, while legacy migration remains prohibited.
 
 ### W2
 
-- Revision 0.2 integrates concurrency, compatibility, independence, typed-referent, retention, recovery, and replay amendments.
+- Revision 0.3 integrates concurrency, compatibility, independence, typed-referent, retention, recovery, replay, and the P-026 gate split.
 - Manager review remains pending.
-- No runtime, JSON Schema implementation, event store, adapter, or migration authority follows from the specification.
+- No runtime, JSON Schema implementation, event store, adapter, or migration authority follows from the specification alone; P-026 still requires Manager confirmation, downstream interface gates, and an approved implementation plan.
 
 ### W6
 
 - Revision 0.2 is a 40-fixture catalogue: F-001–F-024 and S-001–S-016.
 - It adds two-axis fixture provenance, independent scientific-property grading, grader-diversity evidence, proportional profiles, qualitative coverage, and non-aggregated P0 gates.
 - It is not an executable W6 implementation. Materialization, grader code, thresholds, trace schemas, retention, and tooling remain separately gated.
+
+### Parallel successor lane
+
+- W3 is authorized as the next specification while T1.28 remains active.
+- W4/W5 follow the frozen W3 shared interface.
+- Foundation-critical W6/W7/W8 slices precede any implementation plan.
+- The prototype is a narrow production-intended foundation, not disposable scaffolding.
+- Its research pilot is the first paper initiated after the two current APM-managed papers, under ARS from inception.
+- W1/W2 Manager confirmation and Stephen's approval of the implementation plan remain required; T1.28 terminal completion does not.
 
 ## Revised design in one view
 
@@ -101,15 +115,18 @@ W2 keeps immutable identities, commands, receipts, append-only events, determini
 
 ## Next work
 
-1. Verify package integrity and live repository status.
-2. Conduct a bounded delta review of the reconciled changes against the submitted adversarial findings; do not repeat the full first-pass attack unless new evidence warrants it.
-3. Report any remaining contradiction, unresolved authority gate, or materially stale W0 fact with exact evidence.
-4. Obtain current Manager confirmation and the final T1.28/W0 reconciliation before marking W1/W2 accepted or planning implementation.
-5. Do not begin W3–W5, executable W6, W7–W10, implementation planning, migration, or a pilot unless Stephen explicitly selects that sequence.
+1. Verify package integrity, P-026, and the live repository boundary.
+2. Author W3 as a bounded specification consuming W1/W2 v0.3 and P-020–P-026.
+3. Make W3 freeze the context-manifest, omission, provenance, staleness, budget, and independence inputs required by W4/W5.
+4. Review W3 before beginning W4/W5; allow W4 and W5 to overlap only across the frozen shared interface.
+5. Define the foundation-critical W6/W7/W8 slices and run a bounded combined-interface review.
+6. Obtain W1/W2 Manager confirmation, then prepare a separate foundation implementation plan for Stephen's approval.
+7. Monitor T1.28 only through W0 currency triggers and add a dated reconciliation when terminal evidence appears. Do not make W3–W8 wait on routine compute progress.
 
 ## Stop conditions
 
 - Stop before any action that changes active APM/research state, ownership, authority, pre-registration, scope, or claim status.
+- Stop before foundation runtime work until W1/W2 Manager confirmation, accepted W3–W5 specifications, foundation-critical W6–W8 gates, and Stephen's approval of an exact implementation plan.
 - Treat missing or contradictory evidence as `Partial` or `decision_required`; do not infer completion from an empty bus, `Success`, merged prose, or a dashboard.
 - Keep exact pre-registered designs and hard runtime guardrails intact unless an attributed amendment changes them.
 - Never place raw UKDA data, secrets, `.env` content, hidden reasoning, or full transcripts into reusable contexts, fixtures, or audit records.
@@ -117,4 +134,4 @@ W2 keeps immutable identities, commands, receipts, append-only events, determini
 
 ## Completion standard for the next session
 
-Return a concise status containing: live W0 currency, W1/W2/W6 review state, any remaining required change, and the exact next gate. Do not relitigate settled decisions or imply implementation authority.
+Return a concise status containing: live W0 currency, the completed W3 work or blocker, W1/W2/W6 review state, and the exact next successor gate. Do not relitigate settled decisions, turn routine T1.28 progress into a design hold, or imply foundation implementation authority.

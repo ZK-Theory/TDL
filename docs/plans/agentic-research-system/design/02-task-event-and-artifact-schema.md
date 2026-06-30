@@ -1,13 +1,14 @@
 # W2 — Task, Event, Artefact, Review, and Decision Schema
 
 **Date:** 2026-06-28  
-**Revised:** 2026-06-29  
-**Status:** Adversarial-review amendments integrated; Manager review pending  
-**Specification version:** 0.2  
-**Design authority:** W1 v0.2, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-025  
+**Revised:** 2026-06-30  
+**Status:** Adversarial-review amendments integrated; P-026 gate split recorded; Manager review pending  
+**Specification version:** 0.3  
+**Design authority:** W1 v0.3, W0 manifest and 2026-06-29 addendum, D-001–D-008, P-001–P-005, and approved amendments P-020–P-026  
 **Implementation authority:** None; this document specifies records and lifecycle semantics but creates no schemas, runtime, migration, or `.research-system/` state  
 **Review owners:** Stephen and the current research-programme Manager  
-**Reconciliation gate:** T1.28 terminal review and final W0 addendum, full Stage 2 scope decision, and W1/W2 Manager confirmation  
+**Foundation gate:** W1/W2 Manager confirmation plus accepted W3–W5 and foundation-critical W6–W8 interfaces under P-026  
+**Legacy migration gate:** T1.28 terminal review/final W0 addendum and the full Stage 2 scope decision  
 
 ## 1. Decision summary
 
@@ -1191,6 +1192,6 @@ W2 can move from `review_pending` to `accepted` only when Stephen and the curren
 
 ## 31. W2 outcome
 
-**Outcome:** `MANAGER_REVIEW_PENDING — adversarial amendments integrated into schema/lifecycle v0.2; implementation and migration prohibited`.
+**Outcome:** `MANAGER_REVIEW_PENDING — greenfield-foundation implementation prohibited pending Manager confirmation and P-026 downstream gates; legacy migration separately prohibited`.
 
-W2 may be reconciled with T1.28 and the final W0 addendum before approval. W3/W6 drafting may reference this proposal, but no implementation plan begins until W1/W2 governance gates are resolved.
+W3 may now consume W2 v0.3 while Manager review remains pending. A foundation implementation plan begins only after W1/W2 Manager confirmation and the accepted P-026 downstream interfaces. T1.28 terminal evidence still requires a bounded W0/W2 reconciliation before any legacy adoption or migration, but does not hold the greenfield foundation.
