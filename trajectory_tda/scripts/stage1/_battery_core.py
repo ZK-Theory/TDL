@@ -462,6 +462,7 @@ def run_headline_from_embeddings(
     label: str,
     phase_tag: str,
     n_jobs: int = 4,
+    n_jobs_agg: int | None = None,
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     markov_order: int = DEFAULT_MARKOV_ORDER,
     alpha: float = 1.0,
@@ -491,6 +492,9 @@ def run_headline_from_embeddings(
         label: Short dataset label for log lines (e.g. ``"BHPS LM-truncate"``).
         phase_tag: Phase tag for status files and partial-JSON writes.
         n_jobs: Permutation parallelism (locked to 4 at L >= 2000 per OOM finding).
+        n_jobs_agg: AGG-phase parallelism override. Defaults to ``n_jobs`` when
+            None. Set higher than ``n_jobs`` to saturate CPU cores during the
+            null-null W2 phase without changing the pre-registered perm count.
         n_null_pairs_cap: Cap on null-null symmetric pairs (default 500).
         markov_order: Markov order ``k`` of the permutation null (default 1).
         alpha: Laplace smoothing parameter forwarded to Markov-2 null draws.
@@ -551,6 +555,8 @@ def run_headline_from_embeddings(
     )
     logger.info("=" * 70)
 
+    _agg_jobs = n_jobs_agg if n_jobs_agg is not None else n_jobs
+
     # Pre-AGG cache recovery: if permutations were already completed in a prior
     # run, skip the obs PH + permutation phase and go straight to AGG.
     # Only active on the standard (non-dedup) path (T1.28 subgroups).
@@ -580,7 +586,7 @@ def run_headline_from_embeddings(
                 seed=seed,
                 n_null_pairs_cap=n_null_pairs_cap,
                 phase_label=label,
-                n_jobs=n_jobs,
+                n_jobs=_agg_jobs,
             )
             write_partial(phase_tag, "after_agg", {"phase": phase_tag, "result": _out})
             logger.info(
@@ -737,7 +743,7 @@ def run_headline_from_embeddings(
         seed=seed,
         n_null_pairs_cap=n_null_pairs_cap,
         phase_label=label,
-        n_jobs=n_jobs,
+        n_jobs=_agg_jobs,
     )
 
     # Attach dedup provenance for length-matched cells. The caller (e.g.

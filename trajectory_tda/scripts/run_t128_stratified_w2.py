@@ -69,6 +69,7 @@ B_DEFAULT = 1000
 SEED = 42
 MARKOV_ORDER = 1
 N_JOBS = 4
+N_JOBS_AGG = 12  # AGG phase only — infrastructure, not a statistical parameter
 K_MAX = 5
 N_POINTS = 200
 L_DEFAULT = 5000
@@ -357,6 +358,7 @@ def run_subgroup(
         label=tag,
         phase_tag=phase_tag,
         n_jobs=N_JOBS,
+        n_jobs_agg=N_JOBS_AGG,
         markov_order=MARKOV_ORDER,
         frozen_models=frozen_models,
     )
