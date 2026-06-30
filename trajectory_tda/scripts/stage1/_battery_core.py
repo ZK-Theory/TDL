@@ -256,6 +256,7 @@ def aggregate_combined(
     seed: int,
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     phase_label: str = "",
+    n_jobs: int = 4,
 ) -> dict[str, Any]:
     """Aggregate W2 + landscape L2 from a shared set of null permutation results.
 
@@ -341,7 +342,7 @@ def aggregate_combined(
             tuple(int(x) for x in rng_pairs.choice(n_permutations, size=2, replace=False)) for _ in range(n_pair_draws)
         ]
 
-        # Null-null W2 - parallel n_jobs=-1 (parallelism note, see vault)
+        # Null-null W2
         t_w2 = time.time()
         logger.info(
             "%s   dim=%d null-null W2 n_pairs=%d (effect=%d, pvalue=%d)...",
@@ -352,7 +353,7 @@ def aggregate_combined(
             n_pvalue_pairs,
         )
         null_null_w2_all = list(
-            Parallel(n_jobs=-1, verbose=10)(
+            Parallel(n_jobs=n_jobs, verbose=10)(
                 delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim) for (i, j) in pair_indices_all
             )
         )
@@ -550,6 +551,47 @@ def run_headline_from_embeddings(
     )
     logger.info("=" * 70)
 
+    # Pre-AGG cache recovery: if permutations were already completed in a prior
+    # run, skip the obs PH + permutation phase and go straight to AGG.
+    # Only active on the standard (non-dedup) path (T1.28 subgroups).
+    if not dedup_length_matched:
+        _perm_cache = _load_perms_cache(phase_tag)
+        if (
+            _perm_cache is not None
+            and _perm_cache["metadata"].get("B") == n_permutations
+            and _perm_cache["metadata"].get("seed") == seed
+        ):
+            logger.info(
+                "[PHASE %s] perm cache found — recovering AGG only (B=%d, seed=%d)",
+                label,
+                n_permutations,
+                seed,
+            )
+            _null_results = _reconstruct_null_results_from_cache(_perm_cache)
+            _ph_obs = _reconstruct_ph_obs_from_cache(_perm_cache)
+            write_status(f"PHASE {label} AGG RECOVERY", f"B={n_permutations}")
+            _out = aggregate_combined(
+                _null_results,
+                _ph_obs,
+                n_permutations,
+                max_dim=1,
+                k_max=k_max,
+                n_points=n_points,
+                seed=seed,
+                n_null_pairs_cap=n_null_pairs_cap,
+                phase_label=label,
+                n_jobs=n_jobs,
+            )
+            write_partial(phase_tag, "after_agg", {"phase": phase_tag, "result": _out})
+            logger.info(
+                "[PHASE %s] TOTAL elapsed %.1fs (AGG-only recovery)",
+                label,
+                time.time() - t_phase,
+            )
+            logger.info("=" * 70)
+            write_status(f"PHASE {label} DONE", f"recovered {time.time() - t_phase:.0f}s")
+            return _out, _null_results, _ph_obs
+
     n = embeddings.shape[0]
     actual_lm = min(n_landmarks, n)
     t_lm = time.time()
@@ -669,6 +711,20 @@ def run_headline_from_embeddings(
             "elapsed_perms_s": time.time() - t0,
         },
     )
+    if not dedup_length_matched:
+        _write_perms_cache(
+            phase_tag,
+            null_results,
+            ph_obs,
+            {
+                "B": n_permutations,
+                "L": actual_lm,
+                "seed": seed,
+                "n_jobs": n_jobs,
+                "markov_order": markov_order,
+                "label": label,
+            },
+        )
 
     write_status(f"PHASE {label} AGGREGATION", f"perms done in {time.time() - t0:.0f}s")
     out = aggregate_combined(
@@ -681,6 +737,7 @@ def run_headline_from_embeddings(
         seed=seed,
         n_null_pairs_cap=n_null_pairs_cap,
         phase_label=label,
+        n_jobs=n_jobs,
     )
 
     # Attach dedup provenance for length-matched cells. The caller (e.g.
@@ -884,6 +941,107 @@ def read_null_diagram_cache(cache_path: Path) -> dict[str, Any]:
     }
 
 
+# --- Pre-AGG permutation cache (T1.28 subgroup recovery) --------------------
+# Written after permutations complete; loaded to skip permutations on re-run.
+# Extends the null-diagram cache schema with scalar obs-null W2 distances so
+# aggregate_combined can be called directly without repeating the B=1000 perms.
+
+
+def _perms_cache_path(phase_tag: str) -> Path:
+    partial_dir = worktree_root() / "results/trajectory_tda_integration/stage1/.partial"
+    return partial_dir / f"{phase_tag}_perms_cache.npz"
+
+
+def _write_perms_cache(
+    phase_tag: str,
+    null_results: list[dict],
+    ph_obs: Any,
+    metadata: dict[str, Any],
+) -> Path:
+    """Persist post-permutation state so AGG can be re-run without repeating perms.
+
+    Schema (superset of write_null_diagram_cache):
+        h0_diagrams, h1_diagrams: ragged object arrays of null diagrams
+        obs_h0_diagram, obs_h1_diagram: observed diagrams
+        h0_obs_null_w2, h1_obs_null_w2: B-length float64 obs-null W2 per permutation
+        metadata: run parameters (B, L, seed, n_jobs, markov_order, label)
+    """
+    cache_path = _perms_cache_path(phase_tag)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    B = len(null_results)
+    h0_arr = np.empty(B, dtype=CACHE_DTYPE_OBJECT)
+    h1_arr = np.empty(B, dtype=CACHE_DTYPE_OBJECT)
+    h0_w2 = np.zeros(B, dtype=np.float64)
+    h1_w2 = np.zeros(B, dtype=np.float64)
+    for i, r in enumerate(null_results):
+        h0_arr[i] = np.array(r.get("H0_dgm", []), dtype=np.float64).reshape(-1, 2)
+        h1_arr[i] = np.array(r.get("H1_dgm", []), dtype=np.float64).reshape(-1, 2)
+        h0_w2[i] = float(r.get("H0", 0.0))
+        h1_w2[i] = float(r.get("H1", 0.0))
+
+    obs_h0 = _obs_finite_dgm(ph_obs, 0)
+    obs_h1 = _obs_finite_dgm(ph_obs, 1)
+
+    np.savez_compressed(
+        cache_path,
+        h0_diagrams=h0_arr,
+        h1_diagrams=h1_arr,
+        obs_h0_diagram=obs_h0,
+        obs_h1_diagram=obs_h1,
+        h0_obs_null_w2=h0_w2,
+        h1_obs_null_w2=h1_w2,
+        metadata=np.array(metadata, dtype=CACHE_DTYPE_OBJECT),
+    )
+    logger.info("Perms cache written: %s (B=%d)", cache_path, B)
+    return cache_path
+
+
+def _load_perms_cache(phase_tag: str) -> dict[str, Any] | None:
+    """Load a perms cache written by _write_perms_cache, or return None if absent."""
+    cache_path = _perms_cache_path(phase_tag)
+    if not cache_path.exists():
+        return None
+    with np.load(cache_path, allow_pickle=True) as data:
+        h0_arr = data["h0_diagrams"]
+        h1_arr = data["h1_diagrams"]
+        obs_h0 = np.array(data["obs_h0_diagram"], dtype=np.float64)
+        obs_h1 = np.array(data["obs_h1_diagram"], dtype=np.float64)
+        h0_w2 = np.array(data["h0_obs_null_w2"], dtype=np.float64)
+        h1_w2 = np.array(data["h1_obs_null_w2"], dtype=np.float64)
+        metadata = data["metadata"].item()
+    return {
+        "h0_diagrams": [np.array(x, dtype=np.float64).reshape(-1, 2) for x in h0_arr],
+        "h1_diagrams": [np.array(x, dtype=np.float64).reshape(-1, 2) for x in h1_arr],
+        "obs_h0": obs_h0,
+        "obs_h1": obs_h1,
+        "h0_obs_null_w2": h0_w2,
+        "h1_obs_null_w2": h1_w2,
+        "metadata": metadata,
+    }
+
+
+def _reconstruct_null_results_from_cache(cache: dict[str, Any]) -> list[dict[str, Any]]:
+    """Reconstruct null_results list from a perms cache for aggregate_combined."""
+    B = len(cache["h0_diagrams"])
+    return [
+        {
+            "H0": float(cache["h0_obs_null_w2"][i]),
+            "H1": float(cache["h1_obs_null_w2"][i]),
+            "H0_dgm": cache["h0_diagrams"][i].tolist(),
+            "H1_dgm": cache["h1_diagrams"][i].tolist(),
+        }
+        for i in range(B)
+    ]
+
+
+def _reconstruct_ph_obs_from_cache(cache: dict[str, Any]) -> Any:
+    """Reconstruct a minimal PHResult from cached observed diagrams."""
+    from poverty_tda.topology.multidim_ph import PHResult
+
+    return PHResult(dgms={0: cache["obs_h0"], 1: cache["obs_h1"]})
+
+
 # --- Landmark sensitivity (single L per invocation) -------------------------
 
 
@@ -968,6 +1126,7 @@ def run_lm_sensitivity_single_L(
         seed=seed,
         n_null_pairs_cap=n_null_pairs_cap,
         phase_label=f"{label}_L{L}",
+        n_jobs=n_jobs,
     )
     out = combined
     write_status(f"LM {label} L={L} DONE", "")
