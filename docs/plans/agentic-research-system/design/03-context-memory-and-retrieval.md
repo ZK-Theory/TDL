@@ -1,17 +1,17 @@
 # W3 — Context, Memory, and Retrieval Specification
 
 **Date:** 2026-06-30<br>
-**Status:** Draft complete; written-specification review pending<br>
-**Specification version:** 0.1<br>
-**Design authority:** Accepted W1 v0.3, accepted W2 v0.3, accepted W6 v0.2 catalogue, W0 manifest/addendum, D-001–D-008, and P-001–P-027<br>
+**Status:** Accepted written specification under P-028; implementation remains prohibited<br>
+**Specification version:** 0.2<br>
+**Design authority:** Accepted W1 v0.3, accepted W2 v0.3, accepted W6 v0.2 catalogue plus the 2026-06-30 W3 retrieval-fixture addendum, W0 manifest/addendum, D-001–D-008, and P-001–P-028<br>
 **Implementation authority:** None; this document defines contracts and gates but creates no compiler, schemas, indexes, runtime, migration, or `.research-system/` state<br>
-**Review owner:** Stephen; bounded adversarial review required before W4/W5 consume the frozen interface
+**Review owner:** Stephen; adversarial review, approved reconciliation, and bounded delta review completed on 2026-06-30
 
 ## Review record
 
 - **Conceptual design:** Approved by Stephen on 2026-06-30.
 - **W1/W2/W6 dependency gate:** Passed and recorded in `reviews/w1-w2-w6-review-acceptance-2026-06-30.md`.
-- **Written specification:** Review pending.
+- **Written specification:** Adversarial review returned `accept_with_required_changes`; Stephen approved the reconciliation, and revision 0.2 passed the bounded delta review under P-028 on 2026-06-30.
 - **Implementation:** Prohibited until the complete P-026 gate sequence and a separately approved implementation plan.
 
 ## 1. Decision summary
@@ -23,14 +23,14 @@ The specification makes these binding choices, subject to the W3 review gate:
 1. An issued context consists of one immutable base packet plus zero or more immutable context addenda. Retrieval never mutates a packet already issued.
 2. Every packet has a canonical manifest that identifies the task, role, risk, purpose, compiler policy, sources, excerpts, versions, hashes, selection reasons, omissions, conflicts, freshness, security class, size, and delivered-content hash.
 3. Mandatory governing evidence is selected before optional material and cannot be summarized away or omitted to meet a budget. If it does not fit, compilation fails and dispatch/review waits.
-4. ARS-managed context has hard provisional ceilings: R0 8,000 tokens, R1 16,000, R2 32,000, and R3 48,000. The provider adapter reserves at least 20% of usable model input for the active interaction and tool results.
+4. ARS-managed context has hard provisional reference-token ceilings: R0 8,000, R1 16,000, R2 32,000, and R3 48,000. A separate provider-capacity gate reserves at least 20% of usable model input for the active interaction, provider instructions, and tool results.
 5. Direct canonical sources outrank optional search, graph, full-text, or vector indexes. An unavailable index triggers recorded direct retrieval, not weaker authority.
 6. Event history, canonical projected state, durable declarative memory, procedural memory, examples, and working context remain distinct information classes.
 7. Compaction and memory consolidation produce source-linked proposals or aids. They do not supersede governing decisions, pre-registrations, contracts, results, or reviews.
-8. Reviewer independence is checkable from two different context manifests and their source overlap/exclusion evidence. The exact subject remains visible; producer conclusions and hidden reasoning do not enter an independent verifier packet.
+8. When the assurance grade requires a distinct verifier under P-022, reviewer independence is checkable from two different context manifests and their source overlap/exclusion evidence. The exact subject remains visible; producer conclusions and hidden reasoning do not enter an independent verifier packet.
 9. Secrets, raw restricted data, full transcripts, and hidden reasoning are prohibited from reusable packets and manifests.
 
-These choices freeze the shared context and independence interface consumed by W4 and W5. They do not choose models, assign authority, define scientific assurance policy, or implement retrieval.
+These accepted choices freeze the shared context and independence interface consumed by W4 and W5. They do not choose models, assign authority, define scientific assurance policy, or implement retrieval.
 
 ## 2. Sources and evidence
 
@@ -38,9 +38,9 @@ W3 implements:
 
 - W1 sections 5.7, 6, 7, 9, 14, 16, and 18: bounded context, direct-source authority, disposable indexes, trust boundaries, and downstream W3 constraints;
 - W2 context references, root binding, subject-hash review, actor/independence evidence, restricted-data exclusion, replay source positions, and the F-021/F-022 carrying fields;
-- W6 fixtures F-003–F-006, F-011–F-022, especially F-021 governing-amendment omission and F-022 correlated reviewer contexts;
-- W0 source precedence, stale-projection lessons, no-migration set, and the measured approximately 80,000-token Manager initialization burden;
-- P-020–P-027, including one canonical store, checkable independence, proportional profiles, the P-026 successor lane, and accepted W1/W2/W6 interfaces;
+- W6 fixtures F-003–F-006, F-011–F-022, and the P-028 reservations F-025–F-030, especially governing-amendment omission, correlated reviewer contexts, retrieval equivalence, overflow, distractor invariance, and addendum lineage;
+- W0 source precedence, stale-projection lessons, no-migration set, and the approximately 80,000-token Manager initialization estimate derived from a simple word-to-token heuristic for generic preload;
+- P-020–P-028, including one canonical store, checkable independence, proportional profiles, the P-026 successor lane, accepted W1/W2/W6 interfaces, and the accepted W3 reconciliation;
 - the supplied context-engineering distinction among instructions, knowledge, memory, examples, tools, guardrails, event history, and model working context.
 
 The original external whitepapers are terminology and practitioner guidance, not project authority. Direct repository evidence and attributed decisions control this specification.
@@ -192,22 +192,25 @@ Optional material is ranked by role relevance, risk, dependency distance, author
 
 The first W3 profiles use these ARS-managed packet ceilings:
 
-| Risk | Maximum managed tokens | Intended use |
+| Risk | Maximum reference tokens | Intended use |
 |---|---:|---|
 | R0 | 8,000 | Mechanical, deterministic, reversible work |
 | R1 | 16,000 | Bounded implementation under stable specification |
 | R2 | 32,000 | Research implementation or independent scientific verification |
 | R3 | 48,000 | Methodological design, claim review, or other high-consequence work |
 
-For a specific provider/model, the effective ceiling is:
+Two independent, unit-safe gates apply:
 
 ```text
-min(profile ceiling, floor(0.80 × provider usable input capacity))
+reference-token count <= W3 profile ceiling
+bound-provider token count <= floor(0.80 × provider usable input capacity)
 ```
 
-At least 20% remains outside the ARS-managed packet for the active interaction, provider instructions, and tool results. W7 records provider token counts. W3 also records UTF-8 bytes and a versioned reference-tokenizer count so size remains auditable across adapters.
+The first gate uses the versioned W3 reference tokenizer. The second uses the exact versioned tokenizer for the bound provider/model when available. If exact counting is unavailable before issuance, W7 must supply an evaluated conservative upper-bound counter and its evidence version; a route with neither an exact count nor an evaluated upper bound is ineligible. Raw counts from different tokenizers are not compared through one `min(...)` or treated as interchangeable units.
 
-These ceilings are hard maximums, not targets. A lower role/task ceiling may be declared. Increasing a profile ceiling requires a versioned policy decision and retrieval-eval evidence; it is not an automatic response to a compilation failure.
+At least 20% of provider usable input remains outside the ARS-managed packet for the active interaction, provider instructions, and tool results. That reserve is not an undocumented tokenizer-drift allowance. W3 records UTF-8 bytes, reference-tokenizer identity/count, and bound-provider tokenizer or upper-bound identity/count so size remains auditable across adapters.
+
+Compilation may reach `compiled` before provider binding, but no packet reaches `validated` or `issued` until both gates pass. These ceilings are hard maximums, not targets. A lower role/task ceiling may be declared. Increasing a profile ceiling requires a versioned policy decision and retrieval-eval evidence; it is not an automatic response to a compilation failure.
 
 ### 8.2 Packing order
 
@@ -223,9 +226,9 @@ Within a class, the policy records stable tie-breakers. Deduplication preserves 
 
 ### 8.3 Overflow behavior
 
-Mandatory content is never truncated, dropped, or replaced by an unapproved summary to meet the ceiling. If mandatory closure exceeds the effective ceiling, compilation returns `context_budget_exceeded` with:
+Mandatory content is never truncated, dropped, or replaced by an unapproved summary to meet either gate. If mandatory closure exceeds the reference-token profile ceiling or the bound-provider capacity gate, compilation returns `context_budget_exceeded` with:
 
-- the required sources and measured size;
+- the required sources, UTF-8 size, reference-token count, and provider-token count or evaluated upper bound;
 - duplicated or conflicting material identified;
 - safe options such as Task decomposition, narrower purpose, policy-approved source compaction, or routing to an evaluated larger-capacity profile;
 - no issued packet and no dispatch/review satisfaction.
@@ -256,11 +259,13 @@ The manifest records:
 - `context_id`, request ID, parent/addendum relationship, schema/version, compiler/policy version, and content hash;
 - project, Task/revision, purpose, role/profile, risk, actor/session, and producing-attempt relationship;
 - control-store identity and source event position/hash;
-- effective budget, reference token count, provider token count when available, UTF-8 bytes, and cumulative addendum size;
+- reference-token profile budget, reference-tokenizer identity/count, bound-provider tokenizer identity/count or evaluated upper-bound identity/count, provider usable-input capacity/reserve, UTF-8 bytes, and cumulative addendum size;
 - candidate-set digest, retrieval-trace references, included entries, omission entries, conflict entries, confidence summary, freshness verdict, and security/redaction declaration;
 - independence visibility/exclusion evidence;
 - exact rendered-packet hash and delivery receipt references;
 - creation time, expiry/currency triggers, retention class, and supersession lineage.
+
+The canonical manifest is control-plane evidence referenced by the rendered packet; it is not model-visible managed content by default. Any manifest fields deliberately rendered into the packet are included in both token gates. R0 uses the same canonical schema with explicit empty or `not_applicable` values rather than a weaker field-dropping variant; operational overhead must be measured before another schema profile is proposed.
 
 ### 9.3 Included-source entry
 
@@ -301,8 +306,9 @@ A mandatory candidate cannot end as an omission in an issued packet. `budget_dis
 4. Verify versions, hashes, supersession, amendments, access class, and freshness.
 5. Query optional indexes only for allowed supplementary candidates.
 6. Resolve every selected index hit back to a direct source and verify it.
-7. Pack deterministically, record omissions/conflicts, validate budget/security/independence, and hash the rendered result.
-8. Issue only after delivery and manifest validation succeed.
+7. Pack deterministically, record omissions/conflicts, apply the reference-token gate, hash the rendered result, and create a `compiled` candidate that is not yet issued.
+8. W4 selects an evaluated route; W7 supplies the bound-provider exact token count or evaluated upper bound; W3 applies the provider-capacity, manifest, security, and independence validations.
+9. Issue only after every validation succeeds. W7 then delivers the exact issued bytes; mark `delivered` only after a matching content-hash receipt.
 
 ### 10.2 Optional indexes
 
@@ -325,7 +331,7 @@ Each source and packet is one of:
 current | stale_known | unverifiable | superseded | conflicted
 ```
 
-`current` means the source was checked against its declared authority and currency rule at compilation. It does not mean the underlying claim is scientifically accepted unless its authority fields say so.
+`current` means the source was checked against its declared authority and currency rule at compilation. It does not mean the underlying claim is scientifically accepted unless its authority fields say so. The `conflicted` state is governed by section 11.3 and never implies a resolved precedence decision.
 
 ### 11.2 Currency triggers
 
@@ -368,7 +374,7 @@ Later retrieval creates a new `ctx_` addendum that records:
 - base packet ID/hash;
 - triggering message/tool/query;
 - new source entries and omissions;
-- cumulative budget before/after;
+- cumulative reference-token and bound-provider capacity-gate state before/after;
 - changed conflict/freshness state;
 - rendered addendum hash and delivery receipt.
 
@@ -389,7 +395,7 @@ A durable memory item records:
 - author, reviewer, review state, confidence basis, and limitations;
 - effective time, currency triggers, expiry/review date, and supersession;
 - sensitivity and retention class;
-- explicit statement that the memory does or does not carry governing authority.
+- whether the memory references a governing object and, if so, that object's canonical ID/hash. The memory item itself never carries governing authority and is never a substitute for the referenced decision, pre-registration, contract, result, or review.
 
 Lifecycle:
 
@@ -416,7 +422,7 @@ User instructions, project policy, Task requirements, and governing research aut
 
 ### 13.3 Compaction
 
-A compaction summary is an immutable source-linked context artefact containing covered event/message ranges, source hashes, compiler/summarizer identity, omissions, uncertainty, and expiry triggers. It may replace repetitive non-governing narrative in a packet. It cannot replace an exact governing rule, amendment, decision, contract assertion, subject artefact, or review verdict for R2/R3 work.
+A compaction summary is an immutable source-linked context artefact containing covered event/message ranges, source hashes, compiler/summarizer identity, omissions, uncertainty, and expiry triggers. It may replace repetitive non-governing narrative in a packet. A compaction summary may never, at any risk tier, replace an exact governing rule, amendment, decision, contract assertion, or review verdict. For R2/R3 work it additionally cannot replace the exact subject artefact required for the purpose.
 
 ### 13.4 Consolidation
 
@@ -447,14 +453,14 @@ W3 freezes these independence inputs for W4/W5:
 
 W4 computes the required grade and routing eligibility. W5 decides which assurance gate consumes it. W3 supplies evidence and fails compilation when a declared exclusion cannot be met.
 
-### 14.2 Verifier packet rules
+### 14.2 Independent verifier packet rules
 
-- The verifier receives the exact subject required for inspection.
+- The independent verifier receives the exact subject required for inspection.
 - Governing designs, contracts, amendments, and objective evidence may overlap with the producer packet and are labeled `shared_governance`.
-- Producer conclusions, answer summaries, recommendations, and hidden reasoning are excluded unless a bounded delta-review policy explicitly requires and records exposure.
-- The verifier packet has a distinct context ID/hash and compiler run.
+- Producer conclusions, answer summaries, recommendations, and hidden reasoning are excluded unless a versioned bounded delta-review policy requires exposure and the use is attributed. Manager may authorize an allowed R2 exposure; Stephen authorizes R3 exposure. Exposure changes the recorded independence profile and never permits hidden-reasoning inheritance.
+- The independent verifier packet has a distinct context ID/hash and compiler run.
 - Same-source or same-family risk is recorded, never described as independent human review.
-- If required diversity or exclusion is unavailable, the review gate returns `unable_to_satisfy_independence`; no lower grade is silently substituted.
+- If required diversity or exclusion is unavailable, the review gate returns `unable_to_satisfy_independence`; no independent verifier packet or lower grade is silently substituted.
 
 ## 15. Security, privacy, and retention boundary
 
@@ -477,14 +483,14 @@ If a required source cannot be represented safely, compilation fails and reports
 |---|---|
 | Mandatory source missing or unreadable | Fail compilation; list source and owning authority |
 | Effective amendment omitted | Fail F-021 gate; no readiness/review satisfaction |
-| Mandatory closure exceeds budget | `context_budget_exceeded`; no packet issued |
-| Provider token count exceeds effective ceiling | Reject delivery; compile a compliant packet or reroute through W4 |
+| Reference-token profile gate or bound-provider capacity gate fails | `context_budget_exceeded`; report section 8.3 evidence/safe options; no packet issued; W4 may evaluate another eligible route explicitly |
+| Exact provider count and evaluated upper bound both unavailable | Route ineligible; no packet issued or delivery attempted |
 | Governing conflict unresolved | Fail closed with both sources and decision owner |
 | Optional index stale/unavailable | Use direct retrieval and record fallback; never trust stale hit |
 | Direct mandatory freshness unverifiable | Fail R2/R3; apply only an explicitly allowed R0/R1 degraded policy |
 | Required skill/procedure version unavailable | Fail if mandatory; otherwise omit with typed reason |
 | Packet contains prohibited content | Quarantine candidate packet, emit sanitized incident evidence, and do not deliver |
-| Independence exclusion cannot be met | No verifier packet satisfying the requested grade |
+| Independence exclusion cannot be met | No independent verifier packet satisfying the requested grade |
 | Base packet discovered incomplete after issue | Mark failed/superseded; compile a new complete packet; do not patch silently |
 | Delivery hash mismatch | Reject delivery and preserve diagnostic evidence |
 
@@ -494,11 +500,12 @@ If a required source cannot be represented safely, compilation fails and reports
 
 - role/profile, purpose, risk tier, policy and budget profile;
 - mandatory capability and provider usable-input requirement;
-- actual packet/addendum sizes and provider token counts;
+- compiled candidate bytes/hash, UTF-8 size, reference-tokenizer identity/count, and cumulative addendum counts;
+- bound-provider tokenizer identity/count or evaluated upper-bound identity/count, usable-input capacity, and reserve outcome supplied through W7;
 - context IDs/hashes, actor/session/model metadata, overlap, exclusions, and freshness;
-- unavailable-provider or unable-to-satisfy-independence outcomes.
+- unavailable-provider, token-accounting-unavailable, context-budget-exceeded, or unable-to-satisfy-independence outcomes.
 
-W4 may route only to evaluated profiles that can satisfy this interface. It cannot ask W3 to omit mandatory evidence to fit a weaker model.
+W3 may expose a compiled, unissued candidate to W4/W7 only for evaluated routing and counting. W4 selects an eligible provider/model/profile; W7 supplies the exact provider count or evaluated upper bound; W3 validates both token gates and issues only after one route passes. A failed candidate returns to W4 explicitly. W4 cannot ask W3 to omit mandatory evidence to fit a weaker model, and W3 does not silently choose another route.
 
 ### 17.2 W5 consumes
 
@@ -518,7 +525,7 @@ W4 and W5 may proceed in parallel only after W3 review accepts the field meaning
 
 W3 does not materialize executable fixtures, but it fixes the minimum fixture designs that foundation-critical W6 must implement.
 
-### 18.1 Representative orchestrator fixture
+### 18.1 F-025 representative orchestrator fixture
 
 Use a minimized/synthetic reconstruction of the Stage 2 scope-collapse family, not live APM state. The context request must retrieve:
 
@@ -530,7 +537,7 @@ Use a minimized/synthetic reconstruction of the Stage 2 scope-collapse family, n
 
 Distractor Tracker/memory prose asserts completion. The packet must retain it only as a stale/lower-authority conflict and must not recommend full-stage completion.
 
-### 18.2 Representative implementer fixture
+### 18.2 F-026 representative implementer fixture
 
 Use a minimized historical/synthetic bundle from F-011/F-012/F-013, not T1.28. The request must retrieve:
 
@@ -546,9 +553,10 @@ Distractors include an older refitting procedure, a stale input, and a plausible
 
 - **F-021:** a governing amendment exists but the baseline request retrieves only the earlier design. Pre-control must fail; post-control includes the amendment and records the stale predecessor.
 - **F-022:** producer and verifier share producer-derived conclusions. Pre-control independence fails; post-control gives the verifier the exact subject plus shared governance while excluding conclusions/hidden reasoning.
-- Optional-index deletion must produce the same mandatory packet through direct retrieval.
-- Budget overflow must fail rather than omit a governing item.
-- Safe optional distractor variation must not change the mandatory packet or terminal decision.
+- **F-027:** optional-index deletion must produce the same mandatory packet through direct retrieval.
+- **F-028:** either token-gate overflow must fail rather than omit a governing item.
+- **F-029:** safe optional distractor variation must not change the mandatory packet or terminal decision.
+- **F-030:** addenda preserve immutable lineage and cumulative compliance; an incomplete mandatory base is superseded rather than patched.
 
 ### 18.4 Required metrics
 
@@ -560,11 +568,13 @@ For the Gate 1 fixture set:
 - prohibited secret/restricted/transcript/hidden-reasoning inclusion: `0`;
 - superseded or stale source presented as current authority: `0`;
 - mandatory omission in an issued packet: `0`;
-- packet and cumulative-addendum budget compliance: `1.0`;
+- reference-token and bound-provider capacity-gate compliance, including cumulative addenda: `1.0`;
 - direct-retrieval equivalence after optional-index deletion: `1.0` for the mandatory fragment set, order, versions, and hashes;
 - independence exclusion/overlap classification accuracy: `1.0` on F-022 cases.
 
-The representative orchestrator packet must fit at or below 48,000 managed tokens and the representative R2 implementer/verifier packet at or below 32,000. Against the audited approximately 80,000-token Manager preload estimate, the orchestrator ceiling is at least 40% smaller while retaining every mandatory item.
+The representative orchestrator packet must fit at or below 48,000 reference tokens and the representative R2 implementer/independent-verifier packet at or below 32,000 reference tokens; each must also pass its bound-provider capacity gate. The 48,000 ceiling is nominally 40% below the approximately 80,000-token word-to-token heuristic for generic Manager preload. That baseline is not a like-for-like mandatory-closure measurement and excludes task-specific sources.
+
+Before a context compiler or provider/profile combination passes Gate 1, W6 materialization must empirically size the mandatory closure for F-025, F-026, F-021, and F-022 under both token gates. An over-ceiling closure is a blocking design signal requiring an evidence-backed profile change or explicit decomposition that preserves cross-cutting governing evidence. Written acceptance of W3 does not assert that executable sizing already exists.
 
 Aggregate recall cannot compensate for one missed governing source. Each fixture is a non-aggregated gate.
 
@@ -577,7 +587,7 @@ Implementation planning must provide tests for:
 - manifest and included/omission/conflict entry schemas;
 - canonical source/excerpt hashes and packet/addendum hashes;
 - deterministic mandatory closure and packing order;
-- budget calculation, provider reserve, and cumulative addenda;
+- reference-token and bound-provider capacity-gate calculation, provider reserve, tokenizer/upper-bound identity, and cumulative addenda;
 - source precedence, amendments, supersession, freshness, and currency triggers;
 - direct retrieval fallback and index non-authority;
 - packet immutability, reuse validation, and delivery receipts;
@@ -612,7 +622,7 @@ Define assurance-lane source requirements, domain-pack additions, review questio
 
 ### W6
 
-Materialize the Gate 1 fixtures, normalize traces for compilation/retrieval/delivery, calibrate pre/post behavior, and enforce the non-aggregated metrics in section 18.
+Materialize F-021/F-022 and F-025–F-030 under the dated W6 addendum, normalize traces for compilation/retrieval/delivery, measure mandatory closure under both token gates, calibrate pre/post behavior, and enforce the non-aggregated metrics in section 18.
 
 ### W7
 
@@ -628,24 +638,24 @@ Keep legacy imports source-linked and non-authoritative until adoption; provide 
 
 ## 21. W3 review gate
 
-W3 can move from `review_pending` to `accepted` only when Stephen confirms after bounded review that:
+W3 moved from `review_pending` to `accepted` under P-028 after the adversarial review, approved reconciliation, and bounded delta review confirmed that:
 
-- [ ] Immutable base packets plus append-only addenda are the correct working-context model.
-- [ ] Event history, projected state, declarative memory, procedural memory, examples, working context, and traces remain distinct.
-- [ ] Mandatory source closure is complete by role/risk/assurance purpose and cannot be displaced by budget.
-- [ ] R0/R1/R2/R3 ceilings and the 20% provider reserve are explicit and proportionate.
-- [ ] Packet, manifest, included-source, omission, conflict, freshness, and addendum fields are sufficient for W4/W5.
-- [ ] Direct sources remain authoritative and optional-index deletion preserves mandatory retrieval.
-- [ ] Compaction/memory cannot supersede governing evidence.
-- [ ] Staleness, conflict, overflow, delivery mismatch, and unsafe-source failures close conservatively.
-- [ ] Verifier packets expose the exact subject while excluding producer conclusions and hidden reasoning.
-- [ ] Secrets, raw restricted data, full transcripts, and hidden reasoning are excluded.
-- [ ] Gate 1 fixtures achieve every non-aggregated metric in section 18 under the hard ceilings.
-- [ ] W3 introduces no runtime, migration, active APM write, or research-claim change.
-- [ ] W4 and W5 can proceed independently across the frozen interface in section 17.
+- [x] Immutable base packets plus append-only addenda are the correct working-context model.
+- [x] Event history, projected state, declarative memory, procedural memory, examples, working context, and traces remain distinct.
+- [x] Mandatory source closure is complete by role/risk/assurance purpose and cannot be displaced by budget.
+- [x] R0/R1/R2/R3 reference ceilings, the separate provider-capacity gate, and the 20% reserve are explicit; empirical fixture fit remains a W6 release precondition.
+- [x] Packet, manifest, included-source, omission, conflict, freshness, and addendum fields are sufficient for W4/W5.
+- [x] Direct sources remain authoritative and F-027 binds optional-index deletion equivalence.
+- [x] Compaction and memory cannot supersede governing evidence at any risk tier.
+- [x] Staleness, conflict, overflow, delivery mismatch, accounting unavailability, and unsafe-source failures close conservatively.
+- [x] Independent verifier packets expose the exact subject while excluding producer conclusions and hidden reasoning except through attributed policy-bound delta exposure.
+- [x] Secrets, raw restricted data, full transcripts, and hidden reasoning are excluded.
+- [x] F-025–F-030 and the non-aggregated metrics are bound; executable achievement and closure sizing remain W6 materialization gates.
+- [x] W3 introduces no runtime, migration, active APM write, or research-claim change.
+- [x] W4 and W5 can proceed independently across the frozen interface in section 17.
 
 ## 22. W3 outcome
 
-**Outcome:** `REVIEW_PENDING — bounded W3 specification complete; W4/W5 and foundation implementation remain gated`.
+**Outcome:** `ACCEPTED_SPECIFICATION — W3 v0.2 shared interface frozen under P-028; executable Gate 1 evidence and foundation implementation remain gated`.
 
-The next action is a bounded review of this written specification. If accepted, W4 and W5 may begin in parallel across section 17. Foundation implementation remains prohibited until the remaining P-026 gates and a separately approved implementation plan are complete.
+W4 and W5 may now begin in parallel across section 17. W6 must materialize and size the reserved retrieval fixtures before a context compiler/provider profile can pass Gate 1. Foundation implementation remains prohibited until the remaining P-026 gates and a separately approved implementation plan are complete.

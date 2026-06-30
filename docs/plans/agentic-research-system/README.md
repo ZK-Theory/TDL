@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1/W2/W6 accepted; W3 written and review-pending; runtime implementation remains gated<br>
+**Status:** W1/W2/W3 accepted; W6 catalogue plus W3 fixture addendum accepted; W4/W5 next; runtime implementation remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -29,10 +29,14 @@ The objective is not to automate research judgment away. It is to make agent act
 | [design/01-system-architecture.md](design/01-system-architecture.md) | W1 component ownership, canonical/projected state, trust and filesystem boundaries, dependency direction, and `.apm/` compatibility architecture |
 | [design/02-task-event-and-artifact-schema.md](design/02-task-event-and-artifact-schema.md) | W2 identities, commands, atomic events, lifecycle state machines, messages, artefacts, reviews, decisions, and deterministic replay |
 | [design/03-context-memory-and-retrieval.md](design/03-context-memory-and-retrieval.md) | W3 immutable context packets/addenda, manifests, hard budgets, retrieval, memory provenance, staleness, and independence inputs |
-| [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | Revised W6 catalogue: F-001–F-024 and S-001–S-016, grader independence, provenance, privacy, calibration, and change gates |
+| [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | Revised W6 initial catalogue: F-001–F-024 and S-001–S-016, grader independence, provenance, privacy, calibration, and change gates |
+| [design/06a-w3-retrieval-fixture-addendum-2026-06-30.md](design/06a-w3-retrieval-fixture-addendum-2026-06-30.md) | P-028 reservation of W3 retrieval fixtures F-025–F-030 and mandatory-closure sizing precondition |
 | [reviews/adversarial-first-pass-review-2026-06-29.md](reviews/adversarial-first-pass-review-2026-06-29.md) | Independent review of the plan and W1/W2/W6 first pass; preserved unchanged |
 | [reviews/adversarial-review-reconciliation-2026-06-29.md](reviews/adversarial-review-reconciliation-2026-06-29.md) | Stephen-approved dispositions, evidence-timing reconciliation, and integration authority |
 | [reviews/w1-w2-w6-review-acceptance-2026-06-30.md](reviews/w1-w2-w6-review-acceptance-2026-06-30.md) | Dated acceptance record closing the W1/W2/W6 review gates without authorizing implementation |
+| [reviews/adversarial-W3-context-review-2026-06-30.md](reviews/adversarial-W3-context-review-2026-06-30.md) | Independent W3 adversarial review; preserved unchanged |
+| [reviews/adversarial-W3-review-reconciliation-2026-06-30.md](reviews/adversarial-W3-review-reconciliation-2026-06-30.md) | Stephen-approved W3 finding dispositions and integration boundary |
+| [reviews/w3-v0.2-delta-review-2026-06-30.md](reviews/w3-v0.2-delta-review-2026-06-30.md) | Bounded integration check closing the W3 findings and preserving downstream gates |
 
 ## Handover prompts
 
@@ -40,7 +44,7 @@ The objective is not to automate research judgment away. It is to make agent act
 |---|---|
 | [handoffs/01-next-session-continuation-prompt.md](handoffs/01-next-session-continuation-prompt.md) | Historical pre-review continuity brief; superseded by handoff 03 |
 | [handoffs/02-adversarial-review-prompt.md](handoffs/02-adversarial-review-prompt.md) | Executed adversarial-review brief; retained as review provenance |
-| [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | Current continuity brief: begin W3 while preserving the isolated T1.28/APM lane |
+| [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | W3 authoring continuity brief; retained as provenance after P-028 acceptance |
 
 ## Governing constraints
 
@@ -67,7 +71,7 @@ The recommended path is **evolutionary APM replacement**:
 
 This is preferable to either patching the current mutable files indefinitely or adopting a networked agent framework wholesale.
 
-The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. W1, W2, and the W6 initial catalogue passed review on 2026-06-30; W3 is the current review-pending specification. T1.28 and the two current papers remain outside that path except as dated evidence sources.
+The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. W1, W2, W3, the W6 initial catalogue, and the W3 retrieval-fixture addendum are accepted; W4 and W5 are the next parallel specifications. T1.28 and the two current papers remain outside that path except as dated evidence sources.
 
 ## Change discipline
 

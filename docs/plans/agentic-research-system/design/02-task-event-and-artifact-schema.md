@@ -1194,4 +1194,4 @@ W2 moved from `review_pending` to `accepted` under P-027. The accepted review cr
 
 **Outcome:** `ACCEPTED — greenfield-foundation implementation remains prohibited pending the remaining P-026 downstream gates; legacy migration remains separately prohibited`.
 
-W3 may consume accepted W2 v0.3. A foundation implementation plan begins only after accepted W3–W5 and frozen foundation-critical W6–W8 interfaces. T1.28 terminal evidence still requires a bounded W0/W2 reconciliation before any legacy adoption or migration, but does not hold the greenfield foundation.
+W3 v0.2 consumed accepted W2 v0.3 and passed review under P-028. W4/W5 may now consume both interfaces. A foundation implementation plan begins only after accepted W4/W5 and frozen foundation-critical W6–W8 interfaces. T1.28 terminal evidence still requires a bounded W0/W2 reconciliation before any legacy adoption or migration, but does not hold the greenfield foundation.

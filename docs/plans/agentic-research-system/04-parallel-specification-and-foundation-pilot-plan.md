@@ -1,7 +1,7 @@
 # Parallel Specification and Foundation Pilot Plan
 
 **Date:** 2026-06-30  
-**Status:** Approved programme direction; W1/W2/W6 review passed; W3 review pending<br>
+**Status:** Approved programme direction; W1/W2/W3 and W6 catalogue/addendum accepted; W4/W5 next<br>
 **Authority:** P-026, approved by Stephen on 2026-06-30  
 **Implementation authority:** None yet; foundation implementation requires the gates in section 4 and a separately approved implementation plan  
 **Pilot boundary:** The first paper initiated after the two current APM-managed papers
@@ -38,7 +38,7 @@ When T1.28 reaches a reviewed terminal disposition, its new evidence triggers a 
 | Lane | Scope | Authority | Current action |
 |---|---|---|---|
 | Legacy research | T1.28 and the two current APM-managed papers | APM remains canonical | Continue compute and event-triggered closeout; no ARS writes or migration |
-| Successor specifications | W3, then W4/W5, then foundation-critical W6/W7/W8 slices | Versioned ARS design documents | Begin W3; review each bounded specification before its consumers proceed |
+| Successor specifications | W3 accepted; W4/W5, then foundation-critical W6/W7/W8 slices | Versioned ARS design documents | Begin W4 and W5 across the frozen W3 interface; review each bounded specification before its consumers proceed |
 | Foundation implementation | Minimal production-intended ARS v1 | Activates only after section 4 gates and an approved implementation plan | Not yet authorized |
 | Greenfield pilot | First paper initiated after the two current APM papers | ARS from project initialization after pilot preflight | Candidate not yet selected |
 
@@ -46,13 +46,13 @@ The lanes share lessons through dated evidence and decisions, not mutable task s
 
 ## 4. Sequence and gates
 
-**Gate status at 2026-06-30:** The W1 v0.3, W2 v0.3, and W6 v0.2 initial-catalogue review gates passed under P-027. Gate 1 remains open pending acceptance of the written W3 specification. No later gate or implementation authority follows yet.
+**Gate status at 2026-06-30:** W1 v0.3, W2 v0.3, and the W6 v0.2 initial catalogue passed under P-027. W3 v0.2 and the W6 F-025–F-030 reservation passed the written-specification portion of Gate 1 under P-028. Executable closure sizing and fixture results remain foundation-critical W6/W7 gates; no implementation authority follows.
 
 ### Gate 1 — W3 context contract
 
 Specify context packets and manifests, retrieval by role/risk, provenance, staleness/conflict handling, compaction, procedural-memory selection, size budgets, and retrieval-recall evaluation.
 
-**Exit:** Representative orchestrator and implementer fixtures retrieve every governing item within explicit budgets.
+**Exit:** The written context contract is accepted. Before implementation, F-025/F-026/F-021/F-022 must demonstrate mandatory closure under both token gates, and F-027–F-030 must satisfy the dated W6 addendum.
 
 ### Gate 2 — W4/W5 authority interfaces
 
@@ -139,4 +139,4 @@ Rollback preserves every event, artefact, verdict, and decision produced before 
 
 ## 8. Immediate next action
 
-Author W3 as the next bounded specification. W3 should consume W1/W2 v0.3 and P-020–P-026, define the shared context/independence interface needed by W4 and W5, and identify the W6 fixtures that will measure omission, staleness, provenance, and context-budget behavior.
+Author W4 agent/model routing and W5 research assurance in parallel across accepted W3 v0.2. Preserve the P-028 two-gate accounting, independent-verifier, delta-exposure, and F-025–F-030 dependencies; do not begin foundation implementation.

@@ -326,6 +326,21 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Evidence:** `reviews/w1-w2-w6-review-acceptance-2026-06-30.md` and Stephen's direct 2026-06-30 confirmation.<br>
 **Remaining gates:** Accepted W3–W5, frozen foundation-critical W6–W8 interfaces, and Stephen's approval of a separately reviewed implementation plan. T1.28 remains the legacy-closeout/migration boundary only.<br>
 **Affected specifications:** W1, W2, W3, W4, W5, W6, W7, W8; package status and continuation protocol.
+
+### P-028 — W3 context-contract acceptance and retrieval-fixture reservation
+
+**Date:** 2026-06-30<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-024; clarifies P-022 and P-025<br>
+**Decision:** W3 v0.2 is accepted after adversarial review and approved reconciliation. Context uses immutable base packets plus append-only addenda; governing material cannot be compacted or memorized into replacement authority; distinct-verifier evidence is required only when the assurance grade requires it; and delta-review exposure is policy-bound and attributed (Manager for allowed R2 exposure, Stephen for R3).<br>
+**Token rule:** Two independent gates apply before issuance: the versioned W3 reference-token count must satisfy the risk-profile ceiling, and the exact bound-provider count or a W7-evaluated conservative upper bound must satisfy 80% of provider usable input. Counts from different tokenizers are not treated as one unit. Missing provider accounting or either failed gate blocks issuance.<br>
+**Fixture rule:** The dated W6 addendum reserves F-025–F-030 without rewriting the P-027 40-fixture catalogue. F-025–F-028 are P0 context-compiler gates; F-029–F-030 are P1 pre-pilot gates. W6 must empirically size mandatory closure for F-025/F-026/F-021/F-022 under both token gates before compiler/profile release.<br>
+**Manifest rule:** One canonical out-of-band manifest schema remains binding across tiers. Empty or inapplicable groups are explicit; fields are not dropped merely to create an R0 variant. Any manifest content rendered to the model counts against both token gates.<br>
+**Evidence:** `reviews/adversarial-W3-context-review-2026-06-30.md`, `reviews/adversarial-W3-review-reconciliation-2026-06-30.md`, and Stephen's 2026-06-30 approval to proceed.<br>
+**Boundary:** This accepts a written specification and fixture reservation only. It creates no compiler, fixture, adapter, runtime, migration, pilot, active APM change, or research claim.<br>
+**Remaining gates:** W4/W5 specifications, foundation-critical W6/W7/W8 interfaces and executable evidence, combined-interface review, and Stephen's approval of a separately reviewed implementation plan.<br>
+**Affected specifications:** W3, W4, W5, W6, W7; package status and continuation protocol.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task

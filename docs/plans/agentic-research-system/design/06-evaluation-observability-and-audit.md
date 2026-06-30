@@ -1,11 +1,11 @@
 # W6 — Initial Evaluation Fixture Catalogue
 
 **Date:** 2026-06-28  
-**Revised:** 2026-06-29  
-**Status:** Initial catalogue accepted under P-027; executable W6 design remains deferred<br>
-**Specification version:** 0.2  
-**Pass scope:** First specification pass only; not the complete W6 observability/audit design  
-**Design authority:** W0 manifest/addendum, accepted W1/W2 v0.3, adversarial-review reconciliation, D-001–D-008, and approved amendments P-020–P-027<br>
+**Revised:** 2026-06-30<br>
+**Status:** Initial 40-fixture catalogue accepted under P-027; F-025–F-030 reservation accepted under P-028; executable W6 design remains deferred<br>
+**Specification version:** 0.2 plus dated W3 retrieval-fixture addendum<br>
+**Pass scope:** First specification pass and accepted W3 reservation only; not the complete W6 observability/audit design<br>
+**Design authority:** W0 manifest/addendum, accepted W1/W2/W3 specifications, adversarial-review reconciliations, D-001–D-008, and approved amendments P-020–P-028<br>
 **Implementation authority:** None; no executable fixtures, graders, traces, or `.research-system/` directories are created  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -23,6 +23,8 @@ This document freezes the initial regression corpus for the Agentic Research Sys
 It deliberately does not finalize executable schemas, retention periods, metric thresholds, grader prompts, or CI/runtime tooling. Those require W3–W5 context, routing, and assurance interfaces plus W7/W8 adapter and operations detail.
 
 **Initial outcome:** `ACCEPTED_CATALOGUE — 40-fixture revised catalogue passed review; executable W6 design deferred`.
+
+The dated addendum `06a-w3-retrieval-fixture-addendum-2026-06-30.md` separately reserves F-025–F-030 under P-028. It does not rewrite the P-027 catalogue or materialize executable fixtures.
 
 ## 2. Governing principles
 
@@ -286,7 +288,7 @@ Minimum gates:
 | Change | Required catalogue subset |
 |---|---|
 | Event/task schema or reducer | S-001–S-016 plus F-001–F-006, F-009, F-018, F-022–F-023 |
-| Context compiler/memory | F-003–F-006, F-011–F-019, F-021–F-022 plus later W3 retrieval fixtures |
+| Context compiler/memory | F-003–F-006, F-011–F-019, F-021–F-022, F-025–F-030 |
 | Agent/model routing | All P0 fixtures relevant to permitted risk tier plus calibration controls |
 | Research assurance/contract | F-007–F-019, F-022–F-024 |
 | Provider adapter/hook/skill sync | F-001–F-003, F-009, F-014, F-020, F-022, S-006–S-007, S-013, S-016 |
@@ -333,10 +335,11 @@ After W3–W5 interfaces are available, executable W6 work should proceed:
 3. materialize P0 runtime fixtures F-007–F-009 and S-003–S-004/S-009;
 4. materialize P0 scientific fixtures F-010–F-014/F-022 with independent-property and cross-family calibration;
 5. materialize provider parity F-020;
-6. calibrate P0 paired pre/post runs;
-7. materialize P1 F-006/F-015–F-019/F-021/F-023–F-024 and S-005/S-007/S-014–S-016 as W3–W8 dependencies permit;
-8. establish model/human calibration and release dashboards;
-9. add domain-general and non-TDA variants before W10 template acceptance.
+6. materialize and size P0 W3 retrieval fixtures F-025–F-028 under both token gates after the necessary W4/W7 interfaces exist;
+7. calibrate P0 paired pre/post runs;
+8. materialize P1 F-006/F-015–F-019/F-021/F-023–F-024/F-029–F-030 and S-005/S-007/S-014–S-016 as W3–W8 dependencies permit;
+9. establish model/human calibration and release dashboards;
+10. add domain-general and non-TDA variants before W10 template acceptance.
 
 Materialization must not use T1.28 or another active/critical-path research task as an experiment.
 
@@ -379,6 +382,7 @@ With this initial catalogue, the planned first pass consists of:
 - W0 legacy closeout/transition manifest plus 2026-06-29 addendum: current review-pending Partial boundary;
 - W1 architecture v0.3: accepted under P-027; final T1.28 reconciliation remains a legacy-migration gate;
 - W2 schema/lifecycle v0.3: accepted under P-027;
-- W6 revised 40-fixture catalogue v0.2: accepted under P-027; executable materialization remains deferred.
+- W6 revised 40-fixture catalogue v0.2: accepted under P-027; executable materialization remains deferred;
+- W3 v0.2 and the separate F-025–F-030 reservation: accepted under P-028; executable sizing and fixture evidence remain deferred.
 
-W3 may proceed under P-026/P-027. No implementation plan, migration, or pilot begins until the remaining P-026 specification/interface gates and Stephen's approval of the exact implementation plan.
+W4 and W5 may proceed across the accepted W3 interface. No implementation plan, migration, or pilot begins until the remaining P-026 specification/interface gates and Stephen's approval of the exact implementation plan.

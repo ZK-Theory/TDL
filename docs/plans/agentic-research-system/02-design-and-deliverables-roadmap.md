@@ -83,7 +83,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Replace full-history preloading with bounded, source-linked context.
 
-**Current status (2026-06-30):** Revision 0.1 written and review-pending. W3 freezes proposed context-manifest, omission, provenance, budget, staleness, and independence inputs shared by W4, W5, and the minimum W6 evaluation slice.
+**Current status (2026-06-30):** Revision 0.2 accepted under P-028 after adversarial review and reconciliation. W3 freezes the context-manifest, omission, provenance, two-gate token budget, staleness, lifecycle, and independence inputs shared by W4, W5, W7, and the minimum W6 evaluation slice.
 
 **Must define:**
 
@@ -101,7 +101,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Make capability, risk, and independence explicit.
 
-**Current status (2026-06-30):** Queued after the W3 shared interface is reviewable; may then proceed alongside W5.
+**Current status (2026-06-30):** Ready to begin across the accepted W3 v0.2 shared interface; may proceed alongside W5.
 
 **Must define:**
 
@@ -120,7 +120,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Generalise the strong TDL assurance approach and enforce two-key validity.
 
-**Current status (2026-06-30):** Queued after the W3 shared interface is reviewable; may then proceed alongside W4.
+**Current status (2026-06-30):** Ready to begin across the accepted W3 v0.2 shared interface; may proceed alongside W4.
 
 **Must define:**
 
@@ -139,7 +139,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-06-30):** The W6 v0.2 initial catalogue passed review under P-027. It reserves F-001–F-024 and S-001–S-016, separates incident basis from input fidelity, requires independent scientific-property grading and declared family/context diversity, and adds qualitative/proportional profiles. Full executable schemas, tooling, thresholds, and retention remain deferred to W3–W5/W7–W8 dependencies.
+**Current status (2026-06-30):** The W6 v0.2 initial 40-fixture catalogue passed review under P-027, and the dated P-028 addendum reserves W3-derived F-025–F-030. The combined design separates incident basis from input fidelity, requires independent scientific-property grading and declared family/context diversity, and adds explicit retrieval, overflow, distractor, and addendum-lineage gates. Executable schemas, tooling, thresholds, closure sizing, and retention remain deferred to W4/W5/W7/W8 dependencies.
 
 **Must define:**
 
@@ -321,9 +321,9 @@ A design deliverable is complete when:
 
 The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, the adversarial review, and its reconciliation. P-026 then produced the current W1/W2 v0.3 gate split. The approved second pass is:
 
-1. W3 context, memory, and retrieval;
-2. W4 agent/model routing and W5 assurance after the W3 shared interface freezes;
-3. the foundation-critical W6 fixture, W7 adapter, and W8 operations slices;
+1. accepted W3 context, memory, and retrieval under P-028;
+2. W4 agent/model routing and W5 assurance in parallel across the frozen W3 interface;
+3. the foundation-critical W6 fixture, W7 adapter, and W8 operations slices, including executable F-025–F-030 evidence;
 4. a bounded adversarial review of the combined foundation interfaces;
 5. a separately approved implementation plan for the narrow production-intended foundation.
 

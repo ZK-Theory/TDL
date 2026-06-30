@@ -676,4 +676,4 @@ Until that review is recorded, W1 is a normative design proposal but not impleme
 
 **Outcome:** `ACCEPTED — foundation implementation still prohibited pending the remaining P-026 downstream gates; legacy migration prohibited pending final post-T1.28 reconciliation`.
 
-W2 v0.3 and the W6 v0.2 initial catalogue are also accepted under P-027. W3 is the current review-pending deliverable under P-026. A greenfield-foundation implementation plan may proceed only after accepted W3–W5 and frozen foundation-critical W6–W8 gates; legacy migration remains separately blocked by W0/T1.28 closeout.
+W2 v0.3 and the W6 v0.2 initial catalogue are accepted under P-027; W3 v0.2 and the W6 retrieval-fixture reservation are accepted under P-028. W4/W5 are the next specifications. A greenfield-foundation implementation plan may proceed only after accepted W4/W5 and frozen foundation-critical W6–W8 gates; legacy migration remains separately blocked by W0/T1.28 closeout.
