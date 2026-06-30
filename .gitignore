@@ -93,6 +93,12 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
+# Google Drive desktop sync staging directory — created automatically by the
+# Drive client when uploading large files from this folder; never repo
+# content. Multi-GB files here were previously swept into commits, bloating
+# .git/objects to 75GB+ (2026-06-30 disk-bloat investigation).
+.tmp.driveupload/
+
 # Testing
 .pytest_cache/
 .coverage
