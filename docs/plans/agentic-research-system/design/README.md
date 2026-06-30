@@ -34,7 +34,8 @@ The filenames define decomposition, not permission to implement. Each specificat
 | [01-system-architecture.md](01-system-architecture.md) | `accepted` | Revision 0.3 passed review on 2026-06-30; implementation remains subject to the downstream P-026 gates |
 | [02-task-event-and-artifact-schema.md](02-task-event-and-artifact-schema.md) | `accepted` | Revision 0.3 passed review on 2026-06-30; no runtime/schema implementation follows yet |
 | [03-context-memory-and-retrieval.md](03-context-memory-and-retrieval.md) | `accepted` | Revision 0.2 passed adversarial review and reconciliation under P-028; shared W4/W5/W7 interface frozen |
-| [04-agent-roles-and-model-routing.md](04-agent-roles-and-model-routing.md) | `review_pending` | Revision 0.1 written from the approved conceptual design; bounded joint review with W5 required |
-| [05-research-assurance-and-independent-review.md](05-research-assurance-and-independent-review.md) | `review_pending` | Revision 0.1 written from the approved conceptual design; bounded joint review with W4 required |
+| [04-agent-roles-and-model-routing.md](04-agent-roles-and-model-routing.md) | `accepted` | Revision 0.2 passed joint review and reconciliation under P-029; implementation remains gated |
+| [05-research-assurance-and-independent-review.md](05-research-assurance-and-independent-review.md) | `accepted` | Revision 0.2 passed joint review and reconciliation under P-029; implementation remains gated |
 | [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `accepted_catalogue` | Revision 0.2 initial 40-fixture catalogue passed under P-027; executable design remains deferred |
 | [06a-w3-retrieval-fixture-addendum-2026-06-30.md](06a-w3-retrieval-fixture-addendum-2026-06-30.md) | `accepted_reservation` | P-028 reserves F-025–F-030 and closure sizing; executable evidence remains deferred |
+| [06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md](06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md) | `accepted_reservation` | P-029 reserves F-031–F-038; executable evidence remains deferred |

@@ -101,7 +101,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Make capability, risk, and independence explicit.
 
-**Current status (2026-06-30):** Revision 0.1 written and review-pending. W4 defines six role profiles, monotone risk, eligibility-first routing, evidence-derived independence, generic provider semantics with Claude/Codex initial evaluation, conservative fallback, and multi-agent refusal.
+**Current status (2026-06-30):** Revision 0.2 accepted under P-029 after joint review and reconciliation. W4 includes producer-independent requirement-scope gating, pre-dispatch verifier feasibility, immutable routing-evidence snapshots, and visible R3 capability-by-family coverage.
 
 **Must define:**
 
@@ -120,7 +120,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Generalise the strong TDL assurance approach and enforce two-key validity.
 
-**Current status (2026-06-30):** Revision 0.1 written and review-pending. W5 defines immutable assurance requirements, six core lanes plus domain packs, two-key validity, proof obligations, independent review, conservative non-success outcomes, and separate result-to-claim promotion.
+**Current status (2026-06-30):** Revision 0.2 accepted under P-029 after joint review and reconciliation. W5 includes producer-independent R2/R3 floor/lane-scope confirmation and explicit pack-distribution boundaries.
 
 **Must define:**
 
@@ -139,7 +139,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-06-30):** The W6 v0.2 initial 40-fixture catalogue passed review under P-027, and the dated P-028 addendum reserves W3-derived F-025–F-030. W4/W5 v0.1 now state the routing and assurance obligations, but executable schemas, numerical thresholds, tooling, closure sizing, and retention remain deferred pending W4/W5 acceptance and the W7/W8 interfaces.
+**Current status (2026-06-30):** The W6 v0.2 initial 40-fixture catalogue passed under P-027; P-028 addendum 06a reserves F-025–F-030; P-029 addendum 06b reserves F-031–F-038. Executable schemas, calibration, thresholds, tooling, closure sizing, and retention remain deferred pending the foundation-critical W6/W7/W8 interfaces.
 
 **Must define:**
 
@@ -322,7 +322,7 @@ A design deliverable is complete when:
 The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, the adversarial review, and its reconciliation. P-026 then produced the current W1/W2 v0.3 gate split. The approved second pass is:
 
 1. accepted W3 context, memory, and retrieval under P-028;
-2. W4 agent/model routing and W5 assurance in parallel across the frozen W3 interface;
+2. accepted W4/W5 v0.2 and reserved F-031–F-038 under P-029;
 3. the foundation-critical W6 fixture, W7 adapter, and W8 operations slices, including executable F-025–F-030 evidence;
 4. a bounded adversarial review of the combined foundation interfaces;
 5. a separately approved implementation plan for the narrow production-intended foundation.

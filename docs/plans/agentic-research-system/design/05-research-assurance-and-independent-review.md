@@ -1,18 +1,19 @@
 # W5 — Research Assurance and Independent-Review Specification
 
 **Date:** 2026-06-30<br>
-**Status:** Draft complete; written-specification review pending<br>
-**Specification version:** 0.1<br>
-**Design authority:** Accepted W1 v0.3, W2 v0.3, W3 v0.2, W6 catalogue/addendum, D-001–D-008, P-001–P-028, and Stephen's approved W4/W5 conceptual design<br>
+**Status:** Accepted after joint adversarial review and reconciliation<br>
+**Specification version:** 0.2<br>
+**Design authority:** Accepted W1 v0.3, W2 v0.3, W3 v0.2, W6 catalogue/addenda, D-001–D-008, P-001–P-029, and Stephen's 2026-06-30 acceptance<br>
 **Implementation authority:** None; this document creates no assurance packs, contracts, graders, reviews, claims, runtime, migration, or `.research-system/` state<br>
-**Review owner:** Stephen; bounded joint W4/W5 adversarial review required
+**Review owner:** Stephen; bounded joint W4/W5 adversarial review completed and accepted
+**Review evidence:** `../reviews/adversarial-W4-W5-review-2026-06-30.md` and `../reviews/adversarial-W4-W5-review-reconciliation-2026-06-30.md`
 
 ## Review record
 
 - **Responsibility boundary:** Stephen approved W5-owned assurance requirements and W4-owned route selection; neither may weaken or absorb the other.
 - **Assurance mechanics:** Stephen approved core lanes plus reviewed domain packs, two-key validity, conservative Partial/negative handling, and explicit claim promotion.
 - **Authority mechanics:** Stephen approved P-022/P-023 independence, Manager acceptance for verified R2 work, and Stephen-reserved R3/P-005 transitions.
-- **Written specification:** Review pending.
+- **Written specification:** Joint review returned `accept_with_required_changes`; v0.2 incorporates all four Major and four Minor findings and was accepted by Stephen on 2026-06-30.
 - **Implementation:** Prohibited until the complete P-026 gate sequence and a separately approved implementation plan.
 
 ## 1. Decision summary
@@ -165,7 +166,11 @@ draft/review_pending -> rejected
 accepted -> amended | superseded | retired
 ```
 
-R2/R3 producing work cannot satisfy readiness from a draft requirement. An accepted amendment creates a new revision, stales affected context/route decisions, and pauses or supersedes incompatible work through W2; it never edits the prior rule in place.
+R2/R3 producing work cannot satisfy readiness from a draft requirement. An accepted requirement records its author, independent scope reviewer where required, accepting authority, and relationship to the prospective producing actor/profile.
+
+For R2, the epistemic floor, complete lane scope, and every `not_applicable` rationale must be set by an authority distinct from the prospective producer or independently confirmed at minimum I1 relative to that producer; a pack may require I2. For R3/P-005 work, an I2 cross-family/context requirement-scope review and Stephen's attributed acceptance are required. These records confirm the bar, not the later result. If the actual producer or its relationship differs materially from the accepted prospective relationship, the requirement acceptance stales before dispatch.
+
+An accepted amendment creates a new revision, stales affected context/route decisions, and pauses or supersedes incompatible work through W2; it never edits the prior rule in place.
 
 ### 6.3 Evidence/verdict lifecycle
 
@@ -182,8 +187,9 @@ Each stage is a separate record. `unable_to_grade` and missing required evidence
 Required fields include:
 
 - identity/revision/hash, Task/revision, purpose, owner, and expected control-store position;
-- requested and W5 epistemic risk floor with raising rationale;
-- assurance lanes and domain-pack IDs/revisions;
+- author, requirement-scope reviewer, accepting authority, prospective producer actor/profile, and evidence-derived relationship/independence grade;
+- requested risk and canonical `W5_epistemic_risk_floor` with task-action trigger evidence, raising rationale, and independent confirmation where required;
+- the complete core-lane universe, touched/`not_applicable` decision for every lane, and domain-pack IDs/revisions;
 - governing pre-registration/design/amendment/decision/contract/source IDs/hashes;
 - subject artefact/result/claim types and expected immutable identity;
 - machine-checkable proof obligations and independent-property methods;
@@ -196,7 +202,7 @@ Required fields include:
 - stop, escalation, Partial, negative, supersession, and claim-restriction rules;
 - security/sensitivity, expiry, currency triggers, and prohibited actions/claims.
 
-An irrelevant field is explicit `not_applicable` with rationale and authority; it is not silently absent.
+An irrelevant field is explicit `not_applicable` with rationale, author, confirming/accepting authority, and prospective-producer relationship; it is not silently absent. An omitted lane is incomplete, not implicitly inapplicable.
 
 ## 8. Assurance lanes and pack interface
 
@@ -243,7 +249,7 @@ Acceptance binds pack version, source authority, supported project classes, requ
 
 ## 9. Epistemic risk floor
 
-W5 sets a minimum risk based on scientific consequence:
+W5 sets the canonical `W5_epistemic_risk_floor` based on scientific consequence:
 
 | Condition | Minimum |
 |---|---|
@@ -252,7 +258,7 @@ W5 sets a minimum risk based on scientific consequence:
 | Implementation, correction, or verification affecting scientific evidence validity | R2 |
 | New/amended methodology or pre-registration; claim promotion; causal/novelty/generalisation decision; P-005 transition | R3 |
 
-When multiple lanes apply, the strongest floor controls. W4/W8 may raise but never lower it. Ambiguity blocks or raises under explicit policy.
+When multiple lanes apply, the strongest floor controls. W4/W8 may raise but never lower it; W8's separate component is `W8_operational_risk_floor`. Ambiguity blocks or raises under explicit policy. R2/R3 floor and lane scope require the producer-independent confirmation in section 6.2. A requested action that matches an R3/P-005 trigger is R3 regardless of a lower submitted label and cannot bypass Stephen's gate.
 
 ## 10. Pre-registration, design, and amendment control
 
@@ -288,6 +294,7 @@ Exploration may precede a pre-registration only when marked exploratory, kept fr
 
 For R2/R3 work, record distinct authorities for:
 
+- assurance-requirement authorship and floor/lane-scope review/acceptance;
 - governing design/rule ownership;
 - contract/assertion implementation;
 - producing implementation/analysis;
@@ -296,6 +303,8 @@ For R2/R3 work, record distinct authorities for:
 - Manager/human acceptance.
 
 One human may occupy several programme roles, but the system records contextual/model separation honestly and does not claim independent humans. No producing actor may solely activate and approve the contract that certifies its own work.
+
+A prospective producing actor may contribute a requirement draft but cannot be the sole authority for its R2/R3 floor, lane scope, or `not_applicable` decisions. The requirement-scope review records the same actor/session/context/model-family/trace relationship evidence used by W4 independence grading: at least I1 for R2 unless a pack requires I2, and I2 plus Stephen's acceptance for R3/P-005. Changing the prospective producer to a relationship that no longer satisfies the accepted grade stales requirement acceptance.
 
 ### 11.2 Contract activation
 
@@ -409,15 +418,15 @@ Any shuffle/permutation/bootstrap/null operation must demonstrate that it pertur
 
 ### 15.1 TDA pack
 
-The first TDA pack combines topology, stochastic/null, representation, provenance, and claim lanes. It references existing contracts/skills by version rather than copying them. It must cover persistence construction, W2 convention, filtration/landmark choices, Markov/null design, tested-object invariance, frozen representation, output schema/provenance, benchmark validation, and topology-to-claim limits.
+The first TDA pack is `TDL_private`. It combines topology, stochastic/null, representation, provenance, and claim lanes and may reference TDL contracts/skills by version rather than copying them. It must cover persistence construction, W2 convention, filtration/landmark choices, Markov/null design, tested-object invariance, frozen representation, output schema/provenance, benchmark validation, and topology-to-claim limits. It is not copied into a public project template.
 
 ### 15.2 Statistical/social-research pack
 
-This pack covers panel estimands, eligibility/denominators, weights, missingness/imputation, clustering, multiplicity, longitudinal comparability, harmonisation, sensitivity, and result-to-social-science claim language. It can be used without topology assumptions.
+This pack is `template_safe` when it contains only synthetic/minimized examples and public references. It covers panel estimands, eligibility/denominators, weights, missingness/imputation, clustering, multiplicity, longitudinal comparability, harmonisation, sensitivity, and result-to-social-science claim language. It can be used without topology assumptions.
 
 ### 15.3 Qualitative/mixed-methods pack
 
-This pack requires source/coding boundaries, provenance, researcher decisions, audit trail, saturation/negative-case handling where claimed, reflexive/interpretive limitations, review lineage, and claim promotion. Quantitative scientific D assertions may be `not_applicable`; source identity, lifecycle, authority, review, privacy, and claim controls may not.
+This pack is `template_safe` when it contains only synthetic/minimized examples and public references. It requires source/coding boundaries, provenance, researcher decisions, audit trail, saturation/negative-case handling where claimed, reflexive/interpretive limitations, review lineage, and claim promotion. Quantitative scientific D assertions may be `not_applicable`; source identity, lifecycle, authority, review, privacy, and claim controls may not.
 
 ## 16. Independent review
 
@@ -429,6 +438,7 @@ Every scientific review binds:
 - exact subject/input/output/evidence hashes;
 - review questions by assertion class and lane;
 - required W4 reviewer capability and independence grade;
+- the producer-route verifier-feasibility witness requirement, which W4 must satisfy before R2/R3 producer dispatch but which does not itself satisfy final review;
 - allowed governing overlap and excluded producer material;
 - required tools/contracts/benchmarks and known limitations;
 - acceptable verdicts and authority consuming the verdict.
@@ -468,8 +478,8 @@ No weighted score, majority vote, model confidence, operational success, or acce
 ### 17.4 Acceptance authority
 
 - R0/R1: Manager may accept under delegated policy; only applicable keys are required.
-- R2: Manager accepts after both keys and the required distinct verifier relationship pass.
-- R3/P-005: Stephen decides after both keys and required cross-family/cross-context evidence.
+- R2: Manager accepts after both keys and the required distinct verifier relationship pass; the pre-dispatch witness must have existed, and the final grade is recomputed against the actual producing attempt.
+- R3/P-005: Stephen decides after both keys and required cross-family/cross-context evidence; the final relationship is recomputed against the actual attempt, not inherited from the feasibility witness.
 
 ## 18. Partial, negative, rejected, and superseded outcomes
 
@@ -543,12 +553,12 @@ Every promoted claim binds the exact approved text/hash, evidence/result set, li
 ## 20. Assurance execution sequence
 
 1. Resolve Task/revision, purpose, current governing sources, and source position.
-2. Classify lanes and W5 epistemic risk floor.
+2. Classify the complete lane universe and canonical `W5_epistemic_risk_floor` from governing sources and task-action triggers.
 3. Resolve accepted domain packs and build the mandatory assurance closure.
-4. Classify assertions as D/T/R/M/H/O/P; state `not_applicable` explicitly.
+4. Classify assertions as D/T/R/M/H/O/P; state every lane's touched/`not_applicable` decision explicitly.
 5. Bind proof obligations, evidence outputs, review questions, independence grade, human gates, and Partial/claim rules.
-6. Review and accept the `AssuranceRequirement` through attributed authority.
-7. W4 selects an eligible route; W3 compiles exact producer/reviewer contexts.
+6. Independently review and accept the `AssuranceRequirement` floor/lane scope against the prospective producer relationship under section 6.2.
+7. W4 selects an eligible producer route only after recording any required verifier-route witness; W3 compiles exact producer/reviewer contexts.
 8. Produce immutable artefacts/evidence without self-acceptance.
 9. Run independent D/T/P/O checks and bounded scientific-property recomputation.
 10. Conduct required R/M/H review against the exact subject.
@@ -562,7 +572,10 @@ Every promoted claim binds the exact approved text/hash, evidence/result set, li
 |---|---|
 | Governing design/amendment missing or stale | Block readiness/review; identify owner/source |
 | Required lane/pack unavailable | `assurance_requirement_incomplete`; no weaker implicit pack |
+| R2/R3 floor, lane scope, or `not_applicable` decision lacks required producer-independent confirmation | Block requirement acceptance; `assurance_requirement_scope_unconfirmed` |
+| Actual producer relationship differs from accepted prospective relationship | Stale requirement acceptance and route; require new scope review before dispatch |
 | Assertion unclassified or `not_applicable` unexplained | Block requirement acceptance |
+| R3/P-005 action submitted with lower epistemic floor | Raise to R3, require Stephen, and reject any lower-authority acceptance path |
 | Contract/schema lacks independent property method | Structural check may run but cannot certify scientific property |
 | Producer controls sole R2/R3 contract activation/review | Fail authority gate |
 | Null operation is invariant to tested object | Block inference/result acceptance |
@@ -570,6 +583,7 @@ Every promoted claim binds the exact approved text/hash, evidence/result set, li
 | Expected value reproduced without independent derivation | Flag anchoring risk; review incomplete |
 | Input/representation/vintage incoherent | Block producing/acceptance as policy declares |
 | Required verifier diversity unavailable | `unable_to_grade`; no lower grade |
+| No eligible verifier-route witness exists before R2/R3 production | Block producer dispatch with `independence_unavailable`; do not spend the producing run |
 | Key A or Key B required failure | No assurance pass; preserve evidence and restrictions |
 | Runtime/process succeeds but science fails | Task/result remains unaccepted or Partial |
 | Negative result meets design | May accept as negative evidence; do not relabel failure |
@@ -579,7 +593,7 @@ Every promoted claim binds the exact approved text/hash, evidence/result set, li
 
 ## 22. Evaluation and acceptance metrics
 
-W5 consumes the proposed F-031–F-034 routing cases and owns proposed F-035–F-038. The IDs, priorities, and provenance are defined in W4 section 21 and remain unreserved until the joint review, Stephen's reconciliation, and a dated W6 addendum.
+W5 consumes reserved F-031–F-034 and owns reserved F-035–F-038. Accepted addendum `06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md` supplies complete fixture designs to the accepted 06a schema.
 
 Foundation-critical W6 must cover:
 
@@ -605,6 +619,9 @@ Required non-aggregated metrics include:
 - producer pass flag accepted as property proof: `0`;
 - required `unable_to_grade` converted to pass: `0`;
 - key-A/key-B compensation: `0`;
+- R2/R3 accepted requirement without producer-independent floor/lane-scope confirmation: `0`;
+- R3/P-005 action accepted under an R2 floor or Manager-only gate: `0`;
+- R2/R3 producer dispatch without an eligible verifier-route witness: `0`;
 - human-reserved transition without attributed decision: `0`;
 - unsupported stronger claim promotion: `0`;
 - Partial/negative/superseded consumer-restriction completeness: `1.0`;
@@ -616,6 +633,7 @@ Required non-aggregated metrics include:
 Normalized traces record:
 
 - assurance requirement/pack/rule/proof/evidence/verdict/claim IDs and hashes;
+- requirement author, scope reviewer, acceptor, prospective/actual producer relationships, lane-applicability decisions, and acceptance/staleness evidence;
 - Task/attempt/result/artefact/context/route/authority relationships;
 - assertion classifications, `not_applicable` reasons, checks, tools, benchmarks, mutations, and outputs;
 - reviewer capability, actor/session/provider/model/family/context/trace relationship;
@@ -631,19 +649,19 @@ Audit must reconstruct why evidence was accepted for one consumer or claim stren
 - Assurance records contain minimized excerpts/hashes and opaque restricted-data references, never raw UKDA records by convenience.
 - Secrets, credentials, `.env` contents, full transcripts, and hidden reasoning are prohibited.
 - Model/human rationale is concise and attributed; scientific evidence is the cited artefact/check/review, not hidden chain-of-thought.
-- Domain packs classify permitted consumers and publication boundaries.
-- Public template packs contain synthetic/minimized fixtures and no TDL-private paths or data.
+- Every domain pack declares `distribution_scope = TDL_private | template_safe`, permitted consumers, publication boundaries, and any path/data restrictions.
+- Only `template_safe` packs may enter public templates; they contain synthetic/minimized fixtures, public references, and no TDL-private paths, skill IDs, contracts, or data.
 - W6 retention policy governs traces/graders; accepted decisions, manifests, and claim lineage remain durable under W1/W2.
 
 ## 25. Downstream constraints
 
 ### W4
 
-Route against immutable W5 requirements. Do not choose lanes, lower risk, drop proof obligations, substitute a lower independence grade, or treat route success as acceptance.
+Route against immutable, independently scope-accepted W5 requirements. Do not choose lanes, lower risk, drop proof obligations, substitute a lower independence grade, or treat route success as acceptance. Before R2/R3 producer dispatch, record an eligible verifier-route witness and later recompute the final relationship against the actual attempt.
 
 ### W6
 
-Materialize pack, proof, review, Partial/negative, and claim fixtures; calibrate independent model/human rubrics; preserve non-compensable gates and two-axis provenance.
+After dated reservation acceptance, materialize F-031–F-038 plus pack, proof, review, Partial/negative, and claim fixtures; calibrate independent model/human rubrics; preserve non-compensable gates and two-axis provenance.
 
 ### W7
 
@@ -685,22 +703,25 @@ No column silently absorbs another.
 
 W5 can move from `review_pending` to `accepted` only when Stephen confirms after bounded joint W4/W5 review that:
 
-- [ ] W5 assurance and W4 routing responsibilities are non-circular and independently testable.
-- [ ] All six core lanes and domain-pack extension rules are complete and domain-neutral.
-- [ ] Risk floors, independence, and human gates match P-005/P-022/P-023/P-025.
-- [ ] Pre-registration/design/amendment lifecycle prevents silent post-hoc rule changes.
-- [ ] Contract ownership prevents producer self-certification for R2/R3 work.
-- [ ] Assertion classes separate deterministic, trajectory, scientific, model, human, operational, and privacy authority.
-- [ ] Proof obligations cover anchoring, degenerate fallbacks, null invariance, direction, benchmarks, sensitivity, and provenance.
-- [ ] Two-key validity is non-compensable and proportional where validators are not applicable.
-- [ ] Partial, negative, rejected, unable-to-grade, and superseded evidence remains durable and correctly restricted.
-- [ ] Result acceptance and claim promotion are separate, source-linked decisions.
-- [ ] Proposed F-031–F-038 have complete priorities, provenance, oracles, graders, and W6 reservation dispositions.
-- [ ] W6–W10 receive sufficient fields and fixture obligations.
-- [ ] No runtime, migration, active APM write, result reinterpretation, or paper-claim change is introduced.
+- [x] W5 assurance and W4 routing responsibilities are non-circular and independently testable.
+- [x] All six core lanes and domain-pack extension rules are complete and domain-neutral.
+- [x] Risk floors, independence, and human gates match P-005/P-022/P-023/P-025.
+- [x] Pre-registration/design/amendment lifecycle prevents silent post-hoc rule changes.
+- [x] Contract ownership prevents producer self-certification for R2/R3 work.
+- [x] R2/R3 requirement authorship, floor, lane scope, and every `not_applicable` decision have the required producer-independent review/acceptance.
+- [x] R3/P-005 action semantics cannot be mis-floored into Manager-only R2 acceptance.
+- [x] R2/R3 production is blocked until W4 demonstrates an eligible verifier route.
+- [x] Assertion classes separate deterministic, trajectory, scientific, model, human, operational, and privacy authority.
+- [x] Proof obligations cover anchoring, degenerate fallbacks, null invariance, direction, benchmarks, sensitivity, and provenance.
+- [x] Two-key validity is non-compensable and proportional where validators are not applicable.
+- [x] Partial, negative, rejected, unable-to-grade, and superseded evidence remains durable and correctly restricted.
+- [x] Result acceptance and claim promotion are separate, source-linked decisions.
+- [x] Accepted addendum 06b reserves F-031–F-038 with complete priorities, provenance, oracles, graders, and dependencies.
+- [x] W6–W10 receive sufficient fields and fixture obligations.
+- [x] No runtime, migration, active APM write, result reinterpretation, or paper-claim change is introduced.
 
 ## 29. Outcome
 
-**Outcome:** `REVIEW_PENDING — W5 v0.1 assurance/review specification complete; implementation and W4/W5 acceptance remain gated`.
+**Outcome:** `ACCEPTED — W5 v0.2 closes W45-M1–M4 and W45-m5–m8 under P-029; implementation remains gated`.
 
-The next action is a bounded joint adversarial review with W4. Foundation implementation remains prohibited until accepted W4/W5, frozen foundation-critical W6–W8 interfaces, combined-interface review, and a separately approved implementation plan.
+The next action is to freeze the foundation-critical W6/W7/W8 interfaces and executable evidence, then run the combined-interface review. Foundation implementation remains prohibited until those gates pass and Stephen approves a separately reviewed implementation plan.

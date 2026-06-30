@@ -341,6 +341,19 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Remaining gates:** W4/W5 specifications, foundation-critical W6/W7/W8 interfaces and executable evidence, combined-interface review, and Stephen's approval of a separately reviewed implementation plan.<br>
 **Affected specifications:** W3, W4, W5, W6, W7; package status and continuation protocol.
 
+### P-029 — W4/W5 routing-assurance acceptance and fixture reservation
+
+**Date:** 2026-06-30<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-022, P-024; finalizes Q-005<br>
+**Decision:** W4 v0.2 and W5 v0.2 are accepted after joint adversarial review and reconciliation. For R2, the `AssuranceRequirement` epistemic floor, complete lane scope, and every `not_applicable` rationale must be set by an authority distinct from the prospective producer or independently confirmed at minimum I1; a pack may require I2. R3/P-005 requires I2 requirement-scope review plus Stephen's attributed acceptance. A materially different actual producer relationship stales that acceptance.<br>
+**Routing rule:** Before R2/R3 producer dispatch, W4 must demonstrate at least one eligible verifier route at the required capability and independence grade relative to the prospective producer. The final grade is recomputed against the actual producing attempt. R3-required capability coverage below two eligible model families is surfaced as `r3_family_coverage_insufficient` and blocks dispatch.<br>
+**Fixture rule:** Addendum `06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md` reserves F-031–F-038. F-031–F-036 are P0 implementation/release blockers for affected interfaces; F-037–F-038 are P1 blockers before the greenfield pilot accepts evidence or promotes claims. Executable materialization and calibration remain deferred.<br>
+**Provider rule:** The adapter interface remains provider-generic, with first-release evaluation limited to Claude and Codex. Their two-family coverage is load-bearing for R3 only where both families pass the required capability/eval gates; provider identity never substitutes for eligibility.<br>
+**Evidence:** `reviews/adversarial-W4-W5-review-2026-06-30.md`, `reviews/adversarial-W4-W5-review-reconciliation-2026-06-30.md`, and Stephen's 2026-06-30 approval.<br>
+**Boundary:** This accepts written specifications and fixture reservations only. It creates no profile, route, adapter, fixture implementation, runtime, migration, pilot, active APM mutation, result reinterpretation, or research claim.<br>
+**Remaining gates:** Frozen foundation-critical W6/W7/W8 interfaces and executable evidence, bounded combined-interface review, and Stephen's approval of a separately reviewed implementation plan.<br>
+**Affected specifications:** W4, W5, W6, W7, W8, W10; package status and continuation protocol.
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task
@@ -387,7 +400,7 @@ These questions must be resolved in the specifications. They are deliberately bo
 ### Q-005 — Runtime support boundary
 
 **Decision to make:** Whether the first release officially supports only Claude and Codex or defines a generic adapter interface immediately.  
-**Conceptual disposition (2026-06-30):** Stephen approved a generic provider interface with first-release evaluation limited to Claude and Codex. W4 v0.1 records the boundary; formal specification acceptance remains subject to the joint W4/W5 review gate.
+**Disposition:** P-029. The adapter interface is provider-generic, with first-release evaluation limited to Claude and Codex. Two-family eligibility is load-bearing for an R3 capability only when both families pass its required capability/eval gates; insufficient coverage blocks dispatch.
 
 ### Q-006 — Human approval points
 

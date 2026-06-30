@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-27  
 **Revised:** 2026-06-30  
-**Status:** Parallel specification and greenfield-foundation path approved; W4/W5 written and joint-review pending; implementation remains gated<br>
+**Status:** W1–W5 accepted; foundation-critical W6/W7/W8 interface work is next; implementation remains gated<br>
 **Foundation-development point:** After W3–W5 and foundation-critical W6–W8 gates, without waiting for T1.28  
 **Legacy migration point:** After the relevant APM work reaches reviewed closeout; no current-paper migration  
 **First deployment context:** TDL mathematical and social research  
@@ -552,13 +552,11 @@ The transition should retire these practices:
 
 ## 12. Immediate next action
 
-The first specification pass, adversarial reconciliation, W3 v0.2 acceptance, and W4/W5 v0.1 drafting are complete. Under P-026/P-028, the next sequence is:
+The first specification pass is accepted through W5 under P-027–P-029, and W6 addenda 06a/06b reserve F-025–F-038. Under P-026/P-028/P-029, the next sequence is:
 
-1. run the bounded joint adversarial review of W4/W5 and reconcile any required changes;
-2. accept/freeze W4/W5 only after their written review gate passes;
-3. freeze the foundation-critical W6 fixture, W7 adapter, and W8 operations slices, including executable F-025–F-030 evidence;
-4. run the bounded combined-interface review;
-5. produce a separately reviewed implementation plan for the narrow production-intended foundation;
-6. build and evaluate the foundation before selecting the first post-APM paper as its greenfield pilot.
+1. freeze the foundation-critical W6 fixture, W7 adapter, and W8 operations slices, including calibrated P0 executable evidence;
+2. run the bounded combined-interface review;
+3. produce a separately reviewed implementation plan for the narrow production-intended foundation;
+4. build and evaluate the foundation before selecting the first post-APM paper as its greenfield pilot.
 
 T1.28 closeout continues independently and triggers a dated reconciliation when its terminal evidence exists. It does not authorize migration and does not pause this design sequence.

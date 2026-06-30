@@ -1,7 +1,7 @@
 # Parallel Specification and Foundation Pilot Plan
 
 **Date:** 2026-06-30  
-**Status:** Approved programme direction; W4/W5 written and joint-review pending; no implementation authority<br>
+**Status:** W1–W5 accepted under P-027–P-029; foundation-critical W6/W7/W8 interfaces are next; no implementation authority<br>
 **Authority:** P-026, approved by Stephen on 2026-06-30  
 **Implementation authority:** None yet; foundation implementation requires the gates in section 4 and a separately approved implementation plan  
 **Pilot boundary:** The first paper initiated after the two current APM-managed papers
@@ -38,7 +38,7 @@ When T1.28 reaches a reviewed terminal disposition, its new evidence triggers a 
 | Lane | Scope | Authority | Current action |
 |---|---|---|---|
 | Legacy research | T1.28 and the two current APM-managed papers | APM remains canonical | Continue compute and event-triggered closeout; no ARS writes or migration |
-| Successor specifications | W3 accepted; W4/W5 joint review; then foundation-critical W6/W7/W8 slices | Versioned ARS design documents | Review W4/W5 v0.1 together; reconcile before consumers proceed |
+| Successor specifications | W3–W5 accepted; addenda 06a/06b reserve F-025–F-038; foundation-critical W6/W7/W8 slices next | Versioned ARS design documents | Freeze and review the minimum executable interfaces before implementation planning |
 | Foundation implementation | Minimal production-intended ARS v1 | Activates only after section 4 gates and an approved implementation plan | Not yet authorized |
 | Greenfield pilot | First paper initiated after the two current APM papers | ARS from project initialization after pilot preflight | Candidate not yet selected |
 
@@ -56,7 +56,7 @@ Specify context packets and manifests, retrieval by role/risk, provenance, stale
 
 ### Gate 2 — W4/W5 authority interfaces
 
-W4 v0.1 and W5 v0.1 are written across W3's frozen interface. They remain proposals until a bounded joint adversarial review confirms their shared assurance/route boundary, authority, failure behavior, and downstream fields.
+The bounded joint adversarial review and reconciliation are complete. P-029 accepts W4 v0.2 and W5 v0.2 across W3's frozen interface and reserves addendum 06b. The requirement-scope authority rule, pre-dispatch verifier witness, R3 family-coverage block, and F-031–F-038 designs now govern downstream specification work.
 
 **Exit:** Routing is reproducible from risk/eval evidence, and R2/R3 work cannot bypass independent scientific review or human-reserved decisions.
 
@@ -139,4 +139,4 @@ Rollback preserves every event, artefact, verdict, and decision produced before 
 
 ## 8. Immediate next action
 
-Run the bounded joint adversarial review of W4 v0.1 and W5 v0.1. Reconcile and obtain Stephen's acceptance before foundation-critical W6/W7/W8 work consumes their interfaces; do not begin foundation implementation.
+Freeze the foundation-critical W6/W7/W8 interfaces and calibrated P0 evidence, then run the combined-interface review; do not begin foundation implementation.

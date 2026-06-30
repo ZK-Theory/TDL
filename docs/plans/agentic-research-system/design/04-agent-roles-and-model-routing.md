@@ -1,18 +1,19 @@
 # W4 — Agent Roles and Model-Routing Specification
 
 **Date:** 2026-06-30<br>
-**Status:** Draft complete; written-specification review pending<br>
-**Specification version:** 0.1<br>
-**Design authority:** Accepted W1 v0.3, W2 v0.3, W3 v0.2, W6 catalogue/addendum, D-001–D-008, P-001–P-028, and Stephen's approved W4/W5 conceptual design<br>
+**Status:** Accepted after joint adversarial review and reconciliation<br>
+**Specification version:** 0.2<br>
+**Design authority:** Accepted W1 v0.3, W2 v0.3, W3 v0.2, W6 catalogue/addenda, D-001–D-008, P-001–P-029, and Stephen's 2026-06-30 acceptance<br>
 **Implementation authority:** None; this document creates no profiles, router, provider adapter, model evaluation, dispatch, runtime, migration, or `.research-system/` state<br>
-**Review owner:** Stephen; bounded joint W4/W5 adversarial review required
+**Review owner:** Stephen; bounded joint W4/W5 adversarial review completed and accepted
+**Review evidence:** `../reviews/adversarial-W4-W5-review-2026-06-30.md` and `../reviews/adversarial-W4-W5-review-reconciliation-2026-06-30.md`
 
 ## Review record
 
 - **Provider boundary:** Stephen approved a generic provider interface with only Claude and Codex eligible for first-release evaluation.
 - **Responsibility boundary:** Stephen approved W5-owned assurance requirements and W4-owned route selection; neither may weaken or absorb the other.
 - **Policy mechanics:** Stephen approved eligibility-first routing, non-weakenable fallback, graded independence, and the six bounded role profiles.
-- **Written specification:** Review pending.
+- **Written specification:** Joint review returned `accept_with_required_changes`; v0.2 incorporates all four Major and four Minor findings and was accepted by Stephen on 2026-06-30.
 - **Implementation:** Prohibited until the complete P-026 gate sequence and a separately approved implementation plan.
 
 ## 1. Decision summary
@@ -150,6 +151,7 @@ route_candidate_id       rcd_...
 route_decision_id        rte_...
 route_failure_id         rtf_...
 independence_profile_id  ind_...
+routing_evidence_snapshot_id res_...
 ```
 
 IDs are provider-neutral. Provider/model names, aliases, and role slugs are versioned attributes, never identities.
@@ -165,6 +167,8 @@ eligible -> superseded
 
 Any change to provider, model version/family, reasoning setting, tool surface, system policy, context behavior, adapter, or governing eval revision creates a new profile revision or forces reevaluation. Prior decisions retain the exact profile snapshot they used.
 
+Every eligibility or suspension change recomputes the capability-by-family coverage map. If an R3-required capability has fewer than two currently eligible families, W4 records and surfaces `r3_family_coverage_insufficient`, stales affected producer/verifier feasibility evidence, and blocks new dependent R3 dispatch. The loss is not deferred silently until an individual route request.
+
 ### 6.3 Route lifecycle
 
 ```text
@@ -174,6 +178,8 @@ selected -> consumed | expired | superseded
 ```
 
 A selected route expires when its Task revision, assurance requirement, authority grant, context candidate, provider availability, evaluation profile, adapter policy, or required independence evidence becomes stale.
+
+Every route evaluation binds a versioned `RoutingEvidenceSnapshot`. Availability, reliability, latency, cost, rate/resource state, and their observation times/sources are immutable within that snapshot. A changed or expired observation creates a new snapshot and route evaluation; deterministic equality is asserted only for requests carrying the same snapshot ID/hash.
 
 ## 7. Role-profile contract
 
@@ -226,7 +232,9 @@ effective_risk = max(task_requested_risk,
                      policy_or_human_raise)
 ```
 
-The ordering is policy-defined, not inferred from provider availability. Ambiguous classification blocks with `risk_classification_required` unless a policy safely raises it. No subsystem may lower a recorded floor.
+`W5_epistemic_risk_floor` is the canonical name for the scientific-consequence component owned by W5. `W8_operational_risk_floor` is the resource, security, recovery, and operational component owned by W8. Neither term is a generic substitute for the other.
+
+The ordering is policy-defined, not inferred from provider availability. Ambiguous classification blocks with `risk_classification_required` unless a policy safely raises it. No subsystem may lower a recorded floor. W4 also checks the requested action, governing transition, and declared purpose directly against the R3/P-005 trigger set; an R2 label cannot suppress an R3 or human-reserved action even if an upstream requirement was misclassified.
 
 ### 9.3 Risk-raising triggers
 
@@ -288,11 +296,11 @@ Required fields include:
 
 - Task/revision, purpose, requested/effective risk, and expected control-store position;
 - requesting actor/profile and required producing/review relationship;
-- W5 assurance requirement ID/hash and required capability classes;
+- W5 assurance requirement ID/hash, its requirement-scope acceptance evidence, and required capability classes;
 - W3 context request/candidate ID/hash, reference count, provider-capacity requirement, sensitivity, exclusions, and freshness;
 - authority-grant requirements, tools, roots, network/write classes, and resource class;
 - preferred constraints only when they do not change eligibility;
-- policy/eval versions and idempotency key.
+- policy/eval versions, immutable routing-evidence snapshot ID/hash/expiry, and idempotency key.
 
 ### 11.2 `RouteCandidate`
 
@@ -302,6 +310,7 @@ For every considered profile, record:
 - gate-by-gate pass/fail/unavailable evidence;
 - provider token count or evaluated upper bound for the exact W3 candidate;
 - established independence grade and relationship evidence;
+- for an R2/R3 producer candidate, eligible verifier-route witness IDs/hashes, required capability/risk, prospective producer relationship, and witness expiry;
 - availability, rate/resource constraints, and expiry;
 - expected cost/latency only after hard-gate evaluation;
 - rejection codes and resume condition.
@@ -316,14 +325,17 @@ For each registered candidate in stable ID order:
 2. verify role purpose, capability classes, and risk ceiling;
 3. verify Task scope, authority-grant compatibility, and human-reserved transitions;
 4. verify tool/root/network/write permissions and sensitivity class;
-5. verify every W5 lane, reviewer relationship, proof-obligation support, and human gate can be satisfied;
-6. verify W3 reference-token and provider-capacity gates for the exact candidate;
-7. compute independence grade from actor/session/context/model/trace relationships;
-8. verify W6 fixture coverage, non-compensable gates, recency, and policy parity;
-9. verify W8 operational constraints and resource availability;
-10. mark eligible only if every hard gate passes.
+5. verify every W5 lane, reviewer relationship, proof-obligation support, requirement-scope acceptance, and human gate can be satisfied;
+6. for each R2/R3 producer candidate, demonstrate at least one currently eligible verifier route that meets the required capability and independence grade relative to that prospective producer under the same policy/eval/snapshot revisions; record the witness or reject the producer candidate with `independence_unavailable`;
+7. verify W3 reference-token and provider-capacity gates for the exact candidate;
+8. compute independence grade from actor/session/context/model/trace relationships;
+9. verify W6 fixture coverage, non-compensable gates, recency, and policy parity;
+10. verify W8 operational constraints and resource availability;
+11. mark eligible only if every hard gate passes.
 
 An error, unknown, missing field, unavailable accounting method, or stale critical record is not a pass.
+
+A verifier-route witness is a pre-dispatch feasibility proof, not a promise that an unevaluated profile will later qualify and not authorization to dispatch the verifier. If its provider/profile/context/eval/snapshot relationship changes before producer dispatch, the producer decision expires. No R2/R3 producing run begins merely because independent verification might be obtainable later.
 
 ## 13. Ranking and deterministic selection
 
@@ -332,12 +344,14 @@ W4 ranks only eligible candidates. The default lexicographic order is:
 1. greatest verified margin above the required capability/risk threshold;
 2. stronger required independence without unnecessary producer correlation;
 3. fewer declared limitations for the exact purpose and sensitivity class;
-4. higher provider/adapter reliability for the required tool/context surface;
-5. lower expected latency;
-6. lower expected cost;
+4. higher provider/adapter reliability for the required tool/context surface from the bound routing-evidence snapshot;
+5. lower expected latency from that snapshot;
+6. lower expected cost from that snapshot;
 7. stable profile ID tie-breaker.
 
 Policy may choose a different versioned order for a project, but cost never precedes adequacy, independence, privacy, or authority. The `RouteDecision` records the full candidate set digest, ranking policy, winning evidence, rejected alternatives, and deterministic tie-break.
+
+Time-varying ranking evidence is never read implicitly during selection. Identical immutable inputs mean the same Task, assurance/context/authority/policy/eval revisions, registered candidate catalogue, and routing-evidence snapshot ID/hash.
 
 ## 14. Independence grades
 
@@ -349,6 +363,8 @@ Policy may choose a different versioned order for a project, but cost never prec
 | I3 — human-reserved cross-family | I2 plus Stephen's attributed decision and any P-005 conditions | R3 and every P-005 transition |
 
 Grades record evidence, not quality labels. The same human operating two model sessions remains one human authority. Shared governing sources are labeled `shared_governance`; producer-derived overlap is classified separately. A policy-bound delta-review exposure lowers or annotates the independence profile exactly as W3 requires.
+
+For pre-dispatch verifier feasibility, the relationship is computed against the prospective producer candidate and its proposed context/profile/family. The final verifier decision must recompute the grade against the actual producing attempt; a feasibility witness cannot itself satisfy review or acceptance.
 
 ## 15. Authority and human transitions
 
@@ -382,6 +398,8 @@ Provider adapters expose the same semantic fields for model identity/family/vers
 
 Only Claude and Codex adapters may be evaluated for first-release eligibility. This does not make either provider universally eligible; each provider/model/profile combination must pass its own capability/risk gates.
 
+The two-family minimum is load-bearing for any R3 capability requiring I3. Evaluation publishes a capability-by-family eligibility map. Suspending, expiring, or retiring either family's last eligible profile for such a capability raises `r3_family_coverage_insufficient`, blocks affected R3 dispatch, and names the missing coverage and resume condition; it is not a silent capability loss.
+
 Another provider may be added only through:
 
 1. a registered adapter/profile revision;
@@ -398,6 +416,7 @@ Fallback is a new route evaluation under the original immutable request. It pres
 - W3 mandatory context and both token gates;
 - role, authority, tools, roots, sensitivity, and human gates;
 - required independence/family separation;
+- any producer-route verifier-feasibility witness and R3 family-coverage requirement;
 - fixture coverage and evaluation threshold.
 
 Typed outcomes include:
@@ -441,12 +460,16 @@ Parallelism is justified by separable state and evidence, not by the number of a
 | Failure | Required result |
 |---|---|
 | W5 assurance requirement missing/stale | Block route; name required revision/owner |
+| W5 requirement floor/lane scope lacks required producer-independent acceptance | Block route; `assurance_requirement_scope_unconfirmed` |
 | Risk classification ambiguous | Raise safely if policy permits; otherwise `risk_classification_required` |
+| Requested action is R3/P-005 but recorded floor is lower | Raise to R3 and require the human gate; never dispatch under R2 authority |
 | Capability/eval evidence absent or expired | Candidate ineligible |
 | Applicable P0 or critical grader fails | Candidate/profile ineligible; no aggregate override |
 | Provider/model/adapter unavailable or changed | Candidate unavailable; evaluate other eligible candidates only |
 | W3 token/accounting gate fails | Candidate rejected before issue; preserve mandatory context |
 | Required independence cannot be established | `independence_unavailable`; no lower grade |
+| No eligible verifier-route witness exists for an R2/R3 producer candidate | Reject producer candidate before dispatch; `independence_unavailable` |
+| R3-required capability has fewer than two eligible families | `r3_family_coverage_insufficient`; block and surface coverage gap |
 | Authority grant insufficient | `authority_required`; no command/dispatch |
 | Tool/root/sensitivity conflict | Candidate rejected; no permission widening |
 | All candidates rejected | `no_eligible_route` with candidate evidence and resume conditions |
@@ -455,9 +478,9 @@ Parallelism is justified by separable state and evidence, not by the number of a
 
 ## 21. Evaluation and acceptance metrics
 
-To avoid an unassigned-fixture seam, W4/W5 jointly propose the following W6 IDs. They are draft designs only: reservation requires the bounded W4/W5 review, Stephen's reconciliation, and a dated W6 addendum.
+Accepted addendum `06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md` reserves the following W6 IDs with pre-control setups, post-control/trajectory oracles, grader classes, priorities, two-axis provenance, and dependencies.
 
-| Proposed ID | Design | Priority | Provenance |
+| Reserved ID | Design | Priority | Provenance |
 |---|---|---:|---|
 | F-031 | Deterministic eligibility-first routing and candidate explanations | P0 | `specification` / `synthetic` |
 | F-032 | Provider outage/fallback preserves risk, assurance, context, and independence | P0 | `specification` / `synthetic` |
@@ -471,10 +494,14 @@ To avoid an unassigned-fixture seam, W4/W5 jointly propose the following W6 IDs.
 Foundation-critical W6 must implement route fixtures covering:
 
 - deterministic repeatability of candidate set, rejection reasons, ranking, and selected profile;
+- determinism against the exact immutable routing-evidence snapshot rather than live cost/latency/reliability reads;
 - risk-floor monotonicity and no cost-driven downgrade;
 - P0/critical non-compensability;
 - R2 distinct-context and declared family-diversity cases;
 - R3 cross-family/context plus Stephen requirement;
+- producer-independent R2/R3 requirement-floor and lane-scope acceptance;
+- demonstrated eligible verifier feasibility before R2/R3 producer dispatch;
+- capability-by-family coverage alerts when an R3 capability has fewer than two eligible families;
 - provider outage and S-016 no-subthreshold fallback;
 - W3 reference/provider token-gate failures and candidate rerouting;
 - adapter-policy drift F-020;
@@ -487,8 +514,10 @@ Required non-aggregated metrics include:
 
 - hard-gate violation in selected routes: `0`;
 - silent risk/assurance/independence downgrade: `0`;
-- deterministic decision equality for identical immutable inputs: `1.0`;
+- deterministic decision equality for identical immutable inputs including routing-evidence snapshot: `1.0`;
 - candidate rejection explanation coverage: `1.0`;
+- R2/R3 producer dispatch without an eligible verifier-route witness: `0`;
+- R3-required capability with fewer than two eligible families surfaced as blocking: `1.0`;
 - required provider/accounting/policy evidence completeness: `1.0`;
 - critical false acceptance in calibration mutations: `0`;
 - human-reserved transition without attributed authority: `0`.
@@ -502,8 +531,8 @@ Normalized traces record:
 - all candidates and gate outcomes without hidden model reasoning;
 - selected provider/model/family/version/reasoning/profile and adapter;
 - token/accounting, availability, permissions, roots, and sensitivity outcomes;
-- independence evidence and any attributed delta exposure;
-- ranking/tie-break, cost/latency estimates, and actual delivery/attempt outcomes;
+- independence evidence, producer-route verifier-feasibility witnesses, and any attributed delta exposure;
+- routing-evidence snapshot, capability-by-family coverage, ranking/tie-break, cost/latency estimates, and actual delivery/attempt outcomes;
 - expiry, suspension, reroute, exception, and human-decision events.
 
 Audits can reconstruct why a route was selected and prove that a rejected weaker route was not silently used.
@@ -516,7 +545,7 @@ Emit immutable assurance requirements with capability, risk, independence, revie
 
 ### W6
 
-Define exact repeated-run thresholds, sample sizes, confidence rules, calibration sets, profile expiry, and route fixtures. No permissive default exists before these are accepted.
+Define exact repeated-run thresholds, sample sizes, confidence rules, calibration sets, profile expiry, capability-by-family coverage, and route fixtures. Materialize F-031–F-038 only after their dated reservation is accepted. No permissive default exists before these are accepted.
 
 ### W7
 
@@ -546,22 +575,24 @@ Machine-checkable claims include identity/version/hash, risk monotonicity, capab
 
 W4 can move from `review_pending` to `accepted` only when Stephen confirms after bounded joint W4/W5 review that:
 
-- [ ] W5 assurance and W4 routing authority are non-circular and cannot weaken each other.
-- [ ] Role profiles, authority grants, actors, attempts, models, and contexts remain distinct.
-- [ ] Risk classification is monotone and human-reserved transitions match P-005/P-022.
-- [ ] Eligibility evaluates every hard capability, assurance, context, permission, independence, provider, and operational gate before ranking.
-- [ ] Cost/latency rank only already-eligible routes.
-- [ ] Evaluation thresholds fail closed pending foundation-critical W6 calibration.
-- [ ] Independence grades are evidence-derived and never claim nonexistent human diversity.
-- [ ] Claude/Codex initial support does not become universal eligibility or block a generic interface.
-- [ ] Fallback/outage behavior preserves all original requirements.
-- [ ] Multi-agent refusal rules are proportionate and checkable.
-- [ ] Proposed F-031–F-038 have complete priorities, provenance, oracles, graders, and W6 reservation dispositions.
-- [ ] W6/W7/W8 receive sufficient fields to implement and evaluate the design.
-- [ ] No runtime, migration, active APM write, or research-claim change is introduced.
+- [x] W5 assurance and W4 routing authority are non-circular and cannot weaken each other.
+- [x] Role profiles, authority grants, actors, attempts, models, and contexts remain distinct.
+- [x] Risk classification is monotone and human-reserved transitions match P-005/P-022.
+- [x] Eligibility evaluates every hard capability, assurance, context, permission, independence, provider, and operational gate before ranking.
+- [x] Cost/latency rank only already-eligible routes.
+- [x] Evaluation thresholds fail closed pending foundation-critical W6 calibration.
+- [x] Independence grades are evidence-derived and never claim nonexistent human diversity.
+- [x] R2/R3 producer routing proves an eligible verifier route exists before dispatch and recomputes the final relationship against the actual attempt.
+- [x] R3 capability-by-family coverage loss is surfaced and blocks dispatch before task-level failure.
+- [x] Claude/Codex initial support does not become universal eligibility or block a generic interface.
+- [x] Fallback/outage behavior preserves all original requirements.
+- [x] Multi-agent refusal rules are proportionate and checkable.
+- [x] Accepted addendum 06b reserves F-031–F-038 with complete priorities, provenance, oracles, graders, and dependencies.
+- [x] W6/W7/W8 receive sufficient fields to implement and evaluate the design.
+- [x] No runtime, migration, active APM write, or research-claim change is introduced.
 
 ## 27. Outcome
 
-**Outcome:** `REVIEW_PENDING — W4 v0.1 routing/profile specification complete; implementation and W4/W5 acceptance remain gated`.
+**Outcome:** `ACCEPTED — W4 v0.2 closes W45-M1–M4 and W45-m5–m8 under P-029; implementation remains gated`.
 
-The next action is a bounded joint adversarial review with W5. Foundation implementation remains prohibited until accepted W4/W5, frozen foundation-critical W6–W8 interfaces, combined-interface review, and a separately approved implementation plan.
+The next action is to freeze the foundation-critical W6/W7/W8 interfaces and executable evidence, then run the combined-interface review. Foundation implementation remains prohibited until those gates pass and Stephen approves a separately reviewed implementation plan.
