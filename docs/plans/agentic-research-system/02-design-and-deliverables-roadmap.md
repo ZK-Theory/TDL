@@ -101,7 +101,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Make capability, risk, and independence explicit.
 
-**Current status (2026-06-30):** Ready to begin across the accepted W3 v0.2 shared interface; may proceed alongside W5.
+**Current status (2026-06-30):** Revision 0.1 written and review-pending. W4 defines six role profiles, monotone risk, eligibility-first routing, evidence-derived independence, generic provider semantics with Claude/Codex initial evaluation, conservative fallback, and multi-agent refusal.
 
 **Must define:**
 
@@ -120,7 +120,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Generalise the strong TDL assurance approach and enforce two-key validity.
 
-**Current status (2026-06-30):** Ready to begin across the accepted W3 v0.2 shared interface; may proceed alongside W4.
+**Current status (2026-06-30):** Revision 0.1 written and review-pending. W5 defines immutable assurance requirements, six core lanes plus domain packs, two-key validity, proof obligations, independent review, conservative non-success outcomes, and separate result-to-claim promotion.
 
 **Must define:**
 
@@ -139,7 +139,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-06-30):** The W6 v0.2 initial 40-fixture catalogue passed review under P-027, and the dated P-028 addendum reserves W3-derived F-025–F-030. The combined design separates incident basis from input fidelity, requires independent scientific-property grading and declared family/context diversity, and adds explicit retrieval, overflow, distractor, and addendum-lineage gates. Executable schemas, tooling, thresholds, closure sizing, and retention remain deferred to W4/W5/W7/W8 dependencies.
+**Current status (2026-06-30):** The W6 v0.2 initial 40-fixture catalogue passed review under P-027, and the dated P-028 addendum reserves W3-derived F-025–F-030. W4/W5 v0.1 now state the routing and assurance obligations, but executable schemas, numerical thresholds, tooling, closure sizing, and retention remain deferred pending W4/W5 acceptance and the W7/W8 interfaces.
 
 **Must define:**
 

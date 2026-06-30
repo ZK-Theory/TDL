@@ -387,7 +387,7 @@ These questions must be resolved in the specifications. They are deliberately bo
 ### Q-005 — Runtime support boundary
 
 **Decision to make:** Whether the first release officially supports only Claude and Codex or defines a generic adapter interface immediately.  
-**Default recommendation:** Define the generic interface in the schema, but implement and evaluate only Claude and Codex adapters in the first release.
+**Conceptual disposition (2026-06-30):** Stephen approved a generic provider interface with first-release evaluation limited to Claude and Codex. W4 v0.1 records the boundary; formal specification acceptance remains subject to the joint W4/W5 review gate.
 
 ### Q-006 — Human approval points
 

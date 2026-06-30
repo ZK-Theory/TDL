@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1/W2/W3 accepted; W6 catalogue plus W3 fixture addendum accepted; W4/W5 next; runtime implementation remains gated<br>
+**Status:** W1/W2/W3 accepted; W4/W5 written and joint-review pending; runtime implementation remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -29,6 +29,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [design/01-system-architecture.md](design/01-system-architecture.md) | W1 component ownership, canonical/projected state, trust and filesystem boundaries, dependency direction, and `.apm/` compatibility architecture |
 | [design/02-task-event-and-artifact-schema.md](design/02-task-event-and-artifact-schema.md) | W2 identities, commands, atomic events, lifecycle state machines, messages, artefacts, reviews, decisions, and deterministic replay |
 | [design/03-context-memory-and-retrieval.md](design/03-context-memory-and-retrieval.md) | W3 immutable context packets/addenda, manifests, hard budgets, retrieval, memory provenance, staleness, and independence inputs |
+| [design/04-agent-roles-and-model-routing.md](design/04-agent-roles-and-model-routing.md) | W4 role profiles, risk, capability evidence, routing, independence, provider support, fallback, and multi-agent refusal |
+| [design/05-research-assurance-and-independent-review.md](design/05-research-assurance-and-independent-review.md) | W5 assurance requirements, domain packs, two-key validity, proof obligations, review, Partial/negative evidence, and claim promotion |
 | [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | Revised W6 initial catalogue: F-001–F-024 and S-001–S-016, grader independence, provenance, privacy, calibration, and change gates |
 | [design/06a-w3-retrieval-fixture-addendum-2026-06-30.md](design/06a-w3-retrieval-fixture-addendum-2026-06-30.md) | P-028 reservation of W3 retrieval fixtures F-025–F-030 and mandatory-closure sizing precondition |
 | [reviews/adversarial-first-pass-review-2026-06-29.md](reviews/adversarial-first-pass-review-2026-06-29.md) | Independent review of the plan and W1/W2/W6 first pass; preserved unchanged |
@@ -71,7 +73,7 @@ The recommended path is **evolutionary APM replacement**:
 
 This is preferable to either patching the current mutable files indefinitely or adopting a networked agent framework wholesale.
 
-The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. W1, W2, W3, the W6 initial catalogue, and the W3 retrieval-fixture addendum are accepted; W4 and W5 are the next parallel specifications. T1.28 and the two current papers remain outside that path except as dated evidence sources.
+The approved delivery path is now specification → narrow permanent foundation → greenfield paper pilot. W1–W3 and the W6 catalogue/addendum are accepted; W4 v0.1 and W5 v0.1 are written and await bounded joint review. T1.28 and the two current papers remain outside that path except as dated evidence sources.
 
 ## Change discipline
 
