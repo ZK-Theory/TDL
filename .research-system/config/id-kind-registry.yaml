@@ -1,0 +1,24 @@
+schema_version: '1.0.0'
+kinds:
+  project: prj
+  task: tsk
+  command: cmd
+  event_batch: txb
+  event: evt
+  dispatch: dsp
+  attempt: att
+  authority_grant: agr
+  actor: act
+  context: ctx
+  assurance_requirement: asr
+  route_request: rrq
+  route_decision: rte
+  routing_evidence_snapshot: res
+  resource_request: rrq
+  resource_grant: rgr
+  execution_lease: els
+  provider_command: pcmd
+  provider_receipt: prcp
+  trace: trc
+  grader_result: grr
+  evaluation_run: run
