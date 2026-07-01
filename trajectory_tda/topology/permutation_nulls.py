@@ -127,6 +127,7 @@ def _ph_provenance(ph: PHResult) -> dict[str, Any]:
         "preflight": dict(getattr(ph, "preflight", {})),
     }
 
+
 def _normalise_cohort_label(value: object) -> str:
     """Map missing cohort labels to a stable string bucket."""
     if value is None:
@@ -641,6 +642,8 @@ def _single_permutation(
     ph_kwargs: dict[str, Any] | None = None,
     normalize_landmarks_by_median_pdist: bool = False,
     landmark_normalizer: LandmarkNormalizer | None = None,
+    rips_backend: str = "ripser",
+    giotto_pool: Any | None = None,
 ) -> dict:
     """Execute one permutation and return statistic values.
 
@@ -667,6 +670,14 @@ def _single_permutation(
     Both probe parameters default to ``None`` (no behaviour change) — they
     do not affect the production pipeline; they exist to support the
     supplementary robustness probes queued in P01-A-JRSSA open items.
+
+    ``rips_backend``/``giotto_pool``: when ``rips_backend="giotto"``, the PH
+    computation uses ``giotto_backend.compute_rips_ph_giotto`` (a persistent
+    subprocess pool, since giotto-tda has no Python 3.13 wheel) instead of
+    ``compute_rips_ph``/ripser. ``giotto_pool`` must be a live ``GiottoPool``
+    in that case — callers are responsible for its lifecycle (create once
+    per battery, close when done). Default ``"ripser"`` preserves existing
+    behaviour for all callers that don't opt in.
     """
     rng = np.random.RandomState(seed)
 
@@ -752,7 +763,19 @@ def _single_permutation(
     runtime_ph_kwargs.setdefault("max_dim", max_dim)
     if pinned_thresh is not None:
         runtime_ph_kwargs["thresh"] = float(pinned_thresh)
-    ph = compute_rips_ph(landmarks_for_ph, **runtime_ph_kwargs)
+    if rips_backend == "giotto":
+        from poverty_tda.topology.giotto_backend import compute_rips_ph_giotto
+
+        if giotto_pool is None:
+            raise ValueError("rips_backend='giotto' requires a live giotto_pool")
+        ph = compute_rips_ph_giotto(
+            landmarks_for_ph,
+            giotto_pool,
+            max_dim=runtime_ph_kwargs["max_dim"],
+            thresh=runtime_ph_kwargs.get("thresh"),
+        )
+    else:
+        ph = compute_rips_ph(landmarks_for_ph, **runtime_ph_kwargs)
     provenance = _ph_provenance(ph)
     provenance["seed"] = int(seed)
     provenance["n_landmarks"] = int(landmarks_for_ph.shape[0])

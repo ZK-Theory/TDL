@@ -19,6 +19,7 @@ MANIFEST
 
 # Virtual environments
 .venv/
+.venv-giotto312/
 venv/
 ENV/
 env/
