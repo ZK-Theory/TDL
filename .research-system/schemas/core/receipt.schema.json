@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/receipt",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "command_id", "status", "payload_hash", "outcome"],
+  "properties": {
+    "schema_id": {"const": "ars://core/receipt"},
+    "schema_version": {"const": "1.0.0"},
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "status": {"enum": ["accepted", "duplicate", "rejected", "conflict"]},
+    "payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "outcome": {"type": "object"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/authority-grant",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "authority_grant_id", "actor_id", "allowed_command_types", "subject_scope", "risk_ceiling", "effective_at", "expires_at", "delegable", "revoked"],
+  "properties": {
+    "schema_id": {"const": "ars://core/authority-grant"},
+    "schema_version": {"const": "1.0.0"},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "allowed_command_types": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "subject_scope": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "risk_ceiling": {"enum": ["R0", "R1", "R2", "R3"]},
+    "effective_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "delegable": {"type": "boolean"},
+    "revoked": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

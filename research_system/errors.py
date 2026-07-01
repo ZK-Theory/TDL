@@ -7,3 +7,6 @@ class ArsError(Exception):
 
 class ConfigurationError(ArsError):
     """Raised when tracked ARS configuration is invalid."""
+
+class SchemaError(ArsError):
+    """Raised when an ARS schema or validated value is invalid."""

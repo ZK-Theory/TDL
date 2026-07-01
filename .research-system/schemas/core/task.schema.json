@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/task",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "task_id", "record_revision", "status", "content_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://core/task"},
+    "schema_version": {"const": "1.0.0"},
+    "task_id": {"type": "string", "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "record_revision": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["proposed", "ready", "active", "blocked", "partial", "completed", "cancelled", "superseded"]},
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}
