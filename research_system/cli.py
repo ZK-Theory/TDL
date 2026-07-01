@@ -34,8 +34,10 @@ def _registered_code_roots(roots: list[Path]) -> list[Path]:
             check=False,
         )
         if result.returncode != 0:
-            registered.add(resolved)
-            continue
+            detail = result.stderr.strip() or 'unknown git error'
+            raise ConfigurationError(
+                f'cannot enumerate git worktrees for {resolved}: {detail}'
+            )
         for line in result.stdout.splitlines():
             if line.startswith('worktree '):
                 registered.add(Path(line.removeprefix('worktree ')).resolve(strict=True))

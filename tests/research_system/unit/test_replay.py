@@ -3,12 +3,13 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
-from research_system.errors import ArsError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, IntegrityError
 from research_system.projection.replay import apply_event, rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import (
@@ -129,9 +130,46 @@ def test_cli_requires_explicit_control_and_code_paths():
         main(['replay', 'verify'])
     assert exc_info.value.code == 2
 
-def test_s006_cli_uses_namespaced_projection_and_explicit_binding(tmp_path, capsys):
+def test_store_init_fails_closed_when_worktrees_cannot_be_enumerated(
+    tmp_path, monkeypatch
+):
     code_root = tmp_path / 'repo'
     code_root.mkdir()
+    monkeypatch.setattr(
+        'research_system.cli.subprocess.run',
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=1, stdout='', stderr='git unavailable'
+        ),
+    )
+    with pytest.raises(ConfigurationError, match='cannot enumerate git worktrees'):
+        main(
+            [
+                'store',
+                'init',
+                '--code-root',
+                str(code_root),
+                '--control-root',
+                str(tmp_path / 'control'),
+                '--project-id',
+                PROJECT_ID,
+            ]
+        )
+    assert not (tmp_path / 'control').exists()
+
+
+def test_s006_cli_uses_namespaced_projection_and_explicit_binding(
+    tmp_path, capsys, monkeypatch
+):
+    code_root = tmp_path / 'repo'
+    code_root.mkdir()
+    monkeypatch.setattr(
+        'research_system.cli.subprocess.run',
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=f'worktree {code_root.resolve()}\n',
+            stderr='',
+        ),
+    )
     control_root = tmp_path / 'control'
     assert main(
         [

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from research_system.command.models import Command, Receipt
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.ids import new_id
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
@@ -30,6 +30,7 @@ class CommandService:
         self.schemas = schemas
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
+        """Validate WP1 integrity controls; authorization remains downstream."""
         self.schemas.validate('ars://core/command', envelope)
         command = Command(dict(envelope))
         replay(self.ledger.iter_events())
@@ -75,30 +76,37 @@ class CommandService:
                 and first.get('command_type') == command.envelope['command_type']
                 and first.get('idempotency_key') == command.idempotency_key
             )
-            if not same_scope:
-                continue
-            if (
-                first.get('command_id') != command.command_id
-                or first.get('command_payload_hash') != command.payload_hash
-                or first.get('command_type') != command.envelope['command_type']
-                or first.get('stream_id') != command.target_stream_id
-            ):
-                raise ConflictError('idempotency key conflicts with committed command')
-            return list(batch)
+            same_submission = (
+                same_scope
+                and first.get('command_payload_hash') == command.payload_hash
+                and first.get('stream_id') == command.target_stream_id
+            )
+            if same_scope:
+                if (
+                    first.get('command_id') == command.command_id
+                    and same_submission
+                ):
+                    return list(batch)
+                raise ConflictError(
+                    'idempotency key conflicts with committed command'
+                )
+            if first.get('command_id') == command.command_id:
+                raise ConflictError('command ID conflicts with committed command')
         return None
 
     def _return_or_reconstruct(self, events: list[dict[str, Any]]) -> Receipt:
-        command_id = events[0]['command_id']
-        stored = self.receipts.load(command_id)
-        if stored is not None:
-            return stored
         receipt = Receipt(
             status='accepted',
-            command_id=command_id,
+            command_id=events[0]['command_id'],
             payload_hash=events[0]['command_payload_hash'],
             event_batch_id=events[0]['transaction_id'],
             observed_stream_version=max(event['stream_version'] for event in events),
         )
+        stored = self.receipts.load(receipt.command_id)
+        if stored is not None:
+            if stored != receipt:
+                raise IntegrityError('stored receipt does not match committed batch')
+            return stored
         return self.receipts.write(receipt)
 
     def _stream_version(self, stream_id: str) -> int:

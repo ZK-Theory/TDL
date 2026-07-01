@@ -83,3 +83,16 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert [item['global_position'] for item in events] == [1]
     assert events[0]['previous_event_hash'] == '0' * 64
     assert receipt['event_batch_id'] == events[0]['transaction_id']
+
+def test_caller_cannot_override_recorded_at(tmp_path):
+    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+    with pytest.raises(ArsError, match='protected event fields'):
+        ledger.append(
+            [
+                {
+                    'event_type': 'TaskCreated',
+                    'stream_id': TASK_ID,
+                    'recorded_at': '2000-01-01T00:00:00Z',
+                }
+            ]
+        )

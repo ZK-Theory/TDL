@@ -22,6 +22,7 @@ _PROTECTED_FIELDS = frozenset(
         'transaction_count',
         'previous_event_hash',
         'event_hash',
+        'recorded_at',
     }
 )
 

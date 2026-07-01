@@ -14,6 +14,19 @@ def test_canonical_bytes_are_order_independent():
     assert sha256_hex(left) == sha256_hex(right)
 
 
+@pytest.mark.parametrize(
+    'value, message',
+    [
+        ({'value': 1.5}, 'floating-point'),
+        ({'café': 'value'}, 'ASCII object keys'),
+        ({'value': 2**53}, 'safe integer range'),
+    ],
+)
+def test_p0_canonical_subset_rejects_non_interoperable_values(value, message):
+    with pytest.raises(ValueError, match=message):
+        canonical_bytes(value)
+
+
 def test_ids_use_registered_owner_prefix_and_uuid7_body():
     command_id = new_id('command')
     assert command_id.startswith('cmd_')

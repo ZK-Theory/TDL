@@ -65,3 +65,18 @@ def test_every_core_schema_declares_closed_object_contract():
         assert schema['required']
         assert schema['properties']
         assert schema['additionalProperties'] is False
+
+def test_task_schema_uses_w2_status_vocabulary():
+    task = {
+        'schema_id': 'ars://core/task',
+        'schema_version': '1.0.0',
+        'task_id': 'tsk_01978abc-0004-7000-8000-000000000004',
+        'record_revision': 1,
+        'status': 'draft',
+        'content_hash': '0' * 64,
+    }
+    registry = SchemaRegistry(SCHEMAS)
+    registry.validate('ars://core/task', task)
+    task['status'] = 'proposed'
+    with pytest.raises(SchemaError, match='status'):
+        registry.validate('ars://core/task', task)

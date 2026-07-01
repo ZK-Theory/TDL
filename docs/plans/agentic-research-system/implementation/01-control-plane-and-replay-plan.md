@@ -150,15 +150,47 @@ import json
 from typing import Any
 
 
+_MAX_SAFE_INTEGER = (1 << 53) - 1
+
+
+def _validate_p0_canonical_value(value: Any) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str) or not key.isascii():
+                raise ValueError('P0 canonical JSON requires ASCII object keys')
+            _validate_p0_canonical_value(item)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_p0_canonical_value(item)
+        return
+    if isinstance(value, float):
+        raise ValueError('P0 canonical JSON rejects floating-point values')
+    if isinstance(value, bool) or value is None or isinstance(value, str):
+        return
+    if isinstance(value, int):
+        if not -_MAX_SAFE_INTEGER <= value <= _MAX_SAFE_INTEGER:
+            raise ValueError('P0 canonical JSON requires the safe integer range')
+        return
+    raise TypeError(f'unsupported P0 canonical JSON value: {type(value).__name__}')
+
+
 def canonical_bytes(value: Any) -> bytes:
+    _validate_p0_canonical_value(value)
     return json.dumps(
-        value, sort_keys=True, separators=(',', ':'), ensure_ascii=False
+        value,
+        sort_keys=True,
+        separators=(',', ':'),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode('utf-8')
 
 
 def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 ```
+
+`_validate_p0_canonical_value()` enforces the W2 P0 canonical subset before serialization: ASCII object keys, no floating-point values, and integers limited to the interoperable safe range. Gate 5 must adopt or verify full RFC 8785 behavior before cross-implementation or external-store interchange broadens that domain.
 
 ```python
 # research_system/ids.py
@@ -281,7 +313,7 @@ Expected: import or missing-schema failure.
 
 - [ ] **Step 3: Create Draft 2020-12 schemas and loader**
 
-Every schema file must declare `$schema`, `$id`, `type: object`, `required`, `properties`, and `additionalProperties: false`. Implement:
+Every schema file must declare `$schema`, `$id`, `type: object`, `required`, `properties`, and `additionalProperties: false`. In WP1, command/event/receipt schemas are enforced or emission-tested. `task.schema.json` freezes the W2 status vocabulary, while full Task and authority-grant object validation is deferred to the package that first persists those complete records. Implement:
 
 ```python
 # research_system/schema_registry.py
@@ -592,7 +624,7 @@ class Receipt:
     reason_code: str | None = None
 ```
 
-`CommandService.submit()` performs W2 section 8.2 checks in order, rebuilds the accepted-command/idempotency index from committed events before allocating a position, returns or reconstructs the original accepted receipt when the committed command already exists, acquires the writer lock, rechecks the tail/stream version and accepted-command index, writes objects, builds one complete event batch, atomically publishes it, then writes the immutable receipt. A crash after batch rename and before receipt rename is recovered from committed event fields before any later mutation. Rejected/conflict receipts never enter lifecycle events. `tests/research_system/factories.py` constructs the real ledger/object/receipt/service components under `tmp_path` and builds schema-valid commands; it must not add test-only branches to production classes.
+`CommandService.submit()` implements the WP1 subset of W2 section 8.2: envelope schema, canonical-history integrity, global command-ID and idempotency checks, expected stream version, supported reducer preconditions, and batch integrity. It is not an authorization boundary. Referenced-object/hash validation, canonical owner/compatibility mode, actor/authority evaluation, and assurance/review/human gates (W2 steps 2, 3, 4, and 8) remain mandatory WP2/WP3 obligations before those command classes are enabled. The service rebuilds the accepted-command/idempotency index from committed events before allocating a position, returns or reconstructs the original accepted receipt when the committed command already exists, acquires the writer lock, rechecks the tail/stream version and accepted-command index, writes objects, builds one complete event batch, atomically publishes it, then writes the immutable receipt. A crash after batch rename and before receipt rename is recovered from committed event fields before any later mutation. Rejected/conflict receipts never enter lifecycle events. `tests/research_system/factories.py` constructs the real ledger/object/receipt/service components under `tmp_path` and builds schema-valid commands; it must not add test-only branches to production classes.
 
 Reducers are pure functions:
 
