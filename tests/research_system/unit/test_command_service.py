@@ -1,0 +1,108 @@
+import pytest
+
+from research_system.command.reducers import reduce_task
+from research_system.errors import ConflictError, SchemaError
+from tests.research_system.factories import (
+    claim_dispatch_command,
+    control_plane,
+    create_task_command,
+)
+
+CMD_CREATE = 'cmd_01978abc-2001-7000-8000-000000002001'
+CMD_CLAIM_A = 'cmd_01978abc-2002-7000-8000-000000002002'
+CMD_CLAIM_B = 'cmd_01978abc-2003-7000-8000-000000002003'
+TASK_ID = 'tsk_01978abc-2004-7000-8000-000000002004'
+DISPATCH_ID = 'dsp_01978abc-2005-7000-8000-000000002005'
+ARTEFACT_ID = 'art_01978abc-2006-7000-8000-000000002006'
+
+
+def test_identical_retry_returns_original_receipt_and_one_batch(tmp_path):
+    harness = control_plane(tmp_path)
+    command = create_task_command(CMD_CREATE, 'same', TASK_ID, {'title': 'A'})
+    assert harness.service.submit(command) == harness.service.submit(command)
+    assert len(tuple(harness.ledger.iter_batches())) == 1
+
+
+def test_same_idempotency_key_with_changed_payload_conflicts(tmp_path):
+    harness = control_plane(tmp_path)
+    first = create_task_command(CMD_CREATE, 'same', TASK_ID, {'title': 'A'})
+    changed = {**first, 'payload': {'title': 'B'}}
+    harness.service.submit(first)
+    with pytest.raises(ConflictError, match='idempotency'):
+        harness.service.submit(changed)
+
+
+def test_same_key_is_independent_across_command_types(tmp_path):
+    harness = control_plane(tmp_path)
+    create = create_task_command(CMD_CREATE, 'shared', TASK_ID, {'title': 'A'})
+    claim = claim_dispatch_command(
+        CMD_CLAIM_A, 'actor-a', DISPATCH_ID, expected_version=0
+    )
+    claim['idempotency_key'] = 'shared'
+    assert harness.service.submit(create).status == 'accepted'
+    assert harness.service.submit(claim).status == 'accepted'
+    assert len(tuple(harness.ledger.iter_batches())) == 2
+
+
+def test_competing_claims_create_only_one_active_attempt(tmp_path):
+    harness = control_plane(tmp_path)
+    first = claim_dispatch_command(
+        CMD_CLAIM_A, 'actor-a', DISPATCH_ID, expected_version=0
+    )
+    second = claim_dispatch_command(
+        CMD_CLAIM_B, 'actor-b', DISPATCH_ID, expected_version=0
+    )
+    winner = harness.service.submit(first)
+    loser = harness.service.submit(second)
+    assert {winner.status, loser.status} == {'accepted', 'conflict'}
+    assert len(harness.replay().active_attempt_ids) == 1
+
+
+def test_distinct_task_and_artefact_objects_cannot_overwrite(tmp_path):
+    harness = control_plane(tmp_path)
+    task = harness.objects.write('task', TASK_ID, 1, {'kind': 'task'})
+    artefact = harness.objects.write(
+        'artefact', ARTEFACT_ID, 1, {'kind': 'artefact'}
+    )
+    assert task != artefact
+    assert task.read_bytes() != artefact.read_bytes()
+
+
+def test_committed_batch_reconstructs_missing_receipt_on_retry(
+    tmp_path, monkeypatch
+):
+    harness = control_plane(tmp_path)
+    command = create_task_command(CMD_CREATE, 'recover', TASK_ID, {'title': 'A'})
+    original_write = harness.receipts.write
+    monkeypatch.setattr(
+        harness.receipts,
+        'write',
+        lambda receipt: (_ for _ in ()).throw(OSError('receipt crash')),
+    )
+    with pytest.raises(OSError, match='receipt crash'):
+        harness.service.submit(command)
+    assert len(tuple(harness.ledger.iter_batches())) == 1
+    monkeypatch.setattr(harness.receipts, 'write', original_write)
+    recovered = harness.service.submit(command)
+    assert recovered.status == 'accepted'
+    assert len(tuple(harness.ledger.iter_batches())) == 1
+    assert harness.receipts.load(CMD_CREATE) == recovered
+
+
+def test_invalid_command_is_rejected_before_lifecycle_event(tmp_path):
+    harness = control_plane(tmp_path)
+    invalid = create_task_command(CMD_CREATE, 'invalid', TASK_ID, {'title': 'A'})
+    invalid.pop('reason')
+    with pytest.raises(SchemaError, match='reason'):
+        harness.service.submit(invalid)
+    assert tuple(harness.ledger.iter_batches()) == ()
+
+
+def test_task_reducer_is_pure_and_fails_closed():
+    created = reduce_task(
+        {},
+        {'event_type': 'TaskCreated', 'stream_id': TASK_ID},
+    )
+    assert created == {'task_id': TASK_ID, 'status': 'draft', 'version': 1}
+    with pytest.raises(ValueError, match='TaskCreated requires empty stream'):
+        reduce_task(created, {'event_type': 'TaskCreated', 'stream_id': TASK_ID})

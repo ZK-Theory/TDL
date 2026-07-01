@@ -28,3 +28,8 @@ def test_wrong_or_unknown_kind_is_rejected():
         validate_id(assurance_id, 'command')
     with pytest.raises(ValueError, match='unknown ID kind'):
         new_id('arbitrary_prefix')
+
+def test_accepted_w2_artefact_kind_uses_owner_prefix():
+    artefact_id = new_id('artefact')
+    assert artefact_id.startswith('art_')
+    assert validate_id(artefact_id, 'artefact') == artefact_id

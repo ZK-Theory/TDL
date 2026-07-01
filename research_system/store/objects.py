@@ -43,3 +43,16 @@ def write_object(
         handle.flush()
         os.fsync(handle.fileno())
     return target
+
+class ObjectStore:
+    def __init__(self, control_root: Path):
+        self.control_root = control_root
+
+    def write(
+        self,
+        kind: str,
+        object_id: str,
+        revision: int,
+        value: Any,
+    ) -> Path:
+        return write_object(self.control_root, kind, object_id, revision, value)

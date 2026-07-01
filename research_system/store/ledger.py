@@ -104,5 +104,14 @@ class EventLedger:
                     if line.strip():
                         yield json.loads(line)
 
+    def iter_batches(self) -> Iterator[tuple[dict[str, Any], ...]]:
+        for path in sorted(self.events_root.rglob('*.jsonl')):
+            with path.open(encoding='utf-8') as handle:
+                yield tuple(
+                    json.loads(line)
+                    for line in handle
+                    if line.strip()
+                )
+
     def _publish(self, source: Path, target: Path) -> None:
         os.replace(source, target)
