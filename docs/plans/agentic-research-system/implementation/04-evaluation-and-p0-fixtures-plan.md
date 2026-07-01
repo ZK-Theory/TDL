@@ -32,9 +32,13 @@ research_system/evals/scenarios.py
 .research-system/schemas/evals/evaluation-run.schema.json
 .research-system/schemas/evals/coverage-manifest.schema.json
 .research-system/schemas/evals/release-gate-decision.schema.json
+.research-system/schemas/evals/evidence-store-registry.schema.json
+.research-system/schemas/evals/deletion-verification-manifest.schema.json
 .research-system/evals/catalogue.yaml
 .research-system/evals/p0-coverage.yaml
 .research-system/evals/threshold-policies.yaml
+.research-system/evals/p0-calibration-policy.yaml
+.research-system/evals/p0-variant-matrix.yaml
 .research-system/evals/retention-policy.yaml
 .research-system/evals/fixtures/{case_id}/fixture.yaml for every ID in P0_CASES
 .research-system/evals/fixtures/{case_id}/README.md for every ID in P0_CASES
@@ -106,7 +110,7 @@ def test_trace_requires_terminal_receipt_or_missing_evidence_record():
 
 def test_grader_verdict_is_closed_enum():
     with pytest.raises(ValueError, match='invalid verdict'):
-        GraderResult('grr_' + '2' * 32, 'run-1', 'F-001', 'state', 'D', 'maybe', True, True, 'b' * 64, 'c' * 64, ())
+        GraderResult('grr_' + '2' * 32, 'run-1', 'F-001', 'r1', 'state', 'D', 'v1', 'maybe', True, True, 'b' * 64, 'c' * 64, ())
 
 
 def test_evaluation_retry_gets_new_run_identity():
@@ -185,8 +189,10 @@ class GraderResult:
     grader_result_id: str
     evaluation_run_id: str
     fixture_id: str
+    fixture_revision: str
     grader_id: str
     grader_class: str
+    grader_version: str
     verdict: str
     critical: bool
     required: bool
@@ -211,9 +217,9 @@ Expected: closed enums and identity rules pass.
 
 Commit subject: `[PIPELINE] P00: add ARS evaluation contracts`.
 
-## Task 2: Implement trace completeness and deterministic graders
+## Task 2: Implement trace completeness and exact required-grader closure
 
-- [ ] **Step 1: Write failing grader tests**
+- [ ] **Step 1: Write failing grader and pass-on-omission tests**
 
 ```python
 from types import SimpleNamespace
@@ -226,13 +232,19 @@ from research_system.evals.release import decide_release
 from research_system.evals.trace import assert_trace_complete
 
 
-def _coverage():
-    return SimpleNamespace(required_fixture_ids=('F-001',))
+STATE_KEY = ('F-001', 'r1', 'state', 'D', 'v1')
+RESEARCH_KEY = ('F-001', 'r1', 'research', 'R', 'v1')
 
 
-def _result(verdict):
+def _coverage(*keys):
+    return SimpleNamespace(required_result_keys=keys)
+
+
+def _result(key, verdict='pass'):
+    fixture_id, fixture_revision, grader_id, grader_class, grader_version = key
     return GraderResult(
-        'grr_' + '5' * 32, 'run-1', 'F-001', 'state', 'D', verdict,
+        'grr_' + '5' * 32, 'run-1', fixture_id, fixture_revision,
+        grader_id, grader_class, grader_version, verdict,
         True, True, 'a' * 64, 'b' * 64, (),
     )
 
@@ -243,112 +255,175 @@ def test_missing_provider_receipt_is_unable_to_grade_and_blocking():
         assert_trace_complete(TraceEnvelope('trc-1', (), ()), fixture)
 
 
-def test_missing_operational_terminal_record_is_unable_to_grade():
-    fixture = SimpleNamespace(required_evidence_classes=('operational_terminal',))
-    trace = TraceEnvelope('trc-1', ({'evidence_class': 'provider_receipt'},), ())
-    with pytest.raises(UnableToGrade):
-        assert_trace_complete(trace, fixture)
+def test_missing_required_grader_blocks_instead_of_passing_present_result():
+    decision = decide_release(
+        _coverage(STATE_KEY, RESEARCH_KEY), [_result(STATE_KEY)]
+    )
+    assert decision['decision'] == 'blocked'
+    assert decision['missing'] == [RESEARCH_KEY]
 
 
-def test_fixture_defect_is_quarantined_not_system_pass():
-    assert decide_release(_coverage(), [_result('fixture_error')])['decision'] == 'blocked'
+def test_stale_revision_duplicate_or_unexpected_result_blocks():
+    stale = ('F-001', 'r0', 'state', 'D', 'v1')
+    assert decide_release(_coverage(STATE_KEY), [_result(stale)])['decision'] == 'blocked'
+    duplicate = _result(STATE_KEY)
+    assert decide_release(_coverage(STATE_KEY), [duplicate, duplicate])['decision'] == 'blocked'
+    assert decide_release(
+        _coverage(STATE_KEY), [_result(STATE_KEY), _result(RESEARCH_KEY)]
+    )['decision'] == 'blocked'
 
 
-def test_critical_fail_cannot_be_overridden_by_weighted_score():
-    assert decide_release(_coverage(), [_result('fail')])['decision'] == 'fail'
-
-
-def test_producer_pass_flag_is_not_independent_property_evidence():
-    fixture = SimpleNamespace(required_evidence_classes=('independent_property_evidence',))
-    trace = TraceEnvelope('trc-1', ({'evidence_class': 'producer_pass_flag'},), ())
-    with pytest.raises(UnableToGrade):
-        assert_trace_complete(trace, fixture)
+def test_fixture_defect_and_critical_fail_remain_noncompensable():
+    assert decide_release(_coverage(STATE_KEY), [_result(STATE_KEY, 'fixture_error')])['decision'] == 'blocked'
+    assert decide_release(_coverage(STATE_KEY), [_result(STATE_KEY, 'fail')])['decision'] == 'fail'
 ```
 
 - [ ] **Step 2: Run and confirm failure**
 
 Run: `uv run pytest tests/research_system/unit/test_graders.py tests/research_system/unit/test_release_gate.py -q --no-cov`
 
-Expected: grader/release functions absent.
+Expected: grader/release functions absent or the pass-on-omission test exposes a false pass.
 
 - [ ] **Step 3: Implement trace and release rules**
 
 ```python
 # research_system/evals/release.py
+from collections import Counter
+
 BLOCKING = {'fail', 'unable_to_grade', 'fixture_error'}
 
 
+def _result_key(result):
+    return (
+        result.fixture_id, result.fixture_revision, result.grader_id,
+        result.grader_class, result.grader_version,
+    )
+
+
 def decide_release(coverage, results):
-    by_fixture = {}
-    for result in results:
-        by_fixture.setdefault(result.fixture_id, []).append(result)
-    missing = sorted(set(coverage.required_fixture_ids) - set(by_fixture))
+    required = set(coverage.required_result_keys)
+    observed_keys = [_result_key(result) for result in results]
+    counts = Counter(observed_keys)
+    observed = set(observed_keys)
+    missing = sorted(required - observed)
+    unexpected = sorted(observed - required)
+    duplicates = sorted(key for key, count in counts.items() if count != 1)
+    incompatible = [
+        result for result in results
+        if not result.subject_hash or not result.trace_hash
+    ]
     blocking = [
         result for result in results
         if result.required and result.verdict in BLOCKING
     ]
-    if missing or blocking:
-        decision = 'blocked' if missing or any(
-            result.verdict in {'unable_to_grade', 'fixture_error'}
-            for result in blocking
-        ) else 'fail'
-        return {'decision': decision, 'missing': missing, 'blocking': blocking}
-    return {'decision': 'pass', 'missing': [], 'blocking': []}
+    if missing or unexpected or duplicates or incompatible:
+        return {
+            'decision': 'blocked', 'missing': missing,
+            'unexpected': unexpected, 'duplicates': duplicates,
+            'blocking': blocking + incompatible,
+        }
+    if blocking:
+        decision = (
+            'blocked' if any(
+                result.verdict in {'unable_to_grade', 'fixture_error'}
+                for result in blocking
+            ) else 'fail'
+        )
+        return {
+            'decision': decision, 'missing': [], 'unexpected': [],
+            'duplicates': [], 'blocking': blocking,
+        }
+    return {
+        'decision': 'pass', 'missing': [], 'unexpected': [],
+        'duplicates': [], 'blocking': [],
+    }
 ```
 
-```python
-# research_system/evals/trace.py
-def assert_trace_complete(trace, fixture):
-    required = set(fixture.required_evidence_classes)
-    present = {item['evidence_class'] for item in trace.items}
-    missing = sorted(required - present)
-    unterminated = [item['command_id'] for item in trace.issued_commands if not item.get('terminal_ref')]
-    if missing or unterminated:
-        raise UnableToGrade({'missing': missing, 'unterminated': unterminated})
-```
-
-Deterministic graders recompute hashes, ordering, state, token bounds, null-input identity, representation call logs, root bindings, and authority relationships. Model/human graders are represented as required external results; the runner cannot synthesize them.
+`CoverageManifest.required_result_keys` is derived from the exact selected fixture revisions and their required grader IDs/classes/versions. The evaluated producer cannot supply or narrow this set. The production implementation also verifies oracle, policy, threshold-policy, independence, subject, and trace hashes before a result joins `observed`.
 
 - [ ] **Step 4: Run grader/release tests**
 
 Run: `uv run pytest tests/research_system/unit/test_graders.py tests/research_system/unit/test_release_gate.py -q --no-cov`
 
-Expected: non-compensable and missing-evidence tests pass.
+Expected: empty, partial, stale, duplicate, unexpected, incompatible, failed, unable-to-grade, and fixture-error evidence sets all block or fail exactly; only exact required-set closure can pass.
 
 - [ ] **Step 5: Commit runner primitives**
 
 Commit subject: `[PIPELINE] P00: enforce ARS non-compensable grading`.
 
-## Task 3: Implement retention policy and deletion verification
+## Task 3: Implement retention policy and evidence-derived deletion verification
 
-- [ ] **Step 1: Write failing retention tests**
+- [ ] **Step 1: Write failing retention and verifier tests**
 
 ```python
+from pathlib import Path
+
 import pytest
 
-from research_system.evals.retention import RULES, deletion_verdict, require_retention_rule
+from research_system.evals.retention import (
+    RULES, EvidenceStoreRegistry, require_retention_rule, verify_deletion,
+)
 
 
-def test_r1_windows_are_explicit_by_evidence_type():
+def _registry(tmp_path):
+    return EvidenceStoreRegistry(
+        store_id='evs_' + '1' * 32, registry_hash='a' * 64,
+        primary=tmp_path / 'primary', runtime=tmp_path / 'runtime',
+        staging=tmp_path / 'staging', temp=tmp_path / 'temp',
+        replicas=(tmp_path / 'replica',), permitted_consumers=('eval',),
+    )
+
+
+def test_r1_r2_windows_are_explicit_and_r2_uses_earlier_expiry():
     assert RULES[('R1', 'redacted_command_summary')].max_days == 180
     assert RULES[('R1', 'operational_measurement')].max_days == 365
     assert RULES[('R1', 'grader_explanation')].max_days == 365
-
-
-def test_r2_windows_use_earlier_source_expiry():
     assert RULES[('R2', 'restricted_local_reference')].max_days == 90
     assert RULES[('R2', 'minimized_sensitive_excerpt')].max_days == 30
     assert all(rule.use_earlier_source_expiry for key, rule in RULES.items() if key[0] == 'R2')
 
 
-def test_deletion_requires_absence_from_every_registered_location():
-    checks = {
-        'primary_absent': True, 'runtime_absent': True, 'temp_absent': True,
-        'registered_replicas_absent': False, 'canonical_payload_absent': True,
-    }
-    assert deletion_verdict(checks) == 'deletion_pending'
-    checks['registered_replicas_absent'] = True
-    assert deletion_verdict(checks) == 'verified'
+def test_verifier_derives_locations_and_blocks_failed_replica(tmp_path):
+    registry = EvidenceStoreRegistry(
+        store_id='evs_' + '1' * 32, registry_hash='a' * 64,
+        primary=tmp_path / 'primary', runtime=tmp_path / 'runtime',
+        staging=tmp_path / 'staging', temp=tmp_path / 'temp',
+        replicas=(tmp_path / 'replica',), permitted_consumers=('eval',),
+    )
+    inspected = []
+
+    def inspect(path, evidence_hash):
+        inspected.append(path)
+        return path.name != 'replica'
+
+    result = verify_deletion(
+        evidence_id='evi_' + '2' * 32, evidence_hash='b' * 64,
+        registry=registry, inspect_location=inspect,
+        discover_replicas=lambda _: set(registry.replicas),
+        canonical_payload_scan=lambda _: False,
+        actor_id='act_' + '3' * 32, authority_grant_id='agr_' + '4' * 32,
+    )
+    assert set(inspected) == set(registry.checked_locations())
+    assert result.status == 'deletion_pending'
+
+
+def test_unregistered_replica_or_canonical_payload_blocks(tmp_path):
+    registry = _registry(tmp_path)
+    extra = tmp_path / 'unregistered-replica'
+    assert verify_deletion(
+        'evi-1', 'c' * 64, registry,
+        inspect_location=lambda path, digest: True,
+        discover_replicas=lambda _: {*registry.replicas, extra},
+        canonical_payload_scan=lambda digest: False,
+        actor_id='act-1', authority_grant_id='agr-1',
+    ).status == 'deletion_pending'
+    assert verify_deletion(
+        'evi-1', 'c' * 64, registry,
+        inspect_location=lambda path, digest: True,
+        discover_replicas=lambda _: set(registry.replicas),
+        canonical_payload_scan=lambda digest: True,
+        actor_id='act-1', authority_grant_id='agr-1',
+    ).status == 'deletion_pending'
 
 
 def test_missing_retention_rule_blocks_fixture_activation():
@@ -360,13 +435,14 @@ def test_missing_retention_rule_blocks_fixture_activation():
 
 Run: `uv run pytest tests/research_system/unit/test_retention.py -q --no-cov`
 
-Expected: retention module and versioned policy file absent.
+Expected: retention module, registry schema, and verifier absent.
 
-- [ ] **Step 3: Implement the policy and verifier**
+- [ ] **Step 3: Implement the policy, registry, and verifier**
 
 ```python
 # research_system/evals/retention.py
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -379,6 +455,34 @@ class RetentionRule:
     use_earlier_source_expiry: bool = False
 
 
+@dataclass(frozen=True)
+class EvidenceStoreRegistry:
+    store_id: str
+    registry_hash: str
+    primary: Path
+    runtime: Path
+    staging: Path
+    temp: Path
+    replicas: tuple[Path, ...]
+    permitted_consumers: tuple[str, ...]
+
+    def checked_locations(self):
+        return (self.primary, self.runtime, self.staging, self.temp, *self.replicas)
+
+
+@dataclass(frozen=True)
+class DeletionVerificationManifest:
+    evidence_id: str
+    evidence_hash: str
+    registry_hash: str
+    actor_id: str
+    authority_grant_id: str
+    checked_locations: tuple[tuple[str, bool], ...]
+    unregistered_replicas: tuple[str, ...]
+    canonical_payload_present: bool
+    status: str
+
+
 RULES = {
     ('R1', 'redacted_command_summary'): RetentionRule(180, 30, 'system_maintainer', 'manager', 'run_terminal'),
     ('R1', 'operational_measurement'): RetentionRule(365, 30, 'system_maintainer', 'manager', 'release_decision'),
@@ -388,24 +492,29 @@ RULES = {
 }
 
 
-def require_retention_rule(retention_class, evidence_type):
-    try:
-        return RULES[(retention_class, evidence_type)]
-    except KeyError as exc:
-        raise ValueError('retention_rule_missing') from exc
-
-
-def deletion_verdict(checks):
-    required = {
-        'primary_absent', 'runtime_absent', 'temp_absent',
-        'registered_replicas_absent', 'canonical_payload_absent',
-    }
-    return 'verified' if required <= checks.keys() and all(checks[key] for key in required) else 'deletion_pending'
+def verify_deletion(
+    evidence_id, evidence_hash, registry, inspect_location, discover_replicas,
+    canonical_payload_scan, actor_id, authority_grant_id,
+):
+    checks = tuple(
+        (str(path.resolve()), inspect_location(path.resolve(), evidence_hash))
+        for path in registry.checked_locations()
+    )
+    discovered = {path.resolve() for path in discover_replicas(registry)}
+    registered = {path.resolve() for path in registry.replicas}
+    unregistered = tuple(sorted(str(path) for path in discovered - registered))
+    canonical_present = canonical_payload_scan(evidence_hash)
+    verified = all(passed for _, passed in checks) and not unregistered and not canonical_present
+    return DeletionVerificationManifest(
+        evidence_id, evidence_hash, registry.registry_hash, actor_id,
+        authority_grant_id, checks, unregistered, canonical_present,
+        'verified' if verified else 'deletion_pending',
+    )
 ```
 
-`.research-system/evals/retention-policy.yaml` is the versioned authority and must encode the same rows, policy revision, effective date, owning roles, extension authorities, permitted consumers, and the prohibition on unregistered R1/R2 replicas. `retention.py` loads that file in production; the literal table above is the unit-test oracle, not a second mutable policy source.
+Production `inspect_location` performs evidence-hash/path-class checks itself and records inaccessible locations, reparse/junction targets, and per-location evidence hashes. The verifier never accepts caller-supplied absence booleans. `.research-system/evals/retention-policy.yaml` and the evidence-store registry schema encode policy revision, effective date, owners, extension authorities, consumers, and the prohibition on unregistered replicas.
 
-The command service owns `DeleteEvidenceObject` and `VerifyEvidenceDeletion`. The former removes only an authorized expiring payload from the external evidence root; the latter checks primary/runtime/temp/registered-replica absence, confirms that canonical records contain only R0 metadata, rebuilds the availability projection as `expired_deleted`, and emits an `EvidenceDeletionVerified` event plus immutable command receipt. An incomplete check remains `deletion_pending`, blocks clean release, and blocks new R2 intake for that store.
+The WP1 command service owns `DeleteEvidenceObject` and `VerifyEvidenceDeletion`. It accepts `EvidenceDeletionVerified` only from a complete verified manifest whose registry/policy hashes and actor authority are current; otherwise it records `deletion_pending`, blocks a clean release, and blocks new R2 intake for that store.
 
 - [ ] **Step 4: Run retention and replay tests**
 
@@ -414,7 +523,7 @@ uv run pytest tests/research_system/unit/test_retention.py tests/research_system
 uv run python -m research_system.cli eval retention validate --policy .research-system/evals/retention-policy.yaml
 ```
 
-Expected: all evidence types have explicit windows; deletion verification cannot pass with any unchecked location; replay remains valid after an authorized payload deletion.
+Expected: every evidence type has an explicit rule; stale temp/staging content, inaccessible or unregistered replicas, junction escapes, and canonical payload contamination block verification; authorized deletion preserves replay.
 
 - [ ] **Step 5: Commit retention controls**
 
@@ -425,6 +534,9 @@ Commit subject: `[PIPELINE] P00: add ARS evidence retention controls` using a ta
 - [ ] **Step 1: Write failing catalogue-closure tests**
 
 ```python
+from research_system.evals.catalogue import load_catalogue, load_fixture
+
+
 P0_CASES = {
     'F-001', 'F-002', 'F-003', 'F-004', 'F-005',
     'F-007', 'F-008', 'F-009', 'F-010', 'F-011', 'F-012', 'F-013', 'F-014',
@@ -456,7 +568,24 @@ Expected: catalogue and fixture packages absent.
 
 - [ ] **Step 3: Implement deterministic materializer and package schema**
 
-`tools/ars/materialize_p0_fixtures.py` reads `.research-system/evals/catalogue.yaml`, refuses any ID set other than `P0_CASES`, and creates each exact package with:
+`.research-system/evals/p0-calibration-policy.yaml` is an immutable P0 proposal with these exact rules:
+
+```yaml
+schema_version: '1.0.0'
+policy_revision: p0-calibration-v1
+deterministic_repetitions: 2
+identical_input_requirement: byte_identical_normalized_decision
+known_bad_requirement: intended_failure_in_every_repetition
+known_good_requirement: intended_pass_in_every_repetition
+declared_mutation_requirement: detected_in_every_repetition
+stochastic_policy_missing: fixture_error
+model_or_human_threshold_policy_missing: unable_to_grade
+live_provider_calibration_enabled: false
+```
+
+`.research-system/evals/p0-variant-matrix.yaml` contains explicit rows, never wildcards. Control/store cases bind provider `none`, `in_process_fake`, Windows, and their declared operational profile. Context/routing cases bind the exact reference counter plus each required fake Claude/Codex provider-count/rendering revision. Adapter cases bind `claude`/`codex`, adapter profile/revision, `fake` transport, Windows, and the applicable `trivial`/`bounded`/`long_running` profile. Scientific cases bind the exact synthetic oracle, grader versions, seeds/repeats where stochastic, and required independence class. Every row names one fixture revision and one complete variant tuple.
+
+`tools/ars/materialize_p0_fixtures.py` reads `.research-system/evals/catalogue.yaml`, refuses any ID set other than `P0_CASES`, validates that every required variant has one explicit matrix row, and creates each exact package with:
 
 ```text
 fixture.yaml
@@ -484,7 +613,7 @@ Expected: first command creates 37 packages; second reports `37 packages byte-id
 
 Run: `uv run pytest tests/research_system/unit/test_coverage.py -q --no-cov`
 
-Expected: exact ID/count, provenance axes, F-021 staging, and no-overwrite tests pass.
+Expected: exact ID/count, provenance axes, F-021 staging, no-overwrite, calibration-policy, and explicit no-wildcard variant-matrix tests pass.
 
 - [ ] **Step 5: Commit fixture definitions**
 
@@ -501,7 +630,7 @@ Split integration tests by responsibility:
 - adapters/operations: F-007–F-010/F-020/F-032/F-034 and S-003/S-004/S-013;
 - scientific controls: F-011–F-014/F-036.
 
-Each test runs a deliberately defective reference implementation and the controlled candidate implementation against the same immutable fixture input.
+Each deterministic test runs a deliberately defective reference implementation and the controlled candidate implementation twice against the same immutable fixture input. Identical-input normalized decisions must be byte-identical; known-bad behavior must fail twice and known-good behavior must pass twice. A stochastic fixture uses only its own accepted seed/repeat/uncertainty policy. Required M/H evidence remains blocking `unable_to_grade` until a separate accepted live-grader threshold policy and bounded authority exist.
 
 - [ ] **Step 2: Run and confirm calibration is absent**
 
@@ -514,6 +643,10 @@ Expected: calibration records or reference fakes missing.
 Scientific fixtures use synthetic property evidence only:
 
 ```python
+def pass_or_fail(condition):
+    return 'pass' if condition else 'fail'
+
+
 def grade_f011(call_log, expected_fingerprint):
     forbidden = [call for call in call_log if call['operation'] in {'fit', 'fit_transform'}]
     fingerprint_ok = all(
@@ -550,7 +683,7 @@ uv run pytest tests/research_system/integration/test_p0_adapter_operations_fixtu
 uv run pytest tests/research_system/integration/test_p0_scientific_fixtures.py -q --no-cov
 ```
 
-Expected: each known-bad case fails for its intended reason and each known-good case passes; any fixture mismatch is `fixture_error`.
+Expected: each known-bad case fails for its intended reason in both repetitions, each known-good case passes in both repetitions, identical normalized decisions are byte-stable, and any fixture/policy mismatch is `fixture_error`; unavailable required M/H evidence is blocking `unable_to_grade`.
 
 - [ ] **Step 5: Commit calibration evidence**
 
@@ -607,21 +740,32 @@ Expected: integrated evaluation coordinator absent.
 
 ```python
 # research_system/evals/runner.py
+from typing import Protocol
+
 from research_system.evals.errors import FixtureDefinitionError, MissingEvidence, UnableToGrade
 
 
-def run_fixture(fixture, subject, trace_collector, graders):
-    run = start_run(fixture, subject)
+class EvaluationLifecyclePort(Protocol):
+    def start(self, fixture, subject): ...
+    def finish(self, run, trace, results): ...
+    def fixture_error(self, run, error: FixtureDefinitionError): ...
+    def unable_to_grade(self, run, error: Exception): ...
+
+
+def run_fixture(fixture, subject, trace_collector, graders, lifecycle: EvaluationLifecyclePort):
+    run = lifecycle.start(fixture, subject)
     try:
         subject_result = subject.execute(fixture.stimulus)
         trace = trace_collector.complete(run, subject_result)
         results = tuple(grader.grade(fixture, trace, subject_result) for grader in graders)
-        return finish_run(run, trace, results)
+        return lifecycle.finish(run, trace, results)
     except FixtureDefinitionError as exc:
-        return fixture_error_run(run, exc)
+        return lifecycle.fixture_error(run, exc)
     except (MissingEvidence, UnableToGrade) as exc:
-        return unable_to_grade_run(run, exc)
+        return lifecycle.unable_to_grade(run, exc)
 ```
+
+`EvaluationLifecyclePort` is implemented in `research_system/evals/lifecycle.py`; its contract tests require immutable run identity, terminal trace/result hashes, and closed `fixture_error`/`unable_to_grade` outcomes. The runner has no unowned lifecycle helper. `load_catalogue()` and `load_fixture()` are owned by `research_system/evals/catalogue.py`, used by the materializer and the closure tests through the stable signatures shown in Task 4.
 
 CLI commands:
 
@@ -632,7 +776,7 @@ ars eval run --coverage PATH --transport fake
 ars eval release --evaluation-runs PATH
 ```
 
-All output paths are explicit, date-suffixed, and non-overwriting. `release` validates complete coverage and emits one `ReleaseGateDecision`; it never activates providers, migrates a project, or accepts a research claim.
+All output paths are explicit, date-suffixed, and non-overwriting. `release` validates exact required-result tuple closure, accepted calibration/variant policy, and explicit capability restrictions before emitting one `ReleaseGateDecision`. Missing required M/H threshold/authority remains blocked. S-014/S-015/S-016 remain omitted with Gate 5 restrictions and cannot be converted into P0 pass. `release` never activates providers, migrates a project, initializes a pilot, or accepts a research claim.
 
 - [ ] **Step 4: Run full P0 verification**
 
@@ -656,7 +800,8 @@ Commit subject: `[PIPELINE] P00: complete ARS P0 evaluation harness`.
 
 - [ ] p0-coverage.yaml names exactly 37 cases and explains every catalogue omission.
 - [ ] Every R1/R2 evidence type has an accepted duration, owner, review lead, external payload location, and deletion-verification path; R3 remains prohibited.
-- [ ] Every critical D/T/P and required R/M/H result is non-compensable.
+- [ ] Every critical D/T/P and required R/M/H result is non-compensable, and exact required-result set equality is enforced before verdict evaluation.
+- [ ] Deterministic P0 calibration repeats every known-bad/known-good/mutation case twice; missing stochastic or M/H threshold policy blocks rather than defaults.
 - [ ] F-021 remains P1 while its sizing variant runs at P0 materialization.
 - [ ] No raw UKDA data, secrets, hidden reasoning, or full transcripts enter fixture/trace storage.
 - [ ] Model/human grader requirements are satisfied by independent evidence or remain blocking `unable_to_grade`.

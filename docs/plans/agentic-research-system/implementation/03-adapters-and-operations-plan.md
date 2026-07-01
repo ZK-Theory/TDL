@@ -92,6 +92,14 @@ def test_critical_control_missing_from_codex_blocks_parity():
     }
 
 
+def test_missing_required_provider_cannot_pass_parity():
+    report = build_parity_report(
+        _bundle(), [_Manifest('claude', {'no-shell': 'supported'})]
+    )
+    assert report['passed'] is False
+    assert report['rows'][0]['providers']['codex'] == 'unsupported'
+
+
 def test_richer_destination_is_not_overwritten_by_poorer_projection():
     existing = {'owner': 'human', 'semantic_controls': ['no-shell', 'extra-review']}
     assert projection_disposition(existing, _bundle()) == 'divergent'
@@ -138,13 +146,21 @@ class CanonicalPolicyBundle:
 
 ```python
 # research_system/adapters/parity.py
-def build_parity_report(bundle, manifests):
+def build_parity_report(bundle, manifests, required_providers=('claude', 'codex')):
+    by_provider = {}
+    for manifest in manifests:
+        if manifest.provider in by_provider:
+            raise ValueError(f'duplicate provider manifest: {manifest.provider}')
+        by_provider[manifest.provider] = manifest
     rows = []
     blocking = []
     for control in bundle.controls:
         dispositions = {
-            manifest.provider: manifest.disposition(control.control_id)
-            for manifest in manifests
+            provider: (
+                by_provider[provider].disposition(control.control_id)
+                if provider in by_provider else 'unsupported'
+            )
+            for provider in sorted(required_providers)
         }
         rows.append({'control_id': control.control_id, 'providers': dispositions})
         if control.critical and any(
@@ -171,7 +187,7 @@ Commit subject: `[PIPELINE] P00: add ARS canonical policy parity`.
 
 - [ ] **Step 1: Write failing receipt/idempotency tests**
 
-Tests cover exact command revision binding, incomplete receipt, timeout/uncertain completion, duplicate response, cancellation, wrapper-token accounting, and S-013 unauthorized adapter command.
+Tests cover exact command revision binding, incomplete receipt, timeout/uncertain completion, duplicate response, cancellation, wrapper-token accounting, S-013 unauthorized adapter command, and proof that raw stdout/stderr/full transcripts never enter normalized commands, receipts, events, or traces.
 
 - [ ] **Step 2: Run and confirm failure**
 
@@ -244,6 +260,8 @@ windows_requires_git_bash: true
 
 Live enablement is a reviewed local override, never committed. A missing executable, unsupported flag, unclassified wrapper, unknown delivered hash, or incomplete provider identity yields a blocked/incomplete receipt.
 
+TransportResult.stdout and .stderr are ephemeral boundary values. The receipt normalizer extracts only registered semantic fields, hashes and redacted summaries, then discards raw content. Any policy-authorized retained excerpt is written through the external evidence-store contract with a retention class; full transcripts remain prohibited.
+
 - [ ] **Step 4: Verify receipt and wrapper accounting**
 
 Run:
@@ -269,7 +287,7 @@ from types import SimpleNamespace
 import pytest
 
 from research_system.operations.profiles import (
-    OperationalProfile, has_resource_conflict, operational_risk_floor,
+    OperationalProfile, ResourceClaim, has_resource_conflict, operational_risk_floor,
     profile_evidence_dispositions, validate_profile_request,
 )
 
@@ -302,10 +320,23 @@ def test_operational_floor_raises_route_risk_before_selection():
     assert operational_risk_floor(request) == 'R3'
 
 
-def test_hard_resource_conflict_blocks_without_overcommit():
-    requested = {'gpu:0': 'exclusive'}
-    held = {'gpu:0': 'exclusive'}
-    assert has_resource_conflict(requested, held) is True
+@pytest.mark.parametrize(
+    ('requested', 'held', 'capacity', 'expected'),
+    [
+        (ResourceClaim('exclusive', 1), ResourceClaim('exclusive', 1), 1, True),
+        (ResourceClaim('exclusive', 1), ResourceClaim('read_shared', 1), 1, True),
+        (ResourceClaim('read_shared', 1), ResourceClaim('exclusive', 1), 1, True),
+        (ResourceClaim('read_shared', 1), ResourceClaim('read_shared', 1), 1, False),
+        (ResourceClaim('capacity_shared', 4), ResourceClaim('capacity_shared', 5), 10, False),
+        (ResourceClaim('capacity_shared', 6), ResourceClaim('capacity_shared', 5), 10, True),
+        (ResourceClaim('read_shared', 1), ResourceClaim('capacity_shared', 1), 10, True),
+        (ResourceClaim('capacity_shared', 1), ResourceClaim('read_shared', 1), 10, True),
+    ],
+)
+def test_resource_conflict_matrix_is_symmetric(requested, held, capacity, expected):
+    assert has_resource_conflict(
+        {'gpu:0': requested}, {'gpu:0': held}, {'gpu:0': capacity}
+    ) is expected
 ```
 
 - [ ] **Step 2: Run and confirm failure**
@@ -319,6 +350,18 @@ Expected: operations policy absent.
 ```python
 # research_system/operations/profiles.py
 from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ResourceClaim:
+    mode: str
+    units: int
+
+    def __post_init__(self):
+        if self.mode not in {'exclusive', 'capacity_shared', 'read_shared'}:
+            raise ValueError('unknown_resource_mode')
+        if self.units <= 0:
+            raise ValueError('resource_units_must_be_positive')
 
 
 @dataclass(frozen=True)
@@ -378,11 +421,28 @@ def operational_risk_floor(request):
     return max_risk(['R0', *raises])
 
 
-def has_resource_conflict(requested, held):
-    return any(key in held and mode == 'exclusive' for key, mode in requested.items())
+def has_resource_conflict(requested, held, capacities):
+    for key, requested_claim in requested.items():
+        held_claim = held.get(key)
+        if held_claim is None:
+            continue
+        modes = {requested_claim.mode, held_claim.mode}
+        if 'exclusive' in modes:
+            return True
+        if modes == {'read_shared'}:
+            continue
+        if modes == {'capacity_shared'}:
+            capacity = capacities.get(key)
+            if capacity is None:
+                return True
+            if requested_claim.units + held_claim.units > capacity:
+                return True
+            continue
+        return True
+    return False
 ```
 
-Resource conflict evaluation operates on typed keys and returns `resource_conflict`; it never silently reduces requested resources or widens a grant.
+Resource conflict evaluation operates on typed keys and all three W8 modes. `capacity_shared` claims are compatible only when their summed units fit the registered capacity; mixed `read_shared`/`capacity_shared` claims fail closed unless a later accepted compatibility rule says otherwise. The predicate returns `resource_conflict`; it never silently reduces requested resources or widens a grant.
 
 - [ ] **Step 4: Run profile tests**
 
@@ -475,20 +535,57 @@ Expected: integrated issue coordinator absent.
 
 ```python
 # research_system/operations/coordinator.py
-def issue_prepared_dispatch(prepared, adapter, operations):
+from typing import Protocol
+
+
+class AdapterIssuePort(Protocol):
+    def load_evidence(self, evidence_id: str, content_hash: str): ...
+    def revalidate(self, route, context, provider_evidence): ...
+    def build_command(self, prepared, grant, lease, revalidated): ...
+    def record_issue_command(self, provider_command): ...
+    def issue(self, provider_command, issued_receipt): ...
+
+
+class OperationsIssuePort(Protocol):
+    def build_request(self, prepared, revalidated): ...
+    def request_grant_command(self, request): ...
+    def load_grant(self, grant_receipt): ...
+    def claim_lease_command(self, grant, attempt_id: str): ...
+    def load_lease(self, lease_receipt): ...
+    def record_provider_receipt_command(self, lease, provider_receipt): ...
+
+
+class CommandServicePort(Protocol):
+    def submit(self, command): ...
+
+
+def issue_prepared_dispatch(
+    prepared, adapter: AdapterIssuePort,
+    operations: OperationsIssuePort, command_service: CommandServicePort,
+):
+    provider_evidence = adapter.load_evidence(
+        prepared.provider_evidence_id, prepared.provider_evidence_hash
+    )
     revalidated = adapter.revalidate(
-        prepared.route, prepared.context, prepared.provider_evidence
+        prepared.route, prepared.context, provider_evidence
     )
     request = operations.build_request(prepared, revalidated)
-    grant = operations.grant(request)
-    lease = operations.claim_lease(grant, prepared.attempt_id)
-    command = adapter.build_command(prepared, grant, lease, revalidated)
-    receipt = adapter.issue(command)
-    operations.close_or_update_lease(lease, receipt)
-    return command, receipt
+    grant_receipt = command_service.submit(operations.request_grant_command(request))
+    grant = operations.load_grant(grant_receipt)
+    lease_receipt = command_service.submit(
+        operations.claim_lease_command(grant, prepared.attempt_id)
+    )
+    lease = operations.load_lease(lease_receipt)
+    provider_command = adapter.build_command(prepared, grant, lease, revalidated)
+    issued_receipt = command_service.submit(adapter.record_issue_command(provider_command))
+    provider_receipt = adapter.issue(provider_command, issued_receipt)
+    terminal_receipt = command_service.submit(
+        operations.record_provider_receipt_command(lease, provider_receipt)
+    )
+    return provider_command, provider_receipt, terminal_receipt
 ```
 
-The coordinator submits lifecycle changes through the WP1 command service; it never writes events directly. Any failure returns a typed block/Partial path with no issue.
+The three protocols above are the owned cross-package signatures; contract tests instantiate strict fakes that fail on any extra method or mismatched argument. Every grant, lease, issue, and terminal transition is a typed WP1 command. Adapter/operations helpers construct commands or read committed objects; they never write events directly. Revalidation, evidence hashes, expiry, and attempt identity must match the frozen `PreparedDispatch`. Any failure returns a typed block/Partial path with no provider issue.
 
 - [ ] **Step 4: Run complete WP3 verification**
 

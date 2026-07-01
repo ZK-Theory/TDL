@@ -6,7 +6,7 @@
 
 **Architecture:** A Python package validates tracked JSON Schemas, writes immutable objects before one atomic JSONL event batch, and treats the batch rename as the commit point. Every invocation receives an explicit external control root; pure reducers rebuild disposable projections from the global position/hash chain.
 
-**Tech Stack:** Python 3.13.5, dataclasses, pathlib, hashlib, json, tempfile/os.replace, PyYAML, jsonschema Draft 2020-12, argparse, pytest, ruff.
+**Tech Stack:** Python 3.13.5, dataclasses, pathlib, hashlib, json, secrets/time/uuid, tempfile/os.replace, PyYAML, jsonschema Draft 2020-12, argparse, pytest, ruff.
 
 ---
 
@@ -35,6 +35,7 @@ research_system/projection/__init__.py
 research_system/projection/replay.py
 research_system/cli.py
 .research-system/config/foundation.yaml
+.research-system/config/id-kind-registry.yaml
 .research-system/schemas/core/command.schema.json
 .research-system/schemas/core/event.schema.json
 .research-system/schemas/core/receipt.schema.json
@@ -53,15 +54,18 @@ tests/research_system/integration/test_control_plane_fixtures.py
 
 **Modify:** `pyproject.toml`, `.gitignore`.
 
-## Task 1: Bootstrap package, canonical serialization, and IDs
+## Task 1: Bootstrap package, canonical serialization, and owner-registered UUIDv7 IDs
 
 - [ ] **Step 1: Write failing canonical/ID tests**
 
+Create empty `tests/__init__.py`, `tests/research_system/__init__.py`, and `tests/research_system/factories.py`, then create:
+
 ```python
-# tests/__init__.py
-tests/research_system/__init__.py
-tests/research_system/factories.py
-tests/research_system/unit/test_canonical_ids.py
+# tests/research_system/unit/test_canonical_ids.py
+import uuid
+
+import pytest
+
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.ids import new_id, validate_id
 
@@ -74,10 +78,20 @@ def test_canonical_bytes_are_order_independent():
     assert sha256_hex(left) == sha256_hex(right)
 
 
-def test_ids_are_prefixed_opaque_and_validated():
-    value = new_id('cmd')
-    assert value.startswith('cmd_')
-    assert validate_id(value, 'cmd') == value
+def test_ids_use_registered_owner_prefix_and_uuid7_body():
+    command_id = new_id('command')
+    assert command_id.startswith('cmd_')
+    assert uuid.UUID(command_id.removeprefix('cmd_')).version == 7
+    assert validate_id(command_id, 'command') == command_id
+
+
+def test_wrong_or_unknown_kind_is_rejected():
+    assurance_id = new_id('assurance_requirement')
+    assert assurance_id.startswith('asr_')
+    with pytest.raises(ValueError, match='expected command ID'):
+        validate_id(assurance_id, 'command')
+    with pytest.raises(ValueError, match='unknown ID kind'):
+        new_id('arbitrary_prefix')
 ```
 
 - [ ] **Step 2: Run the tests and confirm the package is absent**
@@ -86,9 +100,9 @@ Run: `uv run pytest tests/research_system/unit/test_canonical_ids.py -q --no-cov
 
 Expected: collection fails with `ModuleNotFoundError: No module named 'research_system'`.
 
-- [ ] **Step 3: Add package metadata and minimal implementation**
+- [ ] **Step 3: Add package metadata, the exact owner-kind registry, and minimal implementation**
 
-Add to `pyproject.toml`:
+Add to the existing `[tool.setuptools.packages.find]` table in `pyproject.toml` rather than creating a second table:
 
 ```toml
 [project.scripts]
@@ -98,7 +112,34 @@ ars = "research_system.cli:main"
 include = ["financial_tda*", "poverty_tda*", "shared*", "trajectory_tda*", "research_system*"]
 ```
 
-Create:
+`.research-system/config/id-kind-registry.yaml` is the tracked authority. It contains every P0 field kind and exact owner prefix. Prefixes are field-scoped: the accepted W4 and W8 catalogues both use `rrq`, so callers must validate against the expected kind and schema rather than infer kind from prefix alone. No arbitrary-prefix constructor is exposed.
+
+```yaml
+schema_version: '1.0.0'
+kinds:
+  project: prj
+  task: tsk
+  command: cmd
+  event_batch: txb
+  event: evt
+  dispatch: dsp
+  attempt: att
+  authority_grant: agr
+  actor: act
+  context: ctx
+  assurance_requirement: asr
+  route_request: rrq
+  route_decision: rte
+  routing_evidence_snapshot: res
+  resource_request: rrq
+  resource_grant: rgr
+  execution_lease: els
+  provider_command: pcmd
+  provider_receipt: prcp
+  trace: trc
+  grader_result: grr
+  evaluation_run: run
+```
 
 ```python
 # research_system/canonical.py
@@ -123,43 +164,57 @@ def sha256_hex(data: bytes) -> str:
 # research_system/ids.py
 from __future__ import annotations
 
-import re
+import secrets
+import time
 import uuid
-
-_ID = re.compile(r'^(?P<prefix>[a-z][a-z0-9]*)_(?P<body>[0-9a-f]{32})$')
-
-
-def new_id(prefix: str) -> str:
-    if not re.fullmatch(r'[a-z][a-z0-9]*', prefix):
-        raise ValueError(f'invalid ID prefix: {prefix!r}')
-    return f'{prefix}_{uuid.uuid4().hex}'
+from collections.abc import Mapping
 
 
-def validate_id(value: str, prefix: str) -> str:
-    match = _ID.fullmatch(value)
-    if match is None or match.group('prefix') != prefix:
-        raise ValueError(f'expected {prefix}_ ID, got {value!r}')
-    return value
+def _uuid7(now_ms: int | None = None) -> uuid.UUID:
+    timestamp_ms = time.time_ns() // 1_000_000 if now_ms is None else now_ms
+    if not 0 <= timestamp_ms < 1 << 48:
+        raise ValueError('UUIDv7 timestamp is outside 48-bit range')
+    value = (
+        (timestamp_ms << 80)
+        | (0x7 << 76)
+        | (secrets.randbits(12) << 64)
+        | (0b10 << 62)
+        | secrets.randbits(62)
+    )
+    return uuid.UUID(int=value)
+
+
+class IdRegistry:
+    def __init__(self, kind_prefixes: Mapping[str, str]):
+        self._kind_prefixes = dict(kind_prefixes)
+
+    def new(self, kind: str) -> str:
+        try:
+            prefix = self._kind_prefixes[kind]
+        except KeyError as exc:
+            raise ValueError(f'unknown ID kind: {kind}') from exc
+        return f'{prefix}_{_uuid7()}'
+
+    def validate(self, value: str, kind: str) -> str:
+        try:
+            prefix = self._kind_prefixes[kind]
+        except KeyError as exc:
+            raise ValueError(f'unknown ID kind: {kind}') from exc
+        marker = f'{prefix}_'
+        if not value.startswith(marker):
+            raise ValueError(f'expected {kind} ID with {marker} prefix')
+        try:
+            body = uuid.UUID(value.removeprefix(marker))
+        except ValueError as exc:
+            raise ValueError(f'expected {kind} ID with UUID body') from exc
+        if body.version != 7 or body.variant != uuid.RFC_4122:
+            raise ValueError(f'expected {kind} ID with UUIDv7 body')
+        return value
 ```
 
-Create empty `__init__.py` files and define typed exceptions in `research_system/errors.py`:
+`new_id()` and `validate_id()` are thin module-level delegates to one registry loaded from `id-kind-registry.yaml`. Loading fails on an unknown owner field, malformed prefix, duplicate kind, or a plan/schema kind missing from the registry. A prefix shared by two accepted field kinds is allowed only because validation always receives the expected field kind.
 
-```python
-class ArsError(Exception):
-    pass
-
-
-class SchemaError(ArsError):
-    pass
-
-
-class ConflictError(ArsError):
-    pass
-
-
-class IntegrityError(ArsError):
-    pass
-```
+Create empty package `__init__.py` files and typed exceptions in `research_system/errors.py`.
 
 - [ ] **Step 4: Run targeted tests and lint**
 
@@ -167,25 +222,14 @@ Run:
 
 ```powershell
 uv run pytest tests/research_system/unit/test_canonical_ids.py -q --no-cov
-uv run ruff check research_system tests/__init__.py
-tests/research_system/__init__.py
-tests/research_system/factories.py
-tests/research_system/unit/test_canonical_ids.py
+uv run ruff check research_system tests/__init__.py tests/research_system/__init__.py tests/research_system/factories.py tests/research_system/unit/test_canonical_ids.py
 ```
 
-Expected: 2 tests pass; ruff exits 0.
+Expected: 3 tests pass; ruff exits 0.
 
 - [ ] **Step 5: Commit the bootstrap**
 
-```powershell
-git add pyproject.toml research_system tests/__init__.py
-tests/research_system/__init__.py
-tests/research_system/factories.py
-tests/research_system/unit/test_canonical_ids.py
-[IO.File]::WriteAllLines('C:\tmp\ars-p0-wp1-bootstrap.txt', @('[PIPELINE] P00: scaffold ARS foundation package', '', 'Adds canonical serialization, opaque IDs, and the ars entry point.'))
-git commit -F C:\tmp\ars-p0-wp1-bootstrap.txt
-```
-
+Stage only `pyproject.toml`, `research_system`, `.research-system/config/id-kind-registry.yaml`, and the named tests. Use subject `[PIPELINE] P00: scaffold ARS foundation package` in a task-specific message file and commit with `git commit -F`.
 ## Task 2: Add tracked schema registry and project configuration
 
 - [ ] **Step 1: Write failing schema-registry tests**
@@ -280,7 +324,8 @@ class SchemaRegistry:
 
 ```yaml
 schema_version: '1.0.0'
-project_template_id: prj_ars_foundation_p0
+project_template_alias: ars-foundation-p0
+project_id: null
 control_root: null
 control_root_required: true
 endpoint_scheme: local-cli
@@ -318,11 +363,34 @@ from research_system.store.lock import WriterLock
 from research_system.store.objects import write_object
 
 
-def test_control_root_inside_code_root_is_rejected(tmp_path):
+def test_control_root_overlapping_any_registered_worktree_is_rejected(tmp_path):
+    main = tmp_path / 'main'
+    worktree = tmp_path / 'worktree'
+    main.mkdir()
+    worktree.mkdir()
+    with pytest.raises(ArsError, match='disjoint from every code root'):
+        require_external_control_root([main, worktree], worktree / 'control')
+    with pytest.raises(ArsError, match='disjoint from every code root'):
+        require_external_control_root([main, worktree], tmp_path)
+
+
+def test_sibling_external_control_root_is_accepted(tmp_path):
     code_root = tmp_path / 'repo'
+    control_root = tmp_path / 'control'
     code_root.mkdir()
-    with pytest.raises(ArsError, match='outside the code repository'):
-        require_external_control_root(code_root, code_root / 'control')
+    assert require_external_control_root([code_root], control_root) == control_root.resolve()
+
+
+def test_resolved_reparse_parent_overlapping_code_root_is_rejected(tmp_path):
+    code_root = tmp_path / 'repo'
+    linked_parent = tmp_path / 'linked-parent'
+    code_root.mkdir()
+    try:
+        linked_parent.symlink_to(code_root, target_is_directory=True)
+    except OSError:
+        pytest.skip('directory symlink/reparse creation unavailable on this host')
+    with pytest.raises(ArsError, match='disjoint from every code root'):
+        require_external_control_root([code_root], linked_parent / 'control')
 
 
 def test_second_writer_lock_is_rejected(tmp_path):
@@ -377,15 +445,21 @@ from pathlib import Path
 from research_system.errors import ArsError
 
 
-def require_external_control_root(code_root: Path, control_root: Path) -> Path:
-    code = code_root.resolve(strict=True)
-    control = control_root.resolve(strict=False)
-    if control == code or code in control.parents:
-        raise ArsError('control root must be outside the code repository')
+def require_external_control_root(code_roots: list[Path], control_root: Path) -> Path:
+    if not code_roots:
+        raise ArsError('registered code roots required')
+    controls_parent = control_root.parent.resolve(strict=True)
+    control = (controls_parent / control_root.name).resolve(strict=False)
+    codes = [root.resolve(strict=True) for root in code_roots]
+    for code in codes:
+        if control == code or code in control.parents or control in code.parents:
+            raise ArsError('control root must be disjoint from every code root')
     for name in ('objects', 'events', 'manifests', 'receipts', 'snapshots', 'runtime'):
         (control / name).mkdir(parents=True, exist_ok=True)
     return control
 ```
+
+The CLI boundary obtains the complete code-root set from `git worktree list --porcelain`, adds the live main root, rejects malformed or missing registrations, resolves every path through Windows symlink/junction/reparse targets, and passes that immutable set to `require_external_control_root()`. The unit test above attacks a resolved reparse-parent escape; an integration test creates two registered worktrees and verifies both ancestor and descendant overlap rejection.
 
 Writer lock uses exclusive creation and never auto-breaks a stale lock:
 
@@ -518,7 +592,7 @@ class Receipt:
     reason_code: str | None = None
 ```
 
-`CommandService.submit()` performs W2 section 8.2 checks in order, reads the original receipt before allocating a position, acquires the writer lock, rechecks the tail/stream version, writes objects, builds one complete event batch, atomically publishes it, then writes the immutable receipt. Rejected/conflict receipts never enter lifecycle events. `tests/research_system/factories.py` constructs the real ledger/object/receipt/service components under `tmp_path` and builds schema-valid commands; it must not add test-only branches to production classes.
+`CommandService.submit()` performs W2 section 8.2 checks in order, rebuilds the accepted-command/idempotency index from committed events before allocating a position, returns or reconstructs the original accepted receipt when the committed command already exists, acquires the writer lock, rechecks the tail/stream version and accepted-command index, writes objects, builds one complete event batch, atomically publishes it, then writes the immutable receipt. A crash after batch rename and before receipt rename is recovered from committed event fields before any later mutation. Rejected/conflict receipts never enter lifecycle events. `tests/research_system/factories.py` constructs the real ledger/object/receipt/service components under `tmp_path` and builds schema-valid commands; it must not add test-only branches to production classes.
 
 Reducers are pure functions:
 
@@ -560,7 +634,7 @@ Commit subject: `[PIPELINE] P00: implement ARS command and receipt boundary`.
 
 - [ ] **Step 1: Write failing S-008–S-012 tests**
 
-Tests cover incomplete scope rejection, deterministic projection rebuild, unknown major schema fail-closed, writer crash before/after replace, and rejection of a mismatched store identity or worktree-local ledger.
+Tests cover incomplete scope rejection, deterministic projection rebuild, unknown major schema fail-closed, rejection of a mismatched store identity or worktree-local ledger, and fault injection after object write, batch temp fsync, event rename, ledger-tail visibility, receipt temp fsync, and receipt rename. The event-rename/receipt-rename case must reconstruct the byte-identical original receipt from committed events and leave exactly one batch.
 
 - [ ] **Step 2: Run and confirm failure**
 
@@ -616,6 +690,7 @@ Commit subject: `[PIPELINE] P00: complete ARS control-plane replay slice`.
 - [ ] S-001/S-002/S-006/S-008/S-009/S-010/S-011/S-012 are represented by named tests.
 - [ ] F-001–F-005 known-bad and controlled paths are gradeable without active APM state.
 - [ ] Atomic recovery yields zero or one committed batch.
+- [ ] A crash after event rename and before receipt publication reconstructs the original accepted receipt from event-derived idempotency evidence.
 - [ ] Unknown schemas, broken hashes, stale versions, and second writers fail closed.
 - [ ] Deleting projections changes no canonical state.
 - [ ] The control root is explicit and external in every CLI/test path.

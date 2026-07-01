@@ -1,7 +1,7 @@
 # ARS P0 Implementation Plan Suite
 
 **Date:** 2026-07-01<br>
-**Status:** `review_pending`<br>
+**Status:** `review_reconciled_pending_approval`<br>
 **Authority:** P-026/P-030 permit planning only; implementation requires Stephen's approval of the master plan<br>
 **Runtime authority:** None
 
@@ -12,6 +12,8 @@
 3. [Work Package 2 — context, routing, and assurance](02-context-routing-and-assurance-plan.md)
 4. [Work Package 3 — adapters and operations](03-adapters-and-operations-plan.md)
 5. [Work Package 4 — evaluation and P0 fixtures](04-evaluation-and-p0-fixtures-plan.md)
+6. [Adversarial P0 plan review](../reviews/adversarial-p0-plan-suite-review-2026-07-01.md)
+7. [Review reconciliation](../reviews/adversarial-p0-plan-suite-review-reconciliation-2026-07-01.md)
 
 ## Execution rule
 
@@ -21,11 +23,11 @@ Every execution session must use the sub-skill named in the plan header, an isol
 
 ## Review gate
 
-- [ ] File paths and module ownership are coherent across all four plans.
-- [ ] Test names and fixture assignments match the accepted catalogue.
-- [ ] Exact commands are valid for the repository's Python/uv/pytest toolchain.
-- [ ] The 37-case P0 closure and deferred Gate 5 cases are correct.
-- [ ] Stop conditions preserve P-026/P-030 boundaries.
+- [x] File paths, shared interfaces, and module ownership are coherent across all four reconciled plans.
+- [x] Test names and fixture assignments match the accepted catalogue and the WP2/WP3 ownership split.
+- [x] Exact commands are syntactically valid for the repository's Python/uv/pytest toolchain; provider commands remain version-bound and disabled.
+- [x] The 37-case P0 closure and deferred Gate 5 cases are correct.
+- [x] Stop conditions preserve P-026/P-030 boundaries and block unresolved M/H/live-provider policy.
 - [ ] Stephen approves the suite before execution.
 
-**Outcome:** `REVIEW_PENDING — implementation plan suite complete; no code or fixture materialization authorized`.
+**Outcome:** `REVIEW_RECONCILED_PENDING_APPROVAL — required review findings are incorporated; no code or fixture materialization is authorized until Stephen approves the exact scope`.
