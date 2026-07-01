@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-27  
 **Revised:** 2026-07-01<br>
-**Status:** W1–W5 and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 accepted under P-027–P-030; P0 planning is next and implementation remains gated<br>
+**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P0 implementation plan suite written and review pending; implementation remains gated<br>
 **Foundation-development point:** After W3–W5 and foundation-critical W6–W8 gates, without waiting for T1.28  
 **Legacy migration point:** After the relevant APM work reaches reviewed closeout; no current-paper migration  
 **First deployment context:** TDL mathematical and social research  
@@ -552,11 +552,11 @@ The transition should retire these practices:
 
 ## 12. Immediate next action
 
-Gate 3 closed under P-030 after joint adversarial review and reconciliation. W6 v0.3, W7 v0.2, W8 v0.2, and 06c v0.2 are accepted written interfaces. The next sequence is:
+The Gate 4 P0 plan suite is written at `05-p0-materialization-and-foundation-implementation-plan.md` and `implementation/`. It defines four independently testable work packages and a 37-case P0 materialization closure. The next sequence is:
 
-1. write a separately reviewed P0 materialization and narrow-foundation implementation plan;
-2. map every component and implementation step to accepted W1–W8/06c contracts, exact P0 fixture dependencies, deterministic tests, failure behavior, and rollback;
-3. obtain Stephen's explicit approval of the exact P0/foundation scope;
-4. only then create executable fixture, adapter, resource/process, or runtime artefacts.
+1. run a bounded adversarial review of the master plan and four child plans;
+2. reconcile file ownership, dependency order, fixture closure, provider/live-use boundary, and stop conditions;
+3. obtain Stephen's explicit acceptance of the exact implementation scope;
+4. only then create an isolated worktree and execute Work Package 1 through its test/review checkpoint.
 
-No executable P0 evidence, runtime, migration, pilot, or current-paper change is authorized by P-030. T1.28 remains a migration and current-paper boundary, not a successor-planning blocker.
+No executable P0 evidence, `.research-system/` runtime definition tree, control root, adapter, process, migration, pilot, or current-paper change is authorized by the review-pending plan.

@@ -329,6 +329,6 @@ The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, th
 2. accepted W4/W5 v0.2 and reserved F-031–F-038 under P-029;
 3. accepted foundation-critical W6 v0.3, W7 v0.2, W8 v0.2, and 06c v0.2 under P-030;
 4. completed adversarial review and reconciliation of the combined Gate 3 interfaces;
-5. next, a separately reviewed and approved P0 materialization and narrow-foundation implementation plan.
+5. the written review-pending P0 materialization and narrow-foundation plan suite, followed by adversarial review and Stephen's exact-scope approval.
 
-Gate 3 W6–W8/06c is accepted under P-030. Runtime work remains unauthorized until a separate P0 materialization and foundation implementation plan is reviewed and approved. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.
+Gate 3 W6–W8/06c is accepted under P-030. The P0 materialization and foundation implementation plan suite is written and review pending; runtime remains unauthorized until review closes and Stephen approves its exact scope. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.

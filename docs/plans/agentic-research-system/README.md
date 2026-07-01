@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1–W5 and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 accepted under P-027–P-030; P0 planning is next and runtime remains gated<br>
+**Status:** W1–W5 and Gate 3 accepted under P-027–P-030; P0 plan suite written and review pending; runtime remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -23,6 +23,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [02-design-and-deliverables-roadmap.md](02-design-and-deliverables-roadmap.md) | Design work packages, dependencies, review gates, and intended deliverables |
 | [03-decisions-and-open-questions.md](03-decisions-and-open-questions.md) | Accepted directions, assumptions requiring confirmation, and bounded design decisions |
 | [04-parallel-specification-and-foundation-pilot-plan.md](04-parallel-specification-and-foundation-pilot-plan.md) | P-026 parallel lanes, specification sequence, foundation scope, gates, and greenfield pilot boundary |
+| [05-p0-materialization-and-foundation-implementation-plan.md](05-p0-materialization-and-foundation-implementation-plan.md) | Review-pending Gate 4 master plan for the 37-case P0 closure and narrow production-intended foundation |
+| [implementation/README.md](implementation/README.md) | Ordered index for the four independently testable P0 implementation work packages |
 | [transition/W0-legacy-closeout-transition-manifest-2026-06-28.md](transition/W0-legacy-closeout-transition-manifest-2026-06-28.md) | Commit-anchored legacy closeout inventory, no-migration boundary, and eval-fixture shortlist |
 | [transition/W0-legacy-closeout-transition-addendum-2026-06-29.md](transition/W0-legacy-closeout-transition-addendum-2026-06-29.md) | Dated currency update for T1.6, live T1.28 state, legacy bus backport, and A-001/A-002 status |
 | [design/README.md](design/README.md) | Structure and entry criteria for the forthcoming design specifications |
@@ -81,7 +83,7 @@ The recommended path is **evolutionary APM replacement**:
 
 This is preferable to either patching the current mutable files indefinitely or adopting a networked agent framework wholesale.
 
-The approved delivery path is specification → narrow permanent foundation → greenfield paper pilot. W1–W5, the W6 catalogue/addenda, and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 are accepted under P-027–P-030. The next gate is a separately reviewed P0 materialization and narrow-foundation implementation plan; no runtime follows from P-030 alone. T1.28 and the two current papers remain outside that path except as dated evidence sources.
+The approved delivery path is specification → narrow permanent foundation → greenfield paper pilot. W1–W5, the W6 catalogue/addenda, and Gate 3 are accepted under P-027–P-030. The P0 materialization and narrow-foundation implementation plan suite is written and review pending; no runtime follows until Stephen accepts its exact scope. T1.28 and the two current papers remain outside that path except as dated evidence sources.
 
 ## Change discipline
 
