@@ -68,7 +68,10 @@ SUBGROUP_CKPT_DIR = PROJ_ROOT / "results/panel_methodology/fdr/subgroup_checkpoi
 B_DEFAULT = 1000
 SEED = 42
 MARKOV_ORDER = 1
-N_JOBS = 4
+# N_JOBS upgraded 4→12 (2026-07-01): perm-phase OOM concern originated from
+# AGG null-null W2 (200MB cost matrices), not obs-null perm W2. 12 workers safe
+# for remaining USoc subgroups; BHPS + first two USoc subgroups ran at 4.
+N_JOBS = 12
 N_JOBS_AGG = 12  # AGG phase only — infrastructure, not a statistical parameter
 K_MAX = 5
 N_POINTS = 200
@@ -294,6 +297,7 @@ def run_subgroup(
     frozen_models: dict[str, Any],
     B: int = B_DEFAULT,
     force: bool = False,
+    perms_only: bool = False,
 ) -> dict[str, Any]:
     """Run the Markov-1 W2 headline for one (dataset, stratifier, label) subgroup.
 
@@ -361,7 +365,13 @@ def run_subgroup(
         n_jobs_agg=N_JOBS_AGG,
         markov_order=MARKOV_ORDER,
         frozen_models=frozen_models,
+        perms_only=perms_only,
     )
+
+    if perms_only:
+        elapsed = time.perf_counter() - t_start
+        logger.info("[%s] perms-only done in %.1fs (%.2fh)", tag, elapsed, elapsed / 3600)
+        return {}
 
     elapsed = time.perf_counter() - t_start
     logger.info("[%s] headline done in %.1fs (%.2fh)", tag, elapsed, elapsed / 3600)
@@ -483,6 +493,11 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print the subgroup plan and checkpoint status, then exit",
     )
+    parser.add_argument(
+        "--perms-only",
+        action="store_true",
+        help="Run permutation phase only — write perm cache and stop before AGG",
+    )
     return parser.parse_args()
 
 
@@ -556,6 +571,7 @@ def main() -> None:
                     frozen_models=frozen_models,
                     B=args.B,
                     force=args.force,
+                    perms_only=args.perms_only,
                 )
             except Exception:
                 logger.exception("[%s/%s/%s] FAILED — continuing to next subgroup", ds, strat, lbl)

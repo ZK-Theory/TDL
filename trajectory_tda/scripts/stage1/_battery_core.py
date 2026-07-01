@@ -470,6 +470,7 @@ def run_headline_from_embeddings(
     dedup_length_matched: bool = False,
     probe_symmetric_dedup: bool = False,
     probe_pinned_thresh: bool = False,
+    perms_only: bool = False,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
 
@@ -518,6 +519,10 @@ def run_headline_from_embeddings(
             overriding the per-call auto-thresh from a random 500-pt
             subsample. Eliminates observed-vs-null auto-thresh divergence.
             Default False — no behaviour change.
+        perms_only: When True, run permutations, write the perm cache, and
+            return before AGG. Enables batching perms and AGG as separate
+            overnight jobs. If a valid perm cache already exists the call
+            is a no-op. Default False.
 
     Returns:
         Tuple of (result dict ready for JSON dump, per-permutation null_results
@@ -567,6 +572,13 @@ def run_headline_from_embeddings(
             and _perm_cache["metadata"].get("B") == n_permutations
             and _perm_cache["metadata"].get("seed") == seed
         ):
+            if perms_only:
+                logger.info(
+                    "[PHASE %s] perm cache found + perms-only — nothing to do",
+                    label,
+                )
+                write_status(f"PHASE {label} PERMS CACHED", f"B={n_permutations}")
+                return {"perms_only": True, "cached": True}, [], None
             logger.info(
                 "[PHASE %s] perm cache found — recovering AGG only (B=%d, seed=%d)",
                 label,
@@ -731,6 +743,17 @@ def run_headline_from_embeddings(
                 "label": label,
             },
         )
+
+    if perms_only:
+        logger.info(
+            "[PHASE %s] perms-only — cache written, stopping before AGG", label
+        )
+        write_status(f"PHASE {label} PERMS DONE", f"B={n_permutations}")
+        logger.info(
+            "[PHASE %s] TOTAL elapsed %.1fs (perms only)", label, time.time() - t_phase
+        )
+        logger.info("=" * 70)
+        return {"perms_only": True}, null_results, ph_obs
 
     write_status(f"PHASE {label} AGGREGATION", f"perms done in {time.time() - t0:.0f}s")
     out = aggregate_combined(
