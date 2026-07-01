@@ -13,3 +13,7 @@ class SchemaError(ArsError):
 
 class ConflictError(ArsError):
     """Raised when an immutable write or exclusive claim conflicts."""
+
+
+class IntegrityError(ArsError):
+    """Raised when canonical history or a store binding fails verification."""

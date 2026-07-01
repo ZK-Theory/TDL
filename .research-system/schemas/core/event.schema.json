@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://core/event",
   "type": "object",
-  "required": ["event_id", "event_type", "schema_id", "schema_version", "project_id", "stream_id", "stream_version", "global_position", "transaction_id", "transaction_index", "transaction_count", "command_id", "correlation_id", "causation_id", "actor_id", "authority_grant_id", "occurred_at", "recorded_at", "payload", "previous_event_hash", "event_hash"],
+  "required": ["event_id", "event_type", "schema_id", "schema_version", "project_id", "stream_id", "stream_version", "global_position", "transaction_id", "transaction_index", "transaction_count", "command_id", "command_type", "idempotency_key", "command_payload_hash", "correlation_id", "causation_id", "actor_id", "authority_grant_id", "occurred_at", "recorded_at", "payload", "previous_event_hash", "event_hash"],
   "properties": {
     "event_id": {"type": "string", "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "event_type": {"type": "string", "minLength": 1},
@@ -16,6 +16,9 @@
     "transaction_index": {"type": "integer", "minimum": 1},
     "transaction_count": {"type": "integer", "minimum": 1},
     "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "command_type": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "command_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "correlation_id": {"type": "string", "minLength": 1},
     "causation_id": {"type": ["string", "null"]},
     "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},

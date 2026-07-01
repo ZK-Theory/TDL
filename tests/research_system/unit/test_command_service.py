@@ -1,3 +1,4 @@
+import json
 import pytest
 
 from research_system.command.reducers import reduce_task
@@ -106,3 +107,14 @@ def test_task_reducer_is_pure_and_fails_closed():
     assert created == {'task_id': TASK_ID, 'status': 'draft', 'version': 1}
     with pytest.raises(ValueError, match='TaskCreated requires empty stream'):
         reduce_task(created, {'event_type': 'TaskCreated', 'stream_id': TASK_ID})
+
+def test_persisted_receipt_matches_frozen_schema(tmp_path):
+    harness = control_plane(tmp_path)
+    command = create_task_command(CMD_CREATE, 'receipt-schema', TASK_ID, {'title': 'A'})
+    harness.service.submit(command)
+    record = json.loads(
+        (harness.receipts.receipts_root / f'{CMD_CREATE}.json').read_text(
+            encoding='utf-8'
+        )
+    )
+    harness.service.schemas.validate('ars://core/receipt', record)

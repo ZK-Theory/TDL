@@ -89,7 +89,9 @@ class EventLedger:
                 handle.write(canonical_bytes(event) + b'\n')
             handle.flush()
             os.fsync(handle.fileno())
+        self._after_batch_fsync(temporary)
         self._publish(temporary, target)
+        self._after_publish(target)
         return {
             'event_batch_id': transaction_id,
             'event_ids': [event['event_id'] for event in events],
@@ -112,6 +114,12 @@ class EventLedger:
                     for line in handle
                     if line.strip()
                 )
+
+    def _after_batch_fsync(self, temporary: Path) -> None:
+        pass
+
+    def _after_publish(self, target: Path) -> None:
+        pass
 
     def _publish(self, source: Path, target: Path) -> None:
         os.replace(source, target)

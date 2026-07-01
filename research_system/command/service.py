@@ -6,6 +6,7 @@ from typing import Any
 from research_system.command.models import Command, Receipt
 from research_system.errors import ArsError, ConflictError
 from research_system.ids import new_id
+from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
@@ -31,6 +32,7 @@ class CommandService:
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         self.schemas.validate('ars://core/command', envelope)
         command = Command(dict(envelope))
+        replay(self.ledger.iter_events())
         existing = self._matching_committed(command)
         if existing is not None:
             return self._return_or_reconstruct(existing)
@@ -38,6 +40,7 @@ class CommandService:
             self.control_root / 'runtime' / 'writer.lock',
             {'command_id': command.command_id},
         ):
+            replay(self.ledger.iter_events())
             existing = self._matching_committed(command)
             if existing is not None:
                 return self._return_or_reconstruct(existing)
