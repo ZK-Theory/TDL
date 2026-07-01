@@ -471,6 +471,7 @@ def run_headline_from_embeddings(
     probe_symmetric_dedup: bool = False,
     probe_pinned_thresh: bool = False,
     perms_only: bool = False,
+    null_do_cocycles: bool = True,
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
 
@@ -523,6 +524,13 @@ def run_headline_from_embeddings(
             return before AGG. Enables batching perms and AGG as separate
             overnight jobs. If a valid perm cache already exists the call
             is a no-op. Default False.
+        null_do_cocycles: Whether ripser computes representative cocycles for
+            each null permutation's PD. Only H0_dgm/H1_dgm scalar diagrams
+            are ever read back from null_results (see _write_perms_cache) —
+            cocycles are provably unused on this path (verified 2026-07-01:
+            disabling them leaves H0/H1 diagrams bit-for-bit identical).
+            Default True preserves existing behaviour for callers that don't
+            opt in; T1.28 passes False.
 
     Returns:
         Tuple of (result dict ready for JSON dump, per-permutation null_results
@@ -712,6 +720,7 @@ def run_headline_from_embeddings(
                 dedup=dedup_length_matched,
                 forced_n_dedup=forced_null_n_dedup,
                 pinned_thresh=pinned_thresh_value,
+                ph_kwargs={"do_cocycles": null_do_cocycles},
             )
             for s in seeds_list
         )

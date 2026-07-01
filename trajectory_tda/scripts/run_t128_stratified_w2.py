@@ -68,10 +68,16 @@ SUBGROUP_CKPT_DIR = PROJ_ROOT / "results/panel_methodology/fdr/subgroup_checkpoi
 B_DEFAULT = 1000
 SEED = 42
 MARKOV_ORDER = 1
-# N_JOBS upgraded 4→12 (2026-07-01): perm-phase OOM concern originated from
-# AGG null-null W2 (200MB cost matrices), not obs-null perm W2. 12 workers safe
-# for remaining USoc subgroups; BHPS + first two USoc subgroups ran at 4.
-N_JOBS = 12
+# N_JOBS reverted 12→4 (2026-07-01): the 4→12 upgrade assumed the perm phase
+# was CPU-core-bound (safe because it isn't AGG's null-null cost-matrix path).
+# A live test flight + isolated benchmark falsified that: per-task latency at
+# n_jobs=12 was ~6.4x the solo-call cost vs ~2.4x at n_jobs=4 (reconstructed
+# from batch-log elapsed*n_jobs/tasks_done), with system CPU at only ~26% and
+# 4.3GB/32GB RAM free — the signature of memory-bandwidth/cache contention
+# scaling worse with worker count, not a core-count ceiling. 4 is the
+# known-good throughput; see the giotto-ph/giotto-tda feasibility spike for
+# the actual fix under investigation.
+N_JOBS = 4
 N_JOBS_AGG = 12  # AGG phase only — infrastructure, not a statistical parameter
 K_MAX = 5
 N_POINTS = 200
@@ -366,6 +372,7 @@ def run_subgroup(
         markov_order=MARKOV_ORDER,
         frozen_models=frozen_models,
         perms_only=perms_only,
+        null_do_cocycles=False,
     )
 
     if perms_only:
