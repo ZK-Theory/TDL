@@ -1,7 +1,7 @@
 # Design and Deliverables Roadmap
 
 **Purpose:** Decompose the transition into independently reviewable design products before implementation.  
-**Revised:** 2026-06-30  
+**Revised:** 2026-07-01<br>
 **Current programme decision:** P-026 authorizes a parallel specification → narrow foundation → greenfield pilot lane while T1.28 remains legacy-owned.
 
 ## 1. Delivery model
@@ -139,7 +139,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-06-30):** The W6 v0.2 initial 40-fixture catalogue passed under P-027; P-028 addendum 06a reserves F-025–F-030; P-029 addendum 06b reserves F-031–F-038. Executable schemas, calibration, thresholds, tooling, closure sizing, and retention remain deferred pending the foundation-critical W6/W7/W8 interfaces.
+**Current status (2026-07-01):** The W6 catalogue and F-025–F-038 reservations remain accepted under P-027–P-029. The v0.3 executable-interface extension is written and joint Gate 3 review pending. It defines contracts, threshold-policy ownership, retention classes, failure semantics, and release decisions; no fixture has been materialized or executed.
 
 **Must define:**
 
@@ -155,6 +155,8 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 **Review gate:** At least one fixture exists for every material failure class in the evidence register, with expected pre-control failure and post-control success.
 
 ### W7 — Runtime adapter and policy-parity specification
+
+**Current status (2026-07-01):** Revision 0.1 is written and joint Gate 3 review pending. It defines canonical policy bundles, adapter capabilities, provider commands/receipts, semantic parity, and upgrade decisions without implementing provider adapters.
 
 **Purpose:** End manual Claude/Codex policy drift.
 
@@ -172,6 +174,8 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 **Review gate:** Removing a safeguard from one runtime requires an explicit canonical change and failing parity evidence.
 
 ### W8 — Resource, checkpoint, and operations specification
+
+**Current status (2026-07-01):** Revision 0.1 is written and joint Gate 3 review pending. It defines grants, leases, process identity, heartbeats, checkpoints, stop/resume, recovery, backups, and operator evidence without implementing a runtime.
 
 **Purpose:** Represent machine ownership and long-running state mechanically.
 
@@ -323,8 +327,8 @@ The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, th
 
 1. accepted W3 context, memory, and retrieval under P-028;
 2. accepted W4/W5 v0.2 and reserved F-031–F-038 under P-029;
-3. the foundation-critical W6 fixture, W7 adapter, and W8 operations slices, including executable F-025–F-030 evidence;
-4. a bounded adversarial review of the combined foundation interfaces;
-5. a separately approved implementation plan for the narrow production-intended foundation.
+3. the written foundation-critical W6 v0.3, W7 v0.1, W8 v0.1, and 06c interface set;
+4. a bounded adversarial review and reconciliation of the combined Gate 3 interfaces;
+5. after acceptance, a separately approved P0 materialization and narrow-foundation implementation plan.
 
-Runtime work remains unauthorized until W3–W5, foundation-critical W6–W8, and the separately approved implementation-plan gate are complete. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.
+Runtime work remains unauthorized until the joint Gate 3 review accepts W6–W8/06c and a separate P0 materialization and foundation implementation plan is approved. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.

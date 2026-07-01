@@ -1,8 +1,8 @@
 # Agentic Research System — Master Transition Plan
 
 **Date:** 2026-06-27  
-**Revised:** 2026-06-30  
-**Status:** W1–W5 accepted; foundation-critical W6/W7/W8 interface work is next; implementation remains gated<br>
+**Revised:** 2026-07-01<br>
+**Status:** W1–W5 accepted; foundation-critical W6 v0.3/W7 v0.1/W8 v0.1 and 06c are written for joint Gate 3 review; implementation remains gated<br>
 **Foundation-development point:** After W3–W5 and foundation-critical W6–W8 gates, without waiting for T1.28  
 **Legacy migration point:** After the relevant APM work reaches reviewed closeout; no current-paper migration  
 **First deployment context:** TDL mathematical and social research  
@@ -552,11 +552,11 @@ The transition should retire these practices:
 
 ## 12. Immediate next action
 
-The first specification pass is accepted through W5 under P-027–P-029, and W6 addenda 06a/06b reserve F-025–F-038. Under P-026/P-028/P-029, the next sequence is:
+The first specification pass is accepted through W5 under P-027–P-029, and W6 addenda 06a/06b reserve F-025–F-038. The foundation-critical W6 v0.3, W7 v0.1, W8 v0.1, and 06c interface drafts are now written. The next sequence is:
 
-1. freeze the foundation-critical W6 fixture, W7 adapter, and W8 operations slices, including calibrated P0 executable evidence;
-2. run the bounded combined-interface review;
-3. produce a separately reviewed implementation plan for the narrow production-intended foundation;
-4. build and evaluate the foundation before selecting the first post-APM paper as its greenfield pilot.
+1. run a bounded joint adversarial review of the four Gate 3 documents;
+2. reconcile and accept or revise their shared identity, ordering, failure, retention, and evidence boundaries;
+3. only after acceptance, produce a separate P0 materialization and foundation implementation plan;
+4. obtain Stephen's explicit approval of that plan before creating runtime, fixture, adapter, or process artefacts.
 
-T1.28 closeout continues independently and triggers a dated reconciliation when its terminal evidence exists. It does not authorize migration and does not pause this design sequence.
+No P0 evidence has been executed or claimed in this specification pass. T1.28 remains a migration and current-paper boundary, not a successor-design blocker.

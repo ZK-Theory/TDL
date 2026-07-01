@@ -1,11 +1,11 @@
-# W6 — Initial Evaluation Fixture Catalogue
+# W6 — Evaluation, Observability, and Audit Specification
 
 **Date:** 2026-06-28  
-**Revised:** 2026-06-30<br>
-**Status:** Initial 40-fixture catalogue accepted under P-027; F-025–F-030 reservation accepted under P-028; executable W6 design remains deferred<br>
-**Specification version:** 0.2 plus dated W3 retrieval-fixture addendum<br>
-**Pass scope:** First specification pass and accepted W3 reservation only; not the complete W6 observability/audit design<br>
-**Design authority:** W0 manifest/addendum, accepted W1/W2/W3 specifications, adversarial-review reconciliations, D-001–D-008, and approved amendments P-020–P-028<br>
+**Revised:** 2026-07-01<br>
+**Status:** Accepted catalogue and F-025–F-038 reservations retained; v0.3 executable-interface extension is joint Gate 3 review pending<br>
+**Specification version:** 0.3 draft interface extension plus accepted catalogue/addenda 06a/06b<br>
+**Pass scope:** Full 54-fixture/scenario catalogue and reservation surface, plus the foundation-critical evaluation interface; specifications only, no executable evidence or materialization<br>
+**Design authority:** W0 manifest/addendum, accepted W1–W5 specifications, adversarial-review reconciliations, D-001–D-008, and approved amendments P-020–P-029<br>
 **Implementation authority:** None; no executable fixtures, graders, traces, or `.research-system/` directories are created  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -20,11 +20,11 @@ This document freezes the initial regression corpus for the Agentic Research Sys
 - priority and release-gate rules;
 - calibration and false-positive review requirements.
 
-It deliberately does not finalize executable schemas, retention periods, metric thresholds, grader prompts, or CI/runtime tooling. Those require W3–W5 context, routing, and assurance interfaces plus W7/W8 adapter and operations detail.
+The accepted catalogue and reservations remain unchanged as historical decisions. This v0.3 extension now defines the executable-interface contracts, failure semantics, threshold-policy ownership, and Gate 3 evidence boundary needed to review W6 together with W7 and W8. It does not create fixture files, run calibrations, choose permissive universal thresholds, or authorize CI/runtime tooling.
 
 **Initial outcome:** `ACCEPTED_CATALOGUE — 40-fixture revised catalogue passed review; executable W6 design deferred`.
 
-The dated addendum `06a-w3-retrieval-fixture-addendum-2026-06-30.md` separately reserves F-025–F-030 under P-028. It does not rewrite the P-027 catalogue or materialize executable fixtures.
+The dated addendum `06a-w3-retrieval-fixture-addendum-2026-06-30.md` reserves F-025–F-030 under P-028, and `06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md` reserves F-031–F-038 under P-029. Neither addendum rewrites the P-027 catalogue or materializes executable fixtures.
 
 ## 2. Governing principles
 
@@ -328,20 +328,22 @@ False positives and negatives create fixture-review records. A fixture is quaran
 
 ## 14. Materialization sequence
 
-After W3–W5 interfaces are available, executable W6 work should proceed:
+Materialization is not part of this specification pass. It may begin only after the joint Gate 3 review accepts W6 v0.3, W7 v0.1, W8 v0.1, and the 06c interface manifest, and Stephen separately approves a P0 implementation plan.
 
-1. define fixture, trace, predicate, grader-result, and coverage-manifest schemas;
-2. materialize P0 coordination/store fixtures F-001–F-005/F-022 and S-001–S-002/S-006/S-008/S-010–S-013;
-3. materialize P0 runtime fixtures F-007–F-009 and S-003–S-004/S-009;
-4. materialize P0 scientific fixtures F-010–F-014/F-022 with independent-property and cross-family calibration;
-5. materialize provider parity F-020;
-6. materialize and size P0 W3 retrieval fixtures F-025–F-028 under both token gates after the necessary W4/W7 interfaces exist;
-7. calibrate P0 paired pre/post runs;
-8. materialize P1 F-006/F-015–F-019/F-021/F-023–F-024/F-029–F-030 and S-005/S-007/S-014–S-016 as W3–W8 dependencies permit;
-9. establish model/human calibration and release dashboards;
-10. add domain-general and non-TDA variants before W10 template acceptance.
+That later plan must sequence:
 
-Materialization must not use T1.28 or another active/critical-path research task as an experiment.
+1. schema implementation for the contracts in sections 20–25 and their W7/W8 dependencies;
+2. P0 coordination/store fixtures F-001–F-005/F-022 and S-001–S-002/S-006/S-008/S-010–S-013;
+3. P0 runtime fixtures F-007–F-009 and S-003–S-004/S-009;
+4. P0 scientific fixtures F-010–F-014/F-022 with independent-property and cross-family calibration;
+5. provider parity F-020 and routing/assurance fixtures F-031–F-036;
+6. retrieval fixtures F-025–F-028 under both token gates after their W4/W7 dependencies exist;
+7. paired pre/post calibration and explicit threshold-policy approval;
+8. P1 F-006/F-015–F-019/F-021/F-023–F-024/F-029–F-030/F-037–F-038 and S-005/S-007/S-014–S-016 as dependencies permit;
+9. release reporting, retention enforcement, and operator evidence;
+10. domain-general and non-TDA variants before W10 template acceptance.
+
+The plan must not use T1.28 or another active or critical-path research task as an experiment.
 
 ## 15. Proposed decisions introduced by the initial catalogue
 
@@ -375,14 +377,234 @@ The initial catalogue passed review under P-027. The accepted first-pass criteri
 - [x] T1.28 and all W0 no-migration items remain untouched.
 - [x] Deferred W6 work is explicit and does not masquerade as an executable eval system.
 
-## 17. First specification pass boundary
+## 17. Gate 3 specification boundary
 
-With this initial catalogue, the planned first pass consists of:
+The accepted history remains:
 
-- W0 legacy closeout/transition manifest plus 2026-06-29 addendum: current review-pending Partial boundary;
-- W1 architecture v0.3: accepted under P-027; final T1.28 reconciliation remains a legacy-migration gate;
-- W2 schema/lifecycle v0.3: accepted under P-027;
-- W6 revised 40-fixture catalogue v0.2: accepted under P-027; executable materialization remains deferred;
-- W3 v0.2 and the separate F-025–F-030 reservation: accepted under P-028; executable sizing and fixture evidence remain deferred.
+- W0 legacy closeout/transition manifest plus 2026-06-29 addendum: review-pending Partial boundary;
+- W1/W2 v0.3 and the W6 initial catalogue: accepted under P-027;
+- W3 v0.2 and F-025–F-030 reservation: accepted under P-028;
+- W4/W5 v0.2 and F-031–F-038 reservation: accepted under P-029.
 
-W4 and W5 may proceed across the accepted W3 interface. No implementation plan, migration, or pilot begins until the remaining P-026 specification/interface gates and Stephen's approval of the exact implementation plan.
+The new Gate 3 design set is review pending:
+
+- this W6 v0.3 executable-interface extension;
+- W7 v0.1 runtime adapter and policy-parity specification;
+- W8 v0.1 resource, checkpoint, and operations specification;
+- the dated 06c joint interface manifest.
+
+No P0 fixture materialization, runtime implementation, migration, or pilot begins from these drafts. Joint acceptance must precede a separate, explicit P0 implementation plan.
+
+## 18. Ownership and dependency direction
+
+W6 consumes evidence; it does not dispatch agents, translate provider commands, grant resources, or approve research claims. The foundation-critical flow is:
+
+```text
+W2 command -> W4 route -> W7 provider translation -> W8 operational grant
+           -> trace/evidence -> W6 grading -> W5 assurance
+```
+
+Ownership is non-overlapping:
+
+| Concern | Authoritative owner | W6 use |
+|---|---|---|
+| Command and event identity | W2 | Correlate the evaluated run and reconstruct ordering |
+| Risk, role, model, and independence route | W4 | Verify that the executed route matched the approved route |
+| Canonical policy and provider translation | W7 | Grade semantic parity and retain provider receipts |
+| Resources, leases, process identity, checkpoints, and recovery | W8 | Grade operational behavior from receipts and state transitions |
+| Fixture definitions, traces, grader results, coverage, and release decision | W6 | Own and version the evaluation record |
+| Scientific assurance and claim authority | W5 | Consume W6 evidence without delegating scientific judgment to W6 |
+
+W6 may identify a failed obligation owned by another specification. It must not repair or reinterpret that obligation in the grader.
+
+## 19. Identities and lifecycles
+
+Every evaluation object has a stable identifier and immutable revision. IDs are opaque strings; display names never serve as identity.
+
+| Object | Required identity | Version/currency rule |
+|---|---|---|
+| FixtureDefinition | `fixture_id`, `fixture_revision` | Revision is immutable; supersession points to the replacement |
+| EvaluationRun | `evaluation_run_id` | Binds one subject version, fixture revision, and policy snapshot |
+| TraceEnvelope | `trace_id`, `evaluation_run_id` | Append-only segments share one ordered run identity |
+| GraderResult | `grader_result_id` | Binds grader version and exact subject/trace hashes |
+| CoverageManifest | `coverage_manifest_id` | Immutable declaration of selected and omitted fixtures |
+| ReleaseGateDecision | `release_gate_decision_id` | Attributed decision over one complete evidence set |
+
+Fixture lifecycle remains `candidate -> source_verified -> authored -> calibrated -> active`, with explicit rejected, quarantined, and superseded branches. Evaluation runs use:
+
+```text
+declared -> executing -> evidence_complete -> grading -> decided
+declared/executing/grading -> stopped
+executing/grading -> failed
+```
+
+`evidence_complete` means all required terminal W7 receipts and W8 stop/checkpoint records are present. It does not mean the subject passed. A stopped or failed run can still be graded when the fixture oracle expects that terminal condition.
+
+## 20. `FixtureDefinition`
+
+`FixtureDefinition` is the immutable executable description of one fixture revision. Required fields are:
+
+- identity: `fixture_id`, `fixture_revision`, title, owner, status;
+- classification: incident basis, input fidelity, risk tier, assurance lanes, failure class, `priority`, and `gate_stage`;
+- authority: source manifest, accepted decision references, policy/schema versions, confidentiality, and permitted consumers;
+- setup: initial projections, actor profiles, roots, provider/runtime variants, resource bounds, and immutable input hashes;
+- stimulus: the command, message, tool result, or state perturbation submitted to the system;
+- oracles: pre-control failure, post-control outcome, required and forbidden trajectory, allowed terminal states, and expected stop semantics;
+- graders: required grader IDs/classes, criticality, independence requirements, threshold policy IDs, and evidence selectors;
+- calibration: known-bad and known-good references, mutations, safe variations, and last accepted calibration record;
+- retention: trace/evidence class, expiry or review rule, and redaction policy.
+
+A definition is invalid when it refers to an unversioned policy, mutable external expected answer, unavailable mandatory authority, or undeclared provider/resource variant. Invalid definitions produce `fixture_error`; they cannot be treated as system failures or passes.
+
+## 21. `TraceEnvelope`
+
+`TraceEnvelope` is the minimized, ordered evidence carrier for an evaluation run. It contains:
+
+- `trace_id`, `evaluation_run_id`, fixture and subject identities;
+- W2 command/event IDs and monotonic sequence positions;
+- W4 route decision and immutable routing-evidence snapshot references;
+- W7 canonical-policy version, provider command IDs, provider receipt IDs, and adapter manifest version;
+- W8 resource grant, lease, process, heartbeat, checkpoint, stop/resume, recovery, and backup receipt IDs;
+- tool/action records with actor, authority, timestamps, normalized arguments or redacted hashes, result class, and causal parent;
+- artefact, review, rule-evaluation, decision, and claim references;
+- trace completeness declaration, missing segment list, clock source, ordering method, redaction record, and content hashes.
+
+The envelope excludes secrets, raw restricted data, full provider transcripts, and hidden reasoning. Provider-native payloads are retained only as minimized, policy-authorized evidence or hashes. Ordering relies on canonical W2 sequence and causal links; wall-clock timestamps are diagnostic only.
+
+A trace is complete only when every evidence item required by the fixture and every issued provider command/resource grant has a terminal receipt or an explicit missing-evidence record. Missing critical evidence returns blocking `unable_to_grade`.
+
+## 22. `GraderResult`
+
+`GraderResult` records one grader's judgment over one immutable subject and evidence set:
+
+- `grader_result_id`, `evaluation_run_id`, fixture/revision, grader ID/class/version;
+- verdict: `pass`, `fail`, `unable_to_grade`, or `fixture_error`;
+- severity and whether the result is non-compensable;
+- subject, trace, oracle, policy, and threshold-policy hashes;
+- evidence selectors and independently recomputed values or bounded arguments;
+- producer/grader family and context relationship where independence matters;
+- limitations, redactions, duration, cost, and attributed execution identity;
+- supersession link when a grader result is replaced after an authorized rerun.
+
+A grader cannot emit pass from producer attestations alone where independent property proof is required. A model grader must declare the compiled context and family relationship. Human results must identify the authority and exact question answered.
+
+## 23. `EvaluationRun`
+
+`EvaluationRun` binds the evaluation transaction:
+
+- run identity, fixture/revision, subject type/version/hash, baseline or candidate role;
+- coverage manifest, policy bundle, route decision, provider/runtime variants, and resource request;
+- start/end sequence positions and lifecycle state;
+- trace envelopes, W7 receipts, W8 operational records, grader results, exceptions, and quarantine references;
+- terminal summary that distinguishes subject failure, expected stop, infrastructure failure, missing evidence, and fixture defect.
+
+A run never mutates its fixture definition, expected answer, or grader policy. Re-execution creates a new run linked by `supersedes` or `retry_of`. Baseline and candidate runs are distinct even when they share an input package.
+
+## 24. `CoverageManifest`
+
+`CoverageManifest` is the pre-run declaration of what a change must prove. It includes:
+
+- changed component and immutable baseline/candidate versions;
+- affected capabilities, risk tiers, assurance lanes, provider/runtime variants, and declared `gate_stage`;
+- selected fixture revisions and required grader sets;
+- omitted fixtures with deterministic applicability reason and approving authority where an exception is permitted;
+- required W7 parity and W8 operations scenarios;
+- expected evidence completeness and release-gate policy version.
+
+Coverage selection is derived from the change-gate table and dependency manifests. The evaluated producer cannot silently narrow its own coverage. An unexplained omission, stale fixture revision, or missing affected capability makes the manifest invalid and blocks release.
+## 25. `ReleaseGateDecision`
+
+`ReleaseGateDecision` is the attributed, non-aggregated conclusion over a complete coverage manifest. It records:
+
+- decision ID, coverage manifest, baseline/candidate identities, and evidence snapshot hash;
+- every required fixture and grader verdict, with critical failures listed separately;
+- W7 policy-parity status and W8 operational-evidence status;
+- decision: `pass`, `fail`, `blocked`, or `exception_limited`;
+- exception scope, expiry, disabled/constrained capability, rationale, and human authority;
+- decision timestamp, canonical W2 event reference, and supersession relationship.
+
+`pass` requires all applicable non-compensable obligations to pass. `blocked` is required for missing evidence, unavailable required independence, invalid coverage, or unresolved fixture error. `exception_limited` is never equivalent to pass and is available only when an accepted policy permits an explicit, time-bounded exception while the affected capability is disabled or constrained. No weighted score can override a critical D/T/P or required R/M/H result.
+
+## 26. `priority` and `gate_stage` are independent
+
+`priority` preserves the accepted catalogue classification:
+
+- `P0`: first-release blocker for the capability to which the fixture applies;
+- `P1`: required before the relevant research pilot promotes evidence or claims.
+
+`gate_stage` identifies the earliest programme gate at which the fixture or scenario provides required evidence. It does not relabel priority. Allowed values are versioned programme stages such as `interface_review`, `p0_materialization`, `foundation_release`, and `pilot_promotion`.
+
+Therefore S-001–S-010 may be required as early interface evidence without being reclassified from their accepted priority. A fixture can be P1 and still be selected at `interface_review` to prove a shared contract; a P0 fixture can remain unexecutable until `p0_materialization` when the reviewed plan supplies its dependencies. Coverage and release logic must inspect both fields.
+
+## 27. Calibration and threshold-policy ownership
+
+Every numeric or qualitative threshold is referenced by an immutable `threshold_policy_id` and version. W6 defines how threshold evidence is bound; it does not install one permissive universal default.
+
+A threshold policy must state:
+
+- metric definition, units, population/variant scope, direction, and aggregation rule;
+- calibration corpus and version, known-bad/known-good separation, and uncertainty;
+- false-positive/false-negative tradeoff and non-compensable floor;
+- approving authority, effective date, expiry/review date, and supersession;
+- behavior for missing, non-finite, incomparable, or out-of-domain measurements.
+
+Missing required thresholds or calibration records block activation and return `fixture_error` for a defective fixture definition or `unable_to_grade` for incomplete run evidence. They never default to zero tolerance, infinite tolerance, majority pass, or producer-selected values.
+
+Critical D/T/P graders and required R/M/H graders remain non-compensable. Aggregate operational or model-quality metrics may describe trends only after the required gates are satisfied.
+
+## 28. Retention, minimization, and access
+
+Each evidence field is assigned a retention class:
+
+| Class | Content | Default rule |
+|---|---|---|
+| R0 | IDs, hashes, verdicts, policy versions, minimized deterministic evidence | Retain with the accepted decision and provenance record |
+| R1 | Redacted command/tool summaries, operational measurements, grader explanations | Retain for the declared audit window, then review or delete |
+| R2 | Restricted local references or minimized sensitive excerpts | Keep only in an authorized local store with explicit consumers and review date |
+| R3 | Secrets, raw restricted data, hidden reasoning, unnecessary full transcripts | Prohibited from fixture and trace storage |
+
+Specific durations are not invented in this draft. The P0 plan must propose durations and deletion verification for each R1/R2 evidence type, and the joint review must accept the ownership boundary. A missing retention class blocks fixture activation.
+
+Access follows least privilege. Model graders receive only the compiled evidence needed for their rubric. Human reviewers receive redacted evidence unless their authority and the fixture explicitly require restricted access. Hashes do not make prohibited content acceptable if the surrounding record can reconstruct it.
+
+## 29. Failure behavior and ordering
+
+Failure handling is deterministic:
+
+1. W2 records the command and W4 route before W7 translation.
+2. W7 rejects unsupported or policy-incomplete translation before W8 allocates resources.
+3. W8 rejects or constrains execution before process start when the grant cannot satisfy declared bounds.
+4. Every issued provider command and operational grant receives a terminal receipt, stop record, or explicit missing-evidence record.
+5. W8 establishes the terminal operational state before W6 declares trace completeness.
+6. W6 grades the immutable evidence and emits results; it never asks the producer to repair the live run.
+7. W5 consumes only decided W6 evidence and retains independent scientific/claim authority.
+
+Required outcome mapping:
+
+| Condition | W6 result | Release effect |
+|---|---|---|
+| Subject violates an oracle with complete evidence | `fail` | Fail applicable gate |
+| Expected hard stop occurs with correct records | `pass` for stop oracle | Does not imply scientific/result success |
+| Required trace/receipt/checkpoint evidence missing | `unable_to_grade` | Block |
+| Fixture oracle/schema/threshold policy defective | `fixture_error` | Quarantine fixture and block affected coverage |
+| Adapter parity failure | Required W7-linked grader `fail` | Fail or disable affected provider capability |
+| Lease/resource/recovery failure | Required W8-linked grader `fail` | Fail or disable affected operational capability |
+
+Retries, resumes, and recovery runs receive new identities and explicit causal links. A later pass does not erase an earlier failure; the release decision states which run is authoritative and why.
+
+## 30. Joint Gate 3 review gate
+
+This v0.3 extension is accepted only through a joint review with W7 v0.1, W8 v0.1, and 06c. Review must establish:
+
+- [ ] Every shared ID has one authoritative owner and consistent version/currency semantics.
+- [ ] The command-to-route-to-provider-to-resource-to-evidence-to-grade-to-assurance flow is complete.
+- [ ] Provider receipts and operational records are sufficient for W6 trace completeness without full transcripts or hidden reasoning.
+- [ ] `priority` is preserved independently from `gate_stage`.
+- [ ] Missing evidence, threshold policy, independence, and fixture defects block rather than silently pass.
+- [ ] Stop, checkpoint, resume, recovery, and backup sequences have deterministic terminal receipts.
+- [ ] Critical D/T/P and required R/M/H failures remain non-compensable.
+- [ ] Retention classes and P0 duration ownership are explicit.
+- [ ] F-025–F-038 dependencies can be materialized without changing accepted W3–W5 semantics.
+- [ ] No draft claims executable evidence, runtime implementation, migration authority, or pilot readiness.
+
+**Draft outcome:** `REVIEW_PENDING - executable W6 interface specified; accepted catalogue/reservations preserved; P0 materialization deferred to a separately approved plan`.

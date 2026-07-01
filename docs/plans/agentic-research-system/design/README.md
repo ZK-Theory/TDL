@@ -21,8 +21,8 @@ A specification may be written when:
 5. `05-research-assurance-and-independent-review.md`
 6. `06-evaluation-observability-and-audit.md`
 7. `07-runtime-adapters-and-policy-parity.md`
-8. `08-migration-compatibility-and-pilot.md`
-9. `09-operations-recovery-and-maintenance.md`
+8. `08-resource-checkpoint-and-operations.md`
+9. `09-migration-compatibility-and-pilot.md`
 10. `10-project-template-and-domain-packs.md`
 
 The filenames define decomposition, not permission to implement. Each specification will pass its own review gate before an implementation plan is produced.
@@ -36,6 +36,9 @@ The filenames define decomposition, not permission to implement. Each specificat
 | [03-context-memory-and-retrieval.md](03-context-memory-and-retrieval.md) | `accepted` | Revision 0.2 passed adversarial review and reconciliation under P-028; shared W4/W5/W7 interface frozen |
 | [04-agent-roles-and-model-routing.md](04-agent-roles-and-model-routing.md) | `accepted` | Revision 0.2 passed joint review and reconciliation under P-029; implementation remains gated |
 | [05-research-assurance-and-independent-review.md](05-research-assurance-and-independent-review.md) | `accepted` | Revision 0.2 passed joint review and reconciliation under P-029; implementation remains gated |
-| [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `accepted_catalogue` | Revision 0.2 initial 40-fixture catalogue passed under P-027; executable design remains deferred |
+| [06-evaluation-observability-and-audit.md](06-evaluation-observability-and-audit.md) | `review_pending` | Accepted catalogue/reservations retained; v0.3 executable-interface extension awaits joint Gate 3 review |
 | [06a-w3-retrieval-fixture-addendum-2026-06-30.md](06a-w3-retrieval-fixture-addendum-2026-06-30.md) | `accepted_reservation` | P-028 reserves F-025–F-030 and closure sizing; executable evidence remains deferred |
 | [06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md](06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md) | `accepted_reservation` | P-029 reserves F-031–F-038; executable evidence remains deferred |
+| [06c-gate3-foundation-critical-interface-manifest-2026-07-01.md](06c-gate3-foundation-critical-interface-manifest-2026-07-01.md) | `review_pending` | Joint ownership, identity, lifecycle, failure, and evidence interface for Gate 3 |
+| [07-runtime-adapters-and-policy-parity.md](07-runtime-adapters-and-policy-parity.md) | `review_pending` | Revision 0.1 defines canonical policy compilation, provider commands/receipts, parity, and upgrades |
+| [08-resource-checkpoint-and-operations.md](08-resource-checkpoint-and-operations.md) | `review_pending` | Revision 0.1 defines grants, leases, checkpoints, stop/resume, recovery, backup, and operator evidence |
