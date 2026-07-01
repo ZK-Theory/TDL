@@ -1,10 +1,10 @@
 # Gate 3 Manifest — Foundation-Critical W6/W7/W8 Interfaces
 
 **Date:** 2026-07-01<br>
-**Status:** Draft complete; joint Gate 3 review pending<br>
-**Manifest version:** 0.1<br>
-**Applies to:** W6 v0.3 draft, W7 v0.1 draft, W8 v0.1 draft, accepted W1–W5 and W6 addenda 06a/06b<br>
-**Design authority:** P-026, P-028, P-029 and Stephen's approved Gate 3 conceptual design<br>
+**Status:** Accepted under P-030 after joint adversarial review and reconciliation<br>
+**Manifest version:** 0.2<br>
+**Applies to:** Accepted W6 v0.3, W7 v0.2, W8 v0.2, W1–W5, and W6 addenda 06a/06b<br>
+**Design authority:** P-026, P-028, P-029, P-030, and Stephen's approved Gate 3 reconciliation<br>
 **Implementation authority:** None; this manifest creates no schemas, fixture packages, graders, adapters, leases, processes, checkpoints, runtime, migration, P0 result, or `.research-system/` state
 
 ## 1. Purpose
@@ -22,33 +22,48 @@ It does not own domain semantics. It records:
 
 ## 2. Deliverable set
 
-| Deliverable | Scope | Status in this pass |
+| Deliverable | Scope | Status after reconciliation |
 |---|---|---|
-| W6 v0.3 | Executable fixture/trace/grader/evaluation/coverage/release interfaces | `review_pending` |
-| W7 v0.1 | Canonical policy, provider adapters, commands/receipts and parity | `review_pending` |
-| W8 v0.1 | Resources, feasibility, leases, processes, checkpoints and recovery | `review_pending` |
-| 06c v0.1 | Shared ownership, ordering, scenarios and freeze criteria | `review_pending` |
-| P0 materialization plan | Exact fixture packages, runner, implementation sequence and calibration | Deferred until written Gate 3 review accepts this set |
+| W6 v0.3 | Executable fixture/trace/grader/evaluation/coverage/release interfaces | `accepted` under P-030 |
+| W7 v0.2 | Canonical policy, provider adapters, commands/receipts and parity | `accepted` under P-030 |
+| W8 v0.2 | Resources, feasibility, leases, processes, checkpoints and recovery | `accepted` under P-030 |
+| 06c v0.2 | Shared ownership, two-stage ordering, scenarios and freeze criteria | `accepted_interface_manifest` under P-030 |
+| P0 materialization plan | Exact fixture packages, runner, implementation sequence and calibration | Next separately reviewed planning gate; not authorized by P-030 |
 
 ## 3. Dependency direction
 
+Gate 3 is a dependency DAG with two-stage W3, W7, and W8 participation; it is not a single-pass pipeline. The authoritative producing flow is:
+
 ```text
-W1/W2 canonical command + event authority
-  -> W3 immutable context candidate and two token gates
-  -> W4 eligible route and verifier-feasibility witness
-  -> W5 accepted assurance requirement
-  -> W7 provider command translation
-  -> W8 resource grant / lease / process / checkpoint evidence
-  -> W7 normalized provider receipt
-  -> W6 trace + graders + coverage + release decision
-  -> W5 assurance/result decision through W2 authority
+W1/W2 Task, command, authority and source position
+  + W5 accepted AssuranceRequirement
+  + W3 compiled context candidate and reference-token gate
+  + W7 current provider/model/adapter/tokenizer/capability/parity evidence
+  + W8 preliminary feasibility and operational-risk floor
+    -> W4 candidate evaluation
+       - candidate-specific W3 provider-capacity gate using W7 exact count
+         or an accepted evaluated upper-bound counter
+       - W8 operational constraints and resource availability
+       - W6 evaluation currency and required verifier feasibility
+    -> W4 RouteDecision plus verifier-route witness
+    -> W7 selected-route pre-issue revalidation
+       - policy/parity/currentness, rendered hash, provider accounting,
+         wrapper/system reserve, and both W3 token gates
+    -> W8 selected-route ResourceGrant and ExecutionLease
+    -> W7 ProviderCommand issue and ProviderReceipt
+    -> W8 process/checkpoint/stop/recovery evidence as applicable
+    -> W6 trace, graders, coverage and ReleaseGateDecision
+    -> W5 assurance/result review through W2 decision authority
+    -> claim candidacy only through the separate P-005 path
 ```
 
-Dependencies may be read in the reverse direction for validation, but authority does not reverse. W6 cannot create provider or operational facts. W7/W8 cannot publish canonical events or fixture verdicts. W5 cannot choose provider/resource routes.
+W5 requirement acceptance, W7 provider evidence, and W8 preliminary risk/feasibility are inputs to W4; they do not follow route selection. W8 grant/lease remains downstream of the selected route. W3 reaches `compiled` after the reference gate, but reaches `validated` only after W4 binds a candidate and W7 supplies an exact count or accepted evaluated upper bound. W7 revalidates the selected route immediately before issue; accepted W3 semantics do not require an exact tokenizer when an evaluated upper-bound counter is the accepted evidence.
+
+Dependencies may be read in reverse for validation, but authority does not reverse. W6 cannot create provider or operational facts. W7/W8 cannot publish canonical events or fixture verdicts. W5 cannot choose provider/resource routes.
 
 ## 4. Shared identity bindings
 
-Every Gate 3 evaluation run binds, where applicable:
+Every Gate 3 evaluation run binds, where applicable, the exact identifiers defined by its owning specification:
 
 ```text
 task_id / task_revision
@@ -56,29 +71,43 @@ command_id / expected_control_position
 dispatch_id / attempt_id / execution_epoch
 assurance_requirement_id / hash
 context_candidate_id / packet_hash / addendum_hashes
-route_decision_id / profile_eval_id / routing_snapshot_id
-canonical_policy_bundle_id / adapter_profile_id
+route_decision_id / model_eval_profile_id / routing_evidence_snapshot_id
+canonical_policy_bundle_id / adapter_profile_id / adapter_capability_id
 provider_command_id / provider_receipt_id
-resource_grant_id / execution_lease_id / process_identity_id
+resource_request_id / resource_grant_id / execution_lease_id / process_identity_id
 checkpoint_manifest_id / stop_record_id / recovery_evidence_id
-fixture_id / revision / evaluation_run_id
-trace_envelope_id / grader_result_ids
+fixture_id / fixture_revision / evaluation_run_id
+trace_id / grader_result_id
 coverage_manifest_id / release_gate_decision_id
 ```
 
-An omitted inapplicable binding is explicit with rationale. A missing applicable binding is incomplete evidence.
+A run may bind multiple `grader_result_id` values, but the field identity remains singular. An omitted inapplicable binding is explicit with rationale. A missing applicable binding is incomplete evidence.
+
+### 4.1 Definition-resolution self-check
+
+| Identity family | Defining owner/section | Consumer rule |
+|---|---|---|
+| Task/command/dispatch/attempt | W2 identity catalogues | 06c never aliases canonical IDs |
+| Assurance requirement | W5 assurance contract | W4/W6/W7 bind exact revision/hash |
+| Context candidate/packet/addendum | W3 context contracts | W4/W7/W6 preserve candidate and content hashes |
+| Route/profile/routing evidence | W4 section 6.1 and route contracts | Consumers use `model_eval_profile_id` and `routing_evidence_snapshot_id` / `res_` |
+| Policy/adapter/provider | W7 section 5 and contracts | Consumers use W7 names without provider-native aliases |
+| Resource/process/checkpoint/recovery | W8 section 5 and contracts | W7/W6 bind W8 IDs, not filenames or PIDs |
+| Fixture/trace/grader/coverage/release | W6 sections 19–25 | Consumers use `trace_id` and `grader_result_id` exactly |
+
+Every binding added to this section must resolve to one defining owner catalogue before interface freeze. A naming mismatch is reconciled to the existing owner; it does not create a second identity.
 
 ## 5. Field ownership matrix
 
 | Field family | Sole semantic owner | Consumers | Prohibited reinterpretation |
 |---|---|---|---|
 | Command/event/state position, idempotency, authority | W2 | W6/W7/W8 | Provider/ops success cannot create state |
-| Context fragments, bytes/hashes, token gates, exclusions | W3 | W6/W7 | Adapter cannot rewrite managed content |
-| Capability/risk route, profile, independence, routing snapshot | W4 | W6/W7/W8 | Cost/availability cannot lower requirements |
+| Context fragments, bytes/hashes, reference-token gate, provider-capacity rule, exclusions | W3 | W4/W6/W7 | Adapter cannot rewrite managed content or redefine the gate |
+| Capability/risk route, profile, independence, routing-evidence snapshot | W4 | W6/W7/W8 | Cost/availability cannot lower requirements |
 | Assurance lanes, proof/review/human gates | W5 | W6/W7 | Adapter/eval cannot drop or compensate |
 | Fixture, trace, grader, coverage, release verdict | W6 | W4/W5/W7/W8 | Producer/provider/ops cannot self-grade |
-| Canonical policy projection, adapter capability, provider command/receipt, parity | W7 | W4/W6/W8 | Receipt cannot decide acceptance |
-| Resource/grant/lease/process/checkpoint/stop/recovery/backup | W8 | W4/W6/W7 | Operational evidence cannot decide science |
+| Canonical policy projection, adapter capability, provider command/receipt, provider tokenizer/count/usable-capacity/wrapper evidence, parity | W7 | W3/W4/W6/W8 | Receipt cannot decide acceptance; count evidence cannot redefine the W3 rule |
+| Preliminary operational-risk floor/feasibility and selected-route resource/grant/lease/process/checkpoint/stop/recovery/backup | W8 | W4/W6/W7 | Operational evidence cannot decide science |
 
 If two documents define the same semantic field differently, the joint gate fails; 06c does not choose a winner silently.
 
@@ -97,18 +126,20 @@ A downstream record is current only when every bound upstream major schema is su
 
 Required order for an R2/R3 producing flow:
 
-1. accepted Task/design/assurance requirement and effective source position;
-2. current W3 context candidate and both token gates;
-3. W4 eligible producer route plus required verifier-route witness;
-4. active W7 policy/adapter capability and parity evidence;
-5. W8 feasibility evidence and compatible resource grant/lease;
-6. W7 provider command issue and normalized receipt;
-7. W8 process/checkpoint/stop/recovery evidence as applicable;
-8. W6 trace completion and non-compensable grader verdicts;
-9. W5 assurance/result review and separate W2 decision;
-10. claim candidacy/promotion only through the separate P-005 path.
+1. accept the W2 Task/design authority and W5 assurance requirement at an effective source position;
+2. compile the W3 candidate, apply the reference-token gate, and preserve it as unissued;
+3. obtain current W7 provider/adapter/capability/parity/tokenizer evidence and W8 preliminary feasibility plus operational-risk floor;
+4. have W4 evaluate each candidate against the W5 requirement, W3 candidate-specific provider-capacity gate, W7 evidence, W8 constraints, W6 currency, and verifier feasibility;
+5. record the W4 RouteDecision and verifier-route witness;
+6. have W7 revalidate the selected route, rendered payload hash, exact-or-evaluated-upper-bound provider count, wrapper/system reserve, policy/parity, and currentness before issue;
+7. obtain the W8 selected-route ResourceGrant and ExecutionLease;
+8. issue the W7 ProviderCommand and retain its normalized ProviderReceipt;
+9. retain W8 process/checkpoint/stop/recovery evidence as applicable;
+10. complete the W6 trace and non-compensable grader verdicts;
+11. complete W5 assurance/result review and a separate W2 decision;
+12. permit claim candidacy/promotion only through the separate P-005 path.
 
-No later success repairs an earlier absent authority. Resume revalidates steps 1–5 and creates a new execution epoch.
+No later success repairs an earlier absent authority. Resume revalidates steps 1–7 and creates a new execution epoch. W7 provider evidence and W8 risk/feasibility appear before W4; W8 grant/lease appears only after route selection.
 
 ## 8. Failure precedence
 
@@ -126,31 +157,38 @@ One subsystem may add a stronger block but cannot downgrade another subsystem's 
 
 ## 9. Priority versus `gate_stage`
 
-W6 v0.3 preserves accepted fixture `priority` and adds an orthogonal planning field:
+W6 v0.3 is the sole owner of the closed `gate_stage` enumeration:
 
 ```text
-gate3_spec_review
-gate3_interface_evidence
-gate5_foundation_release
-pre_pilot
+interface_review
+p0_materialization
+foundation_release
+pilot_promotion
 ```
 
+| Programme point | Canonical `gate_stage` | Meaning |
+|---|---|---|
+| Gate 3 joint written-interface review | `interface_review` | Normative design/scenario evidence; no executable fixture result is implied |
+| After Gate 4 plan approval, during P0 implementation/calibration | `p0_materialization` | First executable fixture/runner/calibration evidence |
+| Gate 5 foundation evaluation | `foundation_release` | Evidence required before the foundation can release |
+| Gate 6 greenfield-pilot preflight and promotion | `pilot_promotion` | Evidence required before pilot evidence/claims may advance |
+
 - `priority` expresses severity/release importance (`P0` or `P1`).
-- `gate_stage` expresses when a fixture/scenario must be materialized and passed.
-- A P1 scenario may be required early to prove an interface seam without becoming P0.
-- A P0 fixture remains non-compensable even if its executable run belongs to Gate 5 because the implemented surface does not yet exist at Gate 3.
+- `gate_stage` expresses the earliest programme point at which the fixture/scenario must provide the applicable evidence.
+- A P1 scenario may be required at `interface_review` as a normative seam proof without becoming P0.
+- A P0 fixture remains non-compensable even when executable evidence begins at `p0_materialization` or `foundation_release`.
 - Any omission from a change gate requires a coverage-manifest rationale and capability restriction; priority is never edited to make a gate pass.
 
-This resolves the initial-catalogue ambiguity where S-001–S-010 appeared in early materialization order without an accepted P0 label.
+The retired draft values `gate3_spec_review`, `gate3_interface_evidence`, `gate5_foundation_release`, and `pre_pilot` are invalid aliases and must not appear in coverage data.
 
 ## 10. Deferred P0 planning rule
 
 This specifications-only pass creates normative examples, not executable fixture packages.
 
-After joint review accepts W6/W7/W8/06c, the P0 implementation plan must:
+With W6/W7/W8/06c accepted under P-030, the separately reviewed P0 implementation plan must:
 
 1. enumerate the exact dependency closure of accepted P0 fixtures for the proposed interface surface;
-2. add any P1/unprioritized scenarios required at `gate3_interface_evidence` without relabeling their priority;
+2. add any P1/unprioritized scenarios required at `p0_materialization` without relabeling their priority; normative `interface_review` scenarios remain design evidence until materialized;
 3. state which cases require a reference simulator versus the later foundation runtime;
 4. define package paths, schemas, graders, commands, calibration samples and expected evidence;
 5. demonstrate pre-control failure and post-control success before activation;
@@ -163,19 +201,23 @@ The plan cannot authorize foundation runtime implementation; that remains Gate 4
 Preconditions:
 
 - accepted R2 assurance requirement with producer-independent scope confirmation;
-- W3 producer/reviewer contexts;
+- W3 producer/reviewer contexts and reference-token gate;
+- current W7 capability/parity/tokenizer evidence and W8 preliminary operational-risk floor/feasibility;
 - producer route and eligible verifier witness;
 - W7 adapter profiles and parity evidence;
 - W8 producer/verifier resource feasibility.
 
 Required trajectory:
 
-1. producer command binds exact context/route/policy/grant;
-2. provider receipt and W8 process evidence bind actual attempt;
-3. produced artefact is immutable and separately referenced;
-4. final verifier route recomputes independence against actual producer;
-5. W6 grades command/receipt/trace/property evidence;
-6. W5 both keys pass before Manager acceptance.
+1. W3 compiles and passes the reference-token gate without claiming provider validation;
+2. W8 supplies the operational-risk floor/feasibility and W7 supplies current provider/tokenizer/parity evidence before W4 routing;
+3. W4 evaluates the candidate-specific provider-capacity gate using an exact count or accepted evaluated upper bound and records the producer route plus verifier witness;
+4. W7 revalidates the selected route, wrapper/system reserve and both token gates before issue;
+5. the provider command binds exact context/route/policy/grant and the receipt/W8 process evidence bind the actual attempt;
+6. the produced artefact is immutable and separately referenced;
+7. the final verifier route recomputes independence against the actual producer;
+8. W6 grades command/receipt/trace/property evidence;
+9. W5 both keys pass before Manager acceptance.
 
 Forbidden: producer self-review, witness-as-final-review, missing receipt, operational success as scientific pass.
 
@@ -244,7 +286,7 @@ Forbidden: convenience upload, secret-bearing trace, opaque “provider handled 
 | Claude/Codex enforce equivalent critical semantics | W7 | Semantic coverage matrix with explicit gaps and non-compensable consequences |
 | Long runs can stop/resume/recover mechanically | W8 | Lifecycle/compatibility review against F-007–F-009 and S-003/S-004/S-009/S-014 |
 | Cross-spec ordering has no temporal inversion | 06c | Scenario sequence and failure-precedence audit |
-| Units are dimensionally coherent | W3/W6/W7/W8 | Separate tokenizer counts; declared time/work/resource units and conversions |
+| Two-stage token/resource evaluation is dimensionally and temporally coherent | W3/W4/W7/W8/06c | W3 reference gate before route; candidate-specific exact/evaluated provider count during W4; W7 pre-issue revalidation including wrapper reserve; W8 risk floor before route and grant/lease after route |
 | P0 is not conflated with materialization stage | W6/06c | Catalogue/plan crosswalk preserving accepted priority |
 | No active research state is used | All | Filesystem diff and no-runtime/no-migration declaration |
 
@@ -252,8 +294,10 @@ Forbidden: convenience upload, secret-bearing trace, opaque “provider handled 
 
 Gate 3 written interfaces may be frozen only when:
 
-- every shared field has one semantic owner and all consumers reference it consistently;
+- every shared field has one semantic owner, resolves to its defining catalogue, and all consumers use the exact identifier;
 - identity/version/hash/currency behavior is explicit;
+- W3 reference/provider gates and W8 floor/grant appear at their distinct evaluation points;
+- W4 consumes accepted W5 requirements plus current W7/W8 inputs before route selection;
 - algorithm ordering matches state-machine ordering;
 - missing/unknown/stale evidence fails closed;
 - W7/W8 provide every field W6 needs without W6 synthesizing facts;
@@ -276,21 +320,21 @@ Gate 3 written interfaces may be frozen only when:
 
 ## 19. Review gate
 
-06c can move from `review_pending` to `accepted_interface_manifest` only when Stephen confirms after bounded joint review that:
+06c moved to `accepted_interface_manifest` after the bounded joint review, technical reconciliation, and Stephen's 2026-07-01 approval confirmed that:
 
-- [ ] W6/W7/W8 responsibilities and dependency direction are non-circular.
-- [ ] Shared IDs/fields have one semantic owner and consistent consumers.
-- [ ] Lifecycle and failure ordering contain no temporal inversion.
-- [ ] Units/tokenizers/resource quantities are dimensionally explicit.
-- [ ] Missing, stale, unknown and unsupported evidence fails closed.
-- [ ] Priority and `gate_stage` cannot weaken each other.
-- [ ] Scenarios A–E are complete enough to drive the P0 plan.
-- [ ] Privacy and restricted-data denial are enforced across all interfaces.
-- [ ] The P0 plan and foundation implementation remain separately gated.
-- [ ] No runtime, migration, fixture materialization, active APM change or research claim is introduced.
+- [x] W6/W7/W8 responsibilities and dependency direction are non-circular.
+- [x] Shared IDs/fields have one semantic owner and consistent consumers.
+- [x] Lifecycle and failure ordering contain no temporal inversion.
+- [x] Units/tokenizers/resource quantities are dimensionally explicit.
+- [x] Missing, stale, unknown and unsupported evidence fails closed.
+- [x] Priority and `gate_stage` cannot weaken each other.
+- [x] Scenarios A–E are complete enough to drive the P0 plan.
+- [x] Privacy and restricted-data denial are enforced across all interfaces.
+- [x] The P0 plan and foundation implementation remain separately gated.
+- [x] No runtime, migration, fixture materialization, active APM change or research claim is introduced.
 
 ## 20. Outcome
 
-**Outcome:** `REVIEW_PENDING — 06c v0.1 binds the foundation-critical W6/W7/W8 interfaces; freeze and P0 planning remain gated`.
+**Outcome:** `ACCEPTED_INTERFACE_MANIFEST — 06c v0.2 closes Gate 3 ordering, identity, ownership, and stage coherence under P-030; runtime and P0 materialization remain separately gated`.
 
-The next action is a bounded joint adversarial review of W6 v0.3, W7 v0.1, W8 v0.1 and this manifest. Only after acceptance should a writing plan specify executable P0 materialization.
+The next action is a separately reviewed P0 materialization and narrow-foundation implementation plan. P-030 itself authorizes no executable fixture, adapter, process, runtime, migration, pilot, or research claim.

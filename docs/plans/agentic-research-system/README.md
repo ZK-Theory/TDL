@@ -1,6 +1,6 @@
 # Agentic Research System Working Folder
 
-**Status:** W1–W5 accepted; W6 v0.3, W7 v0.1, W8 v0.1, and 06c are written for joint Gate 3 review; runtime implementation remains gated<br>
+**Status:** W1–W5 and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 accepted under P-027–P-030; P0 planning is next and runtime remains gated<br>
 **Created:** 2026-06-27  
 **Working title:** Agentic Research System (ARS)  
 **First evidence base:** TDL trajectory-TDA research programme  
@@ -31,12 +31,12 @@ The objective is not to automate research judgment away. It is to make agent act
 | [design/03-context-memory-and-retrieval.md](design/03-context-memory-and-retrieval.md) | W3 immutable context packets/addenda, manifests, hard budgets, retrieval, memory provenance, staleness, and independence inputs |
 | [design/04-agent-roles-and-model-routing.md](design/04-agent-roles-and-model-routing.md) | W4 role profiles, risk, capability evidence, routing, independence, provider support, fallback, and multi-agent refusal |
 | [design/05-research-assurance-and-independent-review.md](design/05-research-assurance-and-independent-review.md) | W5 assurance requirements, domain packs, two-key validity, proof obligations, review, Partial/negative evidence, and claim promotion |
-| [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | W6 accepted catalogue/reservations plus v0.3 executable evaluation interface; joint Gate 3 review pending |
+| [design/06-evaluation-observability-and-audit.md](design/06-evaluation-observability-and-audit.md) | W6 v0.3 executable evaluation interface accepted under P-030; catalogue/reservations retained |
 | [design/06a-w3-retrieval-fixture-addendum-2026-06-30.md](design/06a-w3-retrieval-fixture-addendum-2026-06-30.md) | P-028 reservation of W3 retrieval fixtures F-025–F-030 and mandatory-closure sizing precondition |
 | [design/06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md](design/06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md) | P-029 reservation of W4/W5 routing and assurance fixtures F-031–F-038 |
-| [design/06c-gate3-foundation-critical-interface-manifest-2026-07-01.md](design/06c-gate3-foundation-critical-interface-manifest-2026-07-01.md) | Joint Gate 3 identity, ownership, ordering, failure, and review manifest; review pending |
-| [design/07-runtime-adapters-and-policy-parity.md](design/07-runtime-adapters-and-policy-parity.md) | W7 v0.1 canonical policy, provider adapter, receipt, parity, and upgrade interfaces; review pending |
-| [design/08-resource-checkpoint-and-operations.md](design/08-resource-checkpoint-and-operations.md) | W8 v0.1 resource, lease, checkpoint, stop/resume, recovery, backup, and operator interfaces; review pending |
+| [design/06c-gate3-foundation-critical-interface-manifest-2026-07-01.md](design/06c-gate3-foundation-critical-interface-manifest-2026-07-01.md) | Gate 3 v0.2 identity, ownership, two-stage ordering, failure, and freeze manifest accepted under P-030 |
+| [design/07-runtime-adapters-and-policy-parity.md](design/07-runtime-adapters-and-policy-parity.md) | W7 v0.2 canonical policy, provider adapter, receipt, parity, token-accounting, and upgrade interfaces; accepted under P-030 |
+| [design/08-resource-checkpoint-and-operations.md](design/08-resource-checkpoint-and-operations.md) | W8 v0.2 proportional resources, leases, checkpoints, stop/resume, recovery, backup, and operator interfaces; accepted under P-030 |
 | [reviews/adversarial-first-pass-review-2026-06-29.md](reviews/adversarial-first-pass-review-2026-06-29.md) | Independent review of the plan and W1/W2/W6 first pass; preserved unchanged |
 | [reviews/adversarial-review-reconciliation-2026-06-29.md](reviews/adversarial-review-reconciliation-2026-06-29.md) | Stephen-approved dispositions, evidence-timing reconciliation, and integration authority |
 | [reviews/w1-w2-w6-review-acceptance-2026-06-30.md](reviews/w1-w2-w6-review-acceptance-2026-06-30.md) | Dated acceptance record closing the W1/W2/W6 review gates without authorizing implementation |
@@ -44,6 +44,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-W3-review-reconciliation-2026-06-30.md](reviews/adversarial-W3-review-reconciliation-2026-06-30.md) | Stephen-approved W3 finding dispositions and integration boundary |
 | [reviews/adversarial-W4-W5-review-2026-06-30.md](reviews/adversarial-W4-W5-review-2026-06-30.md) | Independent joint review of W4/W5 v0.1; `accept_with_required_changes` |
 | [reviews/adversarial-W4-W5-review-reconciliation-2026-06-30.md](reviews/adversarial-W4-W5-review-reconciliation-2026-06-30.md) | Stephen-approved W4/W5 v0.2 finding dispositions and P-029 acceptance boundary |
+| [reviews/adversarial-gate3-W6-W7-W8-review-2026-07-01.md](reviews/adversarial-gate3-W6-W7-W8-review-2026-07-01.md) | Joint Gate 3 adversarial review; `accept_with_required_changes` |
+| [reviews/adversarial-gate3-W6-W7-W8-review-reconciliation-2026-07-01.md](reviews/adversarial-gate3-W6-W7-W8-review-reconciliation-2026-07-01.md) | Stephen-approved finding dispositions and P-030 Gate 3 acceptance boundary |
 | [reviews/w3-v0.2-delta-review-2026-06-30.md](reviews/w3-v0.2-delta-review-2026-06-30.md) | Bounded integration check closing the W3 findings and preserving downstream gates |
 
 ## Handover prompts
@@ -79,7 +81,7 @@ The recommended path is **evolutionary APM replacement**:
 
 This is preferable to either patching the current mutable files indefinitely or adopting a networked agent framework wholesale.
 
-The approved delivery path is specification → narrow permanent foundation → greenfield paper pilot. W1–W5, the W6 catalogue, and addenda 06a/06b are accepted under P-027–P-029. The W6 v0.3, W7 v0.1, W8 v0.1, and 06c Gate 3 specifications are now written and review pending. P0 materialization follows only after joint acceptance and a separately approved plan. T1.28 and the two current papers remain outside that path except as dated evidence sources.
+The approved delivery path is specification → narrow permanent foundation → greenfield paper pilot. W1–W5, the W6 catalogue/addenda, and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 are accepted under P-027–P-030. The next gate is a separately reviewed P0 materialization and narrow-foundation implementation plan; no runtime follows from P-030 alone. T1.28 and the two current papers remain outside that path except as dated evidence sources.
 
 ## Change discipline
 

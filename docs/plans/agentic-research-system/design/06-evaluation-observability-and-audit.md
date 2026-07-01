@@ -2,10 +2,10 @@
 
 **Date:** 2026-06-28  
 **Revised:** 2026-07-01<br>
-**Status:** Accepted catalogue and F-025–F-038 reservations retained; v0.3 executable-interface extension is joint Gate 3 review pending<br>
+**Status:** Accepted under P-030; earlier catalogue and F-025–F-038 reservations remain accepted under P-027–P-029<br>
 **Specification version:** 0.3 draft interface extension plus accepted catalogue/addenda 06a/06b<br>
 **Pass scope:** Full 54-fixture/scenario catalogue and reservation surface, plus the foundation-critical evaluation interface; specifications only, no executable evidence or materialization<br>
-**Design authority:** W0 manifest/addendum, accepted W1–W5 specifications, adversarial-review reconciliations, D-001–D-008, and approved amendments P-020–P-029<br>
+**Design authority:** W0 manifest/addendum, accepted W1–W5 specifications, adversarial-review reconciliations, D-001–D-008, and approved amendments P-020–P-030<br>
 **Implementation authority:** None; no executable fixtures, graders, traces, or `.research-system/` directories are created  
 **Review owners:** Stephen and the current research-programme Manager  
 
@@ -328,7 +328,7 @@ False positives and negatives create fixture-review records. A fixture is quaran
 
 ## 14. Materialization sequence
 
-Materialization is not part of this specification pass. It may begin only after the joint Gate 3 review accepts W6 v0.3, W7 v0.1, W8 v0.1, and the 06c interface manifest, and Stephen separately approves a P0 implementation plan.
+Materialization is not part of this specification pass. Gate 3 accepted W6 v0.3, W7 v0.2, W8 v0.2, and 06c v0.2 under P-030; materialization may begin only after Stephen separately approves the P0 materialization and foundation implementation plan.
 
 That later plan must sequence:
 
@@ -386,22 +386,25 @@ The accepted history remains:
 - W3 v0.2 and F-025–F-030 reservation: accepted under P-028;
 - W4/W5 v0.2 and F-031–F-038 reservation: accepted under P-029.
 
-The new Gate 3 design set is review pending:
+Gate 3 is accepted under P-030:
 
 - this W6 v0.3 executable-interface extension;
-- W7 v0.1 runtime adapter and policy-parity specification;
-- W8 v0.1 resource, checkpoint, and operations specification;
-- the dated 06c joint interface manifest.
+- W7 v0.2 runtime adapter and policy-parity specification;
+- W8 v0.2 resource, checkpoint, and operations specification;
+- the dated 06c v0.2 joint interface manifest.
 
-No P0 fixture materialization, runtime implementation, migration, or pilot begins from these drafts. Joint acceptance must precede a separate, explicit P0 implementation plan.
+No P0 fixture materialization, runtime implementation, migration, or pilot begins from this acceptance. A separate, explicit P0 materialization and foundation implementation plan still requires review and Stephen's approval.
 
 ## 18. Ownership and dependency direction
 
-W6 consumes evidence; it does not dispatch agents, translate provider commands, grant resources, or approve research claims. The foundation-critical flow is:
+W6 consumes evidence; it does not dispatch agents, translate provider commands, grant resources, or approve research claims. The foundation-critical flow is the 06c dependency DAG:
 
 ```text
-W2 command -> W4 route -> W7 provider translation -> W8 operational grant
-           -> trace/evidence -> W6 grading -> W5 assurance
+W2 authority + W5 requirement + W3 compiled/reference-gated context
++ W7 provider/capability/tokenizer evidence + W8 preliminary risk/feasibility
+  -> W4 candidate-bound route and provider-capacity validation
+  -> W7 selected-route revalidation -> W8 grant/lease -> W7 issue/receipt
+  -> W8 operational evidence -> W6 grading -> W5/W2 acceptance
 ```
 
 Ownership is non-overlapping:
@@ -512,6 +515,7 @@ A run never mutates its fixture definition, expected answer, or grader policy. R
 - expected evidence completeness and release-gate policy version.
 
 Coverage selection is derived from the change-gate table and dependency manifests. The evaluated producer cannot silently narrow its own coverage. An unexplained omission, stale fixture revision, or missing affected capability makes the manifest invalid and blocks release.
+
 ## 25. `ReleaseGateDecision`
 
 `ReleaseGateDecision` is the attributed, non-aggregated conclusion over a complete coverage manifest. It records:
@@ -532,7 +536,7 @@ Coverage selection is derived from the change-gate table and dependency manifest
 - `P0`: first-release blocker for the capability to which the fixture applies;
 - `P1`: required before the relevant research pilot promotes evidence or claims.
 
-`gate_stage` identifies the earliest programme gate at which the fixture or scenario provides required evidence. It does not relabel priority. Allowed values are versioned programme stages such as `interface_review`, `p0_materialization`, `foundation_release`, and `pilot_promotion`.
+`gate_stage` identifies the earliest programme point at which the fixture or scenario provides required evidence. It does not relabel priority. The closed v0.3 enumeration is `interface_review`, `p0_materialization`, `foundation_release`, or `pilot_promotion`; aliases require a versioned W6 amendment and cannot be invented by consumers. The 06c mapping binds these values to the Gate 3 review, post-Gate-4 P0 implementation/calibration, Gate 5 release, and Gate 6 pilot-promotion points respectively.
 
 Therefore S-001–S-010 may be required as early interface evidence without being reclassified from their accepted priority. A fixture can be P1 and still be selected at `interface_review` to prove a shared contract; a P0 fixture can remain unexecutable until `p0_materialization` when the reviewed plan supplies its dependencies. Coverage and release logic must inspect both fields.
 
@@ -594,17 +598,17 @@ Retries, resumes, and recovery runs receive new identities and explicit causal l
 
 ## 30. Joint Gate 3 review gate
 
-This v0.3 extension is accepted only through a joint review with W7 v0.1, W8 v0.1, and 06c. Review must establish:
+This v0.3 extension was accepted through the joint review with W7 v0.2, W8 v0.2, and 06c v0.2. The review established:
 
-- [ ] Every shared ID has one authoritative owner and consistent version/currency semantics.
-- [ ] The command-to-route-to-provider-to-resource-to-evidence-to-grade-to-assurance flow is complete.
-- [ ] Provider receipts and operational records are sufficient for W6 trace completeness without full transcripts or hidden reasoning.
-- [ ] `priority` is preserved independently from `gate_stage`.
-- [ ] Missing evidence, threshold policy, independence, and fixture defects block rather than silently pass.
-- [ ] Stop, checkpoint, resume, recovery, and backup sequences have deterministic terminal receipts.
-- [ ] Critical D/T/P and required R/M/H failures remain non-compensable.
-- [ ] Retention classes and P0 duration ownership are explicit.
-- [ ] F-025–F-038 dependencies can be materialized without changing accepted W3–W5 semantics.
-- [ ] No draft claims executable evidence, runtime implementation, migration authority, or pilot readiness.
+- [x] Every shared ID has one authoritative owner and consistent version/currency semantics.
+- [x] The command-to-route-to-provider-to-resource-to-evidence-to-grade-to-assurance flow is complete.
+- [x] Provider receipts and operational records are sufficient for W6 trace completeness without full transcripts or hidden reasoning.
+- [x] `priority` is preserved independently from `gate_stage`.
+- [x] Missing evidence, threshold policy, independence, and fixture defects block rather than silently pass.
+- [x] Stop, checkpoint, resume, recovery, and backup sequences have deterministic terminal receipts.
+- [x] Critical D/T/P and required R/M/H failures remain non-compensable.
+- [x] Retention classes and P0 duration ownership are explicit.
+- [x] F-025–F-038 dependencies can be materialized without changing accepted W3–W5 semantics.
+- [x] No draft claims executable evidence, runtime implementation, migration authority, or pilot readiness.
 
-**Draft outcome:** `REVIEW_PENDING - executable W6 interface specified; accepted catalogue/reservations preserved; P0 materialization deferred to a separately approved plan`.
+**Outcome:** `ACCEPTED — W6 v0.3 executable interface accepted under P-030; catalogue/reservations preserved; P0 materialization deferred to a separately approved plan`.

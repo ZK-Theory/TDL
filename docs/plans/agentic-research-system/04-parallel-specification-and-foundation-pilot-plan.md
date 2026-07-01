@@ -1,7 +1,7 @@
 # Parallel Specification and Foundation Pilot Plan
 
 **Date:** 2026-06-30  
-**Status:** W1–W5 accepted; W6 v0.3/W7 v0.1/W8 v0.1/06c written and joint Gate 3 review pending; no implementation authority<br>
+**Status:** W1–W5 and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 accepted under P-027–P-030; P0 planning next; no implementation authority<br>
 **Authority:** P-026, approved by Stephen on 2026-06-30  
 **Implementation authority:** None yet; foundation implementation requires the gates in section 4 and a separately approved implementation plan  
 **Pilot boundary:** The first paper initiated after the two current APM-managed papers
@@ -38,7 +38,7 @@ When T1.28 reaches a reviewed terminal disposition, its new evidence triggers a 
 | Lane | Scope | Authority | Current action |
 |---|---|---|---|
 | Legacy research | T1.28 and the two current APM-managed papers | APM remains canonical | Continue compute and event-triggered closeout; no ARS writes or migration |
-| Successor specifications | W3–W5 accepted; W6 v0.3/W7 v0.1/W8 v0.1/06c written; addenda 06a/06b reserve F-025–F-038 | Versioned ARS design documents | Run the joint Gate 3 review; do not materialize P0 evidence yet |
+| Successor specifications | W3–W5 and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 accepted; addenda 06a/06b reserve F-025–F-038 | Versioned ARS design documents | Write and review the separate P0 materialization/foundation plan; no implementation yet |
 | Foundation implementation | Minimal production-intended ARS v1 | Activates only after section 4 gates and an approved implementation plan | Not yet authorized |
 | Greenfield pilot | First paper initiated after the two current APM papers | ARS from project initialization after pilot preflight | Candidate not yet selected |
 
@@ -46,7 +46,7 @@ The lanes share lessons through dated evidence and decisions, not mutable task s
 
 ## 4. Sequence and gates
 
-**Gate status at 2026-07-01:** W1–W5 and the W6 catalogue/reservations are accepted under P-027–P-029. The W6 v0.3, W7 v0.1, W8 v0.1, and 06c specifications are written and joint Gate 3 review pending. No executable closure sizing, fixture result, adapter, process, or runtime evidence is claimed.
+**Gate status at 2026-07-01:** W1–W5, the W6 catalogue/reservations, and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 are accepted under P-027–P-030. No executable closure sizing, fixture result, adapter, process, or runtime evidence is claimed.
 
 ### Gate 1 — W3 context contract
 
@@ -68,7 +68,7 @@ Before implementation planning, freeze:
 - the provider-adapter command/receipt and semantic-parity boundary from W7;
 - the writer lease, resource, checkpoint, recovery, backup, and operator boundary from W8.
 
-The four written Gate 3 documents must pass joint review and reconciliation. Their current status is `review_pending`; no foundation code or P0 fixture materialization may begin from the drafts.
+The four written Gate 3 documents passed joint review and reconciliation under P-030. This closes the interface gate only; no foundation code or P0 fixture materialization may begin until Gate 4 approves the separate plan.
 
 ### Gate 4 — Foundation implementation plan
 
@@ -139,4 +139,4 @@ Rollback preserves every event, artefact, verdict, and decision produced before 
 
 ## 8. Immediate next action
 
-Run the joint adversarial review of W6 v0.3, W7 v0.1, W8 v0.1, and 06c. If accepted, write a separate P0 materialization and foundation implementation plan for Stephen's approval; do not begin implementation from the review-pending specifications.
+Write the separate P0 materialization and narrow-foundation implementation plan against accepted W1–W8/06c contracts, then obtain Stephen's approval of its exact scope; do not begin implementation from P-030 alone.

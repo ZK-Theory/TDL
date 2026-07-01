@@ -139,7 +139,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Purpose:** Regression-test the harness and make failures diagnosable.
 
-**Current status (2026-07-01):** The W6 catalogue and F-025–F-038 reservations remain accepted under P-027–P-029. The v0.3 executable-interface extension is written and joint Gate 3 review pending. It defines contracts, threshold-policy ownership, retention classes, failure semantics, and release decisions; no fixture has been materialized or executed.
+**Current status (2026-07-01):** The W6 catalogue/reservations remain accepted under P-027–P-029 and the v0.3 executable interface is accepted under P-030. It defines contracts, threshold-policy ownership, retention classes, failure semantics, and release decisions; no fixture has been materialized or executed.
 
 **Must define:**
 
@@ -156,7 +156,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 ### W7 — Runtime adapter and policy-parity specification
 
-**Current status (2026-07-01):** Revision 0.1 is written and joint Gate 3 review pending. It defines canonical policy bundles, adapter capabilities, provider commands/receipts, semantic parity, and upgrade decisions without implementing provider adapters.
+**Current status (2026-07-01):** Revision 0.2 is accepted under P-030. It defines canonical policy bundles, adapter capabilities, provider commands/receipts, semantic parity, bound-provider/wrapper accounting, and upgrade decisions without implementing provider adapters.
 
 **Purpose:** End manual Claude/Codex policy drift.
 
@@ -175,7 +175,7 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 ### W8 — Resource, checkpoint, and operations specification
 
-**Current status (2026-07-01):** Revision 0.1 is written and joint Gate 3 review pending. It defines grants, leases, process identity, heartbeats, checkpoints, stop/resume, recovery, backups, and operator evidence without implementing a runtime.
+**Current status (2026-07-01):** Revision 0.2 is accepted under P-030. It defines preliminary risk/feasibility, proportional grants/leases, process identity, heartbeats, checkpoints, stop/resume, recovery, backups, and operator evidence without implementing a runtime.
 
 **Purpose:** Represent machine ownership and long-running state mechanically.
 
@@ -327,8 +327,8 @@ The first pass comprised the W0 manifest/addendum, W1 v0.2, W2 v0.2, W6 v0.2, th
 
 1. accepted W3 context, memory, and retrieval under P-028;
 2. accepted W4/W5 v0.2 and reserved F-031–F-038 under P-029;
-3. the written foundation-critical W6 v0.3, W7 v0.1, W8 v0.1, and 06c interface set;
-4. a bounded adversarial review and reconciliation of the combined Gate 3 interfaces;
-5. after acceptance, a separately approved P0 materialization and narrow-foundation implementation plan.
+3. accepted foundation-critical W6 v0.3, W7 v0.2, W8 v0.2, and 06c v0.2 under P-030;
+4. completed adversarial review and reconciliation of the combined Gate 3 interfaces;
+5. next, a separately reviewed and approved P0 materialization and narrow-foundation implementation plan.
 
-Runtime work remains unauthorized until the joint Gate 3 review accepts W6–W8/06c and a separate P0 materialization and foundation implementation plan is approved. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.
+Gate 3 W6–W8/06c is accepted under P-030. Runtime work remains unauthorized until a separate P0 materialization and foundation implementation plan is reviewed and approved. The W1/W2 review gate passed under P-027. T1.28 terminal completion is not an additional foundation gate, but it remains a hard migration and current-paper boundary.

@@ -1,11 +1,11 @@
 # W8 — Resource, Checkpoint, and Operations Specification
 
 **Date:** 2026-07-01<br>
-**Status:** Draft complete; joint Gate 3 review pending<br>
-**Specification version:** 0.1<br>
-**Design authority:** Accepted W1–W5, W6 catalogue/addenda, D-001–D-008, P-001–P-029, and Stephen's approved Gate 3 conceptual design<br>
+**Status:** Accepted under P-030 after joint adversarial review and reconciliation<br>
+**Specification version:** 0.2<br>
+**Design authority:** Accepted W1–W7/06c, D-001–D-008, P-001–P-030, and Stephen's approved Gate 3 reconciliation<br>
 **Implementation authority:** None; this document creates no scheduler, lease, process, checkpoint, backup, operator command, runtime, migration, fixture, or `.research-system/` state<br>
-**Review owner:** Stephen; bounded joint W6/W7/W8/06c adversarial review required
+**Review owner:** Stephen; joint W6/W7/W8/06c adversarial review closed under P-030
 
 ## 1. Decision summary
 
@@ -127,7 +127,7 @@ Task scientific status remains separate. Operational `stopped` does not mean evi
 
 Required fields include:
 
-- Task/dispatch/attempt/route/provider-command identities;
+- Task/dispatch/attempt/route identities, normalized operation class, provider/runtime requirements, and `operational_profile` policy ID/revision;
 - requesting actor/profile/authority and expected control-store position;
 - requested host pool and typed control/code/result/cache/data roots;
 - CPU process/thread limits, RAM working/peak, GPU/device, storage and IO estimates;
@@ -148,7 +148,7 @@ A grant binds:
 - exact host/boot/control-store identity;
 - allowed roots and resource ceilings;
 - exclusive/shared compatibility and conflict set;
-- lease duration, heartbeat policy and expiry;
+- operational profile, lease duration, heartbeat policy or accepted `not_applicable` disposition, and expiry;
 - process/child-process rules;
 - checkpoint/output/cleanup paths;
 - authority, issued time and revocation conditions;
@@ -209,9 +209,23 @@ W8 owns `W8_operational_risk_floor`, separate from W5's epistemic component. Rai
 
 W4 computes the maximum risk. W8 cannot lower another floor or waive a human-reserved action.
 
+### 11.1 Proportional operational profiles
+
+W8 uses one `ResourceRequest`/`ResourceGrant`/`ExecutionLease` schema with a required versioned `operational_profile`; it does not create a weaker fast-path schema. Initial profiles are:
+
+| Profile | Intended work | Required operational evidence |
+|---|---|---|
+| `trivial` | Seconds-long R0/R1 provider work with no child process, exclusive local resource, durable checkpoint, or long-lived output writer | Typed request/grant, command-scoped lease, explicit resource ceilings, and terminal ProviderReceipt or OperatorReceipt that releases the lease |
+| `bounded` | Finite work that may create local processes or durable outputs but remains below the long-run policy threshold | Request/grant/lease plus the heartbeat, output-tail, stop, and checkpoint groups required by its declared policy |
+| `long_running` | Multi-hour, exclusive-resource, checkpointed, resumable, or operationally uncertain work | Full feasibility benchmark, heartbeat, process, checkpoint, stop/recovery, and backup obligations as applicable |
+
+For `trivial`, benchmark, checkpoint, periodic-heartbeat, and recovery groups are explicit `not_applicable` values with policy ID, rationale, and applicability evidence; they are never silently omitted. The command terminal receipt is the liveness/closure evidence and must release the command-scoped lease. There is no universal duration or cadence default: each profile policy declares its maximum runtime, resource/write/process surface, expiry, and escalation rule.
+
+If a trivial operation exceeds its envelope, spawns a process, opens a durable writer, encounters sleep/outage/uncertain completion, or requires continuation, it cannot remain trivial. W8 blocks issue or expires/revokes the lease and requires a new `bounded` or `long_running` request; it never upgrades the live grant silently.
+
 ## 12. `ExecutionLease` and heartbeat
 
-A lease binds grant, attempt, process identity, actor, host/boot ID, issued/claimed/expiry times, heartbeat policy and revocation conditions.
+A lease binds grant, attempt, actor, host/boot ID, issued/claimed/expiry times, heartbeat disposition and revocation conditions. It binds `process_identity_id` when a local/runtime process exists; a `trivial` provider-only command may instead bind `provider_command_id` and an accepted explicit `not_applicable` process-identity rationale.
 
 Heartbeats record:
 
@@ -224,7 +238,7 @@ Heartbeats record:
 
 Heartbeat presence proves liveness evidence only. Progress claims require a monotone work-unit/checkpoint/output predicate. Repeated identical heartbeats cannot disguise stalled or hidden prerequisite work.
 
-Cadence and grace are versioned policy fields; no permissive universal default exists. Missing accepted values blocks lease activation.
+Cadence and grace are versioned policy fields; no permissive universal default exists. Missing accepted values blocks lease activation when the selected profile requires periodic heartbeats. A `trivial` profile must instead carry an accepted explicit `not_applicable` heartbeat disposition and a terminal-receipt lease-closure rule.
 
 ## 13. Personal-machine sleep and resume
 
@@ -414,7 +428,7 @@ Foundation-critical W8 coverage includes:
 - F-007 hidden benchmark prerequisite;
 - F-008 invalid parallel projection;
 - F-009 long-run guardrail;
-- F-010 downstream correction overreach where operational scope expands;
+- the operational sub-case of F-010 only: unauthorized resource/process/root expansion; W5/W6 retain the scientific/provenance oracle;
 - F-032 outage/resource re-evaluation;
 - F-034 permission/root/sensitivity and unsafe decomposition;
 - S-003 late artefact after lease expiry;
@@ -454,23 +468,23 @@ Migration and templates define machine-specific policies without hard-coding TDL
 
 ## 27. Review gate
 
-W8 can move from `review_pending` to `accepted` only when Stephen confirms after joint W6/W7/W8/06c review that:
+W8 moved to `accepted` after the joint W6/W7/W8/06c review, reconciliation, and Stephen's 2026-07-01 approval confirmed that:
 
-- [ ] Resource requests/grants/conflicts are typed, atomic and non-widening.
-- [ ] Benchmark feasibility counts hidden prerequisites and validates scaling/units.
-- [ ] Operational and epistemic risk floors remain separate and monotone.
-- [ ] Lease/heartbeat/sleep behavior fails closed without accepted cadence policy.
-- [ ] Process identity survives PID reuse, reboot and child-process cases.
-- [ ] Checkpoint compatibility binds design, code, environment, inputs, representation, RNG and work units.
-- [ ] Stop/pause/resume/Partial meanings and ordering are non-overlapping.
-- [ ] Orphan and late evidence remains visible but unauthorized.
-- [ ] Backup/restore proves canonical chain/snapshot/tail before writer lease.
-- [ ] Privacy rules protect environment, restricted data, checkpoints and backups.
-- [ ] W6 receives sufficient evidence to grade runtime, recovery and guardrails.
-- [ ] No process, checkpoint, backup, runtime, migration or active-task change is introduced.
+- [x] Resource requests/grants/conflicts are typed, atomic and non-widening.
+- [x] Benchmark feasibility counts hidden prerequisites and validates scaling/units.
+- [x] Operational and epistemic risk floors remain separate and monotone.
+- [x] Lease/heartbeat/sleep behavior fails closed with a declared heartbeat policy or accepted trivial-profile `not_applicable` disposition.
+- [x] Process identity survives PID reuse, reboot and child-process cases.
+- [x] Checkpoint compatibility binds design, code, environment, inputs, representation, RNG and work units.
+- [x] Stop/pause/resume/Partial meanings and ordering are non-overlapping.
+- [x] Orphan and late evidence remains visible but unauthorized.
+- [x] Backup/restore proves canonical chain/snapshot/tail before writer lease.
+- [x] Privacy rules protect environment, restricted data, checkpoints and backups.
+- [x] W6 receives sufficient evidence to grade runtime, recovery and guardrails.
+- [x] No process, checkpoint, backup, runtime, migration or active-task change is introduced.
 
 ## 28. Outcome
 
-**Outcome:** `REVIEW_PENDING — W8 v0.1 resource/checkpoint/operations specification complete; implementation and P0 evidence remain gated`.
+**Outcome:** `ACCEPTED — W8 v0.2 resource/checkpoint/operations specification accepted under P-030; implementation and P0 evidence remain gated`.
 
-The next action is bounded joint Gate 3 adversarial review with W6 v0.3, W7 v0.1 and manifest 06c. No scheduler, process control, checkpoint or backup implementation begins before that review and a separately approved P0 plan.
+The next action is the separately reviewed P0 materialization and foundation implementation plan. No scheduler, process control, checkpoint, or backup implementation begins from this acceptance alone.

@@ -1,11 +1,11 @@
 # W7 — Runtime Adapters and Policy-Parity Specification
 
 **Date:** 2026-07-01<br>
-**Status:** Draft complete; joint Gate 3 review pending<br>
-**Specification version:** 0.1<br>
-**Design authority:** Accepted W1–W5, W6 catalogue/addenda, D-001–D-008, P-001–P-029, and Stephen's approved Gate 3 conceptual design<br>
+**Status:** Accepted under P-030 after joint adversarial review and reconciliation<br>
+**Specification version:** 0.2<br>
+**Design authority:** Accepted W1–W6, W8/06c, D-001–D-008, P-001–P-030, and Stephen's approved Gate 3 reconciliation<br>
 **Implementation authority:** None; this document creates no adapter, hook, generated policy, provider invocation, credential, runtime, migration, fixture, or `.research-system/` state<br>
-**Review owner:** Stephen; bounded joint W6/W7/W8/06c adversarial review required
+**Review owner:** Stephen; joint W6/W7/W8/06c adversarial review closed under P-030
 
 ## 1. Decision summary
 
@@ -163,7 +163,7 @@ A normalized command binds:
 
 - provider-command ID and idempotency key;
 - W2 command/message/dispatch ID and expected control-store position;
-- selected W4 route/profile/eval/policy and routing-snapshot IDs/hashes;
+- selected W4 route/profile/eval/policy plus exact `routing_evidence_snapshot_id` / `res_` and hash;
 - W3 context candidate/packet/addendum IDs, exact content hash and both token-gate evidence;
 - W5 assurance/review purpose, subject/evidence visibility and prohibited producer material;
 - W8 resource grant, lease and stop-policy IDs;
@@ -225,7 +225,9 @@ W7 preserves W3's two independent gates:
 1. the versioned reference-token count satisfies the risk-profile ceiling;
 2. exact bound-provider counting, or a W7-evaluated conservative upper bound, satisfies 80% of provider usable input.
 
-Counts from different tokenizers are never compared as one unit. The adapter records the accounting method/version, usable-capacity derivation, rendered provider payload hash and whether any provider wrapper/system material is included. Missing or stale accounting blocks issue.
+Counts from different tokenizers are never compared as one unit. Provider usable input is calculated after subtracting provider-mandated wrapper/system overhead that is outside the managed packet. Variable wrapper/system material is charged against the reserved non-managed capacity, and the combined rendered request must remain within the provider context limit. The adapter records the accounting method/version, raw provider capacity, fixed overhead, usable-capacity derivation, managed-packet count, reserve consumption, rendered provider payload hash, and whether each wrapper/system segment is included in the managed or reserved count. Missing, stale, overlapping, or unclassified accounting blocks issue.
+
+W4 candidate evaluation uses the exact count or accepted evaluated upper bound for that candidate. Immediately before issue, W7 revalidates the selected provider/model/tokenizer, rendered payload, wrapper reserve, both W3 gate outcomes, policy/parity currency, and W8 grant/lease binding. Accepted W3 semantics continue to permit an evaluated upper-bound counter when the exact tokenizer is unavailable; uncertainty is never treated as an exact count.
 
 Provider rendering may add required wrapper syntax but cannot change managed content, fragment order or hashes without producing a new W3/W7 candidate and rerouting.
 
@@ -390,22 +392,22 @@ Migration and templates may generate provider projections only from accepted can
 
 ## 26. Review gate
 
-W7 can move from `review_pending` to `accepted` only when Stephen confirms after joint W6/W7/W8/06c review that:
+W7 moved to `accepted` after the joint W6/W7/W8/06c review, reconciliation, and Stephen's 2026-07-01 approval confirmed that:
 
-- [ ] Canonical policy is provider-neutral, versioned and separate from projections.
-- [ ] Every normalized action has one command/receipt meaning and authority boundary.
-- [ ] Claude and Codex mappings expose explicit capabilities and absences.
-- [ ] Tool/root/network/write/sensitivity semantics are default-deny and non-widening.
-- [ ] W3 byte/hash and two-token-gate semantics survive provider rendering.
-- [ ] Critical parity is non-compensable and safeguard deletion fails closed.
-- [ ] Provider fallback always returns through W4 under original requirements.
-- [ ] Uncertain completion, retry and cancellation preserve idempotency and evidence.
-- [ ] Privacy rules exclude credentials, restricted data, hidden reasoning and full transcripts.
-- [ ] W6 receives sufficient evidence to grade commands, receipts, parity and upgrades.
-- [ ] No adapter, hook, generated file, provider invocation, migration or active-task change is introduced.
+- [x] Canonical policy is provider-neutral, versioned and separate from projections.
+- [x] Every normalized action has one command/receipt meaning and authority boundary.
+- [x] Claude and Codex mappings expose explicit capabilities and absences.
+- [x] Tool/root/network/write/sensitivity semantics are default-deny and non-widening.
+- [x] W3 byte/hash and two-token-gate semantics survive provider rendering.
+- [x] Critical parity is non-compensable and safeguard deletion fails closed.
+- [x] Provider fallback always returns through W4 under original requirements.
+- [x] Uncertain completion, retry and cancellation preserve idempotency and evidence.
+- [x] Privacy rules exclude credentials, restricted data, hidden reasoning and full transcripts.
+- [x] W6 receives sufficient evidence to grade commands, receipts, parity and upgrades.
+- [x] No adapter, hook, generated file, provider invocation, migration or active-task change is introduced.
 
 ## 27. Outcome
 
-**Outcome:** `REVIEW_PENDING — W7 v0.1 runtime-adapter and policy-parity specification complete; implementation and P0 evidence remain gated`.
+**Outcome:** `ACCEPTED — W7 v0.2 runtime-adapter and policy-parity specification accepted under P-030; implementation and P0 evidence remain gated`.
 
-The next action is bounded joint Gate 3 adversarial review with W6 v0.3, W8 v0.1 and manifest 06c. No adapter implementation or policy generation begins before that review and a separately approved P0 plan.
+The next action is the separately reviewed P0 materialization and foundation implementation plan. No adapter implementation or policy generation begins from this acceptance alone.

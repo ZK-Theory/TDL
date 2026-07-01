@@ -354,6 +354,21 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Boundary:** This accepts written specifications and fixture reservations only. It creates no profile, route, adapter, fixture implementation, runtime, migration, pilot, active APM mutation, result reinterpretation, or research claim.<br>
 **Remaining gates:** Frozen foundation-critical W6/W7/W8 interfaces and executable evidence, bounded combined-interface review, and Stephen's approval of a separately reviewed implementation plan.<br>
 **Affected specifications:** W4, W5, W6, W7, W8, W10; package status and continuation protocol.
+### P-030 — Gate 3 W6/W7/W8 interface acceptance
+
+**Date:** 2026-07-01<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-025, P-026, P-028, P-029<br>
+**Decision:** W6 v0.3, W7 v0.2, W8 v0.2, and 06c v0.2 are accepted after joint adversarial review and reconciliation. Gate 3 uses a dependency DAG: the W5 requirement, W3 compiled/reference-gated context, W7 provider/capability/tokenizer evidence, and W8 preliminary operational-risk floor/feasibility precede W4 candidate routing; the candidate-specific provider-capacity gate is evaluated during routing; W7 revalidates exact-or-accepted-upper-bound accounting before issue; W8 selected-route grant/lease follows routing.<br>
+**Identity rule:** Shared consumers use the exact owner-defined identifiers. W4 already owns `routing_evidence_snapshot_id` / `res_`; W6 owns `trace_id` and `grader_result_id`. A naming mismatch is reconciled to the existing owner and cannot create a duplicate identity.<br>
+**Stage rule:** W6 solely owns the closed `gate_stage` enumeration: `interface_review`, `p0_materialization`, `foundation_release`, and `pilot_promotion`. Fixture priority remains independent and non-compensable.<br>
+**Proportionality rule:** W8 uses one schema with versioned `trivial`, `bounded`, and `long_running` operational profiles. A trivial profile retains typed request/grant/lease/terminal-receipt evidence while marking benchmark/checkpoint/periodic-heartbeat/recovery groups explicitly `not_applicable`; exceeding the envelope requires a new stronger request.<br>
+**Token rule:** W3 owns the gate semantics. W7 owns provider count, usable-capacity, wrapper/system overhead, and reserve evidence. Fixed provider overhead reduces usable input; variable wrapper/system material consumes reserved capacity; missing or overlapping accounting blocks issue.<br>
+**Evidence:** `reviews/adversarial-gate3-W6-W7-W8-review-2026-07-01.md`, `reviews/adversarial-gate3-W6-W7-W8-review-reconciliation-2026-07-01.md`, and Stephen's 2026-07-01 approval.<br>
+**Boundary:** This accepts written interfaces only. It creates no runtime, fixture package, grader, adapter, process, checkpoint, migration, pilot, active APM change, result reinterpretation, or research claim.<br>
+**Remaining gate:** A separately reviewed P0 materialization and narrow-foundation implementation plan, followed by Stephen's explicit approval before implementation.<br>
+**Affected specifications:** W3, W4, W6, W7, W8, 06c; package status and implementation sequence.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task

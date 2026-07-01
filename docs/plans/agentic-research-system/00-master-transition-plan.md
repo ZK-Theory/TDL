@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-27  
 **Revised:** 2026-07-01<br>
-**Status:** W1–W5 accepted; foundation-critical W6 v0.3/W7 v0.1/W8 v0.1 and 06c are written for joint Gate 3 review; implementation remains gated<br>
+**Status:** W1–W5 and Gate 3 W6 v0.3/W7 v0.2/W8 v0.2/06c v0.2 accepted under P-027–P-030; P0 planning is next and implementation remains gated<br>
 **Foundation-development point:** After W3–W5 and foundation-critical W6–W8 gates, without waiting for T1.28  
 **Legacy migration point:** After the relevant APM work reaches reviewed closeout; no current-paper migration  
 **First deployment context:** TDL mathematical and social research  
@@ -552,11 +552,11 @@ The transition should retire these practices:
 
 ## 12. Immediate next action
 
-The first specification pass is accepted through W5 under P-027–P-029, and W6 addenda 06a/06b reserve F-025–F-038. The foundation-critical W6 v0.3, W7 v0.1, W8 v0.1, and 06c interface drafts are now written. The next sequence is:
+Gate 3 closed under P-030 after joint adversarial review and reconciliation. W6 v0.3, W7 v0.2, W8 v0.2, and 06c v0.2 are accepted written interfaces. The next sequence is:
 
-1. run a bounded joint adversarial review of the four Gate 3 documents;
-2. reconcile and accept or revise their shared identity, ordering, failure, retention, and evidence boundaries;
-3. only after acceptance, produce a separate P0 materialization and foundation implementation plan;
-4. obtain Stephen's explicit approval of that plan before creating runtime, fixture, adapter, or process artefacts.
+1. write a separately reviewed P0 materialization and narrow-foundation implementation plan;
+2. map every component and implementation step to accepted W1–W8/06c contracts, exact P0 fixture dependencies, deterministic tests, failure behavior, and rollback;
+3. obtain Stephen's explicit approval of the exact P0/foundation scope;
+4. only then create executable fixture, adapter, resource/process, or runtime artefacts.
 
-No P0 evidence has been executed or claimed in this specification pass. T1.28 remains a migration and current-paper boundary, not a successor-design blocker.
+No executable P0 evidence, runtime, migration, pilot, or current-paper change is authorized by P-030. T1.28 remains a migration and current-paper boundary, not a successor-planning blocker.
