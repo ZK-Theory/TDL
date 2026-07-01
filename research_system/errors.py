@@ -10,3 +10,6 @@ class ConfigurationError(ArsError):
 
 class SchemaError(ArsError):
     """Raised when an ARS schema or validated value is invalid."""
+
+class ConflictError(ArsError):
+    """Raised when an immutable write or exclusive claim conflicts."""
