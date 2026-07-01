@@ -181,6 +181,9 @@ results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_*.status.json
 repomix-output.xml
 repomix-output.*
 
+# Local isolated implementation worktrees.
+.worktrees/
+
 # Repowise local index/cache. Keep the shareable MCP config tracked.
 .repowise/*
 !.repowise/
