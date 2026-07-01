@@ -1,16 +1,20 @@
 # ARS P0 Plan-Suite Adversarial-Review Reconciliation
 
 **Date:** 2026-07-01<br>
-**Status:** `proposed_reconciliation_pending_approval`<br>
+**Status:** `accepted_for_p0_implementation`<br>
 **Review:** `adversarial-p0-plan-suite-review-2026-07-01.md`<br>
 **Subjects:** master P0 plan, implementation index, and Work Packages 1–4<br>
-**Authority:** Stephen's instruction to incorporate the accepted review findings; implementation remains unauthorized
+**Authority:** Stephen's explicit 2026-07-01 approval of the exact reconciled ARS P0 scope and section 7.3 owner decisions
 
 ## 1. Outcome
 
 The review's three Critical, seven Major, and five Minor/editorial findings are accepted for plan reconciliation. The plan suite now uses exact shared-interface ownership, fail-on-omission gates, unit-safe provider accounting, event-derived receipt recovery, explicit retention verification, and a forward-obligation matrix.
 
-This record does not accept the resulting implementation scope. The plans remain `review_reconciled_pending_approval` until Stephen explicitly accepts the exact revised suite and the owner decisions in the master plan.
+Stephen accepted the resulting implementation scope on 2026-07-01 using the exact statement:
+
+> I approve the exact reconciled ARS P0 scope and section 7.3 owner decisions.
+
+The plans are therefore `accepted_for_p0_implementation`. This authority is limited to isolated, task-by-task execution under the reconciled child plans. It does not authorize live providers, migration, Gate 5, pilot initialization, research claims, or any change to accepted W1–W8/06c semantics.
 
 ## 2. Finding disposition
 
@@ -28,14 +32,14 @@ This record does not accept the resulting implementation scope. The plans remain
 | P0-M7 asserted deletion | WP4 derives checks from an authorized evidence-store registry and blocks unregistered/inaccessible/contaminated locations | resolved in plan |
 | Minor/editorial items | malformed snippets/commands, helper ownership, review-lead meaning, and root/reparse coverage are corrected or made explicit | resolved in plan |
 
-## 3. Owner decisions presented for exact-scope approval
+## 3. Owner decisions accepted for exact-scope implementation
 
 1. **Retention.** Accept the master-plan R1/R2 maxima, review-lead times, owners, extension authorities, explicit consumers, no-unregistered-replica rule, and evidence-derived deletion semantics.
 2. **Identity validation.** Accept exact owner-field kind/prefix catalogues with UUIDv7 bodies and field-scoped validators. The implementation may not invent prefixes or infer kind from a prefix shared by accepted owner catalogues.
 3. **P0 calibration boundary.** Accept two deterministic repetitions for every known-bad, known-good, and declared mutation under identical immutable inputs. Stochastic cases require their own accepted seed/repeat/uncertainty policy. Required M/H evidence remains blocked until a separate live-grader threshold policy and authority are accepted.
 4. **Variant boundary.** Accept explicit fixture-revision/provider/adapter/rendering/transport/OS/operational-profile rows with no wildcard activation.
 
-Approval of these decisions authorizes only the later creation of the isolated implementation worktree and task-by-task execution under the child plans. It does not authorize live providers, migration, Gate 5, a pilot, or research claims.
+Approval of these decisions authorizes creation of the isolated implementation worktree and task-by-task execution under the child plans. It does not authorize live providers, migration, Gate 5, a pilot, or research claims.
 
 ## 4. Preserved boundaries
 
@@ -64,6 +68,6 @@ The original adversarial review remains an immutable review snapshot and is not 
 - [x] Shared helper/type ownership and fixture ownership are non-overlapping.
 - [x] Missing required evidence is attacked through empty/partial/stale/duplicate/incompatible cases.
 - [x] Documentation integrity and staged-scope verification pass.
-- [ ] Stephen approves the exact reconciled scope and owner decisions.
+- [x] Stephen approved the exact reconciled scope and section 7.3 owner decisions on 2026-07-01.
 
-**Outcome:** `PROPOSED_RECONCILIATION — required review changes are incorporated; implementation remains unauthorized pending validation and Stephen's explicit exact-scope approval`.
+**Outcome:** `ACCEPTED_RECONCILIATION — the isolated ARS P0 implementation worktree and task-by-task execution are authorized; all later-stage prohibitions remain in force`.

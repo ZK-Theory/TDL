@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** `review_reconciled_pending_approval`; planning authority only
+**Status:** `accepted_for_p0_implementation`; exact P0 implementation authority recorded 2026-07-01
 
 **Goal:** Build the smallest production-intended Agentic Research System foundation that can prove the accepted W1–W8/06c contracts against the P0 fixture dependency closure without migrating active APM work.
 
@@ -14,7 +14,7 @@
 
 ## 1. Authority and non-migration boundary
 
-This document is the Gate 4 implementation-plan proposal required by P-026 and P-030. It incorporates the required changes from `reviews/adversarial-p0-plan-suite-review-2026-07-01.md` through the dated reconciliation record, but it does not itself authorize implementation.
+This document is the Gate 4 implementation plan required by P-026 and P-030. It incorporates the required changes from `reviews/adversarial-p0-plan-suite-review-2026-07-01.md` through the dated reconciliation record. Stephen explicitly approved the exact reconciled scope and section 7.3 owner decisions on 2026-07-01; that approval authorizes isolated, task-by-task P0 implementation under this suite.
 
 Implementation may begin only after Stephen accepts this reconciled plan, its exact work-package scope, and the owner decisions in section 7.3. Execution must:
 
@@ -200,7 +200,7 @@ The verification manifest records the evidence ID/hash, policy revision, registr
 
 ### 7.3 Owner decisions included in later exact-scope approval
 
-Stephen's later approval of this exact reconciled plan accepts the retention rows above as P0 maxima, including their review-lead times, owners, extension authorities, permitted-consumer requirement, prohibition on unregistered replicas, and fail-closed deletion semantics. Until that approval is recorded, fixture activation and implementation remain unauthorized.
+Stephen's 2026-07-01 approval of this exact reconciled plan accepts the retention rows above as P0 maxima, including their review-lead times, owners, extension authorities, permitted-consumer requirement, prohibition on unregistered replicas, and fail-closed deletion semantics. That approval authorizes only the isolated P0 fixture and foundation implementation described by this suite.
 
 P0 uses deterministic fake transports only. Deterministic D/T/O/P calibration executes each known-bad, known-good, and declared mutation twice and requires byte-identical normalized decisions for identical immutable inputs, the intended known-bad failure in both runs, and the intended known-good pass in both runs. Any stochastic fixture supplies its own accepted seed/repeat/uncertainty policy; absence is `fixture_error`. Required M/H evidence has no permissive P0 sample-count default: the affected capability remains `unable_to_grade`/blocked until a separate live-grader threshold policy and bounded provider/human review authority are accepted.
 
@@ -257,9 +257,9 @@ Stop and request direction when:
 - [x] The control root cannot default into a code worktree and is checked against every registered worktree plus resolved reparse-point targets.
 - [x] Provider adapters fail closed and tests use deterministic fake transports.
 - [x] Scientific fixtures retain independent grading and human-review boundaries; missing M/H policy remains blocking.
-- [ ] R1/R2 durations, owners, evidence-root boundary, and deletion verification await Stephen's exact-scope acceptance; R3 storage remains prohibited.
+- [x] Stephen accepted the section 7.3 R1/R2 durations, owners, evidence-root boundary, and deletion-verification semantics; R3 storage remains prohibited.
 - [x] Each work package is independently testable and revertible across the frozen shared contracts.
 - [x] P0 acceptance cannot authorize migration, a pilot, or a research claim.
-- [ ] Stephen has approved this exact plan before execution.
+- [x] Stephen approved this exact reconciled scope and section 7.3 owner decisions on 2026-07-01 before execution.
 
-**Outcome:** `REVIEW_RECONCILED_PENDING_APPROVAL — required review findings are incorporated; no foundation or fixture implementation is authorized until Stephen accepts the exact reconciled scope and owner decisions`.
+**Outcome:** `ACCEPTED_FOR_P0_IMPLEMENTATION — isolated task-by-task execution is authorized; live providers, migration, Gate 5, pilot initialization, and research claims remain unauthorized`.

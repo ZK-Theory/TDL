@@ -1,9 +1,9 @@
 # ARS P0 Implementation Plan Suite
 
 **Date:** 2026-07-01<br>
-**Status:** `review_reconciled_pending_approval`<br>
-**Authority:** P-026/P-030 permit planning only; implementation requires Stephen's approval of the master plan<br>
-**Runtime authority:** None
+**Status:** `accepted_for_p0_implementation`<br>
+**Authority:** Stephen explicitly approved the exact reconciled P0 scope and section 7.3 owner decisions on 2026-07-01<br>
+**Runtime authority:** Isolated task-by-task P0 implementation with deterministic fakes only
 
 ## Read order
 
@@ -28,6 +28,6 @@ Every execution session must use the sub-skill named in the plan header, an isol
 - [x] Exact commands are syntactically valid for the repository's Python/uv/pytest toolchain; provider commands remain version-bound and disabled.
 - [x] The 37-case P0 closure and deferred Gate 5 cases are correct.
 - [x] Stop conditions preserve P-026/P-030 boundaries and block unresolved M/H/live-provider policy.
-- [ ] Stephen approves the suite before execution.
+- [x] Stephen approved the exact reconciled suite and section 7.3 owner decisions on 2026-07-01 before execution.
 
-**Outcome:** `REVIEW_RECONCILED_PENDING_APPROVAL — required review findings are incorporated; no code or fixture materialization is authorized until Stephen approves the exact scope`.
+**Outcome:** `ACCEPTED_FOR_P0_IMPLEMENTATION — begin in the isolated codex/ars-p0-foundation worktree; all later-provider, migration, Gate 5, pilot, and claim boundaries remain in force`.
