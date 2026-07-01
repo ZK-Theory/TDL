@@ -22,6 +22,12 @@ This is the final check that someone could rebuild the results from the repo alo
    `PROJ_ROOT` paths (verify on disk; gitignored != missing).
 5. **Chain closes.** Following the recorded commands from raw inputs reproduces the
    committed results.
+6. **Lint gate matches the enforced version.** "Lint-clean" is only well-defined per
+   tool version. Before treating `uv run ruff format --check` as the gate, confirm
+   `uv run ruff --version` matches the `rev:` pinned in `.pre-commit-config.yaml`.
+   When they diverge, the **pinned pre-commit version governs** (commits must pass
+   hooks, never `--no-verify`); validate against it and flag the drift. A
+   format-dirty *committed* file signals a prior commit skipped the ruff-format hook.
 
 ## Output Format
 

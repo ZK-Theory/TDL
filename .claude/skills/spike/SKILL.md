@@ -125,3 +125,8 @@ validate_spike_preregistration(yaml.safe_load(block))
 - The Spike would exceed toy scale or quietly become a full paper computation.
 - The null operation would not perturb the object consumed by the Spike.
 - Success would bypass `/pre-reg-to-dispatch` and go straight to APM execution.
+- A parallel-compute cost estimate is extrapolated from a single `(n_jobs, batch)`
+  configuration. Sweep the worker count (at least `n_jobs ∈ {1, N/2, N}`) on a warm
+  pool and time strictly more units than workers. A flat per-unit curve means the
+  workload is memory/IO-bound — it does not parallelise; cost it at the serial rate
+  and escalate early rather than projecting from one optimistic point.

@@ -55,17 +55,28 @@ When writing to APM artifacts (Spec, Plan, Tracker, Task Logs, bus files), follo
 
 ## 4. Message Bus Protocol
 
-Bus directories and files are initialized during the Planning Phase. Bus files are either empty (no message present) or contain a message awaiting delivery. Before writing to an outgoing bus file, an agent clears its incoming bus file. Always read a bus file before writing to it - this ensures the platform's file tools recognize the file and avoids write failures on empty or cleared files.
+Bus directories and files are initialized during the Planning Phase. Bus files are either empty (no message present) or contain one message awaiting delivery. Always read a bus file before writing to or clearing it. Do not clear an incoming message merely to make room: clear it only after the relevant guide's delivery or processing step has succeeded and the durable Task Log, report review, or other required APM record preserves the outcome. Clearing acknowledges successful delivery or processing and makes the slot available; it does not delete durable history.
 
-### 4.1 Bus Identity Standards
+### 4.1 Bus Write Ownership and Collision Safety
+
+Reading a bus file is necessary but does not prove ownership. Before writing:
+
+1. Identify the expected message using the available `type`, `stage`, `task` or context, and `agent` fields.
+2. If the target is empty, write the new message.
+3. If the target is non-empty, overwrite it only when it is the same logical message being deliberately updated and every available identity field matches.
+4. Otherwise, refuse the write and report the collision to the User or Manager. Preserve the existing content; never clear or replace a foreign, unrelated, or insufficiently identified message to make progress.
+
+Generated compatibility messages should carry explicit task/message and recipient ownership markers. When such markers exist, require an exact match before updating the slot. Treat a missing or mismatched marker as a collision, not as permission to overwrite.
+
+### 4.2 Bus Identity Standards
 
 Agent identity is derived from the agent directory name (`.apm/bus/<agent-slug>/`). Workers validate by confirming the directory matches their registered `agent`. If the agent directory does not match, reject the message and inform the User of the mismatch.
 
-### 4.2 Agent ID Resolution
+### 4.3 Agent ID Resolution
 
 When `/apm-4-check-tasks` or `/apm-5-check-reports` accept an `[agent-id]` argument, resolve it against `.apm/bus/` directory names: exact match, then prefix, then best plausible match. When only one plausible candidate exists, resolve to it. When multiple candidates are plausible, list them and ask the User. When no bus directories exist, inform that the Message Bus is not initialized.
 
-### 4.3 Agent Slug Format
+### 4.4 Agent Slug Format
 
 Agent slugs are derived from the Worker names listed in the Plan Workers field by converting to lowercase and replacing spaces with hyphens. Examples: `Frontend Agent` → `frontend-agent`, `Backend Agent` → `backend-agent`. The Manager's own directory uses the slug `manager`.
 

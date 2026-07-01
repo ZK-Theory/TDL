@@ -85,3 +85,9 @@ If `draft-file` is omitted, the latest `vN-YYYY-MM.md` in that paper's `drafts/`
 - For full Wasserstein audit across all papers + code, use `/wasserstein-audit`
 - Propose fixes but do not apply without user confirmation
 - Notation drift in theorems requires extra care — always ask before editing
+- **Ruling-out exception:** when prose must name the order-1 distance in order to
+  *exclude* it (e.g. the W₂-era provenance argument that rules it out as the source of
+  archived values), write it in words — "order-1 Wasserstein" / "1-Wasserstein" /
+  "$W_p$ with $p=1$" — never the literal order-1 subscript token. The PostToolUse
+  notation-guard hook is a blunt literal guard with no context sensitivity and rejects
+  that symbol even in ruling-out prose, so reach the rewording on the first draft.

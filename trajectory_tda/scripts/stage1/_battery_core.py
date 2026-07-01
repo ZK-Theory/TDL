@@ -472,6 +472,7 @@ def run_headline_from_embeddings(
     probe_pinned_thresh: bool = False,
     perms_only: bool = False,
     null_do_cocycles: bool = True,
+    rips_backend: str = "ripser",
 ) -> tuple[dict[str, Any], list[dict], Any]:
     """Headline W2 + landscape L2 battery from pre-loaded embeddings/trajectories.
 
@@ -530,7 +531,23 @@ def run_headline_from_embeddings(
             cocycles are provably unused on this path (verified 2026-07-01:
             disabling them leaves H0/H1 diagrams bit-for-bit identical).
             Default True preserves existing behaviour for callers that don't
-            opt in; T1.28 passes False.
+            opt in; T1.28 passes False. Ignored when ``rips_backend="giotto"``
+            (giotto-tda has no cocycles option; the null-permutation call
+            path doesn't pass ``ph_kwargs`` on that branch).
+        rips_backend: "ripser" (default, preserves existing behaviour) or
+            "giotto" — routes both the observed and every null permutation's
+            Rips-PH computation through a persistent giotto-tda subprocess
+            pool (poverty_tda.topology.giotto_backend.GiottoPool) instead of
+            ripser+loky. Motivated by measured memory-bandwidth contention
+            in ripser+loky under concurrency; verified numerically
+            equivalent to ripser on finite persistence pairs (bit-for-bit,
+            2026-07-01, real USoc/BHPS data — see the T1.28 Task Log pause
+            note). Observed and null diagrams for a subgroup always use the
+            same backend — never mix ripser-observed with giotto-null or
+            vice versa, since within-subgroup W2 comparisons assume a
+            consistent backend even though cross-backend equivalence was
+            verified separately. Requires ``.venv-giotto312`` to exist in
+            the current worktree (see giotto_backend.py for setup).
 
     Returns:
         Tuple of (result dict ready for JSON dump, per-permutation null_results
@@ -634,9 +651,7 @@ def run_headline_from_embeddings(
     obs_covering_radius: float | None = None
     obs_landmarks_for_ph = obs_landmarks
     if dedup_length_matched:
-        obs_n_perm_used, obs_covering_radius, obs_dedup_idx = compute_greedy_dedup_count(
-            obs_landmarks
-        )
+        obs_n_perm_used, obs_covering_radius, obs_dedup_idx = compute_greedy_dedup_count(obs_landmarks)
         logger.info(
             "[PHASE %s] dedup observed: n_dedup=%d, covering_radius=%.3e (tolerance=%.0e, L=%d)",
             label,
@@ -667,7 +682,20 @@ def run_headline_from_embeddings(
     obs_ph_kwargs: dict[str, Any] = {"max_dim": 1}
     if pinned_thresh_value is not None:
         obs_ph_kwargs["thresh"] = pinned_thresh_value
-    ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
+
+    giotto_pool = None
+    if rips_backend == "giotto":
+        from poverty_tda.topology.giotto_backend import GiottoPool, compute_rips_ph_giotto
+
+        giotto_pool = GiottoPool(n_workers=n_jobs, worktree_root=worktree_root())
+        ph_obs = compute_rips_ph_giotto(
+            obs_landmarks_for_ph,
+            giotto_pool,
+            max_dim=obs_ph_kwargs["max_dim"],
+            thresh=obs_ph_kwargs.get("thresh"),
+        )
+    else:
+        ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
 
     # Probe-mode forced symmetric dedup — if requested, force every null PD
     # to use n_perm = obs_n_perm_used. Requires dedup_length_matched=True to
@@ -675,9 +703,7 @@ def run_headline_from_embeddings(
     forced_null_n_dedup: int | None = None
     if probe_symmetric_dedup:
         if not dedup_length_matched:
-            raise ValueError(
-                "probe_symmetric_dedup requires dedup_length_matched=True"
-            )
+            raise ValueError("probe_symmetric_dedup requires dedup_length_matched=True")
         forced_null_n_dedup = int(obs_n_perm_used)
         logger.info(
             "[PHASE %s] probe forced symmetric dedup: nulls will use n_perm = %d (obs dedup count)",
@@ -701,30 +727,66 @@ def run_headline_from_embeddings(
     )
     t0 = time.time()
     seeds_list = [seed + i + 1 for i in range(n_permutations)]
-    null_results = list(
-        Parallel(n_jobs=n_jobs, verbose=10)(
-            delayed(_single_permutation)(
-                "markov",
-                embeddings,
-                trajectories,
-                None,
-                s,
-                1,
-                actual_lm,
-                "wasserstein",
-                markov_order,
-                embed_kwargs,
-                alpha=alpha,
-                frozen_models=frozen_models,
-                ph_observed=ph_obs,
-                dedup=dedup_length_matched,
-                forced_n_dedup=forced_null_n_dedup,
-                pinned_thresh=pinned_thresh_value,
-                ph_kwargs={"do_cocycles": null_do_cocycles},
+    try:
+        if rips_backend == "giotto":
+            from concurrent.futures import ThreadPoolExecutor
+
+            def _run_one(s: int) -> dict:
+                return _single_permutation(
+                    "markov",
+                    embeddings,
+                    trajectories,
+                    None,
+                    s,
+                    1,
+                    actual_lm,
+                    "wasserstein",
+                    markov_order,
+                    embed_kwargs,
+                    alpha=alpha,
+                    frozen_models=frozen_models,
+                    ph_observed=ph_obs,
+                    dedup=dedup_length_matched,
+                    forced_n_dedup=forced_null_n_dedup,
+                    pinned_thresh=pinned_thresh_value,
+                    rips_backend="giotto",
+                    giotto_pool=giotto_pool,
+                )
+
+            # Concurrency comes from the persistent GiottoPool's own worker
+            # subprocesses, not from spawning new OS processes here — a
+            # thread pool is sufficient since each thread mostly blocks on
+            # the worker's pipe I/O, not on local CPU work.
+            with ThreadPoolExecutor(max_workers=n_jobs) as ex:
+                null_results = list(ex.map(_run_one, seeds_list))
+        else:
+            null_results = list(
+                Parallel(n_jobs=n_jobs, verbose=10)(
+                    delayed(_single_permutation)(
+                        "markov",
+                        embeddings,
+                        trajectories,
+                        None,
+                        s,
+                        1,
+                        actual_lm,
+                        "wasserstein",
+                        markov_order,
+                        embed_kwargs,
+                        alpha=alpha,
+                        frozen_models=frozen_models,
+                        ph_observed=ph_obs,
+                        dedup=dedup_length_matched,
+                        forced_n_dedup=forced_null_n_dedup,
+                        pinned_thresh=pinned_thresh_value,
+                        ph_kwargs={"do_cocycles": null_do_cocycles},
+                    )
+                    for s in seeds_list
+                )
             )
-            for s in seeds_list
-        )
-    )
+    finally:
+        if giotto_pool is not None:
+            giotto_pool.close()
     logger.info("[PHASE %s] %d permutations done in %.1fs", label, n_permutations, time.time() - t0)
 
     write_partial(
@@ -782,14 +844,8 @@ def run_headline_from_embeddings(
     # run_bhps_length_matched.py) pops _dedup_info and threads the fields
     # into run_params per the length-matched-run-params schema contract.
     if dedup_length_matched:
-        null_dedup_infos = [
-            r.get("_dedup_info") for r in null_results if r.get("_dedup_info") is not None
-        ]
-        n_perms_null = [
-            info["n_perm_used"]
-            for info in null_dedup_infos
-            if info.get("n_perm_used") is not None
-        ]
+        null_dedup_infos = [r.get("_dedup_info") for r in null_results if r.get("_dedup_info") is not None]
+        n_perms_null = [info["n_perm_used"] for info in null_dedup_infos if info.get("n_perm_used") is not None]
         covs_null = [
             info["covering_radius_at_n_perm"]
             for info in null_dedup_infos
@@ -798,18 +854,14 @@ def run_headline_from_embeddings(
         out["_dedup_info"] = {
             "observed": {
                 "n_perm_used": int(obs_n_perm_used) if obs_n_perm_used is not None else None,
-                "covering_radius_at_n_perm": (
-                    float(obs_covering_radius) if obs_covering_radius is not None else None
-                ),
+                "covering_radius_at_n_perm": (float(obs_covering_radius) if obs_covering_radius is not None else None),
             },
             "null_summary": {
                 "n_perm_used": {
                     "min": int(min(n_perms_null)) if n_perms_null else None,
                     "median": int(np.median(n_perms_null)) if n_perms_null else None,
                     "max": int(max(n_perms_null)) if n_perms_null else None,
-                    "all_equal_to_L": (
-                        all(n == actual_lm for n in n_perms_null) if n_perms_null else False
-                    ),
+                    "all_equal_to_L": (all(n == actual_lm for n in n_perms_null) if n_perms_null else False),
                 },
                 "covering_radius_at_n_perm": {
                     "min": float(min(covs_null)) if covs_null else None,

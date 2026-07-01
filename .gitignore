@@ -19,6 +19,7 @@ MANIFEST
 
 # Virtual environments
 .venv/
+.venv-giotto312/
 venv/
 ENV/
 env/
@@ -57,6 +58,14 @@ docs/Research Papers
 docs/plans
 docs/ttk_installers
 
+# Version the Agentic Research System transition workspace.
+!docs/
+docs/*
+!docs/plans/
+docs/plans/*
+!docs/plans/agentic-research-system/
+!docs/plans/agentic-research-system/**
+
 # Jupyter checkpoints
 .ipynb_checkpoints/
 *.ipynb_checkpoints/
@@ -84,6 +93,12 @@ dist/
 ehthumbs.db
 Thumbs.db
 Desktop.ini
+
+# Google Drive desktop sync staging directory — created automatically by the
+# Drive client when uploading large files from this folder; never repo
+# content. Multi-GB files here were previously swept into commits, bloating
+# .git/objects to 75GB+ (2026-06-30 disk-bloat investigation).
+.tmp.driveupload/
 
 # Testing
 .pytest_cache/
@@ -170,6 +185,9 @@ repomix-output.*
 # T1.28 per-subgroup W2 checkpoint intermediates (gitignored; committed
 # deliverables are stratified_w2_recompute_<date>.json + stratified_w2_bh_per_family_<date>.json)
 results/panel_methodology/fdr/subgroup_checkpoints/
+
+# Local isolated implementation worktrees.
+.worktrees/
 
 # Repowise local index/cache. Keep the shareable MCP config tracked.
 .repowise/*

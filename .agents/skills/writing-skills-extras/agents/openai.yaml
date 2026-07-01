@@ -1,0 +1,4 @@
+interface:
+  display_name: "Writing Skills Extras"
+  short_description: "Validate skills without delegation conflicts"
+  default_prompt: "Use $writing-skills-extras to validate this skill when subagent delegation is unavailable."
