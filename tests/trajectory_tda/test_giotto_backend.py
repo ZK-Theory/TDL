@@ -71,7 +71,6 @@ def test_run_headline_from_embeddings_giotto_backend_runs_end_to_end() -> None:
     all on giotto) without error, at a tiny scale."""
     from trajectory_tda.embedding.ngram_embed import STATES, ngram_embed
     from trajectory_tda.scripts.stage1._battery_core import (
-        _perms_cache_path,
         run_headline_from_embeddings,
         worktree_root,
     )
@@ -81,12 +80,13 @@ def test_run_headline_from_embeddings_giotto_backend_runs_end_to_end() -> None:
     embed_kwargs = {"pca_dim": 5}
     embeddings, _ = ngram_embed(trajectories, **embed_kwargs)
 
-    # Unique phase_tag per run: a stale perm cache from an earlier run of
-    # this test would otherwise trigger the (correct, backend-agnostic)
-    # cache-recovery path, which reconstructs ph_obs without ph_method set
-    # to "giotto-tda" — a false failure, not a real backend-routing bug.
+    # Unique phase_tag per run: on branches with the perm-cache-recovery
+    # feature, a stale cache from an earlier run of this test would
+    # otherwise trigger the (correct, backend-agnostic) cache-recovery
+    # path, which reconstructs ph_obs without ph_method set to
+    # "giotto-tda" — a false failure, not a real backend-routing bug.
     phase_tag = f"test_giotto_tiny_{uuid.uuid4().hex[:8]}"
-    cache_path = _perms_cache_path(phase_tag)
+    partial_dir = worktree_root() / "results/trajectory_tda_integration/stage1/.partial"
     try:
         result, null_results, ph_obs = run_headline_from_embeddings(
             embeddings=embeddings,
@@ -109,8 +109,5 @@ def test_run_headline_from_embeddings_giotto_backend_runs_end_to_end() -> None:
         assert "h0" in result and "h1" in result
         assert "w2_pvalue" in result["h0"]
     finally:
-        cache_path.unlink(missing_ok=True)
-        partial_dir = worktree_root() / "results/trajectory_tda_integration/stage1/.partial"
-        for suffix in ("after_perms", "after_agg"):
-            for f in partial_dir.glob(f"{phase_tag}_*_{suffix}.json"):
-                f.unlink(missing_ok=True)
+        for f in partial_dir.glob(f"{phase_tag}*"):
+            f.unlink(missing_ok=True)
