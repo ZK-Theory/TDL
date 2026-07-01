@@ -57,6 +57,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [handoffs/01-next-session-continuation-prompt.md](handoffs/01-next-session-continuation-prompt.md) | Historical pre-review continuity brief; superseded by handoff 03 |
 | [handoffs/02-adversarial-review-prompt.md](handoffs/02-adversarial-review-prompt.md) | Executed adversarial-review brief; retained as review provenance |
 | [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | W3 authoring continuity brief; retained as provenance after P-028 acceptance |
+| [handoffs/04-p0-review-and-implementation-handover-prompt.md](handoffs/04-p0-review-and-implementation-handover-prompt.md) | Fresh-agent entry point for the P0 plan review gate and explicitly approved foundation implementation |
 
 ## Governing constraints
 
