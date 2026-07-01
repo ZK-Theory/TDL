@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -69,30 +70,47 @@ def test_run_headline_from_embeddings_giotto_backend_runs_end_to_end() -> None:
     (pool lifecycle, ThreadPoolExecutor dispatch, ph_obs + null diagrams
     all on giotto) without error, at a tiny scale."""
     from trajectory_tda.embedding.ngram_embed import STATES, ngram_embed
-    from trajectory_tda.scripts.stage1._battery_core import run_headline_from_embeddings
+    from trajectory_tda.scripts.stage1._battery_core import (
+        _perms_cache_path,
+        run_headline_from_embeddings,
+        worktree_root,
+    )
 
     rng = np.random.RandomState(11)
     trajectories = [[rng.choice(STATES) for _ in range(6)] for _ in range(60)]
     embed_kwargs = {"pca_dim": 5}
     embeddings, _ = ngram_embed(trajectories, **embed_kwargs)
 
-    result, null_results, ph_obs = run_headline_from_embeddings(
-        embeddings=embeddings,
-        trajectories=trajectories,
-        embed_kwargs=embed_kwargs,
-        n_permutations=4,
-        n_landmarks=40,
-        k_max=3,
-        n_points=20,
-        seed=42,
-        label="test/giotto/tiny",
-        phase_tag="test_giotto_tiny",
-        n_jobs=2,
-        rips_backend="giotto",
-    )
+    # Unique phase_tag per run: a stale perm cache from an earlier run of
+    # this test would otherwise trigger the (correct, backend-agnostic)
+    # cache-recovery path, which reconstructs ph_obs without ph_method set
+    # to "giotto-tda" — a false failure, not a real backend-routing bug.
+    phase_tag = f"test_giotto_tiny_{uuid.uuid4().hex[:8]}"
+    cache_path = _perms_cache_path(phase_tag)
+    try:
+        result, null_results, ph_obs = run_headline_from_embeddings(
+            embeddings=embeddings,
+            trajectories=trajectories,
+            embed_kwargs=embed_kwargs,
+            n_permutations=4,
+            n_landmarks=40,
+            k_max=3,
+            n_points=20,
+            seed=42,
+            label="test/giotto/tiny",
+            phase_tag=phase_tag,
+            n_jobs=2,
+            rips_backend="giotto",
+        )
 
-    assert len(null_results) == 4
-    assert isinstance(ph_obs, PHResult)
-    assert ph_obs.ph_method == "giotto-tda"
-    assert "h0" in result and "h1" in result
-    assert "w2_pvalue" in result["h0"]
+        assert len(null_results) == 4
+        assert isinstance(ph_obs, PHResult)
+        assert ph_obs.ph_method == "giotto-tda"
+        assert "h0" in result and "h1" in result
+        assert "w2_pvalue" in result["h0"]
+    finally:
+        cache_path.unlink(missing_ok=True)
+        partial_dir = worktree_root() / "results/trajectory_tda_integration/stage1/.partial"
+        for suffix in ("after_perms", "after_agg"):
+            for f in partial_dir.glob(f"{phase_tag}_*_{suffix}.json"):
+                f.unlink(missing_ok=True)

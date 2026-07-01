@@ -21,6 +21,14 @@ Usage examples::
     # Run all subgroups, both datasets:
     uv run --env-file .env python trajectory_tda/scripts/run_t128_stratified_w2.py
 
+    # Run a single subgroup on the giotto-tda backend (requires
+    # .venv-giotto312; n_jobs=8 was the empirically best-supported
+    # operating point in the 2026-07-01 sweep — see the Computational-Log
+    # entry of the same date, not N_JOBS which is tuned for ripser):
+    uv run --env-file .env python trajectory_tda/scripts/run_t128_stratified_w2.py \\
+        --dataset usoc --stratifier gender --label Male \\
+        --rips-backend giotto --n-jobs 8
+
 Outputs (per-subgroup checkpoints at PROJ_ROOT, gitignored)::
 
     results/panel_methodology/fdr/subgroup_checkpoints/
@@ -304,6 +312,8 @@ def run_subgroup(
     B: int = B_DEFAULT,
     force: bool = False,
     perms_only: bool = False,
+    rips_backend: str = "ripser",
+    n_jobs: int | None = None,
 ) -> dict[str, Any]:
     """Run the Markov-1 W2 headline for one (dataset, stratifier, label) subgroup.
 
@@ -318,6 +328,10 @@ def run_subgroup(
         frozen_models: Fitted scaler+reducer from _build_frozen_models.
         B: Permutation count (pre-registered 1000).
         force: Re-run even if checkpoint exists.
+        rips_backend: "ripser" (default) or "giotto" — see run_headline_from_embeddings.
+        n_jobs: Perm-phase parallelism override. Defaults to N_JOBS (tuned for
+            ripser) when None; pass explicitly (e.g. 8) for the giotto backend,
+            which does not share ripser's contention profile.
 
     Returns:
         Per-subgroup result dict ready for JSON serialisation.
@@ -356,6 +370,7 @@ def run_subgroup(
     phase_tag = f"t128_{dataset}_{stratifier}_{label.replace('/', '-').replace(' ', '_')}"
     t_start = time.perf_counter()
 
+    resolved_n_jobs = n_jobs if n_jobs is not None else N_JOBS
     result_dict, _null_results, _ph_obs = run_headline_from_embeddings(
         embeddings=sub_embeddings,
         trajectories=sub_trajectories,
@@ -367,12 +382,13 @@ def run_subgroup(
         seed=SEED,
         label=tag,
         phase_tag=phase_tag,
-        n_jobs=N_JOBS,
+        n_jobs=resolved_n_jobs,
         n_jobs_agg=N_JOBS_AGG,
         markov_order=MARKOV_ORDER,
         frozen_models=frozen_models,
         perms_only=perms_only,
         null_do_cocycles=False,
+        rips_backend=rips_backend,
     )
 
     if perms_only:
@@ -505,6 +521,32 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run permutation phase only — write perm cache and stop before AGG",
     )
+    parser.add_argument(
+        "--rips-backend",
+        choices=["ripser", "giotto"],
+        default="ripser",
+        help=(
+            "Rips-PH backend (default: ripser). 'giotto' routes through a "
+            "persistent giotto-tda subprocess pool — requires .venv-giotto312 "
+            "(see poverty_tda/topology/giotto_backend.py for setup). Verified "
+            "numerically equivalent to ripser on finite persistence pairs "
+            "(2026-07-01); see the Computational-Log entry of the same date "
+            "for the sustained-load n_jobs sweep this backend was tuned against."
+        ),
+    )
+    parser.add_argument(
+        "--n-jobs",
+        type=int,
+        default=None,
+        help=(
+            f"Permutation-phase parallelism override (default: {N_JOBS} for "
+            "ripser). N_JOBS=4 was tuned for ripser's contention profile — "
+            "it does not transfer to --rips-backend giotto, where n_jobs=8 "
+            "was the empirically best-supported operating point on this "
+            "project's dev machine (2026-07-01 sweep); pass --n-jobs 8 "
+            "explicitly when using the giotto backend."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -579,6 +621,8 @@ def main() -> None:
                     B=args.B,
                     force=args.force,
                     perms_only=args.perms_only,
+                    rips_backend=args.rips_backend,
+                    n_jobs=args.n_jobs,
                 )
             except Exception:
                 logger.exception("[%s/%s/%s] FAILED — continuing to next subgroup", ds, strat, lbl)
