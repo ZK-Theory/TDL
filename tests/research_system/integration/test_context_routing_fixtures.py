@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import pytest
 
 from research_system.canonical import sha256_hex
@@ -11,6 +13,7 @@ from research_system.context.tokenizers import (
 )
 from research_system.errors import ArsError
 from research_system.routing.engine import PreparedDispatch, RouteCandidate, select_route
+from research_system.routing.orchestrator import plan_dispatch
 
 
 def _fragment(source_id, authority, content, mandatory=True):
@@ -165,3 +168,99 @@ def test_prepared_dispatch_remains_unissued():
         "2026-07-03T00:00:00Z",
     )
     assert prepared.state == "unissued"
+
+
+@dataclass(frozen=True)
+class _Task:
+    task_id: str
+    revision: int
+    route_request_id: str
+    log: list[str]
+
+    def requirement_is_current(self, requirement):
+        self.log.append("w5_current")
+        return (
+            requirement.task_id == self.task_id
+            and requirement.task_revision == self.revision
+        )
+
+
+@dataclass(frozen=True)
+class _Requirement:
+    assurance_requirement_id: str
+    content_hash: str
+    task_id: str
+    task_revision: int
+
+
+class _Compiled:
+    context_candidate_id = "ctx_" + "5" * 32
+    content_hash = "d" * 64
+    state = "compiled"
+
+    def __init__(self, log):
+        self.log = log
+
+    def assert_reference_gate(self):
+        self.log.append("w3_reference_gate")
+
+
+class _Evidence:
+    routing_evidence_snapshot_id = "res_" + "6" * 32
+
+    def __init__(self, name, evidence_id, content_hash, expires_at, log):
+        self.name = name
+        self.evidence_id = evidence_id
+        self.content_hash = content_hash
+        self.expires_at = expires_at
+        self.log = log
+
+    def validate_pre_route(self):
+        self.log.append(f"{self.name}_preliminary")
+
+    def hard_gate_failures(self, request, candidate):
+        del request, candidate
+        self.log.append(f"{self.name}_candidate_gate")
+        return ()
+
+
+def test_two_stage_planning_orders_evidence_and_stays_unissued():
+    log = []
+    task = _Task("tsk_" + "1" * 32, 3, "rrq_" + "2" * 32, log)
+    requirement = _Requirement(
+        "asr_" + "3" * 32, "a" * 64, task.task_id, task.revision
+    )
+    provider = _Evidence(
+        "provider",
+        "art_" + "4" * 32,
+        "b" * 64,
+        "2026-07-03T00:00:00Z",
+        log,
+    )
+    operational = _Evidence(
+        "operational",
+        "art_" + "5" * 32,
+        "c" * 64,
+        "2026-07-02T23:00:00Z",
+        log,
+    )
+    prepared = plan_dispatch(
+        task,
+        "att_" + "6" * 32,
+        requirement,
+        _Compiled(log),
+        [_route_candidate("eligible", 10)],
+        provider,
+        operational,
+    )
+    assert log == [
+        "w5_current",
+        "w3_reference_gate",
+        "provider_preliminary",
+        "operational_preliminary",
+        "provider_candidate_gate",
+        "operational_candidate_gate",
+    ]
+    assert isinstance(prepared, PreparedDispatch)
+    assert prepared.state == "unissued"
+    assert prepared.expires_at == "2026-07-02T23:00:00Z"

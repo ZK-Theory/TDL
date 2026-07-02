@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://routing/route-failure",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "request_id", "routing_evidence_snapshot_id", "evaluated"],
+  "properties": {
+    "schema_id": {"const": "ars://routing/route-failure"},
+    "schema_version": {"const": "1.0.0"},
+    "request_id": {"type": "string", "pattern": "^rrq_"},
+    "routing_evidence_snapshot_id": {"type": "string", "pattern": "^res_"},
+    "evaluated": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+  },
+  "additionalProperties": false
+}
