@@ -1,0 +1,26 @@
+schema_version: '1.0.0'
+profiles:
+  trivial:
+    profile_id: trivial-v1
+    max_runtime_s: 120
+    allow_child_process: false
+    allow_durable_writer: false
+    require_benchmark: false
+    require_periodic_heartbeat: false
+    require_checkpoint: false
+  bounded:
+    profile_id: bounded-v1
+    max_runtime_s: 3600
+    allow_child_process: true
+    allow_durable_writer: true
+    require_benchmark: false
+    require_periodic_heartbeat: true
+    require_checkpoint: false
+  long_running:
+    profile_id: long-running-v1
+    max_runtime_s: 172800
+    allow_child_process: true
+    allow_durable_writer: true
+    require_benchmark: true
+    require_periodic_heartbeat: true
+    require_checkpoint: true
