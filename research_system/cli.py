@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import subprocess  # nosec B404 - fixed git discovery command
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
@@ -28,7 +28,7 @@ def _registered_code_roots(roots: list[Path]) -> list[Path]:
     for root in roots:
         resolved = root.resolve(strict=True)
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603 B607 - fixed git argv
                 ['git', '-C', str(resolved), 'worktree', 'list', '--porcelain'],
                 capture_output=True,
                 text=True,

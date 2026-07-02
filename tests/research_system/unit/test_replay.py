@@ -165,7 +165,9 @@ def test_store_init_fails_closed_when_worktree_enumeration_times_out(
     code_root.mkdir()
 
     def time_out(*args, **kwargs):
-        raise subprocess.TimeoutExpired(args[0], kwargs['timeout'])
+        raise subprocess.TimeoutExpired(  # nosec B603 - test exception only
+            args[0], kwargs['timeout']
+        )
 
     monkeypatch.setattr('research_system.cli.subprocess.run', time_out)
     with pytest.raises(ConfigurationError, match='timed out'):

@@ -1,6 +1,6 @@
 """Deterministic compilation and two-stage context budget gates."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.context.errors import ContextBudgetExceeded
@@ -19,6 +19,7 @@ def build_candidate(
     ordered: list[SourceFragment],
     mandatory: list[SourceFragment],
     evidence: CountEvidence,
+    omissions: Mapping[str, str] | None = None,
 ) -> ContextCandidate:
     source_manifest = tuple(
         {
@@ -48,7 +49,7 @@ def build_candidate(
         mandatory_hash=sha256_hex(canonical_bytes(list(mandatory_manifest))),
         source_manifest=source_manifest,
         conflicts=(),
-        omissions={},
+        omissions=dict(omissions or {}),
     )
 
 
@@ -57,6 +58,8 @@ def compile_candidate(
     profile: ContextProfile,
     reference_counter,
     required_source_ids: set[str],
+    optional_source_ids: set[str] | None = None,
+    omissions: Mapping[str, str] | None = None,
 ) -> ContextCandidate:
     fragment_list = list(fragments)
     included_ids = {item.source_id for item in fragment_list}
@@ -76,11 +79,15 @@ def compile_candidate(
         raise ArsError("invalid reference-token units")
     if evidence.count > profile.reference_limit:
         raise ContextBudgetExceeded("reference_token_gate")
-    candidate = build_candidate(rendered, ordered, mandatory, evidence)
+    candidate = build_candidate(rendered, ordered, mandatory, evidence, omissions)
     candidate.validate_manifest(
         required_source_ids,
         included_ids,
-        {item.source_id for item in ordered if not item.mandatory},
+        (
+            {item.source_id for item in ordered if not item.mandatory}
+            | set(optional_source_ids or ())
+        )
+        - required_source_ids,
         candidate.omissions,
     )
     return candidate

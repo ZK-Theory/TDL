@@ -112,7 +112,9 @@ class CommandService:
                 command_id=command.command_id,
                 payload_hash=command.payload_hash,
                 event_batch_id=ledger_receipt['event_batch_id'],
-                observed_stream_version=observed_version + 1,
+                observed_stream_version=ledger_receipt[
+                    'resulting_stream_versions'
+                ][command.target_stream_id],
             )
             return self.receipts.write(accepted)
 
@@ -165,7 +167,11 @@ class CommandService:
             command_id=events[0]['command_id'],
             payload_hash=events[0]['command_payload_hash'],
             event_batch_id=events[0]['transaction_id'],
-            observed_stream_version=max(event['stream_version'] for event in events),
+            observed_stream_version=max(
+                event['stream_version']
+                for event in events
+                if event['stream_id'] == events[0]['stream_id']
+            ),
         )
         stored = self.receipts.load(receipt.command_id)
         if stored is not None:

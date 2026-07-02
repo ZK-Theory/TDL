@@ -1,6 +1,6 @@
 """Disabled-by-policy subprocess transport for later bounded live use."""
 
-import subprocess
+import subprocess  # nosec B404 - explicit argv-only provider process boundary
 
 from research_system.adapters.base import TransportResult
 
@@ -11,9 +11,9 @@ class SubprocessTransport:
     def invoke(
         self, argv: list[str], stdin: str, timeout_s: float
     ) -> TransportResult:
-        """Return a terminal transport result for success or launch failure."""
+        """Return a classified result without leaking process exceptions."""
         try:
-            completed = subprocess.run(
+            completed = subprocess.run(  # nosec B603 - reviewed argv
                 argv,
                 input=stdin,
                 text=True,
@@ -24,7 +24,7 @@ class SubprocessTransport:
             )
         except subprocess.TimeoutExpired as exc:
             return TransportResult(
-                status='terminal',
+                status='timed_out',
                 stdout=exc.stdout or '',
                 stderr=f'provider process timed out after {timeout_s} seconds: {exc}',
                 provider_request_id=None,

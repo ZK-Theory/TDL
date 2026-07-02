@@ -140,6 +140,23 @@ def test_committed_batch_reconstructs_missing_receipt_on_retry(
     assert harness.receipts.load(CMD_CREATE) == recovered
 
 
+def test_reconstructed_receipt_uses_target_stream_version_not_batch_max(tmp_path):
+    harness = control_plane(tmp_path)
+    transaction_id = 'txb_01978abc-2011-7000-8000-000000002011'
+    shared = {
+        'command_id': CMD_CREATE,
+        'command_payload_hash': 'a' * 64,
+        'transaction_id': transaction_id,
+    }
+    reconstructed = harness.service._return_or_reconstruct(
+        [
+            {**shared, 'stream_id': TASK_ID, 'stream_version': 1},
+            {**shared, 'stream_id': DISPATCH_ID, 'stream_version': 4},
+        ]
+    )
+    assert reconstructed.observed_stream_version == 1
+
+
 def test_retry_rejects_receipt_that_does_not_match_committed_batch(tmp_path):
     harness = control_plane(tmp_path)
     command = create_task_command(CMD_CREATE, 'receipt-match', TASK_ID, {'title': 'A'})
