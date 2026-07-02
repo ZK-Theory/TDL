@@ -73,4 +73,5 @@ audits — the Statistical persona *runs* them.
 `adversarial-design-review` (design docs, not prose) ·
 `tda-statistical-analysis-review` · `notation-check` · `humanizer` ·
 `paper-claim-trace` · `reproducibility-package-review` ·
-`tda-literature-verification`.
+`tda-literature-verification` · `tda-visualisation-and-diagramming`
+(figure classes and caption-claim checks for reviewed figures).

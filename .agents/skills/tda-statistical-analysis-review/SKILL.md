@@ -70,4 +70,6 @@ only — fixes happen in a separate pass.
 `statistical-design-audit` · `null-operation-invariance-audit` ·
 `panel-estimand-audit` · `representation-freeze-audit` ·
 `paper-claim-trace` (binding surviving claims to result files) ·
-`tda-peer-review-panel` (this skill is its Statistical persona).
+`tda-peer-review-panel` (this skill is its Statistical persona) ·
+`tda-statistical-modeling-toolkit` (fitting discipline for baseline and
+robustness models under review).

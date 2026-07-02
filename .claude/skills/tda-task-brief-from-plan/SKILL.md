@@ -112,4 +112,6 @@ When the agent must stop and ask or escalate.
 `pre-reg-to-dispatch` (pre-registered runs) · `research-assurance-triage`
 (lane classification) · `schema-contract-design` (upstream contract
 authoring) · `tda-resource-preflight` · `tda-handoff` (carrying an
-unfinished brief across sessions).
+unfinished brief across sessions) · any tier-2 specialist skill as a
+dispatch target (routing table: the SKILL-INDEX in the authoring tree) ·
+`tda-light-task-triage` (low-risk chores that do not need a brief).

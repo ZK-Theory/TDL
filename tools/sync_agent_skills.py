@@ -88,6 +88,24 @@ SYNC_SKILLS: set[str] = {
     "tda-literature-verification",
     "tda-task-brief-from-plan",
     "tda-handoff",
+    # Tier-2 specialist skills (2026-07-02 skill plan, tier 2)
+    "tda-statistical-modeling-toolkit",
+    "tda-trajectory-baselines",
+    "tda-representation-diagnostics",
+    "tda-graph-network-analysis",
+    "tda-acceleration-benchmarking",
+    "tda-external-data-lookup",
+    "tda-visualisation-and-diagramming",
+    "tda-document-ingestion",
+    # Tier-3 optional skills (2026-07-02 skill plan, tier 3)
+    "tda-prototype-sandbox",
+    "tda-research-ideation-lab",
+    "tda-scenario-stress-test",
+    "tda-skill-authoring-workbench",
+    "tda-agent-safety-guardrails",
+    "tda-learning-scaffold",
+    "tda-paper-dissemination-pack",
+    "tda-light-task-triage",
 }
 
 # Skills deliberately NOT byte-mirrored. Patterns match the .agents/ skill dir name.

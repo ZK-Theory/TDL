@@ -73,4 +73,5 @@ status: usable | background | rejected | needs-check
 `scout-review` (weekly discovery triage, upstream of this skill) · `assay`
 (viability scoring of promoted leads) · `tda-peer-review-panel` (review
 passes consume verified sources only) · `paper-claim-trace` (binding claims
-to evidence).
+to evidence) · `tda-document-ingestion` (document conversion upstream of
+verification — converted text is not yet a verified source).
