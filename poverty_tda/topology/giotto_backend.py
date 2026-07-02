@@ -47,12 +47,13 @@ def _find_giotto_python(worktree_root: Path) -> Path:
     """Locate the isolated giotto-tda venv's interpreter for this worktree.
 
     Raises:
-        FileNotFoundError: If ``.venv-giotto312`` hasn't been created yet —
-            see the module docstring for the setup command.
+        FileNotFoundError: If ``.venv-giotto312`` hasn't been created yet, or
+            the resolved path isn't a regular file — see the module
+            docstring for the setup command.
     """
     venv_dir = worktree_root / ".venv-giotto312"
     candidate = venv_dir / "Scripts" / "python.exe" if sys.platform == "win32" else venv_dir / "bin" / "python"
-    if not candidate.exists():
+    if not candidate.is_file():
         raise FileNotFoundError(
             f"giotto-tda venv not found at {candidate}. Create it with:\n"
             f"  uv venv --python 3.12 .venv-giotto312\n"
@@ -66,11 +67,18 @@ class GiottoWorker:
     ``GiottoPool`` serialises access via a per-worker lock."""
 
     def __init__(self, giotto_python: Path) -> None:
-        self.proc = subprocess.Popen(
+        # List-form argv with shell=False: no shell is invoked, so shell
+        # metacharacters in either path are never interpreted regardless of
+        # content. giotto_python is a verified regular file resolved by
+        # _find_giotto_python (never external/untrusted input — it's the
+        # interpreter inside this worktree's own .venv-giotto312), and
+        # _WORKER_SCRIPT is this module's own file location.
+        self.proc = subprocess.Popen(  # nosec B603
             [str(giotto_python), str(_WORKER_SCRIPT)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            shell=False,
         )
         self.lock = threading.Lock()
 
