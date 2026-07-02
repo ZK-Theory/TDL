@@ -101,6 +101,21 @@ type: permanent-note / paper: PXX / date: YYYY-MM-DD
 
 ---
 
+## Delivery notes (Windows / PowerShell 5.1)
+
+When writing the commit message to a temp file for `git commit -F <file>`:
+
+- **Do NOT use `Out-File -Encoding utf8`** — PS 5.1 emits UTF-8 *with BOM*. The
+  repo's `prepare-commit-msg` hook reads the first token of line 1 to detect the
+  `[PREFIX]`; the BOM makes the token `<BOM>[PREFIX]`, the check fails, and the
+  hook prepends its own template over the message.
+- **Use instead:**
+  ```powershell
+  [System.IO.File]::WriteAllText($path, $msg, (New-Object System.Text.UTF8Encoding($false)))
+  ```
+  The `$false` argument disables the BOM. The `[PREFIX]` must be the very first
+  bytes of the file.
+
 ## Output: two copy-ready blocks
 
 **Block 1** — Commit message

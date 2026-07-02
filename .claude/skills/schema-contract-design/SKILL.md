@@ -30,8 +30,12 @@ check into a binding contract.
    result JSON path, sample provenance reference, or published formula.
 5. **Write the binding.** `binding.test_file` (repo-relative), `binding.test_function`
    (unique across ALL contracts by the one-to-one rule), `binding.must_assert`
-   (>=20 chars, the diagnostic message). Enumerate rejection cases as `(a) ...;
-   (b) ...` so the claim-to-assertion coverage gate can count them. The
+   (>=20 chars, the diagnostic message). Enumerate actual rejection cases as
+   `(a) ...; (b) ...` only when the binding test exposes matching negative
+   validator cases, so the claim-to-assertion coverage gate can count them. For
+   positive-only invariants, use an unlettered sentence or bullets: lettered
+   positive properties are parsed as rejection cases and create a false coverage
+   requirement. The
    pre-commit hook runs this test. **Assert VALUE and TYPE, not key presence:**
    the binding test must go red if the producer emits the wrong type or wrong
    value for a contracted field (a `level` that is `{}` instead of `str|null`; a
