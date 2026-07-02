@@ -10,6 +10,7 @@ from research_system.context.tokenizers import (
     Utf8ByteEvidenceV1,
 )
 from research_system.errors import ArsError
+from research_system.routing.engine import PreparedDispatch, RouteCandidate, select_route
 
 
 def _fragment(source_id, authority, content, mandatory=True):
@@ -109,3 +110,58 @@ def test_f028_either_token_gate_blocks_without_truncation():
     )
     with pytest.raises(ContextBudgetExceeded, match="bound_provider_capacity_gate"):
         validate_provider_gate(candidate, overflow, usable_capacity_tokens=16)
+
+
+class _RoutingRequest:
+    request_id = "rrq_" + "7" * 32
+
+
+class _RoutingSnapshot:
+    routing_evidence_snapshot_id = "res_" + "8" * 32
+
+    def __init__(self, failures=None):
+        self.failures = failures or {}
+
+    def hard_gate_failures(self, request, candidate):
+        del request
+        return self.failures.get(candidate.profile_id, ())
+
+
+def _route_candidate(profile_id, capability):
+    return RouteCandidate(profile_id, capability, 2, 0, 100, 1, 1)
+
+
+def test_f031_routing_is_permutation_invariant():
+    candidates = [_route_candidate("weak", 1), _route_candidate("strong", 2)]
+    forward = select_route(_RoutingRequest(), candidates, _RoutingSnapshot())
+    reverse = select_route(
+        _RoutingRequest(), list(reversed(candidates)), _RoutingSnapshot()
+    )
+    assert forward == reverse
+    assert forward["winner"].profile_id == "strong"
+
+
+def test_f033_missing_verifier_witness_blocks_prepared_dispatch():
+    result = select_route(
+        _RoutingRequest(),
+        [_route_candidate("producer", 10)],
+        _RoutingSnapshot({"producer": ("independence_unavailable",)}),
+    )
+    assert result["kind"] == "failure"
+    assert result["evaluated"][0][1] == ("independence_unavailable",)
+
+
+def test_prepared_dispatch_remains_unissued():
+    prepared = PreparedDispatch(
+        "att_" + "1" * 32,
+        "asr_" + "2" * 32,
+        "a" * 64,
+        {"context": "compiled"},
+        {"kind": "selected"},
+        "art_" + "3" * 32,
+        "b" * 64,
+        "art_" + "4" * 32,
+        "c" * 64,
+        "2026-07-03T00:00:00Z",
+    )
+    assert prepared.state == "unissued"
