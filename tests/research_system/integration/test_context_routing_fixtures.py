@@ -1,0 +1,111 @@
+import pytest
+
+from research_system.canonical import sha256_hex
+from research_system.context.compiler import compile_candidate, validate_provider_gate
+from research_system.context.errors import ContextBudgetExceeded
+from research_system.context.models import ContextProfile, SourceFragment
+from research_system.context.tokenizers import (
+    ProviderCountEvidence,
+    ReferenceRegexV1,
+    Utf8ByteEvidenceV1,
+)
+from research_system.errors import ArsError
+
+
+def _fragment(source_id, authority, content, mandatory=True):
+    return SourceFragment(
+        source_id,
+        "r1",
+        authority,
+        mandatory,
+        content,
+        sha256_hex(content.encode("utf-8")),
+    )
+
+
+def test_f021_missing_amendment_blocks_instead_of_becoming_omission():
+    baseline = [_fragment("design-r1", 90, "original design")]
+    with pytest.raises(ArsError, match="mandatory source omitted"):
+        compile_candidate(
+            baseline,
+            ContextProfile("r2", 100),
+            ReferenceRegexV1(),
+            required_source_ids={"design-r1", "amendment-r2"},
+        )
+
+
+def test_f022_f025_f026_complete_mandatory_closure_is_measured():
+    required_ids = {
+        "scope-22",
+        "amendment-r2",
+        "frozen-transform",
+        "null-preflight",
+        "vintage",
+        "seed",
+        "stop-rule",
+    }
+    fragments = [_fragment(name, 100, name) for name in sorted(required_ids)]
+    candidate = compile_candidate(
+        fragments,
+        ContextProfile("r2", 100),
+        ReferenceRegexV1(),
+        required_source_ids=required_ids,
+    )
+    provider = ProviderCountEvidence(
+        counter_id="fake-codex-upper-v1",
+        units="provider_tokens",
+        count=12,
+        exact=False,
+        provider="codex",
+        model="p0-fake",
+        rendering_revision="render-v1",
+        evidence_revision="eval-v1",
+    )
+    assert candidate.reference_count > 0
+    assert (
+        validate_provider_gate(candidate, provider, usable_capacity_tokens=16)
+        == provider
+    )
+    assert Utf8ByteEvidenceV1().count(candidate.rendered_content).units == "utf8_bytes"
+
+
+def test_f027_index_deletion_preserves_mandatory_hash():
+    profile = ContextProfile("r2", reference_limit=100)
+    mandatory = _fragment("direct-source", 100, "governing evidence")
+    optional = _fragment("optional-index", 1, "supplement", mandatory=False)
+    with_index = compile_candidate(
+        [mandatory, optional], profile, ReferenceRegexV1(), {"direct-source"}
+    )
+    direct = compile_candidate(
+        [mandatory], profile, ReferenceRegexV1(), {"direct-source"}
+    )
+    assert with_index.mandatory_hash == direct.mandatory_hash
+
+
+def test_f028_either_token_gate_blocks_without_truncation():
+    fragment = _fragment("mandatory", 100, "one two three")
+    with pytest.raises(ContextBudgetExceeded, match="reference_token_gate"):
+        compile_candidate(
+            [fragment],
+            ContextProfile("r2", 2),
+            ReferenceRegexV1(),
+            required_source_ids={"mandatory"},
+        )
+    candidate = compile_candidate(
+        [fragment],
+        ContextProfile("r2", 100),
+        ReferenceRegexV1(),
+        required_source_ids={"mandatory"},
+    )
+    overflow = ProviderCountEvidence(
+        counter_id="fake-codex-upper-v1",
+        units="provider_tokens",
+        count=13,
+        exact=False,
+        provider="codex",
+        model="p0-fake",
+        rendering_revision="render-v1",
+        evidence_revision="eval-v1",
+    )
+    with pytest.raises(ContextBudgetExceeded, match="bound_provider_capacity_gate"):
+        validate_provider_gate(candidate, overflow, usable_capacity_tokens=16)
