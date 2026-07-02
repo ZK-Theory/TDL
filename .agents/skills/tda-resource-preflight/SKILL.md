@@ -87,4 +87,6 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 
 `spike` (feasibility probes own the benchmark discipline) ·
 `contract-first-tdd` · `result-provenance-review` (output rules) ·
-`tda-task-brief-from-plan` (runtime constraints in dispatched briefs).
+`tda-task-brief-from-plan` (runtime constraints in dispatched briefs) ·
+`tda-acceleration-benchmarking` (when a different execution strategy
+should replace the current one).

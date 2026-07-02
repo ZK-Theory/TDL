@@ -72,4 +72,6 @@ is `notation-check`; this skill owns the concept behind the symbol.
 
 `notation-check` (symbol drift in drafts) · `wasserstein-audit` ·
 `schema-contract-design` (contract terms) · `tda-codebase-design`
-(seam naming) · `commit-log` / `vault-sync` (recording the lock).
+(seam naming) · `commit-log` / `vault-sync` (recording the lock) ·
+`tda-representation-diagnostics` (when the drifting term is a
+representation: frozen vs re-fit, inference vs visualization).
