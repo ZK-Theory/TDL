@@ -6,12 +6,14 @@ from research_system.adapters.base import ProviderCommand, TransportResult
 from research_system.adapters.fake import FakeTransport
 from research_system.adapters.provider import ProviderAdapter
 from research_system.errors import ArsError
+from research_system.operations.coordinator import issue_prepared_dispatch
 from research_system.operations.leases import artifact_disposition, runtime_disposition
 from research_system.operations.recovery import (
     benchmark_disposition,
     resume_from_checkpoint,
 )
 from research_system.operations.resources import authorize_operational_surface
+from research_system.routing.engine import PreparedDispatch
 
 
 def _command(authorized=True, segments=None):
@@ -156,3 +158,130 @@ def test_s004_compatible_resume_creates_new_epoch():
     result = resume_from_checkpoint(_checkpoint(), _checkpoint(), prior_epoch=2)
     assert result["new_execution_epoch"] == 3
     assert result["revalidate"] == ("W3", "W4", "W5", "W6", "W7", "W8")
+
+
+class _AdapterIssue:
+    def __init__(self, log):
+        self.log = log
+
+    def load_evidence(self, evidence_id, content_hash):
+        self.log.append("load_evidence")
+        assert evidence_id == "art_" + "3" * 32
+        assert content_hash == "a" * 64
+        return "provider-evidence"
+
+    def revalidate(self, route, context, provider_evidence):
+        self.log.append("revalidate")
+        assert route == {"kind": "selected"}
+        assert context == {"context": "compiled"}
+        assert provider_evidence == "provider-evidence"
+        return "revalidated"
+
+    def build_command(self, prepared, grant, lease, revalidated):
+        self.log.append("build_command")
+        assert prepared.state == "unissued"
+        assert (grant, lease, revalidated) == ("grant", "lease", "revalidated")
+        return "provider-command"
+
+    def record_issue_command(self, provider_command):
+        self.log.append("record_issue_command")
+        assert provider_command == "provider-command"
+        return "issue"
+
+    def issue(self, provider_command, issued_receipt):
+        self.log.append("issue")
+        assert (provider_command, issued_receipt) == (
+            "provider-command",
+            "receipt:issue",
+        )
+        return "provider-receipt"
+
+
+class _OperationsIssue:
+    def __init__(self, log):
+        self.log = log
+
+    def build_request(self, prepared, revalidated):
+        self.log.append("build_request")
+        assert prepared.state == "unissued"
+        assert revalidated == "revalidated"
+        return "resource-request"
+
+    def request_grant_command(self, request):
+        self.log.append("request_grant_command")
+        assert request == "resource-request"
+        return "grant"
+
+    def load_grant(self, grant_receipt):
+        self.log.append("load_grant")
+        assert grant_receipt == "receipt:grant"
+        return "grant"
+
+    def claim_lease_command(self, grant, attempt_id):
+        self.log.append("claim_lease_command")
+        assert grant == "grant"
+        assert attempt_id == "att_" + "1" * 32
+        return "lease"
+
+    def load_lease(self, lease_receipt):
+        self.log.append("load_lease")
+        assert lease_receipt == "receipt:lease"
+        return "lease"
+
+    def record_provider_receipt_command(self, lease, provider_receipt):
+        self.log.append("record_provider_receipt_command")
+        assert (lease, provider_receipt) == ("lease", "provider-receipt")
+        return "terminal"
+
+
+class _CommandService:
+    def __init__(self, log):
+        self.log = log
+
+    def submit(self, command):
+        self.log.append(f"submit:{command}")
+        return f"receipt:{command}"
+
+
+def test_two_stage_issue_orders_revalidation_grant_lease_and_terminal_receipt():
+    log = []
+    prepared = PreparedDispatch(
+        "att_" + "1" * 32,
+        "asr_" + "2" * 32,
+        "b" * 64,
+        {"context": "compiled"},
+        {"kind": "selected"},
+        "art_" + "3" * 32,
+        "a" * 64,
+        "art_" + "4" * 32,
+        "c" * 64,
+        "2026-07-03T00:00:00Z",
+    )
+    result = issue_prepared_dispatch(
+        prepared,
+        _AdapterIssue(log),
+        _OperationsIssue(log),
+        _CommandService(log),
+    )
+    assert result == (
+        "provider-command",
+        "provider-receipt",
+        "receipt:terminal",
+    )
+    assert log == [
+        "load_evidence",
+        "revalidate",
+        "build_request",
+        "request_grant_command",
+        "submit:grant",
+        "load_grant",
+        "claim_lease_command",
+        "submit:lease",
+        "load_lease",
+        "build_command",
+        "record_issue_command",
+        "submit:issue",
+        "issue",
+        "record_provider_receipt_command",
+        "submit:terminal",
+    ]

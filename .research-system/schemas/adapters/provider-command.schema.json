@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/provider-command",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "provider_command_id", "revision", "revision_hash", "provider", "model", "profile_id", "adapter_revision", "policy_hash", "context_hash", "rendered_payload_hash", "idempotency_key", "operation", "timeout_s", "wrapper_accounting", "authorized"],
+  "properties": {
+    "schema_id": {"const": "ars://adapters/provider-command"},
+    "schema_version": {"const": "1.0.0"},
+    "provider_command_id": {"type": "string", "pattern": "^pcmd_"},
+    "revision": {"type": "integer", "minimum": 1},
+    "revision_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "provider": {"enum": ["claude", "codex"]},
+    "model": {"type": "string"},
+    "profile_id": {"type": "string"},
+    "adapter_revision": {"type": "string"},
+    "policy_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "context_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rendered_payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "operation": {"type": "string", "minLength": 1},
+    "timeout_s": {"type": "number", "exclusiveMinimum": 0},
+    "wrapper_accounting": {"type": "object"},
+    "authorized": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

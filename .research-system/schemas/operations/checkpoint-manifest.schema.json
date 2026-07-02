@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://operations/checkpoint-manifest",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "checkpoint_manifest_id", "attempt_id", "execution_epoch", "design_hash", "code_hash", "environment_hash", "input_hashes", "representation_hash", "parameters_hash", "rng_algorithm", "rng_state_hash", "completed_work_units", "payload_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://operations/checkpoint-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "checkpoint_manifest_id": {"type": "string", "pattern": "^cpm_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "execution_epoch": {"type": "integer", "minimum": 1},
+    "design_hash": {"type": "string"},
+    "code_hash": {"type": "string"},
+    "environment_hash": {"type": "string"},
+    "input_hashes": {"type": "array", "items": {"type": "string"}},
+    "representation_hash": {"type": "string"},
+    "parameters_hash": {"type": "string"},
+    "rng_algorithm": {"type": "string"},
+    "rng_state_hash": {"type": "string"},
+    "completed_work_units": {"type": "array", "items": {"type": "integer"}},
+    "payload_hash": {"type": "string"}
+  },
+  "additionalProperties": false
+}
