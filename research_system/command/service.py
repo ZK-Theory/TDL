@@ -67,7 +67,7 @@ class CommandService:
         objects: ObjectStore,
         receipts: ReceiptStore,
         schemas: SchemaRegistry,
-    ):
+    ) -> None:
         self.control_root = control_root
         self.ledger = ledger
         self.objects = objects
@@ -83,6 +83,9 @@ class CommandService:
             self.control_root / 'runtime' / 'writer.lock',
             {'command_id': command.command_id},
         ):
+            stored_conflict = self._stored_conflict_receipt(command)
+            if stored_conflict is not None:
+                return stored_conflict
             snapshot = self.ledger.snapshot()
             view = self._view_for(snapshot)
             existing = self._matching_committed(command, view)
@@ -90,13 +93,15 @@ class CommandService:
                 return self._return_or_reconstruct(existing)
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             if observed_version != command.expected_stream_version:
-                return Receipt(
-                    status='conflict',
-                    command_id=command.command_id,
-                    payload_hash=command.payload_hash,
-                    event_batch_id=None,
-                    observed_stream_version=observed_version,
-                    reason_code='stream_version_conflict',
+                return self.receipts.write(
+                    Receipt(
+                        status='conflict',
+                        command_id=command.command_id,
+                        payload_hash=command.payload_hash,
+                        event_batch_id=None,
+                        observed_stream_version=observed_version,
+                        reason_code='stream_version_conflict',
+                    )
                 )
             event = self._build_event(command)
             ledger_receipt = self.ledger.append([event], snapshot=snapshot)
@@ -110,6 +115,20 @@ class CommandService:
                 observed_stream_version=observed_version + 1,
             )
             return self.receipts.write(accepted)
+
+    def _stored_conflict_receipt(self, command: Command) -> Receipt | None:
+        stored = self.receipts.load(command.command_id)
+        if stored is None or stored.status != 'conflict':
+            return None
+        if stored.payload_hash != command.payload_hash:
+            raise ConflictError('command ID conflicts with stored receipt')
+        if (
+            stored.command_id != command.command_id
+            or stored.event_batch_id is not None
+            or stored.reason_code != 'stream_version_conflict'
+        ):
+            raise IntegrityError('stored conflict receipt is inconsistent')
+        return stored
 
     def _view_for(self, snapshot: LedgerSnapshot) -> _CommandView:
         if self._view is None or self._view.fingerprint != snapshot.fingerprint:

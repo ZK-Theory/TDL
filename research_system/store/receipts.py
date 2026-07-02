@@ -38,7 +38,7 @@ def _receipt_from_record(record: dict[str, Any]) -> Receipt:
 
 
 class ReceiptStore:
-    def __init__(self, control_root: Path):
+    def __init__(self, control_root: Path) -> None:
         self.receipts_root = control_root / 'receipts'
         self.runtime_root = control_root / 'runtime'
         self.receipts_root.mkdir(parents=True, exist_ok=True)

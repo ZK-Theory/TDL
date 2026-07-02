@@ -102,6 +102,26 @@ def test_batch_positions_and_hash_chain_are_contiguous(tmp_path):
     assert events[0]['previous_event_hash'] == '0' * 64
     assert receipt['event_batch_id'] == events[0]['transaction_id']
 
+
+def test_replay_and_tail_follow_global_position_across_date_rollback(tmp_path):
+    ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
+    ledger.append([{'event_type': 'TaskCreated', 'stream_id': TASK_ID}])
+    ledger.append([{'event_type': 'ReadinessRequested', 'stream_id': TASK_ID}])
+    batches = sorted(ledger.events_root.rglob('*.jsonl'), key=lambda path: path.name)
+
+    later_date = ledger.events_root / '2027' / '01'
+    earlier_date = ledger.events_root / '2026' / '01'
+    later_date.mkdir(parents=True, exist_ok=True)
+    earlier_date.mkdir(parents=True, exist_ok=True)
+    batches[0].replace(later_date / batches[0].name)
+    batches[1].replace(earlier_date / batches[1].name)
+
+    events = tuple(ledger.iter_events())
+    assert [event['global_position'] for event in events] == [1, 2]
+    assert [batch[0]['global_position'] for batch in ledger.iter_batches()] == [1, 2]
+    assert ledger._persisted_tail() == (2, events[-1]['event_hash'])
+
+
 def test_caller_cannot_override_recorded_at(tmp_path):
     ledger = EventLedger(tmp_path, project_id=PROJECT_ID)
     with pytest.raises(ArsError, match='protected event fields'):

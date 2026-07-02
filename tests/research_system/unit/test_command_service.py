@@ -3,6 +3,7 @@ import pytest
 
 from research_system.canonical import canonical_bytes
 from research_system.command.reducers import reduce_task
+from research_system.command.service import CommandService
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from tests.research_system.factories import (
     claim_dispatch_command,
@@ -71,6 +72,41 @@ def test_competing_claims_create_only_one_active_attempt(tmp_path):
     loser = harness.service.submit(second)
     assert {winner.status, loser.status} == {'accepted', 'conflict'}
     assert len(harness.replay().active_attempt_ids) == 1
+
+
+def test_conflict_receipt_is_persisted_and_reused_after_stream_changes(tmp_path):
+    harness = control_plane(tmp_path)
+    blocked = claim_dispatch_command(
+        CMD_CLAIM_A, 'actor-a', DISPATCH_ID, expected_version=1
+    )
+    original = harness.service.submit(blocked)
+    assert original.status == 'conflict'
+    assert original.observed_stream_version == 0
+    assert harness.receipts.load(CMD_CLAIM_A) == original
+
+    advancing = claim_dispatch_command(
+        CMD_CLAIM_B, 'actor-a', DISPATCH_ID, expected_version=0
+    )
+    assert harness.service.submit(advancing).status == 'accepted'
+    restarted = CommandService(
+        harness.service.control_root,
+        harness.ledger,
+        harness.objects,
+        harness.receipts,
+        harness.service.schemas,
+    )
+    assert restarted.submit(blocked) == original
+
+
+def test_conflict_receipt_rejects_command_id_reuse_with_changed_payload(tmp_path):
+    harness = control_plane(tmp_path)
+    blocked = claim_dispatch_command(
+        CMD_CLAIM_A, 'actor-a', DISPATCH_ID, expected_version=1
+    )
+    harness.service.submit(blocked)
+    changed = {**blocked, 'payload': {'changed': True}}
+    with pytest.raises(ConflictError, match='stored receipt'):
+        harness.service.submit(changed)
 
 
 def test_distinct_task_and_artefact_objects_cannot_overwrite(tmp_path):

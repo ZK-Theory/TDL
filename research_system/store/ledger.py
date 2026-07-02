@@ -40,7 +40,7 @@ class LedgerSnapshot:
 
 
 class EventLedger:
-    def __init__(self, control_root: Path, project_id: str):
+    def __init__(self, control_root: Path, project_id: str) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, 'project')
         self.events_root = control_root / 'events' / project_id
@@ -151,24 +151,35 @@ class EventLedger:
         }
 
     def iter_events(self) -> Iterator[dict[str, Any]]:
-        for path in sorted(self.events_root.rglob('*.jsonl')):
-            with path.open(encoding='utf-8') as handle:
-                for line in handle:
-                    if line.strip():
-                        yield json.loads(line)
+        for batch in self.iter_batches():
+            yield from batch
 
     def iter_batches(self) -> Iterator[tuple[dict[str, Any], ...]]:
-        for path in sorted(self.events_root.rglob('*.jsonl')):
+        for path in self._batch_paths():
             with path.open(encoding='utf-8') as handle:
                 yield tuple(json.loads(line) for line in handle if line.strip())
 
+    def _batch_paths(self) -> list[Path]:
+        paths = list(self.events_root.rglob('*.jsonl'))
+        try:
+            return sorted(
+                paths,
+                key=lambda path: int(path.name.partition('-')[0]),
+            )
+        except ValueError as exc:
+            raise ConflictError('invalid event batch filename') from exc
+
     def _persisted_tail(self) -> tuple[int, str]:
-        paths = sorted(self.events_root.rglob('*.jsonl'))
+        paths = self._batch_paths()
         if not paths:
             return 0, '0' * 64
+        tail_path = max(
+            paths,
+            key=lambda path: int(path.name.partition('-')[0]),
+        )
         lines = [
             line
-            for line in paths[-1].read_text(encoding='utf-8').splitlines()
+            for line in tail_path.read_text(encoding='utf-8').splitlines()
             if line.strip()
         ]
         if not lines:
