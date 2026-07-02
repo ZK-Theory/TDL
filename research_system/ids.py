@@ -35,7 +35,18 @@ def _uuid7(now_ms: int | None = None) -> uuid.UUID:
 
 
 class IdRegistry:
+    """Generate and validate UUIDv7 identities from an owner prefix catalogue."""
+
     def __init__(self, kind_prefixes: Mapping[str, str]):
+        """Create a registry from unique kind-to-prefix mappings.
+
+        Args:
+            kind_prefixes: Canonical identity kinds and their short prefixes.
+
+        Raises:
+            ConfigurationError: If the registry is empty, malformed, or contains
+                a prefix assigned to more than one kind.
+        """
         if not kind_prefixes:
             raise ConfigurationError('ID kind registry is empty')
         malformed = {
@@ -47,9 +58,26 @@ class IdRegistry:
         }
         if malformed:
             raise ConfigurationError(f'malformed ID kind registry entries: {malformed}')
+        prefixes = tuple(kind_prefixes.values())
+        duplicates = sorted(
+            prefix for prefix in set(prefixes) if prefixes.count(prefix) > 1
+        )
+        if duplicates:
+            raise ConfigurationError(f'duplicate ID kind prefixes: {duplicates}')
         self._kind_prefixes = dict(kind_prefixes)
 
     def new(self, kind: str) -> str:
+        """Create a new UUIDv7 identity for a registered kind.
+
+        Args:
+            kind: Registered identity kind.
+
+        Returns:
+            A prefix-qualified UUIDv7 identity.
+
+        Raises:
+            ValueError: If the kind is not registered.
+        """
         try:
             prefix = self._kind_prefixes[kind]
         except KeyError as exc:
@@ -57,6 +85,18 @@ class IdRegistry:
         return f'{prefix}_{_uuid7()}'
 
     def validate(self, value: str, kind: str) -> str:
+        """Validate a prefix-qualified UUIDv7 identity.
+
+        Args:
+            value: Identity to validate.
+            kind: Expected registered identity kind.
+
+        Returns:
+            The validated identity unchanged.
+
+        Raises:
+            ValueError: If the kind is unknown or the identity is malformed.
+        """
         try:
             prefix = self._kind_prefixes[kind]
         except KeyError as exc:
@@ -90,8 +130,31 @@ _REGISTRY = _load_registry()
 
 
 def new_id(kind: str) -> str:
+    """Create a UUIDv7 identity for a canonical registered kind.
+
+    Args:
+        kind: Registered identity kind.
+
+    Returns:
+        A prefix-qualified UUIDv7 identity.
+
+    Raises:
+        ValueError: If the kind is not registered.
+    """
     return _REGISTRY.new(kind)
 
 
 def validate_id(value: str, kind: str) -> str:
+    """Validate an identity against its canonical registered kind.
+
+    Args:
+        value: Identity to validate.
+        kind: Expected registered identity kind.
+
+    Returns:
+        The validated identity unchanged.
+
+    Raises:
+        ValueError: If the kind is unknown or the identity is malformed.
+    """
     return _REGISTRY.validate(value, kind)

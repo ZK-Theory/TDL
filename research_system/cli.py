@@ -27,12 +27,18 @@ def _registered_code_roots(roots: list[Path]) -> list[Path]:
     registered: set[Path] = set()
     for root in roots:
         resolved = root.resolve(strict=True)
-        result = subprocess.run(
-            ['git', '-C', str(resolved), 'worktree', 'list', '--porcelain'],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ['git', '-C', str(resolved), 'worktree', 'list', '--porcelain'],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ConfigurationError(
+                f'git worktree enumeration timed out for {resolved}'
+            ) from exc
         if result.returncode != 0:
             detail = result.stderr.strip() or 'unknown git error'
             raise ConfigurationError(

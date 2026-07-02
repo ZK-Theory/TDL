@@ -57,7 +57,9 @@ import pytest
 from research_system.assurance.models import (
     CORE_LANES, AssuranceRequirement, LaneRequirement,
 )
-from research_system.assurance.requirements import validate_requirement
+from research_system.assurance.requirements import (
+    GrantBackedAuthorityPolicy, validate_requirement,
+)
 from research_system.context.models import ContextCandidate
 from research_system.errors import ArsError
 
@@ -126,7 +128,14 @@ def test_producer_cannot_self_confirm_r2_scope_or_r3_action():
         action_semantic_risk='R3',
     )
     with pytest.raises(ArsError, match='assurance_requirement_scope_unconfirmed'):
-        validate_requirement(requirement)
+        validate_requirement(
+            requirement,
+            GrantBackedAuthorityPolicy({
+                'act-producer': frozenset({
+                    'accept_r3_assurance_requirement',
+                }),
+            }),
+        )
 ```
 
 - [ ] **Step 2: Run and confirm failure**
@@ -231,7 +240,7 @@ class AssuranceRequirement:
     currency_hash: str
 ```
 
-`requirements.py` validates the exact lane-set equality, non-empty rationale and authority for every `not_applicable`, R2 producer-distinct scope confirmation at I1 or stronger, action-semantic risk escalation, and R3 I2 plus Stephen authority. Software, mathematical, operations, and privacy remain assertion/evidence classes or reviewed pack extensions; they are not silently added to W5's six core lanes.
+`requirements.py` validates the exact lane-set equality, non-empty rationale and authority for every `not_applicable`, R2 producer-distinct scope confirmation at I1 or stronger, action-semantic risk escalation, and R3 I2 plus attributed authority resolved from canonical grant policy. Software, mathematical, operations, and privacy remain assertion/evidence classes or reviewed pack extensions; they are not silently added to W5's six core lanes.
 
 - [ ] **Step 4: Run targeted tests**
 

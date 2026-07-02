@@ -15,7 +15,7 @@ kinds:
   route_request: rrq
   route_decision: rte
   routing_evidence_snapshot: res
-  resource_request: rrq
+  resource_request: rsq
   resource_grant: rgr
   execution_lease: els
   provider_command: pcmd

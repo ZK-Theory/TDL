@@ -13,6 +13,7 @@ from research_system.store.receipts import ReceiptStore
 
 PROJECT_ID = 'prj_01978abc-1000-7000-8000-000000001000'
 AUTHORITY_GRANT_ID = 'agr_01978abc-1001-7000-8000-000000001001'
+REPO_ROOT = Path(__file__).resolve().parents[2]
 ACTORS = {
     'actor-a': 'act_01978abc-1002-7000-8000-000000001002',
     'actor-b': 'act_01978abc-1003-7000-8000-000000001003',
@@ -36,7 +37,7 @@ def control_plane(tmp_path: Path) -> ControlPlaneHarness:
     ledger = EventLedger(root, project_id=PROJECT_ID)
     objects = ObjectStore(root)
     receipts = ReceiptStore(root)
-    schemas = SchemaRegistry(Path('.research-system/schemas'))
+    schemas = SchemaRegistry(REPO_ROOT / '.research-system' / 'schemas')
     service = CommandService(root, ledger, objects, receipts, schemas)
     return ControlPlaneHarness(service, ledger, objects, receipts)
 

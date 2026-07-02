@@ -1,12 +1,26 @@
 """Fail-closed validation for W5 assurance requirements."""
 
+from collections.abc import Mapping, Set
+from dataclasses import dataclass
+
 from research_system.assurance.models import CORE_LANES, AssuranceRequirement
 from research_system.errors import ArsError
 
 
 RISK_ORDER = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
 _INDEPENDENCE_ORDER = {"I0": 0, "I1": 1, "I2": 2}
-_STEPHEN_ACTOR_IDS = frozenset({"act-stephen", "act_stephen"})
+_R3_ACCEPTANCE_ACTION = 'accept_r3_assurance_requirement'
+
+
+@dataclass(frozen=True)
+class GrantBackedAuthorityPolicy:
+    """Resolve assurance actions from canonical actor grant mappings."""
+
+    granted_actions_by_actor: Mapping[str, Set[str]]
+
+    def permits(self, actor_id: str, action: str) -> bool:
+        """Return whether the actor's resolved grants include an action."""
+        return action in self.granted_actions_by_actor.get(actor_id, frozenset())
 
 
 def effective_risk(*risks: str) -> str:
@@ -22,8 +36,11 @@ def two_key_decision(*, key_a: bool, key_b: bool) -> str:
     return "accepted" if key_a and key_b else "blocked"
 
 
-def validate_requirement(requirement: AssuranceRequirement) -> None:
-    """Validate scope completeness, risk floor, and acceptance independence."""
+def validate_requirement(
+    requirement: AssuranceRequirement,
+    authority_policy: GrantBackedAuthorityPolicy,
+) -> None:
+    """Validate completeness, risk, independence, and acceptance authority."""
     lanes = {item.lane for item in requirement.lanes}
     if lanes != CORE_LANES or len(requirement.lanes) != len(CORE_LANES):
         raise ArsError("assurance_requirement_incomplete: exact core lanes required")
@@ -58,9 +75,14 @@ def validate_requirement(requirement: AssuranceRequirement) -> None:
 
     if effective >= RISK_ORDER["R3"] and (
         relationship < _INDEPENDENCE_ORDER["I2"]
-        or requirement.accepting_actor_id not in _STEPHEN_ACTOR_IDS
+        or not authority_policy.permits(
+            requirement.accepting_actor_id, _R3_ACCEPTANCE_ACTION
+        )
     ):
-        raise ArsError("assurance_requirement_scope_unconfirmed: R3 requires Stephen")
+        raise ArsError(
+            "assurance_requirement_scope_unconfirmed: "
+            "R3 requires attributed human authority"
+        )
 
     if floor < effective:
         raise ArsError("assurance_requirement_risk_underclassified")

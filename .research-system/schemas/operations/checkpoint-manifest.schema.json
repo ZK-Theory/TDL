@@ -9,16 +9,16 @@
     "checkpoint_manifest_id": {"type": "string", "pattern": "^cpm_"},
     "attempt_id": {"type": "string", "pattern": "^att_"},
     "execution_epoch": {"type": "integer", "minimum": 1},
-    "design_hash": {"type": "string"},
-    "code_hash": {"type": "string"},
-    "environment_hash": {"type": "string"},
-    "input_hashes": {"type": "array", "items": {"type": "string"}},
-    "representation_hash": {"type": "string"},
-    "parameters_hash": {"type": "string"},
+    "design_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "code_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "environment_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "input_hashes": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "representation_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parameters_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "rng_algorithm": {"type": "string"},
-    "rng_state_hash": {"type": "string"},
+    "rng_state_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "completed_work_units": {"type": "array", "items": {"type": "integer"}},
-    "payload_hash": {"type": "string"}
+    "payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
   },
   "additionalProperties": false
 }

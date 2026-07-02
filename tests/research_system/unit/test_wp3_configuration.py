@@ -1,7 +1,9 @@
 from pathlib import Path
 
+import pytest
 import yaml
 
+from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 
 
@@ -51,3 +53,63 @@ def test_provider_manifests_are_argument_arrays_and_live_disabled():
         )
         assert isinstance(manifest["argv"], list)
         assert manifest["live_enabled"] is False
+
+@pytest.mark.parametrize(
+    'field',
+    [
+        'design_hash',
+        'code_hash',
+        'environment_hash',
+        'representation_hash',
+        'parameters_hash',
+        'rng_state_hash',
+        'payload_hash',
+    ],
+)
+def test_checkpoint_manifest_rejects_malformed_hashes(field):
+    manifest = {
+        'schema_id': 'ars://operations/checkpoint-manifest',
+        'schema_version': '1.0.0',
+        'checkpoint_manifest_id': 'cpm_' + '1' * 32,
+        'attempt_id': 'att_' + '2' * 32,
+        'execution_epoch': 1,
+        'design_hash': 'a' * 64,
+        'code_hash': 'b' * 64,
+        'environment_hash': 'c' * 64,
+        'input_hashes': ['d' * 64],
+        'representation_hash': 'e' * 64,
+        'parameters_hash': 'f' * 64,
+        'rng_algorithm': 'PCG64',
+        'rng_state_hash': '1' * 64,
+        'completed_work_units': [0],
+        'payload_hash': '2' * 64,
+    }
+    manifest[field] = 'not-a-hash'
+    with pytest.raises(SchemaError, match=field):
+        SchemaRegistry(ROOT / '.research-system' / 'schemas').validate(
+            'ars://operations/checkpoint-manifest', manifest
+        )
+
+
+def test_checkpoint_manifest_rejects_malformed_input_hash():
+    manifest = {
+        'schema_id': 'ars://operations/checkpoint-manifest',
+        'schema_version': '1.0.0',
+        'checkpoint_manifest_id': 'cpm_' + '1' * 32,
+        'attempt_id': 'att_' + '2' * 32,
+        'execution_epoch': 1,
+        'design_hash': 'a' * 64,
+        'code_hash': 'b' * 64,
+        'environment_hash': 'c' * 64,
+        'input_hashes': ['not-a-hash'],
+        'representation_hash': 'e' * 64,
+        'parameters_hash': 'f' * 64,
+        'rng_algorithm': 'PCG64',
+        'rng_state_hash': '1' * 64,
+        'completed_work_units': [0],
+        'payload_hash': '2' * 64,
+    }
+    with pytest.raises(SchemaError, match='input_hashes'):
+        SchemaRegistry(ROOT / '.research-system' / 'schemas').validate(
+            'ars://operations/checkpoint-manifest', manifest
+        )

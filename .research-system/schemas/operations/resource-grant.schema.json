@@ -7,7 +7,7 @@
     "schema_id": {"const": "ars://operations/resource-grant"},
     "schema_version": {"const": "1.0.0"},
     "resource_grant_id": {"type": "string", "pattern": "^rgr_"},
-    "resource_request_id": {"type": "string", "pattern": "^rrq_"},
+    "resource_request_id": {"type": "string", "pattern": "^rsq_"},
     "attempt_id": {"type": "string", "pattern": "^att_"},
     "profile_id": {"type": "string"},
     "granted_claims": {"type": "object"},

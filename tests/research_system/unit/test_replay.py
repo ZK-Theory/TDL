@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -156,6 +157,31 @@ def test_store_init_fails_closed_when_worktrees_cannot_be_enumerated(
         )
     assert not (tmp_path / 'control').exists()
 
+
+def test_store_init_fails_closed_when_worktree_enumeration_times_out(
+    tmp_path, monkeypatch
+):
+    code_root = tmp_path / 'repo'
+    code_root.mkdir()
+
+    def time_out(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], kwargs['timeout'])
+
+    monkeypatch.setattr('research_system.cli.subprocess.run', time_out)
+    with pytest.raises(ConfigurationError, match='timed out'):
+        main(
+            [
+                'store',
+                'init',
+                '--code-root',
+                str(code_root),
+                '--control-root',
+                str(tmp_path / 'control'),
+                '--project-id',
+                PROJECT_ID,
+            ]
+        )
+    assert not (tmp_path / 'control').exists()
 
 def test_s006_cli_uses_namespaced_projection_and_explicit_binding(
     tmp_path, capsys, monkeypatch

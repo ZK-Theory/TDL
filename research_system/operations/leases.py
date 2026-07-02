@@ -3,7 +3,7 @@
 from datetime import datetime
 
 
-def heartbeat_disposition(profile, heartbeat_policy):
+def heartbeat_disposition(profile: str, heartbeat_policy: dict) -> dict:
     if profile == "trivial":
         expected = {
             "status": "not_applicable",

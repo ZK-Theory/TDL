@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,17 @@ _PROTECTED_FIELDS = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class LedgerSnapshot:
+    """Materialized immutable ledger state used by one command transaction."""
+
+    events: tuple[dict[str, Any], ...]
+    global_position: int
+    event_hash: str
+    stream_versions: Mapping[str, int]
+    fingerprint: tuple[tuple[str, int, int], ...]
+
+
 class EventLedger:
     def __init__(self, control_root: Path, project_id: str):
         self.control_root = control_root
@@ -35,17 +47,48 @@ class EventLedger:
         self.runtime_root = control_root / 'runtime'
         self.events_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root.mkdir(parents=True, exist_ok=True)
+        self._snapshot: LedgerSnapshot | None = None
 
-    def append(self, proposed_events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    def snapshot(self) -> LedgerSnapshot:
+        """Return a verified-state input, reloading only when ledger files change."""
+        fingerprint = self._fingerprint()
+        if self._snapshot is not None and self._snapshot.fingerprint == fingerprint:
+            return self._snapshot
+        events = tuple(self.iter_events())
+        if self._fingerprint() != fingerprint:
+            raise ConflictError('ledger changed while materializing snapshot')
+        stream_versions: dict[str, int] = {}
+        for event in events:
+            stream_versions[event['stream_id']] = event['stream_version']
+        self._snapshot = LedgerSnapshot(
+            events=events,
+            global_position=events[-1]['global_position'] if events else 0,
+            event_hash=events[-1]['event_hash'] if events else '0' * 64,
+            stream_versions=stream_versions,
+            fingerprint=fingerprint,
+        )
+        return self._snapshot
+
+    def append(
+        self,
+        proposed_events: Iterable[Mapping[str, Any]],
+        *,
+        snapshot: LedgerSnapshot | None = None,
+    ) -> dict[str, Any]:
+        """Atomically append a batch using a caller-verified materialized state."""
         proposed = [dict(event) for event in proposed_events]
         if not proposed:
             raise ArsError('event batch must not be empty')
-        existing = list(self.iter_events())
-        next_position = existing[-1]['global_position'] + 1 if existing else 1
-        previous_hash = existing[-1]['event_hash'] if existing else '0' * 64
-        stream_versions: dict[str, int] = {}
-        for event in existing:
-            stream_versions[event['stream_id']] = event['stream_version']
+        current = self.snapshot() if snapshot is None else snapshot
+        if self._fingerprint() != current.fingerprint:
+            self._snapshot = None
+            raise ConflictError('ledger changed since materialized snapshot')
+        if self._persisted_tail() != (current.global_position, current.event_hash):
+            self._snapshot = None
+            raise ConflictError('persisted ledger tail differs from snapshot')
+        next_position = current.global_position + 1
+        previous_hash = current.event_hash
+        stream_versions = dict(current.stream_versions)
         transaction_id = new_id('event_batch')
         recorded_at = datetime.now(UTC)
         count = len(proposed)
@@ -93,6 +136,13 @@ class EventLedger:
         self._after_batch_fsync(temporary)
         self._publish(temporary, target)
         self._after_publish(target)
+        self._snapshot = LedgerSnapshot(
+            events=current.events + tuple(events),
+            global_position=events[-1]['global_position'],
+            event_hash=events[-1]['event_hash'],
+            stream_versions=stream_versions,
+            fingerprint=self._fingerprint(),
+        )
         return {
             'event_batch_id': transaction_id,
             'event_ids': [event['event_id'] for event in events],
@@ -110,11 +160,34 @@ class EventLedger:
     def iter_batches(self) -> Iterator[tuple[dict[str, Any], ...]]:
         for path in sorted(self.events_root.rglob('*.jsonl')):
             with path.open(encoding='utf-8') as handle:
-                yield tuple(
-                    json.loads(line)
-                    for line in handle
-                    if line.strip()
+                yield tuple(json.loads(line) for line in handle if line.strip())
+
+    def _persisted_tail(self) -> tuple[int, str]:
+        paths = sorted(self.events_root.rglob('*.jsonl'))
+        if not paths:
+            return 0, '0' * 64
+        lines = [
+            line
+            for line in paths[-1].read_text(encoding='utf-8').splitlines()
+            if line.strip()
+        ]
+        if not lines:
+            raise ConflictError('persisted ledger tail batch is empty')
+        tail = json.loads(lines[-1])
+        return tail['global_position'], tail['event_hash']
+
+    def _fingerprint(self) -> tuple[tuple[str, int, int], ...]:
+        records = []
+        for path in sorted(self.events_root.rglob('*.jsonl')):
+            stat = path.stat()
+            records.append(
+                (
+                    path.relative_to(self.events_root).as_posix(),
+                    stat.st_size,
+                    stat.st_mtime_ns,
                 )
+            )
+        return tuple(records)
 
     def _after_batch_fsync(self, temporary: Path) -> None:
         pass

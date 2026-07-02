@@ -18,7 +18,7 @@ def reduce_task(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             raise ValueError('TaskCreated requires empty stream')
 
         return {'task_id': event['stream_id'], 'status': 'draft', 'version': 1}
-    if event_type == 'ReadinessRequested' and state['status'] == 'draft':
+    if event_type == 'ReadinessRequested' and state.get('status') == 'draft':
         return {
             **state,
             'status': 'readiness_pending',

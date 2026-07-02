@@ -6,18 +6,40 @@ from research_system.adapters.base import TransportResult
 
 
 class SubprocessTransport:
-    def invoke(self, argv, stdin, timeout_s):
-        completed = subprocess.run(
-            argv,
-            input=stdin,
-            text=True,
-            capture_output=True,
-            timeout=timeout_s,
-            check=False,
-            shell=False,
-        )
+    """Invoke a provider process without leaking process exceptions."""
+
+    def invoke(
+        self, argv: list[str], stdin: str, timeout_s: float
+    ) -> TransportResult:
+        """Return a terminal transport result for success or launch failure."""
+        try:
+            completed = subprocess.run(
+                argv,
+                input=stdin,
+                text=True,
+                capture_output=True,
+                timeout=timeout_s,
+                check=False,
+                shell=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return TransportResult(
+                status='terminal',
+                stdout=exc.stdout or '',
+                stderr=f'provider process timed out after {timeout_s} seconds: {exc}',
+                provider_request_id=None,
+                exit_code=124,
+            )
+        except OSError as exc:
+            return TransportResult(
+                status='terminal',
+                stdout='',
+                stderr=f'provider process could not be started: {exc}',
+                provider_request_id=None,
+                exit_code=127,
+            )
         return TransportResult(
-            status="terminal",
+            status='terminal',
             stdout=completed.stdout,
             stderr=completed.stderr,
             provider_request_id=None,

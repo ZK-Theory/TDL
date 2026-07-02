@@ -6,7 +6,7 @@
   "properties": {
     "schema_id": {"const": "ars://operations/resource-request"},
     "schema_version": {"const": "1.0.0"},
-    "resource_request_id": {"type": "string", "pattern": "^rrq_"},
+    "resource_request_id": {"type": "string", "pattern": "^rsq_"},
     "attempt_id": {"type": "string", "pattern": "^att_"},
     "profile_id": {"type": "string"},
     "claims": {"type": "object"},

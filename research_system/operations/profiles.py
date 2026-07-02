@@ -1,14 +1,19 @@
 """Versioned P0 operational profiles and resource conflict rules."""
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from typing import Protocol
 
 
 @dataclass(frozen=True)
 class ResourceClaim:
+    """Claim units on one named resource under a sharing mode."""
+
     mode: str
     units: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Validate the resource mode and positive unit count."""
         if self.mode not in {"exclusive", "capacity_shared", "read_shared"}:
             raise ValueError("unknown_resource_mode")
         if self.units <= 0:
@@ -17,6 +22,8 @@ class ResourceClaim:
 
 @dataclass(frozen=True)
 class OperationalProfile:
+    """Immutable runtime and evidence limits for one operational class."""
+
     profile_id: str
     max_runtime_s: int
     allow_child_process: bool
@@ -24,6 +31,17 @@ class OperationalProfile:
     require_benchmark: bool
     require_periodic_heartbeat: bool
     require_checkpoint: bool
+
+
+class OperationalRiskRequest(Protocol):
+    """Request attributes consumed by the operational risk floor."""
+
+    restricted_data: bool
+    external_write: bool
+    expected_runtime_s: int
+    exclusive_resources: bool
+    checkpoint_uncertain: bool
+    stop_confirmation_uncertain: bool
 
 
 PROFILES = {
@@ -41,17 +59,43 @@ PROFILES = {
 RISK_ORDER = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
 
 
-def max_risk(risks):
+def max_risk(risks: Iterable[str]) -> str:
+    """Return the strongest supplied risk classification.
+
+    Args:
+        risks: Non-empty iterable of canonical risk labels.
+
+    Returns:
+        Strongest risk label under the P0 ordering.
+
+    Raises:
+        KeyError: If a risk label is unknown.
+        ValueError: If no risks are supplied.
+    """
     return max(risks, key=RISK_ORDER.__getitem__)
 
 
 def validate_profile_request(
-    profile,
+    profile: OperationalProfile,
     *,
-    expected_runtime_s,
-    child_process,
-    durable_writer,
-):
+    expected_runtime_s: int,
+    child_process: bool,
+    durable_writer: bool,
+) -> dict[str, str]:
+    """Validate a requested execution surface against a profile envelope.
+
+    Args:
+        profile: Selected immutable operational profile.
+        expected_runtime_s: Projected runtime in seconds.
+        child_process: Whether child-process creation is requested.
+        durable_writer: Whether a durable writer is requested.
+
+    Returns:
+        Profile identity and required closure mode.
+
+    Raises:
+        ValueError: If any request exceeds the selected profile.
+    """
     if (
         expected_runtime_s > profile.max_runtime_s
         or child_process
@@ -63,7 +107,10 @@ def validate_profile_request(
     return {"profile_id": profile.profile_id, "closure": "terminal_receipt"}
 
 
-def profile_evidence_dispositions(profile):
+def profile_evidence_dispositions(
+    profile: OperationalProfile,
+) -> dict[str, str]:
+    """Return explicit evidence requirements for an operational profile."""
     return {
         "benchmark": "required" if profile.require_benchmark else "not_applicable",
         "checkpoint": "required" if profile.require_checkpoint else "not_applicable",
@@ -73,7 +120,8 @@ def profile_evidence_dispositions(profile):
     }
 
 
-def operational_risk_floor(request):
+def operational_risk_floor(request: OperationalRiskRequest) -> str:
+    """Derive the minimum operational risk from request characteristics."""
     raises = []
     if request.restricted_data or request.external_write:
         raises.append("R3")
@@ -84,7 +132,21 @@ def operational_risk_floor(request):
     return max_risk(["R0", *raises])
 
 
-def has_resource_conflict(requested, held, capacities):
+def has_resource_conflict(
+    requested: Mapping[str, ResourceClaim],
+    held: Mapping[str, ResourceClaim],
+    capacities: Mapping[str, int],
+) -> bool:
+    """Return whether requested claims conflict with currently held claims.
+
+    Args:
+        requested: Claims requested by resource key.
+        held: Existing claims by resource key.
+        capacities: Declared capacities for capacity-shared resources.
+
+    Returns:
+        True when any overlapping resource claim is incompatible.
+    """
     for key, requested_claim in requested.items():
         held_claim = held.get(key)
         if held_claim is None:

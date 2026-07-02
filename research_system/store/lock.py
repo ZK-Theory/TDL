@@ -19,10 +19,14 @@ class WriterLock:
             fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError as exc:
             raise ConflictError(f'writer lock exists: {self.path}') from exc
-        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as handle:
-            json.dump(self.identity, handle, sort_keys=True, separators=(',', ':'))
-            handle.flush()
-            os.fsync(handle.fileno())
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as handle:
+                json.dump(self.identity, handle, sort_keys=True, separators=(',', ':'))
+                handle.flush()
+                os.fsync(handle.fileno())
+        except BaseException:
+            self.path.unlink(missing_ok=True)
+            raise
         return self
 
     def __exit__(

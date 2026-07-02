@@ -1,13 +1,20 @@
 """Eligibility-first deterministic route selection."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
+
+from research_system.routing.models import RouteRequest
 
 
 class RoutingEvidenceSnapshot(Protocol):
     routing_evidence_snapshot_id: str
 
-    def hard_gate_failures(self, request, candidate) -> tuple[str, ...]: ...
+    def hard_gate_failures(
+        self, request: RouteRequest, candidate: RouteCandidate
+    ) -> tuple[str, ...]: ...
 
 
 @dataclass(frozen=True)
@@ -50,7 +57,11 @@ REJECTION_ORDER = (
 )
 
 
-def select_route(request, candidates, evidence: RoutingEvidenceSnapshot):
+def select_route(
+    request: RouteRequest,
+    candidates: Sequence[RouteCandidate],
+    evidence: RoutingEvidenceSnapshot,
+) -> dict[str, Any]:
     """Evaluate stable hard gates before ranking eligible candidates."""
     evaluated = []
     for candidate in sorted(candidates, key=lambda item: item.profile_id):

@@ -1,10 +1,14 @@
+import json
+
 import pytest
 
+from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
 from research_system.store.objects import write_object
+from research_system.store.receipts import ReceiptStore
 
 
 PROJECT_ID = 'prj_01978abc-0001-7000-8000-000000000001'
@@ -54,6 +58,20 @@ def test_second_writer_lock_is_rejected(tmp_path):
                 raise AssertionError('second writer entered lock')
 
 
+def test_writer_lock_removes_new_file_when_identity_write_fails(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / 'writer.lock'
+
+    def fail_dump(*args, **kwargs):
+        raise OSError('disk full')
+
+    monkeypatch.setattr(json, 'dump', fail_dump)
+    with pytest.raises(OSError, match='disk full'):
+        with WriterLock(path, {'writer_id': 'w1'}):
+            raise AssertionError('lock should not be entered')
+    assert not path.exists()
+
 def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
     first = write_object(tmp_path, 'task', TASK_ID, 1, {'x': 1})
     second = write_object(tmp_path, 'task', TASK_ID, 1, {'x': 1})
@@ -96,3 +114,18 @@ def test_caller_cannot_override_recorded_at(tmp_path):
                 }
             ]
         )
+
+def test_receipt_write_repairs_partial_temporary_file(tmp_path):
+    store = ReceiptStore(tmp_path)
+    receipt = Receipt(
+        status='accepted',
+        command_id='cmd_01978abc-2001-7000-8000-000000002001',
+        payload_hash='a' * 64,
+        event_batch_id='txb_01978abc-2002-7000-8000-000000002002',
+        observed_stream_version=1,
+    )
+    temporary = store.runtime_root / f'{receipt.command_id}.receipt.tmp'
+    temporary.write_bytes(b'partial')
+    assert store.write(receipt) == receipt
+    assert not temporary.exists()
+    assert store.load(receipt.command_id) == receipt

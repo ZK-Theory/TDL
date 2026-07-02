@@ -136,6 +136,29 @@ def test_task_reducer_is_pure_and_fails_closed():
     with pytest.raises(ValueError, match='TaskCreated requires empty stream'):
         reduce_task(created, {'event_type': 'TaskCreated', 'stream_id': TASK_ID})
 
+def test_unknown_task_stream_readiness_fails_as_illegal_transition():
+    with pytest.raises(ValueError, match='illegal task transition: None'):
+        reduce_task(
+            {},
+            {'event_type': 'ReadinessRequested', 'stream_id': TASK_ID},
+        )
+
+
+def test_submission_materializes_ledger_once(tmp_path, monkeypatch):
+    harness = control_plane(tmp_path)
+    command = create_task_command(CMD_CREATE, 'one-scan', TASK_ID, {'title': 'A'})
+    original = harness.ledger.iter_events
+    calls = 0
+
+    def counted_events():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(harness.ledger, 'iter_events', counted_events)
+    assert harness.service.submit(command).status == 'accepted'
+    assert calls == 1
+
 def test_persisted_receipt_matches_frozen_schema(tmp_path):
     harness = control_plane(tmp_path)
     command = create_task_command(CMD_CREATE, 'receipt-schema', TASK_ID, {'title': 'A'})

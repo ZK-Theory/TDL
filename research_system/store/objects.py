@@ -16,6 +16,22 @@ def write_object(
     revision: int,
     value: Any,
 ) -> Path:
+    """Persist one immutable object revision with content-addressed naming.
+
+    Args:
+        control_root: Canonical control-store root.
+        kind: Registered object identity kind.
+        object_id: Prefix-qualified object identity.
+        revision: Positive immutable revision number.
+        value: Canonical-JSON-compatible object content.
+
+    Returns:
+        Path to the existing or newly persisted matching revision.
+
+    Raises:
+        ConflictError: If the revision exists with different content.
+        ValueError: If the identity or revision is invalid.
+    """
     validate_id(object_id, kind)
     if revision < 1:
         raise ValueError('object revision must be positive')
@@ -44,6 +60,7 @@ def write_object(
         os.fsync(handle.fileno())
     return target
 
+
 class ObjectStore:
     def __init__(self, control_root: Path):
         self.control_root = control_root
@@ -55,4 +72,19 @@ class ObjectStore:
         revision: int,
         value: Any,
     ) -> Path:
+        """Persist an immutable revision, idempotently on matching content.
+
+        Args:
+            kind: Registered object identity kind.
+            object_id: Prefix-qualified object identity.
+            revision: Positive immutable revision number.
+            value: Canonical-JSON-compatible object content.
+
+        Returns:
+            Path to the existing or newly persisted matching revision.
+
+        Raises:
+            ConflictError: If the revision exists with different content.
+            ValueError: If the identity or revision is invalid.
+        """
         return write_object(self.control_root, kind, object_id, revision, value)

@@ -3,7 +3,8 @@ import uuid
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.ids import new_id, validate_id
+from research_system.errors import ConfigurationError
+from research_system.ids import IdRegistry, new_id, validate_id
 
 
 def test_canonical_bytes_are_order_independent():
@@ -18,7 +19,7 @@ def test_canonical_bytes_are_order_independent():
     'value, message',
     [
         ({'value': 1.5}, 'floating-point'),
-        ({'café': 'value'}, 'ASCII object keys'),
+        ({'cafÃ©': 'value'}, 'ASCII object keys'),
         ({'value': 2**53}, 'safe integer range'),
     ],
 )
@@ -42,7 +43,18 @@ def test_wrong_or_unknown_kind_is_rejected():
     with pytest.raises(ValueError, match='unknown ID kind'):
         new_id('arbitrary_prefix')
 
+
 def test_accepted_w2_artefact_kind_uses_owner_prefix():
     artefact_id = new_id('artefact')
     assert artefact_id.startswith('art_')
     assert validate_id(artefact_id, 'artefact') == artefact_id
+
+def test_registry_rejects_duplicate_kind_prefixes():
+    with pytest.raises(ConfigurationError, match='duplicate ID kind prefixes'):
+        IdRegistry({'route_request': 'rrq', 'resource_request': 'rrq'})
+
+
+def test_resource_request_uses_distinct_w8_owner_prefix():
+    resource_request_id = new_id('resource_request')
+    assert resource_request_id.startswith('rsq_')
+    assert validate_id(resource_request_id, 'resource_request') == resource_request_id

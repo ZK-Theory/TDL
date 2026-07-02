@@ -1,17 +1,21 @@
 """Benchmark feasibility and compatible-resume decisions."""
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
 from research_system.operations.checkpoints import checkpoint_compatibility
 
 
 def benchmark_disposition(
     *,
-    independent_work_units,
-    workers,
-    required_prerequisites,
-    measured_prerequisites,
-    projected_runtime_s,
-    hard_limit_s,
-):
+    independent_work_units: int,
+    workers: int,
+    required_prerequisites: Sequence[str],
+    measured_prerequisites: Sequence[str],
+    projected_runtime_s: float,
+    hard_limit_s: float,
+) -> dict[str, Any]:
+    """Classify whether a benchmark projection is decision-grade and feasible."""
     missing = set(required_prerequisites) - set(measured_prerequisites)
     if missing:
         return {
@@ -26,7 +30,13 @@ def benchmark_disposition(
     return {"status": "feasible", "reason": None}
 
 
-def resume_from_checkpoint(checkpoint, request, *, prior_epoch):
+def resume_from_checkpoint(
+    checkpoint: Mapping[str, Any],
+    request: Mapping[str, Any],
+    *,
+    prior_epoch: int,
+) -> dict[str, Any]:
+    """Return a compatible new epoch or preserve an incompatible checkpoint."""
     compatibility = checkpoint_compatibility(checkpoint, request)
     if compatibility["verdict"] != "compatible":
         return {

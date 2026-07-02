@@ -1,47 +1,89 @@
 """Selected-route revalidation and command-mediated provider issue."""
 
-from typing import Protocol
+from collections.abc import Mapping
+from typing import Any, Protocol
 
+from research_system.adapters.base import ProviderCommand, ProviderReceipt
+from research_system.command.models import Receipt
 from research_system.errors import ArsError
+from research_system.routing.engine import PreparedDispatch
 
 
 class AdapterIssuePort(Protocol):
-    def load_evidence(self, evidence_id: str, content_hash: str): ...
+    def load_evidence(
+        self, evidence_id: str, content_hash: str
+    ) -> Mapping[str, Any]: ...
 
-    def revalidate(self, route, context, provider_evidence): ...
+    def revalidate(
+        self,
+        route: object,
+        context: object,
+        provider_evidence: Mapping[str, Any],
+    ) -> Mapping[str, Any]: ...
 
-    def build_command(self, prepared, grant, lease, revalidated): ...
+    def build_command(
+        self,
+        prepared: PreparedDispatch,
+        grant: Mapping[str, Any],
+        lease: Mapping[str, Any],
+        revalidated: Mapping[str, Any],
+    ) -> ProviderCommand: ...
 
-    def record_issue_command(self, provider_command): ...
+    def record_issue_command(
+        self, provider_command: ProviderCommand
+    ) -> dict[str, Any]: ...
 
-    def issue(self, provider_command, issued_receipt): ...
+    def issue(
+        self, provider_command: ProviderCommand, issued_receipt: Receipt
+    ) -> ProviderReceipt: ...
 
 
 class OperationsIssuePort(Protocol):
-    def build_request(self, prepared, revalidated): ...
+    def build_request(
+        self, prepared: PreparedDispatch, revalidated: Mapping[str, Any]
+    ) -> Mapping[str, Any]: ...
 
-    def request_grant_command(self, request): ...
+    def request_grant_command(
+        self, request: Mapping[str, Any]
+    ) -> dict[str, Any]: ...
 
-    def load_grant(self, grant_receipt): ...
+    def load_grant(self, grant_receipt: Receipt) -> Mapping[str, Any]: ...
 
-    def claim_lease_command(self, grant, attempt_id: str): ...
+    def claim_lease_command(
+        self, grant: Mapping[str, Any], attempt_id: str
+    ) -> dict[str, Any]: ...
 
-    def load_lease(self, lease_receipt): ...
+    def load_lease(self, lease_receipt: Receipt) -> Mapping[str, Any]: ...
 
-    def record_provider_receipt_command(self, lease, provider_receipt): ...
+    def record_provider_receipt_command(
+        self, lease: Mapping[str, Any], provider_receipt: ProviderReceipt
+    ) -> dict[str, Any]: ...
 
 
 class CommandServicePort(Protocol):
-    def submit(self, command): ...
+    def submit(self, command: dict[str, Any]) -> Receipt: ...
 
 
 def issue_prepared_dispatch(
-    prepared,
+    prepared: PreparedDispatch,
     adapter: AdapterIssuePort,
     operations: OperationsIssuePort,
     command_service: CommandServicePort,
-):
-    """Issue only through revalidation and typed WP1 command transitions."""
+) -> tuple[ProviderCommand, ProviderReceipt, Receipt]:
+    """Revalidate and issue a prepared dispatch through command transitions.
+
+    Args:
+        prepared: Immutable unissued dispatch prepared by the routing layer.
+        adapter: Provider-neutral evidence, command, and issue port.
+        operations: Resource-grant, lease, and terminal-record port.
+        command_service: Typed WP1 command submission boundary.
+
+    Returns:
+        Provider command, normalized provider receipt, and terminal receipt.
+
+    Raises:
+        ArsError: If the prepared dispatch is no longer unissued.
+    """
     if prepared.state != "unissued":
         raise ArsError("prepared dispatch is not unissued")
     provider_evidence = adapter.load_evidence(

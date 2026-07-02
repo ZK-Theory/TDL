@@ -58,13 +58,8 @@ class ReceiptStore:
                 return receipt
             raise ConflictError(f'receipt already exists: {receipt.command_id}')
         temporary = self.runtime_root / f'{receipt.command_id}.receipt.tmp'
-        if temporary.exists():
-            if temporary.read_bytes() != data:
-                raise ConflictError(
-                    f'receipt temporary conflicts: {receipt.command_id}'
-                )
-        else:
-            with temporary.open('xb') as handle:
+        if not temporary.exists() or temporary.read_bytes() != data:
+            with temporary.open('wb') as handle:
                 handle.write(data)
                 handle.flush()
                 os.fsync(handle.fileno())

@@ -5,7 +5,10 @@ from research_system.assurance.models import (
     AssuranceRequirement,
     LaneRequirement,
 )
-from research_system.assurance.requirements import validate_requirement
+from research_system.assurance.requirements import (
+    GrantBackedAuthorityPolicy,
+    validate_requirement,
+)
 from research_system.errors import ArsError
 
 
@@ -17,6 +20,7 @@ def _requirement(
     accepting_actor_id,
     requested_risk="R2",
     action_semantic_risk="R2",
+    relationship_grade="I1",
 ):
     lanes = tuple(
         LaneRequirement(
@@ -47,7 +51,7 @@ def _requirement(
         requested_risk,
         requested_risk,
         action_semantic_risk,
-        "I1",
+        relationship_grade,
         lanes,
         (),
         "b" * 64,
@@ -86,4 +90,30 @@ def test_producer_cannot_self_confirm_r2_scope_or_r3_action():
         action_semantic_risk="R3",
     )
     with pytest.raises(ArsError, match="assurance_requirement_scope_unconfirmed"):
-        validate_requirement(requirement)
+        validate_requirement(
+            requirement,
+            GrantBackedAuthorityPolicy(
+                {'act-producer': frozenset({'accept_r3_assurance_requirement'})}
+            ),
+        )
+
+def test_r3_acceptance_authority_is_resolved_from_grant_policy():
+    requirement = _requirement(
+        assurance_requirement_id='asr_' + '7' * 32,
+        prospective_producer_actor_id='act-producer',
+        author_actor_id='act-author',
+        scope_reviewer_actor_id='act-reviewer',
+        accepting_actor_id='act-human-authority',
+        requested_risk='R3',
+        action_semantic_risk='R3',
+        relationship_grade='I2',
+    )
+    allowed = GrantBackedAuthorityPolicy(
+        {'act-human-authority': frozenset({'accept_r3_assurance_requirement'})}
+    )
+    validate_requirement(requirement, allowed)
+    denied = GrantBackedAuthorityPolicy(
+        {'act-other': frozenset({'accept_r3_assurance_requirement'})}
+    )
+    with pytest.raises(ArsError, match='R3 requires attributed human authority'):
+        validate_requirement(requirement, denied)
