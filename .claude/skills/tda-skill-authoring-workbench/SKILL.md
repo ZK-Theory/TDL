@@ -58,6 +58,18 @@ completion checklist or output record, "Escalate Or Stop When",
 "Related Skills". Compact — 60–120 lines; one excellent example beats three
 mediocre ones.
 
+## Self-Test Prompts
+
+- *A fix for an existing skill is about to be applied to the mirror-tree
+  copy.* → Expected: stop — apply it to the authoring tree and run the sync;
+  a mirror edit is overwritten (or reverses a newer fix) at the next sync.
+- *A new skill is authored but the sync manifest is untouched.* → Expected:
+  register it in `SYNC_SKILLS` (or exclude it with a comment) in the same
+  change — an unregistered skill hard-errors every subsequent sync run.
+- *A proposed description reads "runs X, then Y, then Z".* → Expected:
+  rewrite as trigger-only — a workflow-summarizing description causes agents
+  to follow the description instead of reading the skill body.
+
 ## Completion Checklist
 
 - [ ] Clear trigger and non-trigger (boundary vs neighbouring skills).
