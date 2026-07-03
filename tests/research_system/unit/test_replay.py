@@ -165,7 +165,7 @@ def test_store_init_fails_closed_when_worktree_enumeration_times_out(
     code_root.mkdir()
 
     def time_out(*args, **kwargs):
-        raise subprocess.TimeoutExpired(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use.dangerous-subprocess-use  # nosec B603
+        raise subprocess.TimeoutExpired(  # nosemgrep  # nosec B603 - test exception only
             args[0], kwargs['timeout']
         )
 

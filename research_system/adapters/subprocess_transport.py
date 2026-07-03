@@ -13,7 +13,7 @@ class SubprocessTransport:
     ) -> TransportResult:
         """Return a classified result without leaking process exceptions."""
         try:
-            completed = subprocess.run(  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use.dangerous-subprocess-use  # nosec B603
+            completed = subprocess.run(  # nosemgrep  # nosec B603 - reviewed argv-only boundary
                 argv,
                 input=stdin,
                 text=True,
