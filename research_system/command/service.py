@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,10 @@ class CommandService:
         self.receipts = receipts
         self.schemas = schemas
         self._view: _CommandView | None = None
+        self.deletion_manifest_authorizer: Callable[
+            [dict[str, Any], str, str],
+            dict[str, Any],
+        ] | None = None
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
@@ -194,6 +199,20 @@ class CommandService:
         elif command_type == 'ClaimDispatch':
             event_type = 'DispatchClaimed'
             payload = {'attempt_id': new_id('attempt')}
+        elif command_type == 'VerifyEvidenceDeletion':
+            if self.deletion_manifest_authorizer is None:
+                raise ArsError(
+                    'VerifyEvidenceDeletion requires a trusted deletion '
+                    'manifest authorizer'
+                )
+            payload = self.deletion_manifest_authorizer(
+                command.envelope['payload'],
+                command.actor_id,
+                command.envelope['authority_grant_id'],
+            )
+            if payload.get('status') != 'verified':
+                raise ArsError('deletion manifest authorizer did not verify')
+            event_type = 'EvidenceDeletionVerified'
         else:
             raise ArsError(f'unsupported command type: {command_type}')
         return {
