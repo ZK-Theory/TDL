@@ -65,6 +65,9 @@ docs/*
 docs/plans/*
 !docs/plans/agentic-research-system/
 !docs/plans/agentic-research-system/**
+# Version the skill-suite improvement plans (executed from worktrees).
+!docs/plans/skills/
+!docs/plans/skills/**
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
