@@ -1,0 +1,14 @@
+schema_version: 1.0.0
+policy_revision: p0-threshold-policies-v1
+policies:
+  - policy_id: p0-deterministic-exact-v1
+    grader_classes: [D, T, O, P, R]
+    status: accepted
+    repetitions: 2
+    acceptance: exact_property_satisfied_every_repetition
+  - policy_id: p0-unavailable-judgment-v1
+    grader_classes: [M, H]
+    status: unavailable
+    acceptance: unable_to_grade
+    authority: none
+    live_provider_enabled: false

@@ -10,6 +10,13 @@ from typing import Any, Sequence
 from research_system.canonical import canonical_bytes
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
+from research_system.evals.harness import (
+    calibrate_p0_coverage,
+    decide_p0_release,
+    run_p0_coverage,
+    validate_p0_catalogue,
+    write_external_output,
+)
 from research_system.errors import ArsError, ConfigurationError
 from research_system.evals.retention import validate_retention_policy
 from research_system.projection.replay import rebuild_projection, replay
@@ -18,6 +25,15 @@ from research_system.store.identity import initialize_control_store, load_store_
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+
+
+def _canonical_json_value(value: Any) -> Any:
+    """Convert immutable model containers at the CLI document boundary."""
+    if isinstance(value, dict):
+        return {str(key): _canonical_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_json_value(item) for item in value]
+    return value
 
 
 def _print_json(value: Any) -> None:
@@ -122,6 +138,50 @@ def _eval_retention_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _maybe_write_eval_output(args: argparse.Namespace, payload: dict[str, Any]) -> None:
+    output = getattr(args, 'output', None)
+    if output is not None:
+        write_external_output(output, payload)
+
+
+def _eval_validate(args: argparse.Namespace) -> int:
+    payload = validate_p0_catalogue(args.catalogue, args.coverage)
+    _maybe_write_eval_output(args, payload)
+    _print_json(payload)
+    return 0
+
+
+def _eval_calibrate(args: argparse.Namespace) -> int:
+    payload = calibrate_p0_coverage(args.coverage, transport=args.transport)
+    _maybe_write_eval_output(args, payload)
+    _print_json(payload)
+    return 0
+
+
+def _eval_run(args: argparse.Namespace) -> int:
+    document = run_p0_coverage(args.coverage, transport=args.transport)
+    _maybe_write_eval_output(args, document)
+    _print_json(document)
+    return 0
+
+
+def _eval_release(args: argparse.Namespace) -> int:
+    document = _read_json(args.evaluation_runs)
+    assessment = decide_p0_release(document, args.coverage)
+    payload = _canonical_json_value({
+        'decision': asdict(assessment.decision),
+        'missing': [list(key) for key in assessment.missing],
+        'unexpected': [list(key) for key in assessment.unexpected],
+        'duplicates': [list(key) for key in assessment.duplicates],
+        'incompatible': list(assessment.incompatible),
+        'owner_acceptance': 'required',
+        'gate5_authorized': False,
+    })
+    _maybe_write_eval_output(args, payload)
+    _print_json(payload)
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='ars')
     groups = parser.add_subparsers(dest='group', required=True)
@@ -169,13 +229,43 @@ def _parser() -> argparse.ArgumentParser:
     validate = retention_actions.add_parser('validate')
     validate.add_argument('--policy', type=Path, required=True)
     validate.set_defaults(handler=_eval_retention_validate)
+    eval_validate = evaluation_actions.add_parser('validate')
+    eval_validate.add_argument('--catalogue', type=Path, required=True)
+    eval_validate.add_argument(
+        '--coverage',
+        type=Path,
+        default=Path('.research-system/evals/p0-coverage.yaml'),
+    )
+    eval_validate.add_argument('--output', type=Path)
+    eval_validate.set_defaults(handler=_eval_validate)
+
+    calibrate = evaluation_actions.add_parser('calibrate')
+    calibrate.add_argument('--coverage', type=Path, required=True)
+    calibrate.add_argument('--transport', choices=('fake',), required=True)
+    calibrate.add_argument('--output', type=Path)
+    calibrate.set_defaults(handler=_eval_calibrate)
+
+    run = evaluation_actions.add_parser('run')
+    run.add_argument('--coverage', type=Path, required=True)
+    run.add_argument('--transport', choices=('fake',), required=True)
+    run.add_argument('--output', type=Path)
+    run.set_defaults(handler=_eval_run)
+
+    release = evaluation_actions.add_parser('release')
+    release.add_argument('--evaluation-runs', type=Path, required=True)
+    release.add_argument(
+        '--coverage',
+        type=Path,
+        default=Path('.research-system/evals/p0-coverage.yaml'),
+    )
+    release.add_argument('--output', type=Path)
+    release.set_defaults(handler=_eval_release)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     return int(args.handler(args))
-
 
 if __name__ == '__main__':
     raise SystemExit(main())
