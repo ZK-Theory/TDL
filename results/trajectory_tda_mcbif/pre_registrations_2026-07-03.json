@@ -1,0 +1,102 @@
+{
+  "pre_registration_date": "2026-07-03",
+  "vault_page": "00-Meta/Discovery/mcbif-employment-clustering-dispatch-prereg.md",
+  "registered_by": "Manager (Discovery Harness dispatch; Scout->Assay->Spike PASS->/pre-reg-to-dispatch; approved by Stephen 2026-07-03)",
+  "candidate": "mcbif-multiscale-clustering-employment (arXiv:2510.14710)",
+  "harness_provenance": "vault/00-Meta/Discovery/mcbif-employment-clustering-dispatch-prereg.md; spike result confirmed same session (H1=266, 500 trajectories, 5 waves, seed=42); spike pre-reg vault/00-Meta/Discovery/mcbif-employment-clustering-spike-prereg.md (validator PASS)",
+  "amendments": [],
+  "entries": [
+    {
+      "name": "MCbiF wave-indexed employment-state cluster consistency — full null battery",
+      "task": "T-MCBIF-2",
+      "papers": ["P01-B"],
+      "outcome_contingent": true,
+      "objective": "Run the full MCbiF bifiltration + wave-label-permutation null battery (B=1000) on the frozen 27,280-trajectory PCA-20 BHPS/USoc embedding, using employment-state categorical partitions at each wave position. Determine whether H1 rank exceeds the 95th percentile of the permutation null (FDR-corrected, BH). Baselines: ARI-across-waves, conditional entropy, consensus clustering. Decision: ADDITIVE / REDUNDANT / INFEASIBLE (maps to prose direction per outcome-to-prose locked below).",
+      "metric_space": {
+        "data": "Frozen 27,280-trajectory PCA-20 embedding (BHPS + USoc); sequences at 01_trajectories_sequences.json",
+        "partition_method": "categorical: at each wave position w, partition[i] = employment_state[i][w]; 9 categories (EH,EL,EM,IH,IL,IM,UH,UL,UM); k fixed at 9 — no k-means",
+        "wave_coverage": "all valid wave positions across BHPS (waves 1-18) and USoc continuation; record n_valid per position",
+        "frozen_files": {
+          "embeddings": "results/trajectory_tda_integration/embeddings.npy",
+          "sequences": "results/trajectory_tda_integration/01_trajectories_sequences.json",
+          "constraint": "SHA-256 of both files recorded at run time; no re-embedding permitted"
+        }
+      },
+      "null_model": {
+        "operation": "wave-label permutation — randomly permute the wave-index ordering in the partition sequence before MCbiF bifiltration construction; each draw builds a fresh bifiltration from the shuffled sequence",
+        "invariance_requirement": "permutation MUST be applied to wave ordering before bifiltration construction; post-construction permutation is degenerate and invalidates the null",
+        "B": 1000,
+        "seed": 42,
+        "parallel_workers": ">=4 (loky backend — gudhi GIL constraint: do NOT use threading backend)",
+        "checkpoint_interval": 100,
+        "wall_time_hours": 8
+      },
+      "baselines": [
+        "ARI-across-waves: pairwise partition agreement between all wave-position pairs",
+        "Conditional entropy of wave-to-wave employment-state transitions",
+        "Consensus clustering matrix: mean cluster co-assignment across all wave positions"
+      ],
+      "key_params": {
+        "n_trajectories": 27280,
+        "n_employment_states": 9,
+        "seed": 42,
+        "B": 1000,
+        "parallel_workers": ">=4",
+        "checkpoint_interval_draws": 100,
+        "wall_time_hours": 8,
+        "mcbif_max_dim": 2,
+        "partition_method": "categorical (employment state label, not k-means)",
+        "embeddings_sha256": "RECORD AT RUN TIME",
+        "sequences_sha256": "RECORD AT RUN TIME"
+      },
+      "scale_caution": "At full scale (27,280 trajectories × ~30 wave positions), the MCbiF bifiltration may be substantially larger than the spike (500 × 5 → 3.8M simplices). Worker must run a pre-flight cost estimate (time one bifiltration build at full scale) before launching B=1000 draws. If wall-time exceeds 8h projection, surface to Manager with a down-scoped alternative (e.g. BHPS-only waves 1-10, ~18,000 trajectories).",
+      "decision_rule": {
+        "additive": "H1 rank (observed) > 95th percentile of B=1000 wave-label-permutation null (FDR-corrected, Benjamini-Hochberg) AND H1 signal not reproduced by ARI-across-waves or conditional entropy at same significance level -> Outcome A: ADDITIVE; write [RESULT] vault entry; proceed to prose per outcome_to_prose.additive.",
+        "redundant": "H1 rank non-trivial but fully explained by ARI-across-waves at matched significance -> Outcome B: REDUNDANT; write [RESULT] vault entry; update backlog to parked; no prose.",
+        "infeasible": "H1 rank falls within null distribution at all tested wave configurations -> Outcome C: INFEASIBLE; write [NEGATIVE] vault note; update backlog to killed; no prose."
+      },
+      "outcome_to_prose": {
+        "additive": "MCbiF wave-indexed employment-state cluster conflicts are a new methodological contribution to trajectory analysis. Target: Track C paper (trajectory_tda extension). Section: results/methodology contribution. Claim: MCbiF H1 detects three-way employment-state group conflicts not captured by pairwise metrics (ARI, conditional entropy). No prose drafted until this task emits ADDITIVE.",
+        "redundant": "No prose. Update backlog to parked with reason 'H1 redundant with ARI-across-waves'. Computational-Log [RESULT] entry only.",
+        "infeasible": "No prose. Write [NEGATIVE] note at vault/00-Meta/Discovery/mcbif-employment-clustering-spike-negative.md. Update backlog to killed."
+      },
+      "wsl_environment": {
+        "rivet_binary": "/home/nexusstephen/projects/rivet/rivet_console",
+        "mcbif_venv": "/home/nexusstephen/projects/MCbiF/.venv/bin/python",
+        "pyrivet_patch": "import pyrivet.rivet as _rivet_mod; _rivet_mod.rivet_executable = '/home/nexusstephen/projects/rivet/rivet_console'",
+        "invocation": "wsl <script_path> — stage script to WSL before running; use python -u for line-buffered output in background tasks"
+      },
+      "outputs": [
+        "results/trajectory_tda_mcbif/mcbif_employment_battery_<YYYY-MM-DD>.json"
+      ],
+      "planned_contracts": [
+        {
+          "id": "mcbif-employment-result",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_mcbif/mcbif_employment_battery_*.json",
+          "required_keys": "schema_version (str); generated_at (str); task ('T-MCBIF-2'); pre_registration (str path to this JSON); embeddings_sha256 (str); sequences_sha256 (str); params (n_trajectories int, n_wave_positions int, B int>=1000, seed int==42, null_model str=='wave-label-permutation', partition_method str=='categorical'); observed (h1_rank int>=0, h0_rank int>=0); null_distribution (percentile_95 float, percentile_99 float, draws int>=1000); baselines (ari_across_waves dict, conditional_entropy dict); decision (verdict in {additive, redundant, infeasible})",
+          "forbidden_keys": "synthetic, placeholder, estimated, refit_pca",
+          "binding": "test_file tests/discovery/test_mcbif_employment_contract.py; must_assert rejects payloads where decision not in {additive,redundant,infeasible}, any sha256 missing, B<1000, seed!=42, partition_method!='categorical', or a forbidden key is present"
+        },
+        {
+          "id": "mcbif-employment-null-construction",
+          "kind": "invariance",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_mcbif/mcbif_employment_battery_*.json",
+          "invariant": "wave-label permutation applied BEFORE MCbiF bifiltration construction; each null draw builds a fresh bifiltration from the shuffled partition sequence",
+          "audit_key": "null_model_construction_verified",
+          "binding": "test_file tests/discovery/test_mcbif_employment_contract.py; must_assert null_model_construction_verified==true in result JSON"
+        },
+        {
+          "id": "frozen-embedding-provenance",
+          "kind": "provenance",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_mcbif/mcbif_employment_battery_*.json",
+          "invariant": "embeddings_sha256 and sequences_sha256 in result JSON match SHA-256 of the actual frozen files used; recomputed at run time; no re-embedding permitted",
+          "binding": "test_file tests/discovery/test_mcbif_employment_contract.py; must_assert both sha256 fields are valid hex strings of length 64 and match the files on disk"
+        }
+      ]
+    }
+  ]
+}

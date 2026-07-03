@@ -1,0 +1,103 @@
+{
+  "pre_registration_date": "2026-07-03",
+  "vault_page": "00-Meta/Discovery/mcbif-deprivation-dispatch-prereg.md",
+  "registered_by": "Manager (Discovery Harness dispatch; Scout->Assay->Spike PASS->/pre-reg-to-dispatch; approved by Stephen 2026-07-03)",
+  "candidate": "mcbif-multiscale-clustering-deprivation (arXiv:2510.14710)",
+  "harness_provenance": "vault/00-Meta/Discovery/mcbif-deprivation-dispatch-prereg.md; spike result confirmed same session (H1=6, Leeds 488 LSOAs, k={3,5,7}, seed=42); spike pre-reg vault/00-Meta/Discovery/mcbif-deprivation-spike-prereg.md (validator PASS)",
+  "amendments": [],
+  "entries": [
+    {
+      "name": "MCbiF multiscale deprivation fragmentation — full null battery",
+      "task": "T-MCBIF-1",
+      "papers": ["P04"],
+      "outcome_contingent": true,
+      "objective": "Run the full MCbiF bifiltration + spatial-permutation null battery (B=1000) on IMD 2025 English LSOAs (33,755) at k∈{3,5,7,10,15}. Determine whether H1 rank exceeds the 95th percentile of the permutation null (FDR-corrected, BH). Baselines: ARI-across-resolutions and Moran's I. Decision: ADDITIVE / REDUNDANT / INFEASIBLE (maps to prose direction per outcome-to-prose locked rule below). No paper-facing prose is produced by this task; prose direction is determined by the decision and locked here.",
+      "metric_space": {
+        "data": "IMD 2025 File 7 CSV — 33,755 English LSOAs, 7 domain scores",
+        "domain_columns": [
+          "Income Score (rate)",
+          "Employment Score (rate)",
+          "Education, Skills and Training Score",
+          "Health Deprivation and Disability Score",
+          "Crime Score",
+          "Barriers to Housing and Services Score",
+          "Living Environment Score"
+        ],
+        "preprocessing": "StandardScaler z-score per batch",
+        "partitions": "k-means at k∈{3, 5, 7, 10, 15}; KMeans(n_init=10, seed=42)"
+      },
+      "null_model": {
+        "operation": "spatial permutation — randomly permute LSOA row ordering before z-scoring and k-means; rebuild fresh MCbiF bifiltration from shuffled vectors per draw",
+        "invariance_requirement": "permutation MUST be applied before clustering; post-construction permutation is degenerate and invalidates the null",
+        "B": 1000,
+        "seed": 42,
+        "parallel_workers": ">=4 (loky backend)",
+        "checkpoint_interval": 100,
+        "wall_time_hours": 8
+      },
+      "baselines": [
+        "ARI-across-resolutions: pairwise partition agreement across k-value pairs (all C(5,2)=10 pairs)",
+        "Moran's I spatial autocorrelation on each of the 7 domain scores"
+      ],
+      "key_params": {
+        "k_values": [3, 5, 7, 10, 15],
+        "seed": 42,
+        "B": 1000,
+        "parallel_workers": ">=4",
+        "checkpoint_interval_draws": 100,
+        "wall_time_hours": 8,
+        "mcbif_max_dim": 2,
+        "imd_url": "https://assets.publishing.service.gov.uk/media/691ded56d140bbbaa59a2a7d/File_7_IoD2025_All_Ranks_Scores_Deciles_Population_Denominators.csv",
+        "imd_licence": "OGL v3.0",
+        "imd_sha256": "RECORD AT RUN TIME"
+      },
+      "decision_rule": {
+        "additive": "H1 rank (observed) > 95th percentile of B=1000 spatial-permutation null (FDR-corrected, Benjamini-Hochberg) AND H1 signal not reproduced by ARI-across-resolutions or Moran's I at same significance level -> Outcome A: ADDITIVE; write [RESULT] vault entry; proceed to prose per outcome_to_prose.additive.",
+        "redundant": "H1 rank non-trivial but fully explained by ARI-across-resolutions at matched significance -> Outcome B: REDUNDANT; write [RESULT] vault entry; update backlog to parked; no prose.",
+        "infeasible": "H1 rank falls within null distribution at all k configurations tested -> Outcome C: INFEASIBLE; write [NEGATIVE] vault note; update backlog to killed; no prose."
+      },
+      "outcome_to_prose": {
+        "additive": "MCbiF k-indexed deprivation fragmentation is a new spatial methodology contribution. Target: Track A paper (poverty_tda extension). Section: results/methodology contribution. Claim: MCbiF H1 detects spatially persistent multiscale deprivation fragmentation not captured by ARI or Moran's I. No prose drafted until this task emits ADDITIVE.",
+        "redundant": "No prose. Update backlog to parked with reason 'H1 redundant with ARI'. Computational-Log [RESULT] entry only.",
+        "infeasible": "No prose. Write [NEGATIVE] note at vault/00-Meta/Discovery/mcbif-deprivation-spike-negative.md. Update backlog to killed."
+      },
+      "wsl_environment": {
+        "rivet_binary": "/home/nexusstephen/projects/rivet/rivet_console",
+        "mcbif_venv": "/home/nexusstephen/projects/MCbiF/.venv/bin/python",
+        "pyrivet_patch": "import pyrivet.rivet as _rivet_mod; _rivet_mod.rivet_executable = '/home/nexusstephen/projects/rivet/rivet_console'",
+        "invocation": "wsl <script_path> — stage script to WSL before running"
+      },
+      "outputs": [
+        "results/poverty_tda_mcbif/mcbif_deprivation_battery_<YYYY-MM-DD>.json"
+      ],
+      "planned_contracts": [
+        {
+          "id": "mcbif-deprivation-result",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/poverty_tda_mcbif/mcbif_deprivation_battery_*.json",
+          "required_keys": "schema_version (str); generated_at (str); task ('T-MCBIF-1'); pre_registration (str path to this JSON); imd_sha256 (str); params (k_values list, B int>=1000, seed int==42, null_model str=='spatial-permutation'); observed (h1_rank int>=0, h0_rank int>=0); null_distribution (percentile_95 float, percentile_99 float, draws int>=1000); baselines (ari_across_resolutions dict, morans_i dict); decision (verdict in {additive, redundant, infeasible})",
+          "forbidden_keys": "synthetic, placeholder, estimated",
+          "binding": "test_file tests/discovery/test_mcbif_deprivation_contract.py; must_assert rejects payloads where decision not in {additive,redundant,infeasible}, imd_sha256 missing, B<1000, seed!=42, or a forbidden key is present"
+        },
+        {
+          "id": "mcbif-deprivation-null-construction",
+          "kind": "invariance",
+          "pending": true,
+          "applies_to": "results/poverty_tda_mcbif/mcbif_deprivation_battery_*.json",
+          "invariant": "spatial permutation applied BEFORE clustering and bifiltration construction; each null draw builds a fresh MCbiF bifiltration from shuffled LSOA vectors",
+          "audit_key": "null_model_construction_verified",
+          "binding": "test_file tests/discovery/test_mcbif_deprivation_contract.py; must_assert null_model_construction_verified==true in result JSON"
+        },
+        {
+          "id": "imd2025-provenance",
+          "kind": "provenance",
+          "pending": true,
+          "applies_to": "results/poverty_tda_mcbif/mcbif_deprivation_battery_*.json",
+          "invariant": "imd_sha256 field in result JSON matches SHA-256 of the actual IMD 2025 File 7 CSV used; recomputed at run time before any analysis",
+          "binding": "test_file tests/discovery/test_mcbif_deprivation_contract.py; must_assert imd_sha256 is a valid hex string of length 64"
+        }
+      ]
+    }
+  ]
+}
