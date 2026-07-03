@@ -1,66 +1,75 @@
 # TTK Setup Guide
 
 ## Overview
-This guide provides complete instructions for installing and configuring the Topology ToolKit (TTK) for the TDL project on Windows.
 
-## Installation Summary
+This guide documents the TTK (Topology ToolKit) installation for the TDL project on Windows and
+explains the cross-Python-version subprocess-bridge architecture that makes it work alongside the
+project's locked Python 3.13 environment.
 
-**Current Setup (Completed)**:
-- TTK Version: 1.3.0
-- Backend: Conda subprocess (isolated environment)
-- VTK Version: 9.3.20240617 (TTK env) vs 9.5.2 (project env)
-- Status: ✓ Fully functional
+## Current State (verified 2026-07-03)
 
-## Prerequisites
+| Component | Status | Notes |
+|-----------|--------|-------|
+| TTK compute (`topologytoolkit`) | **Working** | Via conda subprocess from project 3.13 venv |
+| VTK in TTK env | **Working** | 9.3.20240617 |
+| pvpython binary | **Working** | Requires `conda activate ttk_env` first |
+| TTK filters via pvpython (`paraview.simple`) | **Working** | With activated env |
+| TTK filters via conda python directly | **Not available** | `paraview.simple` TTK filters require pvpython, not the plain conda interpreter |
+| `is_ttk_paraview_available()` | Returns `False` | Correct: tests the conda-python path (subprocess bridge); pvpython is a separate interactive path |
 
-- Windows 10/11
-- Conda/Miniconda installed
-- Python 3.11 in project virtual environment
+## Architecture: Why a Subprocess Bridge
 
-## Installation Steps
+The project's `.venv` uses **Python 3.13** (locked). TTK 1.3.0 requires **Python 3.11** and ships
+with VTK 9.3.x. Importing both VTK versions in the same process causes a hard conflict.
 
-### 1. Create TTK Conda Environment
+The solution is a **conda subprocess bridge**: every TTK operation is dispatched as a child process
+running under `~/miniconda3/envs/ttk_env/python.exe` (Python 3.11), keeping the two VTK versions
+fully isolated. The bridge is implemented in `shared/ttk_utils.py` and follows the documented
+cross-Python-version methodology — see the permanent note:
+
+> `vault/02-Notes/Permanent/Persistent-subprocess-pool-bridges-a-pinned-python-version-blocker-but-threaded-dispatch-can-serialize-on-the-gil.md`
+
+Rules most relevant to TTK:
+- **Rule 2**: Interpreter path resolved cross-platform from `TTK_CONDA_PYTHON` (not bare `"python"`).
+  `shared/ttk_utils.py` derives `_CONDA_EXECUTABLE` from `Path(TTK_CONDA_PYTHON).parents[2]` so
+  conda is never assumed to be on PATH.
+- **Rule 4**: Numerical correctness validated — persistence diagram round-trip + bottleneck distance
+  invariant (`d(D, D) = 0`) confirmed against `ttk_env` subprocess.
+
+## Environment Details
+
+| Item | Value |
+|------|-------|
+| Conda env name | `ttk_env` |
+| TTK version | 1.3.0 |
+| Python in `ttk_env` | 3.11 |
+| VTK in `ttk_env` | 9.3.20240617 |
+| ParaView in `ttk_env` | 5.13.0 |
+| Python in project `.venv` | 3.13 (do NOT change) |
+| VTK in project `.venv` | 9.5.2 |
+| `TTK_CONDA_PYTHON` (Windows) | `~/miniconda3/envs/ttk_env/python.exe` |
+| `pvpython` location | `~/miniconda3/envs/ttk_env/Library/bin/pvpython.exe` |
+
+## Installation
+
+### 1. Create the conda environment
 
 ```bash
-# Create isolated Python 3.11 environment for TTK
 conda create -n ttk_env python=3.11 -y
 ```
 
-### 2. Install TTK from Conda-Forge
+### 2. Install TTK
 
 ```bash
-# Install TTK with all dependencies
 conda install -n ttk_env -c conda-forge topologytoolkit -y
 ```
 
-This installs:
-- TTK 1.3.0
-- ParaView 5.13.0 (bundled)
-- VTK 9.3.x
-- NumPy and other dependencies
+Installs TTK 1.3.0, ParaView 5.13.0 (bundled), VTK 9.3.x, NumPy.
 
-### 3. Verify Installation
+### 3. Verify from the project venv
 
-```bash
-# Test TTK Python bindings
-conda run -n ttk_env python -c "import topologytoolkit; print('TTK OK')"
-
-# Check VTK version
-conda run -n ttk_env python -c "import vtk; print(vtk.vtkVersion.GetVTKVersion())"
-```
-
-Expected output:
-```
-TTK OK
-9.3.20240617
-```
-
-### 4. Test from Project Environment
-
-From the project's `.venv`:
-
-```python
-# Check TTK status
+```powershell
+# From project .venv (Python 3.13)
 python shared/ttk_utils.py
 ```
 
@@ -78,61 +87,31 @@ ParaView Filters: ✗ Not Available
 ============================================================
 ```
 
-Note: "ParaView Filters: ✗ Not Available" is expected and does not affect functionality.
+`ParaView Filters: ✗ Not Available` is **expected and correct** — `is_ttk_paraview_available()`
+tests the conda-python interpreter path (the subprocess bridge); TTK filters via `paraview.simple`
+require pvpython (see Interactive Use below).
 
-## Environment Configuration
+## Usage
 
-### Python Path Configuration
-
-The TTK Python interpreter is located at:
-- **Windows**: `~/miniconda3/envs/ttk_env/python.exe`
-- **Linux/Mac**: `~/miniconda3/envs/ttk_env/bin/python`
-
-This path is automatically detected by `shared/ttk_utils.py`.
-
-### VTK Version Isolation
-
-The project uses **two separate VTK environments**:
-
-| Environment | VTK Version | Purpose | Access |
-|-------------|-------------|---------|--------|
-| **Project `.venv/`** | 9.5.2 | Main project (PyVista, GUDHI, giotto-tda) | Direct import |
-| **TTK `ttk_env`** | 9.3.x | TTK operations only | Subprocess |
-
-This isolation prevents version conflicts and is the recommended approach.
-
-## Usage Patterns
-
-### Basic TTK Usage
+### Compute path (standard — from project venv)
 
 ```python
 from shared.ttk_utils import is_ttk_available, run_ttk_subprocess
 
-# Check availability
 if not is_ttk_available():
-    print("TTK not available - install following TTK_SETUP.md")
-    return
+    raise RuntimeError("TTK not available — see docs/TTK_SETUP.md")
 
-# Run TTK analysis script
 code, stdout, stderr = run_ttk_subprocess(
-    "my_ttk_analysis.py",
+    "my_ttk_script.py",
     args=["input.vtu", "output.json"],
-    timeout=120  # seconds
+    timeout=120,
 )
-
-if code == 0:
-    print("Analysis successful")
-    print(stdout)
-else:
-    print(f"Analysis failed: {stderr}")
 ```
 
-### TTK Analysis Script Template
-
-Create a script that runs in the TTK environment:
+### TTK script template (runs inside ttk_env)
 
 ```python
-# my_ttk_analysis.py
+# my_ttk_script.py — executed by Python 3.11 in ttk_env, not the project 3.13 venv
 import sys
 import numpy as np
 import vtk
@@ -140,222 +119,174 @@ from vtk.util import numpy_support
 import topologytoolkit as ttk
 
 def main(input_file, output_file):
-    # Load data
     reader = vtk.vtkXMLImageDataReader()
     reader.SetFileName(input_file)
     reader.Update()
     data = reader.GetOutput()
-    
-    # Compute persistence diagram
+
     persistence = ttk.ttkPersistenceDiagram()
     persistence.SetInputData(data)
     persistence.SetInputArrayToProcess(0, 0, 0, 0, "ScalarField")
     persistence.Update()
-    
-    # Save results
-    writer = vtk.vtkXMLUnstructuredGridWriter()
-    writer.SetFileName(output_file)
-    writer.SetInputData(persistence.GetOutput())
-    writer.Write()
-    
-    print(f"Processed {data.GetNumberOfPoints()} points")
-    print(f"Found {persistence.GetOutput().GetNumberOfPoints()} persistence pairs")
+
+    output = persistence.GetOutput()
+    print(f"Pairs: {output.GetNumberOfPoints()}")
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
 ```
 
-Call from project code:
+### Interactive use via pvpython
 
-```python
-from shared.ttk_utils import run_ttk_subprocess
+pvpython gives access to TTK filters through `paraview.simple` (the ParaView Python client API).
+Requires the conda env to be activated:
 
-code, out, err = run_ttk_subprocess(
-    "my_ttk_analysis.py",
-    args=["input.vti", "output.vtu"]
-)
+```powershell
+conda activate ttk_env
+pvpython my_visualization_script.py
 ```
 
-### Using TTK Detection Utilities
-
-```python
-from shared.ttk_utils import get_ttk_backend, check_ttk_status
-
-# Get detailed backend information
-backend = get_ttk_backend()
-print(f"TTK available: {backend['available']}")
-print(f"TTK version: {backend['ttk_version']}")
-print(f"VTK version: {backend['vtk_version']}")
-
-# Display full status report
-check_ttk_status(verbose=True)
+Or for a one-off:
+```powershell
+conda run -n ttk_env pvpython -c "from paraview.simple import TTKPersistenceDiagram; print('OK')"
 ```
+
+**Note on pvpython PATH**: `pvpython.exe` lives at
+`~/miniconda3/envs/ttk_env/Library/bin/pvpython.exe`. It is only on PATH when the env is
+activated — do not rely on a manual User PATH entry, as conda's init script rebuilds PATH on shell
+start and may override it. `conda activate ttk_env` is the correct method.
 
 ## Available TTK Filters
 
-See [`docs/TTK_FILTER_VERIFICATION.md`](TTK_FILTER_VERIFICATION.md) for verified filters.
+See [`docs/TTK_FILTER_VERIFICATION.md`](TTK_FILTER_VERIFICATION.md) for the full verification run.
 
-**Core filters (verified working)**:
-- `ttkPersistenceDiagram` - Persistence diagram computation
-- `ttkBottleneckDistance` - Diagram comparison
-- `ttkMorseSmaleComplex` - Critical point extraction
-- `ttkTopologicalSimplification` - Noise removal
+**Core filters (verified working via subprocess bridge)**:
 
-**150+ additional filters available** - see [TTK documentation](https://topology-tool-kit.github.io/doc/html/index.html)
+| Filter | Class | Notes |
+|--------|-------|-------|
+| Persistence diagram | `ttk.ttkPersistenceDiagram` | Standard usage |
+| Bottleneck distance | `ttk.ttkBottleneckDistance` | See API note below |
+| Morse–Smale complex | `ttk.ttkMorseSmaleComplex` | Smoke-tested on synthetic field; 9 critical points in ~1.3 s |
+| Topological simplification | `ttk.ttkTopologicalSimplification` | Standard usage |
 
-## Troubleshooting
+150+ additional filters available — see the [TTK documentation](https://topology-tool-kit.github.io/doc/html/index.html).
 
-### Issue: "TTK not available"
+### ttkBottleneckDistance API (TTK 1.3.0)
 
-**Symptom**: `is_ttk_available()` returns `False`
+The bottleneck distance filter has a non-obvious API. Incorrect usage silently false-passes or
+segfaults. The correct pattern:
 
-**Solutions**:
-1. Verify conda environment exists:
-   ```bash
-   conda env list | grep ttk_env
-   ```
+```python
+import vtk
+import topologytoolkit as ttk
 
-2. Verify TTK installed:
-   ```bash
-   conda list -n ttk_env | grep topologytoolkit
-   ```
+# Input: vtkMultiBlockDataSet containing >=2 vtkUnstructuredGrid blocks (diagram outputs)
+mbd = vtk.vtkMultiBlockDataSet()
+mbd.SetBlock(0, persistence1.GetOutput())   # first diagram
+mbd.SetBlock(1, persistence2.GetOutput())   # second diagram
 
-3. Recreate environment if needed:
-   ```bash
-   conda remove -n ttk_env --all -y
-   conda create -n ttk_env python=3.11 -y
-   conda install -n ttk_env -c conda-forge topologytoolkit -y
-   ```
+# vtkTrivialProducer wraps a data object for pipeline input
+producer = vtk.vtkTrivialProducer()
+producer.SetOutput(mbd)
+producer.Update()
 
-### Issue: Import errors in TTK subprocess
+bottleneck = ttk.ttkBottleneckDistance()
+bottleneck.SetPVAlgorithm(0)                # 0 = TTK solver; values 1-4 print "Not supported"
+bottleneck.SetInputConnection(0, producer.GetOutputPort())  # single input port only
+bottleneck.Update()
 
-**Symptom**: `ImportError` when running TTK scripts
+distance = bottleneck.Getresult()           # scalar result; -1.0 = failure sentinel
+# NOTE: GetOutput() returns None with PVAlgorithm=0 — use Getresult() for the distance value
+```
 
-**Solution**: Ensure script imports are compatible with TTK environment:
-- Use `import topologytoolkit as ttk` (not `from paraview.simple import ...`)
-- Import `vtk` before TTK filters
-- Use `numpy_support` for VTK-NumPy conversions
+**Empty diagram guard**: passing an empty persistence diagram to `ttkBottleneckDistance` causes a
+segfault (not a Python exception). Always check `GetNumberOfPoints() > 0` on both diagrams before
+calling the filter. The fixed smoke test in `tests/shared/ttk_filter_verification.py` demonstrates
+this guard and asserts the numerical invariant `d(D, D) = 0`.
 
-### Issue: Subprocess timeout
+## Testing
 
-**Symptom**: `subprocess.TimeoutExpired` exception
+### Quick check
 
-**Solutions**:
-1. Increase timeout parameter:
-   ```python
-   run_ttk_subprocess("script.py", timeout=300)  # 5 minutes
-   ```
-
-2. Profile TTK operations to identify slow filters
-3. Consider processing data in smaller chunks
-
-### Issue: VTK version conflicts
-
-**Symptom**: VTK import errors or unexpected behavior
-
-**Solution**: This should not occur due to subprocess isolation. If it does:
-1. Verify using subprocess pattern (not direct import)
-2. Check Python interpreter path in error messages
-3. Ensure not mixing project venv and TTK env imports
-
-## Alternative Installation: Pre-built ParaView-TTK (Not Recommended)
-
-A pre-built ParaView+TTK bundle is available but has DLL issues on Windows.
-
-**Downloaded but not used**: `docs/ttk_installers/ttk-paraview-v5.13.0.exe`
-
-This was tested but has runtime DLL loading errors. The conda approach is more reliable.
-
-## Testing TTK Installation
-
-### Quick Test
-
-```bash
-# From project directory
+```powershell
+# Set UTF-8 output (avoids checkmark encoding error on Windows console)
+$env:PYTHONIOENCODING = "utf-8"
 python shared/ttk_utils.py
 ```
 
-Should show "TTK Status: ✓ Available"
+### Unit tests
 
-### Comprehensive Test
-
-```bash
-# Run full filter verification
-python -c "from shared.ttk_utils import run_ttk_subprocess; run_ttk_subprocess('tests/shared/ttk_filter_verification.py')"
+```powershell
+uv run pytest tests/shared/test_ttk_utils.py -v --ignore=TDL
 ```
 
-Should show all filters passing.
+Expected: 20 passed, 1 skipped.
 
-### Unit Tests
+### Filter verification (runs inside ttk_env subprocess)
 
-```bash
-# Run TTK utilities test suite
-pytest tests/shared/test_ttk_utils.py -v
+```powershell
+uv run python -c "
+from shared.ttk_utils import run_ttk_subprocess
+code, out, err = run_ttk_subprocess('tests/shared/ttk_filter_verification.py')
+print(out)
+if err: print('STDERR:', err)
+"
 ```
 
-Expected: 20 passed, 1 skipped
+## Troubleshooting
 
-## Integration with Existing Code
+### `is_ttk_available()` returns False
 
-### Poverty TDA Pattern
+```powershell
+# Check env exists
+conda env list | Select-String ttk_env
 
-TTK usage matches the existing pattern in `poverty_tda/topology/morse_smale.py`:
-- Subprocess calls to isolated environment
-- VTK version isolation
-- Error handling and graceful fallbacks
+# Check TTK installed
+conda list -n ttk_env | Select-String topologytoolkit
 
-### Example Integration
+# Recreate if needed
+conda remove -n ttk_env --all -y
+conda create -n ttk_env python=3.11 -y
+conda install -n ttk_env -c conda-forge topologytoolkit -y
+```
+
+### `UnicodeEncodeError` on `✓`/`✗` characters (Windows console)
+
+```powershell
+$env:PYTHONIOENCODING = "utf-8"
+python shared/ttk_utils.py
+```
+
+### pvpython not found
+
+```powershell
+conda activate ttk_env
+pvpython --version   # should print "paraview version 5.13.0"
+```
+
+If `conda activate` fails, run `conda init powershell` in an admin shell, then restart.
+
+### Import errors in TTK subprocess
+
+Use `import topologytoolkit as ttk` (not `from paraview.simple import ...`) in scripts that run
+under `run_ttk_subprocess()`. The plain conda python does not expose TTK via `paraview.simple` —
+that requires pvpython.
+
+### Subprocess timeout
 
 ```python
-# In your analysis module
-from shared.ttk_utils import is_ttk_available, run_ttk_subprocess, get_ttk_unavailable_message
-
-def compute_persistence(data_path, output_path):
-    """Compute persistence diagram using TTK."""
-    if not is_ttk_available():
-        print(get_ttk_unavailable_message())
-        return None
-    
-    # Create TTK script dynamically or use pre-written script
-    code, stdout, stderr = run_ttk_subprocess(
-        "compute_persistence_script.py",
-        args=[data_path, output_path],
-        timeout=60
-    )
-    
-    if code != 0:
-        raise RuntimeError(f"TTK computation failed: {stderr}")
-    
-    return output_path
+run_ttk_subprocess("script.py", timeout=300)   # increase from default
 ```
 
-## CI/CD Considerations
+## Alternative: Pre-built ParaView-TTK bundle (not used)
 
-**TTK in CI**: Optional, not required for project tests
-
-If adding TTK to CI:
-1. Add conda installation step
-2. Create ttk_env in CI pipeline
-3. Install topologytoolkit
-4. Run TTK-dependent tests separately
-
-Currently not implemented as TTK tests can be run locally when needed.
+A pre-built `.exe` installer (`docs/ttk_installers/ttk-paraview-v5.13.0.exe`) was downloaded and
+tested but discarded — runtime DLL loading errors on Windows. The conda approach is more reliable.
 
 ## References
 
-- **TTK Official Website**: https://topology-tool-kit.github.io/
-- **TTK Documentation**: https://topology-tool-kit.github.io/doc/html/index.html
-- **TTK Examples**: https://topology-tool-kit.github.io/examples/
-- **Project TTK Utilities**: `shared/ttk_utils.py`
-- **Filter Verification**: `docs/TTK_FILTER_VERIFICATION.md`
-
-## Summary
-
-TTK 1.3.0 is successfully installed and integrated using a conda subprocess approach that:
-- ✓ Isolates VTK versions (9.3.x for TTK, 9.5.2 for project)
-- ✓ Prevents import conflicts
-- ✓ Provides access to 150+ TTK filters
-- ✓ Works reliably on Windows
-- ✓ Matches proven poverty_tda pattern
-
-All core filters are verified and ready for use in Phase 6.5 TTK integration tasks.
+- **TTK documentation**: https://topology-tool-kit.github.io/doc/html/index.html
+- **Subprocess bridge methodology**: `vault/02-Notes/Permanent/Persistent-subprocess-pool-bridges-a-pinned-python-version-blocker-but-threaded-dispatch-can-serialize-on-the-gil.md`
+- **Bridge implementation**: `shared/ttk_utils.py`
+- **Filter smoke tests**: `tests/shared/ttk_filter_verification.py`
+- **Higher-level utilities**: `shared/ttk_visualization/`

@@ -7,6 +7,7 @@ in an isolated conda environment to avoid VTK version conflicts.
 Pattern: Following poverty_tda/topology/morse_smale.py subprocess approach.
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -22,6 +23,14 @@ TTK_CONDA_ENV = "ttk_env"
 TTK_CONDA_PYTHON = os.path.expanduser("~/miniconda3/envs/ttk_env/python.exe")
 if sys.platform != "win32":
     TTK_CONDA_PYTHON = os.path.expanduser("~/miniconda3/envs/ttk_env/bin/python")
+
+# Derive conda executable from the TTK env path (Rule 2 of subprocess-bridge methodology:
+# resolve cross-platform paths from the start; see permanent note on subprocess bridges).
+_ttk_conda_root = Path(TTK_CONDA_PYTHON).parents[2]  # e.g. ~/miniconda3
+if sys.platform == "win32":
+    _CONDA_EXECUTABLE = str(_ttk_conda_root / "Scripts" / "conda.exe")
+else:
+    _CONDA_EXECUTABLE = str(_ttk_conda_root / "bin" / "conda")
 
 # Cache TTK availability to avoid repeated subprocess checks
 _TTK_AVAILABLE_CACHE: Optional[bool] = None
@@ -115,16 +124,15 @@ def get_ttk_version() -> Optional[str]:
         return None
 
     try:
-        # TTK doesn't expose __version__, so get it from conda
+        # TTK doesn't expose __version__, so get it from conda.
+        # Use the full conda path derived from TTK_CONDA_PYTHON (conda is not always on PATH).
         result = subprocess.run(
-            ["conda", "list", "-n", TTK_CONDA_ENV, "topologytoolkit", "--json"],
+            [_CONDA_EXECUTABLE, "list", "-n", TTK_CONDA_ENV, "topologytoolkit", "--json"],
             capture_output=True,
             timeout=5,
             text=True,
         )
         if result.returncode == 0:
-            import json
-
             packages = json.loads(result.stdout)
             if packages:
                 return packages[0].get("version", "unknown")
