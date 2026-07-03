@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/evaluation-run",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "evaluation_run_id", "fixture_id",
+    "fixture_revision", "subject_type", "subject_version", "subject_hash",
+    "run_role", "attempt_number", "coverage_manifest_id",
+    "policy_bundle_hash", "provider_variant", "runtime_variant", "state",
+    "trace_ids", "provider_receipt_ids", "operational_record_ids",
+    "grader_result_ids", "exception_refs", "quarantine_refs"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/evaluation-run"},
+    "schema_version": {"const": "1.0.0"},
+    "evaluation_run_id": {"type": "string", "pattern": "^run_"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "subject_type": {"type": "string", "minLength": 1},
+    "subject_version": {"type": "string", "minLength": 1},
+    "subject_hash": {"$ref": "#/$defs/sha256"},
+    "run_role": {"enum": ["baseline", "candidate"]},
+    "attempt_number": {"type": "integer", "minimum": 1},
+    "coverage_manifest_id": {"type": "string", "minLength": 1},
+    "policy_bundle_hash": {"$ref": "#/$defs/sha256"},
+    "provider_variant": {"type": "string", "minLength": 1},
+    "runtime_variant": {"type": "string", "minLength": 1},
+    "state": {
+      "enum": [
+        "declared", "executing", "evidence_complete", "grading",
+        "decided", "stopped", "failed"
+      ]
+    },
+    "route_decision_id": {"type": ["string", "null"]},
+    "resource_request_id": {"type": ["string", "null"]},
+    "start_sequence_position": {"type": ["integer", "null"], "minimum": 0},
+    "end_sequence_position": {"type": ["integer", "null"], "minimum": 0},
+    "trace_ids": {"$ref": "#/$defs/strings"},
+    "provider_receipt_ids": {"$ref": "#/$defs/strings"},
+    "operational_record_ids": {"$ref": "#/$defs/strings"},
+    "grader_result_ids": {"$ref": "#/$defs/strings"},
+    "exception_refs": {"$ref": "#/$defs/strings"},
+    "quarantine_refs": {"$ref": "#/$defs/strings"},
+    "terminal_summary": {"type": ["string", "null"]},
+    "retry_of": {"type": ["string", "null"]},
+    "supersedes": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

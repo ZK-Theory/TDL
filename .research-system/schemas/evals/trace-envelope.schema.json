@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/trace-envelope",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "trace_id", "evaluation_run_id",
+    "fixture_id", "fixture_revision", "subject_id", "subject_hash",
+    "items", "issued_commands", "resource_record_ids", "tool_records",
+    "artefact_refs", "review_refs", "decision_refs", "claim_refs",
+    "present_evidence_classes", "missing_segments", "trace_complete",
+    "clock_source", "ordering_method", "redaction_record_hash", "content_hash"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/trace-envelope"},
+    "schema_version": {"const": "1.0.0"},
+    "trace_id": {"type": "string", "pattern": "^trc_"},
+    "evaluation_run_id": {"type": "string", "pattern": "^run_"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "subject_id": {"type": "string", "minLength": 1},
+    "subject_hash": {"$ref": "#/$defs/sha256"},
+    "items": {"type": "array", "items": {"type": "object"}},
+    "issued_commands": {"type": "array", "items": {"type": "object"}},
+    "route_decision_id": {"type": ["string", "null"]},
+    "routing_evidence_snapshot_id": {"type": ["string", "null"]},
+    "canonical_policy_bundle_id": {"type": ["string", "null"]},
+    "adapter_manifest_version": {"type": ["string", "null"]},
+    "resource_record_ids": {"$ref": "#/$defs/strings"},
+    "tool_records": {"type": "array", "items": {"type": "object"}},
+    "artefact_refs": {"$ref": "#/$defs/strings"},
+    "review_refs": {"$ref": "#/$defs/strings"},
+    "decision_refs": {"$ref": "#/$defs/strings"},
+    "claim_refs": {"$ref": "#/$defs/strings"},
+    "present_evidence_classes": {"$ref": "#/$defs/strings"},
+    "missing_segments": {"$ref": "#/$defs/strings"},
+    "trace_complete": {"type": "boolean"},
+    "clock_source": {"type": "string", "minLength": 1},
+    "ordering_method": {"type": "string", "minLength": 1},
+    "redaction_record_hash": {"$ref": "#/$defs/sha256"},
+    "content_hash": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}
