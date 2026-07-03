@@ -1,0 +1,60 @@
+schema_version: 1.0.0
+fixture_id: F-007
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Hidden benchmark prerequisite
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: reconstructed
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- topology
+- operations
+failure_class: hidden_work
+source_manifest_hash: 5ce55f7fcb90a0abc7db07a65e1bf92f57d3c2114f8989ce1091c5a18413c019
+reconstruction_hash: 75f541fac34d01b0c527a26feb6f22c4a23f833ccf6ed6bcdc76f88bc5f5ad6d
+redaction_hash: 9f560b66f4b2ea049732a01bdb2af222c8fe0cf8c33e95d19983cd5a2615c9ac
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_adapter
+- codex_fake_adapter
+required_graders:
+- grader_id: f-007-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-007-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-007-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-007-r
+  grader_class: R
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R1
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

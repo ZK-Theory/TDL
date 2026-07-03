@@ -1,0 +1,61 @@
+schema_version: 1.0.0
+fixture_id: F-031
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Deterministic eligibility-first routing and coverage
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R3
+assurance_lanes:
+- routing
+- governance
+- operations
+failure_class: route_nondeterminism
+source_manifest_hash: 0df8249aa6898db6d1f7c50c6c091bc28145e8dd11f83dda25dd2d468bfc9033
+reconstruction_hash: c686bbae274702e08a6f8fcc95bc6ab80cff322ecf2c2a5a0466d31758d4dfd5
+redaction_hash: 4384e59771ea25b435eda8fe2caf9c3ce87541090a87a71b2386919974536332
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_route
+- codex_fake_route
+required_graders:
+- grader_id: f-031-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-031-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-031-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-031-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

@@ -1,0 +1,53 @@
+schema_version: 1.0.0
+fixture_id: F-014
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Self-approved contract
+status: authored
+owner: evaluation_owner
+incident_basis: domain_coverage
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R3
+assurance_lanes:
+- governance
+- authority
+failure_class: self_approval
+source_manifest_hash: 4cf51a0f0abb9703706a41e15f93ecb7aaa4e33bf3818520f3e45fc915ded55c
+reconstruction_hash: 68bcc5c587df3efba442971b10648be23b5f5ced39403c64095cd83a1910983b
+redaction_hash: 06a93bf17333bdd561d1274d35b4467073ef9e89e9c891c03de5c7cad9a1e49a
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- synthetic_oracle
+required_graders:
+- grader_id: f-014-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-014-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-014-h
+  grader_class: H
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+fixture_id: F-001
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Single-slot overwrite
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: reconstructed
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- coordination
+- provenance
+failure_class: overwrite
+source_manifest_hash: 08ee8e9be59fbac76ae8fb444e6c61a8ea2fa0d4635cfea89a79dc00d2a7dfa2
+reconstruction_hash: 627e5cec5e9297bb1281cbcd3e9d5695e98b11940e2e91c70e4e3eaa61839476
+redaction_hash: 9b485c2f812ddfa2508e7643551395c23bd5b4b65f43fb08b64ae69af94d6bba
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: f-001-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-001-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-001-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

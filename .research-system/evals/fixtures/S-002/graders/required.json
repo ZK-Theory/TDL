@@ -1,0 +1,1 @@
+{"fixture_id":"S-002","required_graders":[{"critical":true,"grader_class":"D","grader_id":"s-002-d","grader_version":"v1","independence_requirement":"deterministic_independent","required":true},{"critical":true,"grader_class":"T","grader_id":"s-002-t","grader_version":"v1","independence_requirement":"deterministic_independent","required":true}]}

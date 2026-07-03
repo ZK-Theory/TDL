@@ -1,0 +1,46 @@
+schema_version: 1.0.0
+fixture_id: F-002
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Task/report collision
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: minimized
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- coordination
+- provenance
+failure_class: identity_collision
+source_manifest_hash: e7c0462d22c4b1f841d7257ba96c3f5e2bee8d9093710dbc70dea2c00ae3df0a
+reconstruction_hash: 42547af13e6e60ffb7aaeec2ccd4f4e6b321e25fab7fb19b5d6aff472b54a016
+redaction_hash: c590cf1e7621adb49372349327d492080ef4300834820ddc18759079e1931830
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: f-002-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-002-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

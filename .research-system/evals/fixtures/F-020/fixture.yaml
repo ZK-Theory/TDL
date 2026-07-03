@@ -1,0 +1,54 @@
+schema_version: 1.0.0
+fixture_id: F-020
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Provider policy drift
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- adapter
+- governance
+failure_class: policy_drift
+source_manifest_hash: bbdabbf28d6fb61349fc9dab235a2f92e9339980373e6d65196c29edf50044dc
+reconstruction_hash: 424b2187421194ea8029efede522a9e366cb2a266602d205fec1d5b7176c78e1
+redaction_hash: 0aa0ea192b4ffdf7cfc35e3855691ea05324af9a4b3a2cc0680b3565924ed198
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_adapter
+- codex_fake_adapter
+required_graders:
+- grader_id: f-020-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-020-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-020-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

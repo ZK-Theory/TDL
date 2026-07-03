@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+fixture_id: S-001
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Idempotent lost receipt
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R1
+assurance_lanes:
+- coordination
+- provenance
+failure_class: lost_receipt
+source_manifest_hash: ed4160ff721965f3fff28f14b8c133c4f7d8c5bba7c1026cf4e31bb751fc18f1
+reconstruction_hash: cac96307dbb7b0cfaa571a5bccdb45caa1fc8fb2ee02473f26b5185c2fa33a5f
+redaction_hash: 6e331d142eeea55bed078c5ab147b7bf454b5d26108101754286cd323379409d
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: s-001-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-001-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-001-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

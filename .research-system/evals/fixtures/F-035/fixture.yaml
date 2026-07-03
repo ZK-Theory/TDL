@@ -1,0 +1,67 @@
+schema_version: 1.0.0
+fixture_id: F-035
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Requirement-scope integrity and two-key non-compensation
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R3
+assurance_lanes:
+- assurance
+- authority
+- claim
+failure_class: requirement_capture
+source_manifest_hash: 2a40f6759f45dbbb66e82f9623abdc1093b85ccbc157a5e9389781ff68dfd8fb
+reconstruction_hash: 8c29813938c08fc52cb925da019ccd13ffdfd0d1f4c73dd5dbe2514485abe948
+redaction_hash: 6dc4bb364e40888ce330c710f1b140da56c64a59e5b59d41d30f403d3b32b682
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_route
+- codex_fake_route
+required_graders:
+- grader_id: f-035-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-035-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-035-r
+  grader_class: R
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+- grader_id: f-035-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+- grader_id: f-035-h
+  grader_class: H
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

@@ -1,0 +1,45 @@
+schema_version: 1.0.0
+fixture_id: S-008
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Incomplete scope completion
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- governance
+failure_class: incomplete_scope
+source_manifest_hash: a6c859a71494958e49acf75108a911f718a99c1ba9f68e2129871f4c509edae3
+reconstruction_hash: dad57964343d25fbea487d6ad29ef7dd7472b10a352f26f4b2eb2f8ce0587ab2
+redaction_hash: 50a26a8cb26a855f4c31a0e7be5f6eb942212248c83908f3d9f717acd6532c4b
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: s-008-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-008-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

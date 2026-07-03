@@ -1,0 +1,47 @@
+schema_version: 1.0.0
+fixture_id: F-027
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Optional-index deletion equivalence
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R1
+assurance_lanes:
+- context
+- provenance
+failure_class: optional_index_authority
+source_manifest_hash: cfd15557ff15879140762e2cfe39aea87a00a5ec57ffa02c6c5e3cefd9d6a8a8
+reconstruction_hash: 5f5262968721348f247737959e19bb6a6347aa9e586ac462993dac00e797c76c
+redaction_hash: 403e5316690e4211601aa9603d721136282a07b34c34e9311c0a86866e58e54c
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_route
+- codex_fake_route
+required_graders:
+- grader_id: f-027-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-027-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

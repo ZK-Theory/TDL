@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+fixture_id: S-012
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Divergent task branches
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- coordination
+- provenance
+failure_class: divergent_writer
+source_manifest_hash: 93e2978f27f7b4d29a52bc2fdf821d7b47b6047b04693ecdf0f933d85b0d62a8
+reconstruction_hash: a2df78f90a11bd16d1aabdbdc52654cfeeeae8318a0880812104fdb175d40165
+redaction_hash: 6d18da51ab4012e3e63065149905de4fe68fdec1a6fa4cbd82050f3fcb483ddd
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: s-012-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-012-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-012-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

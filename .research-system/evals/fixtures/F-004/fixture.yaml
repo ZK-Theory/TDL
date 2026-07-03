@@ -1,0 +1,45 @@
+schema_version: 1.0.0
+fixture_id: F-004
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Stale completion log
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: minimized
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R1
+assurance_lanes:
+- provenance
+failure_class: stale_projection
+source_manifest_hash: 2f9c774c6f12bffd2d1ad6cc172f943b501c4a7602833e26dc744de66a6fb885
+reconstruction_hash: 1cce11c77c9c27898fae011d22ac8c514009a893357a0c1c764c5662ec7b5c6b
+redaction_hash: 6d3552ea34e8a8bdd0c4896e36d8a495da63d509c3d8004e43a1e154c15dba80
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: f-004-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-004-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

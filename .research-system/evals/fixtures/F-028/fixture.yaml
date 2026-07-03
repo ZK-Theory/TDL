@@ -1,0 +1,54 @@
+schema_version: 1.0.0
+fixture_id: F-028
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Budget overflow fails closed
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- context
+- governance
+- operations
+failure_class: context_budget_overflow
+source_manifest_hash: 95c47f0bd85c6b637d8335bb64056a751d3e26dc7498d6eca1274d801089cfab
+reconstruction_hash: b8b8a0f9236f1583199f22130c6553e2b34ca5e25595795becfa2cee4deebc83
+redaction_hash: 2b288d08e0d801b54822682e876c0f8caf5dd0fd50a0af3678bd52b669833bd4
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_route
+- codex_fake_route
+required_graders:
+- grader_id: f-028-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-028-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-028-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R1
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

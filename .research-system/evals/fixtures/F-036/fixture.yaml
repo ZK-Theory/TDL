@@ -1,0 +1,64 @@
+schema_version: 1.0.0
+fixture_id: F-036
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Proof-obligation anti-gaming
+status: authored
+owner: evaluation_owner
+incident_basis: domain_coverage
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R3
+assurance_lanes:
+- topology
+- stochastic
+- representation
+- claim
+failure_class: proof_gaming
+source_manifest_hash: df6971dd7c197f2805f025d1fdbb56289ed124db31c74b32d2df2bf0f9905cbd
+reconstruction_hash: 5ffeb479baf2a093aaf2b21fd3fcca85c59dbbb5d5c900dace9c0e5eb9fa3713
+redaction_hash: df16058bd2d1b679fa5a40ee07cb5e607c9beb9947dee9ac90a1495e393ad70e
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- synthetic_oracle
+required_graders:
+- grader_id: f-036-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-036-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-036-r
+  grader_class: R
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+- grader_id: f-036-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids:
+- expected_value_anchoring
+- degenerate_fallback
+- null_invariance

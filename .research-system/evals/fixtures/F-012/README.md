@@ -1,0 +1,3 @@
+# F-012 - Null invariance
+
+Synthetic/minimized P0 evaluation definition. No runtime evidence.

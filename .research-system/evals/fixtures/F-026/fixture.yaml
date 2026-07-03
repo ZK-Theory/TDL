@@ -1,0 +1,70 @@
+schema_version: 1.0.0
+fixture_id: F-026
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Implementer frozen-representation/null/vintage retrieval
+status: authored
+owner: evaluation_owner
+incident_basis: domain_coverage
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- context
+- representation
+- stochastic
+- topology
+- provenance
+failure_class: retrieval_shortcut
+source_manifest_hash: d1d12d725ec2b096ab465adb53a9ebd33a9485279c37bc458f70cbf6ecadb847
+reconstruction_hash: e1f6f65c626956b53b16ca8b6c3d0af800d07b2378cec6663a21d27faf122aab
+redaction_hash: 5491c7f4c1574a160971882dd5f87507c4f00a55db98f59ccfb3f42b89f94d85
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- reference_tokens
+- claude_fake_provider_tokens
+- codex_fake_provider_tokens
+required_graders:
+- grader_id: f-026-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-026-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-026-r
+  grader_class: R
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+- grader_id: f-026-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+- grader_id: f-026-p
+  grader_class: P
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

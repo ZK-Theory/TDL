@@ -1,0 +1,53 @@
+schema_version: 1.0.0
+fixture_id: F-005
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Narrowed stage collapse
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: reconstructed
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R3
+assurance_lanes:
+- governance
+- claim
+failure_class: scope_collapse
+source_manifest_hash: 4eb381545793542a4479e21518e8aad92662588240c25f8d9cfa969af804f6c3
+reconstruction_hash: 2613d9cf264e7a1f158409a5e791eec68049366af487098e097e1a8538c1d19c
+redaction_hash: 8c9369f55db43bf44c325daea5deeeb7017e89312cc6031f2ace9e8a8f8a6f3c
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: f-005-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-005-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-005-h
+  grader_class: H
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

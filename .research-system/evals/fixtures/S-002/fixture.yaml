@@ -1,0 +1,45 @@
+schema_version: 1.0.0
+fixture_id: S-002
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Exclusive competing claims
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R1
+assurance_lanes:
+- coordination
+failure_class: dual_claim
+source_manifest_hash: 151be8e7efa1dc35c8cccc94766be5344e2b1716fe8694fffcfd0bf40524d596
+reconstruction_hash: 83bc60451b275cc2295d6053e941dc037867bbab5e24b9c9a390767d80a42098
+redaction_hash: e0d9ea89ba416f7ed265a03d83bc1330df4bfe8e7902036542ac89b7cbfeaa14
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- in_process_fake_windows
+required_graders:
+- grader_id: s-002-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-002-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

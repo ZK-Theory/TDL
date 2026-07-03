@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+fixture_id: F-011
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Frozen-representation failure
+status: authored
+owner: evaluation_owner
+incident_basis: domain_coverage
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- representation
+failure_class: representation_refit
+source_manifest_hash: e6eb03d0803d3150abcf57e2a500c8a1b98799407be7a374e51aff39dc0fa596
+reconstruction_hash: d98e1ab646c71ea0c6ae48801d991c9947e59fc3f70c3ac8ff2086c1b92894b7
+redaction_hash: 0dffb284023c14acfc93d6566b4f20d0ea6622b9dbb9f986515e97b07c6efb34
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- synthetic_oracle
+required_graders:
+- grader_id: f-011-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-011-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-011-r
+  grader_class: R
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

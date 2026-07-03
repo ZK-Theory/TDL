@@ -1,0 +1,53 @@
+schema_version: 1.0.0
+fixture_id: S-004
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Partial resume lineage
+status: authored
+owner: evaluation_owner
+incident_basis: specification
+input_fidelity: synthetic
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R2
+assurance_lanes:
+- operations
+- provenance
+failure_class: resume_lineage
+source_manifest_hash: c2dd6ec97cbca13a5d51c84860567afc5008a55c7d645b81a67780c3a5c1d528
+reconstruction_hash: 0d0ecd8d4eaad7cda06fa4774540167001b35cb3e623a8d63da5bc1abe2b4cfd
+redaction_hash: 46ddf2b0df877ed4e85dad10377398ca2d2c3e7bad36454ff2beecc1a606510b
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- claude_fake_adapter
+- codex_fake_adapter
+required_graders:
+- grader_id: s-004-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-004-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: s-004-o
+  grader_class: O
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: deterministic_independent
+threshold_policy_ids: []
+retention_class: R1
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

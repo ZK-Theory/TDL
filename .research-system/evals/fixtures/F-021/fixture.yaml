@@ -1,0 +1,55 @@
+schema_version: 1.0.0
+fixture_id: F-021
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Governing amendment omitted
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: reconstructed
+priority: P1
+gate_stage: p0_materialization
+variant: mandatory_closure_sizing
+risk_tier: R2
+assurance_lanes:
+- context
+- governance
+failure_class: amendment_omission
+source_manifest_hash: 358754ac7e046ef1e57cb03a056844edaa77543f047829ddaabb5b8ce4361656
+reconstruction_hash: 9dcaf0edc1b2f62c43ade189757e8f5037e2789431d69a684e5ad6831bbf1421
+redaction_hash: c94954f99000d3c1c93fd36ce9e864ccd283add8f873102cbfeff8535c164779
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- reference_tokens
+- claude_fake_provider_tokens
+- codex_fake_provider_tokens
+required_graders:
+- grader_id: f-021-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-021-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-021-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []

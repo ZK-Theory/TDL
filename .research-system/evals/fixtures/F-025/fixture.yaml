@@ -1,0 +1,62 @@
+schema_version: 1.0.0
+fixture_id: F-025
+fixture_revision: r1
+catalogue_revision: p0-catalogue-v1
+title: Orchestrator scope-collapse retrieval
+status: authored
+owner: evaluation_owner
+incident_basis: historical
+input_fidelity: reconstructed
+priority: P0
+gate_stage: p0_materialization
+variant: default
+risk_tier: R3
+assurance_lanes:
+- context
+- governance
+- claim
+failure_class: retrieval_scope_collapse
+source_manifest_hash: 9dcf48468f3f8328b1d7ace91556bb697bf1df651d848d4342d21ba6efcb5d47
+reconstruction_hash: 387b44875ae240e9b8eee706c142d81a5059dca2dadd4051de7fd2182ece50f1
+redaction_hash: 88dfc6188e2ad322014cde03529fc5e8d052480c2f45c797474fdb802e5b1957
+policy_versions:
+- p0-calibration-v1
+- p0-retention-v1
+schema_versions:
+- fixture-definition-v1
+required_variants:
+- reference_tokens
+- claude_fake_provider_tokens
+- codex_fake_provider_tokens
+required_graders:
+- grader_id: f-025-d
+  grader_class: D
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-025-t
+  grader_class: T
+  grader_version: v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+- grader_id: f-025-m
+  grader_class: M
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+- grader_id: f-025-h
+  grader_class: H
+  grader_version: v1
+  critical: false
+  required: true
+  independence_requirement: cross_family_context_independent
+threshold_policy_ids:
+- p0-unavailable-judgment-v1
+retention_class: R0
+allowed_consumers:
+- eval
+- independent_review
+mutation_ids: []
