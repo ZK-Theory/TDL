@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://routing/route-request",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "request_id", "task_id", "task_revision", "assurance_requirement_id", "assurance_requirement_hash", "context_candidate_id", "context_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://routing/route-request"},
+    "schema_version": {"const": "1.0.0"},
+    "request_id": {"type": "string", "pattern": "^rrq_"},
+    "task_id": {"type": "string", "pattern": "^tsk_"},
+    "task_revision": {"type": "integer", "minimum": 1},
+    "assurance_requirement_id": {"type": "string", "pattern": "^asr_"},
+    "assurance_requirement_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "context_candidate_id": {"type": "string", "pattern": "^ctx_"},
+    "context_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

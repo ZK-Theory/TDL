@@ -1,0 +1,5 @@
+provider: codex
+operation: request_model_work
+argv: [codex, exec, --ephemeral, --ignore-user-config, --json, '-']
+terminal_receipt: jsonl
+live_enabled: false

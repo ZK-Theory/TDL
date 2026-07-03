@@ -1,0 +1,6 @@
+schema_version: '1.0.0'
+risk_order: [R0, R1, R2, R3]
+independence_order: [I0, I1, I2, I3]
+r2_minimum_verifier_grade: I1
+r3_minimum_verifier_grade: I2
+r3_human_gate: Stephen

@@ -1,0 +1,6 @@
+provider: claude
+operation: request_model_work
+argv: [claude, --print, --output-format, json]
+terminal_receipt: json
+live_enabled: false
+windows_requires_git_bash: true

@@ -1,0 +1,20 @@
+schema_version: '1.0.0'
+canonical_policy_bundle_id: cpb_p0_foundation
+revision: r1
+controls:
+  no-shell:
+    semantic_class: execution_boundary
+    critical: true
+    failure_mode: block
+  no-direct-event-write:
+    semantic_class: single_writer_boundary
+    critical: true
+    failure_mode: block
+  no-live-provider-by-default:
+    semantic_class: provider_enablement
+    critical: true
+    failure_mode: block
+  no-raw-transcript-retention:
+    semantic_class: privacy_retention
+    critical: true
+    failure_mode: block

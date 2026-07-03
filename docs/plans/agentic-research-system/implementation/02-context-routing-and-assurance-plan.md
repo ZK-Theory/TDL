@@ -57,7 +57,9 @@ import pytest
 from research_system.assurance.models import (
     CORE_LANES, AssuranceRequirement, LaneRequirement,
 )
-from research_system.assurance.requirements import validate_requirement
+from research_system.assurance.requirements import (
+    GrantBackedAuthorityPolicy, validate_requirement,
+)
 from research_system.context.models import ContextCandidate
 from research_system.errors import ArsError
 
@@ -84,13 +86,13 @@ def _requirement(
 
 
 def test_context_candidate_is_compiled_but_unissued():
-    candidate = ContextCandidate('ctx_' + '1' * 32, 'mft_' + '2' * 32, 'a' * 64, 10, 3, 'ref-v1')
+    candidate = ContextCandidate('ctx_' + '1' * 32, 'ctx_' + '2' * 32, 'a' * 64, 10, 3, 'ref-v1')
     assert candidate.state == 'compiled'
     assert candidate.state not in {'validated', 'issued'}
 
 
 def test_mandatory_source_cannot_be_excused_by_omission_reason():
-    candidate = ContextCandidate('ctx_' + '3' * 32, 'mft_' + '4' * 32, 'b' * 64, 20, 4, 'ref-v1')
+    candidate = ContextCandidate('ctx_' + '3' * 32, 'ctx_' + '4' * 32, 'b' * 64, 20, 4, 'ref-v1')
     with pytest.raises(ArsError, match='mandatory source omitted'):
         candidate.validate_manifest(
             required={'src-a', 'src-b'},
@@ -126,7 +128,14 @@ def test_producer_cannot_self_confirm_r2_scope_or_r3_action():
         action_semantic_risk='R3',
     )
     with pytest.raises(ArsError, match='assurance_requirement_scope_unconfirmed'):
-        validate_requirement(requirement)
+        validate_requirement(
+            requirement,
+            GrantBackedAuthorityPolicy({
+                'act-producer': frozenset({
+                    'accept_r3_assurance_requirement',
+                }),
+            }),
+        )
 ```
 
 - [ ] **Step 2: Run and confirm failure**
@@ -231,7 +240,7 @@ class AssuranceRequirement:
     currency_hash: str
 ```
 
-`requirements.py` validates the exact lane-set equality, non-empty rationale and authority for every `not_applicable`, R2 producer-distinct scope confirmation at I1 or stronger, action-semantic risk escalation, and R3 I2 plus Stephen authority. Software, mathematical, operations, and privacy remain assertion/evidence classes or reviewed pack extensions; they are not silently added to W5's six core lanes.
+`requirements.py` validates the exact lane-set equality, non-empty rationale and authority for every `not_applicable`, R2 producer-distinct scope confirmation at I1 or stronger, action-semantic risk escalation, and R3 I2 plus attributed authority resolved from canonical grant policy. Software, mathematical, operations, and privacy remain assertion/evidence classes or reviewed pack extensions; they are not silently added to W5's six core lanes.
 
 - [ ] **Step 4: Run targeted tests**
 
@@ -378,12 +387,12 @@ class Utf8ByteEvidenceV1:
 
 ```python
 # research_system/context/compiler.py
-from research_system.canonical import canonical_json_bytes, sha256_hex
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.ids import new_id
 from research_system.context.models import ContextCandidate
 
 
-def build_candidate(rendered, ordered, mandatory, evidence):
+def build_candidate(rendered, ordered, mandatory, evidence, omissions=None):
     source_manifest = tuple(
         {
             'source_id': item.source_id, 'revision': item.revision,
@@ -397,8 +406,8 @@ def build_candidate(rendered, ordered, mandatory, evidence):
         }
     )
     return ContextCandidate(
-        context_candidate_id=new_id('context_candidate'),
-        manifest_id=new_id('context_manifest'),
+        context_candidate_id=new_id('context'),
+        manifest_id=new_id('context'),
         content_hash=sha256_hex(rendered.encode('utf-8')),
         utf8_bytes=len(rendered.encode('utf-8')),
         reference_count=evidence.count,
@@ -406,14 +415,14 @@ def build_candidate(rendered, ordered, mandatory, evidence):
         rendered_content=rendered,
         source_ids=tuple(item['source_id'] for item in source_manifest),
         mandatory_source_ids=tuple(item['source_id'] for item in mandatory_manifest),
-        mandatory_hash=sha256_hex(canonical_json_bytes(mandatory_manifest)),
+        mandatory_hash=sha256_hex(canonical_bytes(list(mandatory_manifest))),
         source_manifest=source_manifest,
         conflicts=(),
-        omissions={},
+        omissions=dict(omissions or {}),
     )
 
 
-def compile_candidate(fragments, profile, reference_counter, required_source_ids):
+def compile_candidate(fragments, profile, reference_counter, required_source_ids, optional_source_ids=None, omissions=None):
     included_ids = {item.source_id for item in fragments}
     missing = set(required_source_ids) - included_ids
     if missing:
@@ -428,10 +437,12 @@ def compile_candidate(fragments, profile, reference_counter, required_source_ids
         raise ArsError('invalid reference-token units')
     if evidence.count > profile.reference_limit:
         raise ContextBudgetExceeded('reference_token_gate')
-    candidate = build_candidate(rendered, ordered, mandatory, evidence)
+    candidate = build_candidate(rendered, ordered, mandatory, evidence, omissions)
     candidate.validate_manifest(
         required_source_ids, included_ids,
-        {item.source_id for item in ordered if not item.mandatory}, candidate.omissions,
+        ({item.source_id for item in ordered if not item.mandatory}
+         | set(optional_source_ids or ())) - required_source_ids,
+        candidate.omissions,
     )
     return candidate
 
@@ -446,6 +457,8 @@ def validate_provider_gate(candidate, evidence, usable_capacity_tokens):
         raise ContextBudgetExceeded('bound_provider_capacity_gate')
     return evidence
 ```
+
+The W2 owner catalogue assigns `ctx` to the context-packet identity family. Candidate, manifest, packet, and addendum identities therefore intentionally use the registered `context` kind and `ctx_` prefix; their schemas and content hashes distinguish object roles rather than inventing unowned ID kinds.
 
 `build_candidate` records source IDs/revisions/hashes, conflicts, optional omissions, reference units, UTF-8 bytes, and candidate/mandatory hashes. Provider evidence remains a separately bound W7/W4 record and cannot be manufactured by W3.
 
@@ -688,7 +701,7 @@ def plan_dispatch(
     route = select_route(
         build_route_request(task, requirement, compiled), candidates, preliminary
     )
-    if route.kind == 'failure':
+    if route['kind'] == 'failure':
         return route
     return PreparedDispatch(
         attempt_id=attempt_id,
@@ -700,7 +713,7 @@ def plan_dispatch(
         provider_evidence_hash=provider_evidence.content_hash,
         operational_evidence_id=operational_evidence.evidence_id,
         operational_evidence_hash=operational_evidence.content_hash,
-        expires_at=min(route.expires_at, provider_evidence.expires_at, operational_evidence.expires_at),
+        expires_at=min(provider_evidence.expires_at, operational_evidence.expires_at),
         state='unissued',
     )
 ```

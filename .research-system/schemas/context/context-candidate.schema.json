@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://context/context-candidate",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "context_candidate_id", "manifest_id", "content_hash", "state", "reference_count", "reference_counter_id", "utf8_bytes"],
+  "properties": {
+    "schema_id": {"const": "ars://context/context-candidate"},
+    "schema_version": {"const": "1.0.0"},
+    "context_candidate_id": {"type": "string", "pattern": "^ctx_"},
+    "manifest_id": {"type": "string", "pattern": "^ctx_"},
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "state": {"const": "compiled"},
+    "reference_count": {"type": "integer", "minimum": 0},
+    "reference_counter_id": {"type": "string", "minLength": 1},
+    "utf8_bytes": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

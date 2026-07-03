@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/provider-receipt",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "provider_command_id", "command_revision", "command_revision_hash", "provider", "model", "profile_id", "adapter_revision", "status", "complete", "redaction"],
+  "properties": {
+    "schema_id": {"const": "ars://adapters/provider-receipt"},
+    "schema_version": {"const": "1.0.0"},
+    "provider_command_id": {"type": "string", "pattern": "^pcmd_"},
+    "command_revision": {"type": "integer", "minimum": 1},
+    "command_revision_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "provider": {"enum": ["claude", "codex"]},
+    "model": {"type": "string"},
+    "profile_id": {"type": "string"},
+    "adapter_revision": {"type": "string"},
+    "status": {"enum": ["terminal", "duplicate", "cancelled", "uncertain", "incomplete", "blocked"]},
+    "complete": {"type": "boolean"},
+    "redaction": {"const": "raw_transport_content_discarded"}
+  },
+  "additionalProperties": true
+}

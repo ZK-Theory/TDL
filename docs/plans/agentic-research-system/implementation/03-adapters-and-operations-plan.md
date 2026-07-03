@@ -225,10 +225,16 @@ from research_system.adapters.base import TransportResult
 
 class SubprocessTransport:
     def invoke(self, argv, stdin, timeout_s):
-        completed = subprocess.run(
-            argv, input=stdin, text=True, capture_output=True,
-            timeout=timeout_s, check=False, shell=False,
-        )
+        try:
+            completed = subprocess.run(
+                argv, input=stdin, text=True, capture_output=True,
+                timeout=timeout_s, check=False, shell=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            return TransportResult(
+                status='timed_out', stdout=exc.stdout or '', stderr=str(exc),
+                provider_request_id=None, exit_code=124,
+            )
         return TransportResult(
             status='terminal', stdout=completed.stdout, stderr=completed.stderr,
             provider_request_id=None, exit_code=completed.returncode,
@@ -258,7 +264,7 @@ live_enabled: false
 windows_requires_git_bash: true
 ```
 
-Live enablement is a reviewed local override, never committed. A missing executable, unsupported flag, unclassified wrapper, unknown delivered hash, or incomplete provider identity yields a blocked/incomplete receipt.
+Live enablement is a reviewed local override, never committed. A transport timeout yields `timed_out` and normalizes to an `uncertain` completion requiring reconciliation; it must not be collapsed into a definite blocked non-completion. A missing executable, unsupported flag, unclassified wrapper, unknown delivered hash, or incomplete provider identity yields a blocked/incomplete receipt.
 
 TransportResult.stdout and .stderr are ephemeral boundary values. The receipt normalizer extracts only registered semantic fields, hashes and redacted summaries, then discards raw content. Any policy-authorized retained excerpt is written through the external evidence-store contract with a retention class; full transcripts remain prohibited.
 

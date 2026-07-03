@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/command",
+  "type": "object",
+  "required": ["command_id", "command_type", "schema_id", "schema_version", "submitted_at", "actor_id", "on_behalf_of_actor_id", "authority_grant_id", "target_stream_id", "expected_stream_version", "idempotency_key", "correlation_id", "causation_id", "reason", "evidence_refs", "payload"],
+  "properties": {
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "command_type": {"type": "string", "minLength": 1},
+    "schema_id": {"const": "ars://core/command"},
+    "schema_version": {"const": "1.0.0"},
+    "submitted_at": {"type": "string", "format": "date-time"},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "on_behalf_of_actor_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}]},
+    "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "target_stream_id": {"type": "string", "pattern": "^(?:tsk|dsp|dec|art|prj)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "expected_stream_version": {"type": "integer", "minimum": 0},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": ["string", "null"]},
+    "reason": {"type": "string", "minLength": 1},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

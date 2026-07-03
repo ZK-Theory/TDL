@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://context/context-manifest",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "manifest_id", "context_candidate_id", "sources", "mandatory_hash", "omissions", "conflicts"],
+  "properties": {
+    "schema_id": {"const": "ars://context/context-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"type": "string", "pattern": "^ctx_"},
+    "context_candidate_id": {"type": "string", "pattern": "^ctx_"},
+    "sources": {"type": "array", "items": {"type": "object"}},
+    "mandatory_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "omissions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "conflicts": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

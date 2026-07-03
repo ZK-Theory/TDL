@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://operations/resource-request",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "resource_request_id", "attempt_id", "profile_id", "claims", "expected_runtime_s"],
+  "properties": {
+    "schema_id": {"const": "ars://operations/resource-request"},
+    "schema_version": {"const": "1.0.0"},
+    "resource_request_id": {"type": "string", "pattern": "^rsq_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "profile_id": {"type": "string"},
+    "claims": {"type": "object"},
+    "expected_runtime_s": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

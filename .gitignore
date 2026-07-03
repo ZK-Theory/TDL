@@ -189,3 +189,7 @@ repomix-output.*
 .repowise/*
 !.repowise/
 !.repowise/mcp.json
+# ARS disposable local projections and runtime caches.
+/.research-system/projections/
+/.research-system/indexes/
+/.research-system/runtime/

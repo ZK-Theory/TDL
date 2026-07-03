@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://operations/execution-lease",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "execution_lease_id", "attempt_id", "execution_epoch", "profile_id", "expires_at", "state"],
+  "properties": {
+    "schema_id": {"const": "ars://operations/execution-lease"},
+    "schema_version": {"const": "1.0.0"},
+    "execution_lease_id": {"type": "string", "pattern": "^els_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "execution_epoch": {"type": "integer", "minimum": 1},
+    "profile_id": {"type": "string"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "state": {"enum": ["claimed", "running", "expired", "released", "revoked"]}
+  },
+  "additionalProperties": false
+}
