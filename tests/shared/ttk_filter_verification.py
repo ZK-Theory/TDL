@@ -81,15 +81,29 @@ def test_persistence_diagram():
 
 
 def test_bottleneck_distance():
-    """Test TTKBottleneckDistance filter."""
+    """Test TTKBottleneckDistance filter.
+
+    Uses the correct API for TTK 1.3.0:
+    - ttkBottleneckDistance has a single input port expecting vtkMultiBlockDataSet
+    - Each block must be a vtkUnstructuredGrid (persistence diagram output)
+    - SetPVAlgorithm(0) selects the TTK solver (the only supported algorithm)
+    - The bottleneck distance is read via Getresult(), not GetOutput()
+      (GetOutput() returns None with PVAlgorithm=0 due to an unsupported output
+      formatter in the conda build, but the scalar result is computed correctly)
+
+    VTK error guard: an empty persistence diagram (from a bad field name or VTK
+    read error) causes a segfault inside ttkBottleneckDistance. The guard
+    asserting GetNumberOfPoints() > 0 for both diagrams prevents this and
+    correctly surfaces the upstream error as a test FAILURE.
+    """
     print("\n=== Testing TTKBottleneckDistance ===")
 
     try:
-        # Create two test scalar fields
+        # Use two identical scalar fields so the bottleneck distance must be 0.
         image1 = create_test_scalar_field()
         image2 = create_test_scalar_field()
 
-        # Compute persistence diagrams
+        # Compute persistence diagrams.
         persistence1 = ttk.ttkPersistenceDiagram()
         persistence1.SetInputData(image1)
         persistence1.SetInputArrayToProcess(0, 0, 0, 0, "TestScalarField")
@@ -100,19 +114,56 @@ def test_bottleneck_distance():
         persistence2.SetInputArrayToProcess(0, 0, 0, 0, "TestScalarField")
         persistence2.Update()
 
-        # Compute bottleneck distance
+        n1 = persistence1.GetOutput().GetNumberOfPoints()
+        n2 = persistence2.GetOutput().GetNumberOfPoints()
+
+        # Guard: empty diagram means a VTK input error occurred upstream.
+        # An empty diagram passed to ttkBottleneckDistance causes a segfault,
+        # not a graceful failure — so we must check here and fail explicitly.
+        if n1 == 0:
+            print("[FAIL] TTKBottleneckDistance: persistence diagram 1 is empty")
+            print("       VTK input error detected upstream (bad field name or reader failure)")
+            return False
+        if n2 == 0:
+            print("[FAIL] TTKBottleneckDistance: persistence diagram 2 is empty")
+            print("       VTK input error detected upstream (bad field name or reader failure)")
+            return False
+
+        # Pack both diagrams into a vtkMultiBlockDataSet (required input type).
+        mbd = vtk.vtkMultiBlockDataSet()
+        mbd.SetBlock(0, persistence1.GetOutput())
+        mbd.SetBlock(1, persistence2.GetOutput())
+
+        # vtkTrivialProducer wraps non-algorithm data objects for pipeline input.
+        producer = vtk.vtkTrivialProducer()
+        producer.SetOutput(mbd)
+        producer.Update()
+
+        # SetPVAlgorithm(0) selects the TTK solver — the only supported algorithm
+        # in the conda build. Values 1-4 (Dionysus variants) print "Not supported".
         bottleneck = ttk.ttkBottleneckDistance()
-        bottleneck.SetInputConnection(0, persistence1.GetOutputPort())
-        bottleneck.SetInputConnection(1, persistence2.GetOutputPort())
+        bottleneck.SetPVAlgorithm(0)
+        bottleneck.SetInputConnection(0, producer.GetOutputPort())
         bottleneck.Update()
 
-        # Get distance (should be 0 since diagrams are identical)
-        output = bottleneck.GetOutput()
+        # Read the bottleneck distance via Getresult() — the scalar result property.
+        # A return value of -1.0 is the sentinel for a failed computation.
+        distance = bottleneck.Getresult()
+
+        if distance < 0:
+            print(f"[FAIL] TTKBottleneckDistance: Getresult() = {distance} (sentinel for failure)")
+            return False
+
+        # Numerical invariant: bottleneck distance between identical diagrams must be 0.
+        if abs(distance) > 1e-10:
+            print(f"[FAIL] TTKBottleneckDistance: expected distance=0 for identical diagrams, got {distance}")
+            return False
 
         print("[OK] Bottleneck distance computed successfully")
-        print(f"     - Diagram 1 pairs: {persistence1.GetOutput().GetNumberOfPoints()}")
-        print(f"     - Diagram 2 pairs: {persistence2.GetOutput().GetNumberOfPoints()}")
-        print("     - Distance computed: OK")
+        print(f"     - Diagram 1 pairs: {n1}")
+        print(f"     - Diagram 2 pairs: {n2}")
+        print(f"     - Bottleneck distance (identical diagrams): {distance:.8f}")
+        print("     - Distance invariant (d=0 for identical diagrams): VERIFIED")
 
         return True
 

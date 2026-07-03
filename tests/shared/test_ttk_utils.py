@@ -27,6 +27,19 @@ from shared.ttk_utils import (
 class TestTTKAvailability:
     """Test TTK availability detection functions."""
 
+    @pytest.fixture(autouse=True)
+    def reset_ttk_cache(self):
+        """Reset the module-level availability cache before/after each test.
+
+        Without this, the first real-detection test sets the cache to True and
+        subsequent mock tests read the cached value, ignoring the patch entirely.
+        """
+        import shared.ttk_utils as ttk_mod
+
+        ttk_mod._TTK_AVAILABLE_CACHE = None
+        yield
+        ttk_mod._TTK_AVAILABLE_CACHE = None
+
     def test_is_ttk_available_real(self):
         """Test actual TTK availability on this system."""
         available = is_ttk_available()
