@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/evidence-store-registry",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "store_id", "registry_hash",
+    "policy_revision", "primary_root", "runtime_root", "staging_root",
+    "temp_root", "replicas", "permitted_consumers", "retention_policy_ids",
+    "verifier_authority_bindings", "unregistered_replicas_prohibited"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/evidence-store-registry"},
+    "schema_version": {"const": "1.0.0"},
+    "store_id": {"type": "string", "minLength": 1},
+    "registry_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_revision": {"type": "string", "minLength": 1},
+    "primary_root": {"type": "string", "minLength": 1},
+    "runtime_root": {"type": "string", "minLength": 1},
+    "staging_root": {"type": "string", "minLength": 1},
+    "temp_root": {"type": "string", "minLength": 1},
+    "replicas": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "permitted_consumers": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "retention_policy_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+    "verifier_authority_bindings": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {"type": "string", "minLength": 1},
+          {"type": "string", "minLength": 1}
+        ],
+        "minItems": 2, "maxItems": 2
+      }
+    },
+    "unregistered_replicas_prohibited": {"const": true}
+  },
+  "additionalProperties": false
+}
