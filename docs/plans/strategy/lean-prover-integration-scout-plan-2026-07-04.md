@@ -103,3 +103,34 @@ Differentiator: coupling **formal guarantees** to **large real social-science da
 5. Decide the research-strand framing (A/B/C) from S1 evidence; write its pre-registration via the existing /assay → /spike → pre-reg funnel.
 
 None of these start until Stephen accepts the spike results — consistent with the ARS rule that no implementation precedes its review gate.
+
+## 7. Model routing per task (added 2026-07-04)
+
+Principle (mirrors ARS constraint 7): route by epistemic risk, not habit. Leanstral + the Lean kernel carry the proof work at zero metered cost; Claude models are spent only where *judgment* is the deliverable. Reasoning levels: low / medium / high / max.
+
+| Task | Model | Reasoning | Why |
+|---|---|---|---|
+| S0 smoke test (drive `vibe`, capture interaction pattern) | **Sonnet** (Haiku viable) | low | Mechanical CLI driving; correctness comes from the kernel, not the driver |
+| S1 gap survey — execution (mathlib navigation via Leanstral, cataloguing) | Sonnet | medium | Structured enumeration; Leanstral supplies the Lean knowledge |
+| S1 gap survey — **synthesis + framing decision memo** (A/B/C distance-from-frontier ranking) | **Fable** | high | The one judgment call the whole strand pivots on |
+| S2 — **theorem statement authorship + referent check** | **Fable** | high–max | The critical epistemic step (§3.1 risk 4: proving the wrong statement). Opus 4.8 acceptable fallback |
+| S2 — proof-loop orchestration, artefact contract wiring | Sonnet | low–medium | Loop management; kernel is the verifier |
+| S3 — choose the reduction + formal statement | Fable (or Opus) | high | Mathematical selection with pipeline consequences |
+| S3 — orchestration | Sonnet | medium | — |
+| S4 Nexus College Lean-strand pilot | Sonnet | medium | Pedagogy scaffolding; kernel grades |
+| W5 `lean_proof` domain-pack addendum (spec authoring) | **Fable** | high | Epistemically consequential spec; the assurance bar everything else is judged against (skill-obs #24: the foundation, not the mechanism) |
+| W4 `lean-prover` role profile | Opus | medium | Template-following from existing role profiles |
+| W7 `vibe` adapter spec | Sonnet | medium | Mechanical derivation from canonical policy |
+| Adversarial review of the W5 addendum | Fable (independent session) or Opus | high | Review independence; do not reuse the authoring session |
+
+## 8. The Fable window — what to attack in the ~24 h after reset
+
+Fable's edge over Opus is deep mathematical judgment and adversarial spec design; everything mechanical survives its departure. Priority order for the week:
+
+1. **S1 synthesis + framing decision** (after Sonnet-run S0/S1 execution): rank A/B/C by formal-frontier distance and pipeline payoff; produces the strand's pre-registration direction. *Highest leverage per Fable-hour.*
+2. **S2 statement authorship**: formal statement of the max-achievable-ARI bound + the acceptance-contract referent clause. Small in tokens, foundational in consequence.
+3. **W5 `lean_proof` addendum draft**: the assurance bar for all future Lean evidence — exactly the "who authors the bar" object obs #24 says to guard hardest.
+4. **Paper-proof sketching for the chosen framing**: Fable drafts the informal proof skeletons (bounds, collapse arguments) that Leanstral will later formalise — the purest use of a frontier mathematical model, and the hardest thing to recover after downgrade.
+5. (If budget remains) Adversarial pass on 1–3 from a fresh Fable session.
+
+Sequencing note: items 1–2 depend on S0/S1 execution, which are cheap Sonnet tasks — run those **first, early in the week**, so the Fable hours land on decisions, not plumbing.
