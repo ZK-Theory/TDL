@@ -11,6 +11,7 @@ from research_system.canonical import canonical_bytes
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
+from research_system.evals.retention import validate_retention_policy
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import initialize_control_store, load_store_manifest
@@ -113,6 +114,14 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_retention_validate(args: argparse.Namespace) -> int:
+    policy = validate_retention_policy(args.policy)
+    _print_json(
+        {'policy_revision': policy['policy_revision'], 'rules': len(policy['rules'])}
+    )
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='ars')
     groups = parser.add_subparsers(dest='group', required=True)
@@ -148,9 +157,25 @@ def _parser() -> argparse.ArgumentParser:
     rebuild.add_argument('--control-root', type=Path, required=True)
     rebuild.add_argument('--output', type=Path, required=True)
     rebuild.set_defaults(handler=_projection_rebuild)
+
+    evaluation = groups.add_parser('eval')
+    evaluation_actions = evaluation.add_subparsers(
+        dest='eval_action', required=True
+    )
+    retention = evaluation_actions.add_parser('retention')
+    retention_actions = retention.add_subparsers(
+        dest='retention_action', required=True
+    )
+    validate = retention_actions.add_parser('validate')
+    validate.add_argument('--policy', type=Path, required=True)
+    validate.set_defaults(handler=_eval_retention_validate)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     return int(args.handler(args))
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/deletion-verification-manifest",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "evidence_id", "evidence_hash",
+    "retention_rule_id", "policy_revision", "registry_hash", "actor_id",
+    "authority_grant_id", "checked_locations", "unregistered_replicas",
+    "inaccessible_locations", "reparse_locations", "canonical_payload_present",
+    "canonical_scan_hash", "authority_current", "verified_at", "status",
+    "manifest_hash"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/deletion-verification-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "evidence_id": {"type": "string", "minLength": 1},
+    "evidence_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "retention_rule_id": {"type": "string", "minLength": 1},
+    "policy_revision": {"type": "string", "minLength": 1},
+    "registry_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "actor_id": {"type": "string", "minLength": 1},
+    "authority_grant_id": {"type": "string", "minLength": 1},
+    "checked_locations": {"type": "array", "minItems": 4, "items": {"type": "object"}},
+    "unregistered_replicas": {"type": "array", "items": {"type": "string"}},
+    "inaccessible_locations": {"type": "array", "items": {"type": "string"}},
+    "reparse_locations": {"type": "array", "items": {"type": "array"}},
+    "canonical_payload_present": {"type": "boolean"},
+    "canonical_scan_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authority_current": {"type": "boolean"},
+    "verified_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["verified", "deletion_pending"]},
+    "manifest_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}
