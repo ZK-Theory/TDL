@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/fixture-source-manifest",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "fixture_id", "fixture_revision",
+    "source_snapshot_date", "authoritative_refs", "reconstruction_method",
+    "redaction_record", "content_hashes", "variant_bindings"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/fixture-source-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "source_snapshot_date": {"type": "string", "format": "date"},
+    "authoritative_refs": {"$ref": "#/$defs/nonemptyStrings"},
+    "reconstruction_method": {"type": "string", "minLength": 1},
+    "redaction_record": {"type": "string", "minLength": 1},
+    "content_hashes": {
+      "type": "object",
+      "required": [
+        "README.md", "input/stimulus.json", "expected/pre-control.json",
+        "expected/post-control.json", "expected/trajectory.json",
+        "graders/required.json"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "README.md": {"$ref": "#/$defs/sha256"},
+        "input/stimulus.json": {"$ref": "#/$defs/sha256"},
+        "expected/pre-control.json": {"$ref": "#/$defs/sha256"},
+        "expected/post-control.json": {"$ref": "#/$defs/sha256"},
+        "expected/trajectory.json": {"$ref": "#/$defs/sha256"},
+        "graders/required.json": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "variant_bindings": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/variantBinding"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nonemptyStrings": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "variantBinding": {
+      "type": "object",
+      "required": [
+        "variant_id", "provider_variant", "runtime_variant", "os", "transport"
+      ],
+      "properties": {
+        "variant_id": {"type": "string", "minLength": 1},
+        "provider_variant": {"type": "string", "minLength": 1},
+        "runtime_variant": {"type": "string", "minLength": 1},
+        "os": {"type": "string", "minLength": 1},
+        "transport": {"enum": ["none", "in_process_fake", "fake"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
