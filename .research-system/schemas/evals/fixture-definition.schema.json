@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/fixture-definition",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "fixture_id", "fixture_revision",
+    "title", "owner", "status", "incident_basis", "input_fidelity",
+    "risk_tier", "assurance_lanes", "failure_class", "priority",
+    "gate_stage", "source_manifest_hash", "decision_refs",
+    "policy_versions", "schema_versions", "confidentiality",
+    "permitted_consumers", "setup_hash", "stimulus_hash",
+    "pre_control_oracle_hash", "post_control_oracle_hash",
+    "required_trajectory", "forbidden_trajectory",
+    "allowed_terminal_states", "expected_stop_semantics",
+    "required_graders", "threshold_policy_ids",
+    "required_evidence_classes", "known_bad_reference_hash",
+    "known_good_reference_hash", "mutation_ids", "safe_variation_ids",
+    "calibration_record_id", "retention_class", "retention_rule_id",
+    "redaction_policy_id"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/fixture-definition"},
+    "schema_version": {"const": "1.0.0"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "title": {"type": "string", "minLength": 1},
+    "owner": {"type": "string", "minLength": 1},
+    "status": {
+      "enum": [
+        "candidate", "source_verified", "authored", "calibrated",
+        "active", "rejected", "quarantined", "superseded"
+      ]
+    },
+    "incident_basis": {
+      "enum": ["historical", "specification", "domain_coverage"]
+    },
+    "input_fidelity": {
+      "enum": ["preserved", "minimized", "reconstructed", "synthetic"]
+    },
+    "risk_tier": {"enum": ["R0", "R1", "R2", "R3"]},
+    "assurance_lanes": {"$ref": "#/$defs/nonemptyStrings"},
+    "failure_class": {"type": "string", "minLength": 1},
+    "priority": {"enum": ["P0", "P1"]},
+    "gate_stage": {
+      "enum": [
+        "interface_review", "p0_materialization",
+        "foundation_release", "pilot_promotion"
+      ]
+    },
+    "source_manifest_hash": {"$ref": "#/$defs/sha256"},
+    "decision_refs": {"$ref": "#/$defs/strings"},
+    "policy_versions": {"$ref": "#/$defs/nonemptyStrings"},
+    "schema_versions": {"$ref": "#/$defs/nonemptyStrings"},
+    "confidentiality": {"type": "string", "minLength": 1},
+    "permitted_consumers": {"$ref": "#/$defs/nonemptyStrings"},
+    "setup_hash": {"$ref": "#/$defs/sha256"},
+    "stimulus_hash": {"$ref": "#/$defs/sha256"},
+    "pre_control_oracle_hash": {"$ref": "#/$defs/sha256"},
+    "post_control_oracle_hash": {"$ref": "#/$defs/sha256"},
+    "required_trajectory": {"$ref": "#/$defs/strings"},
+    "forbidden_trajectory": {"$ref": "#/$defs/strings"},
+    "allowed_terminal_states": {"$ref": "#/$defs/nonemptyStrings"},
+    "expected_stop_semantics": {"type": "string", "minLength": 1},
+    "required_graders": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/graderRequirement"}
+    },
+    "threshold_policy_ids": {"$ref": "#/$defs/strings"},
+    "required_evidence_classes": {"$ref": "#/$defs/strings"},
+    "known_bad_reference_hash": {"$ref": "#/$defs/sha256"},
+    "known_good_reference_hash": {"$ref": "#/$defs/sha256"},
+    "mutation_ids": {"$ref": "#/$defs/strings"},
+    "safe_variation_ids": {"$ref": "#/$defs/strings"},
+    "calibration_record_id": {"type": ["string", "null"]},
+    "retention_class": {"enum": ["R0", "R1", "R2"]},
+    "retention_rule_id": {"type": "string", "minLength": 1},
+    "redaction_policy_id": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "nonemptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "graderRequirement": {
+      "type": "object",
+      "required": [
+        "grader_id", "grader_class", "grader_version", "critical",
+        "required", "independence_requirement", "evidence_selectors"
+      ],
+      "properties": {
+        "grader_id": {"type": "string", "minLength": 1},
+        "grader_class": {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
+        "grader_version": {"type": "string", "minLength": 1},
+        "critical": {"type": "boolean"},
+        "required": {"type": "boolean"},
+        "independence_requirement": {
+          "enum": [
+            "deterministic_independent",
+            "cross_family_context_independent"
+          ]
+        },
+        "evidence_selectors": {"$ref": "#/$defs/nonemptyStrings"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

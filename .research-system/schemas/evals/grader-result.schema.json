@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/grader-result",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "grader_result_id", "evaluation_run_id",
+    "fixture_id", "fixture_revision", "grader_id", "grader_class",
+    "grader_version", "verdict", "severity", "critical", "required",
+    "subject_hash", "trace_hash", "oracle_hash", "policy_hash",
+    "threshold_policy_hash", "evidence_refs", "independently_recomputed",
+    "producer_family", "grader_family", "context_relationship",
+    "limitations", "redactions", "duration_ms", "cost_microunits",
+    "executed_by_actor_id"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/grader-result"},
+    "schema_version": {"const": "1.0.0"},
+    "grader_result_id": {"type": "string", "pattern": "^grr_"},
+    "evaluation_run_id": {"type": "string", "pattern": "^run_"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "grader_id": {"type": "string", "minLength": 1},
+    "grader_class": {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
+    "grader_version": {"type": "string", "minLength": 1},
+    "verdict": {"enum": ["pass", "fail", "unable_to_grade", "fixture_error"]},
+    "severity": {"enum": ["critical", "major", "minor"]},
+    "critical": {"type": "boolean"},
+    "required": {"type": "boolean"},
+    "subject_hash": {"$ref": "#/$defs/sha256"},
+    "trace_hash": {"$ref": "#/$defs/sha256"},
+    "oracle_hash": {"$ref": "#/$defs/sha256"},
+    "policy_hash": {"$ref": "#/$defs/sha256"},
+    "threshold_policy_hash": {"$ref": "#/$defs/sha256"},
+    "evidence_refs": {"$ref": "#/$defs/strings"},
+    "independently_recomputed": {"type": "boolean"},
+    "producer_family": {"type": "string", "minLength": 1},
+    "grader_family": {"type": "string", "minLength": 1},
+    "context_relationship": {"type": "string", "minLength": 1},
+    "limitations": {"$ref": "#/$defs/strings"},
+    "redactions": {"$ref": "#/$defs/strings"},
+    "duration_ms": {"type": "integer", "minimum": 0},
+    "cost_microunits": {"type": "integer", "minimum": 0},
+    "executed_by_actor_id": {"type": "string", "pattern": "^act_"},
+    "supersedes": {"type": ["string", "null"], "pattern": "^grr_"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}
