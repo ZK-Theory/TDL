@@ -1,0 +1,99 @@
+id: mcbif-employment-result
+kind: schema
+pending: false
+
+description: >
+  Schema and scientific-interface contract for the pre-registered T-MCBIF-2
+  categorical employment-state bifiltration and wave-label-permutation battery.
+  It binds frozen-input provenance, upstream null construction, locked stochastic
+  parameters, topology ranks, baseline summaries, and the registered verdict set.
+
+spec_citation:
+  source: "results/trajectory_tda_mcbif/pre_registrations_2026-07-03.json"
+  task: "T-MCBIF-2"
+  authored: "2026-07-04"
+
+schema_def:
+  applies_to: "results/trajectory_tda_mcbif/mcbif_employment_battery_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Must equal 'mcbif-employment/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO timestamp for result generation."
+    - name: task
+      type: str
+      description: "Must equal the registered task identifier 'T-MCBIF-2'."
+    - name: pre_registration
+      type: str
+      description: >
+        Must equal results/trajectory_tda_mcbif/pre_registrations_2026-07-03.json.
+    - name: embeddings_sha256
+      type: str
+      description: >
+        A 64-character SHA-256 digest matching the frozen PCA-20 embedding file;
+        the embedding is provenance-only and must not be refitted.
+    - name: sequences_sha256
+      type: str
+      description: >
+        A 64-character SHA-256 digest matching the frozen categorical sequence file.
+    - name: null_model_construction_verified
+      type: bool
+      description: >
+        Must be true only when every null draw permutes wave order before constructing
+        a fresh MCbiF bifiltration.
+    - name: params
+      type: dict
+      description: >
+        Must contain positive integer n_trajectories_eligible and n_wave_positions;
+        complete n_valid wave coverage; integer valid_waves; B>=1000; seed==42;
+        null_model=='wave-label-permutation'; partition_method=='categorical';
+        parallel_workers>=4 using loky; and wall_time_hours_budget==8.
+    - name: observed
+      type: dict
+      description: >
+        Must contain non-negative integer h1_rank and h0_rank from the observed
+        categorical employment-state bifiltration.
+    - name: null_distribution
+      type: dict
+      description: >
+        Must contain draws>=1000 and finite percentile_95, percentile_99, mean,
+        and std values for the pre-registered wave-label-permutation null.
+    - name: baselines
+      type: dict
+      description: >
+        Must contain ari_across_waves, conditional_entropy, and
+        consensus_clustering dictionaries.
+    - name: decision
+      type: dict
+      description: >
+        Must contain verdict in {additive, redundant, infeasible} and a non-empty
+        rationale applying the locked decision rule.
+  forbidden_keys:
+    - name: synthetic
+      reason: "The full battery must use the frozen observed cohort, not synthetic data."
+    - name: placeholder
+      reason: "Placeholder values are not admissible as result evidence."
+    - name: estimated
+      reason: "The committed result must contain computed rather than estimated values."
+    - name: refit_pca
+      reason: "The PCA-20 embedding is frozen and no re-embedding is permitted."
+
+binding:
+  test_file: "tests/discovery/test_mcbif_employment_contract.py"
+  test_function: "test_mcbif_employment_result_contract_rejects_invalid_payloads"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where:
+    (a) required top-level evidence is missing;
+    (b) any forbidden key appears at any nesting depth;
+    (c) B is below 1000;
+    (d) seed differs from 42 or has the wrong type;
+    (e) null_model differs from wave-label-permutation;
+    (f) partition_method differs from categorical;
+    (g) parallel_workers is below 4;
+    (h) null_model_construction_verified is not true;
+    (i) embeddings_sha256 is malformed or differs from the frozen file;
+    (j) sequences_sha256 is malformed or differs from the frozen file;
+    (k) decision.verdict is outside additive, redundant, or infeasible;
+    (l) a contract-pinned integer is supplied as a boolean or another wrong type.

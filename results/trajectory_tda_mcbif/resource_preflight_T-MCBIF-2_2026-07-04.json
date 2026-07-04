@@ -1,0 +1,75 @@
+{
+  "schema_version": "resource-preflight/v1",
+  "generated_at": "2026-07-04T18:55:00+01:00",
+  "task_id": "T-MCBIF-2",
+  "paper_id": "P01-B",
+  "status": "stop_and_escalate_memory_infeasible",
+  "command": "/home/nexusstephen/projects/MCbiF/.venv/bin/python -u /tmp/mcbif_employment_preflight.py <frozen-sequences>",
+  "data_scale": {
+    "n_trajectories_source": 27280,
+    "n_trajectories_eligible": 19912,
+    "n_wave_positions": 13,
+    "valid_waves": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "n_valid": [27280, 27280, 27280, 27280, 27280, 27280, 27280, 27280, 27280, 27280, 24739, 22324, 19912, 13077],
+    "null_draws": 1000,
+    "partition_method": "categorical",
+    "n_employment_states": 9
+  },
+  "input_provenance": {
+    "embeddings_sha256": "69b2ba55902565960e8009004d2c21332d3786e2af3e83edc4ac0a2d3a5f5540",
+    "sequences_sha256": "7a4869170bb8c0f096c407a636ec09ee1926946372b27c18762734d96059e3b8",
+    "refit_pca": false
+  },
+  "resources": {
+    "cpu_cores": 20,
+    "memory_gb": 15,
+    "swap_gb": 4,
+    "disk_free_gb_wsl": 933,
+    "disk_free_gb_windows": 52
+  },
+  "full_scale_probe": {
+    "operation": "load_data plus build_filtration; persistence not started",
+    "completed": false,
+    "terminated_to_prevent_oom": true,
+    "elapsed_seconds_lower_bound": 137,
+    "peak_rss_kib_observed": 11354160,
+    "peak_rss_gib_observed": 10.83,
+    "memory_still_increasing_at_termination": true
+  },
+  "sample_5000_probe": {
+    "operation": "seed-42 sample; load_data plus build_filtration; persistence not started",
+    "completed": false,
+    "terminated_to_prevent_oom": true,
+    "elapsed_seconds_lower_bound": 109,
+    "peak_rss_kib_observed": 9013820,
+    "peak_rss_gib_observed": 8.6,
+    "memory_still_increasing_at_termination": true
+  },
+  "strategy": {
+    "parallel_backend": "loky",
+    "workers_required": 4,
+    "checkpoint_interval_draws": 100,
+    "resume_required": true,
+    "progress_reporting_required": true,
+    "seed": 42,
+    "launch_authorized": false
+  },
+  "projection": {
+    "full_scale_minimum_worker_memory_gib": 43.32,
+    "sample_5000_minimum_worker_memory_gib": 34.4,
+    "available_memory_gib": 15,
+    "estimated_wall_time": null,
+    "reason_wall_time_unavailable": "Both real-statistic builds were stopped before completion because one worker approached the WSL memory limit."
+  },
+  "risk_flags": [
+    "A single full-scale filtration build exceeded 10.83 GiB RSS before completion.",
+    "The registered minimum of four loky workers cannot fit in the 15 GiB WSL allocation.",
+    "The registered 5000-trajectory alternative also exceeded 8.60 GiB RSS before completion.",
+    "Persistence computation and null-draw overhead were not reached, so these are strict lower bounds."
+  ],
+  "decision_required": "Do not launch B=1000. Choose a higher-memory machine or approve a pre-registration amendment with a materially smaller design and a fresh timing probe.",
+  "validation_commands": [
+    "uv run --env-file .env python -m pytest tests/discovery/test_mcbif_employment_contract.py -v",
+    "uv run python .claude/hooks/contract_binding_check.py --validate-only"
+  ]
+}
