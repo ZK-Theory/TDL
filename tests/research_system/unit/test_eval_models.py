@@ -459,7 +459,15 @@ def test_release_decision_schema_uses_exact_result_keys():
         item_schema = schema["$defs"]["resultKey"]
         assert item_schema["minItems"] == 5
         assert item_schema["maxItems"] == 5
-        assert item_schema["prefixItems"][3]["enum"] == ["D", "T", "R", "M", "H", "O", "P"]
+        assert item_schema["prefixItems"][3]["enum"] == [
+            "D",
+            "T",
+            "R",
+            "M",
+            "H",
+            "O",
+            "P",
+        ]
 
 
 def test_trace_schema_requires_constructor_routing_fields():
