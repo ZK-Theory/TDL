@@ -1,7 +1,7 @@
 # Lean 4 / Leanstral Integration — Scout & Plan
 
 **Date:** 2026-07-04
-**Status:** Scout/plan only — no implementation authorized; spikes gated on Stephen's PROMOTE decision
+**Status:** S0 ✓ PASS (2026-07-04) · S1 execution ✓ COMPLETE (2026-07-04) · S1 framing decision pending Fable session · S2–S4 gated on S1 decision
 **Author:** Claude (Fable 5), interactive session with Stephen
 **Scope decisions (Stephen, 2026-07-04):** Lean enters the ARS as BOTH an assurance lane and a research-strand agent (not an APM worker — APM is being retired for ARS). All three maths framings stay open pending spikes. Plan lives here; Nexus College adjunct is a secondary strand.
 
