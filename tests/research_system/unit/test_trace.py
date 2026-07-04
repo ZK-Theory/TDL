@@ -46,7 +46,9 @@ def test_trace_requires_terminal_receipt_or_missing_evidence_record():
 
 @pytest.mark.parametrize("terminal_field", ["terminal_ref", "missing_evidence_ref"])
 def test_trace_accepts_explicit_terminal_or_missing_evidence(terminal_field):
-    trace = _trace(issued_commands=({"command_id": "pcmd-1", terminal_field: "receipt-1"},))
+    trace = _trace(
+        issued_commands=({"command_id": "pcmd-1", terminal_field: "receipt-1"},)
+    )
     trace.validate_terminal_evidence()
 
 
@@ -73,7 +75,9 @@ def test_trace_accepts_explicit_resource_terminal_or_missing_evidence(
 
 def test_trace_reports_required_evidence_classes_that_are_absent():
     trace = _trace(present_evidence_classes=("command_receipt",))
-    assert trace.missing_evidence_classes(("command_receipt", "resource_stop_record")) == ("resource_stop_record",)
+    assert trace.missing_evidence_classes(
+        ("command_receipt", "resource_stop_record")
+    ) == ("resource_stop_record",)
 
 
 def test_trace_rejects_declared_complete_with_missing_segments():

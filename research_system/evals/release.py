@@ -35,7 +35,11 @@ def _incompatibility(
         "required_independence",
         "required_criticality",
     )
-    missing_bindings = [attribute for attribute in mapping_bindings if key not in getattr(coverage, attribute, {})]
+    missing_bindings = [
+        attribute
+        for attribute in mapping_bindings
+        if key not in getattr(coverage, attribute, {})
+    ]
     if missing_bindings:
         return "coverage bindings missing: " + ",".join(missing_bindings)
     if result.critical != _expected(coverage, "required_criticality", key):
@@ -93,11 +97,13 @@ def decide_release(
     counts = Counter(observed_keys)
     observed = set(observed_keys)
 
-    missing = [key for key in required_keys if key not in observed]
+    missing = [key for key in dict.fromkeys(required_keys) if key not in observed]
     unexpected = sorted(observed - required)
     duplicates = sorted(key for key, count in counts.items() if count != 1)
     if len(required) != len(required_keys):
-        duplicates.extend(key for key, count in Counter(required_keys).items() if count != 1)
+        duplicates.extend(
+            key for key, count in Counter(required_keys).items() if count != 1
+        )
         duplicates = sorted(set(duplicates))
 
     incompatible = []
@@ -111,7 +117,9 @@ def decide_release(
     blocking = [
         result
         for result in result_list
-        if result.result_key in required and result.required and result.verdict in BLOCKING
+        if result.result_key in required
+        and result.required
+        and result.verdict in BLOCKING
     ]
     response: dict[str, Any] = {
         "decision": "blocked",
@@ -125,7 +133,12 @@ def decide_release(
         return response
     if blocking:
         response["decision"] = (
-            "blocked" if any(result.verdict in {"unable_to_grade", "fixture_error"} for result in blocking) else "fail"
+            "blocked"
+            if any(
+                result.verdict in {"unable_to_grade", "fixture_error"}
+                for result in blocking
+            )
+            else "fail"
         )
         return response
     response["decision"] = "pass"

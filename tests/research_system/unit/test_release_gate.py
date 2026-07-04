@@ -20,7 +20,11 @@ def _coverage(*keys, **changes):
         "expected_policy_hashes": {key: "d" * 64 for key in keys},
         "expected_threshold_policy_hashes": {key: "e" * 64 for key in keys},
         "required_independence": {
-            key: ("cross_family_context_independent" if key[3] in {"R", "M", "H"} else "deterministic_independent")
+            key: (
+                "cross_family_context_independent"
+                if key[3] in {"R", "M", "H"}
+                else "deterministic_independent"
+            )
             for key in keys
         },
         "required_criticality": {key: True for key in keys},
@@ -53,7 +57,9 @@ def _result(key, verdict="pass", **changes):
         "producer_family": "candidate-family",
         "grader_family": "independent-family",
         "context_relationship": (
-            "cross_family_context_independent" if grader_class in {"R", "M", "H"} else "deterministic_independent"
+            "cross_family_context_independent"
+            if grader_class in {"R", "M", "H"}
+            else "deterministic_independent"
         ),
         "limitations": (),
         "redactions": (),
@@ -103,7 +109,7 @@ def test_stale_revision_duplicate_or_extra_result_blocks():
         {"trace_hash": "f" * 64},
         {"oracle_hash": "f" * 64},
         {"policy_hash": "f" * 64},
-        {"threshold_policy_hash": ""},
+        {"threshold_policy_hash": "f" * 64},
         {"context_relationship": "producer_correlated"},
         {"critical": False},
         {"required": False},
@@ -184,3 +190,8 @@ def test_each_required_result_uses_its_own_subject_trace_and_policy_hashes():
         ],
     )
     assert decision["decision"] == "pass"
+
+
+def test_repeated_required_key_is_reported_once_when_missing():
+    decision = decide_release(_coverage(STATE_KEY, STATE_KEY), [])
+    assert decision["missing"] == [STATE_KEY]

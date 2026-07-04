@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+import json
 from pathlib import Path
 
 import pytest
@@ -362,3 +363,122 @@ def test_eval_schemas_are_closed_and_reject_retired_gate_alias():
     payload["grader_results"] = []
     with pytest.raises(SchemaError, match="grader_results"):
         registry.validate("ars://evals/fixture-definition", payload)
+
+
+def _valid_grader_result(**changes: object) -> GraderResult:
+    values = {
+        "grader_result_id": f"grr_{UUID7}",
+        "evaluation_run_id": f"run_{UUID7}",
+        "fixture_id": "F-001",
+        "fixture_revision": "r1",
+        "grader_id": "state",
+        "grader_class": "D",
+        "grader_version": "v1",
+        "verdict": "pass",
+        "severity": "critical",
+        "critical": True,
+        "required": True,
+        "subject_hash": "a" * 64,
+        "trace_hash": "b" * 64,
+        "oracle_hash": "c" * 64,
+        "policy_hash": "d" * 64,
+        "threshold_policy_hash": "e" * 64,
+        "evidence_refs": (),
+        "independently_recomputed": True,
+        "producer_family": "deterministic",
+        "grader_family": "deterministic",
+        "context_relationship": "deterministic_independent",
+        "limitations": (),
+        "redactions": (),
+        "duration_ms": 1,
+        "cost_microunits": 0,
+        "executed_by_actor_id": f"act_{UUID7}",
+    }
+    values.update(changes)
+    return GraderResult(**values)
+
+
+@pytest.mark.parametrize("field", ["subject_hash", "policy_bundle_hash"])
+def test_evaluation_run_rejects_invalid_hashes(field):
+    with pytest.raises(ValueError, match=field):
+        _run(**{field: "not-a-sha256"})
+
+
+@pytest.mark.parametrize("field", ["start_sequence_position", "end_sequence_position"])
+def test_evaluation_run_rejects_negative_sequence_positions(field):
+    with pytest.raises(ValueError, match=field):
+        _run(**{field: -1})
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "trace_ids",
+        "provider_receipt_ids",
+        "operational_record_ids",
+        "grader_result_ids",
+        "exception_refs",
+        "quarantine_refs",
+    ],
+)
+def test_evaluation_run_rejects_duplicate_evidence_references(field):
+    with pytest.raises(ValueError, match=field):
+        _run(**{field: ("duplicate", "duplicate")})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("severity", "fatal"),
+        ("subject_hash", "not-a-sha256"),
+        ("trace_hash", "not-a-sha256"),
+        ("oracle_hash", "not-a-sha256"),
+        ("policy_hash", "not-a-sha256"),
+        ("threshold_policy_hash", "not-a-sha256"),
+        ("evidence_refs", ("duplicate", "duplicate")),
+        ("limitations", ("duplicate", "duplicate")),
+        ("redactions", ("duplicate", "duplicate")),
+        ("duration_ms", -1),
+        ("cost_microunits", -1),
+        ("supersedes", "invalid-id"),
+    ],
+)
+def test_grader_result_rejects_schema_invalid_values(field, value):
+    with pytest.raises(ValueError, match=field):
+        _valid_grader_result(**{field: value})
+
+
+def _eval_schema(name: str) -> dict[str, object]:
+    path = SCHEMAS / "evals" / f"{name}.schema.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_release_decision_schema_uses_exact_result_keys():
+    schema = _eval_schema("release-gate-decision")
+    for field in ("required_verdicts", "critical_failures"):
+        item_schema = schema["$defs"]["resultKey"]
+        assert item_schema["minItems"] == 5
+        assert item_schema["maxItems"] == 5
+        assert item_schema["prefixItems"][3]["enum"] == ["D", "T", "R", "M", "H", "O", "P"]
+
+
+def test_trace_schema_requires_constructor_routing_fields():
+    schema = _eval_schema("trace-envelope")
+    required = set(schema["required"])
+    assert {
+        "route_decision_id",
+        "routing_evidence_snapshot_id",
+        "canonical_policy_bundle_id",
+        "adapter_manifest_version",
+    } <= required
+
+
+def test_fixture_schema_closes_independence_vocabulary():
+    schema = _eval_schema("fixture-definition")
+    independence = schema["$defs"]["graderRequirement"]["properties"]["independence_requirement"]
+    assert independence == {
+        "enum": [
+            "deterministic_independent",
+            "cross_family_context_independent",
+        ]
+    }

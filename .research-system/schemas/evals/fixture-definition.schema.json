@@ -102,7 +102,12 @@
         "grader_version": {"type": "string", "minLength": 1},
         "critical": {"type": "boolean"},
         "required": {"type": "boolean"},
-        "independence_requirement": {"type": "string", "minLength": 1},
+        "independence_requirement": {
+          "enum": [
+            "deterministic_independent",
+            "cross_family_context_independent"
+          ]
+        },
         "evidence_selectors": {"$ref": "#/$defs/nonemptyStrings"}
       },
       "additionalProperties": false

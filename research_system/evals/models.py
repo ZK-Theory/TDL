@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 
 from research_system.ids import validate_id
@@ -28,6 +29,7 @@ FIXTURE_STATUSES = frozenset(
 )
 GRADER_CLASSES = frozenset({"D", "T", "R", "M", "H", "O", "P"})
 VERDICTS = frozenset({"pass", "fail", "unable_to_grade", "fixture_error"})
+SEVERITIES = frozenset({"critical", "major", "minor"})
 RUN_STATES = frozenset(
     {
         "declared",
@@ -53,6 +55,16 @@ def _require_choice(value: str, choices: frozenset[str], label: str) -> None:
 def _require_nonempty(value: str, label: str) -> None:
     if not value:
         raise ValueError(f"{label} is required")
+
+
+def _require_sha256(value: str, label: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise ValueError(f"invalid {label}: expected sha256 hex digest")
+
+
+def _require_unique(values: tuple[str, ...], label: str) -> None:
+    if len(set(values)) != len(values):
+        raise ValueError(f"{label} must not contain duplicates")
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +251,23 @@ class EvaluationRun:
             raise ValueError(f"invalid run_role: {self.run_role}")
         if self.attempt_number < 1:
             raise ValueError("attempt_number must be positive")
+        _require_sha256(self.subject_hash, "subject_hash")
+        _require_sha256(self.policy_bundle_hash, "policy_bundle_hash")
+        for values, label in (
+            (self.trace_ids, "trace_ids"),
+            (self.provider_receipt_ids, "provider_receipt_ids"),
+            (self.operational_record_ids, "operational_record_ids"),
+            (self.grader_result_ids, "grader_result_ids"),
+            (self.exception_refs, "exception_refs"),
+            (self.quarantine_refs, "quarantine_refs"),
+        ):
+            _require_unique(values, label)
+        for position, label in (
+            (self.start_sequence_position, "start_sequence_position"),
+            (self.end_sequence_position, "end_sequence_position"),
+        ):
+            if position is not None and position < 0:
+                raise ValueError(f"{label} must be non-negative")
 
     def retry(self, new_evaluation_run_id: str) -> EvaluationRun:
         """Create a new declared run linked to this terminal attempt."""
@@ -302,6 +331,27 @@ class GraderResult:
         validate_id(self.executed_by_actor_id, "actor")
         _require_choice(self.grader_class, GRADER_CLASSES, "grader_class")
         _require_choice(self.verdict, VERDICTS, "verdict")
+        _require_choice(self.severity, SEVERITIES, "severity")
+        for hash_value, label in (
+            (self.subject_hash, "subject_hash"),
+            (self.trace_hash, "trace_hash"),
+            (self.oracle_hash, "oracle_hash"),
+            (self.policy_hash, "policy_hash"),
+            (self.threshold_policy_hash, "threshold_policy_hash"),
+        ):
+            _require_sha256(hash_value, label)
+        for values, label in (
+            (self.evidence_refs, "evidence_refs"),
+            (self.limitations, "limitations"),
+            (self.redactions, "redactions"),
+        ):
+            _require_unique(values, label)
+        if self.duration_ms < 0:
+            raise ValueError("duration_ms must be non-negative")
+        if self.cost_microunits < 0:
+            raise ValueError("cost_microunits must be non-negative")
+        if self.supersedes is not None and not self.supersedes.startswith("grr_"):
+            raise ValueError("invalid supersedes: expected grr_ prefix")
 
     @property
     def result_key(self) -> ResultKey:

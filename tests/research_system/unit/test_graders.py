@@ -108,7 +108,7 @@ def test_complete_trace_passes_without_inferred_evidence():
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        ({"threshold_policy_hash": ""}, "threshold policy"),
+        ({"threshold_policy_hash": "f" * 64}, "threshold policy"),
         ({"context_relationship": "producer_correlated"}, "independence"),
         ({"independently_recomputed": False}, "independent recomputation"),
     ],
