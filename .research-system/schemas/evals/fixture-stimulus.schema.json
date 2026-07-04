@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/fixture-stimulus",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "fixture_id", "fixture_revision",
+    "stimulus_kind", "payload"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/fixture-stimulus"},
+    "schema_version": {"const": "1.0.0"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "stimulus_kind": {"type": "string", "minLength": 1},
+    "payload": {"type": "object", "minProperties": 1}
+  },
+  "additionalProperties": false
+}

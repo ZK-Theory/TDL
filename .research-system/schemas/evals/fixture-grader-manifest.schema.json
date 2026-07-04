@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/fixture-grader-manifest",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "fixture_id", "fixture_revision",
+    "required_graders"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/fixture-grader-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "required_graders": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/graderRequirement"}
+    }
+  },
+  "$defs": {
+    "graderRequirement": {
+      "type": "object",
+      "required": [
+        "grader_id", "grader_class", "grader_version", "critical",
+        "required", "independence_requirement", "evidence_selectors"
+      ],
+      "properties": {
+        "grader_id": {"type": "string", "minLength": 1},
+        "grader_class": {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
+        "grader_version": {"type": "string", "minLength": 1},
+        "critical": {"type": "boolean"},
+        "required": {"type": "boolean"},
+        "independence_requirement": {
+          "enum": [
+            "deterministic_independent",
+            "cross_family_context_independent"
+          ]
+        },
+        "evidence_selectors": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
