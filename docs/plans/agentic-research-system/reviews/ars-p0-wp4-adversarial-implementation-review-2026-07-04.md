@@ -1,9 +1,9 @@
 # ARS P0 WP4 adversarial implementation review
 
-**Date:** 2026-07-04  
-**Target:** `codex/ars-p0-wp4` at `f882e29` against `main`  
-**Scope:** WP4 Tasks 1–6, the 37-case fixture closure, scenarios A–E, the P0 release path, and retention/deletion integration  
-**Reviewer stance:** fresh-context adversarial review using direct source inspection and executable counterexamples  
+**Date:** 2026-07-04
+**Target:** `codex/ars-p0-wp4` at `f882e29` against `main`
+**Scope:** WP4 Tasks 1–6, the 37-case fixture closure, scenarios A–E, the P0 release path, and retention/deletion integration
+**Reviewer stance:** fresh-context adversarial review using direct source inspection and executable counterexamples
 **Authority boundary:** this report does not approve Gate 5, live providers, a pilot, migration, or a research claim.
 
 ## Executive verdict: `rework_required`

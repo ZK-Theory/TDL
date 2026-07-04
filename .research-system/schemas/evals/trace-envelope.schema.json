@@ -5,7 +5,7 @@
   "required": [
     "schema_id", "schema_version", "trace_id", "evaluation_run_id",
     "fixture_id", "fixture_revision", "subject_id", "subject_hash",
-    "items", "issued_commands", "resource_record_ids", "tool_records",
+    "items", "issued_commands", "issued_resources", "resource_record_ids", "tool_records",
     "artefact_refs", "review_refs", "decision_refs", "claim_refs",
     "present_evidence_classes", "missing_segments", "trace_complete",
     "clock_source", "ordering_method", "redaction_record_hash", "content_hash"
@@ -21,6 +21,7 @@
     "subject_hash": {"$ref": "#/$defs/sha256"},
     "items": {"type": "array", "items": {"type": "object"}},
     "issued_commands": {"type": "array", "items": {"type": "object"}},
+    "issued_resources": {"type": "array", "items": {"type": "object"}},
     "route_decision_id": {"type": ["string", "null"]},
     "routing_evidence_snapshot_id": {"type": ["string", "null"]},
     "canonical_policy_bundle_id": {"type": ["string", "null"]},

@@ -24,6 +24,8 @@
     "decision": {"enum": ["pass", "fail", "blocked", "exception_limited"]},
     "decided_at": {"type": "string", "format": "date-time"},
     "canonical_event_ref": {"type": "string", "minLength": 1},
+    "exception_policy_id": {"type": ["string", "null"], "minLength": 1},
+    "exception_policy_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
     "exception_scope": {"type": ["string", "null"]},
     "exception_expiry": {"type": ["string", "null"], "format": "date-time"},
     "disabled_or_constrained_capability": {"type": ["string", "null"]},
@@ -31,5 +33,24 @@
     "human_authority_id": {"type": ["string", "null"]},
     "supersedes": {"type": ["string", "null"]}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"decision": {"const": "exception_limited"}}},
+      "then": {
+        "required": [
+          "exception_policy_id", "exception_policy_hash", "exception_scope",
+          "exception_expiry", "disabled_or_constrained_capability", "human_authority_id"
+        ],
+        "properties": {
+          "exception_policy_id": {"type": "string", "minLength": 1},
+          "exception_policy_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "exception_scope": {"type": "string", "minLength": 1},
+          "exception_expiry": {"type": "string", "format": "date-time"},
+          "disabled_or_constrained_capability": {"type": "string", "minLength": 1},
+          "human_authority_id": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

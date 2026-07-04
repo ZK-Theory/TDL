@@ -10,17 +10,15 @@ from research_system.evals.errors import UnableToGrade
 from research_system.evals.graders import validate_grader_result
 from research_system.evals.models import GraderResult, ResultKey
 
-BLOCKING = frozenset({'fail', 'unable_to_grade', 'fixture_error'})
+BLOCKING = frozenset({"fail", "unable_to_grade", "fixture_error"})
 
 
 def _expected(
     coverage: object,
     attribute: str,
     key: ResultKey,
-    fallback: str,
-) -> str:
-    values = getattr(coverage, attribute, {})
-    return values.get(key, fallback)
+) -> Any:
+    return getattr(coverage, attribute)[key]
 
 
 def _incompatibility(
@@ -28,71 +26,54 @@ def _incompatibility(
     result: GraderResult,
 ) -> str | None:
     key = result.result_key
-    scalar_bindings = (
-        'expected_subject_hash',
-        'expected_trace_hash',
-        'expected_policy_hash',
-    )
     mapping_bindings = (
-        'expected_oracle_hashes',
-        'expected_threshold_policy_hashes',
-        'required_independence',
-        'required_criticality',
+        "expected_subject_hashes",
+        "expected_trace_hashes",
+        "expected_oracle_hashes",
+        "expected_policy_hashes",
+        "expected_threshold_policy_hashes",
+        "required_independence",
+        "required_criticality",
     )
-    missing_bindings = [
-        *(
-            attribute
-            for attribute in scalar_bindings
-            if not getattr(coverage, attribute, None)
-        ),
-        *(
-            attribute
-            for attribute in mapping_bindings
-            if key not in getattr(coverage, attribute, {})
-        ),
-    ]
+    missing_bindings = [attribute for attribute in mapping_bindings if key not in getattr(coverage, attribute, {})]
     if missing_bindings:
-        return 'coverage bindings missing: ' + ','.join(missing_bindings)
-    required_criticality = getattr(coverage, 'required_criticality', {})
-    if result.critical != required_criticality.get(key, True):
-        return 'criticality mismatch'
+        return "coverage bindings missing: " + ",".join(missing_bindings)
+    if result.critical != _expected(coverage, "required_criticality", key):
+        return "criticality mismatch"
     if not result.required:
-        return 'required result not marked required'
+        return "required result not marked required"
     try:
         validate_grader_result(
             result,
-            expected_subject_hash=getattr(
+            expected_subject_hash=_expected(
                 coverage,
-                'expected_subject_hash',
-                result.subject_hash,
+                "expected_subject_hashes",
+                key,
             ),
-            expected_trace_hash=getattr(
+            expected_trace_hash=_expected(
                 coverage,
-                'expected_trace_hash',
-                result.trace_hash,
+                "expected_trace_hashes",
+                key,
             ),
             expected_oracle_hash=_expected(
                 coverage,
-                'expected_oracle_hashes',
+                "expected_oracle_hashes",
                 key,
-                result.oracle_hash,
             ),
-            expected_policy_hash=getattr(
+            expected_policy_hash=_expected(
                 coverage,
-                'expected_policy_hash',
-                result.policy_hash,
+                "expected_policy_hashes",
+                key,
             ),
             expected_threshold_policy_hash=_expected(
                 coverage,
-                'expected_threshold_policy_hashes',
+                "expected_threshold_policy_hashes",
                 key,
-                result.threshold_policy_hash,
             ),
             required_independence=_expected(
                 coverage,
-                'required_independence',
+                "required_independence",
                 key,
-                result.context_relationship,
             ),
         )
     except UnableToGrade as exc:
@@ -116,9 +97,7 @@ def decide_release(
     unexpected = sorted(observed - required)
     duplicates = sorted(key for key, count in counts.items() if count != 1)
     if len(required) != len(required_keys):
-        duplicates.extend(
-            key for key, count in Counter(required_keys).items() if count != 1
-        )
+        duplicates.extend(key for key, count in Counter(required_keys).items() if count != 1)
         duplicates = sorted(set(duplicates))
 
     incompatible = []
@@ -132,29 +111,22 @@ def decide_release(
     blocking = [
         result
         for result in result_list
-        if result.result_key in required
-        and result.required
-        and result.verdict in BLOCKING
+        if result.result_key in required and result.required and result.verdict in BLOCKING
     ]
     response: dict[str, Any] = {
-        'decision': 'blocked',
-        'missing': missing,
-        'unexpected': unexpected,
-        'duplicates': duplicates,
-        'incompatible': incompatible,
-        'blocking': blocking,
+        "decision": "blocked",
+        "missing": missing,
+        "unexpected": unexpected,
+        "duplicates": duplicates,
+        "incompatible": incompatible,
+        "blocking": blocking,
     }
     if missing or unexpected or duplicates or incompatible:
         return response
     if blocking:
-        response['decision'] = (
-            'blocked'
-            if any(
-                result.verdict in {'unable_to_grade', 'fixture_error'}
-                for result in blocking
-            )
-            else 'fail'
+        response["decision"] = (
+            "blocked" if any(result.verdict in {"unable_to_grade", "fixture_error"} for result in blocking) else "fail"
         )
         return response
-    response['decision'] = 'pass'
+    response["decision"] = "pass"
     return response

@@ -8,51 +8,51 @@ from research_system.ids import validate_id
 
 GATE_STAGES = frozenset(
     {
-        'interface_review',
-        'p0_materialization',
-        'foundation_release',
-        'pilot_promotion',
+        "interface_review",
+        "p0_materialization",
+        "foundation_release",
+        "pilot_promotion",
     }
 )
 FIXTURE_STATUSES = frozenset(
     {
-        'candidate',
-        'source_verified',
-        'authored',
-        'calibrated',
-        'active',
-        'rejected',
-        'quarantined',
-        'superseded',
+        "candidate",
+        "source_verified",
+        "authored",
+        "calibrated",
+        "active",
+        "rejected",
+        "quarantined",
+        "superseded",
     }
 )
-GRADER_CLASSES = frozenset({'D', 'T', 'R', 'M', 'H', 'O', 'P'})
-VERDICTS = frozenset({'pass', 'fail', 'unable_to_grade', 'fixture_error'})
+GRADER_CLASSES = frozenset({"D", "T", "R", "M", "H", "O", "P"})
+VERDICTS = frozenset({"pass", "fail", "unable_to_grade", "fixture_error"})
 RUN_STATES = frozenset(
     {
-        'declared',
-        'executing',
-        'evidence_complete',
-        'grading',
-        'decided',
-        'stopped',
-        'failed',
+        "declared",
+        "executing",
+        "evidence_complete",
+        "grading",
+        "decided",
+        "stopped",
+        "failed",
     }
 )
-RELEASE_DECISIONS = frozenset({'pass', 'fail', 'blocked', 'exception_limited'})
-RETENTION_CLASSES = frozenset({'R0', 'R1', 'R2'})
+RELEASE_DECISIONS = frozenset({"pass", "fail", "blocked", "exception_limited"})
+RETENTION_CLASSES = frozenset({"R0", "R1", "R2"})
 
 ResultKey = tuple[str, str, str, str, str]
 
 
 def _require_choice(value: str, choices: frozenset[str], label: str) -> None:
     if value not in choices:
-        raise ValueError(f'invalid {label}: {value}')
+        raise ValueError(f"invalid {label}: {value}")
 
 
 def _require_nonempty(value: str, label: str) -> None:
     if not value:
-        raise ValueError(f'{label} is required')
+        raise ValueError(f"{label} is required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,15 +65,18 @@ class GraderRequirement:
     critical: bool
     required: bool
     independence_requirement: str
+    evidence_selectors: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        _require_choice(self.grader_class, GRADER_CLASSES, 'grader_class')
-        _require_nonempty(self.grader_id, 'grader_id')
-        _require_nonempty(self.grader_version, 'grader_version')
+        _require_choice(self.grader_class, GRADER_CLASSES, "grader_class")
+        _require_nonempty(self.grader_id, "grader_id")
+        _require_nonempty(self.grader_version, "grader_version")
         _require_nonempty(
             self.independence_requirement,
-            'independence_requirement',
+            "independence_requirement",
         )
+        if not self.evidence_selectors:
+            raise ValueError("evidence_selectors must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,20 +122,20 @@ class FixtureDefinition:
     redaction_policy_id: str
 
     def __post_init__(self) -> None:
-        _require_choice(self.priority, frozenset({'P0', 'P1'}), 'priority')
-        _require_choice(self.gate_stage, GATE_STAGES, 'gate_stage')
-        _require_choice(self.status, FIXTURE_STATUSES, 'fixture status')
-        if self.retention_class == 'R3':
-            raise ValueError('prohibited retention_class: R3')
+        _require_choice(self.priority, frozenset({"P0", "P1"}), "priority")
+        _require_choice(self.gate_stage, GATE_STAGES, "gate_stage")
+        _require_choice(self.status, FIXTURE_STATUSES, "fixture status")
+        if self.retention_class == "R3":
+            raise ValueError("prohibited retention_class: R3")
         _require_choice(
             self.retention_class,
             RETENTION_CLASSES,
-            'retention_class',
+            "retention_class",
         )
         if not self.required_graders:
-            raise ValueError('required_graders must not be empty')
+            raise ValueError("required_graders must not be empty")
         if not self.permitted_consumers:
-            raise ValueError('permitted_consumers must not be empty')
+            raise ValueError("permitted_consumers must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +150,7 @@ class TraceEnvelope:
     subject_hash: str
     items: tuple[dict[str, object], ...]
     issued_commands: tuple[dict[str, object], ...]
+    issued_resources: tuple[dict[str, object], ...]
     route_decision_id: str | None
     routing_evidence_snapshot_id: str | None
     canonical_policy_bundle_id: str | None
@@ -166,22 +170,27 @@ class TraceEnvelope:
     trace_complete: bool = False
 
     def __post_init__(self) -> None:
-        validate_id(self.trace_id, 'trace')
-        validate_id(self.evaluation_run_id, 'evaluation_run')
+        validate_id(self.trace_id, "trace")
+        validate_id(self.evaluation_run_id, "evaluation_run")
         if self.trace_complete and self.missing_segments:
-            raise ValueError('complete_trace_has_missing_segments')
+            raise ValueError("complete_trace_has_missing_segments")
 
     def validate_terminal_evidence(self) -> None:
-        """Reject issued commands without a receipt or explicit missing record."""
+        """Reject issued commands/resources without terminal or missing evidence."""
         incomplete = [
-            str(item.get('command_id', '<unknown>'))
-            for item in self.issued_commands
-            if not item.get('terminal_ref') and not item.get('missing_evidence_ref')
+            *(
+                str(item.get("command_id", "<unknown-command>"))
+                for item in self.issued_commands
+                if not item.get("terminal_ref") and not item.get("missing_evidence_ref")
+            ),
+            *(
+                str(item.get("resource_request_id", "<unknown-resource>"))
+                for item in self.issued_resources
+                if not item.get("terminal_ref") and not item.get("missing_evidence_ref")
+            ),
         ]
         if incomplete:
-            raise ValueError(
-                'terminal_or_missing_evidence_required: ' + ','.join(incomplete)
-            )
+            raise ValueError("terminal_or_missing_evidence_required: " + ",".join(incomplete))
 
     def missing_evidence_classes(
         self,
@@ -189,11 +198,7 @@ class TraceEnvelope:
     ) -> tuple[str, ...]:
         """Return declared evidence classes absent from this trace."""
         present = set(self.present_evidence_classes)
-        return tuple(
-            evidence
-            for evidence in required_evidence_classes
-            if evidence not in present
-        )
+        return tuple(evidence for evidence in required_evidence_classes if evidence not in present)
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,23 +233,23 @@ class EvaluationRun:
     supersedes: str | None = None
 
     def __post_init__(self) -> None:
-        validate_id(self.evaluation_run_id, 'evaluation_run')
-        _require_choice(self.state, RUN_STATES, 'evaluation run state')
-        if self.run_role not in {'baseline', 'candidate'}:
-            raise ValueError(f'invalid run_role: {self.run_role}')
+        validate_id(self.evaluation_run_id, "evaluation_run")
+        _require_choice(self.state, RUN_STATES, "evaluation run state")
+        if self.run_role not in {"baseline", "candidate"}:
+            raise ValueError(f"invalid run_role: {self.run_role}")
         if self.attempt_number < 1:
-            raise ValueError('attempt_number must be positive')
+            raise ValueError("attempt_number must be positive")
 
     def retry(self, new_evaluation_run_id: str) -> EvaluationRun:
         """Create a new declared run linked to this terminal attempt."""
         if new_evaluation_run_id == self.evaluation_run_id:
-            raise ValueError('retry requires new evaluation_run_id')
-        validate_id(new_evaluation_run_id, 'evaluation_run')
+            raise ValueError("retry requires new evaluation_run_id")
+        validate_id(new_evaluation_run_id, "evaluation_run")
         return replace(
             self,
             evaluation_run_id=new_evaluation_run_id,
             attempt_number=self.attempt_number + 1,
-            state='declared',
+            state="declared",
             start_sequence_position=None,
             end_sequence_position=None,
             trace_ids=(),
@@ -292,11 +297,11 @@ class GraderResult:
     supersedes: str | None = None
 
     def __post_init__(self) -> None:
-        validate_id(self.grader_result_id, 'grader_result')
-        validate_id(self.evaluation_run_id, 'evaluation_run')
-        validate_id(self.executed_by_actor_id, 'actor')
-        _require_choice(self.grader_class, GRADER_CLASSES, 'grader_class')
-        _require_choice(self.verdict, VERDICTS, 'verdict')
+        validate_id(self.grader_result_id, "grader_result")
+        validate_id(self.evaluation_run_id, "evaluation_run")
+        validate_id(self.executed_by_actor_id, "actor")
+        _require_choice(self.grader_class, GRADER_CLASSES, "grader_class")
+        _require_choice(self.verdict, VERDICTS, "verdict")
 
     @property
     def result_key(self) -> ResultKey:
@@ -333,8 +338,8 @@ class CoverageManifest:
     release_gate_policy_version: str
 
     def __post_init__(self) -> None:
-        _require_nonempty(self.coverage_manifest_id, 'coverage_manifest_id')
-        _require_choice(self.gate_stage, GATE_STAGES, 'gate_stage')
+        _require_nonempty(self.coverage_manifest_id, "coverage_manifest_id")
+        _require_choice(self.gate_stage, GATE_STAGES, "gate_stage")
 
 
 @dataclass(frozen=True, slots=True)
@@ -353,6 +358,8 @@ class ReleaseGateDecision:
     decision: str
     decided_at: str
     canonical_event_ref: str
+    exception_policy_id: str | None = None
+    exception_policy_hash: str | None = None
     exception_scope: str | None = None
     exception_expiry: str | None = None
     disabled_or_constrained_capability: str | None = None
@@ -363,15 +370,22 @@ class ReleaseGateDecision:
     def __post_init__(self) -> None:
         _require_nonempty(
             self.release_gate_decision_id,
-            'release_gate_decision_id',
+            "release_gate_decision_id",
         )
-        _require_choice(self.decision, RELEASE_DECISIONS, 'decision')
-        if self.decision == 'exception_limited' and not all(
-            (
-                self.exception_scope,
-                self.exception_expiry,
+        _require_choice(self.decision, RELEASE_DECISIONS, "decision")
+        exception_policy_fields = (
+            self.exception_policy_id,
+            self.exception_policy_hash,
+            self.exception_scope,
+            self.exception_expiry,
+        )
+        if self.decision == "exception_limited":
+            bounded_authority = (
+                *exception_policy_fields,
                 self.disabled_or_constrained_capability,
                 self.human_authority_id,
             )
-        ):
-            raise ValueError('exception_limited requires bounded authority')
+            if not all(bounded_authority):
+                raise ValueError("exception_limited requires accepted exception policy and bounded authority")
+        elif any(exception_policy_fields):
+            raise ValueError("exception policy fields require exception_limited")
