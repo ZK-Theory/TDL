@@ -202,3 +202,33 @@ def test_validator_rejects_malformed_instances_and_wildcard_variants(tmp_path):
     fixture_path.write_text(yaml.safe_dump(fixture, sort_keys=False), encoding="utf-8")
     with pytest.raises(FixtureDefinitionError, match="wildcard variant"):
         validate_fixture_package(tmp_path, schema_root=SCHEMAS)
+
+
+def test_validator_allows_any_substring_in_concrete_variant_value(tmp_path):
+    _write_package(tmp_path)
+    source_path = tmp_path / "input" / "source-manifest.json"
+    source = json.loads(source_path.read_text(encoding="utf-8"))
+    source["variant_bindings"][0]["provider_variant"] = "company-hosted"
+    source_path.write_bytes(_json_bytes(source))
+    fixture_path = tmp_path / "fixture.yaml"
+    fixture = yaml.safe_load(fixture_path.read_text(encoding="utf-8"))
+    fixture["source_manifest_hash"] = sha256_hex(source_path.read_bytes())
+    fixture_path.write_text(yaml.safe_dump(fixture, sort_keys=False), encoding="utf-8")
+
+    validated = validate_fixture_package(tmp_path, schema_root=SCHEMAS)
+
+    assert validated.variant_ids == ("windows-fake",)
+
+
+def test_validator_parses_json_from_the_hashed_bytes(tmp_path, monkeypatch):
+    _write_package(tmp_path)
+    original_read_text = Path.read_text
+
+    def guarded_read_text(path, *args, **kwargs):
+        if path.suffix == ".json" and tmp_path in path.parents:
+            raise AssertionError(f"JSON file re-read after hashing: {path}")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", guarded_read_text)
+
+    validate_fixture_package(tmp_path, schema_root=SCHEMAS)

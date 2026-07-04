@@ -61,16 +61,16 @@ def _object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _read_json(path: Path) -> dict[str, Any]:
+def _parse_json(data: bytes, relative: str) -> dict[str, Any]:
     try:
         payload = json.loads(
-            path.read_text(encoding="utf-8"),
+            data.decode("utf-8"),
             object_pairs_hook=_object_pairs,
         )
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise FixtureDefinitionError(f"invalid JSON: {path}") from exc
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise FixtureDefinitionError(f"invalid JSON: {relative}") from exc
     if not isinstance(payload, dict):
-        raise FixtureDefinitionError(f"JSON object required: {path}")
+        raise FixtureDefinitionError(f"JSON object required: {relative}")
     return payload
 
 
@@ -144,7 +144,7 @@ def validate_fixture_package(
 
     documents: dict[str, dict[str, Any]] = {}
     for relative, schema_id in _JSON_SCHEMAS.items():
-        payload = _read_json(root / relative)
+        payload = _parse_json(files[relative], relative)
         _validate_instance(registry, schema_id, payload)
         _require_identity(payload, fixture_id, fixture_revision, relative)
         documents[relative] = payload
@@ -186,11 +186,18 @@ def validate_fixture_package(
     variant_ids = tuple(row["variant_id"] for row in source["variant_bindings"])
     if len(set(variant_ids)) != len(variant_ids):
         raise FixtureDefinitionError("duplicate variant binding")
-    if any(
-        "*" in str(row) or "any" in str(row).lower()
-        for row in source["variant_bindings"]
-    ):
-        raise FixtureDefinitionError("wildcard variant binding prohibited")
+    wildcard_fields = (
+        "variant_id",
+        "provider_variant",
+        "runtime_variant",
+        "os",
+        "transport",
+    )
+    for row in source["variant_bindings"]:
+        for field in wildcard_fields:
+            value = str(row.get(field, "")).strip().lower()
+            if value == "any" or "*" in value:
+                raise FixtureDefinitionError("wildcard variant binding prohibited")
 
     package_hash = sha256_hex(canonical_bytes(content_hashes))
     return ValidatedFixturePackage(
