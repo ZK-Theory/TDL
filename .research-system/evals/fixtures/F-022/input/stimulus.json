@@ -1,0 +1,1 @@
+{"fixture_id":"F-022","fixture_revision":"r1","payload":{"action":{"operation":"grade_independence","producer_family":"family-a","reviewer_family":"family-a","role_labels_differ":true,"shared_context_hash":true},"contract":"reviewer_independence_evidence"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"context_routing_contract"}

@@ -1,0 +1,87 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-021
+fixture_revision: r1
+title: Governing amendment omitted
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: reconstructed
+risk_tier: R2
+assurance_lanes:
+- context
+- governance
+failure_class: amendment_omission
+priority: P1
+gate_stage: p0_materialization
+source_manifest_hash: 60e57230afc4bebe523f38065a639ea69197698f5d1b6aed14185a45e084c5ff
+decision_refs:
+- P-028
+- P-029
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 9daf2613dccdc7cbac2cd2cad8115cfb5e2f26ffee5060f3670ab3767334e368
+stimulus_hash: 5b3a278b1b3850e2696070415134221c4059aa6e2561d9c45424ffc1e6edb0f7
+pre_control_oracle_hash: 67f9a3261202abc3e1d8a20130bf7ae55d63ac283b337f8fff31339b6819857a
+post_control_oracle_hash: 97789d2209a25af4682056a1b8228095777f27491c91a4d7689bff3e818df79f
+required_trajectory:
+- GoverningSourcesResolved
+- AmendmentIncluded
+- ContextManifestIssued
+forbidden_trajectory:
+- StaleContextAccepted
+- AmendmentSilentlyOmitted
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - governing_amendment_recall
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-021-outcome
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - governing_amendment_recall
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-021-trajectory
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - governing_amendment_recall
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: M
+  grader_id: f-021-independent-model
+  grader_version: context-routing-v1
+  independence_requirement: cross_family_context_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- governing_amendment_recall
+- normalized_trace
+known_bad_reference_hash: 67f9a3261202abc3e1d8a20130bf7ae55d63ac283b337f8fff31339b6819857a
+known_good_reference_hash: 97789d2209a25af4682056a1b8228095777f27491c91a4d7689bff3e818df79f
+mutation_ids:
+- governing_amendment_recall-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

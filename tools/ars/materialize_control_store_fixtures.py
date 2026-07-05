@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +10,8 @@ from typing import Any
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
+
+from fixture_materializer import materialize_cases, run_cli
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -337,34 +338,21 @@ def materialize(root: Path, *, check: bool = False) -> None:
         root: Destination containing the control/store fixture directories.
         check: Compare existing files without writing when true.
     """
-    expected: dict[Path, bytes] = {}
-    for case_id, case in CASES.items():
-        for relative, data in _package(case_id, case).items():
-            expected[root / case_id / relative] = data
-    if check:
-        observed = {path for path in root.rglob("*") if path.is_file()} if root.exists() else set()
-        if observed != set(expected):
-            raise SystemExit("control/store fixture file closure differs from generator")
-        mismatches = [str(path) for path, data in expected.items() if path.read_bytes() != data]
-        if mismatches:
-            raise SystemExit(f"control/store fixtures differ from generator: {mismatches}")
-        return
-    for path, data in expected.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+    materialize_cases(
+        root,
+        cases=CASES,
+        package_builder=_package,
+        shard_name="control/store",
+        check=check,
+    )
 
 
 def main() -> None:
     """Run the CLI in deterministic generation or check-only mode."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--root",
-        type=Path,
-        default=_REPO_ROOT / ".research-system" / "evals" / "fixtures",
+    run_cli(
+        materialize,
+        default_root=_REPO_ROOT / ".research-system" / "evals" / "fixtures",
     )
-    parser.add_argument("--check", action="store_true")
-    args = parser.parse_args()
-    materialize(args.root, check=args.check)
 
 
 if __name__ == "__main__":

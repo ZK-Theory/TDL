@@ -1,0 +1,1 @@
+{"fixture_id":"F-035","fixture_revision":"r1","forbidden":["ProducerDispatchIssued","OneKeyCompensated","ClaimPromoted"],"required":["RequirementScopeReviewed","ActionRiskRaised","BothValidityKeysEvaluated"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

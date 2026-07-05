@@ -1,0 +1,1 @@
+{"fixture_id":"F-028","fixture_revision":"r1","payload":{"action":{"operation":"compile_over_budget_context","provider_capacity_80pct":8000,"provider_count":9000,"reference_ceiling":10000,"reference_count":12000},"contract":"context_budget_fail_closed"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"context_routing_contract"}

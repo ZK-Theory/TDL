@@ -1,0 +1,1 @@
+{"fixture_id":"F-025","fixture_revision":"r1","payload":{"action":{"operation":"retrieve_mandatory_closure","required_members":22,"scope_revision":"stage2-r22","stale_completion_prose":true},"contract":"mandatory_scope_closure"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"context_routing_contract"}
