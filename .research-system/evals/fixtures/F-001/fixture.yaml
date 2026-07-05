@@ -1,0 +1,85 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-001
+fixture_revision: r1
+title: Single-slot overwrite
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: reconstructed
+risk_tier: R2
+assurance_lanes:
+- coordination
+- provenance
+failure_class: authority_overwrite
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 36ca56ee69335461997e8fd5c1b0ec1696b8013dda113d94fa58a14ce8b1d7ba
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 8ba93128fe3e5132161ffd93f2f938d46719c319bae61c77674d65aaeafe0cd2
+stimulus_hash: 5f1c5172f278f5c95aee638cdb38a44ea661a529cc5f0474fbd571e6573a2271
+pre_control_oracle_hash: 600902bcc053ea574015a59f205626ef0d517942dc38742c3c233ae5bbf51325
+post_control_oracle_hash: d1c0e58a2a744dc3f3e460fa8d95ed640d24cb26d9528486777a0cc4019a8288
+required_trajectory:
+- MessagePublished:T0.3
+- MessagePublished:T0.12
+- OwnershipConflictRecorded
+forbidden_trajectory:
+- MessageOverwritten
+- TaskInferredComplete
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - immutable_message_ownership
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-001-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - immutable_message_ownership
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-001-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - immutable_message_ownership
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: f-001-o
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- immutable_message_ownership
+- normalized_trace
+known_bad_reference_hash: 600902bcc053ea574015a59f205626ef0d517942dc38742c3c233ae5bbf51325
+known_good_reference_hash: d1c0e58a2a744dc3f3e460fa8d95ed640d24cb26d9528486777a0cc4019a8288
+mutation_ids:
+- immutable_message_ownership-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

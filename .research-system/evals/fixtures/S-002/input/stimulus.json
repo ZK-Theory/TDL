@@ -1,0 +1,1 @@
+{"fixture_id":"S-002","fixture_revision":"r1","payload":{"action":{"actors":["actor-a","actor-b"],"dispatch_id":"dsp-fixed","expected_version":0,"operation":"claim_dispatch"},"contract":"exclusive_claim_serialization"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

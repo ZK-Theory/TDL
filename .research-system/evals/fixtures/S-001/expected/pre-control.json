@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"event_batch_count":2,"receipt_reconstructed":false},"property":"idempotent_receipt_recovery","satisfied":false}],"fixture_id":"S-001","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

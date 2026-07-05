@@ -1,0 +1,84 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-005
+fixture_revision: r1
+title: Narrowed stage collapse
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: minimized
+risk_tier: R2
+assurance_lanes:
+- governance
+- claim
+failure_class: narrowed_stage_completion
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 8cefd6b7448dc007a4918c0e773ca9f69e000592e90746eb0671447d4cd2c0cc
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: d125e963d67de69fd5831047b49cd816a997534cb04ad2da769f0de65046e4d5
+stimulus_hash: 68f6ca6ef4997e7a173fbb84b476e9089a45ec86a6fa5c93961cdd099eefda19
+pre_control_oracle_hash: 6ab22846dd026910fa4fea3a3dea6cdb97271f278d56912e28f4df8dff2f18cb
+post_control_oracle_hash: 310a009949da387385fb04baaeff14460024afc1342c911e8fc67c5842a99e27
+required_trajectory:
+- CompleteScopeRejected
+- MissingScopeMembersReported
+forbidden_trajectory:
+- ScopeCompleted
+- OmittedMemberInferredComplete
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - exact_scope_revision_closure
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-005-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - exact_scope_revision_closure
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-005-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - exact_scope_revision_closure
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: H
+  grader_id: f-005-h
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- exact_scope_revision_closure
+- normalized_trace
+known_bad_reference_hash: 6ab22846dd026910fa4fea3a3dea6cdb97271f278d56912e28f4df8dff2f18cb
+known_good_reference_hash: 310a009949da387385fb04baaeff14460024afc1342c911e8fc67c5842a99e27
+mutation_ids:
+- exact_scope_revision_closure-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

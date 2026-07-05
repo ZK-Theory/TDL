@@ -1,0 +1,74 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-006
+fixture_revision: r1
+title: Compatibility ownership collision
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- coordination
+- provenance
+failure_class: compatibility_ownership_collision
+priority: P1
+gate_stage: interface_review
+source_manifest_hash: 03dff48af04babbc5eca44664b38357e029f48c79ebd11d4fcb8308908d00a2d
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: a3415a0287bcdd31c0d59a82f51749df53ebd8333ac900580b639bf50e40e25c
+stimulus_hash: 62897aa668698f6d577b280264a5f78851868259a72b6364a42446009b343ea6
+pre_control_oracle_hash: afab377d9b87460db699e6d095b6670ad9eeeac33468b5975f1b0f42973c590e
+post_control_oracle_hash: 6bdbe04c0dd1d32eaade745a3dd1ca5f04620bd27dde3ae98f0dd6791b684ba1
+required_trajectory:
+- CompatibilityRegistrationRejected
+- OwnershipCollisionRecorded
+forbidden_trajectory:
+- SharedLegacyPathRegistered
+- CanonicalMessageDeleted
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - compatibility_path_ownership
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-006-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - compatibility_path_ownership
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-006-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- compatibility_path_ownership
+- normalized_trace
+known_bad_reference_hash: afab377d9b87460db699e6d095b6670ad9eeeac33468b5975f1b0f42973c590e
+known_good_reference_hash: 6bdbe04c0dd1d32eaade745a3dd1ca5f04620bd27dde3ae98f0dd6791b684ba1
+mutation_ids:
+- compatibility_path_ownership-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

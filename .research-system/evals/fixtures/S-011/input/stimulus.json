@@ -1,0 +1,1 @@
+{"fixture_id":"S-011","fixture_revision":"r1","payload":{"action":{"operation":"inject_writer_crash","windows":["before_rename","after_rename","before_receipt"]},"contract":"atomic_writer_crash_recovery"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

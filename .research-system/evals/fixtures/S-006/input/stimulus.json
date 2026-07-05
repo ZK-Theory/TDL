@@ -1,0 +1,1 @@
+{"fixture_id":"S-006","fixture_revision":"r1","payload":{"action":{"incoming_owner":"other-task","legacy_writable":true,"operation":"register_compatibility_path","path":"legacy/task.md"},"contract":"compatibility_path_ownership"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

@@ -1,0 +1,84 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-001
+fixture_revision: r1
+title: Idempotent lost receipt
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- coordination
+- operations
+failure_class: lost_response_retry
+priority: P1
+gate_stage: interface_review
+source_manifest_hash: 6a2f94d6a522e780c0791aea6e4436cda5f2b84bc2a4cbae660b642f3b9d902e
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: f30faf21b97a1af0158df5f1e5dfcedbd553c5cf3712473fdc2b80a2cb2c4434
+stimulus_hash: 8851a9f6e1eb311506c95b07d5af8ede24510ad5749acef0a2b57f759e145485
+pre_control_oracle_hash: 1fe2a3d0b67bf4404e4c9a483caa7db3faa2e71a39ec4cbb74771243eb2cd3ed
+post_control_oracle_hash: 2e74984f0112b90d43bc8862049a7c06a2e4d851ac24da70bd0963118769864c
+required_trajectory:
+- CommandCommitted
+- ReceiptReconstructed
+forbidden_trajectory:
+- DuplicateBatchCommitted
+- ChangedPayloadAccepted
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - idempotent_receipt_recovery
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-001-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - idempotent_receipt_recovery
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-001-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - idempotent_receipt_recovery
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: s-001-o
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- idempotent_receipt_recovery
+- normalized_trace
+known_bad_reference_hash: 1fe2a3d0b67bf4404e4c9a483caa7db3faa2e71a39ec4cbb74771243eb2cd3ed
+known_good_reference_hash: 2e74984f0112b90d43bc8862049a7c06a2e4d851ac24da70bd0963118769864c
+mutation_ids:
+- idempotent_receipt_recovery-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

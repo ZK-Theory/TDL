@@ -1,0 +1,85 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-011
+fixture_revision: r1
+title: Writer crash window
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- coordination
+- operations
+failure_class: writer_crash_window
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: f33463a21d6f2c7f272c4a503fcbb9801e432851a005b7dd5c9c0f14734df518
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 93a06896efefe4c99a3a7c9e48b374c69f64eae331daed12aedf88160869c9a1
+stimulus_hash: 087d88b5b324b71a5d60be3310a53716e2003ded0955bd8f5d0c0dd5bec83b33
+pre_control_oracle_hash: 7189f7969fb72ee16d7739ec503d3feb6b38025eee5de170a224a5d14a60cc48
+post_control_oracle_hash: eeef8eac67db6f24ab983400528968d935ad21f6951e7d246b55c893219d5624
+required_trajectory:
+- WriterCrashInjected
+- CommittedBatchRecovered
+- ReceiptReconstructed
+forbidden_trajectory:
+- HalfCommandPublished
+- DuplicateBatchCommitted
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - atomic_writer_crash_recovery
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-011-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - atomic_writer_crash_recovery
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-011-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - atomic_writer_crash_recovery
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: s-011-o
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- atomic_writer_crash_recovery
+- normalized_trace
+known_bad_reference_hash: 7189f7969fb72ee16d7739ec503d3feb6b38025eee5de170a224a5d14a60cc48
+known_good_reference_hash: eeef8eac67db6f24ab983400528968d935ad21f6951e7d246b55c893219d5624
+mutation_ids:
+- atomic_writer_crash_recovery-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

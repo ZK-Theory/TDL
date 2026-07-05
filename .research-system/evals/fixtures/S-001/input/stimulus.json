@@ -1,0 +1,1 @@
+{"fixture_id":"S-001","fixture_revision":"r1","payload":{"action":{"command_id":"cmd-fixed","first_response":"lost","operation":"retry_command","retry_payload":"identical"},"contract":"idempotent_receipt_recovery"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

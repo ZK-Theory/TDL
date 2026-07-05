@@ -1,0 +1,1 @@
+{"fixture_id":"F-002","fixture_revision":"r1","forbidden":["ReportClearedByAssignment","DispatchStateErased"],"required":["AssignmentPublished","ReportPreserved","MessageAcknowledged:T1.6"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

@@ -1,0 +1,84 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-012
+fixture_revision: r1
+title: Divergent task branches
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- coordination
+- provenance
+failure_class: divergent_branch_allocation
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: b753b4cd97eee8d7940868486b1c5c3f791e8a6e34de655a85fe8aaf849c9a34
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 71b75559df17e17d82a4124b8e1459679262db22e4dff6925b759ac98353eac8
+stimulus_hash: 4823afdf3b8960030e4a1030c2302678918ecd5f12470d87154378339f29edbe
+pre_control_oracle_hash: 1f9e0519a5df3a8d959b688d2dd52375458e630cc2a0aa11f8918e4286347f6a
+post_control_oracle_hash: 29f1ea558b14ec8fea77dc6e16df68d6d58eca6f6580fd95b4cabbc291fe12d4
+required_trajectory:
+- WriterLeaseChecked
+- CommandsSerialized
+forbidden_trajectory:
+- OverlappingPositionAllocated
+- DivergentStoreAccepted
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - single_writer_branch_serialization
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-012-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - single_writer_branch_serialization
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-012-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - single_writer_branch_serialization
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: s-012-o
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- single_writer_branch_serialization
+- normalized_trace
+known_bad_reference_hash: 1f9e0519a5df3a8d959b688d2dd52375458e630cc2a0aa11f8918e4286347f6a
+known_good_reference_hash: 29f1ea558b14ec8fea77dc6e16df68d6d58eca6f6580fd95b4cabbc291fe12d4
+mutation_ids:
+- single_writer_branch_serialization-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1
