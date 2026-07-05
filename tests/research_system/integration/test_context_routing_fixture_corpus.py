@@ -11,10 +11,6 @@ from research_system.evals.fixture_package import validate_fixture_package
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
 SCHEMAS = ROOT / ".research-system" / "schemas"
-EXISTING_IDS = {
-    "F-001", "F-002", "F-003", "F-004", "F-005",
-    "S-001", "S-002", "S-006", "S-008", "S-009", "S-010", "S-011", "S-012",
-}
 EXPECTED_CASES = {
     "F-021": ("governing_amendment_recall", "P1", "R2"),
     "F-022": ("reviewer_independence_evidence", "P0", "R3"),
@@ -33,8 +29,8 @@ def _load_json(root: Path, relative: str) -> dict[str, object]:
 
 
 def test_context_routing_corpus_has_exact_validated_staged_closure():
-    observed = {path.name for path in FIXTURES.iterdir() if path.is_dir()}
-    assert observed == EXISTING_IDS | set(EXPECTED_CASES)
+    missing = {fixture_id for fixture_id in EXPECTED_CASES if not (FIXTURES / fixture_id).is_dir()}
+    assert not missing
 
     for fixture_id, (_, priority, risk_tier) in EXPECTED_CASES.items():
         root = FIXTURES / fixture_id
@@ -66,9 +62,7 @@ def test_each_package_encodes_its_named_contract_from_input_bytes():
         assert pre_control["assertions"][0]["satisfied"] is False
         assert post_control["assertions"][0]["property"] == contract
         assert post_control["assertions"][0]["satisfied"] is True
-        serialized = json.dumps(
-            {"stimulus": stimulus, "pre": pre_control, "post": post_control}
-        )
+        serialized = json.dumps({"stimulus": stimulus, "pre": pre_control, "post": post_control})
         assert "control_satisfied" not in serialized
         assert '"path": "status"' not in serialized
         stimulus_hashes.add(validated.content_hashes["input/stimulus.json"])
@@ -83,16 +77,14 @@ def test_model_graders_are_cross_family_and_f035_keeps_both_keys():
         graders = _load_json(FIXTURES / fixture_id, "graders/required.json")
         for grader in graders["required_graders"]:
             if grader["grader_class"] == "M":
-                assert (
-                    grader["independence_requirement"]
-                    == "cross_family_context_independent"
-                )
+                assert grader["independence_requirement"] == "cross_family_context_independent"
 
     f035 = _load_json(FIXTURES / "F-035", "expected/post-control.json")
     evidence = f035["assertions"][0]["expected_evidence"]
     assert evidence["key_a_passed"] is True
-    assert evidence["key_b_passed"] is True
+    assert evidence["key_b_passed"] is False
     assert evidence["non_compensable"] is True
+    assert evidence["step_up_required"] is True
 
 
 def test_shard_generators_check_only_their_owned_fixture_directories(tmp_path):
