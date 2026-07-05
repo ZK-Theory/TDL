@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"expansion_accepted":true,"upstream_recomputed":true},"property":"authorized_correction_scope","satisfied":false}],"fixture_id":"F-010","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

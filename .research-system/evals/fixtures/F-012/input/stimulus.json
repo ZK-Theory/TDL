@@ -1,0 +1,1 @@
+{"fixture_id":"F-012","fixture_revision":"r1","payload":{"action":{"operation":"apply_null_shuffle","post_tested_object_hash":"same","pre_tested_object_hash":"same","producer_passed":true},"contract":"null_operation_changes_tested_object"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

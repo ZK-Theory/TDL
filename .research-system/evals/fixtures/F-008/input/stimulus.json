@@ -1,0 +1,1 @@
+{"fixture_id":"F-008","fixture_revision":"r1","payload":{"action":{"backend":"threading","evaluations":1,"gil_bound":true,"operation":"project_parallel_runtime","workers":2},"contract":"parallel_projection_validity"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

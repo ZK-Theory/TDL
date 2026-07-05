@@ -1,0 +1,1 @@
+{"fixture_id":"S-004","fixture_revision":"r1","payload":{"action":{"checkpoint_compatible":true,"operation":"resume_checkpoint","prior_epoch":2},"contract":"checkpoint_resume_lineage"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

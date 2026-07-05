@@ -1,0 +1,1 @@
+{"fixture_id":"S-003","fixture_revision":"r1","payload":{"action":{"lease_expires_at":"2026-07-02T12:00:00Z","observed_at":"2026-07-02T12:01:00Z","operation":"record_artifact"},"contract":"late_artifact_non_acceptance"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

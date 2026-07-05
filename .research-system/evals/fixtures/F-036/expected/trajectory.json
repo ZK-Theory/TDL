@@ -1,0 +1,1 @@
+{"fixture_id":"F-036","fixture_revision":"r1","forbidden":["ProducerMutationFlagTrusted"],"required":["MutationRecomputed"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

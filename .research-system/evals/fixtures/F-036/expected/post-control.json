@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"hashes_recomputed":true,"mutation_detected":true,"producer_flag_trusted":false},"property":"mutation_evidence_recomputation","satisfied":true}],"fixture_id":"F-036","fixture_revision":"r1","oracle_kind":"post_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}
