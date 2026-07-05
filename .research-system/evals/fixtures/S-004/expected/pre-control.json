@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"new_execution_epoch":2,"prior_restrictions_preserved":false},"property":"checkpoint_resume_lineage","satisfied":false}],"fixture_id":"S-004","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

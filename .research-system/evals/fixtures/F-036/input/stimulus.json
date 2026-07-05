@@ -1,0 +1,1 @@
+{"fixture_id":"F-036","fixture_revision":"r1","payload":{"action":{"baseline_hash":"a","mutant_hash":"a","operation":"grade_mutation","producer_mutation_detected":true},"contract":"mutation_evidence_recomputation"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

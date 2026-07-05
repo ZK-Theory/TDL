@@ -1,0 +1,1 @@
+{"fixture_id":"F-010","fixture_revision":"r1","payload":{"action":{"authorized_stage":"derived_metric","operation":"apply_h2_grid_correction","requested_stages":["derived_metric","persistent_homology"],"upstream_valid":true},"contract":"authorized_correction_scope"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

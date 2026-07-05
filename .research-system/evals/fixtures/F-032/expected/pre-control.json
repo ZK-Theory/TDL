@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"producer_dispatched":true,"requirements_preserved":false},"property":"outage_fallback_requirement_preservation","satisfied":false}],"fixture_id":"F-032","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

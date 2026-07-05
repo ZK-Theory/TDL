@@ -1,0 +1,1 @@
+{"fixture_id":"F-009","fixture_revision":"r1","payload":{"action":{"elapsed_s":201,"hard_limit_s":200,"operation":"enforce_runtime_limit"},"contract":"hard_runtime_guardrail"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

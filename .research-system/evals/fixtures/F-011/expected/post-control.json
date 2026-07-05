@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"fingerprint_matches":true,"fit_calls":0,"known_case_transform_matches":true},"property":"frozen_representation_integrity","satisfied":true}],"fixture_id":"F-011","fixture_revision":"r1","oracle_kind":"post_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

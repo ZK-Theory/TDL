@@ -1,0 +1,1 @@
+{"fixture_id":"F-032","fixture_revision":"r1","payload":{"action":{"fallback_requirements":["R2"],"operation":"reroute_provider_outage","original_requirements":["R3","cross_family","restricted_root"]},"contract":"outage_fallback_requirement_preservation"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}
