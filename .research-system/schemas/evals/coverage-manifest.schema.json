@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/coverage-manifest",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "coverage_manifest_id",
+    "changed_component", "baseline_version", "candidate_version",
+    "affected_capabilities", "risk_tiers", "assurance_lanes",
+    "provider_variants", "runtime_variants", "gate_stage",
+    "selected_fixture_revisions", "omitted_fixtures",
+    "required_result_keys", "required_parity_controls",
+    "required_operations_scenarios", "expected_evidence_classes",
+    "release_gate_policy_version"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/coverage-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "coverage_manifest_id": {"type": "string", "minLength": 1},
+    "changed_component": {"type": "string", "minLength": 1},
+    "baseline_version": {"type": "string", "minLength": 1},
+    "candidate_version": {"type": "string", "minLength": 1},
+    "affected_capabilities": {"$ref": "#/$defs/strings"},
+    "risk_tiers": {"$ref": "#/$defs/strings"},
+    "assurance_lanes": {"$ref": "#/$defs/strings"},
+    "provider_variants": {"$ref": "#/$defs/strings"},
+    "runtime_variants": {"$ref": "#/$defs/strings"},
+    "gate_stage": {
+      "enum": [
+        "interface_review", "p0_materialization",
+        "foundation_release", "pilot_promotion"
+      ]
+    },
+    "selected_fixture_revisions": {
+      "type": "array", "items": {"$ref": "#/$defs/pair"}, "uniqueItems": true
+    },
+    "omitted_fixtures": {
+      "type": "array", "items": {"$ref": "#/$defs/triple"}, "uniqueItems": true
+    },
+    "required_result_keys": {
+      "type": "array", "items": {"$ref": "#/$defs/resultKey"}, "uniqueItems": true
+    },
+    "required_parity_controls": {"$ref": "#/$defs/strings"},
+    "required_operations_scenarios": {"$ref": "#/$defs/strings"},
+    "expected_evidence_classes": {"$ref": "#/$defs/strings"},
+    "release_gate_policy_version": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "strings": {
+      "type": "array", "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "pair": {
+      "type": "array", "prefixItems": [{"type": "string"}, {"type": "string"}],
+      "minItems": 2, "maxItems": 2
+    },
+    "triple": {
+      "type": "array",
+      "prefixItems": [{"type": "string"}, {"type": "string"}, {"type": "string"}],
+      "minItems": 3, "maxItems": 3
+    },
+    "resultKey": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "string"}, {"type": "string"}, {"type": "string"},
+        {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
+        {"type": "string"}
+      ],
+      "minItems": 5, "maxItems": 5
+    }
+  },
+  "additionalProperties": false
+}

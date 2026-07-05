@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"destructive_overwrite":true,"existing_owner":"T0.3","surviving_ids":["T0.12"]},"property":"immutable_message_ownership","satisfied":false}],"fixture_id":"F-001","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

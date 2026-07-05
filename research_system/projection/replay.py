@@ -87,6 +87,45 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'member_dispositions': dict(event['payload']['member_dispositions']),
             'version': event['stream_version'],
         }
+    elif event_type in {'EvidenceDeletionVerified', 'EvidenceDeletionPending'}:
+        payload = event['payload']
+        expected_status = (
+            'verified'
+            if event_type == 'EvidenceDeletionVerified'
+            else 'deletion_pending'
+        )
+        if payload.get('status') != expected_status:
+            raise IntegrityError('deletion event status mismatch')
+        required = {
+            'evidence_store_id',
+            'evidence_id',
+            'evidence_hash',
+            'retention_rule_id',
+            'policy_revision',
+            'registry_hash',
+            'manifest_hash',
+        }
+        missing = sorted(required.difference(payload))
+        if missing:
+            raise IntegrityError(
+                'deletion event missing fields: ' + ', '.join(missing)
+            )
+        evidence_store_id = payload['evidence_store_id']
+        streams[evidence_store_id] = {
+            'evidence_store_id': evidence_store_id,
+            'status': (
+                'expired_deleted' if expected_status == 'verified'
+                else 'deletion_pending'
+            ),
+            'evidence_id': payload['evidence_id'],
+            'evidence_hash': payload['evidence_hash'],
+            'retention_rule_id': payload['retention_rule_id'],
+            'policy_revision': payload['policy_revision'],
+            'registry_hash': payload['registry_hash'],
+            'deletion_manifest_hash': payload['manifest_hash'],
+            'r2_intake_blocked': expected_status != 'verified',
+            'version': event['stream_version'],
+        }
     else:
         raise IntegrityError(f'unsupported event type: {event_type}')
     return updated

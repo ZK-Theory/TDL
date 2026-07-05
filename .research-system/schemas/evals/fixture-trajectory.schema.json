@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/fixture-trajectory",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "fixture_id", "fixture_revision",
+    "required", "forbidden"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/fixture-trajectory"},
+    "schema_version": {"const": "1.0.0"},
+    "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+    "fixture_revision": {"type": "string", "minLength": 1},
+    "required": {"$ref": "#/$defs/nonemptyStrings"},
+    "forbidden": {"$ref": "#/$defs/nonemptyStrings"}
+  },
+  "$defs": {
+    "nonemptyStrings": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "additionalProperties": false
+}

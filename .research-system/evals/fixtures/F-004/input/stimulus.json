@@ -1,0 +1,1 @@
+{"fixture_id":"F-004","fixture_revision":"r1","payload":{"action":{"accepted_event_state":"accepted","manual_body":"verdict pending","manual_frontmatter":"Complete","operation":"rebuild_task_projection"},"contract":"canonical_projection_precedence"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

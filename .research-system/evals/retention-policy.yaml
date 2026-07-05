@@ -1,0 +1,47 @@
+schema_version: '1.0.0'
+policy_revision: p0-retention-v1
+effective_date: '2026-07-01'
+r3_storage: prohibited
+unregistered_replicas: prohibited
+payload_root: authorized_external_evidence_store_only
+rules:
+  - retention_class: R1
+    evidence_type: redacted_command_summary
+    max_days: 180
+    review_lead_days: 30
+    owner: system_maintainer
+    extension_authority: manager
+    anchor: run_terminal
+    use_earlier_source_expiry: false
+  - retention_class: R1
+    evidence_type: operational_measurement
+    max_days: 365
+    review_lead_days: 30
+    owner: system_maintainer
+    extension_authority: manager
+    anchor: release_decision
+    use_earlier_source_expiry: false
+  - retention_class: R1
+    evidence_type: grader_explanation
+    max_days: 365
+    review_lead_days: 30
+    owner: evaluation_owner
+    extension_authority: manager
+    anchor: release_decision
+    use_earlier_source_expiry: false
+  - retention_class: R2
+    evidence_type: restricted_local_reference
+    max_days: 90
+    review_lead_days: 14
+    owner: data_controller
+    extension_authority: data_authority
+    anchor: run_terminal
+    use_earlier_source_expiry: true
+  - retention_class: R2
+    evidence_type: minimized_sensitive_excerpt
+    max_days: 30
+    review_lead_days: 7
+    owner: data_controller
+    extension_authority: data_authority
+    anchor: run_terminal
+    use_earlier_source_expiry: true
