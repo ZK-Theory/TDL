@@ -1,0 +1,1 @@
+{"fixture_id":"F-027","fixture_revision":"r1","payload":{"action":{"direct_sources_available":true,"index_states":["complete","deleted"],"operation":"compile_with_optional_index"},"contract":"optional_index_deletion_equivalence"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"context_routing_contract"}

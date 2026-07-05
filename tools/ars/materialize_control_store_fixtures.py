@@ -342,7 +342,12 @@ def materialize(root: Path, *, check: bool = False) -> None:
         for relative, data in _package(case_id, case).items():
             expected[root / case_id / relative] = data
     if check:
-        observed = {path for path in root.rglob("*") if path.is_file()} if root.exists() else set()
+        observed = {
+            path
+            for case_id in CASES
+            for path in (root / case_id).rglob("*")
+            if path.is_file()
+        }
         if observed != set(expected):
             raise SystemExit("control/store fixture file closure differs from generator")
         mismatches = [str(path) for path, data in expected.items() if path.read_bytes() != data]

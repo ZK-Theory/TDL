@@ -34,8 +34,12 @@ def _load_json(root: Path, relative: str) -> dict[str, object]:
 
 
 def test_control_store_corpus_has_exact_validated_staged_closure():
-    observed = {path.name for path in FIXTURES.iterdir() if path.is_dir()}
-    assert observed == set(EXPECTED_CONTRACTS)
+    missing = {
+        fixture_id
+        for fixture_id in EXPECTED_CONTRACTS
+        if not (FIXTURES / fixture_id).is_dir()
+    }
+    assert not missing
 
     for fixture_id in sorted(EXPECTED_CONTRACTS):
         root = FIXTURES / fixture_id

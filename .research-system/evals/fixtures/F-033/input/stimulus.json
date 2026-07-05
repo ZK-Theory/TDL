@@ -1,0 +1,1 @@
+{"fixture_id":"F-033","fixture_revision":"r1","payload":{"action":{"eligible_verifiers":[],"nominal_same_family_verifier":true,"operation":"route_producer_with_verifier_witness","producer_family":"family-a"},"contract":"predispatch_verifier_feasibility"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"context_routing_contract"}

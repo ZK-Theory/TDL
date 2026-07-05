@@ -1,0 +1,1 @@
+{"fixture_id":"F-027","fixture_revision":"r1","forbidden":["MandatorySelectionChanged","IndexAbsenceLoweredAuthority"],"required":["OptionalIndexUnavailableRecorded","DirectSourceFallbackUsed","ContextManifestIssued"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}
