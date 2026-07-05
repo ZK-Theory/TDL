@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: lost_response_retry
 priority: P1
 gate_stage: interface_review
-source_manifest_hash: 6a2f94d6a522e780c0791aea6e4436cda5f2b84bc2a4cbae660b642f3b9d902e
+source_manifest_hash: 76af680fd003f730fb61c1480b89282be67fca8a87d9bd2b1c5645b847664fee
 decision_refs:
 - P-030
 policy_versions:
@@ -63,7 +63,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: s-001-o
+  grader_id: s-001-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

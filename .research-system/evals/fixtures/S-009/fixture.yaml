@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: projection_rebuild
 priority: P1
 gate_stage: interface_review
-source_manifest_hash: b76328ffaf38adcac2b1c196a955e2e67c02d23c0b49af0b0079e1660a41cadd
+source_manifest_hash: 9f9433fc3ee09747e5b670cc00e1296a5a3abcd53748f5fa1e71e65c5782d92a
 decision_refs:
 - P-030
 policy_versions:
@@ -64,7 +64,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: s-009-o
+  grader_id: s-009-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

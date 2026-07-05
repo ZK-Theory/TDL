@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: writer_crash_window
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: f33463a21d6f2c7f272c4a503fcbb9801e432851a005b7dd5c9c0f14734df518
+source_manifest_hash: 0d124209fae12cf4830b127800c681f12f08bcd97266bb04081e4bfd9968b6e9
 decision_refs:
 - P-030
 policy_versions:
@@ -64,7 +64,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: s-011-o
+  grader_id: s-011-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

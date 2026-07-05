@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from research_system.canonical import sha256_hex
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.fixture_package import (
     PACKAGE_PATHS,
@@ -31,7 +31,7 @@ def _write_package(root: Path) -> dict[str, bytes]:
                 "fixture_id": fixture_id,
                 "fixture_revision": revision,
                 "stimulus_kind": "command",
-                "payload": {"command_type": "CreateTask"},
+                "payload": {"action": {"command_type": "CreateTask"}},
             }
         ),
         "expected/pre-control.json": _json_bytes(
@@ -127,7 +127,11 @@ def _write_package(root: Path) -> dict[str, bytes]:
         "schema_versions": ["fixture-definition-v1"],
         "confidentiality": "internal",
         "permitted_consumers": ["eval"],
-        "setup_hash": "1" * 64,
+        "setup_hash": sha256_hex(
+            canonical_bytes(
+                json.loads(files["input/stimulus.json"])["payload"]["action"]
+            )
+        ),
         "stimulus_hash": content_hashes["input/stimulus.json"],
         "pre_control_oracle_hash": content_hashes["expected/pre-control.json"],
         "post_control_oracle_hash": content_hashes["expected/post-control.json"],
@@ -173,9 +177,20 @@ def test_validator_rejects_tampered_or_unbound_content(tmp_path):
     _write_package(tmp_path)
     path = tmp_path / "input" / "stimulus.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["payload"]["command_type"] = "DeleteTask"
+    payload["payload"]["action"]["command_type"] = "DeleteTask"
     path.write_bytes(_json_bytes(payload))
     with pytest.raises(FixtureDefinitionError, match="content hash mismatch"):
+        validate_fixture_package(tmp_path, schema_root=SCHEMAS)
+
+
+def test_validator_rejects_setup_hash_mismatch(tmp_path):
+    _write_package(tmp_path)
+    fixture_path = tmp_path / "fixture.yaml"
+    fixture = yaml.safe_load(fixture_path.read_text(encoding="utf-8"))
+    fixture["setup_hash"] = "0" * 64
+    fixture_path.write_text(yaml.safe_dump(fixture, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(FixtureDefinitionError, match="setup hash mismatch"):
         validate_fixture_package(tmp_path, schema_root=SCHEMAS)
 
 

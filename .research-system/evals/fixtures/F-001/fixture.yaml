@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: authority_overwrite
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: 36ca56ee69335461997e8fd5c1b0ec1696b8013dda113d94fa58a14ce8b1d7ba
+source_manifest_hash: 22835cfb0915baba804178035d6ee2df958a7efe8374f51e5f2c6e368ec40bfa
 decision_refs:
 - P-030
 policy_versions:
@@ -64,7 +64,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: f-001-o
+  grader_id: f-001-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

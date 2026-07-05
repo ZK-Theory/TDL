@@ -173,6 +173,13 @@ def validate_fixture_package(
         if fixture[field] != content_hashes[relative]:
             raise FixtureDefinitionError(f"content hash mismatch: {relative}")
 
+    stimulus = documents["input/stimulus.json"]
+    action = stimulus["payload"].get("action")
+    if not isinstance(action, dict) or fixture["setup_hash"] != sha256_hex(
+        canonical_bytes(action)
+    ):
+        raise FixtureDefinitionError("setup hash mismatch")
+
     trajectory = documents["expected/trajectory.json"]
     if (
         trajectory["required"] != fixture["required_trajectory"]

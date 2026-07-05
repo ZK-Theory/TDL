@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: narrowed_stage_completion
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: 8cefd6b7448dc007a4918c0e773ca9f69e000592e90746eb0671447d4cd2c0cc
+source_manifest_hash: 8e80ec59c7492cc404fc47abc3db1395e93d77eca6c7dcba2ad841fb38d4f2a7
 decision_refs:
 - P-030
 policy_versions:
@@ -63,7 +63,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: H
-  grader_id: f-005-h
+  grader_id: f-005-human-authority
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

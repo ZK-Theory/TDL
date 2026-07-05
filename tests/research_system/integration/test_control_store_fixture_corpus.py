@@ -1,5 +1,7 @@
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import yaml
 
@@ -97,3 +99,30 @@ def test_corpus_oracles_bind_required_and_forbidden_trajectories():
         assert trajectory["required"]
         assert trajectory["forbidden"]
         assert set(trajectory["required"]).isdisjoint(trajectory["forbidden"])
+
+
+def test_descriptive_grader_ids_are_materialized():
+    expected = {
+        "F-001": "f-001-operational",
+        "F-005": "f-005-human-authority",
+        "S-001": "s-001-operational",
+    }
+    for fixture_id, grader_id in expected.items():
+        graders = _load_json(FIXTURES / fixture_id, "graders/required.json")
+        assert grader_id in {
+            grader["grader_id"] for grader in graders["required_graders"]
+        }
+
+
+def test_materializer_default_root_is_independent_of_cwd(tmp_path):
+    script = ROOT / "tools" / "ars" / "materialize_control_store_fixtures.py"
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--check"],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr

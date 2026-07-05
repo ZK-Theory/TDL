@@ -12,9 +12,13 @@ import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 @dataclass(frozen=True, slots=True)
 class Case:
+    """Define one staged control/store fixture case."""
+
     title: str
     contract: str
     failure_class: str
@@ -27,6 +31,8 @@ class Case:
     required: tuple[str, ...]
     forbidden: tuple[str, ...]
     graders: tuple[str, ...]
+    priority: str
+    gate_stage: str
 
 
 CASES = {
@@ -39,6 +45,7 @@ CASES = {
         {"destructive_overwrite": False, "surviving_ids": ["T0.3", "T0.12"], "collision_visible": True},
         ("MessagePublished:T0.3", "MessagePublished:T0.12", "OwnershipConflictRecorded"),
         ("MessageOverwritten", "TaskInferredComplete"), ("D", "T", "O"),
+        "P0", "p0_materialization",
     ),
     "F-002": Case(
         "Task and report collision", "message_kind_separation",
@@ -48,6 +55,7 @@ CASES = {
         {"shared_slot": False, "message_kinds": ["assignment", "report", "acknowledgement", "review"], "report_preserved": True},
         ("AssignmentPublished", "ReportPreserved", "MessageAcknowledged:T1.6"),
         ("ReportClearedByAssignment", "DispatchStateErased"), ("D", "T"),
+        "P0", "p0_materialization",
     ),
     "F-003": Case(
         "Wrong control root", "explicit_root_binding",
@@ -57,6 +65,7 @@ CASES = {
         {"resolution_source": "dispatch_bindings", "wrong_root_rejected": True, "attempt_manifest_bound": True},
         ("RootBindingsValidated", "AttemptManifestRecorded"),
         ("WrongRootWrite", "CwdDerivedAuthority"), ("D", "T", "O"),
+        "P0", "p0_materialization",
     ),
     "F-004": Case(
         "Stale completion log", "canonical_projection_precedence",
@@ -66,6 +75,7 @@ CASES = {
         {"current_source": "accepted_events", "current_state": "accepted", "manual_log_retained": True, "drift_diagnostic": True},
         ("ProjectionRebuilt", "ProjectionDriftDiagnosed"),
         ("ManualLogPromotedToAuthority", "AcceptedStateRewritten"), ("D", "T"),
+        "P0", "p0_materialization",
     ),
     "F-005": Case(
         "Narrowed stage collapse", "exact_scope_revision_closure",
@@ -75,6 +85,7 @@ CASES = {
         {"completion_accepted": False, "missing_member_count": 14, "missing_dispositions_reported": True},
         ("CompleteScopeRejected", "MissingScopeMembersReported"),
         ("ScopeCompleted", "OmittedMemberInferredComplete"), ("D", "T", "H"),
+        "P0", "p0_materialization",
     ),
     "S-001": Case(
         "Idempotent lost receipt", "idempotent_receipt_recovery",
@@ -84,6 +95,7 @@ CASES = {
         {"event_batch_count": 1, "receipt_reconstructed": True, "changed_payload_conflicts": True},
         ("CommandCommitted", "ReceiptReconstructed"),
         ("DuplicateBatchCommitted", "ChangedPayloadAccepted"), ("D", "T", "O"),
+        "P1", "interface_review",
     ),
     "S-002": Case(
         "Exclusive competing claims", "exclusive_claim_serialization",
@@ -93,6 +105,7 @@ CASES = {
         {"accepted_claims": 1, "conflict_receipts": 1, "active_attempts": 1},
         ("DispatchClaimed", "ClaimConflictRecorded"),
         ("SecondClaimAccepted", "DualActiveAttempt"), ("D", "T"),
+        "P1", "interface_review",
     ),
     "S-006": Case(
         "Compatibility ownership collision", "compatibility_path_ownership",
@@ -102,6 +115,7 @@ CASES = {
         {"registration_accepted": False, "canonical_messages_preserved": True, "collision_reported": True},
         ("CompatibilityRegistrationRejected", "OwnershipCollisionRecorded"),
         ("SharedLegacyPathRegistered", "CanonicalMessageDeleted"), ("D", "T"),
+        "P1", "interface_review",
     ),
     "S-008": Case(
         "Incomplete scope completion", "complete_scope_member_closure",
@@ -111,6 +125,7 @@ CASES = {
         {"completion_event_count": 0, "missing_dispositions": 14, "rejection_reason": "scope_incomplete"},
         ("CommandRejected:scope_incomplete", "MissingScopeMembersReported"),
         ("ScopeCompleted", "CompletionProjectionPublished"), ("D", "T"),
+        "P1", "interface_review",
     ),
     "S-009": Case(
         "Projection rebuild", "projection_replay_equivalence",
@@ -120,6 +135,7 @@ CASES = {
         {"checksum_match": True, "database_treated_as_authority": False, "rebuilds": 2},
         ("ProjectionDeleted", "ProjectionRebuiltFromGenesis", "ProjectionRebuiltFromSnapshot"),
         ("DatabaseReadAsAuthority", "ProjectionChecksumDiverged"), ("D", "T", "O"),
+        "P1", "interface_review",
     ),
     "S-010": Case(
         "Unknown event major version", "unknown_event_version_fail_closed",
@@ -129,6 +145,7 @@ CASES = {
         {"partial_projection_published": False, "failed_position": 4, "prior_projection_state": "stale"},
         ("ReplayStoppedAt:4", "PriorProjectionMarkedStale"),
         ("PartialProjectionPublished", "UnknownEventSkipped"), ("D", "T", "O"),
+        "P1", "interface_review",
     ),
     "S-011": Case(
         "Writer crash window", "atomic_writer_crash_recovery",
@@ -138,6 +155,7 @@ CASES = {
         {"possible_batch_counts": [0, 1], "receipt_matches_committed_batch": True, "half_command_visible": False},
         ("WriterCrashInjected", "CommittedBatchRecovered", "ReceiptReconstructed"),
         ("HalfCommandPublished", "DuplicateBatchCommitted"), ("D", "T", "O"),
+        "P0", "p0_materialization",
     ),
     "S-012": Case(
         "Divergent task branches", "single_writer_branch_serialization",
@@ -147,6 +165,7 @@ CASES = {
         {"allocated_positions": [10, 11], "divergent_store_accepted": False, "single_writer_enforced": True},
         ("WriterLeaseChecked", "CommandsSerialized"),
         ("OverlappingPositionAllocated", "DivergentStoreAccepted"), ("D", "T", "O"),
+        "P0", "p0_materialization",
     ),
 }
 
@@ -156,7 +175,17 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
 
 
 def _grader(case_id: str, case: Case, grader_class: str) -> dict[str, Any]:
-    suffix = "outcome" if grader_class == "D" else "trajectory" if grader_class == "T" else grader_class.lower()
+    """Return one explicit grader requirement for a fixture case."""
+    suffixes = {
+        "D": "outcome",
+        "T": "trajectory",
+        "R": "research-quality",
+        "M": "independent-model",
+        "H": "human-authority",
+        "O": "operational",
+        "P": "privacy-security",
+    }
+    suffix = suffixes[grader_class]
     selectors = [case.contract]
     if grader_class == "D":
         selectors.extend(["input/stimulus.json", "expected/post-control.json"])
@@ -176,6 +205,7 @@ def _grader(case_id: str, case: Case, grader_class: str) -> dict[str, Any]:
 
 
 def _document(case_id: str, name: str, case: Case) -> dict[str, Any]:
+    """Return one schema-bound JSON document for a fixture package."""
     common = {
         "schema_version": "1.0.0",
         "fixture_id": case_id,
@@ -214,6 +244,7 @@ def _document(case_id: str, name: str, case: Case) -> dict[str, Any]:
 
 
 def _package(case_id: str, case: Case) -> dict[str, bytes]:
+    """Return the complete serialized eight-file fixture package."""
     files = {
         "README.md": (
             f"# {case_id}: {case.title}\n\n"
@@ -267,8 +298,8 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
         "risk_tier": "R2",
         "assurance_lanes": list(case.assurance_lanes),
         "failure_class": case.failure_class,
-        "priority": "P0" if case_id in {"F-001", "F-002", "F-003", "F-004", "F-005", "S-011", "S-012"} else "P1",
-        "gate_stage": "p0_materialization" if case_id.startswith("F-") or case_id in {"S-011", "S-012"} else "interface_review",
+        "priority": case.priority,
+        "gate_stage": case.gate_stage,
         "source_manifest_hash": sha256_hex(files["input/source-manifest.json"]),
         "decision_refs": ["P-030"],
         "policy_versions": ["canonical-policy-v1"],
@@ -300,6 +331,12 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
 
 
 def materialize(root: Path, *, check: bool = False) -> None:
+    """Generate fixtures or check that existing files match exactly.
+
+    Args:
+        root: Destination containing the control/store fixture directories.
+        check: Compare existing files without writing when true.
+    """
     expected: dict[Path, bytes] = {}
     for case_id, case in CASES.items():
         for relative, data in _package(case_id, case).items():
@@ -318,8 +355,13 @@ def materialize(root: Path, *, check: bool = False) -> None:
 
 
 def main() -> None:
+    """Run the CLI in deterministic generation or check-only mode."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=Path, default=Path(".research-system/evals/fixtures"))
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=_REPO_ROOT / ".research-system" / "evals" / "fixtures",
+    )
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     materialize(args.root, check=args.check)

@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: wrong_control_root
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: 834d433daa21279590b33600443b403b6c7a062f915ab0dcb8d9f9db9c7e1cc4
+source_manifest_hash: cb2fe1787f838094c8f5c93c6acd72129b59dad3382191fd15ac5951352232ba
 decision_refs:
 - P-030
 policy_versions:
@@ -63,7 +63,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: f-003-o
+  grader_id: f-003-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: divergent_branch_allocation
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: b753b4cd97eee8d7940868486b1c5c3f791e8a6e34de655a85fe8aaf849c9a34
+source_manifest_hash: 16a591f9632967abc24b629591e59656d7c857d46f908645d4832e839d4c0346
 decision_refs:
 - P-030
 policy_versions:
@@ -63,7 +63,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: s-012-o
+  grader_id: s-012-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true

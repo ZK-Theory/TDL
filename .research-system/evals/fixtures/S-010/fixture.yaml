@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: unknown_event_version
 priority: P1
 gate_stage: interface_review
-source_manifest_hash: 9b69687beec3db45ce1bc73f61bd11c65e4cc9094a8b86852e4a097facf40030
+source_manifest_hash: fda5c12c081aefa751646d6d49423860210fcd3f96f8749a4a2523f4b765188f
 decision_refs:
 - P-030
 policy_versions:
@@ -63,7 +63,7 @@ required_graders:
   - input/stimulus.json
   - expected/trajectory.json
   grader_class: O
-  grader_id: s-010-o
+  grader_id: s-010-operational
   grader_version: control-store-v1
   independence_requirement: deterministic_independent
   required: true
