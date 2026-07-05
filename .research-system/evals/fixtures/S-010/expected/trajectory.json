@@ -1,0 +1,1 @@
+{"fixture_id":"S-010","fixture_revision":"r1","forbidden":["PartialProjectionPublished","UnknownEventSkipped"],"required":["ReplayStoppedAt:4","PriorProjectionMarkedStale"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

@@ -1,0 +1,1 @@
+{"fixture_id":"S-008","fixture_revision":"r1","payload":{"action":{"operation":"complete_scope","required_members":22,"scope_revision":"scope-22","submitted_members":8},"contract":"complete_scope_member_closure"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

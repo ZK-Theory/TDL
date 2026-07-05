@@ -1,0 +1,85 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-009
+fixture_revision: r1
+title: Projection rebuild
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- provenance
+- operations
+failure_class: projection_rebuild
+priority: P1
+gate_stage: interface_review
+source_manifest_hash: 9f9433fc3ee09747e5b670cc00e1296a5a3abcd53748f5fa1e71e65c5782d92a
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 11288465d9cf5e442a891f88bd0148932bbad30bd6a4163f3f69db2ec504eec5
+stimulus_hash: 3e94667785bd9a673fb818e7bce2614718f592886cd727ece184d58873da45bc
+pre_control_oracle_hash: e4d0ef222387b66e6ebced21d6f83dad86c0b8e9bd3ba39968c73302337215d4
+post_control_oracle_hash: e1330aafd6ded93e8b1cc1910303740c1337ef9961aa8fb951827ce9c88d1c2c
+required_trajectory:
+- ProjectionDeleted
+- ProjectionRebuiltFromGenesis
+- ProjectionRebuiltFromSnapshot
+forbidden_trajectory:
+- DatabaseReadAsAuthority
+- ProjectionChecksumDiverged
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - projection_replay_equivalence
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-009-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - projection_replay_equivalence
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-009-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - projection_replay_equivalence
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: s-009-operational
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- projection_replay_equivalence
+- normalized_trace
+known_bad_reference_hash: e4d0ef222387b66e6ebced21d6f83dad86c0b8e9bd3ba39968c73302337215d4
+known_good_reference_hash: e1330aafd6ded93e8b1cc1910303740c1337ef9961aa8fb951827ce9c88d1c2c
+mutation_ids:
+- projection_replay_equivalence-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

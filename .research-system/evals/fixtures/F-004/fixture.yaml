@@ -1,0 +1,73 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-004
+fixture_revision: r1
+title: Stale completion log
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: minimized
+risk_tier: R2
+assurance_lanes:
+- provenance
+failure_class: stale_completion_log
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: daddaaa1428a0e2c5e09cb8f8e9dbf958dffcfef0cabd0df692d374586b9e5b5
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 02e5814fd0aa1529a82fd92676b42ee4cd9fe2bb8da39ef69251ac982772b3b1
+stimulus_hash: 4e4a03ec4b83cb3b27fb8db357aedafbe7de7d82848fd1e2149a6b92c6c4c71f
+pre_control_oracle_hash: 01d7fb40606b5ac5e9da554e8c46f69371d265a23bef24587fffa450653e76df
+post_control_oracle_hash: a661dc0cd8e9b177cb830ede18da714849fef754db12d5aa5ff2721e2209b05e
+required_trajectory:
+- ProjectionRebuilt
+- ProjectionDriftDiagnosed
+forbidden_trajectory:
+- ManualLogPromotedToAuthority
+- AcceptedStateRewritten
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - canonical_projection_precedence
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-004-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - canonical_projection_precedence
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-004-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- canonical_projection_precedence
+- normalized_trace
+known_bad_reference_hash: 01d7fb40606b5ac5e9da554e8c46f69371d265a23bef24587fffa450653e76df
+known_good_reference_hash: a661dc0cd8e9b177cb830ede18da714849fef754db12d5aa5ff2721e2209b05e
+mutation_ids:
+- canonical_projection_precedence-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

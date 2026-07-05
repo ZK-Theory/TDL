@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"possible_batch_counts":[0,1,2],"receipt_matches_committed_batch":false},"property":"atomic_writer_crash_recovery","satisfied":false}],"fixture_id":"S-011","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

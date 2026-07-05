@@ -1,0 +1,73 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-008
+fixture_revision: r1
+title: Incomplete scope completion
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- governance
+failure_class: incomplete_scope_completion
+priority: P1
+gate_stage: interface_review
+source_manifest_hash: 8e69cfe84b2d22cbcbbd224791e1d30e06901b0c473de2eff8ff2585ac8c1360
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: d768ea39a70934b7b44b994f2712b987ba1c8a005d6194d25c0c85c7b469b753
+stimulus_hash: 0a29e28780b3db57064c77d8d30a95e21f1302ab35da310e73e718c23ff82cb8
+pre_control_oracle_hash: ebd6cf6edd5841b6e5fbfd4ebed4dfe70c3727ab681204862b4842baa1990df4
+post_control_oracle_hash: 808d369b24adaca978174e09da1cc0f469053ae362b3ea6ba2135b2789935466
+required_trajectory:
+- CommandRejected:scope_incomplete
+- MissingScopeMembersReported
+forbidden_trajectory:
+- ScopeCompleted
+- CompletionProjectionPublished
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - complete_scope_member_closure
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-008-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - complete_scope_member_closure
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-008-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- complete_scope_member_closure
+- normalized_trace
+known_bad_reference_hash: ebd6cf6edd5841b6e5fbfd4ebed4dfe70c3727ab681204862b4842baa1990df4
+known_good_reference_hash: 808d369b24adaca978174e09da1cc0f469053ae362b3ea6ba2135b2789935466
+mutation_ids:
+- complete_scope_member_closure-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

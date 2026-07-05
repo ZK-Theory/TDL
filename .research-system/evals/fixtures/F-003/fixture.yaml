@@ -1,0 +1,84 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-003
+fixture_revision: r1
+title: Wrong control root
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: minimized
+risk_tier: R2
+assurance_lanes:
+- provenance
+- operations
+failure_class: wrong_control_root
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: cb2fe1787f838094c8f5c93c6acd72129b59dad3382191fd15ac5951352232ba
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: d4679e1eaebef93cbdf5a5b8a6543d7395f2b721e8f0e3473ea5f371b9e7f8b9
+stimulus_hash: fa2064d3a1dc9f1f75f756a2bc62b033ba4e4d2070a73541e3c36a78b7f9df64
+pre_control_oracle_hash: f23e410b896a30f8f7d39138760300fe88cc4e5c70c4ab42eb58ee94087e11f6
+post_control_oracle_hash: b35d67b77cc92df2e3960e24383f3069e8d232b76ae610030079b085db0d07ab
+required_trajectory:
+- RootBindingsValidated
+- AttemptManifestRecorded
+forbidden_trajectory:
+- WrongRootWrite
+- CwdDerivedAuthority
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - explicit_root_binding
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-003-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - explicit_root_binding
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-003-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - explicit_root_binding
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: f-003-operational
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- explicit_root_binding
+- normalized_trace
+known_bad_reference_hash: f23e410b896a30f8f7d39138760300fe88cc4e5c70c4ab42eb58ee94087e11f6
+known_good_reference_hash: b35d67b77cc92df2e3960e24383f3069e8d232b76ae610030079b085db0d07ab
+mutation_ids:
+- explicit_root_binding-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R2
+retention_rule_id: R2:minimized_sensitive_excerpt
+redaction_policy_id: redaction-v1

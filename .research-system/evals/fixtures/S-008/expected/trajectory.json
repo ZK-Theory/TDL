@@ -1,0 +1,1 @@
+{"fixture_id":"S-008","fixture_revision":"r1","forbidden":["ScopeCompleted","CompletionProjectionPublished"],"required":["CommandRejected:scope_incomplete","MissingScopeMembersReported"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

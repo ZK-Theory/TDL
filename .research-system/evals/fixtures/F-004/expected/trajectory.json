@@ -1,0 +1,1 @@
+{"fixture_id":"F-004","fixture_revision":"r1","forbidden":["ManualLogPromotedToAuthority","AcceptedStateRewritten"],"required":["ProjectionRebuilt","ProjectionDriftDiagnosed"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}
