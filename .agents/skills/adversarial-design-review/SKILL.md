@@ -41,6 +41,10 @@ inflating a Minor into a Major.
    a historical case generalised beyond its evidence. **Verify the provenance of supplied
    "framing"/"reference" sources** (author, venue, date, authority class) — a source's
    weight is what it *is*, not what the prompt calls it.
+   For external scanners, fetch the actual rule-and-line annotations (or exported
+   findings) and map them to current HEAD before prescribing a suppression. If that
+   evidence is inaccessible, label the disposition provisional rather than inferring
+   exact findings from source inspection.
 2. **Per-component / per-section attack.** For each component or claim: does it have one
    responsibility; is the chosen mechanism actually simpler than the alternative it
    rejects; what are the concurrency, platform (Windows/filesystem), multi-worktree, and
@@ -49,7 +53,18 @@ inflating a Minor into a Major.
 3. **Cross-spec consistency matrix.** Build *invariant → enforcement point → test*. Flag
    any invariant with no enforcement, any critical mechanism with no test, any test
    requiring a record the schema does not define, and inconsistent terms / identifiers /
-   authorities / paths across documents.
+   authorities / paths across documents. Also:
+   - check dimensional consistency across counters and limits; do not compare values
+     produced by different tokenizers or units without separate gates or a validated
+     conversion / conservative bound;
+   - compare prose algorithms, state machines, and failure tables for lifecycle-order
+     inversions;
+   - before declaring an identifier undefined, search the owning catalogue for exact and
+     semantic variants, classify it as undefined / differently named / multiply defined,
+     and quote the owner entry before proposing a new identity;
+   - derive every required evidence set from its owning contract and attack empty,
+     partial, stale-revision, duplicate, extra, and incompatible sets. A gate passes only
+     on exact required-set closure, not merely because all supplied evidence passed.
 4. **Currency.** If the document is a dated snapshot, check live state read-only and
    record divergences as a **proposed dated addendum** — never rewrite the snapshot. Do
    not use active or no-migration work as an experiment.
