@@ -1,0 +1,4 @@
+schema_version: 1.0.0
+catalogue_revision: p0-catalogue-v1
+coverage_manifest: p0-coverage.yaml
+fixture_count: 37

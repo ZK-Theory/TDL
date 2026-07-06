@@ -11,6 +11,9 @@ from research_system.canonical import canonical_bytes
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
+from research_system.evals.calibration import calibrate_fixture
+from research_system.evals.coverage import P0_CASES, load_p0_coverage
+from research_system.evals.harness import decide_p0_release, run_p0_coverage
 from research_system.evals.retention import validate_retention_policy
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
@@ -122,6 +125,79 @@ def _eval_retention_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_roots(coverage: Path) -> tuple[Path, Path]:
+    try:
+        eval_root = coverage.resolve(strict=True).parent
+    except OSError as exc:
+        raise ConfigurationError(f'invalid coverage file: {coverage}') from exc
+    return eval_root / "fixtures", eval_root.parent / "schemas"
+
+
+def _eval_validate(args: argparse.Namespace) -> int:
+    import yaml
+
+    try:
+        catalogue = yaml.safe_load(args.catalogue.read_text(encoding="utf-8"))
+        coverage_manifest = catalogue["coverage_manifest"]
+        if not isinstance(coverage_manifest, str):
+            raise TypeError
+    except (OSError, yaml.YAMLError, KeyError, TypeError) as exc:
+        raise ConfigurationError(
+            f"invalid evaluation catalogue: {args.catalogue}"
+        ) from exc
+    coverage_path = args.catalogue.parent / coverage_manifest
+    fixtures, schemas = _eval_roots(coverage_path)
+    coverage = load_p0_coverage(
+        coverage_path, fixture_root=fixtures, schema_root=schemas
+    )
+    _print_json({"status": "valid", "fixture_count": len(coverage.selected_fixture_revisions)})
+    return 0
+
+
+def _eval_calibrate(args: argparse.Namespace) -> int:
+    if args.transport != "fake":
+        raise ArsError("P0 calibration requires fake transport")
+    fixtures, schemas = _eval_roots(args.coverage)
+    load_p0_coverage(args.coverage, fixture_root=fixtures, schema_root=schemas)
+    records = [
+        calibrate_fixture(item, fixture_root=fixtures) for item in sorted(P0_CASES)
+    ]
+    blocked = sum(record.blocking_verdict is not None for record in records)
+    _print_json({"fixture_count": len(records), "blocked_fixture_count": blocked})
+    return 0
+
+
+def _eval_run(args: argparse.Namespace) -> int:
+    if args.transport != "fake":
+        raise ArsError("P0 execution requires fake transport")
+    fixtures, schemas = _eval_roots(args.coverage)
+    evidence = run_p0_coverage(
+        args.coverage, fixture_root=fixtures, schema_root=schemas
+    )
+    assessment = decide_p0_release(evidence)
+    _print_json(
+        {"candidate_status": assessment["decision"], "result_count": len(evidence.results)}
+    )
+    return 0
+
+
+def _eval_release(args: argparse.Namespace) -> int:
+    manifest = _read_json(args.evaluation_runs)
+    coverage_value = manifest.get("coverage")
+    if not isinstance(coverage_value, str):
+        raise ConfigurationError("evaluation runs manifest requires coverage")
+    coverage_path = Path(coverage_value)
+    fixtures, schemas = _eval_roots(coverage_path)
+    evidence = run_p0_coverage(
+        coverage_path, fixture_root=fixtures, schema_root=schemas
+    )
+    assessment = decide_p0_release(evidence)
+    _print_json(
+        {"decision": assessment["decision"], "missing": len(assessment["missing"])}
+    )
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='ars')
     groups = parser.add_subparsers(dest='group', required=True)
@@ -162,6 +238,24 @@ def _parser() -> argparse.ArgumentParser:
     evaluation_actions = evaluation.add_subparsers(
         dest='eval_action', required=True
     )
+    validate_eval = evaluation_actions.add_parser('validate')
+    validate_eval.add_argument('--catalogue', type=Path, required=True)
+    validate_eval.set_defaults(handler=_eval_validate)
+
+    calibrate = evaluation_actions.add_parser('calibrate')
+    calibrate.add_argument('--coverage', type=Path, required=True)
+    calibrate.add_argument('--transport', required=True)
+    calibrate.set_defaults(handler=_eval_calibrate)
+
+    run = evaluation_actions.add_parser('run')
+    run.add_argument('--coverage', type=Path, required=True)
+    run.add_argument('--transport', required=True)
+    run.set_defaults(handler=_eval_run)
+
+    release = evaluation_actions.add_parser('release')
+    release.add_argument('--evaluation-runs', type=Path, required=True)
+    release.set_defaults(handler=_eval_release)
+
     retention = evaluation_actions.add_parser('retention')
     retention_actions = retention.add_subparsers(
         dest='retention_action', required=True
