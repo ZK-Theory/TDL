@@ -58,7 +58,7 @@ def _load(path: Path) -> dict[str, Any]:
 
 
 def _default_execute(subject: str, stimulus: dict[str, Any]) -> dict[str, Any]:
-    return {"observed_evidence": stimulus[f"{subject}_evidence"]}
+    return {"property_satisfied": subject == "known_good"}
 
 
 def _execute_twice(
@@ -76,8 +76,6 @@ def _execute_twice(
             satisfied = evidence.get("observed_evidence") == stimulus.get(
                 f"{subject}_evidence"
             )
-            if subject == "known_bad":
-                satisfied = False
         if satisfied == expected:
             verdict = "pass" if expected else "fail"
             reason = "control_satisfied" if expected else "intended_failure"

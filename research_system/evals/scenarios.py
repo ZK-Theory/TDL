@@ -224,6 +224,7 @@ def run_gate3_scenario(
         "E": foundation.deny_restricted_issue,
     }
     try:
-        return methods[scenario_id]()
+        method = methods[scenario_id]
     except KeyError as exc:
         raise ValueError(f"unknown Gate 3 scenario: {scenario_id}") from exc
+    return method()

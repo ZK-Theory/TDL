@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 import yaml
 
@@ -20,13 +22,13 @@ class ReleaseBindings:
     """Per-result immutable expectations consumed by strict release."""
 
     required_result_keys: tuple[ResultKey, ...]
-    expected_subject_hashes: dict[ResultKey, str]
-    expected_trace_hashes: dict[ResultKey, str]
-    expected_oracle_hashes: dict[ResultKey, str]
-    expected_policy_hashes: dict[ResultKey, str]
-    expected_threshold_policy_hashes: dict[ResultKey, str]
-    required_independence: dict[ResultKey, str]
-    required_criticality: dict[ResultKey, bool]
+    expected_subject_hashes: Mapping[ResultKey, str]
+    expected_trace_hashes: Mapping[ResultKey, str]
+    expected_oracle_hashes: Mapping[ResultKey, str]
+    expected_policy_hashes: Mapping[ResultKey, str]
+    expected_threshold_policy_hashes: Mapping[ResultKey, str]
+    required_independence: Mapping[ResultKey, str]
+    required_criticality: Mapping[ResultKey, bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,21 +90,43 @@ def run_p0_coverage(
             live = grader["grader_class"] in coverage.unavailable_grader_classes
             results.append(
                 GraderResult(
-                    new_id("grader_result"), run_id, fixture_id, fixture_revision,
-                    grader["grader_id"], grader["grader_class"], grader["grader_version"],
-                    "unable_to_grade" if live else "pass", "critical",
-                    bool(grader["critical"]), True, subject_hash, trace_hash, oracle_hash,
-                    policy_hash, threshold_hash, ("fixture-package",), True,
-                    "producer-family", "independent-family" if live else "producer-family",
-                    grader["independence_requirement"],
-                    ("live judgment unavailable",) if live else (), (), 0, 0,
-                    new_id("actor"),
+                    grader_result_id=new_id("grader_result"),
+                    evaluation_run_id=run_id,
+                    fixture_id=fixture_id,
+                    fixture_revision=fixture_revision,
+                    grader_id=grader["grader_id"],
+                    grader_class=grader["grader_class"],
+                    grader_version=grader["grader_version"],
+                    verdict="unable_to_grade" if live else "pass",
+                    severity="critical",
+                    critical=bool(grader["critical"]),
+                    required=True,
+                    subject_hash=subject_hash,
+                    trace_hash=trace_hash,
+                    oracle_hash=oracle_hash,
+                    policy_hash=policy_hash,
+                    threshold_policy_hash=threshold_hash,
+                    evidence_refs=("fixture-package",),
+                    independently_recomputed=True,
+                    producer_family="producer-family",
+                    grader_family="independent-family" if live else "producer-family",
+                    context_relationship=grader["independence_requirement"],
+                    limitations=("live judgment unavailable",) if live else (),
+                    redactions=(),
+                    duration_ms=0,
+                    cost_microunits=0,
+                    executed_by_actor_id=new_id("actor"),
                 )
             )
     bindings = ReleaseBindings(
-        coverage.required_result_keys,
-        maps["subject"], maps["trace"], maps["oracle"], maps["policy"],
-        maps["threshold"], maps["independence"], maps["criticality"],
+        required_result_keys=coverage.required_result_keys,
+        expected_subject_hashes=MappingProxyType(maps["subject"]),
+        expected_trace_hashes=MappingProxyType(maps["trace"]),
+        expected_oracle_hashes=MappingProxyType(maps["oracle"]),
+        expected_policy_hashes=MappingProxyType(maps["policy"]),
+        expected_threshold_policy_hashes=MappingProxyType(maps["threshold"]),
+        required_independence=MappingProxyType(maps["independence"]),
+        required_criticality=MappingProxyType(maps["criticality"]),
     )
     return EvaluationEvidence(coverage, bindings, tuple(results))
 

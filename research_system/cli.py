@@ -126,15 +126,26 @@ def _eval_retention_validate(args: argparse.Namespace) -> int:
 
 
 def _eval_roots(coverage: Path) -> tuple[Path, Path]:
-    eval_root = coverage.resolve(strict=True).parent
+    try:
+        eval_root = coverage.resolve(strict=True).parent
+    except OSError as exc:
+        raise ConfigurationError(f'invalid coverage file: {coverage}') from exc
     return eval_root / "fixtures", eval_root.parent / "schemas"
 
 
 def _eval_validate(args: argparse.Namespace) -> int:
     import yaml
 
-    catalogue = yaml.safe_load(args.catalogue.read_text(encoding="utf-8"))
-    coverage_path = args.catalogue.parent / catalogue["coverage_manifest"]
+    try:
+        catalogue = yaml.safe_load(args.catalogue.read_text(encoding="utf-8"))
+        coverage_manifest = catalogue["coverage_manifest"]
+        if not isinstance(coverage_manifest, str):
+            raise TypeError
+    except (OSError, yaml.YAMLError, KeyError, TypeError) as exc:
+        raise ConfigurationError(
+            f"invalid evaluation catalogue: {args.catalogue}"
+        ) from exc
+    coverage_path = args.catalogue.parent / coverage_manifest
     fixtures, schemas = _eval_roots(coverage_path)
     coverage = load_p0_coverage(
         coverage_path, fixture_root=fixtures, schema_root=schemas
@@ -172,7 +183,10 @@ def _eval_run(args: argparse.Namespace) -> int:
 
 def _eval_release(args: argparse.Namespace) -> int:
     manifest = _read_json(args.evaluation_runs)
-    coverage_path = Path(manifest["coverage"])
+    coverage_value = manifest.get("coverage")
+    if not isinstance(coverage_value, str):
+        raise ConfigurationError("evaluation runs manifest requires coverage")
+    coverage_path = Path(coverage_value)
     fixtures, schemas = _eval_roots(coverage_path)
     evidence = run_p0_coverage(
         coverage_path, fixture_root=fixtures, schema_root=schemas

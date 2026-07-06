@@ -27,6 +27,18 @@ def test_calibration_executes_each_subject_twice_and_is_byte_stable():
     assert record.known_good[0].normalized_bytes == record.known_good[1].normalized_bytes
 
 
+def test_wrong_known_bad_evidence_is_fixture_error():
+    record = calibrate_fixture(
+        "F-001",
+        fixture_root=FIXTURES,
+        execute=lambda subject, stimulus: {"observed_evidence": stimulus[f"{subject}_evidence"]},
+    )
+    assert [item.verdict for item in record.known_bad] == [
+        "fixture_error",
+        "fixture_error",
+    ]
+
+
 def test_unexpected_controlled_failure_is_fixture_error_not_pass():
     record = calibrate_fixture(
         "F-001",

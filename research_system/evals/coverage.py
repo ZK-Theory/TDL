@@ -98,7 +98,16 @@ def load_p0_coverage(
     if len(keys) != len(set(keys)):
         raise FixtureDefinitionError("duplicate required result key")
 
-    omitted = tuple(DeferredCapability(**row) for row in payload["omitted_gate5"])
+    omitted_rows = payload.get("omitted_gate5")
+    coverage_revision = payload.get("coverage_revision")
+    if not isinstance(omitted_rows, list) or not isinstance(coverage_revision, str):
+        raise FixtureDefinitionError(
+            "coverage_revision and omitted_gate5 must be well-formed"
+        )
+    try:
+        omitted = tuple(DeferredCapability(**row) for row in omitted_rows)
+    except (TypeError, KeyError) as exc:
+        raise FixtureDefinitionError("invalid omitted_gate5 row") from exc
     if {item.fixture_id for item in omitted} != {"S-014", "S-015", "S-016"}:
         raise FixtureDefinitionError("exact Gate 5 deferrals required")
     if any(
@@ -111,7 +120,7 @@ def load_p0_coverage(
     if tuple(payload.get("scenarios", ())) != ("A", "B", "C", "D", "E"):
         raise FixtureDefinitionError("exact scenarios A-E required")
     return P0Coverage(
-        coverage_revision=str(payload["coverage_revision"]),
+        coverage_revision=coverage_revision,
         transport="fake",
         selected_fixture_revisions=tuple(sorted(selected.items())),
         required_result_keys=tuple(keys),
