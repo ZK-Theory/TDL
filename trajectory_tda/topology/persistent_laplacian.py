@@ -257,6 +257,7 @@ def compute_fiedler_curve(
     thresholds: list[float] | None = None,
     tol: float = 1e-8,
     backend: Backend = "auto",
+    include_inactive: bool = False,
 ) -> dict[str, Any]:
     """Compute the persistent Fiedler curve lambda1(t) across the filtration.
 
@@ -268,12 +269,24 @@ def compute_fiedler_curve(
         backend: ``"auto"`` tries PETLS then falls back to numpy; ``"petls"`` and
             ``"numpy"`` force a specific backend (``"petls"`` raises ImportError
             if unavailable — used by cross-backend validation tests).
+        include_inactive: When ``False`` (default) only active/non-trivial steps
+            are returned (a step is active if it has at least one H1 feature or a
+            defined lambda1 — mirrors the gate-check's Gate 3 filtering). When
+            ``True`` every threshold in ``thresholds`` is retained, with
+            ``lambda1 = 0.0`` at any step where the flag complex has no positive
+            non-harmonic spectrum. This yields a curve aligned 1:1 with the input
+            ``thresholds`` — required to compare an observed curve against null
+            draws on a common fixed grid (the null-battery use case): distinct
+            distance matrices produce distinct active-step sets, so only a
+            fixed-grid, 0.0-padded curve is element-wise comparable and
+            trapezoidally integrable over the same abscissa.
 
     Returns:
         Dict with ``backend`` (the backend that actually ran), ``thresholds``,
-        ``lambda1`` (only active/non-trivial steps), ``ker_dim``, and
-        ``n_active_steps``. A step is active if it has at least one H1 feature
-        or a defined lambda1 (mirrors the gate-check's Gate 3 filtering).
+        ``lambda1``, ``ker_dim``, and ``n_active_steps``. With
+        ``include_inactive=True`` the returned lists have length
+        ``len(thresholds)`` (0.0-padded); otherwise they contain only the active
+        steps.
     """
     n = D.shape[0]
     if thresholds is None:
@@ -284,14 +297,21 @@ def compute_fiedler_curve(
         raise ImportError("backend='petls' requested but neither petls nor petls-pytorch is importable")
     backend_name = PETLS_BACKEND_NAME if use_petls else "numpy-schur-scratch"
 
-    dgms = compute_ph_barcodes(D, max_dim=1)
+    # beta1 (via ripser) only gates the active-step filter; with include_inactive
+    # every grid threshold is retained regardless of beta1, so the barcode pass is
+    # skipped (and the returned curve aligns 1:1 with ``thresholds``).
+    dgms = None if include_inactive else compute_ph_barcodes(D, max_dim=1)
 
-    active_t: list[float] = []
+    grid_t: list[float] = []
     lambda1_traj: list[float] = []
     ker_dim_traj: list[int] = []
     for t_val in thresholds:
         edges, triangles = build_complex_at_threshold(D, t_val)
         if len(edges) == 0:
+            if include_inactive:
+                grid_t.append(t_val)
+                lambda1_traj.append(0.0)
+                ker_dim_traj.append(0)
             continue
         d1 = build_boundary_1(n, edges)
         d2 = build_boundary_2(edges, triangles)
@@ -300,16 +320,21 @@ def compute_fiedler_curve(
         else:
             L1 = compute_laplacian_1(d1, d2)
             ker_dim, lam1 = eigen_analysis(L1, tol=tol)
-        beta1 = betti_1_at_threshold(dgms, t_val)
-        if beta1 > 0 or lam1 is not None:
-            active_t.append(t_val)
+        if include_inactive:
+            grid_t.append(t_val)
             lambda1_traj.append(lam1 if lam1 is not None else 0.0)
             ker_dim_traj.append(ker_dim)
+        else:
+            beta1 = betti_1_at_threshold(dgms, t_val)
+            if beta1 > 0 or lam1 is not None:
+                grid_t.append(t_val)
+                lambda1_traj.append(lam1 if lam1 is not None else 0.0)
+                ker_dim_traj.append(ker_dim)
 
     return {
         "backend": backend_name,
-        "thresholds": active_t,
+        "thresholds": grid_t,
         "lambda1": lambda1_traj,
         "ker_dim": ker_dim_traj,
-        "n_active_steps": len(active_t),
+        "n_active_steps": len(grid_t),
     }

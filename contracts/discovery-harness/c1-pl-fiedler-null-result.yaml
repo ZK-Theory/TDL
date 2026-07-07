@@ -1,0 +1,109 @@
+id: c1-pl-fiedler-null-result
+kind: schema
+pending: false
+
+description: >
+  Schema and scientific-interface contract for the pre-registered T-C1-1 C1
+  persistent-Laplacian Fiedler-curve Markov-1 null battery. Materialised from the
+  three planned_contracts of results/trajectory_tda_bhps/pre_registrations_2026-07-07.json
+  (schema + null-model-invariance + substrate-provenance) into one schema contract —
+  the meta-schema admits only formula/schema/invariant/output_validation kinds, so the
+  invariance and provenance assertions are folded into this schema validator (same
+  pattern as discovery-harness/mcbif-employment-result). It binds frozen-substrate
+  provenance, the Markov-1 null-construction audit flag and non-degenerate null,
+  the locked stochastic parameters, the fixed 35-threshold Fiedler curve, and the
+  registered positive/marginal/negative verdict set.
+
+spec_citation:
+  source: "results/trajectory_tda_bhps/pre_registrations_2026-07-07.json"
+  task: "T-C1-1"
+  authored: "2026-07-07"
+
+schema_def:
+  applies_to: "results/trajectory_tda_bhps/c1_pl_fiedler_null_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Must equal 'c1-pl-fiedler-null/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO timestamp for result generation."
+    - name: task
+      type: str
+      description: "Must equal the registered task identifier 'T-C1-1'."
+    - name: pre_registration
+      type: str
+      description: >
+        Must equal results/trajectory_tda_bhps/pre_registrations_2026-07-07.json.
+    - name: substrate_sha256
+      type: str
+      description: >
+        A 64-character SHA-256 digest that must equal the pinned frozen substrate
+        hash b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490 and
+        the recomputed on-disk hash of results/trajectory_tda_bhps/01_trajectories_sequences.json.
+        Derivation: pre_registration metric_space.substrate_sha256.
+    - name: backend_used
+      type: str
+      description: >
+        Must be one of petls, petls-pytorch, numpy-schur-scratch — the backend that
+        actually ran compute_fiedler_curve (recorded, not assumed).
+    - name: null_model_construction_verified
+      type: bool
+      description: >
+        Must be true only when the Markov-1 shuffle rebuilds the transition-count
+        distance matrix from synthetic trajectories before computing the Fiedler curve
+        (audited: at least one null draw's distance matrix differs from the observed D).
+    - name: params
+      type: dict
+      description: >
+        Must contain B==1000; seed==42; null_model=='markov-1';
+        n_filtration_thresholds==35; integer parallel_workers>=4; and a
+        wall_time_hours_budget value.
+    - name: observed
+      type: dict
+      description: >
+        Must contain a finite ifa float and lambda1_curve, a list of exactly 35
+        floats (the fixed-grid Fiedler curve, 0.0-padded at inactive thresholds).
+    - name: null_distribution
+      type: dict
+      description: >
+        Must contain draws==1000; ifa_values, a list of exactly 1000 finite floats
+        with std>0 (non-degenerate null); and a finite percentile_95.
+    - name: pointwise
+      type: dict
+      description: >
+        Must contain p_values, a list of exactly 35 floats in [0, 1], and an integer
+        bh_fdr_survivors in [0, 35].
+    - name: decision
+      type: dict
+      description: >
+        Must contain a finite ifa_p_value float, an integer pointwise_bh_survivors,
+        and verdict in {positive, marginal, negative} applying the locked decision rule.
+  forbidden_keys:
+    - name: synthetic
+      reason: "The battery result must record computed evidence, not a synthetic stand-in."
+    - name: placeholder
+      reason: "Placeholder values are not admissible as result evidence."
+    - name: estimated
+      reason: "The committed result must contain computed rather than estimated values."
+
+binding:
+  test_file: "tests/discovery/test_c1_pl_fiedler_null_contract.py"
+  test_function: "test_c1_pl_fiedler_null_result_contract_rejects_invalid_payloads"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where:
+    (a) required top-level evidence is missing;
+    (b) any forbidden key appears at any nesting depth;
+    (c) decision.verdict is outside positive, marginal, or negative;
+    (d) substrate_sha256 is malformed or differs from the pinned frozen hash;
+    (e) params.B is below 1000;
+    (f) params.seed differs from 42 or has the wrong type;
+    (g) params.null_model differs from markov-1;
+    (h) backend_used is outside petls, petls-pytorch, numpy-schur-scratch;
+    (i) len(observed.lambda1_curve) is not exactly 35;
+    (j) null_model_construction_verified is not true;
+    (k) std(null_distribution.ifa_values) is not greater than zero;
+    (l) len(null_distribution.ifa_values) is not exactly 1000;
+    (m) params.n_filtration_thresholds is not 35;
+    (n) params.parallel_workers is below 4;
+    (o) a contract-pinned integer is supplied as a boolean or another wrong type.

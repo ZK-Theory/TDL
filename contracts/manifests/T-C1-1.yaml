@@ -1,0 +1,22 @@
+scope_id: T-C1-1
+scope_description: >
+  Contract binding for the pre-registered C1 persistent-Laplacian Fiedler-curve
+  Markov-1 null battery (Discovery Harness Track-C flagship candidate; no paper
+  number assigned).
+authored: "2026-07-07"
+authored_by: "Worker on run/c1-pl-fiedler-null"
+
+contracts:
+  - discovery-harness/c1-pl-fiedler-null-result
+
+notes: >
+  The active result contract guards the frozen-substrate SHA-256, the Markov-1
+  null-construction audit flag and a non-degenerate null (std of the 1000 IFA
+  values > 0), B==1000, seed 42, null_model markov-1, at least four loky workers,
+  the fixed 35-threshold Fiedler curve (observed.lambda1_curve length 35, 0.0-padded
+  at inactive thresholds), the recorded backend (petls | petls-pytorch |
+  numpy-schur-scratch), and the registered positive/marginal/negative verdict set.
+  The three planned_contracts of pre_registrations_2026-07-07.json (schema +
+  null-model-invariance + substrate-provenance) are folded into this single schema
+  contract because the meta-schema admits only formula/schema/invariant/output_validation
+  kinds (same materialisation pattern as discovery-harness/mcbif-employment-result).

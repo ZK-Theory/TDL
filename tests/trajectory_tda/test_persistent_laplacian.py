@@ -125,6 +125,39 @@ def test_compute_fiedler_curve_backend_agreement_on_deterministic_substrate() ->
     np.testing.assert_allclose(numpy_result["lambda1"], petls_result["lambda1"], atol=1e-4)
 
 
+def test_compute_fiedler_curve_include_inactive_aligns_to_grid() -> None:
+    """include_inactive=True returns a curve aligned 1:1 with the input grid.
+
+    The null-battery use case requires every threshold retained with lambda1=0.0
+    at inactive steps, so observed and null curves share a common fixed abscissa
+    (distinct distance matrices otherwise yield different active-step counts and
+    a length mismatch — the defect this option closes).
+    """
+    D = build_undirected_graph(_SMALL_COUNTS)
+    weights = sorted(
+        {float(D[i, j]) for i in range(D.shape[0]) for j in range(i + 1, D.shape[0]) if np.isfinite(D[i, j])}
+    )
+    # Prepend a threshold below the smallest edge weight: that step has no edges
+    # (inactive) and is dropped by the default filter but padded by include_inactive.
+    grid = [weights[0] / 2.0] + weights
+    filtered = compute_fiedler_curve(D, thresholds=grid, backend="auto")
+    full = compute_fiedler_curve(D, thresholds=grid, backend="auto", include_inactive=True)
+
+    assert len(full["thresholds"]) == len(grid)
+    assert len(full["lambda1"]) == len(grid)
+    assert len(full["ker_dim"]) == len(grid)
+    assert full["n_active_steps"] == len(grid)
+    # The sub-minimum threshold has no edges -> lambda1 padded to 0.0.
+    assert full["thresholds"][0] == grid[0]
+    assert full["lambda1"][0] == 0.0
+    # The default filter drops the inactive leading step.
+    assert len(filtered["thresholds"]) < len(grid)
+    # On the shared active thresholds the two runs agree exactly.
+    for t, lam in zip(filtered["thresholds"], filtered["lambda1"]):
+        idx = full["thresholds"].index(t)
+        assert full["lambda1"][idx] == pytest.approx(lam, abs=1e-9)
+
+
 def test_compute_fiedler_curve_backend_agreement_on_real_bhps_substrate() -> None:
     """Re-runs the cross-backend agreement check on the real 9-node BHPS
     transition graph (35 thresholds) — the exact substrate the gate check and
