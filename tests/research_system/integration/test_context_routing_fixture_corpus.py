@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -94,12 +93,12 @@ def test_shard_generators_check_only_their_owned_fixture_directories(tmp_path):
         ROOT / "tools" / "ars" / "materialize_context_routing_fixtures.py",
     )
     for script in scripts:
+        # No PYTHONPATH: each script must add the repo root to sys.path itself.
         result = subprocess.run(
             [sys.executable, str(script), "--check"],
             cwd=tmp_path,
             check=False,
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(ROOT)},
         )
         assert result.returncode == 0, result.stderr

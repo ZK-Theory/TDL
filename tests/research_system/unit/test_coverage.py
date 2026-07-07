@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,14 @@ def test_p0_coverage_explains_every_deferred_catalogue_case():
     )
     assert {item.fixture_id for item in coverage.omitted_p0} == set(P0_DEFERRED)
     assert all(item.reason and item.plan_ref for item in coverage.omitted_p0)
+
+
+def test_orphan_fixture_directory_absent_from_catalogue_is_rejected(tmp_path):
+    fixtures = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES, fixtures)
+    shutil.copytree(fixtures / "F-001", fixtures / "F-999")
+    with pytest.raises(FixtureDefinitionError, match="absent from the catalogue"):
+        load_p0_coverage(COVERAGE, fixture_root=fixtures, schema_root=SCHEMAS)
 
 
 def test_incomplete_omitted_p0_is_rejected(tmp_path):

@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -125,13 +124,13 @@ def test_descriptive_grader_ids_are_materialized():
 def test_materializer_default_root_is_independent_of_cwd(tmp_path):
     script = ROOT / "tools" / "ars" / "materialize_control_store_fixtures.py"
 
+    # No PYTHONPATH: the script must add the repo root to sys.path itself.
     result = subprocess.run(
         [sys.executable, str(script), "--check"],
         cwd=tmp_path,
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "PYTHONPATH": str(ROOT)},
     )
 
     assert result.returncode == 0, result.stderr

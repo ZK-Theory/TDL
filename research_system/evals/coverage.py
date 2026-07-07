@@ -101,6 +101,19 @@ def load_p0_coverage(
 
     keys: list[ResultKey] = []
     fixture_root = Path(fixture_root)
+    # Enforce the exhaustive-catalogue claim: every staged fixture directory on
+    # disk must be accounted for by an active, deferred, or Gate 5 catalogue set.
+    catalogue = P0_CASES | P0_DEFERRED | GATE5_DEFERRED
+    staged = {
+        path.name
+        for path in fixture_root.iterdir()
+        if path.is_dir() and (path / "fixture.yaml").is_file()
+    }
+    orphans = sorted(staged - catalogue)
+    if orphans:
+        raise FixtureDefinitionError(
+            f"fixture directories absent from the catalogue: {orphans}"
+        )
     for fixture_id in sorted(P0_CASES):
         validated = validate_fixture_package(
             fixture_root / fixture_id,

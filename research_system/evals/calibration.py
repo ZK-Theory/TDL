@@ -15,13 +15,14 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 
 Executor = Callable[[str, dict[str, Any]], dict[str, Any]]
+MutationCalibrationStatus = Literal["not_calibrated", "calibrated"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +65,7 @@ class PairedCalibration:
     known_good: tuple[CalibrationDecision, ...]
     mutations: tuple[MutationCalibration, ...]
     declared_mutation_ids: tuple[str, ...]
-    mutation_calibration_status: str
+    mutation_calibration_status: MutationCalibrationStatus
     blocking_verdict: str | None
 
 
