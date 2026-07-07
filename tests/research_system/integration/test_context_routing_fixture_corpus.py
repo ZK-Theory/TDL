@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -99,5 +100,6 @@ def test_shard_generators_check_only_their_owned_fixture_directories(tmp_path):
             check=False,
             capture_output=True,
             text=True,
+            env={**os.environ, "PYTHONPATH": str(ROOT)},
         )
         assert result.returncode == 0, result.stderr

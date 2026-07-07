@@ -69,6 +69,6 @@ mutation_ids:
 safe_variation_ids:
 - identifier-renaming
 calibration_record_id: null
-retention_class: R2
-retention_rule_id: R2:minimized_sensitive_excerpt
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
 redaction_policy_id: redaction-v1

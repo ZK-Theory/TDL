@@ -431,8 +431,8 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
         "mutation_ids": [f"{case.contract}-violation"],
         "safe_variation_ids": ["identifier-renaming"],
         "calibration_record_id": None,
-        "retention_class": "R2",
-        "retention_rule_id": "R2:minimized_sensitive_excerpt",
+        "retention_class": "R0",
+        "retention_rule_id": "R0:synthetic_fixture_package",
         "redaction_policy_id": "redaction-v1",
     }
     files["fixture.yaml"] = yaml.safe_dump(definition, sort_keys=False).encode()

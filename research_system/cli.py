@@ -163,7 +163,19 @@ def _eval_calibrate(args: argparse.Namespace) -> int:
         calibrate_fixture(item, fixture_root=fixtures) for item in sorted(P0_CASES)
     ]
     blocked = sum(record.blocking_verdict is not None for record in records)
-    _print_json({"fixture_count": len(records), "blocked_fixture_count": blocked})
+    mutations_uncalibrated = sum(
+        record.mutation_calibration_status != "calibrated"
+        and bool(record.declared_mutation_ids)
+        for record in records
+    )
+    _print_json(
+        {
+            "fixture_count": len(records),
+            "blocked_fixture_count": blocked,
+            "mutation_calibration": "not_calibrated",
+            "fixtures_with_uncalibrated_mutations": mutations_uncalibrated,
+        }
+    )
     return 0
 
 

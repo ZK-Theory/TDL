@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -52,7 +53,10 @@ def test_control_store_corpus_has_exact_validated_staged_closure():
         assert definition["calibration_record_id"] is None
 
 
-def test_each_package_encodes_its_named_behavior_contract_from_input_bytes():
+def test_each_package_binds_its_named_contract_string_and_distinct_hashes():
+    # Checks the named contract string is present in the validated package
+    # bytes and that stimulus/post-control hashes are distinct across cases;
+    # it does not recompute any oracle (real recomputation lands in WP4.8).
     stimulus_hashes = set()
     post_control_hashes = set()
 
@@ -127,6 +131,7 @@ def test_materializer_default_root_is_independent_of_cwd(tmp_path):
         check=False,
         capture_output=True,
         text=True,
+        env={**os.environ, "PYTHONPATH": str(ROOT)},
     )
 
     assert result.returncode == 0, result.stderr

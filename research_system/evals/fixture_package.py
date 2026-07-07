@@ -12,6 +12,7 @@ import yaml
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import SchemaError
 from research_system.evals.errors import FixtureDefinitionError
+from research_system.evals.retention import validate_fixture_retention
 from research_system.schema_registry import SchemaRegistry
 
 PACKAGE_PATHS = frozenset(
@@ -141,6 +142,13 @@ def validate_fixture_package(
     _validate_instance(registry, "ars://evals/fixture-definition", fixture)
     fixture_id = str(fixture["fixture_id"])
     fixture_revision = str(fixture["fixture_revision"])
+    try:
+        validate_fixture_retention(
+            str(fixture["retention_class"]),
+            str(fixture["retention_rule_id"]),
+        )
+    except ValueError as exc:
+        raise FixtureDefinitionError(f"retention labels invalid: {exc}") from exc
 
     documents: dict[str, dict[str, Any]] = {}
     for relative, schema_id in _JSON_SCHEMAS.items():
