@@ -1,0 +1,124 @@
+{
+  "pre_registration_date": "2026-07-07",
+  "vault_page": "00-Meta/Discovery/c1-persistent-laplacian-dispatch-prereg-draft-2026-07-03.md",
+  "registered_by": "Manager (Discovery Harness dispatch; gate-check GO -> ADDITIVE-CANDIDATE -> /pre-reg-to-dispatch; dispatch preparation authorized by Stephen 2026-07-07 via session instruction to follow .apm/memory/handoffs/2026-07-03-c1-pl-dispatch.md)",
+  "candidate": "c1-persistent-laplacian-nonharmonic-spectrum (arXiv:2508.11560 PETLS; arXiv:2012.02808 Memoli-Wan-Wang)",
+  "harness_provenance": "vault/00-Meta/Discovery/c1-persistent-laplacian-dispatch-prereg-draft-2026-07-03.md (LOCKED 2026-07-07); gate-check result vault/00-Meta/Discovery/c1-persistent-laplacian-gate-check-result-2026-07-03.md (Gate 1 PASS, Gate 2 PASS 35/35, Gate 3 ADDITIVE-CANDIDATE: rho(l1,H)=0.291, rho(l1,TP)=0.294, rho(l1,LL2)=0.294); gate-check pre-reg vault/00-Meta/Discovery/c1-persistent-laplacian-gate-check-prereg-2026-07-03.md",
+  "amendments": [],
+  "entries": [
+    {
+      "name": "C1 persistent-Laplacian non-harmonic spectrum — full Markov-1 null battery",
+      "task": "T-C1-1",
+      "papers": [],
+      "outcome_contingent": true,
+      "objective": "Test whether the persistent-Laplacian non-harmonic spectrum (Fiedler curve lambda1(t)) of the observed BHPS 9-state employment-state transition graph differs significantly from a Markov-1 null distribution (B=1000), via the Integrated Fiedler Area (IFA) statistic and pointwise BH-FDR comparison at each of the 35 filtration thresholds. Discovery Harness candidate; no paper number assigned. A POSITIVE result licenses only a further analysis pre-registration, not manuscript text.",
+      "metric_space": {
+        "data": "9-state directed BHPS employment-state transition graph (EL,EM,EH,UL,UM,UH,IL,IM,IH), n=8509 spanning-sample trajectories",
+        "substrate_file": "results/trajectory_tda_bhps/01_trajectories_sequences.json",
+        "substrate_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+        "edge_weight": "float32(1 / (count_ij + count_ji + 1))",
+        "filtration_steps": 35,
+        "module": "trajectory_tda/topology/persistent_laplacian.py (compute_fiedler_curve, backend='auto': petls primary, numpy-schur-scratch fallback)",
+        "backend_note": "PETLS verified importable and cross-validated bit-for-bit against the numpy fallback on this exact substrate at all 35 thresholds, 2026-07-07 (commit on pipe/c1-pl-module). Worker must re-verify PETLS_AVAILABLE at run start and record which backend ran; do not assume."
+      },
+      "null_model": {
+        "operation": "Markov-1 shuffle: estimate the first-order transition matrix and initial-state distribution from all 8509 observed trajectories, generate synthetic trajectories of matching lengths, rebuild the 9x9 count matrix and float32 distance matrix from the SYNTHETIC trajectories, then compute the 35-step Fiedler curve on that null graph. Same estimation approach as trajectory_tda/topology/permutation_nulls.py _markov_shuffle (order=1), adapted to skip re-embedding (the null only needs the raw synthetic state sequences to rebuild the transition graph, not an ngram embedding).",
+        "invariance_requirement": "The null operation MUST perturb the object the Fiedler curve is computed on (the transition-count-derived distance matrix), not merely a downstream scalar. Run the null-model-invariance-audit check before launching B=1000: confirm that at least one null draw's distance matrix differs from the observed D, and that IFA(null) varies across draws (non-degenerate null).",
+        "B": 1000,
+        "seed": 42,
+        "per_draw_seed": "42 + draw_index",
+        "parallel_workers": ">=4 (loky backend)",
+        "checkpoint_interval_draws": 50,
+        "wall_time_hours": 2
+      },
+      "primary_statistic": {
+        "name": "Integrated Fiedler Area (IFA)",
+        "definition": "IFA = sum_t lambda1(t) * delta_t (trapezoidal rule over the 35 thresholds)",
+        "p_value": "p = (r + 1) / (B + 1), r = count(null IFA >= observed IFA); one-sided (testing for a LARGER observed spectrum than the null predicts)"
+      },
+      "secondary_statistic": {
+        "name": "Pointwise threshold comparison",
+        "definition": "At each of the 35 thresholds t, fraction of null draws with lambda1_null(t) >= lambda1_obs(t); Benjamini-Hochberg FDR at alpha=0.05 across the 35 thresholds"
+      },
+      "subgroup_extension": {
+        "condition": "only if IFA p < 0.05 on the full sample",
+        "groups": ["nssec_prof_mgr", "nssec_routine"],
+        "frozen_checkpoints_dir": "results/panel_methodology/fdr/subgroup_checkpoints/",
+        "seeds": {"nssec_prof_mgr": 142, "nssec_routine": 242},
+        "note": "exploratory signal characterisation only; does not change the primary decision"
+      },
+      "key_params": {
+        "n_trajectories": 8509,
+        "n_states": 9,
+        "n_filtration_thresholds": 35,
+        "seed": 42,
+        "B": 1000,
+        "parallel_workers": ">=4",
+        "checkpoint_interval_draws": 50,
+        "wall_time_hours": 2,
+        "null_model": "markov-1",
+        "statistic": "IFA (Integrated Fiedler Area)",
+        "fdr_method": "benjamini-hochberg",
+        "fdr_alpha": 0.05,
+        "substrate_sha256": "RECORD AT RUN TIME (must equal b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490)",
+        "backend_used": "RECORD AT RUN TIME (petls | petls-pytorch | numpy-schur-scratch)"
+      },
+      "decision_rule": {
+        "positive": "IFA p < 0.05 AND >= 1 pointwise threshold survives BH-FDR -> PROMOTE: draft full analysis plan for a Track-C flagship paper (requires a new pre-registration; no prose yet)",
+        "marginal": "(IFA p < 0.05 but no pointwise threshold survives BH-FDR) OR (IFA p >= 0.05 but >= 5 pointwise thresholds survive BH-FDR) -> surface as a User-decision point: targeted follow-up or PARK",
+        "negative": "IFA p >= 0.05 AND no pointwise threshold survives BH-FDR -> KILL/PARK; write [NEGATIVE] vault note; do NOT rescue with a post-hoc spectral summary variant without a new pre-registration"
+      },
+      "outcome_to_prose": {
+        "positive": "No paper prose. Requires a separate full-analysis pre-registration specifying the complete observed-vs-Markov-null comparison at subgroup level, NS-SEC stratification design, publication venue, and contribution narrative.",
+        "marginal": "Present measured IFA and BH-FDR table to User; User decides on a targeted follow-up (different null model, different filtration, subgroup-only) or PARK.",
+        "negative": "Record exact IFA p-value and pointwise survival table in a [NEGATIVE] vault note. Update backlog C1 entry to KILL/PARK."
+      },
+      "hard_non_goals": [
+        "Do not scale to L=5000 embedding infrastructure — the substrate is the 9-node transition graph throughout.",
+        "Do not draft paper prose regardless of outcome.",
+        "Do not add epsilon tolerance anywhere in the float32 threshold comparisons.",
+        "Do not run the B=1000 battery outside an approved, dispatched Worker session — this pre-registration authorizes dispatch preparation, not execution."
+      ],
+      "outputs": [
+        "results/trajectory_tda_bhps/c1_pl_fiedler_null_<YYYY-MM-DD>.json"
+      ],
+      "planned_contracts": [
+        {
+          "id": "c1-pl-fiedler-null-result",
+          "kind": "schema",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_bhps/c1_pl_fiedler_null_*.json",
+          "required_keys": "schema_version (str); generated_at (str); task ('T-C1-1'); pre_registration (str path to this JSON); substrate_sha256 (str, 64-char hex); backend_used (str in {petls, petls-pytorch, numpy-schur-scratch}); params (B int==1000, seed int==42, null_model str=='markov-1', n_filtration_thresholds int==35); observed (ifa float, lambda1_curve list[float] len 35); null_distribution (draws int==1000, ifa_values list[float] len 1000, percentile_95 float); decision (ifa_p_value float, pointwise_bh_survivors int, verdict in {positive, marginal, negative})",
+          "forbidden_keys": "synthetic, placeholder, estimated",
+          "binding": {
+            "file": "tests/discovery/test_c1_pl_fiedler_null_contract.py",
+            "must_assert": "rejects payloads where verdict not in {positive,marginal,negative}, substrate_sha256 != b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490, B<1000, seed!=42, null_model!='markov-1', backend_used not in {petls,petls-pytorch,numpy-schur-scratch}, len(lambda1_curve)!=35, or a forbidden key is present"
+          }
+        },
+        {
+          "id": "c1-pl-null-model-invariance",
+          "kind": "invariance",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_bhps/c1_pl_fiedler_null_*.json",
+          "invariant": "The Markov-1 shuffle rebuilds the transition-count distance matrix from synthetic trajectories BEFORE computing the Fiedler curve (not a shuffle of a cached scalar or of the observed distance matrix directly). Audited by comparing at least one null draw's distance matrix to the observed D (must differ) and confirming IFA varies non-degenerately across null draws.",
+          "audit_key": "null_model_construction_verified",
+          "binding": {
+            "file": "tests/discovery/test_c1_pl_fiedler_null_contract.py",
+            "must_assert": "null_model_construction_verified == true in result JSON; std(null_distribution.ifa_values) > 0"
+          }
+        },
+        {
+          "id": "c1-pl-substrate-provenance",
+          "kind": "provenance",
+          "pending": true,
+          "applies_to": "results/trajectory_tda_bhps/c1_pl_fiedler_null_*.json",
+          "invariant": "substrate_sha256 in the result JSON matches the SHA-256 of results/trajectory_tda_bhps/01_trajectories_sequences.json recomputed at run time.",
+          "binding": {
+            "file": "tests/discovery/test_c1_pl_fiedler_null_contract.py",
+            "must_assert": "substrate_sha256 is a 64-char hex string and matches the on-disk file's recomputed SHA-256"
+          }
+        }
+      ]
+    }
+  ]
+}
