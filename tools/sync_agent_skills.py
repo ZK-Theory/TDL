@@ -106,6 +106,14 @@ SYNC_SKILLS: set[str] = {
     "tda-learning-scaffold",
     "tda-paper-dissemination-pack",
     "tda-light-task-triage",
+    # Runtime-agnostic complements to plugin-owned (read-only) skills — the
+    # guidance applies equally in Claude Code, which has the same plugin
+    # skills available (2026-07-06 weekly review, Obs 27 / Obs 35).
+    "executing-plans-extras",
+    "gh-address-comments-extras",
+    "using-git-worktrees-extras",
+    "writing-plans-extras",
+    "subagent-driven-development-extras",
 }
 
 # Skills deliberately NOT byte-mirrored. Patterns match the .agents/ skill dir name.
