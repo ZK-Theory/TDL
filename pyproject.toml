@@ -42,6 +42,7 @@ dependencies = [
     # without needing --extra dev. PyYAML was already locked transitively via pre-commit.
     "PyYAML>=6.0",
     "jsonschema>=4.20",
+    "petls>=1.0.1",
 ]
 
 [project.scripts]
