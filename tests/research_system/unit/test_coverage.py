@@ -1,9 +1,18 @@
+import shutil
 from pathlib import Path
 
-from research_system.evals.coverage import P0_CASES, load_p0_coverage
+import pytest
+import yaml
+
+from research_system.evals.coverage import P0_CASES, P0_DEFERRED, load_p0_coverage
+from research_system.evals.errors import FixtureDefinitionError
 
 
 ROOT = Path(__file__).resolve().parents[3]
+EVALS = ROOT / ".research-system" / "evals"
+FIXTURES = EVALS / "fixtures"
+SCHEMAS = ROOT / ".research-system" / "schemas"
+COVERAGE = EVALS / "p0-coverage.yaml"
 
 
 def test_p0_coverage_selects_exact_merged_fixture_closure():
@@ -35,3 +44,28 @@ def test_p0_coverage_keeps_judgment_and_gate5_capabilities_blocked():
     }
     assert all(item.status == "capability_disabled" for item in coverage.omitted_gate5)
     assert coverage.gate5_authorized is False
+
+
+def test_p0_coverage_explains_every_deferred_catalogue_case():
+    coverage = load_p0_coverage(
+        COVERAGE, fixture_root=FIXTURES, schema_root=SCHEMAS
+    )
+    assert {item.fixture_id for item in coverage.omitted_p0} == set(P0_DEFERRED)
+    assert all(item.reason and item.plan_ref for item in coverage.omitted_p0)
+
+
+def test_orphan_fixture_directory_absent_from_catalogue_is_rejected(tmp_path):
+    fixtures = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES, fixtures)
+    shutil.copytree(fixtures / "F-001", fixtures / "F-999")
+    with pytest.raises(FixtureDefinitionError, match="absent from the catalogue"):
+        load_p0_coverage(COVERAGE, fixture_root=fixtures, schema_root=SCHEMAS)
+
+
+def test_incomplete_omitted_p0_is_rejected(tmp_path):
+    payload = yaml.safe_load(COVERAGE.read_text(encoding="utf-8"))
+    payload["omitted_p0"] = payload["omitted_p0"][:-1]
+    bad = tmp_path / "p0-coverage.yaml"
+    bad.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    with pytest.raises(FixtureDefinitionError, match="omitted_p0"):
+        load_p0_coverage(bad, fixture_root=FIXTURES, schema_root=SCHEMAS)

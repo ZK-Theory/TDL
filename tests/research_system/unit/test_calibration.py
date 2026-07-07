@@ -56,9 +56,11 @@ def test_required_live_judgment_remains_blocking():
     assert record.blocking_verdict == "unable_to_grade"
 
 
-def test_declared_mutations_are_executed_twice_and_detected():
+def test_declared_mutations_are_recorded_not_calibrated():
+    # Interim honest state (review C-2): mutations are declared and recorded,
+    # but the module executes none and fabricates no detection. Real mutation
+    # execution/detection lands in WP4.8.
     record = calibrate_fixture("F-036", fixture_root=FIXTURES)
-    assert record.mutations
-    for mutation in record.mutations:
-        assert len(mutation.decisions) == 2
-        assert {item.verdict for item in mutation.decisions} == {"pass"}
+    assert record.mutations == ()
+    assert record.mutation_calibration_status == "not_calibrated"
+    assert record.declared_mutation_ids

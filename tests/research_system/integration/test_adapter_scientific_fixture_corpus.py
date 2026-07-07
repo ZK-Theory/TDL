@@ -54,7 +54,9 @@ def test_adapter_scientific_packages_are_hash_bound_and_behavior_specific(case_i
     assert CASES[case_id].pre != CASES[case_id].post
 
 
-def test_scientific_oracles_recompute_invariants_instead_of_trusting_pass_flags():
+def test_scientific_oracle_literals_encode_expected_invariants():
+    # Asserts the authored expected-evidence literals in CASES; nothing is
+    # recomputed here. Real oracle recomputation lands in WP4.8.
     assert CASES["F-011"].post["fit_calls"] == 0
     assert CASES["F-012"].pre["tested_object_changed"] is False
     assert CASES["F-012"].post["tested_object_changed"] is True

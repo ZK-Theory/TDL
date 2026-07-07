@@ -57,3 +57,46 @@ omitted_gate5:
     reason: live cross-family authority is unavailable in P0
     status: capability_disabled
     required_before: gate5
+omitted_p0:
+  - fixture_id: F-006
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-015
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-016
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-017
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-018
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-019
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-023
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-024
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-029
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-030
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-037
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-038
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: S-005
+    reason: later foundation_release or pilot_promotion case
+    plan_ref: 05-plan §4.4
+  - fixture_id: S-007
+    reason: later foundation_release or pilot_promotion case
+    plan_ref: 05-plan §4.4

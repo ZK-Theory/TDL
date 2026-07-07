@@ -52,7 +52,10 @@ def test_control_store_corpus_has_exact_validated_staged_closure():
         assert definition["calibration_record_id"] is None
 
 
-def test_each_package_encodes_its_named_behavior_contract_from_input_bytes():
+def test_each_package_binds_its_named_contract_string_and_distinct_hashes():
+    # Checks the named contract string is present in the validated package
+    # bytes and that stimulus/post-control hashes are distinct across cases;
+    # it does not recompute any oracle (real recomputation lands in WP4.8).
     stimulus_hashes = set()
     post_control_hashes = set()
 
@@ -121,6 +124,7 @@ def test_descriptive_grader_ids_are_materialized():
 def test_materializer_default_root_is_independent_of_cwd(tmp_path):
     script = ROOT / "tools" / "ars" / "materialize_control_store_fixtures.py"
 
+    # No PYTHONPATH: the script must add the repo root to sys.path itself.
     result = subprocess.run(
         [sys.executable, str(script), "--check"],
         cwd=tmp_path,

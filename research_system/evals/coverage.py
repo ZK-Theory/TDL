@@ -22,6 +22,20 @@ P0_CASES = frozenset(
     }
 )
 
+# Catalogue members deferred out of P0 with an explicit rationale (05-plan
+# §4.4). Kept exhaustive so every non-selected, non-Gate-5 catalogue case has a
+# recorded omission reason (acceptance item 1).
+P0_DEFERRED = frozenset(
+    {
+        "F-006", "F-015", "F-016", "F-017", "F-018", "F-019",
+        "F-023", "F-024", "F-029", "F-030", "F-037", "F-038",
+        "S-005", "S-007",
+    }
+)
+
+# Gate 5 capability cases, deferred with capability restrictions (05-plan §4.4).
+GATE5_DEFERRED = frozenset({"S-014", "S-015", "S-016"})
+
 
 @dataclass(frozen=True, slots=True)
 class DeferredCapability:
@@ -35,6 +49,15 @@ class DeferredCapability:
 
 
 @dataclass(frozen=True, slots=True)
+class DeferredCatalogueCase:
+    """One catalogue case deferred out of P0 with a recorded rationale."""
+
+    fixture_id: str
+    reason: str
+    plan_ref: str
+
+
+@dataclass(frozen=True, slots=True)
 class P0Coverage:
     """Validated exact fixture, grader, scenario, and deferral closure."""
 
@@ -45,6 +68,7 @@ class P0Coverage:
     accepted_grader_classes: tuple[str, ...]
     unavailable_grader_classes: tuple[str, ...]
     omitted_gate5: tuple[DeferredCapability, ...]
+    omitted_p0: tuple[DeferredCatalogueCase, ...]
     scenarios: tuple[str, ...]
     gate5_authorized: bool
 
@@ -77,6 +101,19 @@ def load_p0_coverage(
 
     keys: list[ResultKey] = []
     fixture_root = Path(fixture_root)
+    # Enforce the exhaustive-catalogue claim: every staged fixture directory on
+    # disk must be accounted for by an active, deferred, or Gate 5 catalogue set.
+    catalogue = P0_CASES | P0_DEFERRED | GATE5_DEFERRED
+    staged = {
+        path.name
+        for path in fixture_root.iterdir()
+        if path.is_dir() and (path / "fixture.yaml").is_file()
+    }
+    orphans = sorted(staged - catalogue)
+    if orphans:
+        raise FixtureDefinitionError(
+            f"fixture directories absent from the catalogue: {orphans}"
+        )
     for fixture_id in sorted(P0_CASES):
         validated = validate_fixture_package(
             fixture_root / fixture_id,
@@ -108,13 +145,27 @@ def load_p0_coverage(
         omitted = tuple(DeferredCapability(**row) for row in omitted_rows)
     except (TypeError, KeyError) as exc:
         raise FixtureDefinitionError("invalid omitted_gate5 row") from exc
-    if {item.fixture_id for item in omitted} != {"S-014", "S-015", "S-016"}:
+    if {item.fixture_id for item in omitted} != set(GATE5_DEFERRED):
         raise FixtureDefinitionError("exact Gate 5 deferrals required")
     if any(
         item.status != "capability_disabled" or item.required_before != "gate5"
         for item in omitted
     ):
         raise FixtureDefinitionError("Gate 5 capabilities must remain disabled")
+
+    deferred_rows = payload.get("omitted_p0")
+    if not isinstance(deferred_rows, list):
+        raise FixtureDefinitionError("omitted_p0 must be a list")
+    try:
+        deferred = tuple(DeferredCatalogueCase(**row) for row in deferred_rows)
+    except (TypeError, KeyError) as exc:
+        raise FixtureDefinitionError("invalid omitted_p0 row") from exc
+    if {item.fixture_id for item in deferred} != set(P0_DEFERRED):
+        raise FixtureDefinitionError(
+            "omitted_p0 must explain every deferred catalogue case exactly"
+        )
+    if any(not item.reason or not item.plan_ref for item in deferred):
+        raise FixtureDefinitionError("omitted_p0 rows require reason and plan_ref")
     if payload.get("gate5_authorized") is not False:
         raise FixtureDefinitionError("Gate 5 must remain unauthorized")
     if tuple(payload.get("scenarios", ())) != ("A", "B", "C", "D", "E"):
@@ -127,6 +178,7 @@ def load_p0_coverage(
         accepted_grader_classes=("D", "O", "P", "R", "T"),
         unavailable_grader_classes=("H", "M"),
         omitted_gate5=tuple(sorted(omitted, key=lambda item: item.fixture_id)),
+        omitted_p0=tuple(sorted(deferred, key=lambda item: item.fixture_id)),
         scenarios=("A", "B", "C", "D", "E"),
         gate5_authorized=False,
     )

@@ -141,6 +141,39 @@ def require_retention_rule(retention_class: str, evidence_type: str) -> Retentio
         raise ValueError("retention_rule_missing") from exc
 
 
+# R0 covers repo-resident synthetic packages: no expiring payload, no retention
+# rule, permanently committed (05-plan §7 — canonical records retain only R0
+# identity/hash). It therefore has no ``RULES`` entry and its rule id is fixed.
+R0_RETENTION_RULE_IDS = frozenset({"R0:synthetic_fixture_package"})
+
+
+def validate_fixture_retention(retention_class: str, retention_rule_id: str) -> None:
+    """Cross-check a staged fixture's declared retention labels against policy.
+
+    R0 packages must name a known R0 rule id and carry no expiring rule; R1/R2
+    must name an accepted ``RULES`` rule as ``"<class>:<evidence_type>"``; R3 is
+    never storable.
+
+    Args:
+        retention_class: Declared retention class (``R0``/``R1``/``R2``).
+        retention_rule_id: Declared ``"<class>:<evidence_type>"`` rule id.
+
+    Raises:
+        ValueError: If the class is R3, an R0 rule id is unknown, or an R1/R2
+            rule id does not resolve to an accepted rule.
+    """
+    if retention_class == "R3":
+        raise ValueError("R3_prohibited")
+    if retention_class == "R0":
+        if retention_rule_id not in R0_RETENTION_RULE_IDS:
+            raise ValueError("unknown_r0_retention_rule")
+        return
+    prefix, _, evidence_type = retention_rule_id.partition(":")
+    if prefix != retention_class or not evidence_type:
+        raise ValueError("retention_rule_id_class_mismatch")
+    require_retention_rule(retention_class, evidence_type)
+
+
 def _jsonable(value: object) -> object:
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}

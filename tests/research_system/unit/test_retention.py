@@ -15,6 +15,7 @@ from research_system.evals.retention import (
     LocationInspection,
     require_retention_rule,
     validate_deletion_manifest_for_event,
+    validate_fixture_retention,
     verify_deletion,
 )
 from research_system.projection.replay import apply_event
@@ -25,6 +26,28 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     control_plane,
 )
+
+
+def test_validate_fixture_retention_accepts_r0_synthetic_package():
+    validate_fixture_retention("R0", "R0:synthetic_fixture_package")
+
+
+def test_validate_fixture_retention_rejects_unknown_r0_rule():
+    with pytest.raises(ValueError, match="unknown_r0_retention_rule"):
+        validate_fixture_retention("R0", "R0:minimized_sensitive_excerpt")
+
+
+def test_validate_fixture_retention_validates_r1_r2_rules():
+    validate_fixture_retention("R2", "R2:minimized_sensitive_excerpt")
+    with pytest.raises(ValueError, match="retention_rule_missing"):
+        validate_fixture_retention("R1", "R1:no_such_rule")
+
+
+def test_validate_fixture_retention_rejects_class_mismatch_and_r3():
+    with pytest.raises(ValueError, match="retention_rule_id_class_mismatch"):
+        validate_fixture_retention("R2", "R1:operational_measurement")
+    with pytest.raises(ValueError, match="R3_prohibited"):
+        validate_fixture_retention("R3", "R3:anything")
 
 
 POLICY = Path(".research-system/evals/retention-policy.yaml")

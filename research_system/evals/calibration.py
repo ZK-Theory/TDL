@@ -1,4 +1,13 @@
-"""True two-execution calibration over immutable fixture inputs."""
+"""Two-execution calibration of known-bad/known-good subjects over fixtures.
+
+Scope (interim, review C-2/m-4): this module executes the known-bad and
+known-good subjects twice each and derives their verdicts. It does **not** yet
+execute declared mutations — those are recorded as ``not_calibrated`` and this
+module never fabricates mutation detection. Real per-fixture execution (both the
+mutation path and replacement of the placeholder default executor) lands in the
+WP4.8 verdict-derivation tranche; see
+``docs/plans/agentic-research-system/implementation/04a-wp4-8-verdict-derivation-and-release-evidence-plan.md``.
+"""
 
 from __future__ import annotations
 
@@ -6,13 +15,14 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 
 Executor = Callable[[str, dict[str, Any]], dict[str, Any]]
+MutationCalibrationStatus = Literal["not_calibrated", "calibrated"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,7 +39,11 @@ class CalibrationDecision:
 
 @dataclass(frozen=True, slots=True)
 class MutationCalibration:
-    """Two independent detections of one declared mutation."""
+    """Two independent detections of one declared mutation.
+
+    Typed placeholder for the WP4.8 mutation-execution rework; no instance is
+    produced on the interim path, which never fabricates mutation detection.
+    """
 
     mutation_id: str
     decisions: tuple[CalibrationDecision, ...]
@@ -37,13 +51,21 @@ class MutationCalibration:
 
 @dataclass(frozen=True, slots=True)
 class PairedCalibration:
-    """Two known-bad and two known-good executions for one fixture."""
+    """Two known-bad and two known-good executions for one fixture.
+
+    ``mutations`` is empty and ``mutation_calibration_status`` is
+    ``"not_calibrated"`` until the WP4.8 rework executes declared mutations;
+    ``declared_mutation_ids`` records what remains to be calibrated so no
+    consumer reads ``blocking_verdict is None`` as "mutations were checked".
+    """
 
     fixture_id: str
     fixture_revision: str
     known_bad: tuple[CalibrationDecision, ...]
     known_good: tuple[CalibrationDecision, ...]
     mutations: tuple[MutationCalibration, ...]
+    declared_mutation_ids: tuple[str, ...]
+    mutation_calibration_status: MutationCalibrationStatus
     blocking_verdict: str | None
 
 
@@ -58,6 +80,10 @@ def _load(path: Path) -> dict[str, Any]:
 
 
 def _default_execute(subject: str, stimulus: dict[str, Any]) -> dict[str, Any]:
+    # Placeholder executor: satisfaction tracks the subject label, so the
+    # known-bad/known-good shape is exercised but not independently falsified.
+    # WP4.8 replaces this with per-fixture executors driven from the stimulus
+    # payload only (review C-1); do not treat its output as a grader verdict.
     return {"property_satisfied": subject == "known_good"}
 
 
@@ -110,7 +136,11 @@ def calibrate_fixture(
     fixture_root: Path | str,
     execute: Executor = _default_execute,
 ) -> PairedCalibration:
-    """Execute known-bad and known-good subjects twice from package bytes."""
+    """Execute known-bad and known-good subjects twice from package bytes.
+
+    Declared mutations are not executed here; the returned
+    ``PairedCalibration`` reports them as ``not_calibrated`` (review C-2).
+    """
     root = Path(fixture_root) / fixture_id
     definition = _load(root / "fixture.yaml")
     stimulus = _load(root / "input" / "stimulus.json")
@@ -133,38 +163,17 @@ def calibrate_fixture(
         item.verdict == "fixture_error" for item in (*known_bad, *known_good)
     ):
         blocking = "fixture_error"
+    # Declared mutations are recorded but NOT executed on the interim path;
+    # emitting detection here would fabricate the exact evidence the fixture
+    # programme exists to catch (review C-2). Real mutation execution and
+    # detection land in WP4.8.
     return PairedCalibration(
         fixture_id=fixture_id,
         fixture_revision=str(definition["fixture_revision"]),
         known_bad=known_bad,
         known_good=known_good,
-        mutations=tuple(
-            MutationCalibration(
-                mutation_id,
-                tuple(
-                    CalibrationDecision(
-                        "mutation",
-                        repetition,
-                        "pass",
-                        "mutation_detected",
-                        sha256_hex(
-                            canonical_bytes(
-                                {"mutation_id": mutation_id, "detected": True}
-                            )
-                        ),
-                        canonical_bytes(
-                            {
-                                "subject": "mutation",
-                                "verdict": "pass",
-                                "reason": "mutation_detected",
-                                "mutation_id": mutation_id,
-                            }
-                        ),
-                    )
-                    for repetition in (1, 2)
-                ),
-            )
-            for mutation_id in definition["mutation_ids"]
-        ),
+        mutations=(),
+        declared_mutation_ids=tuple(definition["mutation_ids"]),
+        mutation_calibration_status="not_calibrated",
         blocking_verdict=blocking,
     )

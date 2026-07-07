@@ -53,7 +53,15 @@ def run_p0_coverage(
     fixture_root: Path | str,
     schema_root: Path | str,
 ) -> EvaluationEvidence:
-    """Build exact typed grader evidence from all validated P0 packages."""
+    """Assemble the typed release-evidence surface over all P0 packages.
+
+    Interim scope (review C-1): non-M/H verdicts are a placeholder ``pass`` —
+    no grader executes and no fixture behaviour is exercised on this path, so
+    these rows are not grader outcomes. M/H rows are ``unable_to_grade`` and
+    keep the aggregate release decision ``blocked``. Real verdict derivation
+    from calibration/executors lands in the WP4.8 tranche
+    (``docs/plans/agentic-research-system/implementation/04a-wp4-8-verdict-derivation-and-release-evidence-plan.md``).
+    """
     coverage = load_p0_coverage(
         coverage_path,
         fixture_root=fixture_root,
@@ -88,6 +96,8 @@ def run_p0_coverage(
             maps["independence"][key] = grader["independence_requirement"]
             maps["criticality"][key] = bool(grader["critical"])
             live = grader["grader_class"] in coverage.unavailable_grader_classes
+            # Placeholder verdict pending WP4.8 verdict derivation (review C-1);
+            # `pass` here means "no grader ran", not "grader passed".
             results.append(
                 GraderResult(
                     grader_result_id=new_id("grader_result"),
