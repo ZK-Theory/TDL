@@ -19,13 +19,33 @@ for small deterministic unit tests and trivial calculations.
 2. **Benchmark the real statistic before trusting any estimate.** "The metric
    space loads" is not feasibility — time the actual statistic at realistic
    n × B. A benchmark probe sweeps the worker count 1→N; a single-configuration
-   timing is not a benchmark.
+   timing is not a benchmark. The benchmark must invoke the **production entry
+   point** — the real script/task function at target concurrency — never a
+   component kernel alone; a kernel-only timing measures a different program
+   and cannot project pipeline wall time without measured stage composition.
+   Record the sweep's call count as a percentage of the target run's B/duration
+   in the preflight record; an estimate built from a sweep below full target
+   scale is **PROVISIONAL** and must be labelled as such wherever it is
+   written down (preflight record, Computational-Log, vault note) — some
+   contention-bound workloads (memory bandwidth, cache, subprocess-pool
+   growth) have no valid sub-scale predictor at all, only a full-scale canary.
+   A timing estimate's precision reads as validated fact to anyone who later
+   consults the artifact regardless of the sample size behind it, so encode
+   PROVISIONAL at write time — do not rely on a later launcher to remember
+   and re-caveat it verbally.
 3. Apply known repo constraints:
    - Exact Wasserstein-2 (gudhi) holds the GIL — joblib's `threading` backend
      yields ZERO parallelism for it. Use the default `loky` (process) backend
      and budget memory per worker.
    - At L = 5000 scale, exact W2 runs ~5–10 s per diagram pair; multiply out
      before promising a wall time.
+   - Before choosing a thread-based parallel design, build an execution-locus
+     table (stage → runs where → holds the GIL?). Threads only parallelize
+     GIL-releasing stages; per-task parent-process CPU work (null simulation,
+     embedding, distance computation, `.tolist()` serialization) is the
+     throughput ceiling regardless of worker count. Do not assume a stage is
+     I/O-bound from intuition alone — check it, especially against any
+     existing memory recording the opposite for that exact library call.
 4. Select the strategy: serial (written justification required) / joblib-loky /
    multiprocessing / R future·parallel / Dask / out-of-core.
 5. Require, non-negotiably: workers ≥ 4 (or the written justification),
@@ -51,11 +71,29 @@ Write `resource_preflight_<task>_<YYYY-MM-DD>.json` alongside the run plan:
   "strategy": {"parallel_backend": "loky", "workers": 4,
                 "checkpointing": true, "resume_supported": true,
                 "progress_reporting": true},
+  "benchmark": {"harness_is_production_entry_point": null,
+                 "sweep_call_count": null,
+                 "target_call_count": null,
+                 "scale_pct": null},
   "risk_flags": [],
   "estimated_wall_time": null,
+  "provisional": false,
   "validation_commands": []
 }
 ```
+
+## WSL Background Compute
+
+WSL 2 processes are tied to their parent session's lifecycle and die silently
+when it exits — `wsl bash -c "... &"`, `Start-Process wsl ... -PassThru`, and
+PowerShell `Start-Job { Start-Process wsl ... }` all detach in appearance but
+the WSL process dies with the parent; the output file stays empty with no
+error. The only mechanism that survives across tool invocations is the Bash
+tool's own `run_in_background: true`. Separately, run WSL Python probes with
+`python -u` (or explicit flush): stdout is fully buffered off a tty, so a
+mid-run `Read` on the output file will show only WSL's startup stderr (e.g.
+an `fstab` warning) and look stalled even though the process is healthy —
+output otherwise arrives in one batch at exit.
 
 ## Windows Runner Scripts
 
@@ -68,7 +106,10 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 ## Completion Checklist
 
 - [ ] Workload scale quantified (n × B × L, not adjectives).
-- [ ] Real statistic benchmarked, worker count swept.
+- [ ] Real statistic benchmarked via the production entry point (not a
+      component kernel), worker count swept.
+- [ ] Benchmark scale vs. target run recorded; PROVISIONAL flagged if the
+      sweep is below full target scale.
 - [ ] Worker count ≥ 4 specified, or serial explicitly justified in writing.
 - [ ] Checkpoint/resume strategy and progress reporting specified.
 - [ ] Output overwrite protection and seeds specified.

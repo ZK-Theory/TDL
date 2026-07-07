@@ -46,7 +46,13 @@ Before emitting a scorecard, re-read:
    realizable on available or obtainable data, sample size supports a null, the
    embedding is defensible, and BHPS/USoc coding issues are handled where needed.
 5. **Axis 3 - Novelty and publishability (0-3).** Score the literature gap,
-   distinctness from existing benchmarks, and an identifiable target venue.
+   distinctness from existing benchmarks, and an identifiable target venue. A
+   citation used to justify KILL (a paper claimed to already do this, a
+   near-miss) is more dangerous wrong than one justifying an inclusion — a
+   wrong inclusion is caught at the next gate, a wrong exclusion silently
+   removes the candidate forever. Verify any kill-justifying citation directly
+   (fetch it, confirm it says what it is claimed to say, not just that a
+   search tool returned it) before it can KILL a candidate.
 6. **Decide.**
    - `KILL`: Axis 1 fails, data are inaccessible, or a red flag is decisive.
    - `PARK`: evidence is insufficient or scores are not strong enough for Spike.
@@ -56,7 +62,14 @@ Before emitting a scorecard, re-read:
    machine-readable block below.
 8. **Validate the block.** Use
    `trajectory_tda.discovery.assay_scorecard.extract_scorecard_block` and
-   `validate_assay_scorecard` before reporting the Assay as done.
+   `validate_assay_scorecard` before reporting the Assay as done. For a
+   multi-application note (two or more `assay_scorecard` blocks in one
+   candidate note — a legitimate pattern for two papers/applications assessed
+   together), `extract_scorecard_block` returns only the **first** block —
+   iterate and validate every block explicitly (collect text between each
+   pair of fence markers, reset, continue to the next) rather than trusting a
+   single call; the standard extractor silently under-validates the second
+   application.
 9. **Update `_backlog.md`.** Change the candidate state to `assayed`, record the
    decision, score summary, scorecard note path, and next action. Keep `_backlog.md`
    the single source of truth for lifecycle state.
@@ -115,3 +128,5 @@ validate_assay_scorecard(extract_scorecard_block(note))
   score axis.
 - PROMOTE would bypass the user-decision point or start compute immediately.
 - The scorecard block fails validation. Fix the block before updating backlog.
+- A KILL decision rests on a citation that has not been directly verified —
+  fetch and confirm it before finalizing KILL.

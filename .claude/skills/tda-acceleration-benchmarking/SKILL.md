@@ -22,8 +22,11 @@ this skill's output as implementation-ready or claim-ready.
 
 Accept an acceleration only if ALL hold:
 
-- wall-time improvement is material at the realistic workload (n × B × L),
-  not at toy scale;
+- the benchmark names the exact scheduled computational work unit and demonstrates
+  stage parity: representative distinct inputs, identical preprocessing and
+  postprocessing, concurrency topology, and cache state;
+- wall-time improvement is material for that end-to-end unit at the realistic workload
+  (n × B × L), not at toy scale;
 - outputs match the baseline within a declared tolerance (repo precedent:
   the giotto backend was accepted on bit-for-bit finite persistence pairs,
   atol=1e-9);
@@ -34,7 +37,8 @@ Accept an acceleration only if ALL hold:
 
 ## Procedure
 
-1. Record the baseline command and environment.
+1. Record the baseline command, environment, and the exact computational work unit the
+   production scheduler invokes. List every timed stage.
 2. Profile the baseline; identify the bottleneck: CPU, memory bandwidth,
    I/O, Python/GIL overhead, PH backend, or algorithmic complexity.
    Known repo case: exact W2 (gudhi) holds the GIL — threading gives zero
@@ -43,7 +47,13 @@ Accept an acceleration only if ALL hold:
 3. Try the lowest-risk improvement first (vectorise → process pool → out-of-
    core → new backend → GPU/cloud).
 4. Benchmark the candidate at realistic scale, sweeping the worker count —
-   a single-configuration timing is not a benchmark.
+   a single-configuration timing is not a benchmark. Verify stage parity against the
+   production unit before extrapolating. Label kernel-only timings as component
+   benchmarks; they cannot project pipeline wall time without measured stage composition.
+   For thread-based candidates, build an execution-locus table (stage → holds the GIL?)
+   before crediting a concurrency benefit — threads only parallelize GIL-releasing
+   stages, and per-task parent-process CPU work is the throughput ceiling regardless of
+   worker count (Amdahl), independent of core count.
 5. Compare numerical outputs against the baseline at the declared tolerance.
 6. Check contract and provenance impact (backend name and versions belong in
    `run_params`).
@@ -53,10 +63,12 @@ Accept an acceleration only if ALL hold:
 ## Required Output Record
 
 ```text
-baseline command · hardware/environment · profile result · bottleneck
-classification · candidate method · benchmark result (worker sweep) ·
-numerical equivalence check (tolerance stated) · provenance impact ·
-accepted/rejected decision + reason
+baseline command · named scheduled work unit · stage-parity checklist ·
+hardware/environment · profile result · bottleneck classification · candidate method ·
+harness = production entry point (yes/no) · benchmark result (worker sweep) ·
+execution-locus table (thread-based candidates only) ·
+numerical equivalence check (tolerance stated) ·
+provenance impact · accepted/rejected decision + reason
 ```
 
 ## Self-Test Prompts

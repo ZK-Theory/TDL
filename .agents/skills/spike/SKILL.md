@@ -53,6 +53,28 @@ Before running or dispatching any Spike, re-confirm:
    - Failure: write a `[NEGATIVE]` note and update `_backlog.md` with KILL/PARK
      reason. Feed any durable lesson back into Scout watchlist terms if useful.
 
+## Toy Probe Execution Notes
+
+- **WSL background compute.** WSL 2 processes die with their parent session —
+  `wsl bash -c "... &"`, `Start-Process wsl ... -PassThru`, and PowerShell
+  `Start-Job { Start-Process wsl ... }` all silently fail for a long-running
+  probe (output file stays empty, no error). Use the Bash tool's
+  `run_in_background: true` directly; it is the only mechanism that survives
+  across tool calls. Run WSL Python probes with `python -u` (or explicit
+  flush) so progress prints arrive as the probe runs — stdout is fully
+  buffered off a tty by default, so output otherwise arrives only at exit and
+  a mid-run `Read` looks stalled even though the process is healthy. A lone
+  WSL `fstab` mount warning in the output file is not a failure signal.
+- **Categorical partition inputs (e.g. MCbiF).** When the toy input is panel
+  data with categorical states (employment state, deprivation band), the
+  partition at each wave is the state label directly — do not introduce
+  k-means or re-embedding as an intermediary unless the underlying space is
+  genuinely continuous or high-dimensional. Verify whether the feature claim
+  concerns the categorical state sequence or the embedding geometry before
+  choosing the construction method; a frozen embedding built for trajectory-
+  geometry tasks is not automatically the right input for a categorical
+  partition probe.
+
 ## Pre-registration Block
 
 Use this exact fenced block label:
@@ -129,4 +151,9 @@ validate_spike_preregistration(yaml.safe_load(block))
   configuration. Sweep the worker count (at least `n_jobs ∈ {1, N/2, N}`) on a warm
   pool and time strictly more units than workers. A flat per-unit curve means the
   workload is memory/IO-bound — it does not parallelise; cost it at the serial rate
-  and escalate early rather than projecting from one optimistic point.
+  and escalate early rather than projecting from one optimistic point. Also confirm
+  the sweep's call count is a meaningful fraction of the target run's scale — a
+  worker-count sweep at a fraction of target scale (even if fully swept) is
+  PROVISIONAL evidence only; say so explicitly before a real launch is approved on
+  it, and confirm the benchmark timed the production entry point, not a component
+  kernel.

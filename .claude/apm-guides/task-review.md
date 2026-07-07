@@ -32,6 +32,8 @@ Extract the information needed for the next review decision.
 
 **Contract-Quality Gate.** Before accepting a Task that authored, modified, or relied on a contract, confirm residual hardening findings for that Task's contract set are zero. Review the binding test and any local validator it calls: each `must_assert` lettered clause must have a corresponding assertion or rejection case; each formula invariant must have exactly one of `expression` or `enforced_by`; each schema `required_key` type and bound must be enforced, not merely present. For provenance contracts, confirm any pre-existing immutable outputs are grandfathered through explicit `legacy_exempt` entries and that no inferred provenance was backfilled into historical result JSONs.
 
+**Experiment-Change Review Gate.** Refuse to accept as Success a Task that changes a prior analysis (model re-specification, same-basename supersession, metric selection among candidates) whose log lacks the old→new artifact pair (basenames + dates), the driving reason, and an explicit supersession/do-not-cite marker on the prior artifact. A bare new result file is not sufficient evidence of a deliberate, reviewable change — return it for the missing `[DECISION]` entry before accepting. Added 2026-07-06 (companion to task-assignment.md's Experiment-Change Decision Gate).
+
 ### 2.2 Review Outcome Standards
 
 After reviewing a Task Log, determine the review outcome.

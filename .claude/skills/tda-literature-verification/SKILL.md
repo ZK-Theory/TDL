@@ -61,6 +61,24 @@ status: usable | background | rejected | needs-check
 - [ ] Claim relevance stated.
 - [ ] No search/Perplexity output cited directly anywhere in prose.
 
+## Dispatching Search Sub-Agents
+
+When delegating a literature scan to a sub-agent, NAME the search tools to
+use (WebSearch/WebFetch, the alphaXiv MCP `discover_papers`/`get_paper_content`,
+arXiv Atom, OpenAlex) and explicitly name the ones to AVOID for topic-specific
+work (a general-science semantic-search gateway will confidently return
+off-topic results for a narrow method query — e.g. multiparameter-persistence
+hits for a persistent-Laplacians query — and a confident final report can
+understate how patchy the underlying retrieval actually was). Require the
+agent to record, per novelty/"gap" claim, which backend(s) it actually
+searched and whether any returned an on-query result, so "not found" carries
+its provenance. A citation that justifies an **exclusion** (KILL / near-miss /
+"already done") is more dangerous wrong than one that justifies an inclusion —
+a wrong inclusion is caught at the next gate, a wrong exclusion silently
+removes an option forever. Verify kill-justifying citations hardest: fetch the
+paper and confirm it says what it is claimed to say before treating a roam's
+KILL list as anything but provisional.
+
 ## Escalate Or Stop When
 
 - Metadata mismatch between the lead and what the identifier resolves to

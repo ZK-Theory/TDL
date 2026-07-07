@@ -50,6 +50,10 @@ Accept an acceleration only if ALL hold:
    a single-configuration timing is not a benchmark. Verify stage parity against the
    production unit before extrapolating. Label kernel-only timings as component
    benchmarks; they cannot project pipeline wall time without measured stage composition.
+   For thread-based candidates, build an execution-locus table (stage → holds the GIL?)
+   before crediting a concurrency benefit — threads only parallelize GIL-releasing
+   stages, and per-task parent-process CPU work is the throughput ceiling regardless of
+   worker count (Amdahl), independent of core count.
 5. Compare numerical outputs against the baseline at the declared tolerance.
 6. Check contract and provenance impact (backend name and versions belong in
    `run_params`).
@@ -61,7 +65,9 @@ Accept an acceleration only if ALL hold:
 ```text
 baseline command · named scheduled work unit · stage-parity checklist ·
 hardware/environment · profile result · bottleneck classification · candidate method ·
-benchmark result (worker sweep) · numerical equivalence check (tolerance stated) ·
+harness = production entry point (yes/no) · benchmark result (worker sweep) ·
+execution-locus table (thread-based candidates only) ·
+numerical equivalence check (tolerance stated) ·
 provenance impact · accepted/rejected decision + reason
 ```
 

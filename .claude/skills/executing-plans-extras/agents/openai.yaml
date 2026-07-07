@@ -1,0 +1,4 @@
+interface:
+  display_name: "Executing Plans Extras"
+  short_description: "Prove exact CLI verification commands executed"
+  default_prompt: "Use $executing-plans-extras to verify that planned CLI checks produced their declared evidence."
