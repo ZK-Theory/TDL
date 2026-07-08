@@ -12,6 +12,7 @@ import yaml
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import SchemaError
 from research_system.evals.errors import FixtureDefinitionError
+from research_system.evals.models import FixtureDefinition, GraderRequirement
 from research_system.evals.retention import validate_fixture_retention
 from research_system.schema_registry import SchemaRegistry
 
@@ -85,6 +86,45 @@ def _read_fixture(path: Path) -> dict[str, Any]:
     return payload
 
 
+_DEFINITION_TUPLE_FIELDS = (
+    "assurance_lanes",
+    "decision_refs",
+    "policy_versions",
+    "schema_versions",
+    "permitted_consumers",
+    "required_trajectory",
+    "forbidden_trajectory",
+    "allowed_terminal_states",
+    "threshold_policy_ids",
+    "required_evidence_classes",
+    "mutation_ids",
+    "safe_variation_ids",
+)
+
+
+def load_typed_definition(root: Path | str) -> FixtureDefinition:
+    """Build the immutable typed definition from a validated package."""
+    payload = _read_fixture(Path(root) / "fixture.yaml")
+    graders = tuple(
+        GraderRequirement(
+            grader_id=row["grader_id"],
+            grader_class=row["grader_class"],
+            grader_version=row["grader_version"],
+            critical=bool(row["critical"]),
+            required=bool(row["required"]),
+            independence_requirement=row["independence_requirement"],
+            evidence_selectors=tuple(row["evidence_selectors"]),
+        )
+        for row in payload["required_graders"]
+    )
+    fields = {
+        name: tuple(payload[name]) if name in _DEFINITION_TUPLE_FIELDS else payload[name]
+        for name in payload
+        if name not in {"schema_id", "schema_version", "required_graders"}
+    }
+    return FixtureDefinition(required_graders=graders, **fields)
+
+
 def _validate_instance(
     registry: SchemaRegistry,
     schema_id: str,
@@ -102,10 +142,7 @@ def _require_identity(
     fixture_revision: str,
     relative: str,
 ) -> None:
-    if (
-        payload.get("fixture_id") != fixture_id
-        or payload.get("fixture_revision") != fixture_revision
-    ):
+    if payload.get("fixture_id") != fixture_id or payload.get("fixture_revision") != fixture_revision:
         raise FixtureDefinitionError(f"package identity mismatch: {relative}")
 
 
@@ -116,18 +153,11 @@ def validate_fixture_package(
 ) -> ValidatedFixturePackage:
     """Validate one staged package without activating catalogue coverage."""
     root = Path(root)
-    observed = {
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file()
-    }
+    observed = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
     if observed != PACKAGE_PATHS:
         missing = sorted(PACKAGE_PATHS - observed)
         extra = sorted(observed - PACKAGE_PATHS)
-        raise FixtureDefinitionError(
-            "fixture package file closure mismatch: "
-            f"missing={missing}, extra={extra}"
-        )
+        raise FixtureDefinitionError(f"fixture package file closure mismatch: missing={missing}, extra={extra}")
 
     files = {relative: (root / relative).read_bytes() for relative in PACKAGE_PATHS}
     try:
@@ -157,9 +187,7 @@ def validate_fixture_package(
         _require_identity(payload, fixture_id, fixture_revision, relative)
         documents[relative] = payload
 
-    content_hashes = {
-        relative: sha256_hex(data) for relative, data in sorted(files.items())
-    }
+    content_hashes = {relative: sha256_hex(data) for relative, data in sorted(files.items())}
     source = documents["input/source-manifest.json"]
     if fixture["source_manifest_hash"] != content_hashes["input/source-manifest.json"]:
         raise FixtureDefinitionError("source manifest hash mismatch")
@@ -183,9 +211,7 @@ def validate_fixture_package(
 
     stimulus = documents["input/stimulus.json"]
     action = stimulus["payload"].get("action")
-    if not isinstance(action, dict) or fixture["setup_hash"] != sha256_hex(
-        canonical_bytes(action)
-    ):
+    if not isinstance(action, dict) or fixture["setup_hash"] != sha256_hex(canonical_bytes(action)):
         raise FixtureDefinitionError("setup hash mismatch")
 
     trajectory = documents["expected/trajectory.json"]
