@@ -112,7 +112,14 @@ def validate_c1_pl_fiedler_null_result(payload: dict[str, Any]) -> None:
     params = payload["params"]
     if not isinstance(params, dict):
         raise ValueError("params must be a dictionary")
-    for key in ("B", "seed", "null_model", "n_filtration_thresholds", "parallel_workers"):
+    for key in (
+        "B",
+        "seed",
+        "null_model",
+        "n_filtration_thresholds",
+        "parallel_workers",
+        "wall_time_hours_budget",
+    ):
         if key not in params:
             raise ValueError(f"params.{key} is required")
     _require_exact_type(params["B"], int, "params.B")
@@ -129,6 +136,9 @@ def validate_c1_pl_fiedler_null_result(payload: dict[str, Any]) -> None:
     _require_exact_type(params["parallel_workers"], int, "params.parallel_workers")
     if params["parallel_workers"] < 4:
         raise ValueError("params.parallel_workers must be at least 4")
+    _require_finite_number(params["wall_time_hours_budget"], "params.wall_time_hours_budget")
+    if float(params["wall_time_hours_budget"]) <= 0.0:
+        raise ValueError("params.wall_time_hours_budget must be a positive number")
 
     observed = payload["observed"]
     if not isinstance(observed, dict):
@@ -261,6 +271,12 @@ def test_c1_pl_fiedler_null_result_contract_rejects_invalid_payloads() -> None:
         validate_c1_pl_fiedler_null_result(_mutated(("params", "n_filtration_thresholds"), 34))
     with pytest.raises(ValueError, match="params.parallel_workers"):
         validate_c1_pl_fiedler_null_result(_mutated(("params", "parallel_workers"), 3))
+    with pytest.raises(ValueError, match="params.wall_time_hours_budget is required"):
+        bad = _valid_payload()
+        del bad["params"]["wall_time_hours_budget"]
+        validate_c1_pl_fiedler_null_result(bad)
+    with pytest.raises(ValueError, match="wall_time_hours_budget must be a positive"):
+        validate_c1_pl_fiedler_null_result(_mutated(("params", "wall_time_hours_budget"), 0))
     with pytest.raises(ValueError, match="must have type int"):
         validate_c1_pl_fiedler_null_result(_mutated(("params", "seed"), True))
 

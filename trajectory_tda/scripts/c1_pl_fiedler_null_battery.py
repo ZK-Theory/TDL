@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,7 +36,10 @@ from trajectory_tda.topology.persistent_laplacian import (
 
 # ── Paths (two-path rule) ────────────────────────────────────────────────────
 WORKTREE = Path(__file__).resolve().parents[2]
-PROJ_ROOT = Path(r"C:\Users\steph\TDL")
+# PROJ_ROOT is the project-canonical intermediates root (two-path rule). Default is the
+# locked Windows path; TDL_PROJ_ROOT overrides it so checkpoint writes/--resume stay
+# valid on other hosts (matches the run_*.py scripts in this package).
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", r"C:\Users\steph\TDL"))
 SEQ_PATH = WORKTREE / "results/trajectory_tda_bhps/01_trajectories_sequences.json"
 PRE_REGISTRATION = "results/trajectory_tda_bhps/pre_registrations_2026-07-07.json"
 EXPECTED_SHA256 = "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
@@ -237,6 +241,8 @@ def main() -> None:
 
     # ── Markov-1 estimation (once) ───────────────────────────────────────────
     tm, init_probs, lengths = estimate_markov1(sequences)
+    # Seed the parent-process globals too, as a safety net for any in-process execution
+    # path; the loky workers are initialised authoritatively via the Parallel initializer.
     _init_worker(tm, init_probs, lengths, thresholds, observed_D)
 
     # ── Battery: batched parallel draws with checkpointing ───────────────────
@@ -259,7 +265,16 @@ def main() -> None:
     for batch_start in range(start_idx, args.B, interval):
         batch_end = min(batch_start + interval, args.B)
         seeds = [args.seed + i for i in range(batch_start, batch_end)]
-        results = Parallel(n_jobs=args.workers, backend="loky")(delayed(one_null_draw)(s) for s in seeds)
+        # Wire the null-model state into each loky worker explicitly via the backend
+        # initializer, so one_null_draw() sees populated globals regardless of how the
+        # module is imported in the child process (do not rely on cloudpickle capturing
+        # __main__ globals by value).
+        results = Parallel(
+            n_jobs=args.workers,
+            backend="loky",
+            initializer=_init_worker,
+            initargs=(tm, init_probs, lengths, thresholds, observed_D),
+        )(delayed(one_null_draw)(s) for s in seeds)
         for offset, res in enumerate(results):
             idx = batch_start + offset
             ifa_values[idx] = res["ifa"]
