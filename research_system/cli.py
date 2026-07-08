@@ -180,7 +180,9 @@ def _eval_calibrate(args: argparse.Namespace) -> int:
         {
             "fixture_count": len(records),
             "blocked_fixture_count": blocked,
-            "mutation_calibration": "not_calibrated",
+            "mutation_calibration": (
+                "calibrated" if mutations_uncalibrated == 0 else "incomplete"
+            ),
             "fixtures_with_uncalibrated_mutations": mutations_uncalibrated,
         }
     )

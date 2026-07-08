@@ -32,6 +32,17 @@ def test_eval_validate_calibrate_run_and_release_commands(capsys, tmp_path):
     assert json.loads(capsys.readouterr().out)["decision"] == "blocked"
 
 
+def test_eval_calibrate_reports_real_mutation_calibration_status(capsys):
+    assert main(["eval", "calibrate", "--coverage", str(EVALS / "p0-coverage.yaml"),
+                 "--transport", "fake"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    # Per-fixture mutations are actually executed (Tasks 1-3); the printed
+    # top-level status must reflect the calibrate_fixture records rather
+    # than a hardcoded constant.
+    assert payload["mutation_calibration"] == "calibrated"
+    assert payload["fixtures_with_uncalibrated_mutations"] == 0
+
+
 def test_eval_run_persists_dated_schema_valid_decision(capsys, tmp_path):
     output = tmp_path / "release-gate-decision_2026-07-07.json"
     assert main(["eval", "run", "--coverage", str(EVALS / "p0-coverage.yaml"),
