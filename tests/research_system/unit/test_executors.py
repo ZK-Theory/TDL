@@ -7,6 +7,7 @@ coverage for the remaining P0 cases to this module.
 from pathlib import Path
 
 from research_system.evals.calibration import calibrate_fixture
+from research_system.evals.coverage import P0_CASES
 from research_system.evals.executors import EXECUTORS, require_executor
 from research_system.evals.executors.control_store import (
     CONTROL_STORE_EXECUTORS,
@@ -44,7 +45,7 @@ _F001_PAYLOAD = {
 
 
 def test_control_store_registers_f001():
-    assert CONTROL_STORE_EXECUTORS == {"F-001": execute_f001}
+    assert CONTROL_STORE_EXECUTORS["F-001"] is execute_f001
     assert EXECUTORS["F-001"] is execute_f001
     assert require_executor("F-001") is execute_f001
 
@@ -98,3 +99,17 @@ def test_f012_null_shuffle_actually_changes_the_tested_object():
     )
     assert good["tested_object_changed"] is True
     assert good["producer_flag_trusted"] is False
+
+
+def test_every_p0_case_has_exactly_one_registered_executor():
+    assert set(EXECUTORS) == set(P0_CASES)
+
+
+def test_full_corpus_calibrates_with_only_known_quarantines():
+    expected_errors = {"F-036"}
+    errors = {
+        fixture_id
+        for fixture_id in sorted(P0_CASES)
+        if calibrate_fixture(fixture_id, fixture_root=FIXTURES).blocking_verdict == "fixture_error"
+    }
+    assert errors == expected_errors
