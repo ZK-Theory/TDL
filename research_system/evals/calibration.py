@@ -1,18 +1,15 @@
 """Two-execution calibration of known-bad/known-good subjects over fixtures.
 
-Scope (interim, review C-2/m-4): this module executes the known-bad and
-known-good subjects twice each and derives their verdicts. It does **not** yet
-execute declared mutations — those are recorded as ``not_calibrated`` and this
-module never fabricates mutation detection. Real per-fixture execution (both the
-mutation path and replacement of the placeholder default executor) lands in the
-WP4.8 verdict-derivation tranche; see
+Every declared mutation and both control subjects are executed twice each from
+per-fixture executors (``research_system.evals.executors``) driven from the
+stimulus payload only; verdicts are derived by comparing observed evidence
+against the committed ``expected/`` package bytes, never fabricated. See
 ``docs/plans/agentic-research-system/implementation/04a-wp4-8-verdict-derivation-and-release-evidence-plan.md``.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -20,8 +17,8 @@ from typing import Any, Literal
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.evals.executors import FixtureExecutor, require_executor
 
-Executor = Callable[[str, dict[str, Any]], dict[str, Any]]
 MutationCalibrationStatus = Literal["not_calibrated", "calibrated"]
 
 
@@ -39,11 +36,7 @@ class CalibrationDecision:
 
 @dataclass(frozen=True, slots=True)
 class MutationCalibration:
-    """Two independent detections of one declared mutation.
-
-    Typed placeholder for the WP4.8 mutation-execution rework; no instance is
-    produced on the interim path, which never fabricates mutation detection.
-    """
+    """Two independent detections of one declared mutation, really executed."""
 
     mutation_id: str
     decisions: tuple[CalibrationDecision, ...]
@@ -53,10 +46,9 @@ class MutationCalibration:
 class PairedCalibration:
     """Two known-bad and two known-good executions for one fixture.
 
-    ``mutations`` is empty and ``mutation_calibration_status`` is
-    ``"not_calibrated"`` until the WP4.8 rework executes declared mutations;
-    ``declared_mutation_ids`` records what remains to be calibrated so no
-    consumer reads ``blocking_verdict is None`` as "mutations were checked".
+    ``mutations`` holds a real, twice-executed detection for every id in
+    ``declared_mutation_ids``; ``mutation_calibration_status`` is
+    ``"calibrated"`` once every declared mutation has been executed.
     """
 
     fixture_id: str
@@ -79,101 +71,102 @@ def _load(path: Path) -> dict[str, Any]:
     return value
 
 
-def _default_execute(subject: str, stimulus: dict[str, Any]) -> dict[str, Any]:
-    # Placeholder executor: satisfaction tracks the subject label, so the
-    # known-bad/known-good shape is exercised but not independently falsified.
-    # WP4.8 replaces this with per-fixture executors driven from the stimulus
-    # payload only (review C-1); do not treat its output as a grader verdict.
-    return {"property_satisfied": subject == "known_good"}
+def _expected_evidence(root: Path, name: str) -> dict[str, Any]:
+    return _load(root / "expected" / name)["assertions"][0]["expected_evidence"]
+
+
+def _decision(
+    subject: str, verdict: str, reason: str, observed: dict[str, Any],
+    repetition: int,
+) -> CalibrationDecision:
+    evidence_hash = sha256_hex(canonical_bytes(observed))
+    normalized = canonical_bytes(
+        {"subject": subject, "verdict": verdict, "reason": reason,
+         "evidence_hash": evidence_hash}
+    )
+    return CalibrationDecision(
+        subject, repetition, verdict, reason, evidence_hash, normalized
+    )
 
 
 def _execute_twice(
-    subject: str,
-    stimulus: dict[str, Any],
-    execute: Executor,
+    subject: str, payload: dict[str, Any], expected: dict[str, Any],
+    execute: FixtureExecutor,
 ) -> tuple[CalibrationDecision, ...]:
     decisions = []
     for repetition in (1, 2):
-        evidence = execute(subject, stimulus)
-        expected = subject == "known_good"
-        if "property_satisfied" in evidence:
-            satisfied = evidence["property_satisfied"] is True
-        else:
-            satisfied = evidence.get("observed_evidence") == stimulus.get(
-                f"{subject}_evidence"
+        observed = execute(subject, dict(payload))
+        if observed == expected:
+            verdict = "fail" if subject == "known_bad" else "pass"
+            reason = (
+                "intended_failure" if subject == "known_bad"
+                else "control_satisfied"
             )
-        if satisfied == expected:
-            verdict = "pass" if expected else "fail"
-            reason = "control_satisfied" if expected else "intended_failure"
         else:
-            verdict = "fixture_error"
-            reason = "unexpected_calibration_outcome"
-        evidence_hash = sha256_hex(canonical_bytes(evidence))
-        normalized = canonical_bytes(
-            {
-                "subject": subject,
-                "verdict": verdict,
-                "reason": reason,
-                "evidence_hash": evidence_hash,
-            }
-        )
-        decisions.append(
-            CalibrationDecision(
-                subject,
-                repetition,
-                verdict,
-                reason,
-                evidence_hash,
-                normalized,
-            )
-        )
+            verdict, reason = "fixture_error", "unexpected_calibration_outcome"
+        decisions.append(_decision(subject, verdict, reason, observed, repetition))
     return tuple(decisions)
 
 
-def calibrate_fixture(
-    fixture_id: str,
-    *,
-    fixture_root: Path | str,
-    execute: Executor = _default_execute,
-) -> PairedCalibration:
-    """Execute known-bad and known-good subjects twice from package bytes.
+def _execute_mutation(
+    mutation_id: str, payload: dict[str, Any],
+    pre_expected: dict[str, Any], post_expected: dict[str, Any],
+    execute: FixtureExecutor,
+) -> MutationCalibration:
+    decisions = []
+    for repetition in (1, 2):
+        observed = execute(
+            "known_bad",
+            {**payload, "producer_passed": True, "mutation_id": mutation_id},
+        )
+        detected = observed == pre_expected and observed != post_expected
+        verdict = "pass" if detected else "fixture_error"
+        reason = "mutation_detected" if detected else "mutation_undetected"
+        decisions.append(_decision("mutation", verdict, reason, observed, repetition))
+    return MutationCalibration(mutation_id, tuple(decisions))
 
-    Declared mutations are not executed here; the returned
-    ``PairedCalibration`` reports them as ``not_calibrated`` (review C-2).
+
+def calibrate_fixture(
+    fixture_id: str, *, fixture_root: Path | str,
+    execute: FixtureExecutor | None = None,
+) -> PairedCalibration:
+    """Execute known-bad, known-good, and every declared mutation twice.
+
+    A known-bad execution that reproduces the authored pre-control evidence is
+    the intended failure (``verdict="fail"``, ``reason="intended_failure"``),
+    never ``fixture_error`` (review m-4).
     """
     root = Path(fixture_root) / fixture_id
     definition = _load(root / "fixture.yaml")
-    stimulus = _load(root / "input" / "stimulus.json")
-    stimulus = {
-        **stimulus,
-        "known_bad_evidence": _load(root / "expected" / "pre-control.json")[
-            "assertions"
-        ][0]["expected_evidence"],
-        "known_good_evidence": _load(root / "expected" / "post-control.json")[
-            "assertions"
-        ][0]["expected_evidence"],
-    }
+    payload = dict(_load(root / "input" / "stimulus.json")["payload"])
+    pre_expected = _expected_evidence(root, "pre-control.json")
+    post_expected = _expected_evidence(root, "post-control.json")
+    executor = execute if execute is not None else require_executor(fixture_id)
+    known_bad = _execute_twice("known_bad", payload, pre_expected, executor)
+    known_good = _execute_twice("known_good", payload, post_expected, executor)
+    mutations = tuple(
+        _execute_mutation(
+            mutation_id, payload, pre_expected, post_expected, executor
+        )
+        for mutation_id in definition["mutation_ids"]
+    )
     live_classes = {
         row["grader_class"] for row in definition["required_graders"]
     }.intersection({"M", "H"})
-    known_bad = _execute_twice("known_bad", stimulus, execute)
-    known_good = _execute_twice("known_good", stimulus, execute)
     blocking = "unable_to_grade" if live_classes else None
-    if any(
-        item.verdict == "fixture_error" for item in (*known_bad, *known_good)
-    ):
+    error_decisions = (
+        *known_bad, *known_good,
+        *(item for mutation in mutations for item in mutation.decisions),
+    )
+    if any(item.verdict == "fixture_error" for item in error_decisions):
         blocking = "fixture_error"
-    # Declared mutations are recorded but NOT executed on the interim path;
-    # emitting detection here would fabricate the exact evidence the fixture
-    # programme exists to catch (review C-2). Real mutation execution and
-    # detection land in WP4.8.
     return PairedCalibration(
         fixture_id=fixture_id,
         fixture_revision=str(definition["fixture_revision"]),
         known_bad=known_bad,
         known_good=known_good,
-        mutations=(),
+        mutations=mutations,
         declared_mutation_ids=tuple(definition["mutation_ids"]),
-        mutation_calibration_status="not_calibrated",
+        mutation_calibration_status="calibrated",
         blocking_verdict=blocking,
     )

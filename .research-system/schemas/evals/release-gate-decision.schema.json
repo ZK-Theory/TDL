@@ -17,7 +17,7 @@
     "baseline_identity": {"type": "string", "minLength": 1},
     "candidate_identity": {"type": "string", "minLength": 1},
     "evidence_snapshot_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "required_verdicts": {"type": "array", "items": {"$ref": "#/$defs/resultKey"}},
+    "required_verdicts": {"type": "array", "items": {"$ref": "#/$defs/verdictEntry"}},
     "critical_failures": {"type": "array", "items": {"$ref": "#/$defs/resultKey"}},
     "parity_status": {"type": "string", "minLength": 1},
     "operations_status": {"type": "string", "minLength": 1},
@@ -61,6 +61,14 @@
         {"type": "string"}
       ],
       "minItems": 5, "maxItems": 5
+    },
+    "verdictEntry": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/resultKey"},
+        {"type": "string", "minLength": 1}
+      ],
+      "minItems": 2, "maxItems": 2
     }
   },
   "additionalProperties": false

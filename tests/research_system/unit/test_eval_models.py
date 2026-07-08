@@ -455,19 +455,30 @@ def _eval_schema(name: str) -> dict[str, object]:
 
 def test_release_decision_schema_uses_exact_result_keys():
     schema = _eval_schema("release-gate-decision")
-    for field in ("required_verdicts", "critical_failures"):
-        item_schema = schema["$defs"]["resultKey"]
-        assert item_schema["minItems"] == 5
-        assert item_schema["maxItems"] == 5
-        assert item_schema["prefixItems"][3]["enum"] == [
-            "D",
-            "T",
-            "R",
-            "M",
-            "H",
-            "O",
-            "P",
-        ]
+    result_key_schema = schema["$defs"]["resultKey"]
+    assert result_key_schema["minItems"] == 5
+    assert result_key_schema["maxItems"] == 5
+    assert result_key_schema["prefixItems"][3]["enum"] == [
+        "D",
+        "T",
+        "R",
+        "M",
+        "H",
+        "O",
+        "P",
+    ]
+
+    verdict_entry_schema = schema["$defs"]["verdictEntry"]
+    assert verdict_entry_schema["minItems"] == 2
+    assert verdict_entry_schema["maxItems"] == 2
+    assert verdict_entry_schema["prefixItems"][0]["$ref"] == "#/$defs/resultKey"
+    assert verdict_entry_schema["prefixItems"][1]["type"] == "string"
+    assert verdict_entry_schema["prefixItems"][1]["minLength"] == 1
+
+    required_verdicts_items = schema["properties"]["required_verdicts"]["items"]
+    assert required_verdicts_items["$ref"] == "#/$defs/verdictEntry"
+    critical_failures_items = schema["properties"]["critical_failures"]["items"]
+    assert critical_failures_items["$ref"] == "#/$defs/resultKey"
 
 
 def test_trace_schema_requires_constructor_routing_fields():

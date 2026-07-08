@@ -45,3 +45,23 @@ def test_scenarios_are_derived_from_composed_foundation_ports():
     assert results[3].replay_integrity == "pass"
     assert results[4].decision_reason == "restricted_data_denied"
     assert "ProviderCommandIssued" not in results[4].event_types
+
+
+def test_scenario_a_actors_derive_from_distinct_family_route_records():
+    result = run_gate3_scenario("A")
+    assert result.producer_actor_id != result.verifier_actor_id
+    assert result.producer_actor_id.startswith("actor-claude")
+    assert result.verifier_actor_id.startswith("actor-codex")
+    assert result.event_types.index("RouteSelected") < result.event_types.index(
+        "ProviderCommandIssued"
+    )
+    assert result.provider_command_count == 1
+
+
+def test_scenario_b_reroute_reevaluates_and_preserves_the_request():
+    result = run_gate3_scenario("B")
+    assert result.original_requirement_id == result.reroute_requirement_id
+    assert result.provider_command_count == 0
+    assert result.event_types == (
+        "RouteSelectionFailed", "RerouteEvaluated", "RouteSelected",
+    )

@@ -14,6 +14,7 @@ from research_system.operations.leases import stop_confirmation
 from research_system.operations.recovery import resume_from_checkpoint
 from research_system.operations.resources import authorize_operational_surface
 from research_system.routing.engine import PreparedDispatch, RouteCandidate, select_route
+from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system.routing.models import RouteRequest
 from research_system.store.ledger import EventLedger
 
@@ -105,11 +106,27 @@ class _ScenarioOperations:
         return {"event_type": "ProviderReceiptRecorded"}
 
 
-class _UnavailableEvidence:
-    routing_evidence_snapshot_id = "res-scenario"
+class _EligibleEvidence:
+    routing_evidence_snapshot_id = "res-scenario-a"
 
     def hard_gate_failures(self, request, candidate):
-        return ("provider_unavailable",)
+        return ()
+
+
+class _OutageEvidence:
+    routing_evidence_snapshot_id = "res-scenario-b"
+
+    def __init__(self, unavailable: frozenset[str]):
+        self.unavailable = unavailable
+
+    def hard_gate_failures(self, request, candidate):
+        if candidate.profile_id in self.unavailable:
+            return ("provider_unavailable",)
+        return ()
+
+
+def _family(profile_id: str) -> str:
+    return profile_id.split("-", maxsplit=1)[0]
 
 
 class FoundationPorts:
@@ -117,39 +134,76 @@ class FoundationPorts:
 
     def produce_and_verify(self) -> Gate3ScenarioResult:
         authorize_operational_surface(
-            requested={"roots": {"control"}},
-            granted={"roots": {"control"}},
+            requested={"roots": {"control"}}, granted={"roots": {"control"}},
         )
-        events = ["AssuranceRequirementRecorded", "ContextCompiled", "RouteSelected"]
+        request = RouteRequest(
+            new_id("route_request"), "task-scenario-a", 1,
+            "asr-scenario-a", "a" * 64, "ctx-scenario-a", "b" * 64,
+        )
+        candidates = [
+            RouteCandidate("claude-producer", 2, 2, 0, 2, 10, 5),
+            RouteCandidate("codex-verifier", 1, 2, 0, 2, 12, 6),
+        ]
+        producer_decision = select_route(request, candidates, _EligibleEvidence())
+        producer_profile = producer_decision["winner"].profile_id
+        verifier_pool = [
+            candidate for candidate in candidates
+            if _family(candidate.profile_id) != _family(producer_profile)
+        ]
+        verifier_decision = select_route(request, verifier_pool, _EligibleEvidence())
+        if verifier_decision["kind"] != "selected":
+            raise ValueError("no independent verifier candidate available")
+        verifier_profile = verifier_decision["winner"].profile_id
+        relationship = independence_grade(RelationshipEvidence(
+            same_actor=False, same_session=False, same_context_hash=False,
+            same_model_family=_family(producer_profile) == _family(verifier_profile),
+            producer_conclusions_visible=False,
+        ))
+        if relationship not in {"I1", "I2"}:  # pragma: no cover - fail closed
+            raise ValueError("verifier relationship is not independent")
+        events: list[str] = []
+        if producer_decision["kind"] == "selected":
+            events.append("RouteSelected")
+        service = _ScenarioCommandService(events)
         prepared = PreparedDispatch(
-            "att-scenario", "asr-scenario", "a" * 64, {"compiled": True},
-            {"kind": "selected"}, "art-evidence", "b" * 64,
+            new_id("attempt"), request.assurance_requirement_id, "a" * 64,
+            {"compiled": True}, producer_decision, "art-evidence", "b" * 64,
             "art-operations", "c" * 64, "2026-07-07T00:00:00Z",
         )
-        issue_prepared_dispatch(
-            prepared, _ScenarioAdapter(), _ScenarioOperations(),
-            _ScenarioCommandService(events),
+        provider_command, _receipt, _terminal = issue_prepared_dispatch(
+            prepared, _ScenarioAdapter(), _ScenarioOperations(), service,
         )
-        events.append("GraderResultRecorded")
         return Gate3ScenarioResult(
-            "A", tuple(events), producer_actor_id="actor-producer",
-            verifier_actor_id="actor-independent-verifier", provider_command_count=1,
+            "A", tuple(events),
+            producer_actor_id=f"actor-{producer_profile}",
+            verifier_actor_id=f"actor-{verifier_profile}",
+            provider_command_count=1 if provider_command is not None else 0,
         )
 
     def reroute_outage(self) -> Gate3ScenarioResult:
-        requirement_id = "asr-preserved-r3"
         request = RouteRequest(
-            "route-request", "task", 1, requirement_id, "a" * 64,
-            "context", "b" * 64,
+            new_id("route_request"), "task-scenario-b", 1,
+            "asr-preserved-r3", "a" * 64, "ctx-scenario-b", "b" * 64,
         )
-        candidate = RouteCandidate("provider-a", 1, 1, 0, 1, 1, 1)
-        decision = select_route(request, [candidate], _UnavailableEvidence())
-        if decision["kind"] != "failure":
-            raise ValueError("outage route unexpectedly selected")
+        outage = RouteCandidate("provider-a", 1, 1, 0, 1, 1, 1)
+        fallback = RouteCandidate("provider-b", 1, 1, 0, 1, 2, 2)
+        evidence = _OutageEvidence(frozenset({"provider-a"}))
+        first = select_route(request, [outage], evidence)
+        events = ["RouteSelectionFailed" if first["kind"] == "failure"
+                  else "RouteSelected"]
+        second = select_route(request, [outage, fallback], evidence)
+        events.append("RerouteEvaluated")
+        if second["kind"] == "selected":
+            events.append("RouteSelected")
+        if (first["request_id"] != request.request_id
+                or second["request_id"] != request.request_id):
+            raise ValueError("reroute evaluated a different request")
+        issued_commands: list[str] = []  # no dispatch occurs during outage
         return Gate3ScenarioResult(
-            "B", ("RouteSelectionFailed", "RerouteRequested"),
-            original_requirement_id=requirement_id,
-            reroute_requirement_id=requirement_id,
+            "B", tuple(events),
+            original_requirement_id=request.assurance_requirement_id,
+            reroute_requirement_id=request.assurance_requirement_id,
+            provider_command_count=len(issued_commands),
         )
 
     def stop_and_resume(self) -> Gate3ScenarioResult:

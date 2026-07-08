@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess  # nosec B404 - fixed git discovery command
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
@@ -13,8 +14,19 @@ from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import P0_CASES, load_p0_coverage
-from research_system.evals.harness import decide_p0_release, run_p0_coverage
+from research_system.evals.harness import (
+    build_release_decision,
+    decide_p0_release,
+    decision_document,
+    run_all_scenarios,
+    run_p0_coverage,
+    stable_projection,
+)
 from research_system.evals.retention import validate_retention_policy
+from research_system.evals.retention_authorizer import (
+    build_deletion_manifest_authorizer,
+    load_evidence_store_registry,
+)
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import initialize_control_store, load_store_manifest
@@ -77,13 +89,19 @@ def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     command = _read_json(args.command)
     ledger = EventLedger(binding.control_root, binding.project_id)
+    schemas = SchemaRegistry(binding.schema_root)
     service = CommandService(
         binding.control_root,
         ledger,
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
-        SchemaRegistry(binding.schema_root),
+        schemas,
     )
+    if args.evidence_store_registry is not None:
+        registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
+        service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
+            registry, current_policy_revision=registry.policy_revision
+        )
     _print_json(asdict(service.submit(command)))
     return 0
 
@@ -172,7 +190,9 @@ def _eval_calibrate(args: argparse.Namespace) -> int:
         {
             "fixture_count": len(records),
             "blocked_fixture_count": blocked,
-            "mutation_calibration": "not_calibrated",
+            "mutation_calibration": (
+                "calibrated" if mutations_uncalibrated == 0 else "incomplete"
+            ),
             "fixtures_with_uncalibrated_mutations": mutations_uncalibrated,
         }
     )
@@ -187,8 +207,30 @@ def _eval_run(args: argparse.Namespace) -> int:
         args.coverage, fixture_root=fixtures, schema_root=schemas
     )
     assessment = decide_p0_release(evidence)
+    output: Path | None = args.output
+    if output is None:
+        _print_json(
+            {"candidate_status": assessment["decision"], "result_count": len(evidence.results)}
+        )
+        return 0
+    if output.exists():
+        raise ArsError(f"output path exists: {output}")
+    scenario_results = run_all_scenarios()
+    record, _outcome = build_release_decision(evidence, scenario_results)
+    document = decision_document(record)
+    SchemaRegistry(schemas).validate("ars://evals/release-gate-decision", document)
+    data = canonical_bytes(document)
+    try:
+        with output.open("xb") as handle:
+            handle.write(data)
+    except FileExistsError as exc:
+        raise ArsError(f"output path exists: {output}") from exc
     _print_json(
-        {"candidate_status": assessment["decision"], "result_count": len(evidence.results)}
+        {
+            "candidate_status": assessment["decision"],
+            "result_count": len(evidence.results),
+            "output": str(output),
+        }
     )
     return 0
 
@@ -198,14 +240,27 @@ def _eval_release(args: argparse.Namespace) -> int:
     coverage_value = manifest.get("coverage")
     if not isinstance(coverage_value, str):
         raise ConfigurationError("evaluation runs manifest requires coverage")
+    supplied_document = manifest.get("decision_document")
+    if not isinstance(supplied_document, dict):
+        raise ConfigurationError("evaluation runs manifest requires decision_document")
     coverage_path = Path(coverage_value)
     fixtures, schemas = _eval_roots(coverage_path)
+    schema_registry = SchemaRegistry(schemas)
+    schema_registry.validate(
+        "ars://evals/release-gate-decision", supplied_document
+    )
     evidence = run_p0_coverage(
         coverage_path, fixture_root=fixtures, schema_root=schemas
     )
-    assessment = decide_p0_release(evidence)
+    scenario_results = run_all_scenarios()
+    record, outcome = build_release_decision(evidence, scenario_results)
+    fresh_document = decision_document(record)
+    schema_registry.validate("ars://evals/release-gate-decision", fresh_document)
+    if stable_projection(fresh_document) != stable_projection(supplied_document):
+        _print_json({"decision": "blocked", "reason": "evaluation_document_divergence"})
+        return 0
     _print_json(
-        {"decision": assessment["decision"], "missing": len(assessment["missing"])}
+        {"decision": fresh_document["decision"], "missing": len(outcome["missing"])}
     )
     return 0
 
@@ -227,6 +282,7 @@ def _parser() -> argparse.ArgumentParser:
     submit = command_actions.add_parser('submit')
     submit.add_argument('--config', type=Path, required=True)
     submit.add_argument('--command', type=Path, required=True)
+    submit.add_argument('--evidence-store-registry', type=Path, default=None)
     submit.set_defaults(handler=_command_submit)
 
     replay_parser = groups.add_parser('replay')
@@ -262,6 +318,7 @@ def _parser() -> argparse.ArgumentParser:
     run = evaluation_actions.add_parser('run')
     run.add_argument('--coverage', type=Path, required=True)
     run.add_argument('--transport', required=True)
+    run.add_argument('--output', type=Path, default=None)
     run.set_defaults(handler=_eval_run)
 
     release = evaluation_actions.add_parser('release')
@@ -280,7 +337,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    return int(args.handler(args))
+    if args.group != 'eval':
+        return int(args.handler(args))
+    try:
+        return int(args.handler(args))
+    except ArsError as exc:
+        print(f'error: {exc}', file=sys.stderr)
+        return 1
 
 
 if __name__ == '__main__':
