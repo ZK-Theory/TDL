@@ -219,7 +219,12 @@ def _eval_run(args: argparse.Namespace) -> int:
     record, _outcome = build_release_decision(evidence, scenario_results)
     document = decision_document(record)
     SchemaRegistry(schemas).validate("ars://evals/release-gate-decision", document)
-    output.write_bytes(canonical_bytes(document))
+    data = canonical_bytes(document)
+    try:
+        with output.open("xb") as handle:
+            handle.write(data)
+    except FileExistsError as exc:
+        raise ArsError(f"output path exists: {output}") from exc
     _print_json(
         {
             "candidate_status": assessment["decision"],
@@ -240,18 +245,22 @@ def _eval_release(args: argparse.Namespace) -> int:
         raise ConfigurationError("evaluation runs manifest requires decision_document")
     coverage_path = Path(coverage_value)
     fixtures, schemas = _eval_roots(coverage_path)
+    schema_registry = SchemaRegistry(schemas)
+    schema_registry.validate(
+        "ars://evals/release-gate-decision", supplied_document
+    )
     evidence = run_p0_coverage(
         coverage_path, fixture_root=fixtures, schema_root=schemas
     )
-    assessment = decide_p0_release(evidence)
     scenario_results = run_all_scenarios()
-    record, _outcome = build_release_decision(evidence, scenario_results)
+    record, outcome = build_release_decision(evidence, scenario_results)
     fresh_document = decision_document(record)
+    schema_registry.validate("ars://evals/release-gate-decision", fresh_document)
     if stable_projection(fresh_document) != stable_projection(supplied_document):
         _print_json({"decision": "blocked", "reason": "evaluation_document_divergence"})
         return 0
     _print_json(
-        {"decision": assessment["decision"], "missing": len(assessment["missing"])}
+        {"decision": fresh_document["decision"], "missing": len(outcome["missing"])}
     )
     return 0
 

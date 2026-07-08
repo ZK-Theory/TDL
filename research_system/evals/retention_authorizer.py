@@ -74,6 +74,32 @@ def reconstruct_deletion_manifest(
     missing = [field for field in _MANIFEST_FIELDS if field not in payload]
     if missing:
         raise ValueError(f"deletion manifest payload missing fields: {', '.join(missing)}")
+    unexpected = sorted(set(payload) - set(_MANIFEST_FIELDS))
+    if unexpected:
+        raise ValueError(
+            f"deletion manifest payload has unexpected fields: {', '.join(unexpected)}"
+        )
+    raw_checked = payload["checked_locations"]
+    if not isinstance(raw_checked, list) or not all(
+        isinstance(location, dict) for location in raw_checked
+    ):
+        raise ValueError("deletion manifest checked_locations must be a list of objects")
+    for field in ("unregistered_replicas", "inaccessible_locations"):
+        value = payload[field]
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) for item in value
+        ):
+            raise ValueError(f"deletion manifest {field} must be a list of strings")
+    raw_reparse = payload["reparse_locations"]
+    if not isinstance(raw_reparse, list) or not all(
+        isinstance(pair, (list, tuple))
+        and len(pair) == 2
+        and all(isinstance(item, str) for item in pair)
+        for pair in raw_reparse
+    ):
+        raise ValueError(
+            "deletion manifest reparse_locations must be a list of string pairs"
+        )
     try:
         checked_locations = tuple(
             LocationInspection(
@@ -84,11 +110,9 @@ def reconstruct_deletion_manifest(
                 inaccessible=location["inaccessible"],
                 reparse_target=location["reparse_target"],
             )
-            for location in payload["checked_locations"]
+            for location in raw_checked
         )
-        reparse_locations = tuple(tuple(pair) for pair in payload["reparse_locations"])
-        if any(len(pair) != 2 for pair in reparse_locations):
-            raise ValueError("deletion manifest reparse_locations entries must be pairs")
+        reparse_locations = tuple(tuple(pair) for pair in raw_reparse)
         manifest = DeletionVerificationManifest(
             evidence_id=payload["evidence_id"],
             evidence_hash=payload["evidence_hash"],

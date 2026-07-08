@@ -16,7 +16,7 @@ from research_system.evals.coverage import P0Coverage, load_p0_coverage
 from research_system.evals.fixture_package import load_typed_definition
 from research_system.evals.lifecycle import start_evaluation
 from research_system.evals.models import GraderResult, ReleaseGateDecision, ResultKey, TraceEnvelope
-from research_system.evals.release import decide_release
+from research_system.evals.release import BLOCKING, decide_release
 from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
 from research_system.ids import new_id
@@ -247,7 +247,7 @@ def build_release_decision(
         critical_failures=tuple(
             result.result_key
             for result in evidence.results
-            if result.critical and result.verdict == "fail"
+            if result.critical and result.verdict in BLOCKING
         ),
         parity_status=parity_status,
         operations_status=operations_status,

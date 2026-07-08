@@ -151,6 +151,8 @@ class FoundationPorts:
             if _family(candidate.profile_id) != _family(producer_profile)
         ]
         verifier_decision = select_route(request, verifier_pool, _EligibleEvidence())
+        if verifier_decision["kind"] != "selected":
+            raise ValueError("no independent verifier candidate available")
         verifier_profile = verifier_decision["winner"].profile_id
         relationship = independence_grade(RelationshipEvidence(
             same_actor=False, same_session=False, same_context_hash=False,
