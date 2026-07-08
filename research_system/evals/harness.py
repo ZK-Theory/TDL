@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
 
@@ -14,8 +15,9 @@ from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import P0Coverage, load_p0_coverage
 from research_system.evals.fixture_package import load_typed_definition
 from research_system.evals.lifecycle import start_evaluation
-from research_system.evals.models import GraderResult, ResultKey, TraceEnvelope
+from research_system.evals.models import GraderResult, ReleaseGateDecision, ResultKey, TraceEnvelope
 from research_system.evals.release import decide_release
+from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
 from research_system.ids import new_id
 
@@ -190,3 +192,111 @@ def decide_p0_release(evidence: EvaluationEvidence) -> dict:
     if not isinstance(evidence, EvaluationEvidence):
         raise TypeError("EvaluationEvidence required")
     return decide_release(evidence.bindings, evidence.results)
+
+
+def run_all_scenarios() -> tuple[Gate3ScenarioResult, ...]:
+    """Run Gate 3 operations scenarios A through E.
+
+    Returns:
+        One ``Gate3ScenarioResult`` per scenario, in ``A``-``E`` order.
+    """
+    return tuple(run_gate3_scenario(item) for item in "ABCDE")
+
+
+def build_release_decision(
+    evidence: EvaluationEvidence,
+    scenario_results: tuple[Gate3ScenarioResult, ...],
+    *,
+    decided_at: str | None = None,
+) -> tuple[ReleaseGateDecision, dict]:
+    """Derive the attributed release decision; operations/parity fail closed.
+
+    Args:
+        evidence: Typed P0 execution evidence from ``run_p0_coverage``.
+        scenario_results: Gate 3 scenario results from ``run_all_scenarios``.
+        decided_at: ISO-8601 timestamp to record. Defaults to the current
+            UTC time.
+
+    Returns:
+        A tuple of the immutable ``ReleaseGateDecision`` record and the raw
+        ``decide_release`` outcome dict it was derived from.
+    """
+    outcome = decide_release(evidence.bindings, evidence.results)
+    operations_status = (
+        "pass"
+        if {result.scenario_id for result in scenario_results} == set("ABCDE")
+        else "blocked"
+    )
+    parity_status = "not_evaluated"  # Gate 5 dependency (obligation O11)
+    decision = outcome["decision"]
+    if decision == "pass" and not (
+        operations_status == "pass" and parity_status == "pass"
+    ):
+        decision = "blocked"
+    record = ReleaseGateDecision(
+        release_gate_decision_id=new_id("release_gate_decision"),
+        coverage_manifest_id=evidence.coverage.coverage_revision,
+        baseline_identity="reference-pair-p0",
+        candidate_identity="foundation-p0",
+        evidence_snapshot_hash=sha256_hex(
+            canonical_bytes(sorted(result.trace_hash for result in evidence.results))
+        ),
+        required_verdicts=tuple(
+            (result.result_key, result.verdict) for result in evidence.results
+        ),
+        critical_failures=tuple(
+            result.result_key
+            for result in evidence.results
+            if result.critical and result.verdict == "fail"
+        ),
+        parity_status=parity_status,
+        operations_status=operations_status,
+        decision=decision,
+        decided_at=decided_at or datetime.now(timezone.utc).isoformat(),
+        canonical_event_ref="unpublished:p0",  # obligation O12
+        rationale=outcome.get("reason"),
+    )
+    return record, outcome
+
+
+def decision_document(record: ReleaseGateDecision) -> dict:
+    """Serialize a release decision to its schema-valid JSON-ready form.
+
+    Args:
+        record: The immutable release-gate decision record.
+
+    Returns:
+        A JSON-ready dict including the ``schema_id``/``schema_version``
+        constants required by ``release-gate-decision.schema.json``.
+    """
+    payload = asdict(record)
+    payload["schema_id"] = "ars://evals/release-gate-decision"
+    payload["schema_version"] = "1.0.0"
+    payload["required_verdicts"] = [
+        [list(key), verdict] for key, verdict in record.required_verdicts
+    ]
+    payload["critical_failures"] = [list(key) for key in record.critical_failures]
+    return payload
+
+
+def stable_projection(document: dict) -> dict:
+    """Return the forgery-checked, rerun-stable subset of a decision document.
+
+    Excludes ``decided_at``, identities, and hashes that legitimately vary
+    between reruns; ``required_verdicts`` is rerun-stable because verdict
+    derivation is deterministic given the same fixture inputs.
+
+    Args:
+        document: A decision document as produced by ``decision_document``.
+
+    Returns:
+        The identity-free comparison subset used to detect divergence.
+    """
+    return {
+        "coverage_manifest_id": document["coverage_manifest_id"],
+        "decision": document["decision"],
+        "operations_status": document["operations_status"],
+        "parity_status": document["parity_status"],
+        "required_verdicts": document["required_verdicts"],
+        "critical_failures": document["critical_failures"],
+    }

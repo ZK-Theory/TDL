@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess  # nosec B404 - fixed git discovery command
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
@@ -13,7 +14,14 @@ from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import P0_CASES, load_p0_coverage
-from research_system.evals.harness import decide_p0_release, run_p0_coverage
+from research_system.evals.harness import (
+    build_release_decision,
+    decide_p0_release,
+    decision_document,
+    run_all_scenarios,
+    run_p0_coverage,
+    stable_projection,
+)
 from research_system.evals.retention import validate_retention_policy
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
@@ -187,8 +195,25 @@ def _eval_run(args: argparse.Namespace) -> int:
         args.coverage, fixture_root=fixtures, schema_root=schemas
     )
     assessment = decide_p0_release(evidence)
+    output: Path | None = args.output
+    if output is None:
+        _print_json(
+            {"candidate_status": assessment["decision"], "result_count": len(evidence.results)}
+        )
+        return 0
+    if output.exists():
+        raise ArsError(f"output path exists: {output}")
+    scenario_results = run_all_scenarios()
+    record, _outcome = build_release_decision(evidence, scenario_results)
+    document = decision_document(record)
+    SchemaRegistry(schemas).validate("ars://evals/release-gate-decision", document)
+    output.write_bytes(canonical_bytes(document))
     _print_json(
-        {"candidate_status": assessment["decision"], "result_count": len(evidence.results)}
+        {
+            "candidate_status": assessment["decision"],
+            "result_count": len(evidence.results),
+            "output": str(output),
+        }
     )
     return 0
 
@@ -198,12 +223,21 @@ def _eval_release(args: argparse.Namespace) -> int:
     coverage_value = manifest.get("coverage")
     if not isinstance(coverage_value, str):
         raise ConfigurationError("evaluation runs manifest requires coverage")
+    supplied_document = manifest.get("decision_document")
+    if not isinstance(supplied_document, dict):
+        raise ConfigurationError("evaluation runs manifest requires decision_document")
     coverage_path = Path(coverage_value)
     fixtures, schemas = _eval_roots(coverage_path)
     evidence = run_p0_coverage(
         coverage_path, fixture_root=fixtures, schema_root=schemas
     )
     assessment = decide_p0_release(evidence)
+    scenario_results = run_all_scenarios()
+    record, _outcome = build_release_decision(evidence, scenario_results)
+    fresh_document = decision_document(record)
+    if stable_projection(fresh_document) != stable_projection(supplied_document):
+        _print_json({"decision": "blocked", "reason": "evaluation_document_divergence"})
+        return 0
     _print_json(
         {"decision": assessment["decision"], "missing": len(assessment["missing"])}
     )
@@ -262,6 +296,7 @@ def _parser() -> argparse.ArgumentParser:
     run = evaluation_actions.add_parser('run')
     run.add_argument('--coverage', type=Path, required=True)
     run.add_argument('--transport', required=True)
+    run.add_argument('--output', type=Path, default=None)
     run.set_defaults(handler=_eval_run)
 
     release = evaluation_actions.add_parser('release')
@@ -280,7 +315,13 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    return int(args.handler(args))
+    if args.group != 'eval':
+        return int(args.handler(args))
+    try:
+        return int(args.handler(args))
+    except ArsError as exc:
+        print(f'error: {exc}', file=sys.stderr)
+        return 1
 
 
 if __name__ == '__main__':
