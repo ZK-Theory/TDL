@@ -4,11 +4,34 @@ Task 1 registers only the F-001 control/store executor; Tasks 2-3 append
 coverage for the remaining P0 cases to this module.
 """
 
+from pathlib import Path
+
+from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.executors import EXECUTORS, require_executor
 from research_system.evals.executors.control_store import (
     CONTROL_STORE_EXECUTORS,
     execute_f001,
 )
+
+ROOT = Path(__file__).resolve().parents[3]
+FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
+
+ADAPTER_SCIENTIFIC_CLEAN = [
+    "F-007",
+    "F-008",
+    "F-009",
+    "F-010",
+    "F-011",
+    "F-012",
+    "F-013",
+    "F-014",
+    "F-020",
+    "F-032",
+    "F-034",
+    "S-003",
+    "S-004",
+    "S-013",
+]
 
 _F001_PAYLOAD = {
     "contract": "immutable_message_ownership",
@@ -42,3 +65,36 @@ def test_execute_f001_known_good_preserves_both_owners():
         "surviving_ids": ["T0.3", "T0.12"],
         "collision_visible": True,
     }
+
+
+def test_adapter_scientific_paired_calibration_is_real_and_clean():
+    for fixture_id in ADAPTER_SCIENTIFIC_CLEAN:
+        record = calibrate_fixture(fixture_id, fixture_root=FIXTURES)
+        assert [d.verdict for d in record.known_bad] == ["fail", "fail"], fixture_id
+        assert [d.verdict for d in record.known_good] == ["pass", "pass"], fixture_id
+        assert all(d.verdict == "pass" for m in record.mutations for d in m.decisions), fixture_id
+        assert record.blocking_verdict in (None, "unable_to_grade"), fixture_id
+
+
+def test_f036_is_quarantined_fixture_error_until_corpus_correction():
+    record = calibrate_fixture("F-036", fixture_root=FIXTURES)
+    assert record.blocking_verdict == "fixture_error"
+    assert {d.verdict for d in record.known_good} == {"fixture_error"}
+
+
+def test_f012_null_shuffle_actually_changes_the_tested_object():
+    from research_system.evals.executors.adapter_scientific import execute_f012
+
+    good = execute_f012(
+        "known_good",
+        {
+            "action": {
+                "operation": "apply_null_shuffle",
+                "pre_tested_object_hash": "same",
+                "post_tested_object_hash": "same",
+                "producer_passed": True,
+            }
+        },
+    )
+    assert good["tested_object_changed"] is True
+    assert good["producer_flag_trusted"] is False
