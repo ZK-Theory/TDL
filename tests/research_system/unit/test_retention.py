@@ -13,10 +13,15 @@ from research_system.evals.retention import (
     CanonicalPayloadScan,
     EvidenceStoreRegistry,
     LocationInspection,
+    _jsonable,
     require_retention_rule,
     validate_deletion_manifest_for_event,
     validate_fixture_retention,
     verify_deletion,
+)
+from research_system.evals.retention_authorizer import (
+    build_deletion_manifest_authorizer,
+    load_evidence_store_registry,
 )
 from research_system.projection.replay import apply_event
 from research_system.schema_registry import SchemaRegistry
@@ -377,6 +382,175 @@ def test_command_service_requires_trusted_manifest_authorizer(tmp_path):
     assert harness.service.submit(command).status == "accepted"
     state = replay_projection(harness.ledger.iter_events())
     assert state["streams"]["evidence-store-1"]["status"] == "expired_deleted"
+
+
+def _bound_registry(tmp_path):
+    """Registry accepting ACTORS['actor-a']/AUTHORITY_GRANT_ID as the verifier."""
+    return EvidenceStoreRegistry(
+        **(
+            asdict(_registry(tmp_path))
+            | {
+                "verifier_authority_bindings": (
+                    (ACTORS["actor-a"], AUTHORITY_GRANT_ID),
+                ),
+            }
+        )
+    )
+
+
+def test_authorizer_refuses_mismatched_registry_hash_or_policy_revision(tmp_path):
+    manifest = _verify(tmp_path)
+    payload = _jsonable(asdict(manifest))
+
+    wrong_hash_registry = EvidenceStoreRegistry(
+        **(asdict(_registry(tmp_path)) | {"registry_hash": "f" * 64})
+    )
+    authorize_wrong_hash = build_deletion_manifest_authorizer(
+        wrong_hash_registry, current_policy_revision="p0-retention-v1"
+    )
+    with pytest.raises(ValueError, match="stale deletion registry"):
+        authorize_wrong_hash(payload, "actor-1", "grant-1")
+
+    authorize_stale_policy = build_deletion_manifest_authorizer(
+        _registry(tmp_path), current_policy_revision="p0-retention-v2"
+    )
+    with pytest.raises(ValueError, match="stale deletion registry"):
+        authorize_stale_policy(payload, "actor-1", "grant-1")
+
+
+def test_production_authorizer_accepts_complete_current_manifest(tmp_path):
+    registry = _bound_registry(tmp_path)
+    manifest = _verify(
+        tmp_path,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=AUTHORITY_GRANT_ID,
+        registry=registry,
+    )
+    assert manifest.status == "verified"
+
+    command_root = tmp_path / "command"
+    command_root.mkdir()
+    harness = control_plane(command_root)
+    harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
+        registry, current_policy_revision="p0-retention-v1"
+    )
+    command = {
+        **_deletion_command(manifest.manifest_hash),
+        "payload": _jsonable(asdict(manifest)),
+    }
+    expected_payload = validate_deletion_manifest_for_event(
+        manifest,
+        registry=registry,
+        current_policy_revision="p0-retention-v1",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=AUTHORITY_GRANT_ID,
+    )
+
+    receipt = harness.service.submit(command)
+    assert receipt.status == "accepted"
+    events = list(harness.ledger.iter_events())
+    verified_events = [
+        event for event in events if event["event_type"] == "EvidenceDeletionVerified"
+    ]
+    assert len(verified_events) == 1
+    assert verified_events[0]["payload"] == expected_payload
+    state = replay_projection(harness.ledger.iter_events())
+    assert state["streams"]["evidence-store-1"]["status"] == "expired_deleted"
+
+
+def test_production_authorizer_rejects_tampered_manifest_payload(tmp_path):
+    registry = _bound_registry(tmp_path)
+    manifest = _verify(
+        tmp_path,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=AUTHORITY_GRANT_ID,
+        registry=registry,
+    )
+    tampered_payload = _jsonable(asdict(manifest))
+    tampered_payload["evidence_id"] = "evidence-tampered"
+
+    command_root = tmp_path / "command"
+    command_root.mkdir()
+    harness = control_plane(command_root)
+    harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
+        registry, current_policy_revision="p0-retention-v1"
+    )
+    command = {
+        **_deletion_command(manifest.manifest_hash),
+        "payload": tampered_payload,
+    }
+    with pytest.raises(ValueError, match="manifest hash mismatch"):
+        harness.service.submit(command)
+    assert tuple(harness.ledger.iter_batches()) == ()
+
+
+def test_production_authorizer_rejects_malformed_payload_missing_field(tmp_path):
+    registry = _bound_registry(tmp_path)
+    manifest = _verify(
+        tmp_path,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=AUTHORITY_GRANT_ID,
+        registry=registry,
+    )
+    malformed_payload = _jsonable(asdict(manifest))
+    del malformed_payload["canonical_scan_hash"]
+
+    command_root = tmp_path / "command"
+    command_root.mkdir()
+    harness = control_plane(command_root)
+    harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
+        registry, current_policy_revision="p0-retention-v1"
+    )
+    command = {
+        **_deletion_command(manifest.manifest_hash),
+        "payload": malformed_payload,
+    }
+    with pytest.raises(ValueError, match="missing fields: canonical_scan_hash"):
+        harness.service.submit(command)
+    assert tuple(harness.ledger.iter_batches()) == ()
+
+
+def _registry_config_payload(tmp_path):
+    return {
+        "schema_id": "ars://evals/evidence-store-registry",
+        "schema_version": "1.0.0",
+        "store_id": "evidence-store-1",
+        "registry_hash": "a" * 64,
+        "policy_revision": "p0-retention-v1",
+        "primary_root": str(tmp_path / "primary"),
+        "runtime_root": str(tmp_path / "runtime"),
+        "staging_root": str(tmp_path / "staging"),
+        "temp_root": str(tmp_path / "temp"),
+        "replicas": [str(tmp_path / "replica")],
+        "permitted_consumers": ["eval"],
+        "retention_policy_ids": ["R2:minimized_sensitive_excerpt"],
+        "verifier_authority_bindings": [["actor-1", "grant-1"]],
+        "unregistered_replicas_prohibited": True,
+    }
+
+
+def test_load_evidence_store_registry_builds_from_schema_valid_config(tmp_path):
+    schemas = SchemaRegistry(Path(".research-system/schemas"))
+    config = _registry_config_payload(tmp_path)
+    config_path = tmp_path / "registry.yaml"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    registry = load_evidence_store_registry(config_path, schemas)
+    assert registry.store_id == "evidence-store-1"
+    assert registry.primary_root == tmp_path / "primary"
+    assert registry.replicas == (tmp_path / "replica",)
+    assert registry.verifier_authority_bindings == (("actor-1", "grant-1"),)
+
+
+def test_load_evidence_store_registry_rejects_schema_invalid_config(tmp_path):
+    schemas = SchemaRegistry(Path(".research-system/schemas"))
+    bad_config = _registry_config_payload(tmp_path)
+    del bad_config["registry_hash"]
+    bad_path = tmp_path / "bad_registry.yaml"
+    bad_path.write_text(json.dumps(bad_config), encoding="utf-8")
+
+    with pytest.raises(SchemaError):
+        load_evidence_store_registry(bad_path, schemas)
 
 
 def test_retention_policy_cli_validates_accepted_file(capsys):

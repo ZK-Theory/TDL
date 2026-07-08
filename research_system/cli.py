@@ -23,6 +23,10 @@ from research_system.evals.harness import (
     stable_projection,
 )
 from research_system.evals.retention import validate_retention_policy
+from research_system.evals.retention_authorizer import (
+    build_deletion_manifest_authorizer,
+    load_evidence_store_registry,
+)
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import initialize_control_store, load_store_manifest
@@ -85,13 +89,19 @@ def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     command = _read_json(args.command)
     ledger = EventLedger(binding.control_root, binding.project_id)
+    schemas = SchemaRegistry(binding.schema_root)
     service = CommandService(
         binding.control_root,
         ledger,
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
-        SchemaRegistry(binding.schema_root),
+        schemas,
     )
+    if args.evidence_store_registry is not None:
+        registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
+        service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
+            registry, current_policy_revision=registry.policy_revision
+        )
     _print_json(asdict(service.submit(command)))
     return 0
 
@@ -263,6 +273,7 @@ def _parser() -> argparse.ArgumentParser:
     submit = command_actions.add_parser('submit')
     submit.add_argument('--config', type=Path, required=True)
     submit.add_argument('--command', type=Path, required=True)
+    submit.add_argument('--evidence-store-registry', type=Path, default=None)
     submit.set_defaults(handler=_command_submit)
 
     replay_parser = groups.add_parser('replay')
