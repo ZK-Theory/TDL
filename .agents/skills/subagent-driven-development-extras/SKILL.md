@@ -42,6 +42,6 @@ who verifies a task; it does not authorize skipping verification.
 
 Nexus College Phase 0 execution under a hard 9%-weekly-token constraint: the
 controller substituted machine verification + controller read-review for five
-verbatim-transcription tasks and one authored task, reserving reviewer subagents
-for genuinely novel code. All six tasks passed the final whole-branch review with
+verbatim-transcription tasks, reserving reviewer subagents for the authored/novel-code task and all
+genuinely novel code. All six tasks passed the final whole-branch review with
 zero blocking defects.
