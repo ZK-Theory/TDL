@@ -40,6 +40,8 @@ def test_tampered_oracle_yields_fixture_error_and_blocked(tmp_path):
     shutil.copytree(EVALS / "fixtures", fixtures)
     coverage = tmp_path / "p0-coverage.yaml"
     coverage.write_text((EVALS / "p0-coverage.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    for policy in ("threshold-policies.yaml", "p0-calibration-policy.yaml"):
+        (tmp_path / policy).write_bytes((EVALS / policy).read_bytes())
     _tamper_post_control(fixtures, "F-001")
 
     evidence = run_p0_coverage(coverage, fixture_root=fixtures, schema_root=SCHEMAS)

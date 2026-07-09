@@ -21,6 +21,8 @@ from research_system.evals.executors import FixtureExecutor, require_executor
 
 MutationCalibrationStatus = Literal["not_calibrated", "calibrated"]
 
+DETERMINISTIC_REPETITIONS = 2
+
 
 @dataclass(frozen=True, slots=True)
 class CalibrationDecision:
@@ -94,7 +96,7 @@ def _execute_twice(
     execute: FixtureExecutor,
 ) -> tuple[CalibrationDecision, ...]:
     decisions = []
-    for repetition in (1, 2):
+    for repetition in range(1, DETERMINISTIC_REPETITIONS + 1):
         observed = execute(subject, dict(payload))
         if observed == expected:
             verdict = "fail" if subject == "known_bad" else "pass"
@@ -114,7 +116,7 @@ def _execute_mutation(
     execute: FixtureExecutor,
 ) -> MutationCalibration:
     decisions = []
-    for repetition in (1, 2):
+    for repetition in range(1, DETERMINISTIC_REPETITIONS + 1):
         observed = execute(
             "known_bad",
             {**payload, "producer_passed": True, "mutation_id": mutation_id},

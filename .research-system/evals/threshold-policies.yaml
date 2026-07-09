@@ -1,0 +1,13 @@
+schema_version: '1.0.0'
+registry_revision: p0-threshold-v1
+policies:
+  - threshold_policy_id: exact-property-v1
+    comparison: byte_identical_normalized_decision
+    grader_classes: [D, T, R, O, P]
+    model_threshold: null
+    human_threshold: null
+    notes: >-
+      Deterministic exact-match on normalized calibration decisions. M/H
+      thresholds are deliberately absent in P0: a required M/H grader without
+      a threshold policy yields unable_to_grade (blocking), per
+      p0-calibration-policy.yaml model_or_human_threshold_policy_missing.
