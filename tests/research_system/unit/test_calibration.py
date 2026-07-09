@@ -86,3 +86,18 @@ def test_mutation_detection_ignores_producer_flag():
     flagged = executor("known_bad", {**payload, "producer_passed": True})
     unflagged = executor("known_bad", payload)
     assert flagged == unflagged
+
+
+def test_f036_three_named_mutations_detected():
+    record = calibrate_fixture("F-036", fixture_root=FIXTURES)
+    assert record.fixture_revision == "r2"
+    assert record.declared_mutation_ids == (
+        "expected_value_anchoring",
+        "degenerate_constant_fallback",
+        "null_operation_invariance",
+    )
+    for mutation in record.mutations:
+        assert [item.reason for item in mutation.decisions] == ["mutation_detected"] * 2
+    # F-036 has a required M grader, so it stays blocked -- but honestly:
+    assert record.blocking_verdict == "unable_to_grade"
+

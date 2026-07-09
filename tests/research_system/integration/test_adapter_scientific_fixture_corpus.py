@@ -62,7 +62,15 @@ def test_scientific_oracle_literals_encode_expected_invariants():
     assert CASES["F-012"].post["tested_object_changed"] is True
     assert CASES["F-013"].post["manifest_vintages_coherent"] is True
     assert CASES["F-014"].post["independent_authority"] is True
-    assert CASES["F-036"].post["mutation_detected"] is True
+    case = CASES["F-036"]
+    assert case.lanes == ("topology", "stochastic", "representation", "claim")
+    assert case.incident_basis == "domain_coverage"
+    assert case.mutation_ids == (
+        "expected_value_anchoring",
+        "degenerate_constant_fallback",
+        "null_operation_invariance",
+    )
+    assert case.post["anchoring_detected"] is True
 
 
 def test_adapter_scientific_materializer_check_is_cwd_independent(tmp_path, monkeypatch):

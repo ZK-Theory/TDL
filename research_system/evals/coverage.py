@@ -94,13 +94,19 @@ def load_p0_coverage(
     selected = payload.get("selected_fixture_revisions")
     if not isinstance(selected, dict) or set(selected) != P0_CASES:
         raise FixtureDefinitionError("coverage must select exact P0_CASES")
-    if set(selected.values()) != {"r1"}:
-        raise FixtureDefinitionError("P0 fixture revisions must be r1")
     if payload.get("transport") != "fake":
         raise FixtureDefinitionError("P0 requires deterministic fake transport")
 
     keys: list[ResultKey] = []
     fixture_root = Path(fixture_root)
+    for fixture_id, revision in selected.items():
+        definition_path = fixture_root / fixture_id / "fixture.yaml"
+        declared = yaml.safe_load(definition_path.read_text(encoding="utf-8"))
+        if str(declared.get("fixture_revision")) != str(revision):
+            raise FixtureDefinitionError(
+                f"coverage pins {fixture_id}@{revision} but the package declares "
+                f"{declared.get('fixture_revision')}"
+            )
     # Enforce the exhaustive-catalogue claim: every staged fixture directory on
     # disk must be accounted for by an active, deferred, or Gate 5 catalogue set.
     catalogue = P0_CASES | P0_DEFERRED | GATE5_DEFERRED
