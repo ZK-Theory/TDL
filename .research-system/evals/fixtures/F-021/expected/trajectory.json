@@ -1,1 +1,1 @@
-{"fixture_id":"F-021","fixture_revision":"r1","forbidden":["StaleContextAccepted","AmendmentSilentlyOmitted"],"required":["GoverningSourcesResolved","AmendmentIncluded","ContextManifestIssued"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}
+{"fixture_id":"F-021","fixture_revision":"r2","forbidden":["StaleContextAccepted","AmendmentSilentlyOmitted"],"required":["GoverningSourcesResolved","AmendmentIncluded","ContextManifestIssued"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

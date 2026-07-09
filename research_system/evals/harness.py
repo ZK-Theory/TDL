@@ -13,9 +13,11 @@ import yaml
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import P0Coverage, load_p0_coverage
+from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.fixture_package import load_typed_definition
 from research_system.evals.lifecycle import start_evaluation
 from research_system.evals.models import GraderResult, ReleaseGateDecision, ResultKey, TraceEnvelope
+from research_system.evals.policies import load_threshold_policies, require_calibration_policy
 from research_system.evals.release import BLOCKING, decide_release
 from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
@@ -75,11 +77,18 @@ def run_p0_coverage(
         schema_root=schema_root,
     )
     root = Path(fixture_root)
+    threshold_policies = load_threshold_policies(root.parent / "threshold-policies.yaml")
+    require_calibration_policy(root.parent / "p0-calibration-policy.yaml")
     maps = {name: {} for name in ("subject", "trace", "oracle", "policy", "threshold", "independence", "criticality")}
     results = []
     for fixture_id, fixture_revision in coverage.selected_fixture_revisions:
         package_root = root / fixture_id
         definition = load_typed_definition(package_root)
+        missing_policies = set(definition.threshold_policy_ids) - set(threshold_policies)
+        if missing_policies:
+            raise FixtureDefinitionError(
+                f"{fixture_id} references undefined threshold policies: {sorted(missing_policies)}"
+            )
         raw = _fixture(package_root / "fixture.yaml")
         calibration = calibrate_fixture(fixture_id, fixture_root=root)
         subject_hash = str(raw["known_good_reference_hash"])

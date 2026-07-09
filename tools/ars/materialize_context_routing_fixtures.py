@@ -40,6 +40,9 @@ class Case:
     graders: tuple[str, ...]
     priority: str
     gate_stage: str = "p0_materialization"
+    fixture_revision: str = "r1"
+    mutation_ids: tuple[str, ...] | None = None
+    sizing_variant: bool = False
 
 
 CASES = {
@@ -63,6 +66,8 @@ CASES = {
         ("StaleContextAccepted", "AmendmentSilentlyOmitted"),
         ("D", "T", "M"),
         "P1",
+        fixture_revision="r2",
+        sizing_variant=True,
     ),
     "F-022": Case(
         "Correlated reviewer contexts",
@@ -313,7 +318,7 @@ def _document(case_id: str, name: str, case: Case) -> dict[str, Any]:
     common = {
         "schema_version": "1.0.0",
         "fixture_id": case_id,
-        "fixture_revision": "r1",
+        "fixture_revision": case.fixture_revision,
     }
     if name == "input/stimulus.json":
         return {
@@ -375,7 +380,7 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
         "schema_id": "ars://evals/fixture-source-manifest",
         "schema_version": "1.0.0",
         "fixture_id": case_id,
-        "fixture_revision": "r1",
+        "fixture_revision": case.fixture_revision,
         "source_snapshot_date": "2026-07-01",
         "authoritative_refs": [
             "docs/plans/agentic-research-system/design/03-context-memory-and-retrieval.md",
@@ -400,13 +405,24 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
             }
         ],
     }
+    if case.sizing_variant:
+        source["variant_bindings"] += [
+            {
+                "variant_id": f"mandatory_closure_sizing-{counter}",
+                "provider_variant": counter,
+                "runtime_variant": "python-3.13",
+                "os": "windows",
+                "transport": "in_process_fake",
+            }
+            for counter in ("fake-claude-count-v1", "fake-codex-count-v1")
+        ]
     files["input/source-manifest.json"] = _json_bytes(source)
     graders = json.loads(files["graders/required.json"])["required_graders"]
     definition = {
         "schema_id": "ars://evals/fixture-definition",
         "schema_version": "1.0.0",
         "fixture_id": case_id,
-        "fixture_revision": "r1",
+        "fixture_revision": case.fixture_revision,
         "title": case.title,
         "owner": "evaluation_owner",
         "status": "authored",
@@ -436,7 +452,7 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
         "required_evidence_classes": [case.contract, "normalized_trace"],
         "known_bad_reference_hash": content_hashes["expected/pre-control.json"],
         "known_good_reference_hash": content_hashes["expected/post-control.json"],
-        "mutation_ids": [f"{case.contract}-violation"],
+        "mutation_ids": list(case.mutation_ids) if case.mutation_ids else [f"{case.contract}-violation"],
         "safe_variation_ids": ["identifier-renaming"],
         "calibration_record_id": None,
         "retention_class": "R0",

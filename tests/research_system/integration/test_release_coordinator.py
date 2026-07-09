@@ -39,6 +39,7 @@ def test_verdicts_derive_from_calibration_not_constants():
     by_fixture = {}
     for result in evidence.results:
         by_fixture.setdefault(result.fixture_id, set()).add(result.verdict)
-    assert "fixture_error" in by_fixture["F-036"]
+    assert "fixture_error" not in by_fixture["F-036"]
+    assert "unable_to_grade" in by_fixture["F-036"]
     assert by_fixture["F-001"] <= {"pass", "unable_to_grade"}
     assert all(r.verdict == "unable_to_grade" for r in evidence.results if r.grader_class in {"M", "H"})

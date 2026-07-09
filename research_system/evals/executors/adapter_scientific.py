@@ -179,16 +179,26 @@ def execute_f034(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def execute_f036(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     action = payload["action"]
-    recomputed_equal = action["baseline_hash"] == action["mutant_hash"]
     if subject == "known_bad":
-        return {"mutation_detected": False, "producer_flag_trusted": True}
-    # Honest derivation: equal recomputed hashes mean the claimed mutation did
-    # NOT change the object. The authored post-control asserts
-    # mutation_detected=True for equal hashes, which this derivation cannot
-    # reproduce; F-036 therefore calibrates as fixture_error until the corpus
-    # tranche re-authors its oracle (review M-1 / obligation O7). Do not bend
-    # this derivation to match the authored file (anti-anchoring rule).
-    return {"mutation_detected": not recomputed_equal, "producer_flag_trusted": False, "hashes_recomputed": True}
+        # Uncontrolled path: the producer flag is trusted for every presented
+        # mutation -- the trusted_mutation_claim failure class itself.
+        return {
+            "expected_value_recomputed": False,
+            "anchoring_detected": False,
+            "degenerate_fallback_detected": False,
+            "null_invariance_detected": False,
+            "producer_flag_trusted": True,
+        }
+    recomputed = sum(action["values"]) / len(action["values"])
+    return {
+        "expected_value_recomputed": True,
+        "anchoring_detected": action["producer_reported_value"] != recomputed,
+        "degenerate_fallback_detected": action["fallback_constant"] != recomputed,
+        "null_invariance_detected": (
+            action["object_hash_before_null_op"] == action["object_hash_after_null_op"]
+        ),
+        "producer_flag_trusted": False,
+    }
 
 
 def execute_s003(subject: str, payload: dict[str, Any]) -> dict[str, Any]:

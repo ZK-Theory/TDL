@@ -1,3 +1,3 @@
-# F-036: Mutation evidence anti-gaming
+# F-036: Proof-obligation anti-gaming
 
 Staged WP4.6 behavior-specific fixture. Not calibrated or active.
