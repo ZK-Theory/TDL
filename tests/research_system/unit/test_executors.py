@@ -77,10 +77,10 @@ def test_adapter_scientific_paired_calibration_is_real_and_clean():
         assert record.blocking_verdict in (None, "unable_to_grade"), fixture_id
 
 
-def test_f036_is_quarantined_fixture_error_until_corpus_correction():
+def test_f036_calibrates_honestly_as_unable_to_grade():
     record = calibrate_fixture("F-036", fixture_root=FIXTURES)
-    assert record.blocking_verdict == "fixture_error"
-    assert {d.verdict for d in record.known_good} == {"fixture_error"}
+    assert record.blocking_verdict == "unable_to_grade"
+    assert {d.verdict for d in record.known_good} == {"pass"}
 
 
 def test_f012_null_shuffle_actually_changes_the_tested_object():
@@ -105,8 +105,8 @@ def test_every_p0_case_has_exactly_one_registered_executor():
     assert set(EXECUTORS) == set(P0_CASES)
 
 
-def test_full_corpus_calibrates_with_only_known_quarantines():
-    expected_errors = {"F-036"}
+def test_full_corpus_calibration_has_no_fixture_errors():
+    expected_errors = set()
     errors = {
         fixture_id
         for fixture_id in sorted(P0_CASES)

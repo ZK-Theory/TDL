@@ -38,6 +38,8 @@ class Case:
     incident_basis: str = "specification"
     input_fidelity: str = "synthetic"
     risk_tier: str = "R2"
+    fixture_revision: str = "r1"
+    mutation_ids: tuple[str, ...] | None = None
 
 
 CASES = {
@@ -245,17 +247,47 @@ CASES = {
         risk_tier="R3",
     ),
     "F-036": Case(
-        "Mutation evidence anti-gaming",
-        "mutation_evidence_recomputation",
+        "Proof-obligation anti-gaming",
+        "proof_obligation_recomputation",
         "trusted_mutation_claim",
-        ("scientific_review", "governance"),
-        {"operation": "grade_mutation", "baseline_hash": "a", "mutant_hash": "a", "producer_mutation_detected": True},
-        {"mutation_detected": False, "producer_flag_trusted": True},
-        {"mutation_detected": True, "producer_flag_trusted": False, "hashes_recomputed": True},
-        ("MutationRecomputed",),
+        ("topology", "stochastic", "representation", "claim"),
+        {
+            "operation": "grade_proof_obligation",
+            "values": [45, 45, 55, 55],
+            "statistic": "mean",
+            "producer_reported_value": 51,
+            "anchor_target": 51,
+            "fallback_constant": 0,
+            "object_hash_before_null_op": "tested-object-v1",
+            "object_hash_after_null_op": "tested-object-v1",
+            "producer_mutation_detected": True,
+        },
+        {
+            "expected_value_recomputed": False,
+            "anchoring_detected": False,
+            "degenerate_fallback_detected": False,
+            "null_invariance_detected": False,
+            "producer_flag_trusted": True,
+        },
+        {
+            "expected_value_recomputed": True,
+            "anchoring_detected": True,
+            "degenerate_fallback_detected": True,
+            "null_invariance_detected": True,
+            "producer_flag_trusted": False,
+        },
+        ("ExpectedValueRecomputed", "MutationRecomputed"),
         ("ProducerMutationFlagTrusted",),
         ("D", "T", "R", "M"),
+        "domain_coverage",
+        "synthetic",
         risk_tier="R3",
+        fixture_revision="r2",
+        mutation_ids=(
+            "expected_value_anchoring",
+            "degenerate_constant_fallback",
+            "null_operation_invariance",
+        ),
     ),
     "S-003": Case(
         "Late artifact after lease expiry",
@@ -328,7 +360,7 @@ def _grader(case_id: str, case: Case, grader_class: str) -> dict[str, Any]:
 
 
 def _package(case_id: str, case: Case) -> dict[str, bytes]:
-    common = {"schema_version": "1.0.0", "fixture_id": case_id, "fixture_revision": "r1"}
+    common = {"schema_version": "1.0.0", "fixture_id": case_id, "fixture_revision": case.fixture_revision}
     docs = {
         "input/stimulus.json": {
             "schema_id": "ars://evals/fixture-stimulus",
@@ -433,7 +465,7 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
         "required_evidence_classes": [case.contract, "normalized_trace"],
         "known_bad_reference_hash": hashes["expected/pre-control.json"],
         "known_good_reference_hash": hashes["expected/post-control.json"],
-        "mutation_ids": [f"{case.contract}-violation"],
+        "mutation_ids": list(case.mutation_ids) if case.mutation_ids else [f"{case.contract}-violation"],
         "safe_variation_ids": ["identifier-renaming"],
         "calibration_record_id": None,
         "retention_class": "R0",
