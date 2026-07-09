@@ -200,3 +200,6 @@ results/panel_methodology/fdr/subgroup_checkpoints/
 /.research-system/projections/
 /.research-system/indexes/
 /.research-system/runtime/
+
+# Discovery-spike scratch outputs (toy/feasibility compute; never results/)
+scratch/
