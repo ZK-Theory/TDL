@@ -253,10 +253,10 @@ CASES = {
         ("topology", "stochastic", "representation", "claim"),
         {
             "operation": "grade_proof_obligation",
-            "values": [2, 4, 6, 8],
+            "values": [45, 45, 55, 55],
             "statistic": "mean",
-            "producer_reported_value": 6,
-            "anchor_target": 6,
+            "producer_reported_value": 51,
+            "anchor_target": 51,
             "fallback_constant": 0,
             "object_hash_before_null_op": "tested-object-v1",
             "object_hash_after_null_op": "tested-object-v1",

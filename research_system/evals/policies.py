@@ -80,4 +80,12 @@ def require_calibration_policy(path: Path | str) -> dict[str, Any]:
             if payload.get(key) != value
         } or {key: (payload[key], None) for key in payload.keys() - _REQUIRED_CALIBRATION.keys()}
         raise ConfigurationError(f"calibration policy drift: {drift}")
+
+    from research_system.evals.calibration import DETERMINISTIC_REPETITIONS
+
+    if payload["deterministic_repetitions"] != DETERMINISTIC_REPETITIONS:
+        raise ConfigurationError(
+            f"calibration policy says {payload['deterministic_repetitions']} "
+            f"repetitions but the engine constant is {DETERMINISTIC_REPETITIONS}"
+        )
     return payload

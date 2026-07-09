@@ -50,6 +50,12 @@ def test_calibration_policy_mismatch_is_configuration_error(tmp_path):
         require_calibration_policy(bad)
 
 
+def test_calibration_policy_engine_constant_mismatch_raises_configuration_error(monkeypatch):
+    monkeypatch.setattr("research_system.evals.calibration.DETERMINISTIC_REPETITIONS", 3)
+    with pytest.raises(ConfigurationError, match="engine constant is 3"):
+        require_calibration_policy(EVALS / "p0-calibration-policy.yaml")
+
+
 def test_empty_threshold_registry_loads_as_empty(tmp_path):
     bad = tmp_path / "threshold-policies.yaml"
     bad.write_text("schema_version: '1.0.0'\npolicies: []\n", encoding="utf-8")

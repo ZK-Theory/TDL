@@ -16,7 +16,7 @@ assurance_lanes:
 failure_class: trusted_mutation_claim
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: 273c3a6af7b38c5404d02fa4d157d3ec7bdbcfbbb9c581f25de9281c0e094719
+source_manifest_hash: 6f0292eef6d5960e7eb448504e352b2e94042d9bee0b1ab2e4beeec99107176c
 decision_refs:
 - P-030
 policy_versions:
@@ -26,8 +26,8 @@ schema_versions:
 confidentiality: internal
 permitted_consumers:
 - eval
-setup_hash: d4f9244d276b66f575759564280c6b4c28cf22e25d378716cd67853003f32d35
-stimulus_hash: 2d457f632b582d1d5dc2c503102a4b68e6118f186670dd19081707d1f4e96adf
+setup_hash: dba8e8ed6955d0a59714491340d2683ac5662503167cef7c8cb857e92337094d
+stimulus_hash: 99530820bb386b5cb0af6cd541dccdc8c60b39bfba4c1dda168c2c4c7a90ce99
 pre_control_oracle_hash: 879b80437096f017df0385741ab909fed21e61cdf266de5cf4d0f499d264e4c3
 post_control_oracle_hash: 41244773cca09880c1f9ceb3c8d51d690b5405787593c569403503ea8d75e0b3
 required_trajectory:
