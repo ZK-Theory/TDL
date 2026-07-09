@@ -22,9 +22,10 @@ def test_p0_coverage_selects_exact_merged_fixture_closure():
         schema_root=ROOT / ".research-system" / "schemas",
     )
     assert len(P0_CASES) == 37
-    assert dict(coverage.selected_fixture_revisions) == {
-        fixture_id: "r1" for fixture_id in sorted(P0_CASES)
-    }
+    expected = {fixture_id: "r1" for fixture_id in sorted(P0_CASES)}
+    expected["F-021"] = "r2"
+    expected["F-036"] = "r2"
+    assert dict(coverage.selected_fixture_revisions) == expected
     assert len(coverage.required_result_keys) == len(set(coverage.required_result_keys))
     assert coverage.transport == "fake"
 
