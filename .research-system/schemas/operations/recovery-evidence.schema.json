@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://operations/recovery-evidence",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "recovery_evidence_id", "attempt_id", "detected_condition", "consumer_restrictions", "unresolved_uncertainty"],
+  "properties": {
+    "schema_id": {"const": "ars://operations/recovery-evidence"},
+    "schema_version": {"const": "1.0.0"},
+    "recovery_evidence_id": {"type": "string", "pattern": "^rcv_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "detected_condition": {"type": "string", "minLength": 1},
+    "consumer_restrictions": {"type": "array", "items": {"type": "string"}},
+    "unresolved_uncertainty": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

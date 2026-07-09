@@ -1,0 +1,84 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-004
+fixture_revision: r1
+title: Partial resume lineage
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- operations
+- provenance
+failure_class: resume_lineage_loss
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: ea5406ce5b51d09d7ca070abc072e016c9c2f0091309c9c76af0392e1ddefc8c
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 7df0c2866e9e34ee521a116a172aad1aa2d81d523f7483b1d8205bb31f9921e3
+stimulus_hash: 24fc4ec16fedb9f14ec7b5c474bc480889854289f93cb89ebdb5ffd53b38d1ab
+pre_control_oracle_hash: 1466ba213a700dc0cb36cc2260a779566bbf6c0856dfc4c9d17b7bebd093122f
+post_control_oracle_hash: 74da40de581cf3c97fee4010952036e0438a12ddc2fc35484555affa4d177f01
+required_trajectory:
+- CheckpointCompatibilityChecked
+- ExecutionEpochAdvanced
+forbidden_trajectory:
+- PriorAttemptOverwritten
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- grader_id: s-004-outcome
+  grader_class: D
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - checkpoint_resume_lineage
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: s-004-trajectory
+  grader_class: T
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - checkpoint_resume_lineage
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: s-004-operational
+  grader_class: O
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - checkpoint_resume_lineage
+  - input/stimulus.json
+  - normalized_trace
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- checkpoint_resume_lineage
+- normalized_trace
+known_bad_reference_hash: 1466ba213a700dc0cb36cc2260a779566bbf6c0856dfc4c9d17b7bebd093122f
+known_good_reference_hash: 74da40de581cf3c97fee4010952036e0438a12ddc2fc35484555affa4d177f01
+mutation_ids:
+- checkpoint_resume_lineage-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

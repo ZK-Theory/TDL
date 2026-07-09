@@ -1,0 +1,77 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-027
+fixture_revision: r1
+title: Optional-index deletion equivalence
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R1
+assurance_lanes:
+- context
+- provenance
+failure_class: optional_index_authority
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 157e19cfdd0af6ddead5e3c813a1677a14cc6b19516452216b5c46c4da8c7440
+decision_refs:
+- P-028
+- P-029
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: f35c2549cea9ca9b2fa7b44e51b2458763a0ea5f4224a5d751dae44d5006b7dd
+stimulus_hash: 7b143e37a9d03ae18ef35bf0499bbf5ad2b0c7ac9b57b32104d196eeeecb8b23
+pre_control_oracle_hash: f4a7018cfe412dc3f6aa76a34fae187aa78f5b825bfd8bb9b842e6ecb46478a0
+post_control_oracle_hash: 19d39a3adf1e3139852a2056210c88bafb2e3945ddd082c750aac0b96b5e9dc3
+required_trajectory:
+- OptionalIndexUnavailableRecorded
+- DirectSourceFallbackUsed
+- ContextManifestIssued
+forbidden_trajectory:
+- MandatorySelectionChanged
+- IndexAbsenceLoweredAuthority
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - optional_index_deletion_equivalence
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-027-outcome
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - optional_index_deletion_equivalence
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-027-trajectory
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- optional_index_deletion_equivalence
+- normalized_trace
+known_bad_reference_hash: f4a7018cfe412dc3f6aa76a34fae187aa78f5b825bfd8bb9b842e6ecb46478a0
+known_good_reference_hash: 19d39a3adf1e3139852a2056210c88bafb2e3945ddd082c750aac0b96b5e9dc3
+mutation_ids:
+- optional_index_deletion_equivalence-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

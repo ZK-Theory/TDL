@@ -1,0 +1,74 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-002
+fixture_revision: r1
+title: Task and report collision
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: reconstructed
+risk_tier: R2
+assurance_lanes:
+- coordination
+failure_class: task_report_collision
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: d463c04e32df5312a7974bd261ef981962abe73fd2497027cc63e03b597ec329
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: b455b2a1ec937a4fe94c6d00bee59b69b7f6a9bedb28076e2de7fb40ccab70de
+stimulus_hash: b9148fb7d4ed8bda973f774a164b0426bdd0ee41580a8bc9dfb2cc6bab35069a
+pre_control_oracle_hash: 5787afba8cac3c1b5cb4f2ee4aaea78ead449c39df9716af3f15d3871e5cccec
+post_control_oracle_hash: 04161fbeeb4a5284a3cf6616705e3082f57098fb3fa6dd427959aea382a3bece
+required_trajectory:
+- AssignmentPublished
+- ReportPreserved
+- MessageAcknowledged:T1.6
+forbidden_trajectory:
+- ReportClearedByAssignment
+- DispatchStateErased
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - message_kind_separation
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-002-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - message_kind_separation
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-002-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- message_kind_separation
+- normalized_trace
+known_bad_reference_hash: 5787afba8cac3c1b5cb4f2ee4aaea78ead449c39df9716af3f15d3871e5cccec
+known_good_reference_hash: 04161fbeeb4a5284a3cf6616705e3082f57098fb3fa6dd427959aea382a3bece
+mutation_ids:
+- message_kind_separation-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

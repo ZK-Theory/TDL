@@ -1,0 +1,7 @@
+schema_version: '1.0.0'
+project_template_alias: ars-foundation-p0
+project_id: null
+control_root: null
+control_root_required: true
+endpoint_scheme: local-cli
+canonical_hash: sha256

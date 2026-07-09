@@ -768,14 +768,24 @@ def _single_permutation(
 
         if giotto_pool is None:
             raise ValueError("rips_backend='giotto' requires a live giotto_pool")
+        unsupported = set(runtime_ph_kwargs) - {"max_dim", "thresh"}
+        if unsupported:
+            raise ValueError(
+                f"rips_backend='giotto' does not support ph_kwargs {sorted(unsupported)} — "
+                "e.g. do_cocycles/method/feasibility_tetra_budget/collapse_iterations/"
+                "timeout_seconds are ripser-only. Silently dropping them would make the "
+                "option look applied when it isn't."
+            )
         ph = compute_rips_ph_giotto(
             landmarks_for_ph,
             giotto_pool,
             max_dim=runtime_ph_kwargs["max_dim"],
             thresh=runtime_ph_kwargs.get("thresh"),
         )
-    else:
+    elif rips_backend == "ripser":
         ph = compute_rips_ph(landmarks_for_ph, **runtime_ph_kwargs)
+    else:
+        raise ValueError(f"unknown rips_backend: {rips_backend!r} (expected 'ripser' or 'giotto')")
     provenance = _ph_provenance(ph)
     provenance["seed"] = int(seed)
     provenance["n_landmarks"] = int(landmarks_for_ph.shape[0])

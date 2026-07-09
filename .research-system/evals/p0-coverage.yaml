@@ -1,0 +1,102 @@
+schema_version: 1.0.0
+coverage_revision: p0-coverage-v1
+transport: fake
+selected_fixture_revisions:
+  F-001: r1
+  F-002: r1
+  F-003: r1
+  F-004: r1
+  F-005: r1
+  F-007: r1
+  F-008: r1
+  F-009: r1
+  F-010: r1
+  F-011: r1
+  F-012: r1
+  F-013: r1
+  F-014: r1
+  F-020: r1
+  F-021: r2
+  F-022: r1
+  F-025: r1
+  F-026: r1
+  F-027: r1
+  F-028: r1
+  F-031: r1
+  F-032: r1
+  F-033: r1
+  F-034: r1
+  F-035: r1
+  F-036: r2
+  S-001: r1
+  S-002: r1
+  S-003: r1
+  S-004: r1
+  S-006: r1
+  S-008: r1
+  S-009: r1
+  S-010: r1
+  S-011: r1
+  S-012: r1
+  S-013: r1
+scenarios: [A, B, C, D, E]
+gate5_authorized: false
+omitted_gate5:
+  - fixture_id: S-014
+    capability: backup_restore_machine_move
+    reason: registered backup topology is not yet authorized
+    status: capability_disabled
+    required_before: gate5
+  - fixture_id: S-015
+    capability: supersession_cycle_release
+    reason: foundation-release cycle fixture is deferred
+    status: capability_disabled
+    required_before: gate5
+  - fixture_id: S-016
+    capability: r3_provider_outage
+    reason: live cross-family authority is unavailable in P0
+    status: capability_disabled
+    required_before: gate5
+omitted_p0:
+  - fixture_id: F-006
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-015
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-016
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-017
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-018
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-019
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-023
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-024
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-029
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-030
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-037
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: F-038
+    reason: outside P0 except for dependencies already represented by a P0 case
+    plan_ref: 05-plan §4.4
+  - fixture_id: S-005
+    reason: later foundation_release or pilot_promotion case
+    plan_ref: 05-plan §4.4
+  - fixture_id: S-007
+    reason: later foundation_release or pilot_promotion case
+    plan_ref: 05-plan §4.4

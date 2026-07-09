@@ -1,0 +1,73 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-002
+fixture_revision: r1
+title: Exclusive competing claims
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- coordination
+failure_class: competing_exclusive_claims
+priority: P1
+gate_stage: interface_review
+source_manifest_hash: 75862522b6ab902495ed0fc4b914e751026731e37b26f5e241cf86efcd51dd4e
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 4b77e8b09460cd1bb5ee2537a3c39ec1f50d81fe7b70b1740f5c2334e9b4c06d
+stimulus_hash: e9dcf0adcd9b13e561a22156873c8fcfb3f7b8dee563da6aad374bc447c56c2e
+pre_control_oracle_hash: e6bf0d123f02422ed925e2d08210a9934def8004caded9e38d4c984fed69c1f0
+post_control_oracle_hash: 4f4a5e1485de96953103279d0ec15a4c2e5b164c0e4eacc4ed5238bcabf92b46
+required_trajectory:
+- DispatchClaimed
+- ClaimConflictRecorded
+forbidden_trajectory:
+- SecondClaimAccepted
+- DualActiveAttempt
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - exclusive_claim_serialization
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-002-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - exclusive_claim_serialization
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-002-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- exclusive_claim_serialization
+- normalized_trace
+known_bad_reference_hash: e6bf0d123f02422ed925e2d08210a9934def8004caded9e38d4c984fed69c1f0
+known_good_reference_hash: 4f4a5e1485de96953103279d0ec15a4c2e5b164c0e4eacc4ed5238bcabf92b46
+mutation_ids:
+- exclusive_claim_serialization-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

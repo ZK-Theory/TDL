@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"amendment_included":true,"stale_packet_rejected":true,"unexplained_omissions":0},"property":"governing_amendment_recall","satisfied":true}],"fixture_id":"F-021","fixture_revision":"r2","oracle_kind":"post_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

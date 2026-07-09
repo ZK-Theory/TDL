@@ -1,0 +1,83 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-013
+fixture_revision: r1
+title: Data-vintage incoherence
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: minimized
+risk_tier: R2
+assurance_lanes:
+- representation
+- provenance
+failure_class: mixed_data_vintage
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 023226cce4497550ff7090fe091a30a711beb0383368ef6c67bf8b559a1fd753
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: a480da3d60e385883ec03868579f5ca439f88f0da0ea3a8c123e630eee7b2873
+stimulus_hash: b8722f43e30c82138f3aab9d999e76dd483b08648f0c6b346040584e25b63905
+pre_control_oracle_hash: a22ac439c0cf8fde452996a09ac57f160920a8e7720d59eb0fbcee8db9bfba22
+post_control_oracle_hash: f3a365d8ac0e0b476cdb9c97eebe418ed744190bf4d179a85008033d02641350
+required_trajectory:
+- InputManifestsCompared
+forbidden_trajectory:
+- MixedVintageDispatch
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- grader_id: f-013-outcome
+  grader_class: D
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - input_vintage_coherence
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-013-trajectory
+  grader_class: T
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - input_vintage_coherence
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-013-privacy-security
+  grader_class: P
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - input_vintage_coherence
+  - input/stimulus.json
+  - normalized_trace
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- input_vintage_coherence
+- normalized_trace
+known_bad_reference_hash: a22ac439c0cf8fde452996a09ac57f160920a8e7720d59eb0fbcee8db9bfba22
+known_good_reference_hash: f3a365d8ac0e0b476cdb9c97eebe418ed744190bf4d179a85008033d02641350
+mutation_ids:
+- input_vintage_coherence-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

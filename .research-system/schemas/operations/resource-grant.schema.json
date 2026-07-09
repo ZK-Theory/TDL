@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://operations/resource-grant",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "resource_grant_id", "resource_request_id", "attempt_id", "profile_id", "granted_claims", "expires_at"],
+  "properties": {
+    "schema_id": {"const": "ars://operations/resource-grant"},
+    "schema_version": {"const": "1.0.0"},
+    "resource_grant_id": {"type": "string", "pattern": "^rgr_"},
+    "resource_request_id": {"type": "string", "pattern": "^rsq_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "profile_id": {"type": "string"},
+    "granted_claims": {"type": "object"},
+    "expires_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

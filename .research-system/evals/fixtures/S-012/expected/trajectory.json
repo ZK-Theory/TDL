@@ -1,0 +1,1 @@
+{"fixture_id":"S-012","fixture_revision":"r1","forbidden":["OverlappingPositionAllocated","DivergentStoreAccepted"],"required":["WriterLeaseChecked","CommandsSerialized"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

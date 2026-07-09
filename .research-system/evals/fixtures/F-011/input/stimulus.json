@@ -1,0 +1,1 @@
+{"fixture_id":"F-011","fixture_revision":"r1","payload":{"action":{"expected_fingerprint":"pca-frozen-v1","observed_fingerprint":"pca-refit-v2","observed_fit_calls":1,"operation":"apply_frozen_transform"},"contract":"frozen_representation_integrity"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

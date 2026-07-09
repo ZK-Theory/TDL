@@ -1,0 +1,1 @@
+{"fixture_id":"F-014","fixture_revision":"r1","payload":{"action":{"approver_actor":"worker-a","author_actor":"worker-a","operation":"approve_r3_contract","shared_session":true},"contract":"independent_contract_authority"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

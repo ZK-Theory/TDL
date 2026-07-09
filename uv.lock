@@ -837,6 +837,23 @@ wheels = [
 ]
 
 [[package]]
+name = "petls"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "gudhi" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pytest" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/38/43/c489a558d5e7972e409b180d83663d2601406bea8be8fbc8cdcaa703ca47/petls-1.0.1.tar.gz", hash = "sha256:46a7b2ba942d57ee64924abbcc670abd7e07e3a692d5d58deb8e257c77a59a34", size = 33365542 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/c1/ed81f95dae4310b6240672cc539ca0d00d9c899c6b03f5706fbf3ca05a7f/petls-1.0.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:1078de71f2a1ea59d13e937c0a2bbd4ab2258d91c33153f2ef7e5b2b09ddc971", size = 13816544 },
+]
+
+[[package]]
 name = "pillow"
 version = "12.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1446,6 +1463,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "persim" },
+    { name = "petls" },
     { name = "pot" },
     { name = "pyproj" },
     { name = "pyvista" },
@@ -1492,6 +1510,7 @@ requires-dist = [
     { name = "numpy", specifier = "==2.3.2" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "persim", specifier = "==0.3.8" },
+    { name = "petls", specifier = ">=1.0.1" },
     { name = "pot", specifier = "==0.9.6.post1" },
     { name = "pot", marker = "extra == 'wasserstein'", specifier = ">=0.9.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },

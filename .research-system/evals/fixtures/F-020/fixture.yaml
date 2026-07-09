@@ -1,0 +1,83 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-020
+fixture_revision: r1
+title: Provider policy drift
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: reconstructed
+risk_tier: R3
+assurance_lanes:
+- adapter
+- governance
+failure_class: provider_policy_drift
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 3015b8fa3aa4ce9bf9cf2044f946bc64043d38e3e6d05c13fd4bf9d1db2d6341
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: fc17258608cba58d097b45b70bf697d88fbe6a9e6b92ec61842d55fa861960da
+stimulus_hash: d1d9a1ec6f95290b0771ff862894ad68e0b3a49c3ab4fb283befe6d81ec8e8d0
+pre_control_oracle_hash: aed18605c0ffd7213629db96aaae9e6cc0dfb2eeaea19c139ccbd4dbf4cfc812
+post_control_oracle_hash: 3f913aa25dcbd309c6e56e7f91e65633bca5077706331a4d1bb903bd26c71646
+required_trajectory:
+- PolicyParityCompared
+forbidden_trajectory:
+- WeakerPolicyActivated
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- grader_id: f-020-outcome
+  grader_class: D
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - adapter_policy_parity
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-020-trajectory
+  grader_class: T
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - adapter_policy_parity
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-020-independent-model
+  grader_class: M
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: cross_family_context_independent
+  evidence_selectors:
+  - adapter_policy_parity
+  - input/stimulus.json
+  - normalized_trace
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- adapter_policy_parity
+- normalized_trace
+known_bad_reference_hash: aed18605c0ffd7213629db96aaae9e6cc0dfb2eeaea19c139ccbd4dbf4cfc812
+known_good_reference_hash: 3f913aa25dcbd309c6e56e7f91e65633bca5077706331a4d1bb903bd26c71646
+mutation_ids:
+- adapter_policy_parity-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

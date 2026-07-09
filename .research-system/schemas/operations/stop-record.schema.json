@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://operations/stop-record",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "stop_record_id", "attempt_id", "execution_lease_id", "reason", "status", "dispositions"],
+  "properties": {
+    "schema_id": {"const": "ars://operations/stop-record"},
+    "schema_version": {"const": "1.0.0"},
+    "stop_record_id": {"type": "string", "pattern": "^stp_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "execution_lease_id": {"type": "string", "pattern": "^els_"},
+    "reason": {"type": "string", "minLength": 1},
+    "status": {"enum": ["requested", "signal_sent", "confirmed", "uncertain"]},
+    "dispositions": {"type": "object"}
+  },
+  "additionalProperties": false
+}

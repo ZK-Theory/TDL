@@ -1,0 +1,1 @@
+{"fixture_id":"F-034","fixture_revision":"r1","payload":{"action":{"granted_roots":["control"],"operation":"authorize_decomposition","required_roots":["control","restricted"],"shared_target_transactional":false},"contract":"permission_root_sensitivity_closure"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

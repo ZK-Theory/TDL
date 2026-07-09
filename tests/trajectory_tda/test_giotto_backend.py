@@ -9,26 +9,31 @@
 
 from __future__ import annotations
 
+import sys
 import uuid
 from pathlib import Path
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from poverty_tda.topology.multidim_ph import PHResult, compute_rips_ph
 
-_GIOTTO_VENV = Path.cwd() / ".venv-giotto312" / "Scripts" / "python.exe"
+_GIOTTO_VENV_DIR = Path.cwd() / ".venv-giotto312"
+_GIOTTO_VENV = (
+    _GIOTTO_VENV_DIR / "Scripts" / "python.exe" if sys.platform == "win32" else _GIOTTO_VENV_DIR / "bin" / "python"
+)
 requires_giotto_venv = pytest.mark.skipif(
     not _GIOTTO_VENV.exists(),
     reason=(
-        "giotto-tda venv not found; create with "
-        "'uv venv --python 3.12 .venv-giotto312 && "
-        "uv pip install --python .venv-giotto312/Scripts/python.exe giotto-tda'"
+        f"giotto-tda venv not found; create with "
+        f"'uv venv --python 3.12 .venv-giotto312 && "
+        f"uv pip install --python {_GIOTTO_VENV} giotto-tda'"
     ),
 )
 
 
-def _finite(dgm: np.ndarray) -> np.ndarray:
+def _finite(dgm: NDArray[np.float64]) -> NDArray[np.float64]:
     if len(dgm) == 0:
         return np.empty((0, 2))
     return dgm[np.isfinite(dgm[:, 1])]

@@ -1,0 +1,1 @@
+{"fixture_id":"S-001","fixture_revision":"r1","forbidden":["DuplicateBatchCommitted","ChangedPayloadAccepted"],"required":["CommandCommitted","ReceiptReconstructed"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

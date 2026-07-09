@@ -1,0 +1,1 @@
+{"assertions":[{"derived_from":["input/stimulus.json","normalized_trace"],"expected_evidence":{"index_treated_as_authority":true,"mandatory_hashes_equal":false},"property":"optional_index_deletion_equivalence","satisfied":false}],"fixture_id":"F-027","fixture_revision":"r1","oracle_kind":"pre_control","schema_id":"ars://evals/fixture-oracle","schema_version":"1.0.0"}

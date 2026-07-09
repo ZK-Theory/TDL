@@ -1,0 +1,4 @@
+interface:
+  display_name: "Writing Plans Extras"
+  short_description: "Trace deferred obligations into implementation plans"
+  default_prompt: "Use $writing-plans-extras to check a plan for forward obligations and explicit deferrals."

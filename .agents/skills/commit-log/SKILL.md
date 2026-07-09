@@ -34,6 +34,17 @@ Example: `/commit-log` — interactive, asks about what was produced
 
 Multiple types? Use highest priority (RESULT > DECISION > NEGATIVE > PIPELINE > DATA > EXPLORE).
 
+Classify the commit and the knowledge-routing authority separately. A governance,
+control-plane, or infrastructure decision may correctly use `[DECISION]` while an explicit
+task boundary prohibits changing active research or vault state. When the decision is
+already recorded in an accepted repository decision document, use:
+
+```
+Vault: not updated — non-research design decision; task boundary prohibits research-state mutation
+```
+
+Do not use this exception for research methods, parameters, estimands, or result interpretation.
+
 ---
 
 ## Commit message format
@@ -101,9 +112,32 @@ type: permanent-note / paper: PXX / date: YYYY-MM-DD
 
 ---
 
+## Delivery notes (Windows / PowerShell 5.1)
+
+When writing the commit message to a temp file for `git commit -F <file>`:
+
+- **Do NOT use `Out-File -Encoding utf8`** — PS 5.1 emits UTF-8 *with BOM*. The
+  repo's `prepare-commit-msg` hook reads the first token of line 1 to detect the
+  `[PREFIX]`; the BOM makes the token `<BOM>[PREFIX]`, the check fails, and the
+  hook prepends its own template over the message.
+- **Use instead:**
+  ```powershell
+  [System.IO.File]::WriteAllText($path, $msg, (New-Object System.Text.UTF8Encoding($false)))
+  ```
+  The `$false` argument disables the BOM. The `[PREFIX]` must be the very first
+  bytes of the file.
+- After committing, read the resulting subject (for example, `git log -1 --format=%s`)
+  and verify that the intended project prefix and paper identifier survived hook processing.
+
 ## Output: two copy-ready blocks
 
 **Block 1** — Commit message
 **Block 2** — Vault entry with target file path and insertion point
 
 Use `[TO FILL]` for any number the user has not yet provided.
+
+## Pre-delivery check
+
+- The subject uses an allowed research prefix and paper identifier and is at most 72 characters.
+- Vault routing matches the content and the task authority boundary.
+- Windows commit-message instructions use UTF-8 without BOM and include post-commit verification.

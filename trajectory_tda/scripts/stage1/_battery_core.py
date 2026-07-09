@@ -683,51 +683,55 @@ def run_headline_from_embeddings(
     if pinned_thresh_value is not None:
         obs_ph_kwargs["thresh"] = pinned_thresh_value
 
+    # Pool creation through the permutation dispatch all live in one
+    # try/finally so a failure anywhere in setup (pool creation, the
+    # giotto-backed ph_obs call, probe-mode validation) still closes the
+    # pool — not just failures during the permutation loop itself.
     giotto_pool = None
-    if rips_backend == "giotto":
-        from poverty_tda.topology.giotto_backend import GiottoPool, compute_rips_ph_giotto
-
-        giotto_pool = GiottoPool(n_workers=n_jobs, worktree_root=worktree_root())
-        ph_obs = compute_rips_ph_giotto(
-            obs_landmarks_for_ph,
-            giotto_pool,
-            max_dim=obs_ph_kwargs["max_dim"],
-            thresh=obs_ph_kwargs.get("thresh"),
-        )
-    else:
-        ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
-
-    # Probe-mode forced symmetric dedup — if requested, force every null PD
-    # to use n_perm = obs_n_perm_used. Requires dedup_length_matched=True to
-    # have computed obs_n_perm_used in the first place.
-    forced_null_n_dedup: int | None = None
-    if probe_symmetric_dedup:
-        if not dedup_length_matched:
-            raise ValueError("probe_symmetric_dedup requires dedup_length_matched=True")
-        forced_null_n_dedup = int(obs_n_perm_used)
-        logger.info(
-            "[PHASE %s] probe forced symmetric dedup: nulls will use n_perm = %d (obs dedup count)",
-            label,
-            forced_null_n_dedup,
-        )
-    logger.info(
-        "[PHASE %s] obs landmarks + PH built in %.1fs (L=%d)",
-        label,
-        time.time() - t_lm,
-        actual_lm,
-    )
-
-    write_status(f"PHASE {label} PERMUTATIONS", f"B={n_permutations} n_jobs={n_jobs}")
-    logger.info(
-        "[PHASE %s] running %d Markov-%d permutations (n_jobs=%d)...",
-        label,
-        n_permutations,
-        markov_order,
-        n_jobs,
-    )
-    t0 = time.time()
-    seeds_list = [seed + i + 1 for i in range(n_permutations)]
     try:
+        if rips_backend == "giotto":
+            from poverty_tda.topology.giotto_backend import GiottoPool, compute_rips_ph_giotto
+
+            giotto_pool = GiottoPool(n_workers=n_jobs, worktree_root=worktree_root())
+            ph_obs = compute_rips_ph_giotto(
+                obs_landmarks_for_ph,
+                giotto_pool,
+                max_dim=obs_ph_kwargs["max_dim"],
+                thresh=obs_ph_kwargs.get("thresh"),
+            )
+        else:
+            ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
+
+        # Probe-mode forced symmetric dedup — if requested, force every null PD
+        # to use n_perm = obs_n_perm_used. Requires dedup_length_matched=True to
+        # have computed obs_n_perm_used in the first place.
+        forced_null_n_dedup: int | None = None
+        if probe_symmetric_dedup:
+            if not dedup_length_matched:
+                raise ValueError("probe_symmetric_dedup requires dedup_length_matched=True")
+            forced_null_n_dedup = int(obs_n_perm_used)
+            logger.info(
+                "[PHASE %s] probe forced symmetric dedup: nulls will use n_perm = %d (obs dedup count)",
+                label,
+                forced_null_n_dedup,
+            )
+        logger.info(
+            "[PHASE %s] obs landmarks + PH built in %.1fs (L=%d)",
+            label,
+            time.time() - t_lm,
+            actual_lm,
+        )
+
+        write_status(f"PHASE {label} PERMUTATIONS", f"B={n_permutations} n_jobs={n_jobs}")
+        logger.info(
+            "[PHASE %s] running %d Markov-%d permutations (n_jobs=%d)...",
+            label,
+            n_permutations,
+            markov_order,
+            n_jobs,
+        )
+        t0 = time.time()
+        seeds_list = [seed + i + 1 for i in range(n_permutations)]
         if rips_backend == "giotto":
             from concurrent.futures import ThreadPoolExecutor
 
@@ -786,7 +790,12 @@ def run_headline_from_embeddings(
             )
     finally:
         if giotto_pool is not None:
-            giotto_pool.close()
+            try:
+                giotto_pool.close()
+            except Exception:
+                # Never let cleanup mask the original failure (if any) from
+                # the try block above — just log it with phase context.
+                logger.exception("[PHASE %s] giotto_pool.close() failed during cleanup", label)
     logger.info("[PHASE %s] %d permutations done in %.1fs", label, n_permutations, time.time() - t0)
 
     write_partial(

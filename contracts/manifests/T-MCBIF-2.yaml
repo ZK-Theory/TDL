@@ -1,0 +1,15 @@
+scope_id: T-MCBIF-2
+scope_description: >
+  Contract binding for the pre-registered MCbiF categorical employment-state
+  bifiltration and wave-label-permutation null battery.
+authored: "2026-07-04"
+authored_by: "Codex on run/mcbif-employment"
+
+contracts:
+  - discovery-harness/mcbif-employment-result
+
+notes: >
+  The active result contract guards frozen-input hashes, categorical partitioning,
+  upstream wave-order permutation before fresh bifiltration construction, B>=1000,
+  seed 42, at least four workers, topology ranks, baseline summaries, and the
+  registered additive/redundant/infeasible verdict set.

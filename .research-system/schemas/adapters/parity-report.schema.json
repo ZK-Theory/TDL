@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/parity-report",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "rows", "blocking_controls", "passed"],
+  "properties": {
+    "schema_id": {"const": "ars://adapters/parity-report"},
+    "schema_version": {"const": "1.0.0"},
+    "rows": {"type": "array", "items": {"type": "object"}},
+    "blocking_controls": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "passed": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

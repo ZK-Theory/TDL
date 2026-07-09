@@ -1,0 +1,1 @@
+{"fixture_id":"F-031","fixture_revision":"r1","payload":{"action":{"candidate_orders":[["a","b","c"],["c","a","b"]],"operation":"route_with_snapshot","suspended_family":"family-c","telemetry_changed_live":true},"contract":"deterministic_eligibility_routing"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"context_routing_contract"}

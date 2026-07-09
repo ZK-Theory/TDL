@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Comment Handling Extras"
+  short_description: "Harden Windows review fetches and scanner suppressions"
+  default_prompt: "Use $gh-address-comments-extras when fetching PR threads on Windows or resolving scanner findings."

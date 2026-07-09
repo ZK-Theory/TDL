@@ -14,6 +14,7 @@
 5. [Work Package 4 — evaluation and P0 fixtures](04-evaluation-and-p0-fixtures-plan.md)
 6. [Adversarial P0 plan review](../reviews/adversarial-p0-plan-suite-review-2026-07-01.md)
 7. [Review reconciliation](../reviews/adversarial-p0-plan-suite-review-reconciliation-2026-07-01.md)
+8. [Python compatibility baseline note](python-compatibility-baseline-2026-07-01.md)
 
 ## Execution rule
 

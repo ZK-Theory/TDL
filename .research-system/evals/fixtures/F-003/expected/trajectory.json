@@ -1,0 +1,1 @@
+{"fixture_id":"F-003","fixture_revision":"r1","forbidden":["WrongRootWrite","CwdDerivedAuthority"],"required":["RootBindingsValidated","AttemptManifestRecorded"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

@@ -1,0 +1,1 @@
+{"fixture_id":"F-011","fixture_revision":"r1","forbidden":["RepresentationRefit","DegenerateFallback"],"required":["RepresentationFingerprintChecked"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

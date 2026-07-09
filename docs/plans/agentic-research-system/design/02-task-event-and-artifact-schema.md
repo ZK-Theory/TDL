@@ -152,7 +152,7 @@ Required prefixes:
 | `evt` | event |
 | `dsp` | dispatch |
 | `att` | execution attempt |
-| `lse` | lease |
+| `els` | execution lease (W8 owner catalogue) |
 | `msg` | message |
 | `blk` | blocker/input requirement |
 | `art` | artefact manifest |
@@ -198,7 +198,9 @@ Every record carries:
 - `schema_version`: semantic version;
 - `record_id`;
 - `record_revision` where the kind supports revisions;
-- `content_hash`: lowercase SHA-256 over RFC 8785 canonical JSON, excluding `content_hash` itself.
+- `content_hash`: lowercase SHA-256 over the P0 canonical JSON subset, excluding `content_hash` itself.
+
+P0 canonical JSON is the RFC 8785-compatible subset enforced by `research_system.canonical`: object keys are ASCII; values are objects, arrays, strings, booleans, null, and integers in the interoperable range `[-(2^53-1), 2^53-1]`; floating-point values and non-ASCII object keys fail closed. Full RFC 8785 number formatting and UTF-16 key ordering remain a Gate 5 obligation before cross-implementation or external-store interchange broadens this domain.
 
 Minor schema versions are backward-compatible additions. Major versions require a reducer/reader that explicitly supports both versions or a versioned migration projection. Historical records are never rewritten into the new version.
 
@@ -546,8 +548,9 @@ A kill signal without these records is an operational observation, not complete 
 
 ### 13.1 Idempotency rule
 
-The tuple `(actor_id, authority_scope, command_type, idempotency_key)` identifies one logical submission.
+The tuple `(actor_id, authority_scope, command_type, idempotency_key)` identifies one logical submission. Until WP2 materializes typed authority scopes, WP1 uses `authority_grant_id` as a stricter proxy; WP2 must resolve the canonical scope before multiple grants for one scope are accepted.
 
+- `command_id` is globally unique; reuse outside its original logical submission is rejected before event publication.
 - Same tuple and same canonical payload hash returns the original receipt.
 - Same tuple with a different payload hash is `idempotency_conflict`.
 - A caller must not generate a new key merely because a response was lost.

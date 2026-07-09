@@ -48,6 +48,17 @@ Example: `/validate-topology trajectory_tda results/trajectory_tda_integration/0
 - [ ] BHPS-era order-shuffle H₀ p-value ≈ USoc order-shuffle direction (both significant or both not)
 - [ ] BHPS-era Markov-1 direction ≈ USoc (both non-significant under total persistence)
 
+### Backend smoke-test validity
+
+- [ ] Capture backend stderr/logs and fail on any VTK or topology-pipeline error, even
+      when the process exits successfully
+- [ ] Assert a numerical or structural invariant for every advertised filter; output
+      presence alone is insufficient
+- [ ] Include known cases (for example, identical diagrams have distance zero and a
+      controlled perturbation has positive distance)
+- [ ] If the installed binding cannot be exercised without pipeline errors, report the
+      capability as unsupported rather than verified
+
 ## Known benchmarks (trajectory_tda / P01)
 
 | Test | Expected | Source |
@@ -58,3 +69,9 @@ Example: `/validate-topology trajectory_tda results/trajectory_tda_integration/0
 | BHPS order-shuffle H₀ | p = 0.002 | P01 v5 §4.7 |
 | BHPS Markov-1 H₀ | p = 1.000 | P01 v5 §4.7 |
 | GMM bootstrap ARI | 0.646 ± 0.086 | P01 v5 §3.5 |
+
+## Pre-delivery check
+
+Re-read the applicable checklist, confirm every claimed backend capability has an
+error-free run plus an independently specified mathematical invariant, and list any
+unchecked or unsupported capability explicitly.

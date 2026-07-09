@@ -1,0 +1,1 @@
+{"fixture_id":"S-013","fixture_revision":"r1","payload":{"action":{"authority_valid":false,"operation":"issue_provider_command","root_authorized":false},"contract":"preissue_adapter_authority"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

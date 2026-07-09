@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/capability-manifest",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "provider", "model", "profile_id", "adapter_revision", "capabilities", "expires_at"],
+  "properties": {
+    "schema_id": {"const": "ars://adapters/capability-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "provider": {"enum": ["claude", "codex"]},
+    "model": {"type": "string", "minLength": 1},
+    "profile_id": {"type": "string", "minLength": 1},
+    "adapter_revision": {"type": "string", "minLength": 1},
+    "capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "expires_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

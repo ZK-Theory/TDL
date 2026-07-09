@@ -1,0 +1,1 @@
+{"fixture_id":"F-007","fixture_revision":"r1","payload":{"action":{"measured_prerequisites":["null_cache"],"operation":"project_benchmark","required_prerequisites":["loadings","null_cache"]},"contract":"bounded_benchmark_prerequisites"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"adapter_scientific_contract"}

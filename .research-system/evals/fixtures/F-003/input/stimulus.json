@@ -1,0 +1,1 @@
+{"fixture_id":"F-003","fixture_revision":"r1","payload":{"action":{"cache_root":"main/cache","code_root":"worktree","control_root":"main","cwd":"worktree","operation":"resolve_dispatch_roots","result_root":"worktree/results"},"contract":"explicit_root_binding"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

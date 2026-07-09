@@ -1,0 +1,88 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-028
+fixture_revision: r1
+title: Budget overflow fails closed
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- context
+- governance
+- operations
+failure_class: context_budget_overflow
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 847d99da97f56a725f4742745f3d4408194f980ca095debeb4d91b8e2d1fe0ae
+decision_refs:
+- P-028
+- P-029
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: bbb2cea575c5961bc669f057540f77cd2850d38e0335639f7713ad263cb49771
+stimulus_hash: 680e235e2f8d63a2186b34ba362e34e8ae902805d740484cfdacfe93f21c2813
+pre_control_oracle_hash: b046dbffa1cf5084cf66f55ab4ebacab15c089819a424130b021e1f23c2095dd
+post_control_oracle_hash: 2e76ab898df3140f669def1e87f4dfdc0995fedea78462f0ed316d4716542123
+required_trajectory:
+- ReferenceGateMeasured
+- ProviderGateMeasured
+- ContextCompilationBlocked
+forbidden_trajectory:
+- ContextPacketIssued
+- MandatoryMaterialTruncated
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - context_budget_fail_closed
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: f-028-outcome
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - context_budget_fail_closed
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: f-028-trajectory
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - context_budget_fail_closed
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: f-028-operational
+  grader_version: context-routing-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- context_budget_fail_closed
+- normalized_trace
+known_bad_reference_hash: b046dbffa1cf5084cf66f55ab4ebacab15c089819a424130b021e1f23c2095dd
+known_good_reference_hash: 2e76ab898df3140f669def1e87f4dfdc0995fedea78462f0ed316d4716542123
+mutation_ids:
+- context_budget_fail_closed-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

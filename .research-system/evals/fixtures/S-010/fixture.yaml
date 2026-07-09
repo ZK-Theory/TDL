@@ -1,0 +1,84 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: S-010
+fixture_revision: r1
+title: Unknown event major version
+owner: evaluation_owner
+status: authored
+incident_basis: specification
+input_fidelity: synthetic
+risk_tier: R2
+assurance_lanes:
+- provenance
+- operations
+failure_class: unknown_event_version
+priority: P1
+gate_stage: interface_review
+source_manifest_hash: fda5c12c081aefa751646d6d49423860210fcd3f96f8749a4a2523f4b765188f
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 7569b4ba6293eee8a27423a60f9a6a92bed24871219e8a40b518654a01b6c8e6
+stimulus_hash: dd0913f03fd9324d1ece0ad35a4ab3c1fffb8b7f9ae3e562aa183a837ac014e6
+pre_control_oracle_hash: 76bff00065bc228ef28e2cfd4eee44b0f3b267e3f9885e0ab76639b3d4313827
+post_control_oracle_hash: 43d0a15f14ebf83c8d0e4ca4d19a17dd4c676dd6681801a5ec83d84a3acce704
+required_trajectory:
+- ReplayStoppedAt:4
+- PriorProjectionMarkedStale
+forbidden_trajectory:
+- PartialProjectionPublished
+- UnknownEventSkipped
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- critical: true
+  evidence_selectors:
+  - unknown_event_version_fail_closed
+  - input/stimulus.json
+  - expected/post-control.json
+  grader_class: D
+  grader_id: s-010-outcome
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - unknown_event_version_fail_closed
+  - expected/trajectory.json
+  grader_class: T
+  grader_id: s-010-trajectory
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+- critical: true
+  evidence_selectors:
+  - unknown_event_version_fail_closed
+  - input/stimulus.json
+  - expected/trajectory.json
+  grader_class: O
+  grader_id: s-010-operational
+  grader_version: control-store-v1
+  independence_requirement: deterministic_independent
+  required: true
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- unknown_event_version_fail_closed
+- normalized_trace
+known_bad_reference_hash: 76bff00065bc228ef28e2cfd4eee44b0f3b267e3f9885e0ab76639b3d4313827
+known_good_reference_hash: 43d0a15f14ebf83c8d0e4ca4d19a17dd4c676dd6681801a5ec83d84a3acce704
+mutation_ids:
+- unknown_event_version_fail_closed-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

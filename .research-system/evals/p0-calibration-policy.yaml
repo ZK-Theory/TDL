@@ -1,0 +1,10 @@
+schema_version: '1.0.0'
+policy_revision: p0-calibration-v1
+deterministic_repetitions: 2
+identical_input_requirement: byte_identical_normalized_decision
+known_bad_requirement: intended_failure_in_every_repetition
+known_good_requirement: intended_pass_in_every_repetition
+declared_mutation_requirement: detected_in_every_repetition
+stochastic_policy_missing: fixture_error
+model_or_human_threshold_policy_missing: unable_to_grade
+live_provider_calibration_enabled: false

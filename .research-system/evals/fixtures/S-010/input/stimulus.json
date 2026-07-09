@@ -1,0 +1,1 @@
+{"fixture_id":"S-010","fixture_revision":"r1","payload":{"action":{"operation":"replay_ledger","unknown_position":4,"unknown_schema_id":"ars://events/task/99.0.0"},"contract":"unknown_event_version_fail_closed"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"control_store_contract"}

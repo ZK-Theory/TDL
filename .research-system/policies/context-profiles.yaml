@@ -1,0 +1,8 @@
+schema_version: '1.0.0'
+reference_counter_id: ars-reference-regex-v1
+provider_capacity_reserve_percent: 20
+reference_limits:
+  R0: 8000
+  R1: 16000
+  R2: 32000
+  R3: 48000

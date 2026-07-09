@@ -1,0 +1,94 @@
+schema_id: ars://evals/fixture-definition
+schema_version: 1.0.0
+fixture_id: F-012
+fixture_revision: r1
+title: Null invariance
+owner: evaluation_owner
+status: authored
+incident_basis: historical
+input_fidelity: reconstructed
+risk_tier: R3
+assurance_lanes:
+- stochastic
+- topology
+failure_class: null_noop
+priority: P0
+gate_stage: p0_materialization
+source_manifest_hash: 9ecb21edb67ecf825a0d4dabd13bba04dc955dddbd6c00c0f9c47fddef5f4d26
+decision_refs:
+- P-030
+policy_versions:
+- canonical-policy-v1
+schema_versions:
+- fixture-definition-v1
+confidentiality: internal
+permitted_consumers:
+- eval
+setup_hash: 2560e70c7c50df2bdf30cbcb1293095413981606d4ae8811010df477acc45dfa
+stimulus_hash: a514148e4be67d1221e2343547d6d4e5cdfb794ba351f97e559857327798fd06
+pre_control_oracle_hash: 6bb2c1f6694b28fecef4784520f4f009cb607a82fc0320dd5696306188f2d168
+post_control_oracle_hash: 3103ad14cc0c458ccce6bc7e88fc2f0839123fdd2e58e1149e47c5eaa2abfbd0
+required_trajectory:
+- TestedObjectHashesCompared
+- NoOpMutationExercised
+forbidden_trajectory:
+- NominalPValueAcceptedAfterNoOp
+allowed_terminal_states:
+- decided
+expected_stop_semantics: fail_closed
+required_graders:
+- grader_id: f-012-outcome
+  grader_class: D
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - null_operation_changes_tested_object
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-012-trajectory
+  grader_class: T
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - null_operation_changes_tested_object
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-012-research-quality
+  grader_class: R
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: deterministic_independent
+  evidence_selectors:
+  - null_operation_changes_tested_object
+  - input/stimulus.json
+  - normalized_trace
+- grader_id: f-012-independent-model
+  grader_class: M
+  grader_version: adapter-scientific-v1
+  critical: true
+  required: true
+  independence_requirement: cross_family_context_independent
+  evidence_selectors:
+  - null_operation_changes_tested_object
+  - input/stimulus.json
+  - normalized_trace
+threshold_policy_ids:
+- exact-property-v1
+required_evidence_classes:
+- null_operation_changes_tested_object
+- normalized_trace
+known_bad_reference_hash: 6bb2c1f6694b28fecef4784520f4f009cb607a82fc0320dd5696306188f2d168
+known_good_reference_hash: 3103ad14cc0c458ccce6bc7e88fc2f0839123fdd2e58e1149e47c5eaa2abfbd0
+mutation_ids:
+- null_operation_changes_tested_object-violation
+safe_variation_ids:
+- identifier-renaming
+calibration_record_id: null
+retention_class: R0
+retention_rule_id: R0:synthetic_fixture_package
+redaction_policy_id: redaction-v1

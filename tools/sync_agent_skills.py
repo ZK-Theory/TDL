@@ -75,16 +75,59 @@ SYNC_SKILLS: set[str] = {
     "topology-benchmark-review",
     "sensitivity-comparison-review",
     "reproducibility-package-review",
+    # Adversarial review (2026-06-29)
+    "adversarial-design-review",
+    # TDL-adapted engineering + workflow skills (2026-07-02 skill plan)
+    "tda-diagnosing-computational-defects",
+    "contract-first-tdd",
+    "tda-resource-preflight",
+    "tda-domain-modeling",
+    "tda-codebase-design",
+    "tda-statistical-analysis-review",
+    "tda-peer-review-panel",
+    "tda-literature-verification",
+    "tda-task-brief-from-plan",
+    "tda-handoff",
+    # Tier-2 specialist skills (2026-07-02 skill plan, tier 2)
+    "tda-statistical-modeling-toolkit",
+    "tda-trajectory-baselines",
+    "tda-representation-diagnostics",
+    "tda-graph-network-analysis",
+    "tda-acceleration-benchmarking",
+    "tda-external-data-lookup",
+    "tda-visualisation-and-diagramming",
+    "tda-document-ingestion",
+    # Tier-3 optional skills (2026-07-02 skill plan, tier 3)
+    "tda-prototype-sandbox",
+    "tda-research-ideation-lab",
+    "tda-scenario-stress-test",
+    "tda-skill-authoring-workbench",
+    "tda-agent-safety-guardrails",
+    "tda-learning-scaffold",
+    "tda-paper-dissemination-pack",
+    "tda-light-task-triage",
+    # Runtime-agnostic complements to plugin-owned (read-only) skills — the
+    # guidance applies equally in Claude Code, which has the same plugin
+    # skills available (2026-07-06 weekly review, Obs 27 / Obs 35).
+    "executing-plans-extras",
+    "gh-address-comments-extras",
+    "using-git-worktrees-extras",
+    "writing-plans-extras",
+    "subagent-driven-development-extras",
 }
 
 # Skills deliberately NOT byte-mirrored. Patterns match the .agents/ skill dir name.
 #   - apm-communication: runtime-specific terminology (Codex CLI vs Claude Code).
 #   - apm-N-*: numbered APM workflow skills supplied to Claude Code by a plugin.
 #   - source-command-*: Codex slash-command shims with no Claude equivalent.
+#   - writing-skills-extras: Codex-side complement (agents/openai.yaml) to the
+#     superpowers writing-skills plugin skill, which Claude Code loads from the
+#     plugin, not this tree.
 EXCLUDE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^apm-communication$"),
     re.compile(r"^apm-\d"),
     re.compile(r"^source-command-"),
+    re.compile(r"^writing-skills-extras$"),
 )
 
 # Stable heading substrings that must appear in each Claude APM guide once the
@@ -166,6 +209,45 @@ def lint_path_literals(skill_dir: Path) -> list[str]:
     return warnings
 
 
+def mirror_skill(src: Path, dst: Path) -> None:
+    """Mirror src into dst non-destructively, one file at a time.
+
+    Copies each src file over its dst counterpart (creating parent directories
+    as needed, skipping byte-identical files), then removes only dst files
+    absent from src plus any stale directories left empty. The dst directory
+    itself is never removed: the previous rmtree+copytree update could half-
+    delete a skill when a transient Windows handle (agent harness, indexer)
+    blocked the directory removal after its files were already gone
+    (2026-07-02 incident).
+
+    Raises:
+        OSError: If a copy or stale-file removal fails. Files already
+            mirrored stay in place, so re-running after the lock is released
+            completes the mirror.
+    """
+    for src_file in sorted(src.rglob("*")):
+        if src_file.is_dir():
+            continue
+        rel = src_file.relative_to(src)
+        target = dst / rel
+        if target.exists() and filecmp.cmp(src_file, target, shallow=False):
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_file, target)
+    stale_dirs: list[Path] = []
+    if dst.exists():
+        for dst_path in sorted(dst.rglob("*")):
+            rel = dst_path.relative_to(dst)
+            if (src / rel).exists():
+                continue
+            if dst_path.is_dir():
+                stale_dirs.append(dst_path)
+            else:
+                dst_path.unlink()
+    for stale_dir in sorted(stale_dirs, reverse=True):
+        stale_dir.rmdir()
+
+
 def run_sync(agents_skills: Path, claude_skills: Path, check_only: bool) -> int:
     """Sync or check runtime-agnostic skills from .agents/ to .claude/.
 
@@ -175,12 +257,14 @@ def run_sync(agents_skills: Path, claude_skills: Path, check_only: bool) -> int:
         check_only: If True, verify sync without writing; if False, mirror divergent skills.
 
     Returns:
-        0 if in sync (or sync completed), 1 if unclassified skills or divergence found.
+        0 if in sync (or sync completed), 1 if unclassified skills or
+        divergence found, or if any skill failed to mirror cleanly.
     """
     to_sync, errors, planned = classify(agents_skills)
     if errors:
-        print("ERROR: unclassified skills in .agents/skills/ "
-              "(add to SYNC_SKILLS or EXCLUDE_PATTERNS):", file=sys.stderr)
+        print(
+            "ERROR: unclassified skills in .agents/skills/ (add to SYNC_SKILLS or EXCLUDE_PATTERNS):", file=sys.stderr
+        )
         for e in errors:
             print(f"  - {e}", file=sys.stderr)
         return 1
@@ -188,6 +272,7 @@ def run_sync(agents_skills: Path, claude_skills: Path, check_only: bool) -> int:
         print(f"  PLANNED    {name} (in manifest, not yet authored in .agents/)")
 
     any_divergence = False
+    any_failure = False
     for name in to_sync:
         src = agents_skills / name
         dst = claude_skills / name
@@ -206,16 +291,26 @@ def run_sync(agents_skills: Path, claude_skills: Path, check_only: bool) -> int:
             continue
 
         action = "CREATED" if not dst.exists() else "UPDATED"
-        if dst.exists():
-            shutil.rmtree(dst)
-        shutil.copytree(src, dst)
+        try:
+            mirror_skill(src, dst)
+        except OSError as exc:
+            any_failure = True
+            print(
+                f"  ERROR      {name}: mirror failed ({exc}); destination left "
+                "file-consistent — re-run after releasing the lock",
+                file=sys.stderr,
+            )
+            continue
         print(f"  {action}    {name}: {', '.join(differing)}")
 
     if check_only and any_divergence:
-        print("\nTrees diverged. Run `uv run python tools/sync_agent_skills.py` "
-              "to mirror .agents/skills/ -> .claude/skills/.", file=sys.stderr)
+        print(
+            "\nTrees diverged. Run `uv run python tools/sync_agent_skills.py` "
+            "to mirror .agents/skills/ -> .claude/skills/.",
+            file=sys.stderr,
+        )
         return 1
-    return 0
+    return 1 if any_failure else 0
 
 
 def run_check_guides(repo_root: Path) -> int:
@@ -233,8 +328,7 @@ def run_check_guides(repo_root: Path) -> int:
         else:
             print(f"  OK  {fname}: '{marker}' present")
     if missing:
-        print("\nERROR: Research-Assurance markers missing from .claude/apm-guides/:",
-              file=sys.stderr)
+        print("\nERROR: Research-Assurance markers missing from .claude/apm-guides/:", file=sys.stderr)
         for m in missing:
             print(f"  - {m}", file=sys.stderr)
         return 1
@@ -243,10 +337,8 @@ def run_check_guides(repo_root: Path) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true",
-                        help="verify trees are in step; exit 1 on divergence")
-    parser.add_argument("--check-guides", action="store_true",
-                        help="verify RA markers present in Claude APM guides")
+    parser.add_argument("--check", action="store_true", help="verify trees are in step; exit 1 on divergence")
+    parser.add_argument("--check-guides", action="store_true", help="verify RA markers present in Claude APM guides")
     args = parser.parse_args(argv)
 
     try:

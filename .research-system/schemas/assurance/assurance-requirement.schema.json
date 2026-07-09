@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://assurance/assurance-requirement",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "assurance_requirement_id", "revision", "content_hash", "task_id", "task_revision", "requested_risk", "w5_epistemic_risk_floor", "action_semantic_risk", "requirement_relationship_grade", "lanes", "currency_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://assurance/assurance-requirement"},
+    "schema_version": {"const": "1.0.0"},
+    "assurance_requirement_id": {"type": "string", "pattern": "^asr_"},
+    "revision": {"type": "integer", "minimum": 1},
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "task_id": {"type": "string", "pattern": "^tsk_"},
+    "task_revision": {"type": "integer", "minimum": 1},
+    "requested_risk": {"enum": ["R0", "R1", "R2", "R3"]},
+    "w5_epistemic_risk_floor": {"enum": ["R0", "R1", "R2", "R3"]},
+    "action_semantic_risk": {"enum": ["R0", "R1", "R2", "R3"]},
+    "requirement_relationship_grade": {"enum": ["I0", "I1", "I2", "I3"]},
+    "lanes": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true},
+    "currency_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": true
+}

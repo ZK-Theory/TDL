@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using Git Worktrees Extras"
+  short_description: "Validate scoped baselines and worktree edit readiness"
+  default_prompt: "Use $using-git-worktrees-extras to validate an isolated worktree and its scoped baseline."
