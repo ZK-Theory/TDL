@@ -185,6 +185,10 @@ results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_*.status.json
 repomix-output.xml
 repomix-output.*
 
+# T1.28 per-subgroup W2 checkpoint intermediates (gitignored; committed
+# deliverables are stratified_w2_recompute_<date>.json + stratified_w2_bh_per_family_<date>.json)
+results/panel_methodology/fdr/subgroup_checkpoints/
+
 # Local isolated implementation worktrees.
 .worktrees/
 

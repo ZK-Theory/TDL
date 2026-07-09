@@ -43,6 +43,11 @@ dependencies = [
     "PyYAML>=6.0",
     "jsonschema>=4.20",
     "petls>=1.0.1",
+    # Used by run_t128_bh_fdr.py, run_fdr_correction.py, nssec_missingness.py,
+    # age_stratified.py, assess_information_content.py -- was already imported
+    # in 5 files but never declared; latent gap, not previously hit until
+    # run_t128_bh_fdr.py's BH-FDR step (2026-07-09, T1.28).
+    "statsmodels>=0.14.0",
 ]
 
 [project.scripts]

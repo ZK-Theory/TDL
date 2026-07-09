@@ -79,11 +79,19 @@ def extract_covariates(
     # ─── BHPS wave 1 (fallback for sex/birth_year) ───
     missing = pidp_set - set(usoc_covs["pidp"])
     if missing:
-        bhps_covs = _load_bhps_covariates(data_dir / bhps_subdir, missing)
+        bhps_covs = _load_bhps_covariates(data_dir / bhps_subdir, missing, harmonised_dir=data_dir / usoc_subdir)
         logger.info(f"BHPS wave 1 fallback: matched {len(bhps_covs)} of {len(missing)} remaining")
         covs = pd.concat([usoc_covs, bhps_covs], ignore_index=True)
     else:
         covs = usoc_covs
+
+    # ─── BHPS later waves (fallback for post-wave-1 BHPS entrants) ───
+    still_missing = pidp_set - set(covs["pidp"])
+    if still_missing:
+        extra_bhps = _load_bhps_later_waves(data_dir / bhps_subdir, still_missing)
+        if len(extra_bhps) > 0:
+            logger.info(f"BHPS later waves: matched {len(extra_bhps)} more")
+            covs = pd.concat([covs, extra_bhps], ignore_index=True)
 
     # ─── Try additional USoc waves for missing sex/birth_year ───
     still_missing = pidp_set - set(covs["pidp"])
@@ -92,6 +100,23 @@ def extract_covariates(
         if len(extra) > 0:
             logger.info(f"USoc later waves: matched {len(extra)} more")
             covs = pd.concat([covs, extra], ignore_index=True)
+
+    # ─── Harmonised BHPS parental NS-SEC augmentation ────────────────────────────
+    # BHPS-origin respondents matched via USoc later waves (b_indresp.tab etc.)
+    # inherit parental_nssec8=NaN because USoc wave files don't carry BHPS
+    # harmonised derived variables (ba_panssec8_dv etc.). Read all harmonised
+    # BHPS wave files (ba–br in UKDA-6614-tab) to recover parental NS-SEC.
+    nssec_missing_mask = covs["parental_nssec8"].isna()
+    if nssec_missing_mask.any():
+        missing_pidps = set(covs.loc[nssec_missing_mask, "pidp"])
+        harm_nssec = _load_bhps_parental_nssec_all_waves(data_dir / usoc_subdir, missing_pidps)
+        if not harm_nssec.empty:
+            lookup = harm_nssec.set_index("pidp")["parental_nssec8"]
+            covs.loc[nssec_missing_mask, "parental_nssec8"] = covs.loc[nssec_missing_mask, "pidp"].map(lookup).values
+            n_aug = int(covs["parental_nssec8"].notna().sum()) - int((~nssec_missing_mask).sum())
+            logger.info(
+                f"Harmonised BHPS parental NS-SEC augmentation: {n_aug} of {len(missing_pidps)} respondents recovered"
+            )
 
     # ─── Derive cohort decade ───
     covs["cohort_decade"] = covs["birth_year"].apply(
@@ -220,8 +245,20 @@ def _load_usoc_covariates(usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
     return result
 
 
-def _load_bhps_covariates(bhps_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
-    """Load sex and birth year from BHPS wave 1 (aindresp or ba_indresp)."""
+def _load_bhps_covariates(
+    bhps_dir: Path,
+    pidp_set: set[int],
+    harmonised_dir: Path | None = None,
+) -> pd.DataFrame:
+    """Load sex, birth year, and parental NS-SEC from BHPS wave 1.
+
+    Args:
+        bhps_dir: Primary BHPS directory (UKDA-5151-tab); has sex/dob.
+        pidp_set: Respondent identifiers to match.
+        harmonised_dir: Optional harmonised BHPS directory (UKDA-6614-tab);
+            used to read derived parental NS-SEC (ba_panssec8_dv/ba_manssec8_dv)
+            when absent from the primary file.
+    """
     # Try both naming conventions
     for pattern in ["ba_indresp.tab", "aindresp.tab"]:
         candidates = list(bhps_dir.rglob(pattern))
@@ -242,11 +279,15 @@ def _load_bhps_covariates(bhps_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
     pid_col = cols_lower.get("pidp") or cols_lower.get("pid") or cols_lower.get("bapid") or cols_lower.get("apid")
     sex_col = cols_lower.get("basex") or cols_lower.get("asex") or cols_lower.get("ba_sex")
     dob_col = cols_lower.get("badoby") or cols_lower.get("adoby") or cols_lower.get("ba_doby")
+    # Parental NS-SEC: father's class (pa) then mother's (ma) as fallback
+    pa_col = cols_lower.get("ba_panssec8_dv")
+    ma_col = cols_lower.get("ba_manssec8_dv")
 
     if pid_col is None:
         return pd.DataFrame(columns=["pidp", "sex", "birth_year", "parental_nssec8"])
 
-    df_sub = df[[c for c in [pid_col, sex_col, dob_col] if c is not None]].copy()
+    extra = [c for c in [pa_col, ma_col] if c is not None]
+    df_sub = df[[c for c in [pid_col, sex_col, dob_col, *extra] if c is not None]].copy()
     df_sub = df_sub.rename(columns={pid_col: "pidp"})
     df_sub = df_sub[df_sub["pidp"].isin(pidp_set)]
 
@@ -263,9 +304,115 @@ def _load_bhps_covariates(bhps_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
     else:
         result["birth_year"] = None
 
-    result["parental_nssec8"] = np.nan  # BHPS wave 1 doesn't have derived parental NS-SEC
+    # Parental NS-SEC: father's class (ba_panssec8_dv), fall back to mother's (ba_manssec8_dv).
+    # Derived variables are in the harmonised UKDA-6614 BHPS files, not UKDA-5151.
+    if pa_col or ma_col:
+        pa = (
+            df_sub[pa_col].where(df_sub[pa_col] > 0)
+            if pa_col and pa_col in df_sub.columns
+            else pd.Series(np.nan, index=df_sub.index)
+        )
+        ma = (
+            df_sub[ma_col].where(df_sub[ma_col] > 0)
+            if ma_col and ma_col in df_sub.columns
+            else pd.Series(np.nan, index=df_sub.index)
+        )
+        result["parental_nssec8"] = pa.fillna(ma)
+    elif harmonised_dir is not None:
+        result["parental_nssec8"] = (
+            _load_bhps_parental_nssec_harmonised(harmonised_dir, set(result["pidp"]))
+            .set_index("pidp")
+            .reindex(result["pidp"].values)["parental_nssec8"]
+            .values
+        )
+    else:
+        result["parental_nssec8"] = np.nan
 
     return result
+
+
+def _load_bhps_parental_nssec_harmonised(harmonised_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
+    """Read parental NS-SEC for BHPS respondents from the harmonised UKDA-6614 BHPS file.
+
+    The derived variables ba_panssec8_dv / ba_manssec8_dv exist in the harmonised
+    BHPS data bundled with Understanding Society (UKDA-6614-tab/tab/bhps/ba_indresp.tab)
+    but not in the original standalone BHPS release (UKDA-5151-tab).
+    """
+    candidates = list(harmonised_dir.rglob("ba_indresp.tab"))
+    if not candidates:
+        return pd.DataFrame(columns=["pidp", "parental_nssec8"])
+
+    try:
+        df = pd.read_csv(
+            candidates[0],
+            sep="\t",
+            usecols=["pidp", "ba_panssec8_dv", "ba_manssec8_dv"],
+            low_memory=False,
+        )
+    except (ValueError, KeyError):
+        return pd.DataFrame(columns=["pidp", "parental_nssec8"])
+
+    df = df[df["pidp"].isin(pidp_set)]
+    if df.empty:
+        return pd.DataFrame(columns=["pidp", "parental_nssec8"])
+
+    pa = df["ba_panssec8_dv"].where(df["ba_panssec8_dv"] > 0)
+    ma = df["ba_manssec8_dv"].where(df["ba_manssec8_dv"] > 0)
+    return pd.DataFrame({"pidp": df["pidp"].values, "parental_nssec8": pa.fillna(ma).values})
+
+
+def _load_bhps_parental_nssec_all_waves(usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
+    """Load parental NS-SEC for BHPS respondents from all harmonised BHPS wave files.
+
+    Iterates ba–br wave files in `usoc_dir` (UKDA-6614-tab), reading
+    {w}_panssec8_dv/{w}_manssec8_dv for each wave. Parental NS-SEC is
+    time-invariant; takes the first non-NaN value per pidp across waves.
+
+    Args:
+        usoc_dir: Root of the harmonised USoc/BHPS directory (UKDA-6614-tab).
+        pidp_set: Person identifiers whose parental NS-SEC is needed.
+
+    Returns:
+        DataFrame with columns ["pidp", "parental_nssec8"]; only rows with
+        a valid (non-NaN) parental NS-SEC are returned.
+    """
+    remaining = set(pidp_set)
+    frames: list[pd.DataFrame] = []
+
+    for wl in "abcdefghijklmnopqr":
+        if not remaining:
+            break
+        w = f"b{wl}"
+        candidates = list(usoc_dir.rglob(f"{w}_indresp.tab"))
+        if not candidates:
+            continue
+
+        pa_col, ma_col = f"{w}_panssec8_dv", f"{w}_manssec8_dv"
+        try:
+            df = pd.read_csv(
+                candidates[0],
+                sep="\t",
+                usecols=["pidp", pa_col, ma_col],
+                low_memory=False,
+            )
+        except (ValueError, KeyError):
+            continue
+
+        df = df[df["pidp"].isin(remaining)]
+        if df.empty:
+            continue
+
+        pa = df[pa_col].where(df[pa_col] > 0)
+        ma = df[ma_col].where(df[ma_col] > 0)
+        nssec = pa.fillna(ma)
+        valid = nssec.notna()
+        if valid.any():
+            frames.append(pd.DataFrame({"pidp": df.loc[valid, "pidp"].values, "parental_nssec8": nssec[valid].values}))
+            remaining -= set(df.loc[valid, "pidp"])
+
+    if not frames:
+        return pd.DataFrame(columns=["pidp", "parental_nssec8"])
+    return pd.concat(frames, ignore_index=True).drop_duplicates("pidp")
 
 
 def _load_usoc_later_waves(usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
@@ -300,6 +447,73 @@ def _load_usoc_later_waves(usoc_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
         return result
 
     return pd.DataFrame(columns=["pidp", "sex", "birth_year", "parental_nssec8"])
+
+
+def _load_bhps_later_waves(bhps_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
+    """Try BHPS waves bb–br as fallback for sex, birth year, and parental NS-SEC.
+
+    Post-wave-1 BHPS entrants are absent from ba_indresp; this function recovers
+    them from their entry wave. Different pidps enter at different waves, so
+    every wave must be scanned and results accumulated — returning after the
+    first wave with any match would silently drop entrants whose first
+    appearance is a later wave. Takes each pidp's earliest matching wave (all
+    three variables are time-invariant, so first-seen is as good as any).
+    """
+    frames: list[pd.DataFrame] = []
+
+    for wl in "bcdefghijklmnopqr":
+        if not pidp_set:
+            break
+
+        w = f"b{wl}"
+        candidates = list(bhps_dir.rglob(f"{w}_indresp.tab"))
+        if not candidates:
+            continue
+
+        sex_col = f"{w}_sex"
+        dob_col = f"{w}_doby"
+        pa_col = f"{w}_panssec8_dv"
+        ma_col = f"{w}_manssec8_dv"
+
+        try:
+            df = pd.read_csv(
+                candidates[0],
+                sep="\t",
+                usecols=["pidp", sex_col, dob_col, pa_col, ma_col],
+                low_memory=False,
+            )
+        except (ValueError, KeyError):
+            try:
+                df = pd.read_csv(
+                    candidates[0],
+                    sep="\t",
+                    usecols=["pidp", sex_col, dob_col],
+                    low_memory=False,
+                )
+                df[pa_col] = np.nan
+                df[ma_col] = np.nan
+            except (ValueError, KeyError):
+                continue
+
+        df = df[df["pidp"].isin(pidp_set)]
+        if len(df) == 0:
+            continue
+
+        result = pd.DataFrame({"pidp": df["pidp"]})
+        result["sex"] = df[sex_col].map({1: "Male", 2: "Female"}) if sex_col in df.columns else None
+        result["birth_year"] = df[dob_col].where(df[dob_col] > 0) if dob_col in df.columns else None
+
+        # Parental NS-SEC: father's class (pa), fall back to mother's (ma)
+        pa = df[pa_col].where(df[pa_col] > 0) if pa_col in df.columns else pd.Series(np.nan, index=df.index)
+        ma = df[ma_col].where(df[ma_col] > 0) if ma_col in df.columns else pd.Series(np.nan, index=df.index)
+        result["parental_nssec8"] = pa.fillna(ma)
+
+        pidp_set -= set(result["pidp"])
+        frames.append(result)
+
+    if not frames:
+        return pd.DataFrame(columns=["pidp", "sex", "birth_year", "parental_nssec8"])
+    return pd.concat(frames, ignore_index=True)
 
 
 # ─── GOR (Government Office Region) extraction ───

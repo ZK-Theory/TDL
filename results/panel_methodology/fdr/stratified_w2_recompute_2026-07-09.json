@@ -1,0 +1,361 @@
+{
+  "schema_version": "stratified-w2-recompute-v1",
+  "generated_at": "2026-07-09",
+  "task": "T1.28 \u2014 per-subgroup stratified W2 recompute + per-family BH FDR",
+  "pre_registration": "results/panel_methodology/fdr/pre_registrations_2026-06-13.json + 2026-06-27 amendment (per-subgroup model, BH per family) + 2026-06-28 amendment (bhps cohort n_tests 7->6)",
+  "inputs": {
+    "git_head": "8e175cd2f8d629be235317c4cfbceb848678bdf5",
+    "frozen_loadings_provenance": {
+      "usoc": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\embeddings.npy",
+      "bhps": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\embeddings.npy"
+    }
+  },
+  "params": {
+    "null_model": "markov-1",
+    "frozen_loadings": true,
+    "B": 1000,
+    "seed": 42,
+    "p_value_formula": "(r+1)/(B+1)",
+    "alpha": 0.05,
+    "L": 5000,
+    "actual_landmarks": "min(5000, subgroup_n) \u2014 see per-subgroup actual_landmarks field"
+  },
+  "datasets": {
+    "usoc": {
+      "subgroups": [
+        {
+          "stratifier": "gender",
+          "subgroup_id": "Female",
+          "n": 14362,
+          "actual_landmarks": 5000,
+          "t_ratio": 11.633838034573833,
+          "bca_ci": [
+            11.349495865138406,
+            11.915245216114362
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "gender",
+          "subgroup_id": "Male",
+          "n": 11218,
+          "actual_landmarks": 5000,
+          "t_ratio": 11.43580717982209,
+          "bca_ci": [
+            11.156603441850784,
+            11.707778078048024
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "nssec",
+          "subgroup_id": "Intermediate",
+          "n": 8622,
+          "actual_landmarks": 5000,
+          "t_ratio": 9.252954593271104,
+          "bca_ci": [
+            9.025481550981597,
+            9.488265674938875
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "nssec",
+          "subgroup_id": "Professional/Managerial",
+          "n": 2407,
+          "actual_landmarks": 2407,
+          "t_ratio": 4.933798938334415,
+          "bca_ci": [
+            4.800558347875654,
+            5.0694824370690865
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "nssec",
+          "subgroup_id": "Routine/Manual",
+          "n": 10158,
+          "actual_landmarks": 5000,
+          "t_ratio": 10.329077213067185,
+          "bca_ci": [
+            10.076586708098816,
+            10.58090119589318
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1930s",
+          "n": 1642,
+          "actual_landmarks": 1642,
+          "t_ratio": 3.1989347759000317,
+          "bca_ci": [
+            3.0941077661666587,
+            3.29738671351121
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1940s",
+          "n": 4155,
+          "actual_landmarks": 4155,
+          "t_ratio": 4.577192578464115,
+          "bca_ci": [
+            4.456501898363135,
+            4.703780974587165
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1950s",
+          "n": 4843,
+          "actual_landmarks": 4843,
+          "t_ratio": 7.204198045459245,
+          "bca_ci": [
+            7.010711989622453,
+            7.396188533308339
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1960s",
+          "n": 5579,
+          "actual_landmarks": 5000,
+          "t_ratio": 9.267314225069336,
+          "bca_ci": [
+            9.021771148778111,
+            9.513360065974284
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1970s",
+          "n": 4674,
+          "actual_landmarks": 4674,
+          "t_ratio": 5.5216079395066116,
+          "bca_ci": [
+            5.3514439278234684,
+            5.696423735476282
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1980s",
+          "n": 3103,
+          "actual_landmarks": 3103,
+          "t_ratio": 6.023342662640614,
+          "bca_ci": [
+            5.844865253714662,
+            6.190204051572375
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1990s",
+          "n": 1364,
+          "actual_landmarks": 1364,
+          "t_ratio": 3.7513999395674507,
+          "bca_ci": [
+            3.6494274867607595,
+            3.850809889704725
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        }
+      ],
+      "gender_n": 2,
+      "nssec_n": 3,
+      "cohort_n": 7
+    },
+    "bhps": {
+      "subgroups": [
+        {
+          "stratifier": "gender",
+          "subgroup_id": "Female",
+          "n": 3016,
+          "actual_landmarks": 3016,
+          "t_ratio": 5.683431204176709,
+          "bca_ci": [
+            5.520452706047785,
+            5.851459189051527
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "gender",
+          "subgroup_id": "Male",
+          "n": 2524,
+          "actual_landmarks": 2524,
+          "t_ratio": 3.903835632958006,
+          "bca_ci": [
+            3.7727124779533834,
+            4.029599497999251
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "nssec",
+          "subgroup_id": "Intermediate",
+          "n": 1790,
+          "actual_landmarks": 1790,
+          "t_ratio": 3.7652886679373863,
+          "bca_ci": [
+            3.648003648030991,
+            3.880621327039482
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "nssec",
+          "subgroup_id": "Professional/Managerial",
+          "n": 335,
+          "actual_landmarks": 335,
+          "t_ratio": 1.6001030722199931,
+          "bca_ci": [
+            1.5440131311588885,
+            1.6552505794160761
+          ],
+          "w2_p": 0.08591408591408592,
+          "w2_rejects": false,
+          "landscape_l2_p": 0.002997002997002997
+        },
+        {
+          "stratifier": "nssec",
+          "subgroup_id": "Routine/Manual",
+          "n": 2620,
+          "actual_landmarks": 2620,
+          "t_ratio": 4.153776748248877,
+          "bca_ci": [
+            4.028086275010714,
+            4.279866640852796
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1930s",
+          "n": 986,
+          "actual_landmarks": 986,
+          "t_ratio": 2.351315707404521,
+          "bca_ci": [
+            2.2691193207330485,
+            2.429152454482532
+          ],
+          "w2_p": 0.006993006993006993,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1940s",
+          "n": 1360,
+          "actual_landmarks": 1360,
+          "t_ratio": 2.181601238115754,
+          "bca_ci": [
+            2.1104104728799062,
+            2.2511181120415844
+          ],
+          "w2_p": 0.012987012987012988,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.14785214785214784
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1950s",
+          "n": 1373,
+          "actual_landmarks": 1373,
+          "t_ratio": 2.864284691385335,
+          "bca_ci": [
+            2.768503897131442,
+            2.957667461908163
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.012987012987012988
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1960s",
+          "n": 1722,
+          "actual_landmarks": 1722,
+          "t_ratio": 3.1993761370573237,
+          "bca_ci": [
+            3.091984208582662,
+            3.3038916293585907
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1970s",
+          "n": 1064,
+          "actual_landmarks": 1064,
+          "t_ratio": 2.672403398665807,
+          "bca_ci": [
+            2.5823309310460925,
+            2.7600308220502994
+          ],
+          "w2_p": 0.000999000999000999,
+          "w2_rejects": true,
+          "landscape_l2_p": 0.000999000999000999
+        },
+        {
+          "stratifier": "cohort",
+          "subgroup_id": "1980s",
+          "n": 223,
+          "actual_landmarks": 223,
+          "t_ratio": 1.5335899700321556,
+          "bca_ci": [
+            1.484138229626563,
+            1.5836358313319583
+          ],
+          "w2_p": 0.0969030969030969,
+          "w2_rejects": false,
+          "landscape_l2_p": 0.1798201798201798
+        }
+      ],
+      "gender_n": 2,
+      "nssec_n": 3,
+      "cohort_n": 6
+    }
+  }
+}

@@ -1,0 +1,311 @@
+{
+  "schema_version": "stratified-w2-fdr-families-v1",
+  "generated_at": "2026-07-09",
+  "pre_registration": "results/panel_methodology/fdr/pre_registrations_2026-06-13.json + 2026-06-27 amendment (per-subgroup model, BH per family) + 2026-06-28 amendment (bhps cohort n_tests 7->6)",
+  "source_recompute": "results\\panel_methodology\\fdr\\stratified_w2_recompute_2026-07-09.json",
+  "datasets": {
+    "usoc": {
+      "families": {
+        "gender": {
+          "method": "BH",
+          "n_tests": 2,
+          "alpha": 0.05,
+          "tests": [
+            {
+              "subgroup_id": "Female",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 11.633838034573833,
+              "bca_ci": [
+                11.349495865138406,
+                11.915245216114362
+              ]
+            },
+            {
+              "subgroup_id": "Male",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 11.43580717982209,
+              "bca_ci": [
+                11.156603441850784,
+                11.707778078048024
+              ]
+            }
+          ]
+        },
+        "nssec": {
+          "method": "BH",
+          "n_tests": 3,
+          "alpha": 0.05,
+          "tests": [
+            {
+              "subgroup_id": "Intermediate",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 9.252954593271104,
+              "bca_ci": [
+                9.025481550981597,
+                9.488265674938875
+              ]
+            },
+            {
+              "subgroup_id": "Professional/Managerial",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 4.933798938334415,
+              "bca_ci": [
+                4.800558347875654,
+                5.0694824370690865
+              ]
+            },
+            {
+              "subgroup_id": "Routine/Manual",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 10.329077213067185,
+              "bca_ci": [
+                10.076586708098816,
+                10.58090119589318
+              ]
+            }
+          ]
+        },
+        "cohort": {
+          "method": "BH",
+          "n_tests": 7,
+          "alpha": 0.05,
+          "tests": [
+            {
+              "subgroup_id": "1930s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 3.1989347759000317,
+              "bca_ci": [
+                3.0941077661666587,
+                3.29738671351121
+              ]
+            },
+            {
+              "subgroup_id": "1940s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 4.577192578464115,
+              "bca_ci": [
+                4.456501898363135,
+                4.703780974587165
+              ]
+            },
+            {
+              "subgroup_id": "1950s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 7.204198045459245,
+              "bca_ci": [
+                7.010711989622453,
+                7.396188533308339
+              ]
+            },
+            {
+              "subgroup_id": "1960s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 9.267314225069336,
+              "bca_ci": [
+                9.021771148778111,
+                9.513360065974284
+              ]
+            },
+            {
+              "subgroup_id": "1970s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 5.5216079395066116,
+              "bca_ci": [
+                5.3514439278234684,
+                5.696423735476282
+              ]
+            },
+            {
+              "subgroup_id": "1980s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 6.023342662640614,
+              "bca_ci": [
+                5.844865253714662,
+                6.190204051572375
+              ]
+            },
+            {
+              "subgroup_id": "1990s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 3.7513999395674507,
+              "bca_ci": [
+                3.6494274867607595,
+                3.850809889704725
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "bhps": {
+      "families": {
+        "gender": {
+          "method": "BH",
+          "n_tests": 2,
+          "alpha": 0.05,
+          "tests": [
+            {
+              "subgroup_id": "Female",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 5.683431204176709,
+              "bca_ci": [
+                5.520452706047785,
+                5.851459189051527
+              ]
+            },
+            {
+              "subgroup_id": "Male",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.000999000999000999,
+              "rejected": true,
+              "t_ratio": 3.903835632958006,
+              "bca_ci": [
+                3.7727124779533834,
+                4.029599497999251
+              ]
+            }
+          ]
+        },
+        "nssec": {
+          "method": "BH",
+          "n_tests": 3,
+          "alpha": 0.05,
+          "tests": [
+            {
+              "subgroup_id": "Intermediate",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.0014985014985014985,
+              "rejected": true,
+              "t_ratio": 3.7652886679373863,
+              "bca_ci": [
+                3.648003648030991,
+                3.880621327039482
+              ]
+            },
+            {
+              "subgroup_id": "Professional/Managerial",
+              "raw_p": 0.08591408591408592,
+              "adjusted_p": 0.08591408591408592,
+              "rejected": false,
+              "t_ratio": 1.6001030722199931,
+              "bca_ci": [
+                1.5440131311588885,
+                1.6552505794160761
+              ]
+            },
+            {
+              "subgroup_id": "Routine/Manual",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.0014985014985014985,
+              "rejected": true,
+              "t_ratio": 4.153776748248877,
+              "bca_ci": [
+                4.028086275010714,
+                4.279866640852796
+              ]
+            }
+          ]
+        },
+        "cohort": {
+          "method": "BH",
+          "n_tests": 6,
+          "alpha": 0.05,
+          "tests": [
+            {
+              "subgroup_id": "1930s",
+              "raw_p": 0.006993006993006993,
+              "adjusted_p": 0.01048951048951049,
+              "rejected": true,
+              "t_ratio": 2.351315707404521,
+              "bca_ci": [
+                2.2691193207330485,
+                2.429152454482532
+              ]
+            },
+            {
+              "subgroup_id": "1940s",
+              "raw_p": 0.012987012987012988,
+              "adjusted_p": 0.015584415584415584,
+              "rejected": true,
+              "t_ratio": 2.181601238115754,
+              "bca_ci": [
+                2.1104104728799062,
+                2.2511181120415844
+              ]
+            },
+            {
+              "subgroup_id": "1950s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.001998001998001998,
+              "rejected": true,
+              "t_ratio": 2.864284691385335,
+              "bca_ci": [
+                2.768503897131442,
+                2.957667461908163
+              ]
+            },
+            {
+              "subgroup_id": "1960s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.001998001998001998,
+              "rejected": true,
+              "t_ratio": 3.1993761370573237,
+              "bca_ci": [
+                3.091984208582662,
+                3.3038916293585907
+              ]
+            },
+            {
+              "subgroup_id": "1970s",
+              "raw_p": 0.000999000999000999,
+              "adjusted_p": 0.001998001998001998,
+              "rejected": true,
+              "t_ratio": 2.672403398665807,
+              "bca_ci": [
+                2.5823309310460925,
+                2.7600308220502994
+              ]
+            },
+            {
+              "subgroup_id": "1980s",
+              "raw_p": 0.0969030969030969,
+              "adjusted_p": 0.0969030969030969,
+              "rejected": false,
+              "t_ratio": 1.5335899700321556,
+              "bca_ci": [
+                1.484138229626563,
+                1.5836358313319583
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

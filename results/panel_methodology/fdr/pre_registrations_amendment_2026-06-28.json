@@ -1,0 +1,70 @@
+{
+  "amendment_date": "2026-06-28",
+  "amends": "results/panel_methodology/fdr/pre_registrations_amendment_2026-06-27.json",
+  "amended_entry": "Section 6.1 per-subgroup stratified W2 recompute + per-family FDR (T1.28)",
+  "amended_by": "Worker tda-agent (T1.28 preflight; User-approved 2026-06-28)",
+  "amendment_reason": "T1.28 preflight verified BHPS birth-year distribution from results/trajectory_tda_bhps/01_trajectories.json. The 2026-06-27 amendment assumed 7 cohort decades (1930s–1990s) for BOTH USoc and BHPS. BHPS ended 2009; no 1990s-born respondents appear in the BHPS employment panel (birth_year >= 1990: n=0). Additionally, the 1980s bin has only n=223 respondents, which is retained as a valid (if small) subgroup. USoc is unaffected: 1990s-born respondents entered the USoc panel (started 2009+) at working age. Asymmetric cohort_n is therefore data-driven, not a model choice.",
+  "outcome_contingent": false,
+  "corrections": [
+    {
+      "field": "bhps_cohort_strata",
+      "from": "7 decade bins {1930s..1990s} — matching USoc",
+      "to": "6 decade bins {1930s..1980s} — 1990s excluded (n=0 in BHPS)",
+      "rationale": "BHPS ended wave 18 in 2009. Respondents born in the 1990s would have been aged at most 18–19 at the final BHPS wave and are not present in the BHPS employment panel. Preflight confirmed birth_year >= 1990 yields n=0 in results/trajectory_tda_bhps/01_trajectories.json.",
+      "bhps_cohort_distribution_verified": {
+        "1930s": 986,
+        "1940s": 1360,
+        "1950s": 1373,
+        "1960s": 1722,
+        "1970s": 1064,
+        "1980s": 223,
+        "1990s": 0
+      }
+    },
+    {
+      "field": "bhps_total_subgroups",
+      "from": "12 (gender 2 + nssec 3 + cohort 7)",
+      "to": "11 (gender 2 + nssec 3 + cohort 6)",
+      "rationale": "Direct consequence of cohort 7→6 for BHPS."
+    },
+    {
+      "field": "bhps_fdr_cohort_family",
+      "from": "BH, n_tests=7",
+      "to": "BH, n_tests=6",
+      "rationale": "Cohort family for BHPS contains 6 subgroups, not 7; method remains BH."
+    }
+  ],
+  "unchanged": {
+    "usoc_strata": "gender 2 + nssec 3 + cohort 7 = 12 subgroups (1930s–1990s all present in USoc)",
+    "test_model": "one Markov-1 W2 test PER SUBGROUP (subgroup observed PD vs its own frozen Markov-1 null)",
+    "statistic": "mean-vs-mean T_ratio = mean(W_obs-null) / mean(W_null-null), with 95% BCa CI",
+    "complement": "persistence-landscape L2 reported alongside W2",
+    "key_params": {
+      "null_model": "markov-1",
+      "frozen_loadings": true,
+      "B": 1000,
+      "L": 5000,
+      "landmark_note": "actual_landmarks = min(5000, subgroup_n)",
+      "seed": 42,
+      "p_value_formula": "(r+1)/(B+1)",
+      "alpha_level": 0.05,
+      "datasets": ["usoc", "bhps"]
+    }
+  },
+  "corrected_fdr_families": {
+    "usoc": {
+      "gender": { "method": "BH", "n_tests": 2 },
+      "nssec": { "method": "BH", "n_tests": 3 },
+      "cohort": { "method": "BH", "n_tests": 7 }
+    },
+    "bhps": {
+      "gender": { "method": "BH", "n_tests": 2 },
+      "nssec": { "method": "BH", "n_tests": 3 },
+      "cohort": { "method": "BH", "n_tests": 6 }
+    }
+  },
+  "contracts_to_amend": [
+    "panel-output-schemas/stratified-w2-recompute-output (usoc: cohort_n=7/total=12; bhps: cohort_n=6/total=11)",
+    "panel-output-schemas/stratified-w2-fdr-families-output (usoc cohort n_tests=7; bhps cohort n_tests=6)"
+  ]
+}

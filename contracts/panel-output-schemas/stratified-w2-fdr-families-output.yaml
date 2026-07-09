@@ -1,6 +1,6 @@
 id: stratified-w2-fdr-families-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.28 per-family FDR JSON
@@ -17,7 +17,7 @@ description: >
   magnitude needed for the §6.1 table. Enforced per dataset (usoc and bhps).
 
 spec_citation:
-  source: "P01-A response plan ISSUE B8 (per-family FDR); T1.28 re-scope pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json + 2026-06-27 amendment (per-subgroup model, 2/3/7 subgroups, BH per family); Benjamini & Hochberg (1995)"
+  source: "P01-A response plan ISSUE B8 (per-family FDR); T1.28 pre-registration results/panel_methodology/fdr/pre_registrations_2026-06-13.json + 2026-06-27 amendment (per-subgroup model, BH per family) + 2026-06-28 amendment (bhps cohort n_tests 7->6); Benjamini & Hochberg (1995)"
   anchor: "results/panel_methodology/fdr/stratified_w2_bh_per_family_<date>.json"
   vault_entry_date: "2026-06-27"
 
@@ -37,13 +37,15 @@ schema_def:
       type: "dict[str, ...]"
       description: >
         MUST contain exactly keys 'usoc' and 'bhps'. Each dataset is a dict with a
-        'families' dict containing exactly gender, nssec, cohort. families.gender.method
-        == 'BH' (n_tests == 2); families.nssec.method == 'BH' (n_tests == 3);
-        families.cohort.method == 'BH' (n_tests == 7). Each family carries a tests list
-        whose every item has subgroup_id (str), raw_p (float in [0,1]), adjusted_p
-        (float in [0,1], adjusted_p >= raw_p), rejected (bool), t_ratio (float) and
-        bca_ci (two ordered finite floats) — the effect size retained beside the
-        corrected p.
+        'families' dict containing exactly gender, nssec, cohort.
+        families.gender.method == 'BH' (n_tests == 2);
+        families.nssec.method == 'BH' (n_tests == 3);
+        families.cohort.method == 'BH'; n_tests == 7 for usoc, n_tests == 6 for bhps
+        (1990s cohort absent from BHPS — 2026-06-28 amendment).
+        Each family carries a tests list whose every item has subgroup_id (str),
+        raw_p (float in [0,1]), adjusted_p (float in [0,1], adjusted_p >= raw_p),
+        rejected (bool), t_ratio (float) and bca_ci (two ordered finite floats) —
+        the effect size retained beside the corrected p.
   conditional_keys: []
   forbidden_keys:
     - name: pooled_single_family
@@ -60,7 +62,7 @@ binding:
     (b) datasets does not contain exactly usoc and bhps;
     (c) a dataset's families does not contain exactly gender, nssec, cohort;
     (d) any of families.gender.method, families.nssec.method, families.cohort.method != 'BH';
-    (e) family n_tests are not gender==2, nssec==3, cohort==7;
+    (e) family n_tests are not gender==2, nssec==3; cohort n_tests != 7 for usoc or != 6 for bhps;
     (f) any raw_p or adjusted_p is outside [0,1], or adjusted_p < raw_p for any test;
     (g) a tests[] item drops its effect size (missing t_ratio or bca_ci, or bca_ci unordered); or
     (h) any forbidden key (pooled_single_family, bonferroni) is present.
