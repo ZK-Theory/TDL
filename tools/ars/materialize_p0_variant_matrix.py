@@ -106,6 +106,18 @@ def _sizing_rows(root: Path, fixture_id: str, stage: str) -> list[dict]:
 
 
 def build_matrix(root: Path) -> dict:
+    """Assemble and return the variant matrix from staged P0 cases.
+
+    This gathers executed and variant rows from the CONTROL_STORE,
+    CONTEXT_ROUTING, and ADAPTER_SCIENTIFIC fixture packages staged on disk.
+
+    Args:
+        root: The directory path containing the staged fixture packages.
+
+    Returns:
+        A dictionary containing the schema_version, matrix_revision,
+        counting_revisions definitions, and the list of matrix rows.
+    """
     rows: list[dict] = []
     for fixture_id in CONTROL_STORE:
         rows.append(_executed_row(root, fixture_id, "bounded"))

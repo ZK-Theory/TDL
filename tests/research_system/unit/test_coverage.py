@@ -70,3 +70,27 @@ def test_incomplete_omitted_p0_is_rejected(tmp_path):
     bad.write_text(yaml.safe_dump(payload), encoding="utf-8")
     with pytest.raises(FixtureDefinitionError, match="omitted_p0"):
         load_p0_coverage(bad, fixture_root=FIXTURES, schema_root=SCHEMAS)
+
+
+def test_coverage_missing_fixture_yaml_is_rejected(tmp_path):
+    fixtures = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES, fixtures)
+    Path.unlink(fixtures / "F-001" / "fixture.yaml")
+    with pytest.raises(FixtureDefinitionError, match="failed to load fixture.yaml for F-001"):
+        load_p0_coverage(COVERAGE, fixture_root=fixtures, schema_root=SCHEMAS)
+
+
+def test_coverage_malformed_fixture_yaml_is_rejected(tmp_path):
+    fixtures = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES, fixtures)
+    (fixtures / "F-001" / "fixture.yaml").write_text("{invalid: json", encoding="utf-8")
+    with pytest.raises(FixtureDefinitionError, match="failed to load fixture.yaml for F-001"):
+        load_p0_coverage(COVERAGE, fixture_root=fixtures, schema_root=SCHEMAS)
+
+
+def test_coverage_non_mapping_fixture_yaml_is_rejected(tmp_path):
+    fixtures = tmp_path / "fixtures"
+    shutil.copytree(FIXTURES, fixtures)
+    (fixtures / "F-001" / "fixture.yaml").write_text("- not a mapping\n", encoding="utf-8")
+    with pytest.raises(FixtureDefinitionError, match="fixture.yaml for F-001 must be a mapping"):
+        load_p0_coverage(COVERAGE, fixture_root=fixtures, schema_root=SCHEMAS)

@@ -51,6 +51,8 @@ def load_threshold_policies(path: Path | str) -> dict[str, dict[str, Any]]:
         raise ConfigurationError("threshold policies must be a list")
     registry: dict[str, dict[str, Any]] = {}
     for row in rows:
+        if not isinstance(row, dict):
+            raise ConfigurationError("each policy entry must be a mapping")
         policy_id = row.get("threshold_policy_id")
         if not isinstance(policy_id, str) or policy_id in registry:
             raise ConfigurationError(f"invalid or duplicate threshold policy: {policy_id!r}")

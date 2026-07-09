@@ -63,3 +63,10 @@ def test_empty_threshold_registry_loads_as_empty(tmp_path):
     assert policies == {}
     # The closure check itself lives in run_p0_coverage (Step 6): an empty
     # registry makes every fixture's threshold_policy_ids unresolvable there.
+
+
+def test_malformed_threshold_policy_entry_raises_configuration_error(tmp_path):
+    bad = tmp_path / "threshold-policies.yaml"
+    bad.write_text("schema_version: '1.0.0'\npolicies:\n  - 'not a mapping'\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="each policy entry must be a mapping"):
+        load_threshold_policies(bad)

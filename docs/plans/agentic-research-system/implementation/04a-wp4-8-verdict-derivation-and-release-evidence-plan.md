@@ -1452,7 +1452,7 @@ Subject: `[PIPELINE] P00: derive ARS release verdicts from calibration`
 
 **Interfaces:**
 - Consumes: `EvaluationEvidence` (Task 4); `models.ReleaseGateDecision`; `scenarios.run_gate3_scenario`; `SchemaRegistry`; `ids.new_id`.
-- Produces: `build_release_decision(evidence, scenario_results, *, decided_at=None) -> ReleaseGateDecision`; CLI `eval run --coverage P --transport fake [--output PATH]` and `eval release --evaluation-runs PATH` that verifies the supplied document against the in-process re-derivation.
+- Produces: `build_release_decision(evidence, scenario_results, *, decided_at=None) -> tuple[ReleaseGateDecision, dict]`; CLI `eval run --coverage P --transport fake [--output PATH]` and `eval release --evaluation-runs PATH` that verifies the supplied document against the in-process re-derivation.
 
 > **RESCOPE (D5, user-authorized 2026-07-08):** the model field
 > `required_verdicts: tuple[tuple[ResultKey, str], ...]` and the verbatim `decision_document()`
@@ -1804,16 +1804,16 @@ Expected: PASS.
 
 Subject: `[PIPELINE] P00: derive Gate 3 scenario A/B evidence from route records`
 
-## Task 7: Bind the deletion-manifest authorizer; register `DeleteEvidenceObject` (review m-2)
+## Task 7: Bind the deletion-manifest authorizer (review m-2)
 
 **Files:**
-- Modify: `research_system/command/service.py` (register `DeleteEvidenceObject`; type the authorizer slot), `research_system/cli.py` (bind the authorizer at `CommandService` composition in `_command_submit`)
+- Modify: `research_system/command/service.py` (type the authorizer slot), `research_system/cli.py` (bind the authorizer at `CommandService` composition in `_command_submit`)
 - Create: `research_system/evals/retention_authorizer.py` (authorizer factory over `validate_deletion_manifest_for_event`)
 - Test: `tests/research_system/unit/test_command_service.py` (extend), `tests/research_system/unit/test_retention.py` (extend)
 
 **Interfaces:**
 - Consumes: `retention.EvidenceStoreRegistry`, `retention.DeletionVerificationManifest`, `retention.LocationInspection`, `retention.validate_deletion_manifest_for_event`; `command.service.CommandService`.
-- Produces: `build_deletion_manifest_authorizer(registry, *, current_policy_revision) -> Callable[[dict, str, str], dict]` that reconstructs a `DeletionVerificationManifest` from the command payload and returns the validated event body, raising on any incomplete/forged/stale manifest; `DeleteEvidenceObject` handling in `_build_event`.
+- Produces: `build_deletion_manifest_authorizer(registry, *, current_policy_revision) -> Callable[[dict, str, str], dict]` that reconstructs a `DeletionVerificationManifest` from the command payload and returns the validated event body, raising on any incomplete/forged/stale manifest.
 
 > **RESCOPE (D6, user decision 2026-07-08):** precondition 2 resolved as ESCALATE. Task 7 delivers ONLY
 > the authorizer binding (retention_authorizer factory + EvidenceStoreRegistry config/loader per D4 + bind
@@ -1830,16 +1830,16 @@ Subject: `[PIPELINE] P00: derive Gate 3 scenario A/B evidence from route records
 
 - [ ] **Step 1: Write the failing tests**
 
-In `tests/research_system/unit/test_command_service.py`, add: (a) a `CommandService` whose `deletion_manifest_authorizer` is built from `build_deletion_manifest_authorizer` rejects a `VerifyEvidenceDeletion` payload whose reconstructed manifest is incomplete or forged (raises `ArsError`/`ValueError`; no event emitted, no receipt written); (b) a complete, current, evidence-derived manifest authorizes exactly one `EvidenceDeletionVerified` event whose payload equals `validate_deletion_manifest_for_event(...)`; (c) `DeleteEvidenceObject` fails closed when the composition is unset. In `test_retention.py`, add a unit test that `build_deletion_manifest_authorizer` refuses a manifest with a mismatched `registry_hash`/`policy_revision`.
+In `tests/research_system/unit/test_command_service.py`, add: (a) a `CommandService` whose `deletion_manifest_authorizer` is built from `build_deletion_manifest_authorizer` rejects a `VerifyEvidenceDeletion` payload whose reconstructed manifest is incomplete or forged (raises `ArsError`/`ValueError`; no event emitted, no receipt written); (b) a complete, current, evidence-derived manifest authorizes exactly one `EvidenceDeletionVerified` event whose payload equals `validate_deletion_manifest_for_event(...)`. In `test_retention.py`, add a unit test that `build_deletion_manifest_authorizer` refuses a manifest with a mismatched `registry_hash`/`policy_revision`.
 
 - [ ] **Step 2: Run and confirm failure**
 
 Run: `uv run pytest tests/research_system/unit/test_command_service.py tests/research_system/unit/test_retention.py -q --no-cov`
-Expected: FAIL — `retention_authorizer` module and `DeleteEvidenceObject` handling absent.
+Expected: FAIL — `retention_authorizer` module absent.
 
 - [ ] **Step 3: Implement**
 
-Create `retention_authorizer.py` with the factory that reconstructs a `DeletionVerificationManifest` from the command payload and delegates to `validate_deletion_manifest_for_event` (passing the actor/grant from the command envelope, never from the payload). In `service.py`, add a `DeleteEvidenceObject` branch to `_build_event` per the confirmed catalogue semantics. In `cli.py` `_command_submit`, set `service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(registry, current_policy_revision=…)` from the confirmed registry source. Do not weaken the existing `authorizer is None` and `status != 'verified'` fail-closed guards.
+Create `retention_authorizer.py` with the factory that reconstructs a `DeletionVerificationManifest` from the command payload and delegates to `validate_deletion_manifest_for_event` (passing the actor/grant from the command envelope, never from the payload). In `cli.py` `_command_submit`, set `service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(registry, current_policy_revision=…)` from the confirmed registry source. Do not weaken the existing `authorizer is None` and `status != 'verified'` fail-closed guards.
 
 - [ ] **Step 4: Run the tests**
 

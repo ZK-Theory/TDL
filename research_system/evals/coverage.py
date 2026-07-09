@@ -101,7 +101,16 @@ def load_p0_coverage(
     fixture_root = Path(fixture_root)
     for fixture_id, revision in selected.items():
         definition_path = fixture_root / fixture_id / "fixture.yaml"
-        declared = yaml.safe_load(definition_path.read_text(encoding="utf-8"))
+        try:
+            declared = yaml.safe_load(definition_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            raise FixtureDefinitionError(
+                f"failed to load fixture.yaml for {fixture_id} at {definition_path}"
+            ) from exc
+        if not isinstance(declared, dict):
+            raise FixtureDefinitionError(
+                f"fixture.yaml for {fixture_id} must be a mapping"
+            )
         if str(declared.get("fixture_revision")) != str(revision):
             raise FixtureDefinitionError(
                 f"coverage pins {fixture_id}@{revision} but the package declares "
