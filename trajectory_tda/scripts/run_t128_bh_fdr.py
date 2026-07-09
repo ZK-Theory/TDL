@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import subprocess  # nosec B404 - used only for a fixed, trusted `git rev-parse`
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -119,7 +119,9 @@ def _load_all_checkpoints(B: int = B_DEFAULT) -> dict[str, list[dict[str, Any]]]
 
 def _get_git_head() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=WORKTREE, text=True).strip()
+        return subprocess.check_output(  # nosec B603 B607
+            ["git", "rev-parse", "HEAD"], cwd=WORKTREE, text=True
+        ).strip()
     except Exception:
         return "unknown"
 
@@ -215,7 +217,7 @@ def _bh_adjust(p_values: list[float]) -> list[float]:
 
     if not p_values:
         return []
-    _, adj, _, _ = multipletests(p_values, method="fdr_bh")
+    _, adj, _, _ = multipletests(p_values, alpha=ALPHA, method="fdr_bh")
     return list(adj)
 
 
@@ -280,7 +282,7 @@ def apply_bh_fdr(recompute_path: Path) -> Path:
         "schema_version": "stratified-w2-fdr-families-v1",
         "generated_at": today,
         "pre_registration": PRE_REG_REF,
-        "source_recompute": str(recompute_path),
+        "source_recompute": recompute_path.as_posix(),
         "datasets": datasets_out,
     }
 

@@ -453,10 +453,18 @@ def _load_bhps_later_waves(bhps_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
     """Try BHPS waves bb–br as fallback for sex, birth year, and parental NS-SEC.
 
     Post-wave-1 BHPS entrants are absent from ba_indresp; this function recovers
-    them from their entry wave. Takes the first wave each pidp appears in — all
-    three variables (sex, birth year, parental NS-SEC) are time-invariant.
+    them from their entry wave. Different pidps enter at different waves, so
+    every wave must be scanned and results accumulated — returning after the
+    first wave with any match would silently drop entrants whose first
+    appearance is a later wave. Takes each pidp's earliest matching wave (all
+    three variables are time-invariant, so first-seen is as good as any).
     """
+    frames: list[pd.DataFrame] = []
+
     for wl in "bcdefghijklmnopqr":
+        if not pidp_set:
+            break
+
         w = f"b{wl}"
         candidates = list(bhps_dir.rglob(f"{w}_indresp.tab"))
         if not candidates:
@@ -501,9 +509,11 @@ def _load_bhps_later_waves(bhps_dir: Path, pidp_set: set[int]) -> pd.DataFrame:
         result["parental_nssec8"] = pa.fillna(ma)
 
         pidp_set -= set(result["pidp"])
-        return result
+        frames.append(result)
 
-    return pd.DataFrame(columns=["pidp", "sex", "birth_year", "parental_nssec8"])
+    if not frames:
+        return pd.DataFrame(columns=["pidp", "sex", "birth_year", "parental_nssec8"])
+    return pd.concat(frames, ignore_index=True)
 
 
 # ─── GOR (Government Office Region) extraction ───

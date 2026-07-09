@@ -275,6 +275,8 @@ def aggregate_combined(
         seed: Random seed for null-null pair sampling.
         n_null_pairs_cap: Cap on number of null-null pairs to sample.
         phase_label: Label used in log messages.
+        n_jobs: Parallelism for the null-null W2/landscape-L2 aggregation
+            (Level 2 of the two-level parallelism architecture).
 
     Returns:
         Dict keyed ``h0``/``h1``/... with W2 + landscape fields per dimension.

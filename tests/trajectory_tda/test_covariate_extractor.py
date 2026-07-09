@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +26,7 @@ from trajectory_tda.data.covariate_extractor import (
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", "C:/Users/steph/TDL"))
 DATA_DIR = PROJ_ROOT / "data"
 
 
@@ -190,6 +191,46 @@ class TestLoadBhpsLaterWaves:
         result = _load_bhps_later_waves(tmp_path, {4001})
         assert set(result["pidp"]) == {4001}
         assert pd.isna(result.loc[result["pidp"] == 4001, "parental_nssec8"].iloc[0])
+
+    def test_accumulates_entrants_split_across_two_later_waves(self, tmp_path: Path) -> None:
+        """Regression test for the early-return bug: pidps split across bb and
+        bc waves must BOTH be recovered, not just the ones in the first wave
+        that produces any match. Before the fix, matching bb (wave 2) would
+        `return` immediately and bc's (wave 3) entrant was silently dropped.
+        """
+        _write_tab(
+            tmp_path / "bb_indresp.tab",
+            pd.DataFrame(
+                {
+                    "pidp": [5001],
+                    "bb_sex": [2],
+                    "bb_doby": [1959],
+                    "bb_panssec8_dv": [4],
+                    "bb_manssec8_dv": [-9],
+                }
+            ),
+        )
+        _write_tab(
+            tmp_path / "bc_indresp.tab",
+            pd.DataFrame(
+                {
+                    "pidp": [5002],
+                    "bc_sex": [1],
+                    "bc_doby": [1963],
+                    "bc_panssec8_dv": [-9],
+                    "bc_manssec8_dv": [6],
+                }
+            ),
+        )
+        result = _load_bhps_later_waves(tmp_path, {5001, 5002})
+        assert set(result["pidp"]) == {5001, 5002}, (
+            "Both wave-2 and wave-3 entrants must be recovered, not just the "
+            "first wave with any match"
+        )
+        assert result.loc[result["pidp"] == 5001, "sex"].iloc[0] == "Female"
+        assert result.loc[result["pidp"] == 5002, "sex"].iloc[0] == "Male"
+        assert result.loc[result["pidp"] == 5001, "parental_nssec8"].iloc[0] == 4
+        assert result.loc[result["pidp"] == 5002, "parental_nssec8"].iloc[0] == 6
 
 
 # ── extract_covariates — BHPS integration tests ───────────────────────────────

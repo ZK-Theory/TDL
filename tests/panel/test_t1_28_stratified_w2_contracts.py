@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import copy
 import json
-from pathlib import Path
+import math
+from pathlib import Path, PurePosixPath
 
 import pytest
 import yaml
@@ -293,7 +294,7 @@ def _validate_recompute_payload(payload: dict) -> None:  # noqa: C901
                 f"<= min(5000, n={n}), got {lm!r}"
             )
             t_r = sg.get("t_ratio")
-            assert isinstance(t_r, (int, float)) and t_r == t_r, (
+            assert isinstance(t_r, (int, float)) and math.isfinite(t_r), (
                 f"{ds_name}/{sg_id}: t_ratio must be finite float, got {t_r!r}"
             )
             bca = sg.get("bca_ci")
@@ -304,8 +305,8 @@ def _validate_recompute_payload(payload: dict) -> None:  # noqa: C901
             assert (
                 isinstance(lo, (int, float))
                 and isinstance(hi, (int, float))
-                and lo == lo  # finite (NaN != NaN)
-                and hi == hi
+                and math.isfinite(lo)
+                and math.isfinite(hi)
                 and lo <= hi
             ), (
                 f"{ds_name}/{sg_id}: bca_ci must be ordered finite floats, "
@@ -394,8 +395,8 @@ def _validate_fdr_payload(payload: dict) -> None:
                 assert (
                     isinstance(bca, list)
                     and len(bca) == 2
-                    and bca[0] == bca[0]
-                    and bca[1] == bca[1]
+                    and math.isfinite(bca[0])
+                    and math.isfinite(bca[1])
                     and bca[0] <= bca[1]
                 ), (
                     f"{ds_name}.{fam_name}/{t_id}: bca_ci must be ordered "
@@ -689,13 +690,10 @@ def test_stratified_w2_fdr_json_validation_dispatch() -> None:
 
     # (c) legacy file path does not match applies_to_glob
     glob_pattern = ov["applies_to_glob"]
-    # glob is results/panel_methodology/fdr/stratified_w2_*.json;
-    # legacy is results/trajectory_tda_integration/06_stratified.json — different dir
     legacy_path = Path("results/trajectory_tda_integration/06_stratified.json")
-    assert not any(
-        legacy_path.name.startswith(pat.replace("_*.json", "_"))
-        for pat in [p["filename_pattern"] for p in file_dispatch]
-    ), "Legacy 06_stratified.json must NOT be captured by stratified_w2_* dispatch patterns"
+    assert not PurePosixPath(str(legacy_path)).match(glob_pattern), (
+        f"Legacy {legacy_path} must NOT match applies_to_glob '{glob_pattern}'"
+    )
 
     # validate any on-disk output JSONs matching the glob pattern
     for json_path in REPO_ROOT.rglob("*.json"):
