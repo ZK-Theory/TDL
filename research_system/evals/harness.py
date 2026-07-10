@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,8 +16,17 @@ from research_system.evals.coverage import P0Coverage, load_p0_coverage
 from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.fixture_package import load_typed_definition
 from research_system.evals.lifecycle import start_evaluation
-from research_system.evals.models import GraderResult, ReleaseGateDecision, ResultKey, TraceEnvelope
-from research_system.evals.policies import load_threshold_policies, require_calibration_policy
+from research_system.evals.models import (
+    GraderRequirement,
+    GraderResult,
+    ReleaseGateDecision,
+    ResultKey,
+    TraceEnvelope,
+)
+from research_system.evals.policies import (
+    load_threshold_policies,
+    require_calibration_policy,
+)
 from research_system.evals.release import BLOCKING, decide_release
 from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
@@ -47,6 +56,49 @@ class EvaluationEvidence:
     results: tuple[GraderResult, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class ExecutionContextIdentity:
+    """Truthful execution identity, separated from grader role/profile labels."""
+
+    actor_id: str
+    family: str
+    profile: str
+
+
+ExecutionContextFactory = Callable[
+    ..., tuple[ExecutionContextIdentity, ExecutionContextIdentity]
+]
+
+
+def fake_execution_context_factory(
+    transport: str,
+    fixture_id: str,
+    fixture_revision: str,
+    run_id: str,
+    grader: GraderRequirement,
+    live_unavailable: bool,
+    producer_context: ExecutionContextIdentity | None = None,
+) -> tuple[ExecutionContextIdentity, ExecutionContextIdentity]:
+    """Return the fake P0 producer/grader identities for one result row."""
+    producer = producer_context or ExecutionContextIdentity(
+        actor_id=new_id("actor"),
+        family=transport,
+        profile=f"reference-subject:{fixture_id}:{fixture_revision}:{run_id}",
+    )
+    grader_profile = (
+        "live-judgment-pending" if live_unavailable else "deterministic-package-grader"
+    )
+    grader_context = ExecutionContextIdentity(
+        actor_id=new_id("actor"),
+        family=transport,
+        profile=(
+            f"{fixture_id}:{fixture_revision}:{grader.grader_class}:"
+            f"{grader.grader_id}:{grader_profile}"
+        ),
+    )
+    return producer, grader_context
+
+
 def _fixture(path: Path) -> dict:
     value = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -59,6 +111,9 @@ def run_p0_coverage(
     *,
     fixture_root: Path | str,
     schema_root: Path | str,
+    execution_context_factory: ExecutionContextFactory = (
+        fake_execution_context_factory
+    ),
 ) -> EvaluationEvidence:
     """Assemble the typed release-evidence surface over all P0 packages.
 
@@ -141,7 +196,7 @@ def run_p0_coverage(
         oracle_hash = str(raw["post_control_oracle_hash"])
         policy_hash = sha256_hex(canonical_bytes(raw["policy_versions"]))
         threshold_hash = sha256_hex(canonical_bytes(raw["threshold_policy_ids"]))
-        executed_by = new_id("actor")
+        producer_context: ExecutionContextIdentity | None = None
         for grader in definition.required_graders:
             key = (fixture_id, fixture_revision, grader.grader_id, grader.grader_class, grader.grader_version)
             maps["subject"][key] = subject_hash
@@ -152,6 +207,19 @@ def run_p0_coverage(
             maps["independence"][key] = grader.independence_requirement
             maps["criticality"][key] = grader.critical
             live = grader.grader_class in coverage.unavailable_grader_classes
+            producer_candidate, grader_context = execution_context_factory(
+                coverage.transport,
+                fixture_id,
+                fixture_revision,
+                run_id,
+                grader,
+                live,
+                producer_context,
+            )
+            if producer_context is None:
+                producer_context = producer_candidate
+            elif producer_candidate != producer_context:
+                raise ValueError("producer execution context changed within run")
             verdict = "unable_to_grade" if live else base_verdict
             results.append(
                 GraderResult(
@@ -173,14 +241,14 @@ def run_p0_coverage(
                     threshold_policy_hash=threshold_hash,
                     evidence_refs=(trace.trace_id,),
                     independently_recomputed=not live,
-                    producer_family="reference-subject",
-                    grader_family=("live-judgment-pending" if live else "deterministic-package-grader"),
+                    producer_family=producer_context.family,
+                    grader_family=grader_context.family,
                     context_relationship=grader.independence_requirement,
                     limitations=(("live judgment unavailable",) if live else ()),
                     redactions=(),
                     duration_ms=0,
                     cost_microunits=0,
-                    executed_by_actor_id=executed_by,
+                    executed_by_actor_id=grader_context.actor_id,
                 )
             )
     bindings = ReleaseBindings(
