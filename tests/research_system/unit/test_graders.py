@@ -142,3 +142,39 @@ def test_exact_immutable_grader_binding_is_gradeable():
         )
         is None
     )
+
+
+def test_cross_family_requirement_rejects_same_family_pair():
+    with pytest.raises(UnableToGrade, match="cross-family independence"):
+        validate_grader_result(
+            _result(
+                producer_family="fake",
+                grader_family="fake",
+                context_relationship="cross_family_context_independent",
+            ),
+            expected_subject_hash="a" * 64,
+            expected_trace_hash="b" * 64,
+            expected_oracle_hash="c" * 64,
+            expected_policy_hash="d" * 64,
+            expected_threshold_policy_hash="e" * 64,
+            required_independence="cross_family_context_independent",
+        )
+
+
+def test_cross_family_requirement_accepts_distinct_family_pair():
+    assert (
+        validate_grader_result(
+            _result(
+                producer_family="fake",
+                grader_family="live-independent",
+                context_relationship="cross_family_context_independent",
+            ),
+            expected_subject_hash="a" * 64,
+            expected_trace_hash="b" * 64,
+            expected_oracle_hash="c" * 64,
+            expected_policy_hash="d" * 64,
+            expected_threshold_policy_hash="e" * 64,
+            required_independence="cross_family_context_independent",
+        )
+        is None
+    )

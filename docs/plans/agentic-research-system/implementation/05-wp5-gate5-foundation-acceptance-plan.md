@@ -1,7 +1,8 @@
 # 05 — WP5: Gate 5 Foundation Acceptance — Scope and Sequencing Plan
 
 **Date:** 2026-07-10
-**Status:** scope proposed — awaiting owner approval before any WP5 dispatch
+**Status:** approved for Gate 5 execution by Stephen on 2026-07-10; WP5.1 may
+proceed once its task-level dispatch plan passes research-assurance preflight
 **Goal:** Close Gate 4 formally, then define the exact work standing between the current
 state (all WP4 tranches merged; aggregate P0 candidate `blocked`) and Gate 5 foundation
 acceptance, so each work package can be dispatched as its own plan (following the
@@ -11,7 +12,8 @@ acceptance, so each work package can be dispatched as its own plan (following th
 §5 (checkpoints 5–7), §7 (retention/backup-restore extension), §7.2 (live-grader
 threshold-policy clause, Gate 5 deferred-scenario row); 06-evaluation §S-014–S-016 rows;
 07-runtime-adapters (W7 parity semantics); 04a obligation register O10–O16; 04b register
-R8/R12. This plan authorizes no implementation.
+R8/R12. Approval authorizes only the staged work and dependency gates in this plan;
+each implementation tranche remains bound to its own reviewed dispatch plan.
 
 ---
 
@@ -218,6 +220,12 @@ WP5.5 owner decisions (parallel; D-G5-1/2/4) ───────────�
 | D-G5-2 | **`DeleteEvidenceObject` registration (O15).** Name specified (04-plan:517); payload schema + emitted event are not. | Design anchor: `DeleteEvidenceObject → EvidenceDeletionPending` (the event `replay.py:90` already consumes but nothing emits). Confirm name+schema+event, or defer past Gate 5 with the capability restriction recorded. |
 | D-G5-3 | **Invariant re-baseline approvals.** WP5.2 and WP5.4 change `result_count`/`fixture_count`/`blocked_fixture_count`. | Each dispatch plan pre-registers exact new values; owner approves the plan (and thereby the re-baseline) before execution. Silent drift remains a stop condition. |
 | D-G5-4 | **R12 confirmation.** Two provider-specific F-021 sizing rows instead of the plan's single `variant` scalar (no-wildcard rule made one row impossible). Flagged in PR #71 body; merge ≠ recorded confirmation. | Confirm the two-row form (recommended — it is the only spec-consistent shape) and record a `[DECISION]` closing R12. |
+
+**Owner record (2026-07-10):** D-G5-1 option (a) approved -- Gate 5 may accept
+the foundation only with the M/H capability restriction explicit while required M/H
+rows remain blocking. D-G5-4 confirmed -- the two provider-specific F-021 sizing rows
+are the accepted R12 form. D-G5-2 remains open; D-G5-3 remains a per-dispatch-plan
+approval process.
 
 ## 7. Invariant re-baseline rule
 

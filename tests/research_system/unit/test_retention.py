@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from research_system.cli import main
-from research_system.errors import ArsError, SchemaError
+from research_system.errors import ArsError, ConfigurationError, SchemaError
 from research_system.evals.retention import (
     RULES,
     CanonicalPayloadScan,
@@ -406,17 +406,60 @@ def test_authorizer_refuses_mismatched_registry_hash_or_policy_revision(tmp_path
         **(asdict(_registry(tmp_path)) | {"registry_hash": "f" * 64})
     )
     authorize_wrong_hash = build_deletion_manifest_authorizer(
-        wrong_hash_registry, current_policy_revision="p0-retention-v1"
+        wrong_hash_registry, retention_policy_path=POLICY
     )
     with pytest.raises(ValueError, match="stale deletion registry"):
         authorize_wrong_hash(payload, "actor-1", "grant-1")
 
+    stale_registry = EvidenceStoreRegistry(
+        **(asdict(_registry(tmp_path)) | {"policy_revision": "p0-retention-v0"})
+    )
+    stale_manifest = _verify(tmp_path, registry=stale_registry)
     authorize_stale_policy = build_deletion_manifest_authorizer(
-        _registry(tmp_path), current_policy_revision="p0-retention-v2"
+        stale_registry, retention_policy_path=POLICY
     )
     with pytest.raises(ValueError, match="stale deletion registry"):
-        authorize_stale_policy(payload, "actor-1", "grant-1")
+        authorize_stale_policy(_jsonable(asdict(stale_manifest)), "actor-1", "grant-1")
 
+
+def test_authorizer_requires_valid_canonical_retention_policy(tmp_path):
+    missing = tmp_path / "missing-retention-policy.yaml"
+    with pytest.raises(ConfigurationError, match="invalid retention policy"):
+        build_deletion_manifest_authorizer(_registry(tmp_path), retention_policy_path=missing)
+
+    malformed = tmp_path / "retention-policy.yaml"
+    malformed.write_text("policy_revision: p0-retention-v0\nrules: []\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="invalid retention policy revision"):
+        build_deletion_manifest_authorizer(_registry(tmp_path), retention_policy_path=malformed)
+
+
+def test_production_authorizer_rejects_stale_self_validating_manifest(tmp_path):
+    stale_registry = EvidenceStoreRegistry(
+        **(asdict(_bound_registry(tmp_path)) | {"policy_revision": "p0-retention-v0"})
+    )
+    manifest = _verify(
+        tmp_path,
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=AUTHORITY_GRANT_ID,
+        registry=stale_registry,
+    )
+    assert manifest.policy_revision == "p0-retention-v0"
+
+    command_root = tmp_path / "command"
+    command_root.mkdir()
+    harness = control_plane(command_root)
+    harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
+        stale_registry, retention_policy_path=POLICY
+    )
+    command = {
+        **_deletion_command(manifest.manifest_hash),
+        "payload": _jsonable(asdict(manifest)),
+    }
+
+    with pytest.raises(ValueError, match="stale deletion registry or policy"):
+        harness.service.submit(command)
+    assert tuple(harness.ledger.iter_batches()) == ()
+    assert harness.receipts.load(command["command_id"]) is None
 
 def test_production_authorizer_accepts_complete_current_manifest(tmp_path):
     registry = _bound_registry(tmp_path)
@@ -432,7 +475,7 @@ def test_production_authorizer_accepts_complete_current_manifest(tmp_path):
     command_root.mkdir()
     harness = control_plane(command_root)
     harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
-        registry, current_policy_revision="p0-retention-v1"
+        registry, retention_policy_path=POLICY
     )
     command = {
         **_deletion_command(manifest.manifest_hash),
@@ -473,7 +516,7 @@ def test_production_authorizer_rejects_tampered_manifest_payload(tmp_path):
     command_root.mkdir()
     harness = control_plane(command_root)
     harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
-        registry, current_policy_revision="p0-retention-v1"
+        registry, retention_policy_path=POLICY
     )
     command = {
         **_deletion_command(manifest.manifest_hash),
@@ -499,7 +542,7 @@ def test_production_authorizer_rejects_malformed_payload_missing_field(tmp_path)
     command_root.mkdir()
     harness = control_plane(command_root)
     harness.service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
-        registry, current_policy_revision="p0-retention-v1"
+        registry, retention_policy_path=POLICY
     )
     command = {
         **_deletion_command(manifest.manifest_hash),

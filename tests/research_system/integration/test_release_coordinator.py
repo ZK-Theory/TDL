@@ -29,6 +29,45 @@ def test_strict_release_consumes_exact_typed_results_and_blocks_missing_mh():
     assert assessment["duplicates"] == []
 
 
+def test_fake_p0_family_identity_reaches_cross_family_rejection():
+    evidence = run_p0_coverage(COVERAGE, fixture_root=FIXTURES, schema_root=SCHEMAS)
+    assert len(evidence.results) == len(evidence.coverage.required_result_keys)
+    assert {result.result_key for result in evidence.results} == set(
+        evidence.coverage.required_result_keys
+    )
+    retired_literals = {
+        "reference-subject",
+        "live-judgment-pending",
+        "deterministic-package-grader",
+    }
+    observed_families = {
+        family
+        for result in evidence.results
+        for family in (result.producer_family, result.grader_family)
+    }
+    assert observed_families == {"fake"}
+    assert observed_families.isdisjoint(retired_literals)
+
+    cross_family_keys = {
+        key
+        for key, requirement in evidence.bindings.required_independence.items()
+        if requirement.startswith("cross_family")
+    }
+    assert cross_family_keys
+
+    assessment = decide_p0_release(evidence)
+    incompatible = dict(assessment["incompatible"])
+    assert {
+        key
+        for key, reason in incompatible.items()
+        if reason == "cross-family independence unavailable"
+    } == cross_family_keys
+    assert assessment["decision"] == "blocked"
+    assert assessment["missing"] == []
+    assert assessment["unexpected"] == []
+    assert assessment["duplicates"] == []
+
+
 def test_forged_producer_document_cannot_enter_release_path():
     with pytest.raises(TypeError, match="EvaluationEvidence"):
         decide_p0_release({"candidate_status": "pass", "results": []})
