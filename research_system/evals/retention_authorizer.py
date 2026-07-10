@@ -20,6 +20,7 @@ from research_system.evals.retention import (
     EvidenceStoreRegistry,
     LocationInspection,
     validate_deletion_manifest_for_event,
+    validate_retention_policy,
 )
 from research_system.schema_registry import SchemaRegistry
 
@@ -140,7 +141,7 @@ def reconstruct_deletion_manifest(
 def build_deletion_manifest_authorizer(
     registry: EvidenceStoreRegistry,
     *,
-    current_policy_revision: str,
+    retention_policy_path: Path,
 ) -> Callable[[dict[str, Any], str, str], dict[str, Any]]:
     """Build a `CommandService.deletion_manifest_authorizer` closure.
 
@@ -153,17 +154,29 @@ def build_deletion_manifest_authorizer(
     `validate_deletion_manifest_for_event`'s authority check, and a tampered
     field is rejected by its manifest-hash re-derivation.
 
+    The current policy revision is independently loaded and validated from the
+    canonical tracked policy path at construction time; it is never trusted from
+    the evidence-store registry or command payload.
+
     Args:
         registry: The trusted, schema-validated evidence-store registry.
-        current_policy_revision: The retention policy revision currently in
-            force, checked against the manifest's `policy_revision`.
+        retention_policy_path: Canonical `retention-policy.yaml` path used to
+            validate and extract the currently accepted policy revision.
 
     Returns:
         A callable matching `CommandService.deletion_manifest_authorizer`:
         `(payload, actor_id, authority_grant_id) -> dict`.
     """
+    policy = validate_retention_policy(Path(retention_policy_path))
+    current_policy_revision = policy.get("policy_revision")
+    if not isinstance(current_policy_revision, str):
+        raise ConfigurationError("retention policy revision must be a string")
 
-    def authorize(payload: dict[str, Any], actor_id: str, authority_grant_id: str) -> dict[str, Any]:
+    def authorize(
+        payload: dict[str, Any],
+        actor_id: str,
+        authority_grant_id: str,
+    ) -> dict[str, Any]:
         manifest = reconstruct_deletion_manifest(payload)
         return validate_deletion_manifest_for_event(
             manifest,

@@ -99,8 +99,10 @@ def _command_submit(args: argparse.Namespace) -> int:
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
+        retention_policy_path = binding.schema_root.parent / "evals" / "retention-policy.yaml"
         service.deletion_manifest_authorizer = build_deletion_manifest_authorizer(
-            registry, current_policy_revision=registry.policy_revision
+            registry,
+            retention_policy_path=retention_policy_path,
         )
     _print_json(asdict(service.submit(command)))
     return 0
