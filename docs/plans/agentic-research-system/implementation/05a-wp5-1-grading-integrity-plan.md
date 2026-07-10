@@ -185,7 +185,7 @@ tests/research_system/integration/test_release_coordinator.py.
   1. family values come from the fake execution context, not the three retired
      role literals;
   2. every required cross-family row under fake-only execution is reported in
-     decide_p0_release(...)[incompatible] with
+     `decide_p0_release(...)[incompatible]` with
      cross-family independence unavailable;
   3. result-key closure remains exact and the overall decision remains blocked.
 

@@ -66,7 +66,16 @@ class ExecutionContextIdentity:
 
 
 ExecutionContextFactory = Callable[
-    ..., tuple[ExecutionContextIdentity, ExecutionContextIdentity]
+    [
+        str,
+        str,
+        str,
+        str,
+        GraderRequirement,
+        bool,
+        ExecutionContextIdentity | None,
+    ],
+    tuple[ExecutionContextIdentity, ExecutionContextIdentity],
 ]
 
 
