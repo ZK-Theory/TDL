@@ -1,7 +1,7 @@
 ---
 type: permanent-note-DRAFT
-status: DRAFT — staged in the worktree for User review before any vault write
-target: 02-Notes/Permanent/Markov-k-null-cannot-reject-statistics-of-the-order-k-sufficient-statistic.md
+status: APPROVED 2026-07-10 (Stephen) — promoted to the vault; this repo copy is the historical staging record
+target: 02-Notes/Permanent/Markov-k-null-cannot-reject-statistics-of-the-order-k-sufficient-statistic.md (promoted 2026-07-10)
 source: spike-05-c1-pl-postmortem-markov0 (2026-07-10); C1 T-C1-1 NEGATIVE (2026-07-07)
 ---
 
