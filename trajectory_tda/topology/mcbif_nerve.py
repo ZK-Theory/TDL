@@ -28,7 +28,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from trajectory_tda.topology.f2_betti import betti_0_1_from_skeleton
+from trajectory_tda.topology.f2_betti import _rank_f2_int_rows
 
 
 def masks_from_partitions(
@@ -152,10 +152,20 @@ def hilbert_grid_h0_h1(
     # First vertex index at each scale; scales are contiguous in `vertices`.
     offset = np.searchsorted(scales, np.arange(n_scales + 1), side="left")
 
-    # Wave span of each simplex (vertex indices are sorted within a simplex,
-    # and vertices are sorted by scale, so endpoints give the span).
-    edge_span = [(scales[i], scales[j]) for i, j in edges]
-    tri_span = [(scales[i], scales[k]) for i, _, k in triangles]
+    # Bucket simplices by wave span (vertex indices are sorted within a
+    # simplex, and vertices are sorted by scale, so endpoints give the span);
+    # cell (s, t) is the union of buckets with s <= a <= b <= t. Each triangle
+    # is stored as its three global edge IDs; per cell those are remapped to
+    # compact local bit positions (narrow ints keep the F2 elimination fast —
+    # global bit positions were measured 1.4x slower on the 19,912 x 13 run).
+    edge_index = {e: k for k, e in enumerate(edges)}
+    edge_buckets: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for i, j in edges:
+        edge_buckets.setdefault((scales[i], scales[j]), []).append((i, j))
+    tri_buckets: dict[tuple[int, int], list[tuple[int, int, int]]] = {}
+    for i, j, k in triangles:
+        triple = (edge_index[(i, j)], edge_index[(i, k)], edge_index[(j, k)])
+        tri_buckets.setdefault((scales[i], scales[k]), []).append(triple)
 
     hf0 = np.full((n_scales, n_scales), np.nan)
     hf1 = np.full((n_scales, n_scales), np.nan)
@@ -163,17 +173,43 @@ def hilbert_grid_h0_h1(
         for t in range(s, n_scales):
             lo, hi = int(offset[s]), int(offset[t + 1])
             n_verts = hi - lo
-            cell_edges = [
-                (i - lo, j - lo) for (i, j), (ws, wt) in zip(edges, edge_span, strict=True) if ws >= s and wt <= t
-            ]
-            cell_tris = [
-                (i - lo, j - lo, k - lo)
-                for (i, j, k), (ws, wt) in zip(triangles, tri_span, strict=True)
-                if ws >= s and wt <= t
-            ]
-            beta0, beta1 = betti_0_1_from_skeleton(n_verts, cell_edges, cell_tris)
-            hf0[s, t] = beta0
-            hf1[s, t] = beta1
+
+            # beta0 via union-find over the cell's edges (rank B1 implicit).
+            parent = list(range(n_verts))
+
+            def _find(x: int, parent: list[int] = parent) -> int:
+                while parent[x] != x:
+                    parent[x] = parent[parent[x]]
+                    x = parent[x]
+                return x
+
+            n_comp = n_verts
+            n_edges_cell = 0
+            for a in range(s, t + 1):
+                for b in range(a, t + 1):
+                    for i, j in edge_buckets.get((a, b), ()):
+                        n_edges_cell += 1
+                        ri, rj = _find(i - lo), _find(j - lo)
+                        if ri != rj:
+                            parent[ri] = rj
+                            n_comp -= 1
+
+            rank_b1 = n_verts - n_comp
+
+            local: dict[int, int] = {}
+            _idx = local.setdefault
+
+            def _rows(s: int = s, t: int = t, _idx=_idx, local=local):
+                for a in range(s, t + 1):
+                    for b in range(a, t + 1):
+                        for e1, e2, e3 in tri_buckets.get((a, b), ()):
+                            yield (
+                                (1 << _idx(e1, len(local))) | (1 << _idx(e2, len(local))) | (1 << _idx(e3, len(local)))
+                            )
+
+            rank_b2 = _rank_f2_int_rows(_rows())
+            hf0[s, t] = n_comp
+            hf1[s, t] = n_edges_cell - rank_b1 - rank_b2
     return {"HF0": hf0, "HF1": hf1}
 
 
