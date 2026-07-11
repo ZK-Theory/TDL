@@ -53,9 +53,8 @@ null-to-null $= 1.006$). External de-duplication of the observed landmark sample
 the Markov-1 surrogates do not require, because they do not reproduce the near-duplicate
 structure — strips the phantoms and exposes the underlying signal (ratio $= 1.87$;
 $p = 0.001$). Two robustness probes (forcing symmetric de-duplication of the nulls, and
-pinning the filtration threshold) preserve the rejection in every cell. This tested result
-replaces the earlier draft's provisional treatment of the window confound; the confound is
-resolved, not deferred to future work.
+pinning the filtration threshold) preserve the rejection in every cell. The observation-window
+confound is therefore resolved rather than left as an open question.
 
 #### The BHPS Markov-1 null is anti-conservative (credibility diagnostic)
 
