@@ -5,7 +5,7 @@ paths:
 
 # Python Conventions (detail)
 
-- **Python 3.13**, 120-char line length (authoritative source: `.ruff.toml`), Ruff rules E/F/I/W.
+- **Python 3.13**, 120-char line length (enforced by the root `.ruff.toml`, which takes precedence over `pyproject.toml`), Ruff rules E/F/I/W.
 - **Type hints** mandatory on all public APIs; use `numpy.typing.NDArray`, not bare `np.ndarray`.
 - **Docstrings:** Google-style on all public functions/classes.
 - **Imports:** standard → third-party → local; no wildcard imports.
