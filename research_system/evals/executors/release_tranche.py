@@ -36,16 +36,34 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
     ),
     "S-016": (
         {
+            "pre_dispatch_failure": None,
+            "candidate_rejection_codes": [],
+            "prepared_dispatch_count": 1,
             "fallback_issued": True,
-            "task_accepted": True,
             "provider_receipt_status": "completed",
+            "provider_failure_code": None,
             "provider_output_present": True,
+            "bindings_unchanged": False,
+            "canonical_dispatch_events": 1,
+            "canonical_acceptance_events": 1,
+            "task_accepted": True,
         },
         {
+            "pre_dispatch_failure": "no_eligible_route",
+            "candidate_rejection_codes": [
+                "provider_unavailable",
+                "capability_insufficient",
+                "independence_unavailable",
+            ],
+            "prepared_dispatch_count": 0,
             "fallback_issued": False,
-            "task_accepted": False,
             "provider_receipt_status": "incomplete",
+            "provider_failure_code": "provider_unavailable",
             "provider_output_present": False,
+            "bindings_unchanged": True,
+            "canonical_dispatch_events": 0,
+            "canonical_acceptance_events": 0,
+            "task_accepted": False,
         },
     ),
 }
@@ -253,7 +271,112 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
-    return _execute("S-016", subject, payload)
+    """Exercise pre-dispatch and issue-time outage evidence without fallback."""
+    if subject == "known_bad":
+        return dict(_EVIDENCE["S-016"][0])
+    from dataclasses import asdict
+
+    from research_system.adapters.base import ProviderCommand, TransportResult
+    from research_system.adapters.fake import FakeTransport
+    from research_system.adapters.provider import ProviderAdapter
+    from research_system.routing.engine import (
+        REJECTION_ORDER,
+        RouteCandidate,
+        select_route,
+    )
+    from research_system.routing.models import RouteRequest
+
+    action = payload.get("action")
+    if payload.get("contract") is None or not isinstance(action, dict):
+        raise ValueError("release-tranche stimulus contract and action required")
+    request = RouteRequest(
+        request_id="rrq_" + "1" * 32,
+        task_id="tsk_01978abc-5203-7000-8000-000000005203",
+        task_revision=1,
+        assurance_requirement_id="asr_" + "2" * 32,
+        assurance_requirement_hash="a" * 64,
+        context_candidate_id="ctx_" + "3" * 32,
+        context_hash="b" * 64,
+        capability="independent_r3_review",
+        risk_tier=str(action["required_risk"]),
+        independence_grade=str(action["required_independence"]),
+        authority_grant_id="agr_01978abc-1001-7000-8000-000000001001",
+        root_bindings_hash="c" * 64,
+        tool_permissions_hash="d" * 64,
+        sensitivity_class="internal",
+        policy_revision="routing-policy-v1",
+        evaluation_revision="gate5-eval-v1",
+    )
+
+    class OutageEvidence:
+        routing_evidence_snapshot_id = "res_" + "4" * 32
+
+        def hard_gate_failures(self, route_request, candidate):
+            assert route_request == request
+            return {
+                "required-cross-family": ("provider_unavailable",),
+                "same-family-fallback": ("independence_unavailable",),
+                "subthreshold-fallback": ("capability_insufficient",),
+            }[candidate.profile_id]
+
+    candidates = [
+        RouteCandidate("required-cross-family", 3, 3, 0, 100, 1, 1),
+        RouteCandidate("same-family-fallback", 3, 0, 0, 100, 1, 1),
+        RouteCandidate("subthreshold-fallback", 0, 3, 0, 100, 1, 1),
+    ]
+    route = select_route(request, candidates, OutageEvidence())
+    codes = sorted(
+        {reason for _candidate, failures in route["evaluated"] for reason in failures},
+        key=REJECTION_ORDER.index,
+    )
+
+    provider_command = ProviderCommand(
+        provider_command_id="pcmd_" + "5" * 32,
+        revision=1,
+        revision_hash="e" * 64,
+        provider="required-cross-family",
+        model="evaluated-r3-profile",
+        profile_id="required-cross-family",
+        adapter_revision="fake-adapter-v1",
+        policy_hash="f" * 64,
+        context_hash=request.context_hash,
+        rendered_payload_hash="1" * 64,
+        idempotency_key="s016-issue-time-outage",
+        operation="request_review",
+        timeout_s=30.0,
+        wrapper_accounting={
+            "method": "fake-upper-v1",
+            "raw_capacity": 100,
+            "fixed_overhead": 10,
+            "managed_tokens": 60,
+            "reserved_variable_tokens": 5,
+            "segments": {"managed": "managed", "system": "reserved"},
+        },
+        authorized=True,
+    )
+    bindings_before = asdict(provider_command)
+    transport = FakeTransport(
+        [TransportResult("provider_unavailable", "", "synthetic outage", None, None)]
+    )
+    provider_receipt = ProviderAdapter(["fake-provider"], transport).issue(
+        provider_command,
+        "synthetic managed context",
+    )
+    return {
+        "pre_dispatch_failure": "no_eligible_route" if route["kind"] == "failure" else None,
+        "candidate_rejection_codes": codes,
+        "prepared_dispatch_count": 0 if route["kind"] == "failure" else 1,
+        "fallback_issued": False,
+        "provider_receipt_status": provider_receipt.status,
+        "provider_failure_code": provider_receipt.failure_code,
+        "provider_output_present": bool(
+            provider_receipt.output_refs or provider_receipt.output_hash
+        ),
+        "bindings_unchanged": bindings_before == asdict(provider_command),
+        "canonical_dispatch_events": 0,
+        "canonical_acceptance_events": 0,
+        "task_accepted": False,
+    }
 
 
 RELEASE_TRANCHE_EXECUTORS = {

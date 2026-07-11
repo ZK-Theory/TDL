@@ -701,3 +701,71 @@ def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(
     rejected = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_A))
     assert rejected.reason_code == "supersession_cycle"
     assert active is False
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "capability",
+        "risk_tier",
+        "independence_grade",
+        "authority_grant_id",
+        "root_bindings_hash",
+        "tool_permissions_hash",
+        "sensitivity_class",
+        "policy_revision",
+        "evaluation_revision",
+    ],
+)
+def test_s016_route_request_binds_every_hard_requirement(field):
+    from research_system.routing.models import RouteRequest
+
+    request = RouteRequest(
+        request_id="rrq_" + "1" * 32,
+        task_id=TASK_A,
+        task_revision=1,
+        assurance_requirement_id="asr_" + "2" * 32,
+        assurance_requirement_hash="a" * 64,
+        context_candidate_id="ctx_" + "3" * 32,
+        context_hash="b" * 64,
+        capability="independent_r3_review",
+        risk_tier="R3",
+        independence_grade="I3",
+        authority_grant_id="agr_01978abc-1001-7000-8000-000000001001",
+        root_bindings_hash="c" * 64,
+        tool_permissions_hash="d" * 64,
+        sensitivity_class="internal",
+        policy_revision="routing-policy-v1",
+        evaluation_revision="gate5-eval-v1",
+    )
+    assert getattr(request, field)
+
+
+def test_s016_executor_proves_preissue_and_issue_time_outages_without_fallback():
+    from research_system.evals.executors.release_tranche import execute_s016
+
+    payload = {
+        "contract": "r3_provider_outage_preserves_requirements",
+        "action": {
+            "operation": "route_r3_review",
+            "required_risk": "R3",
+            "required_independence": "I3",
+            "required_family_count": 2,
+            "provider_status": "unavailable",
+        },
+    }
+    observed = execute_s016("known_good", payload)
+    assert observed["pre_dispatch_failure"] == "no_eligible_route"
+    assert observed["candidate_rejection_codes"] == [
+        "provider_unavailable",
+        "capability_insufficient",
+        "independence_unavailable",
+    ]
+    assert observed["prepared_dispatch_count"] == 0
+    assert observed["fallback_issued"] is False
+    assert observed["provider_receipt_status"] == "incomplete"
+    assert observed["provider_failure_code"] == "provider_unavailable"
+    assert observed["provider_output_present"] is False
+    assert observed["bindings_unchanged"] is True
+    assert observed["canonical_dispatch_events"] == 0
+    assert observed["canonical_acceptance_events"] == 0
+    assert observed["task_accepted"] is False

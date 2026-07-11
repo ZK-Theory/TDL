@@ -75,7 +75,8 @@ def normalize_receipt(
         "cancelled": "cancelled",
         "duplicate": "duplicate",
     }
-    status = status_map.get(result.status, result.status)
+    outage = result.status == "provider_unavailable"
+    status = "incomplete" if outage else status_map.get(result.status, result.status)
     terminal_like = status in {"terminal", "duplicate"} and result.exit_code == 0
     complete = terminal_like and identity_matches
     if terminal_like and not identity_matches:
@@ -102,7 +103,13 @@ def normalize_receipt(
         output_refs=tuple(payload.get("output_refs", ())),
         output_hash=output_hash,
         exit_code=result.exit_code,
-        failure_code=None if complete else "provider_completion_unproven",
+        failure_code=(
+            None
+            if complete
+            else "provider_unavailable"
+            if outage
+            else "provider_completion_unproven"
+        ),
     )
 
 
