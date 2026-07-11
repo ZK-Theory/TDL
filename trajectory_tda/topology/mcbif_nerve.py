@@ -175,9 +175,11 @@ def hilbert_grid_h0_h1(
             n_verts = hi - lo
 
             # beta0 via union-find over the cell's edges (rank B1 implicit).
+            # `_find` and `_rows` are plain closures over this iteration's
+            # bindings; both are consumed before the next iteration rebinds.
             parent = list(range(n_verts))
 
-            def _find(x: int, parent: list[int] = parent) -> int:
+            def _find(x: int) -> int:
                 while parent[x] != x:
                     parent[x] = parent[parent[x]]
                     x = parent[x]
@@ -199,7 +201,7 @@ def hilbert_grid_h0_h1(
             local: dict[int, int] = {}
             _idx = local.setdefault
 
-            def _rows(s: int = s, t: int = t, _idx=_idx, local=local):
+            def _rows():
                 for a in range(s, t + 1):
                     for b in range(a, t + 1):
                         for e1, e2, e3 in tri_buckets.get((a, b), ()):

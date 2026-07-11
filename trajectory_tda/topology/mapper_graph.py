@@ -128,7 +128,8 @@ def mapper_statistics(graph: nx.Graph) -> dict[str, float]:
     if sorted_d.sum() == 0:
         gini = 0.0
     else:
-        gini = float((2 * np.sum((np.arange(1, n + 1)) * sorted_d) / (n * sorted_d.sum())) - (n + 1) / n)
+        weighted_sum = float(np.sum(np.arange(1, n + 1) * sorted_d))
+        gini = float(2 * weighted_sum / (n * sorted_d.sum()) - (n + 1) / n)
     return {
         "n_nodes": int(n_nodes),
         "n_edges": int(n_edges),

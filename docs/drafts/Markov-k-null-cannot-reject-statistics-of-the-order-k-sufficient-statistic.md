@@ -14,9 +14,16 @@ counts, and the null simulates trajectories from the Markov-k model whose
 maximum-likelihood parameters are estimated from those same counts, then the
 expected null counts equal the observed counts up to sampling noise — the
 observed statistic is a plug-in of the null's own fitted parameters and sits
-near the centre of its null distribution **by construction**. Expected
-p ≈ 0.5 regardless of what the data contain. The test can only detect
-higher-order deviations that the statistic's substrate cannot express.
+near the centre of its null distribution **by construction**. Under the
+assumptions of the centering argument — correctly specified Markov-k null,
+exact sufficiency (T a function of the order-k counts alone), and enough
+draws — the expected p-value is near 0.5 whatever the data contain. Finite
+B, discrete statistics, boundary parameter estimates, and misspecification
+can each displace the null centre, so p ≈ 0.5 is the idealised tendency of
+the design, not a guarantee; the practical content is unchanged — the test
+is near-powerless against anything the order-k counts can express, and can
+only detect higher-order deviations that the statistic's substrate cannot
+express.
 
 ## The instance that motivated this note
 
@@ -27,7 +34,9 @@ null was a Markov-1 parametric bootstrap fitted to the same trajectories.
 Result: IFA p = 0.2408, observed at the 76th percentile of its null, 0/35
 pointwise BH-FDR survivors — recorded as NEGATIVE. Post-mortem (Spike 5',
 2026-07-10): the mean null count matrix deviates from the observed count
-matrix by 2.85% relative Frobenius norm over 20 draws — pure sampling noise.
+matrix by 2.85% relative Frobenius norm over 20 draws — consistent with
+sampling variation (20 draws bound that attribution only loosely; no formal
+uncertainty interval was computed).
 The design was near-powerless from the start; the NEGATIVE is a property of
 the (statistic, null) pairing, not of the phenomenon.
 

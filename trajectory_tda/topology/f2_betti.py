@@ -78,7 +78,7 @@ def rank_mod2(matrix: NDArray[np.uint8]) -> int:
         return 0
     bits = (arr.astype(np.uint8) & 1).copy()
     packed = np.packbits(bits, axis=1, bitorder="little")
-    rows = (int.from_bytes(packed[i].tobytes(), "little") for i in range(packed.shape[0]))
+    rows = (int.from_bytes(row.tobytes(), "little") for row in packed)
     return _rank_f2_int_rows(rows)
 
 

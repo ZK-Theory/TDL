@@ -51,14 +51,23 @@ def test_mapper_is_invariant_to_row_permutation() -> None:
     """The graph depends on the point SET — row order must not matter.
 
     This is also why Spike 6's literal nulls (permuting labels or vectors
-    without a spatial-smoothing step) cannot perturb the statistic.
+    without a spatial-smoothing step) cannot perturb the statistic. Several
+    permutations are exercised because DBSCAN's border-point assignment is
+    the plausible order-sensitivity channel; one draw would be weak evidence.
     """
     X = _ring()
-    perm = np.random.default_rng(0).permutation(len(X))
     g1 = mapper_graph(X, X[:, :2], n_intervals=10, overlap=0.40, min_samples=5)
-    g2 = mapper_graph(X[perm], X[perm][:, :2], n_intervals=10, overlap=0.40, min_samples=5)
-    s1, s2 = mapper_statistics(g1), mapper_statistics(g2)
-    assert s1 == s2
+    s1 = mapper_statistics(g1)
+    for seed in range(5):
+        perm = np.random.default_rng(seed).permutation(len(X))
+        g2 = mapper_graph(
+            X[perm],
+            X[perm][:, :2],
+            n_intervals=10,
+            overlap=0.40,
+            min_samples=5,
+        )
+        assert mapper_statistics(g2) == s1, f"permutation seed {seed} changed stats"
 
 
 def test_mapper_statistics_empty_graph() -> None:

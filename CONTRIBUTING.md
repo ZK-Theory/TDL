@@ -7,9 +7,9 @@ Thank you for contributing to the Topological Data Analysis (TDL) project! This 
 ### Linting and Formatting
 
 - **Linter**: We use [ruff](https://github.com/astral-sh/ruff) for linting and import sorting
-- **Configuration**: All ruff settings are defined in `pyproject.toml`
-- **Line Length**: Maximum 88 characters per line
-- **Target Python**: Python 3.11
+- **Configuration**: The root `.ruff.toml` is the governing ruff config (it takes precedence over `pyproject.toml`)
+- **Line Length**: Maximum 120 characters per line
+- **Target Python**: Python 3.13
 - **Selected Rules**: E (pycodestyle errors), F (pyflakes), I (isort), W (pycodestyle warnings)
 
 #### Pre-Commit Hooks (Automatic)
