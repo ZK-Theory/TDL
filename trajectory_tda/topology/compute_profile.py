@@ -64,6 +64,7 @@ def peak_rss_bytes() -> int | None:
     ``resource.getrusage`` on POSIX. Returns ``None`` if neither is available.
     """
     import ctypes
+    import sys
 
     if hasattr(ctypes, "windll"):
         try:
@@ -86,21 +87,23 @@ def peak_rss_bytes() -> int | None:
             counters = _PMC()
             counters.cb = ctypes.sizeof(_PMC)
             handle = ctypes.windll.kernel32.GetCurrentProcess()
-            ok = ctypes.windll.psapi.GetProcessMemoryInfo(
-                handle, ctypes.byref(counters), counters.cb
-            )
+            ok = ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb)
             if ok:
                 return int(counters.PeakWorkingSetSize)
         except Exception:
-            pass
+            # Win32 probe unavailable/failed; the resource fallback below is
+            # POSIX-only, so on Windows this simply yields None.
+            return None
 
     try:
         import resource
 
-        # ru_maxrss is KiB on Linux, bytes on macOS; assume KiB (Linux) here.
-        return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
+        rss = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
     except Exception:
         return None
+    # ru_maxrss is already bytes on macOS (Darwin) but kibibytes on Linux and
+    # other POSIX platforms; scale only where the kernel reports KiB.
+    return rss if sys.platform == "darwin" else rss * 1024
 
 
 def diagram_cardinalities(
@@ -203,9 +206,7 @@ class ComputeProfile:
         d = asdict(self)
         d["simplex_counts"] = {str(k): int(v) for k, v in self.simplex_counts.items()}
         d["diagram_cardinality"] = {str(k): int(v) for k, v in self.diagram_cardinality.items()}
-        d["diagram_cardinality_infinite"] = {
-            str(k): int(v) for k, v in self.diagram_cardinality_infinite.items()
-        }
+        d["diagram_cardinality_infinite"] = {str(k): int(v) for k, v in self.diagram_cardinality_infinite.items()}
         return d
 
 
@@ -231,7 +232,10 @@ def profile_from_diagrams(
     Convenience constructor: derives ``n_points``/``n_dims`` from ``points`` and the
     diagram cardinalities from ``dgms`` so callers pass only the measured timings.
     """
-    pts = np.asarray(points, dtype=np.float64).reshape(len(points), -1) if len(points) else np.empty((0, 0))
+    if len(points):
+        pts = np.asarray(points, dtype=np.float64).reshape(len(points), -1)
+    else:
+        pts = np.empty((0, 0))
     finite, infinite = diagram_cardinalities(dgms)
     return ComputeProfile(
         method=method,
