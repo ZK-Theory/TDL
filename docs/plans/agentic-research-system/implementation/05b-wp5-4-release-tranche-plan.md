@@ -41,8 +41,10 @@ D-G5-3 for WP5.4 only and authorizing the exact 40/15/132 re-baseline.
   merged `origin/main` after this plan lands. An app-managed worktree starts
   detached: the Worker's first Git mutation is
   `git switch -c pipe/ars-gate5-release-tranche`; never use `git branch -m`.
-  Copy `C:/Users/steph/TDL/.env` into the worktree immediately. The Worker
-  commits and reports; the Manager alone reviews and merges.
+  Use injected non-secret configuration for the synthetic fixture run. If an
+  approved secret manager is unexpectedly required, stop and escalate; never
+  copy a user `.env` into the worktree. The Worker commits and reports; the
+  Manager alone reviews and merges.
 - The Worker runs as GPT-5.6 Sol with xhigh reasoning. Do not inherit the
   Manager model implicitly.
 - Review-then-merge is mandatory. CodeRabbit must conclude before an exact-head
@@ -246,12 +248,16 @@ command-service writer authorization, tests, and S-014 executor.
 - Add typed `RestorePreflightResult` status `verified` or `diagnostic_only`, with
   exact failed predicates and hashes of receipt, ledger, snapshot, target
   endpoint-ownership evidence, artefact manifest/observations, and registry.
+  Enforce the biconditional invariant: status is `verified` if and only if the
+  failed-predicates collection is empty; status is `diagnostic_only` if and
+  only if one or more predicates failed.
 - `verify_restore_before_writer_lease(...)` independently loads the moved store,
   replays chain, verifies snapshot plus tail, checks target endpoint authority,
   and inspects each artefact hash/availability observation. It returns an
   authority-bound, content-hashed result; it does not accept a lease callback.
-- The real `CommandService.submit` seam consumes and rechecks that result before
-  entering `WriterLock`. A moved root requires a matching `verified` result
+- The real `CommandService.submit` seam consumes and rechecks that result,
+  including the status/failed-predicates biconditional, before entering
+  `WriterLock`. A moved root requires a matching `verified` result
   bound to current root, project/store identity, tail, snapshot, endpoint,
   actor/authority, artefacts, and registry hash. Missing, diagnostic, stale,
   mismatched, or hash-invalid evidence fails before lock entry, allocation,
@@ -276,7 +282,8 @@ command-service writer authorization, tests, and S-014 executor.
 - Add no delete function or pending-event emission.
 
 - [ ] Write red negatives for wrong store/project, chain/tail, snapshot/schema,
-  endpoint authority, changed/absent artefact, stale/unsupported availability,
+  endpoint authority, inconsistent status/failed-predicate combinations,
+  changed/absent artefact, stale/unsupported availability,
   unregistered backup/restore, inaccessible/reparse root, and narrowing. Each
   uses real `CommandService.submit` and proves writer lock not entered and no
   object/event/receipt/deletion event changed.
@@ -298,9 +305,14 @@ replay, tests, and S-015 executor.
   `supersession_scope`, and exact `continuing_consumers` set. Replacement must
   be an existing type-compatible Task revision. A higher revision of the same
   Task ID is valid; only identical `(task_id, revision)` is a self-cycle.
-- Before event/object/ledger/receipt writes, derive the committed
-  revision-qualified graph. Reject an edge when replacement reaches target,
-  target revision is terminal, or replacement is missing/stale/incompatible.
+- After acquiring the existing `WriterLock`, reload the committed snapshot and,
+  inside that same critical section, derive and validate the revision-qualified
+  graph before any event/object write. Reject an edge when the replacement
+  reaches the source revision being superseded, when that source revision is
+  already terminal, or when the replacement is missing/stale/incompatible.
+  A terminal replacement node is still traversed for cycle detection; otherwise
+  every back-edge into an existing supersession chain would be masked by a
+  generic terminal check and the cycle branch would be unreachable.
 - `TaskSuperseded` carries both revision-qualified references, scope,
   continuing consumers, envelope actor/authority, and lineage derived from
   committed graph plus the edge. Reject caller lineage and extra payload keys.
@@ -310,18 +322,23 @@ replay, tests, and S-015 executor.
   replacement revision current without erasing history. Scope/consumers and
   historical references remain resolvable. Superseded/accepted revisions do
   not reopen. Add no other lifecycle command.
-- A cycle rejection leaves ledger bytes/fingerprint/tail, Task object
-  revisions, and lifecycle projection byte-identical. It writes exactly one
-  operational `rejected` receipt with stable reason `supersession_cycle`,
-  explanation, observed stream version, and unmet preconditions, and no event.
-  Retry of the same logical submission/payload returns the original receipt.
+- Within the same writer-lock critical section, a cycle rejection leaves ledger
+  bytes/fingerprint/tail, Task object revisions, and lifecycle projection
+  byte-identical. It writes exactly one operational `rejected` receipt with
+  stable reason `supersession_cycle`, explanation, observed stream version, and
+  unmet preconditions, and no event. Stable rejected-receipt lookup and creation
+  also occur under that lock, so concurrent submissions cannot validate the same
+  pre-cycle graph or create duplicate receipts. Retry of the same logical
+  submission/payload returns the original receipt.
 - Extend receipt model/schema/store only for W2 section 8.3 rejected fields and
   idempotency. Existing accepted/conflict receipts remain compatible.
 
-- [ ] Build A@1 -> B@1 -> C@1 then reject C@1 -> A@1. Assert unchanged
-  lifecycle authority and one stable rejected receipt; retry returns it. Add
+- [ ] Build A@1 -> B@1 -> C@1 then submit C@1 -> A@1 while C@1, the source
+  revision being superseded, remains nonterminal. Assert the exact
+  `supersession_cycle` reason (not terminal-source rejection), unchanged
+  lifecycle authority, and one stable rejected receipt; retry returns it. Add
   identical-node cycle, valid A@1 -> A@2, missing/stale/incompatible revision,
-  caller-lineage, terminal-target, scope/consumer closure, and acyclic controls.
+  caller-lineage, terminal-source, scope/consumer closure, and acyclic controls.
 - [ ] Implement minimal graph, validator, event, reducer, and receipt support.
 - [ ] Make S-015 known-bad mutate authority or accept a cycle; post-control
   rejects before append with exact D/T evidence.
