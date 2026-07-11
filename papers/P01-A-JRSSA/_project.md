@@ -181,6 +181,25 @@ Headline categories:
       guardrails) — the superseded H0-vs-GMM material removed; **B10 Table 2** populated
       with headline stored-metric SE/Wilson CI from `stability_se_stored_2026-06-22.json`
       (denominator n_members); **B11 Table 3** Wilson CIs unchanged. notation-check clean.
+- [~] **§6.2 BHPS-era cross-era robustness rewrite — DRAFTED 2026-07-11, pending
+      User per-section review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-bhps-robustness.md` (distinct from the
+      `supplement-S6-length-matched-dedup.md` supplement). Covers: (a) H1 length-matched
+      conclusion — the BHPS/USoc H1 asymmetry survives length-matching both ways (truncate
+      p=0.001, first13 p=0.001), so it is NOT an observation-window artefact (Outcome A);
+      the v1 "future work" window hedge is replaced with the tested claim. (b) BHPS Markov-1
+      credibility diagnostic — calibration double-null non-uniform (calibrated=false, KS
+      p=1.3e-14, mean double-null p=0.40<0.5 → anti-conservative), null-null variance clean
+      (variance_flag=false; BHPS CV 0.309 vs USoc 0.265); verdict SUSPECT; reported
+      tested-not-asserted, caveat attached to every BHPS Markov-1 rejection. (c) Non-overlap
+      sensitivity — 10,992 spanning individuals (10,544 valid income both waves) excluded;
+      H0 W2 robust, H1 W2 rejection disappears (arm_a p=0.221; 0/20 matched subsamples at
+      landmark fraction 0.588) while landscape L2 H1 still rejects → size/landmark-fraction
+      artefact, metric-dependent. "Replication"→"robustness/consistency" throughout (Spec
+      S10). Numbers traced to dedup_amendment_comparison_2026-05-31, markov1_calibration/
+      nullnull_variance_2026-06-21, bhps_nonoverlap_reanalysis_2026-06-09, income audit.
+      notation-check clean. Carried-forward v1 headline magnitudes flagged for v2-assembly
+      reconciliation (live in bhps_headline_frozen, not a task-named file).
 - [~] **§6.1 stratified per-subgroup Markov-1 W₂ + per-family FDR — DRAFTED
       2026-07-11, pending User per-section review.** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-stratified-w2-subgroups.md`.
