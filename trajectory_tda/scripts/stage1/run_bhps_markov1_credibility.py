@@ -31,17 +31,17 @@ from trajectory_tda.topology.vectorisation import wasserstein_distance
 SCHEMA_VERSION = "stage1/bhps-markov1-credibility/v1"
 TASK_LABEL = "T1.6 BHPS Markov-1 rejection credibility under valid frozen-loadings nulls"
 PRE_REGISTRATION_REF = (
-    "2026-06-13 T1.6 amendment at " "results/trajectory_tda_bhps/diagnostics/pre_registrations_2026-06-13.json"
+    "2026-06-13 T1.6 amendment at results/trajectory_tda_bhps/diagnostics/pre_registrations_2026-06-13.json"
 )
 CALIBRATION_OUTPUT_GLOB = "results/trajectory_tda_bhps/diagnostics/markov1_calibration_*.json"
 
 PROJ_ROOT = Path("C:/Users/steph/TDL")
 WORKTREE_ROOT = Path.cwd
 BHPS_CACHE_REL = Path(
-    "results/trajectory_tda_integration/stage1/cache/" "null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz"
+    "results/trajectory_tda_integration/stage1/cache/null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz"
 )
 USOC_CACHE_REL = Path(
-    "results/trajectory_tda_integration/stage1/cache/" "null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz"
+    "results/trajectory_tda_integration/stage1/cache/null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz"
 )
 BHPS_HEADLINE_REL = Path("results/trajectory_tda_bhps/stage1/bhps_headline_frozen_2026-05-28.json")
 DIAGNOSTICS_REL = Path("results/trajectory_tda_bhps/diagnostics")
@@ -128,17 +128,16 @@ def validate_bhps_markov1_credibility_payload(payload: dict[str, Any]) -> list[s
             ref = inputs.get(label)
             if isinstance(ref, dict):
                 metadata = ref.get("metadata", {})
-                if metadata:
-                    if metadata.get("B") != 1000:
-                        errors.append(f"inputs.{label}.metadata.B must be 1000")
-                    if metadata.get("L") != DEFAULT_L:
-                        errors.append(f"inputs.{label}.metadata.L must be {DEFAULT_L}")
-                    if metadata.get("seed") != DEFAULT_SEED:
-                        errors.append(f"inputs.{label}.metadata.seed must be {DEFAULT_SEED}")
-                    if metadata.get("frozen_loadings") is not True:
-                        errors.append(f"inputs.{label}.metadata.frozen_loadings must be true")
-                    if metadata.get("dataset") not in (None, expected_dataset):
-                        errors.append(f"inputs.{label}.metadata.dataset must be {expected_dataset!r}")
+                if metadata.get("B") != 1000:
+                    errors.append(f"inputs.{label}.metadata.B must be 1000")
+                if metadata.get("L") != DEFAULT_L:
+                    errors.append(f"inputs.{label}.metadata.L must be {DEFAULT_L}")
+                if metadata.get("seed") != DEFAULT_SEED:
+                    errors.append(f"inputs.{label}.metadata.seed must be {DEFAULT_SEED}")
+                if metadata.get("frozen_loadings") is not True:
+                    errors.append(f"inputs.{label}.metadata.frozen_loadings must be true")
+                if metadata.get("dataset") not in (None, expected_dataset):
+                    errors.append(f"inputs.{label}.metadata.dataset must be {expected_dataset!r}")
             elif not isinstance(ref, str):
                 errors.append(f"inputs.{label} must be a dict or string cache reference")
 
@@ -868,11 +867,16 @@ def main() -> None:
         raise ValueError("calibration_null_bank_B floor is 100")
 
     if not args.benchmark_only:
+        seconds_per_distance = (
+            args.preflight_seconds_per_distance
+            if args.preflight_seconds_per_distance is not None
+            else MEASURED_SERIAL_SECONDS_PER_DISTANCE
+        )
         est_distances = args.n_calibration_trials * args.calibration_null_bank_B + 2 * args.variance_null_pairs
-        est_hours = est_distances * MEASURED_SERIAL_SECONDS_PER_DISTANCE / 3600
+        est_hours = est_distances * seconds_per_distance / 3600
         print(
             f"[T1.6] backend={args.backend}: <= {est_distances} distances at "
-            f"~{MEASURED_SERIAL_SECONDS_PER_DISTANCE}s -> ~{est_hours:.1f}h "
+            f"~{seconds_per_distance}s -> ~{est_hours:.1f}h "
             "(cached null-pair bank reused; completed trials skipped on resume)",
             file=sys.stderr,
             flush=True,
