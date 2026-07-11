@@ -9,7 +9,40 @@
     "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "status": {"enum": ["accepted", "duplicate", "rejected", "conflict"]},
     "payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "outcome": {"type": "object"}
+    "outcome": {
+      "type": "object",
+      "required": ["event_batch_id", "observed_stream_version", "reason_code"],
+      "properties": {
+        "event_batch_id": {"type": ["string", "null"]},
+        "observed_stream_version": {"type": "integer", "minimum": 0},
+        "reason_code": {"type": ["string", "null"]},
+        "explanation": {"type": ["string", "null"]},
+        "unmet_preconditions": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
   },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "rejected"}}},
+      "then": {
+        "properties": {
+          "outcome": {
+            "required": ["explanation", "unmet_preconditions"],
+            "properties": {
+              "event_batch_id": {"type": "null"},
+              "reason_code": {"type": "string", "minLength": 1},
+              "explanation": {"type": "string", "minLength": 1},
+              "unmet_preconditions": {"minItems": 1}
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -35,8 +35,16 @@ from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
 
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
 def _print_json(value: Any) -> None:
-    print(canonical_bytes(value).decode('utf-8'))
+    print(canonical_bytes(_jsonable(value)).decode('utf-8'))
 
 
 def _registered_code_roots(roots: list[Path]) -> list[Path]:

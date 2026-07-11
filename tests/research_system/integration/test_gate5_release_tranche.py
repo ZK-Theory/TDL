@@ -436,3 +436,268 @@ def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):
         "ars://operations/backup-receipt",
         json.loads(json.dumps(asdict(case["receipt"]))),
     )
+
+TASK_A = "tsk_01978abc-5201-7000-8000-000000005201"
+TASK_B = "tsk_01978abc-5202-7000-8000-000000005202"
+TASK_C = "tsk_01978abc-5203-7000-8000-000000005203"
+CMD_A = "cmd_01978abc-5211-7000-8000-000000005211"
+CMD_B = "cmd_01978abc-5212-7000-8000-000000005212"
+CMD_C = "cmd_01978abc-5213-7000-8000-000000005213"
+CMD_AB = "cmd_01978abc-5221-7000-8000-000000005221"
+CMD_BC = "cmd_01978abc-5222-7000-8000-000000005222"
+CMD_CA = "cmd_01978abc-5223-7000-8000-000000005223"
+
+
+def _create_revision(harness, command_id, task_id, title):
+    return harness.service.submit(
+        create_task_command(
+            command_id,
+            f"create-{title}",
+            task_id,
+            {
+                "title": title,
+                "task_type": "research_task",
+                "continuing_consumers": ["audit"],
+            },
+        )
+    )
+
+
+def _supersede_command(command_id, source_id, replacement_id, replacement_revision=1):
+    command = create_task_command(
+        command_id,
+        f"supersede-{command_id}",
+        source_id,
+        {
+            "replacement_task_id": replacement_id,
+            "replacement_task_revision": replacement_revision,
+            "supersession_scope": ["full_task_authority"],
+            "continuing_consumers": ["audit"],
+        },
+    )
+    command["command_type"] = "SupersedeTask"
+    command["expected_stream_version"] = 1
+    return command
+
+
+def _store_bytes(root):
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in root.rglob("*")
+        if path.is_file() and "receipts" not in path.parts and "runtime" not in path.parts
+    }
+
+
+def test_s015_nonterminal_source_cycle_rejected_atomically_and_idempotently(tmp_path):
+    from research_system.projection.replay import replay
+
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    _create_revision(harness, CMD_B, TASK_B, "B")
+    _create_revision(harness, CMD_C, TASK_C, "C")
+    assert harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B)).status == "accepted"
+    assert harness.service.submit(_supersede_command(CMD_BC, TASK_B, TASK_C)).status == "accepted"
+
+    before_bytes = _store_bytes(harness.service.control_root)
+    before_projection = replay(harness.ledger.iter_events())
+    before_snapshot = harness.ledger.snapshot()
+    command = _supersede_command(CMD_CA, TASK_C, TASK_A)
+    first = harness.service.submit(command)
+    second = harness.service.submit(command)
+
+    assert first == second
+    assert first.status == "rejected"
+    assert first.reason_code == "supersession_cycle"
+    assert first.explanation
+    assert first.unmet_preconditions == ("supersession_cycle",)
+    assert first.observed_stream_version == 1
+    assert _store_bytes(harness.service.control_root) == before_bytes
+    assert replay(harness.ledger.iter_events()) == before_projection
+    after_snapshot = harness.ledger.snapshot()
+    assert (after_snapshot.global_position, after_snapshot.event_hash) == (
+        before_snapshot.global_position,
+        before_snapshot.event_hash,
+    )
+    assert len(list(harness.receipts.receipts_root.glob(f"{CMD_CA}.json"))) == 1
+    assert before_projection["streams"][TASK_C]["status"] != "superseded"
+
+def test_supersession_accepts_same_task_higher_revision_and_preserves_history(tmp_path):
+    from research_system.projection.replay import replay
+
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    harness.objects.write(
+        "task",
+        TASK_A,
+        2,
+        {
+            "title": "A revision 2",
+            "task_type": "research_task",
+            "continuing_consumers": ["audit"],
+        },
+    )
+    command = _supersede_command(CMD_AB, TASK_A, TASK_A, 2)
+    receipt = harness.service.submit(command)
+    assert receipt.status == "accepted"
+    state = replay(harness.ledger.iter_events())["streams"][TASK_A]
+    assert state["status"] == "draft"
+    assert state["current_revision"] == 2
+    assert state["revision_history"]["1"]["status"] == "superseded"
+    event = list(harness.ledger.iter_events())[-1]
+    assert event["event_type"] == "TaskSuperseded"
+    assert event["payload"]["source_task_revision"] == 1
+    assert event["payload"]["replacement_task_revision"] == 2
+    assert event["payload"]["lineage"] == [
+        {"task_id": TASK_A, "revision": 1},
+        {"task_id": TASK_A, "revision": 2},
+    ]
+
+
+def test_supersession_rejects_identical_node_and_terminal_source(tmp_path):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    _create_revision(harness, CMD_B, TASK_B, "B")
+    _create_revision(harness, CMD_C, TASK_C, "C")
+    self_cycle = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_A))
+    assert self_cycle.status == "rejected"
+    assert self_cycle.reason_code == "supersession_cycle"
+
+    accepted = harness.service.submit(_supersede_command(CMD_BC, TASK_B, TASK_C))
+    assert accepted.status == "accepted"
+    terminal = _supersede_command(CMD_CA, TASK_B, TASK_A)
+    terminal["expected_stream_version"] = 2
+    rejected = harness.service.submit(terminal)
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "source_revision_terminal"
+
+
+def test_supersession_rejects_missing_stale_and_incompatible_replacements(tmp_path):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    missing = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B))
+    assert missing.reason_code == "replacement_revision_missing"
+
+    stale_root = tmp_path / "stale"
+    stale_root.mkdir()
+    harness = control_plane(stale_root)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    _create_revision(harness, CMD_B, TASK_B, "B")
+    harness.objects.write(
+        "task",
+        TASK_B,
+        2,
+        {
+            "title": "B revision 2",
+            "task_type": "research_task",
+            "continuing_consumers": ["audit"],
+        },
+    )
+    stale = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B, 2))
+    assert stale.reason_code == "replacement_revision_stale"
+
+    incompatible_root = tmp_path / "incompatible"
+    incompatible_root.mkdir()
+    harness = control_plane(incompatible_root)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    harness.service.submit(
+        create_task_command(
+            CMD_B,
+            "create-incompatible",
+            TASK_B,
+            {
+                "title": "B",
+                "task_type": "review_task",
+                "continuing_consumers": ["audit"],
+            },
+        )
+    )
+    incompatible = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_B))
+    assert incompatible.reason_code == "replacement_revision_incompatible"
+
+
+def test_supersession_rejects_caller_lineage_and_consumer_or_scope_drift(tmp_path):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    _create_revision(harness, CMD_B, TASK_B, "B")
+
+    caller_lineage = _supersede_command(CMD_AB, TASK_A, TASK_B)
+    caller_lineage["payload"]["lineage"] = [{"task_id": TASK_A, "revision": 1}]
+    assert harness.service.submit(caller_lineage).reason_code == "invalid_supersession_payload"
+
+    consumers = _supersede_command(CMD_BC, TASK_A, TASK_B)
+    consumers["payload"]["continuing_consumers"] = ["claim"]
+    assert harness.service.submit(consumers).reason_code == "continuing_consumers_mismatch"
+
+    scope = _supersede_command(CMD_CA, TASK_A, TASK_B)
+    scope["payload"]["supersession_scope"] = []
+    assert harness.service.submit(scope).reason_code == "invalid_supersession_payload"
+
+def test_s015_executor_crosses_real_command_service_cycle_seam(monkeypatch):
+    from research_system.command.service import CommandService
+    from research_system.evals.executors.release_tranche import execute_s015
+
+    original = CommandService.submit
+    calls = 0
+
+    def counted(self, envelope):
+        nonlocal calls
+        calls += 1
+        return original(self, envelope)
+
+    monkeypatch.setattr(CommandService, "submit", counted)
+    payload = {
+        "contract": "revision_qualified_supersession_cycle_rejection",
+        "action": {"operation": "supersede_task"},
+    }
+    observed = execute_s015("known_good", payload)
+    assert observed["rejection_reason"] == "supersession_cycle"
+    assert observed["authority_unchanged"] is True
+    assert calls == 6
+
+def test_supersession_graph_and_rejected_receipt_io_stay_inside_writer_lock(
+    tmp_path, monkeypatch
+):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    active = False
+    original_lock = service_module.WriterLock
+    original_prepare = harness.service._prepare_supersession
+    original_load = harness.receipts.load
+    original_write = harness.receipts.write
+
+    class TrackingLock:
+        def __init__(self, *args, **kwargs):
+            self.inner = original_lock(*args, **kwargs)
+
+        def __enter__(self):
+            nonlocal active
+            value = self.inner.__enter__()
+            active = True
+            return value
+
+        def __exit__(self, *args):
+            nonlocal active
+            active = False
+            return self.inner.__exit__(*args)
+
+    def prepare(*args, **kwargs):
+        assert active is True
+        return original_prepare(*args, **kwargs)
+
+    def load(command_id):
+        if command_id == CMD_AB:
+            assert active is True
+        return original_load(command_id)
+
+    def write(receipt):
+        if receipt.command_id == CMD_AB:
+            assert active is True
+        return original_write(receipt)
+
+    monkeypatch.setattr(service_module, "WriterLock", TrackingLock)
+    monkeypatch.setattr(harness.service, "_prepare_supersession", prepare)
+    monkeypatch.setattr(harness.receipts, "load", load)
+    monkeypatch.setattr(harness.receipts, "write", write)
+    rejected = harness.service.submit(_supersede_command(CMD_AB, TASK_A, TASK_A))
+    assert rejected.reason_code == "supersession_cycle"
+    assert active is False

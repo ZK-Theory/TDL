@@ -152,7 +152,104 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
-    return _execute("S-015", subject, payload)
+    """Exercise revision-qualified cycle rejection through CommandService."""
+    if subject == "known_bad":
+        return dict(_EVIDENCE["S-015"][0])
+    import tempfile
+    from pathlib import Path
+
+    from research_system.command.service import CommandService
+    from research_system.schema_registry import SchemaRegistry
+    from research_system.store.ledger import EventLedger
+    from research_system.store.objects import ObjectStore
+    from research_system.store.receipts import ReceiptStore
+
+    if payload.get("contract") is None or not isinstance(payload.get("action"), dict):
+        raise ValueError("release-tranche stimulus contract and action required")
+    project_id = "prj_01978abc-1000-7000-8000-000000001000"
+    actor_id = "act_01978abc-1002-7000-8000-000000001002"
+    authority_id = "agr_01978abc-1001-7000-8000-000000001001"
+    task_ids = [
+        "tsk_01978abc-5201-7000-8000-000000005201",
+        "tsk_01978abc-5202-7000-8000-000000005202",
+        "tsk_01978abc-5203-7000-8000-000000005203",
+    ]
+    command_ids = [
+        "cmd_01978abc-5211-7000-8000-000000005211",
+        "cmd_01978abc-5212-7000-8000-000000005212",
+        "cmd_01978abc-5213-7000-8000-000000005213",
+        "cmd_01978abc-5221-7000-8000-000000005221",
+        "cmd_01978abc-5222-7000-8000-000000005222",
+        "cmd_01978abc-5223-7000-8000-000000005223",
+    ]
+
+    def command(command_id: str, command_type: str, target: str, body: dict[str, Any]):
+        return {
+            "command_id": command_id,
+            "command_type": command_type,
+            "schema_id": "ars://core/command",
+            "schema_version": "1.0.0",
+            "submitted_at": "2026-07-11T00:00:00Z",
+            "actor_id": actor_id,
+            "on_behalf_of_actor_id": None,
+            "authority_grant_id": authority_id,
+            "target_stream_id": target,
+            "expected_stream_version": 0 if command_type == "CreateTask" else 1,
+            "idempotency_key": f"s015-{command_id}",
+            "correlation_id": "synthetic-s015",
+            "causation_id": None,
+            "reason": "exercise S-015 supersession graph",
+            "evidence_refs": [],
+            "payload": body,
+        }
+
+    def supersession(replacement: str) -> dict[str, Any]:
+        return {
+            "replacement_task_id": replacement,
+            "replacement_task_revision": 1,
+            "supersession_scope": ["full_task_authority"],
+            "continuing_consumers": ["audit"],
+        }
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory) / "control"
+        root.mkdir()
+        ledger = EventLedger(root, project_id)
+        service = CommandService(
+            root,
+            ledger,
+            ObjectStore(root),
+            ReceiptStore(root),
+            SchemaRegistry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas"),
+        )
+        for index, task_id in enumerate(task_ids):
+            service.submit(
+                command(
+                    command_ids[index],
+                    "CreateTask",
+                    task_id,
+                    {
+                        "title": chr(ord("A") + index),
+                        "task_type": "research_task",
+                        "continuing_consumers": ["audit"],
+                    },
+                )
+            )
+        service.submit(command(command_ids[3], "SupersedeTask", task_ids[0], supersession(task_ids[1])))
+        service.submit(command(command_ids[4], "SupersedeTask", task_ids[1], supersession(task_ids[2])))
+        before = tuple(event.copy() for event in ledger.iter_events())
+        rejected = service.submit(
+            command(command_ids[5], "SupersedeTask", task_ids[2], supersession(task_ids[0]))
+        )
+        after = tuple(event.copy() for event in ledger.iter_events())
+        return {
+            "cycle_accepted": rejected.status == "accepted",
+            "authority_unchanged": before == after,
+            "rejection_reason": rejected.reason_code,
+            "rejected_receipt_count": len(
+                list(service.receipts.receipts_root.glob(f"{command_ids[5]}.json"))
+            ),
+        }
 
 
 def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
