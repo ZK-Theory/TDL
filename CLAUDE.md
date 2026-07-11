@@ -55,7 +55,7 @@ docs/plans/strategy/     ← Meta-Research-Plan, Obsidian-Overview
 
 ## Code Conventions
 
-Python 3.13 · 88-char lines · Ruff E/F/I/W · type hints mandatory on public APIs (`numpy.typing.NDArray`, not bare `np.ndarray`) · Google-style docstrings · imports standard → third-party → local, no wildcards · pre-commit hooks run on every commit, never skipped. Per-file detail, the research-context header requirement, and the typed-array pattern: `.claude/rules/python.md`.
+Python 3.13 · 120-char lines (root `.ruff.toml` is the governing ruff config — it takes precedence over `pyproject.toml`) · Ruff E/F/I/W · type hints mandatory on public APIs (`numpy.typing.NDArray`, not bare `np.ndarray`) · Google-style docstrings · imports standard → third-party → local, no wildcards · pre-commit hooks run on every commit, never skipped. Per-file detail, the research-context header requirement, and the typed-array pattern: `.claude/rules/python.md`.
 
 ## Commit Message Conventions
 
