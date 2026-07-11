@@ -78,7 +78,9 @@ build-backend = "setuptools.build_meta"
 include = ["financial_tda*", "poverty_tda*", "shared*", "trajectory_tda*", "research_system*"]
 
 [tool.ruff]
-line-length = 88
+# NOTE: the root .ruff.toml takes precedence over this section when present;
+# line-length here mirrors it to avoid documenting a conflicting limit.
+line-length = 120
 target-version = "py313"
 exclude = ["docs/notebooks/*.ipynb"]
 
