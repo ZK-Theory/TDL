@@ -36,6 +36,8 @@ class EvidenceStoreRegistry:
     retention_policy_ids: tuple[str, ...]
     verifier_authority_bindings: tuple[tuple[str, str], ...]
     unregistered_replicas_prohibited: bool
+    backup_roots: tuple[Path, ...] = ()
+    restore_roots: tuple[Path, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.verifier_authority_bindings:
@@ -58,6 +60,8 @@ class EvidenceStoreRegistry:
             self.staging_root,
             self.temp_root,
             *self.replicas,
+            *self.backup_roots,
+            *self.restore_roots,
         )
         resolved = tuple(path.resolve(strict=False) for path in locations)
         if len(resolved) != len(set(resolved)):
@@ -218,7 +222,10 @@ def verify_deletion(
         inspections.append(inspection)
 
     discovered = {path.resolve(strict=False) for path in discover_replicas(registry)}
-    registered = {path.resolve(strict=False) for path in registry.replicas}
+    registered = {
+        path.resolve(strict=False)
+        for path in (*registry.replicas, *registry.backup_roots, *registry.restore_roots)
+    }
     unregistered = tuple(sorted(str(path) for path in discovered - registered))
     canonical_scan = canonical_payload_scan(evidence_hash)
     if not isinstance(canonical_scan, CanonicalPayloadScan):

@@ -8,6 +8,10 @@ from typing import Any
 from research_system.command.models import Command, Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.ids import new_id
+from research_system.operations.backups import (
+    RestorePreflightResult,
+    validate_restore_preflight_result,
+)
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger, LedgerSnapshot
@@ -79,11 +83,47 @@ class CommandService:
             [dict[str, Any], str, str],
             dict[str, Any],
         ] | None = None
+        self._restore_source_root: Path | None = None
+        self._restore_preflight_result: RestorePreflightResult | None = None
+        self._restore_preflight_rechecker: Callable[[], RestorePreflightResult] | None = None
+
+    def configure_moved_restore(
+        self,
+        *,
+        source_root: Path,
+        preflight_result: RestorePreflightResult,
+        rechecker: Callable[[], RestorePreflightResult],
+    ) -> None:
+        """Bind a moved store to evidence that is rerun before each writer lock."""
+        if source_root.resolve(strict=False) == self.control_root.resolve(strict=False):
+            raise ValueError("moved restore source must differ from target")
+        self._restore_source_root = source_root
+        self._restore_preflight_result = preflight_result
+        self._restore_preflight_rechecker = rechecker
+
+    def _recheck_moved_restore(self, command: Command) -> None:
+        if self._restore_source_root is None:
+            return
+        supplied = self._restore_preflight_result
+        rechecker = self._restore_preflight_rechecker
+        if supplied is None or rechecker is None:
+            raise ArsError("moved store requires restore preflight")
+        current = rechecker()
+        validate_restore_preflight_result(
+            current,
+            current_root=self.control_root,
+            project_id=self.ledger.project_id,
+            actor_id=command.actor_id,
+            authority_grant_id=command.envelope["authority_grant_id"],
+        )
+        if current != supplied:
+            raise ArsError("restore preflight changed before writer lock")
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
         self.schemas.validate('ars://core/command', envelope)
         command = Command(dict(envelope))
+        self._recheck_moved_restore(command)
         with WriterLock(
             self.control_root / 'runtime' / 'writer.lock',
             {'command_id': command.command_id},
