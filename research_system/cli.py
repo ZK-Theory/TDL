@@ -13,7 +13,7 @@ from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
 from research_system.evals.calibration import calibrate_fixture
-from research_system.evals.coverage import P0_CASES, load_p0_coverage
+from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
 from research_system.evals.harness import (
     build_release_decision,
     decide_p0_release,
@@ -180,7 +180,7 @@ def _eval_calibrate(args: argparse.Namespace) -> int:
     fixtures, schemas = _eval_roots(args.coverage)
     load_p0_coverage(args.coverage, fixture_root=fixtures, schema_root=schemas)
     records = [
-        calibrate_fixture(item, fixture_root=fixtures) for item in sorted(P0_CASES)
+        calibrate_fixture(item, fixture_root=fixtures) for item in sorted(FOUNDATION_CASES)
     ]
     blocked = sum(record.blocking_verdict is not None for record in records)
     mutations_uncalibrated = sum(

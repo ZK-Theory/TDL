@@ -7,6 +7,7 @@ coverage for the remaining P0 cases to this module.
 from pathlib import Path
 
 from research_system.evals.calibration import calibrate_fixture
+from research_system.evals import coverage as coverage_module
 from research_system.evals.coverage import P0_CASES
 from research_system.evals.executors import EXECUTORS, require_executor
 from research_system.evals.executors.control_store import (
@@ -102,7 +103,8 @@ def test_f012_null_shuffle_actually_changes_the_tested_object():
 
 
 def test_every_p0_case_has_exactly_one_registered_executor():
-    assert set(EXECUTORS) == set(P0_CASES)
+    assert len(P0_CASES) == 37
+    assert set(EXECUTORS) == set(coverage_module.FOUNDATION_CASES)
 
 
 def test_full_corpus_calibration_has_no_fixture_errors():

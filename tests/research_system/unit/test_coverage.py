@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from research_system.evals import coverage as coverage_module
 from research_system.evals.coverage import P0_CASES, P0_DEFERRED, load_p0_coverage
 from research_system.evals.errors import FixtureDefinitionError
 
@@ -15,14 +16,23 @@ SCHEMAS = ROOT / ".research-system" / "schemas"
 COVERAGE = EVALS / "p0-coverage.yaml"
 
 
-def test_p0_coverage_selects_exact_merged_fixture_closure():
+def test_foundation_coverage_selects_exact_release_tranche_closure():
     coverage = load_p0_coverage(
         ROOT / ".research-system" / "evals" / "p0-coverage.yaml",
         fixture_root=ROOT / ".research-system" / "evals" / "fixtures",
         schema_root=ROOT / ".research-system" / "schemas",
     )
     assert len(P0_CASES) == 37
-    expected = {fixture_id: "r1" for fixture_id in sorted(P0_CASES)}
+    assert coverage_module.RELEASE_TRANCHE_CASES == frozenset(
+        {"S-014", "S-015", "S-016"}
+    )
+    assert coverage_module.FOUNDATION_CASES == (
+        P0_CASES | coverage_module.RELEASE_TRANCHE_CASES
+    )
+    assert len(coverage_module.FOUNDATION_CASES) == 40
+    expected = {
+        fixture_id: "r1" for fixture_id in sorted(coverage_module.FOUNDATION_CASES)
+    }
     expected["F-021"] = "r2"
     expected["F-036"] = "r2"
     assert dict(coverage.selected_fixture_revisions) == expected
@@ -30,7 +40,7 @@ def test_p0_coverage_selects_exact_merged_fixture_closure():
     assert coverage.transport == "fake"
 
 
-def test_p0_coverage_keeps_judgment_and_gate5_capabilities_blocked():
+def test_foundation_coverage_keeps_judgment_and_deletion_capability_blocked():
     coverage = load_p0_coverage(
         ROOT / ".research-system" / "evals" / "p0-coverage.yaml",
         fixture_root=ROOT / ".research-system" / "evals" / "fixtures",
@@ -38,12 +48,12 @@ def test_p0_coverage_keeps_judgment_and_gate5_capabilities_blocked():
     )
     assert coverage.accepted_grader_classes == ("D", "O", "P", "R", "T")
     assert coverage.unavailable_grader_classes == ("H", "M")
-    assert {item.fixture_id for item in coverage.omitted_gate5} == {
-        "S-014",
-        "S-015",
-        "S-016",
-    }
-    assert all(item.status == "capability_disabled" for item in coverage.omitted_gate5)
+    assert len(coverage.omitted_gate5) == 1
+    restriction = coverage.omitted_gate5[0]
+    assert restriction.capability_id == "delete_evidence_object"
+    assert restriction.status == "capability_disabled"
+    assert restriction.obligation == "O15"
+    assert restriction.required_before == "post_gate5_owner_decision"
     assert coverage.gate5_authorized is False
 
 

@@ -10,10 +10,14 @@ EVALS = ROOT / ".research-system" / "evals"
 
 def test_eval_validate_calibrate_run_and_release_commands(capsys, tmp_path):
     assert main(["eval", "validate", "--catalogue", str(EVALS / "catalogue.yaml")]) == 0
-    assert json.loads(capsys.readouterr().out)["fixture_count"] == 37
+    assert json.loads(capsys.readouterr().out)["fixture_count"] == 40
 
     assert main(["eval", "calibrate", "--coverage", str(EVALS / "p0-coverage.yaml"), "--transport", "fake"]) == 0
-    assert json.loads(capsys.readouterr().out)["fixture_count"] == 37
+    calibration = json.loads(capsys.readouterr().out)
+    assert calibration["fixture_count"] == 40
+    assert calibration["blocked_fixture_count"] == 15
+    assert calibration["fixtures_with_uncalibrated_mutations"] == 0
+    assert calibration["mutation_calibration"] == "calibrated"
 
     assert main(["eval", "run", "--coverage", str(EVALS / "p0-coverage.yaml"), "--transport", "fake"]) == 0
     assert json.loads(capsys.readouterr().out)["candidate_status"] == "blocked"

@@ -1,5 +1,5 @@
 schema_version: 1.0.0
-coverage_revision: p0-coverage-v1
+coverage_revision: foundation-coverage-v2
 transport: fake
 selected_fixture_revisions:
   F-001: r1
@@ -39,24 +39,16 @@ selected_fixture_revisions:
   S-011: r1
   S-012: r1
   S-013: r1
+  S-014: r1
+  S-015: r1
+  S-016: r1
 scenarios: [A, B, C, D, E]
 gate5_authorized: false
 omitted_gate5:
-  - fixture_id: S-014
-    capability: backup_restore_machine_move
-    reason: registered backup topology is not yet authorized
+  - capability_id: delete_evidence_object
     status: capability_disabled
-    required_before: gate5
-  - fixture_id: S-015
-    capability: supersession_cycle_release
-    reason: foundation-release cycle fixture is deferred
-    status: capability_disabled
-    required_before: gate5
-  - fixture_id: S-016
-    capability: r3_provider_outage
-    reason: live cross-family authority is unavailable in P0
-    status: capability_disabled
-    required_before: gate5
+    obligation: O15
+    required_before: post_gate5_owner_decision
 omitted_p0:
   - fixture_id: F-006
     reason: outside P0 except for dependencies already represented by a P0 case
