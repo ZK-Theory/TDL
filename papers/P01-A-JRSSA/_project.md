@@ -181,6 +181,21 @@ Headline categories:
       guardrails) — the superseded H0-vs-GMM material removed; **B10 Table 2** populated
       with headline stored-metric SE/Wilson CI from `stability_se_stored_2026-06-22.json`
       (denominator n_members); **B11 Table 3** Wilson CIs unchanged. notation-check clean.
+- [~] **§6.1 stratified per-subgroup Markov-1 W₂ + per-family FDR — DRAFTED
+      2026-07-11, pending User per-section review.** Section file:
+      `papers/P01-A-JRSSA/drafts/sections/results-stratified-w2-subgroups.md`.
+      Re-posed as per-subgroup Markov-1 irreducibility (per the 2026-06-27
+      pre-reg amendment scientific_note), not legacy pairwise between-subgroup
+      difference. USoc 12/12 reject own Markov-1 null; BHPS 9/11 (the two
+      non-rejections — NS-SEC Professional/Managerial n=335, cohort 1980s n=223 —
+      are the two smallest strata, pre-registered underpowered, reported under the
+      locked power caveat, NOT counter-evidence to heterogeneity). Three BH
+      families (gender, NS-SEC, cohort). Numbers traced to
+      `stratified_w2_bh_per_family_2026-07-09.json` + `stratified_w2_recompute_2026-07-09.json`.
+      notation-check clean. **TWO decisions pending:** (1) the Task Prompt said BY
+      for cohort; the files + governing 2026-06-27 amendment say BH (drafted to BH,
+      User to confirm prompt was stale); (2) single-combined-table vs USoc-block +
+      BHPS-in-§6.2 structure choice. Reported Partial pending both.
 - [x] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22;
       Manager-accepted (FLAG 2.6-A no decision needed, STANDS).** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-mapper-vocabulary-audit.md`.
