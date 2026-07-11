@@ -178,6 +178,33 @@ grader discipline as the F-corpus (06-evaluation §S rows):
   values are stated in the WP5.4 dispatch plan **before** execution.
 - Branch: `pipe/ars-gate5-release-tranche`.
 
+#### WP5.4 Worker implementation record (2026-07-11)
+
+**Status:** Worker-complete on branch `pipe/ars-gate5-release-tranche`; ready-PR
+publication, CodeRabbit conclusion, and Manager independent review remain pending.
+`gate5_authorized` remains false. This is implementation evidence, not a Gate 5
+acceptance decision.
+
+| ID | WP5.4 disposition | Actual evidence |
+|---|---|---|
+| T1 | Closed | S-014/S-015/S-016 are deterministic executable packages with exact D/T/O/P, D/T, and D/T/O/H grader tuples; materializer commit `ec6be3f010d40e1ec37ee417f3d38988e459d00c`. |
+| T2 | Closed | Two independent CLI projections are exactly `40/15/0/calibrated/132/blocked`; canonical calibration hash `153016cec62acdd3aec77f86fe58b29b4373ba0525545f0c946e8805de8a669b`, coverage hash `eb85ede6210e38d1b4ad157755b294b1f8d56db7fc13f593f91e3c57c18e4836`. |
+| T3 | Closed for WP5.4; O15 remains open | D-G5-2 is enforced as `delete_evidence_object: capability_disabled`; no `DeleteEvidenceObject` command or `EvidenceDeletionPending` emission was added. |
+| T4 | Closed | Registered deletion verification covers primary/runtime/staging/temp, replica, backup, and restore roots and blocks uncertain or unregistered copies; commit `9fa6971cd5dcfc6b93a3b034a04a747c71cf44df`. |
+| T5 | Closed | Restore preflight independently verifies store/project, chain/tail, snapshot/replay, endpoint, schema, artefact availability, and registry bindings; status is `verified` iff failed predicates are empty and is rechecked before the writer lock. |
+| T6 | Closed | Revision-qualified supersession graph validates the exact nonterminal C1-to-A1 cycle inside `WriterLock`, preserves history/scope/consumers, and writes one idempotent rejected receipt without lifecycle mutation; commit `a9963a86ed4f9a6528d252e4906b0683e7e2f544`. |
+| T7 | Closed | S-016 preserves immutable R3 requirements, returns exact rejection codes, creates no prepared/issued fallback, normalizes issue-time outage to incomplete/no-output, emits no canonical dispatch/accept event, and leaves the Task unaccepted; commit `90638eeaf6752d264434c19dcbbbbe1a023bfbd7`. |
+| T8 | Closed | S-016 D/T/O pass; H remains blocking `unable_to_grade`; strict release and candidate remain `blocked`. |
+| T9 | Closed | Exact grader-key closure yields 132 results with no duplicate, missing, or unexpected keys. |
+| T10 | Worker portion closed; external review pending | All five materializers pass `--check`; ruff passes; final suite `388 passed in 332.10s`; twice-run calibration/coverage and three guard-removal controls are equal. CodeRabbit conclusion and Manager review are intentionally not self-certified. |
+
+**Provenance and limits:** deterministic synthetic fake transport only; no secret,
+credential, stochastic seed, live provider, research result/cache, paper claim,
+WP5.2 parity/variant execution, WP5.3 release-event publication, or Gate 6 change.
+The P0 matrix checker required only LF working-copy normalization on Windows;
+its Git blob hash stayed identical to HEAD and no matrix content is changed.
+The saved CLI JSON is under `C:\tmp`, outside tracked result roots.
+
 ### WP5.5 — Owner-decision batch (no code until decided)
 
 Prepares decision documents; produces vault `[DECISION]` entries, not merges. See §6.
@@ -221,11 +248,14 @@ WP5.5 owner decisions (parallel; D-G5-1/2/4) ───────────�
 | D-G5-3 | **Invariant re-baseline approvals.** WP5.2 and WP5.4 change `result_count`/`fixture_count`/`blocked_fixture_count`. | Each dispatch plan pre-registers exact new values; owner approves the plan (and thereby the re-baseline) before execution. Silent drift remains a stop condition. |
 | D-G5-4 | **R12 confirmation.** Two provider-specific F-021 sizing rows instead of the plan's single `variant` scalar (no-wildcard rule made one row impossible). Flagged in PR #71 body; merge ≠ recorded confirmation. | Confirm the two-row form (recommended — it is the only spec-consistent shape) and record a `[DECISION]` closing R12. |
 
-**Owner record (2026-07-10):** D-G5-1 option (a) approved -- Gate 5 may accept
-the foundation only with the M/H capability restriction explicit while required M/H
-rows remain blocking. D-G5-4 confirmed -- the two provider-specific F-021 sizing rows
-are the accepted R12 form. D-G5-2 remains open; D-G5-3 remains a per-dispatch-plan
-approval process.
+**Owner record (2026-07-10, updated 2026-07-11):** D-G5-1 option (a)
+approved -- Gate 5 may accept the foundation only with the M/H capability restriction
+explicit while required M/H rows remain blocking. D-G5-4 confirmed -- the two
+provider-specific F-021 sizing rows are the accepted R12 form. D-G5-2 is resolved
+for Gate 5 as an approved deferral: deletion initiation stays capability-disabled
+and O15 remains open. D-G5-3 is approved for WP5.4 at exact
+`40/15/0/calibrated/132/blocked`; it remains a per-dispatch-plan approval process
+for other invariant-changing work.
 
 ## 7. Invariant re-baseline rule
 
