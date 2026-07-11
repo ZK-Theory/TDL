@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from research_system.canonical import jsonable
 from research_system.cli import main
 from research_system.errors import ArsError, ConfigurationError, SchemaError
 from research_system.evals.retention import (
@@ -13,7 +14,6 @@ from research_system.evals.retention import (
     CanonicalPayloadScan,
     EvidenceStoreRegistry,
     LocationInspection,
-    _jsonable,
     require_retention_rule,
     validate_deletion_manifest_for_event,
     validate_fixture_retention,
@@ -402,7 +402,7 @@ def _bound_registry(tmp_path):
 
 def test_authorizer_refuses_mismatched_registry_hash_or_policy_revision(tmp_path):
     manifest = _verify(tmp_path)
-    payload = _jsonable(asdict(manifest))
+    payload = jsonable(asdict(manifest))
 
     wrong_hash_registry = EvidenceStoreRegistry(
         **(asdict(_registry(tmp_path)) | {"registry_hash": "f" * 64})
@@ -421,7 +421,7 @@ def test_authorizer_refuses_mismatched_registry_hash_or_policy_revision(tmp_path
         stale_registry, retention_policy_path=POLICY
     )
     with pytest.raises(ValueError, match="stale deletion registry"):
-        authorize_stale_policy(_jsonable(asdict(stale_manifest)), "actor-1", "grant-1")
+        authorize_stale_policy(jsonable(asdict(stale_manifest)), "actor-1", "grant-1")
 
 
 def test_authorizer_requires_valid_canonical_retention_policy(tmp_path):
@@ -455,7 +455,7 @@ def test_production_authorizer_rejects_stale_self_validating_manifest(tmp_path):
     )
     command = {
         **_deletion_command(manifest.manifest_hash),
-        "payload": _jsonable(asdict(manifest)),
+        "payload": jsonable(asdict(manifest)),
     }
 
     with pytest.raises(ValueError, match="stale deletion registry or policy"):
@@ -481,7 +481,7 @@ def test_production_authorizer_accepts_complete_current_manifest(tmp_path):
     )
     command = {
         **_deletion_command(manifest.manifest_hash),
-        "payload": _jsonable(asdict(manifest)),
+        "payload": jsonable(asdict(manifest)),
     }
     expected_payload = validate_deletion_manifest_for_event(
         manifest,
@@ -511,7 +511,7 @@ def test_production_authorizer_rejects_tampered_manifest_payload(tmp_path):
         authority_grant_id=AUTHORITY_GRANT_ID,
         registry=registry,
     )
-    tampered_payload = _jsonable(asdict(manifest))
+    tampered_payload = jsonable(asdict(manifest))
     tampered_payload["evidence_id"] = "evidence-tampered"
 
     command_root = tmp_path / "command"
@@ -537,7 +537,7 @@ def test_production_authorizer_rejects_malformed_payload_missing_field(tmp_path)
         authority_grant_id=AUTHORITY_GRANT_ID,
         registry=registry,
     )
-    malformed_payload = _jsonable(asdict(manifest))
+    malformed_payload = jsonable(asdict(manifest))
     del malformed_payload["canonical_scan_hash"]
 
     command_root = tmp_path / "command"

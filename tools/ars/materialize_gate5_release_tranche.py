@@ -280,6 +280,12 @@ def _package(case_id: str, case: Case) -> dict[str, bytes]:
 
 
 def materialize(root: Path, *, check: bool = False) -> None:
+    """Materialize or check the Gate 5 release-tranche fixture corpus.
+
+    Args:
+        root: Directory containing the S-014/S-015/S-016 fixture packages.
+        check: Verify existing files byte-for-byte instead of writing when true.
+    """
     materialize_cases(
         root,
         cases=CASES,
@@ -290,6 +296,7 @@ def materialize(root: Path, *, check: bool = False) -> None:
 
 
 def main() -> None:
+    """Run the release-tranche materializer command-line entry point."""
     run_cli(materialize, default_root=_REPO_ROOT / ".research-system" / "evals" / "fixtures")
 
 

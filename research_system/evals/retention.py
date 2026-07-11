@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.errors import ConfigurationError
 
 
@@ -178,18 +178,10 @@ def validate_fixture_retention(retention_class: str, retention_rule_id: str) -> 
     require_retention_rule(retention_class, evidence_type)
 
 
-def _jsonable(value: object) -> object:
-    if isinstance(value, dict):
-        return {key: _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(item) for item in value]
-    return value
-
-
 def _manifest_hash(manifest: DeletionVerificationManifest) -> str:
     payload = asdict(manifest)
     payload["manifest_hash"] = ""
-    return sha256_hex(canonical_bytes(_jsonable(payload)))
+    return sha256_hex(canonical_bytes(jsonable(payload)))
 
 
 def verify_deletion(

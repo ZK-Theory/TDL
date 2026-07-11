@@ -8,7 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
 
-from research_system.canonical import canonical_bytes
+from research_system.canonical import canonical_bytes, jsonable
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConfigurationError
@@ -35,16 +35,8 @@ from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
 
-def _jsonable(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {key: _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_jsonable(item) for item in value]
-    return value
-
-
 def _print_json(value: Any) -> None:
-    print(canonical_bytes(_jsonable(value)).decode('utf-8'))
+    print(canonical_bytes(jsonable(value)).decode('utf-8'))
 
 
 def _registered_code_roots(roots: list[Path]) -> list[Path]:

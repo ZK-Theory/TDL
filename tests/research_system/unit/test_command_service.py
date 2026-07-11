@@ -1,4 +1,6 @@
 import json
+import threading
+
 import pytest
 
 from research_system.canonical import canonical_bytes
@@ -17,6 +19,32 @@ CMD_CLAIM_B = 'cmd_01978abc-2003-7000-8000-000000002003'
 TASK_ID = 'tsk_01978abc-2004-7000-8000-000000002004'
 DISPATCH_ID = 'dsp_01978abc-2005-7000-8000-000000002005'
 ARTEFACT_ID = 'art_01978abc-2006-7000-8000-000000002006'
+
+
+def test_derived_lineage_fails_closed_on_corrupt_existing_cycle():
+    node_a = ('task-a', 1)
+    node_b = ('task-b', 1)
+    errors = []
+    completed = threading.Event()
+
+    def derive() -> None:
+        try:
+            CommandService._derived_lineage(
+                {node_a: node_b, node_b: node_a},
+                node_a,
+                ('task-c', 1),
+            )
+        except Exception as exc:  # pragma: no branch - expected fail-closed path
+            errors.append(exc)
+        finally:
+            completed.set()
+
+    worker = threading.Thread(target=derive, daemon=True)
+    worker.start()
+    assert completed.wait(0.5), 'lineage derivation did not terminate'
+    assert len(errors) == 1
+    assert isinstance(errors[0], IntegrityError)
+    assert str(errors[0]) == 'supersession lineage cycle'
 
 
 def test_identical_retry_returns_original_receipt_and_one_batch(tmp_path):

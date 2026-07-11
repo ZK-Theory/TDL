@@ -288,8 +288,13 @@ class CommandService:
     ) -> list[dict[str, Any]]:
         reverse = {target: origin for origin, target in edges.items()}
         lineage = [source]
+        seen = {source}
         while lineage[0] in reverse:
-            lineage.insert(0, reverse[lineage[0]])
+            predecessor = reverse[lineage[0]]
+            if predecessor in seen:
+                raise IntegrityError('supersession lineage cycle')
+            seen.add(predecessor)
+            lineage.insert(0, predecessor)
         lineage.append(replacement)
         return [
             {'task_id': task_id, 'revision': revision}
