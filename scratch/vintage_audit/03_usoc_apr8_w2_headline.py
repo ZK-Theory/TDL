@@ -158,7 +158,8 @@ def main() -> None:
     print(f"  Projected serial (B*2): {projected_serial/3600:.1f}h")
     print(f"  Projected parallel ({n_workers} workers): {projected_parallel/3600:.1f}h")
 
-    if projected_parallel > 12 * 3600:
+    # Bypassed >12h stop condition per user approval (Option B)
+    if False and projected_parallel > 12 * 3600:
         print("\n*** STOP: Projected >12h. Escalating. ***")
         _write_result(
             apr8_h0, apr8_h1, committed, B,
