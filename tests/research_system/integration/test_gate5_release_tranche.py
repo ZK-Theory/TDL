@@ -440,12 +440,15 @@ def test_backup_receipt_schema_binds_complete_w8_record(tmp_path):
 TASK_A = "tsk_01978abc-5201-7000-8000-000000005201"
 TASK_B = "tsk_01978abc-5202-7000-8000-000000005202"
 TASK_C = "tsk_01978abc-5203-7000-8000-000000005203"
+TASK_D = "tsk_01978abc-5204-7000-8000-000000005204"
 CMD_A = "cmd_01978abc-5211-7000-8000-000000005211"
 CMD_B = "cmd_01978abc-5212-7000-8000-000000005212"
 CMD_C = "cmd_01978abc-5213-7000-8000-000000005213"
+CMD_D = "cmd_01978abc-5214-7000-8000-000000005214"
 CMD_AB = "cmd_01978abc-5221-7000-8000-000000005221"
 CMD_BC = "cmd_01978abc-5222-7000-8000-000000005222"
 CMD_CA = "cmd_01978abc-5223-7000-8000-000000005223"
+CMD_DA = "cmd_01978abc-5224-7000-8000-000000005224"
 
 
 def _create_revision(harness, command_id, task_id, title):
@@ -520,6 +523,26 @@ def test_s015_nonterminal_source_cycle_rejected_atomically_and_idempotently(tmp_
     )
     assert len(list(harness.receipts.receipts_root.glob(f"{CMD_CA}.json"))) == 1
     assert before_projection["streams"][TASK_C]["status"] != "superseded"
+
+def test_supersession_rejects_terminal_replacement_after_cycle_check(tmp_path):
+    harness = control_plane(tmp_path)
+    _create_revision(harness, CMD_A, TASK_A, "A")
+    _create_revision(harness, CMD_B, TASK_B, "B")
+    _create_revision(harness, CMD_D, TASK_D, "D")
+    assert harness.service.submit(
+        _supersede_command(CMD_AB, TASK_A, TASK_B)
+    ).status == "accepted"
+
+    before = tuple(event.copy() for event in harness.ledger.iter_events())
+    rejected = harness.service.submit(
+        _supersede_command(CMD_DA, TASK_D, TASK_A)
+    )
+
+    assert rejected.status == "rejected"
+    assert rejected.reason_code == "replacement_revision_terminal"
+    assert rejected.unmet_preconditions == ("replacement_revision_terminal",)
+    assert tuple(event.copy() for event in harness.ledger.iter_events()) == before
+    assert len(list(harness.receipts.receipts_root.glob(f"{CMD_DA}.json"))) == 1
 
 def test_supersession_accepts_same_task_higher_revision_and_preserves_history(tmp_path):
     from research_system.projection.replay import replay
@@ -740,10 +763,8 @@ def test_s016_route_request_binds_every_hard_requirement(field):
     assert getattr(request, field)
 
 
-def test_s016_executor_proves_preissue_and_issue_time_outages_without_fallback():
-    from research_system.evals.executors.release_tranche import execute_s016
-
-    payload = {
+def _s016_payload():
+    return {
         "contract": "r3_provider_outage_preserves_requirements",
         "action": {
             "operation": "route_r3_review",
@@ -753,14 +774,38 @@ def test_s016_executor_proves_preissue_and_issue_time_outages_without_fallback()
             "provider_status": "unavailable",
         },
     }
-    observed = execute_s016("known_good", payload)
+
+
+def test_s016_executor_proves_distinct_preissue_and_issue_time_outage_flows(
+    monkeypatch,
+):
+    from research_system.evals.executors.release_tranche import execute_s016
+    from research_system.operations import coordinator as coordinator_module
+    from research_system.routing.engine import PreparedDispatch
+
+    calls = []
+    original = coordinator_module.issue_prepared_dispatch
+
+    def counted(prepared, adapter, operations, command_service):
+        calls.append(prepared)
+        return original(prepared, adapter, operations, command_service)
+
+    monkeypatch.setattr(coordinator_module, "issue_prepared_dispatch", counted)
+    observed = execute_s016("known_good", _s016_payload())
+
+    assert len(calls) == 1
+    assert isinstance(calls[0], PreparedDispatch)
+    assert calls[0].route["kind"] == "selected"
     assert observed["pre_dispatch_failure"] == "no_eligible_route"
     assert observed["candidate_rejection_codes"] == [
         "provider_unavailable",
         "capability_insufficient",
         "independence_unavailable",
     ]
-    assert observed["prepared_dispatch_count"] == 0
+    assert observed["pre_dispatch_prepared_count"] == 0
+    assert observed["issue_time_prepared_count"] == 1
+    assert observed["pre_dispatch_issued_command_count"] == 0
+    assert observed["issue_time_issued_command_count"] == 1
     assert observed["fallback_issued"] is False
     assert observed["provider_receipt_status"] == "incomplete"
     assert observed["provider_failure_code"] == "provider_unavailable"
@@ -769,3 +814,31 @@ def test_s016_executor_proves_preissue_and_issue_time_outages_without_fallback()
     assert observed["canonical_dispatch_events"] == 0
     assert observed["canonical_acceptance_events"] == 0
     assert observed["task_accepted"] is False
+
+
+def test_s016_forbidden_events_change_derived_evidence(monkeypatch):
+    from research_system.evals.executors import release_tranche as module
+
+    trace_type = getattr(module, "_S016CommandTrace")
+    original = trace_type.submit
+
+    def inject_forbidden(self, command):
+        receipt = original(self, command)
+        if command.get("event_type") == "ProviderOutageRecorded":
+            self.events.append(
+                {
+                    "event_type": "FallbackDispatchIssued",
+                    "profile_id": "same-family-fallback",
+                }
+            )
+            self.events.append({"event_type": "TaskAccepted"})
+            self.task_state = "accepted"
+        return receipt
+
+    monkeypatch.setattr(trace_type, "submit", inject_forbidden)
+    observed = module.execute_s016("known_good", _s016_payload())
+
+    assert observed["fallback_issued"] is True
+    assert observed["canonical_dispatch_events"] == 1
+    assert observed["canonical_acceptance_events"] == 1
+    assert observed["task_accepted"] is True

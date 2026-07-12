@@ -373,6 +373,13 @@ class CommandService:
                 'supersession_cycle',
                 'The proposed replacement reaches the source revision.',
             )
+        if replacement in edges:
+            return self._rejected(
+                command,
+                observed_version,
+                'replacement_revision_terminal',
+                'The replacement Task revision is already terminal.',
+            )
 
         source_object = self._task_revision_object(source_id, source_revision)
         replacement_object = self._task_revision_object(

@@ -38,7 +38,10 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
         {
             "pre_dispatch_failure": None,
             "candidate_rejection_codes": [],
-            "prepared_dispatch_count": 1,
+            "pre_dispatch_prepared_count": 1,
+            "issue_time_prepared_count": 1,
+            "pre_dispatch_issued_command_count": 1,
+            "issue_time_issued_command_count": 1,
             "fallback_issued": True,
             "provider_receipt_status": "completed",
             "provider_failure_code": None,
@@ -55,7 +58,10 @@ _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
                 "capability_insufficient",
                 "independence_unavailable",
             ],
-            "prepared_dispatch_count": 0,
+            "pre_dispatch_prepared_count": 0,
+            "issue_time_prepared_count": 1,
+            "pre_dispatch_issued_command_count": 0,
+            "issue_time_issued_command_count": 1,
             "fallback_issued": False,
             "provider_receipt_status": "incomplete",
             "provider_failure_code": "provider_unavailable",
@@ -270,17 +276,175 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+class _S016CommandTrace:
+    """Record commands, derived events, and Task state for synthetic issue."""
+
+    def __init__(self) -> None:
+        self.commands: list[dict[str, Any]] = []
+        self.events: list[dict[str, Any]] = []
+        self.task_state = "waiting"
+
+    def submit(self, command: dict[str, Any]):
+        from research_system.command.models import Receipt
+
+        recorded = dict(command)
+        self.commands.append(recorded)
+        if recorded.get("event_type"):
+            self.events.append(recorded)
+        if recorded.get("event_type") == "TaskAccepted":
+            self.task_state = "accepted"
+        index = len(self.commands)
+        return Receipt(
+            status="accepted",
+            command_id=f"s016-command-{index}",
+            payload_hash="a" * 64,
+            event_batch_id=f"s016-batch-{index}",
+            observed_stream_version=index,
+        )
+
+
+class _S016IssueAdapter:
+    """Build and issue the provider command from one eligible dispatch."""
+
+    def __init__(self, request) -> None:
+        from research_system.adapters.base import TransportResult
+        from research_system.adapters.fake import FakeTransport
+        from research_system.adapters.provider import ProviderAdapter
+
+        transport = FakeTransport(
+            [
+                TransportResult(
+                    "provider_unavailable",
+                    "",
+                    "synthetic outage",
+                    None,
+                    None,
+                )
+            ]
+        )
+        self.request = request
+        self.provider = ProviderAdapter(["fake-provider"], transport)
+        self.managed_content = ""
+
+    def load_evidence(self, evidence_id: str, content_hash: str) -> dict[str, Any]:
+        return {
+            "evidence_id": evidence_id,
+            "content_hash": content_hash,
+            "available": True,
+        }
+
+    def revalidate(self, route, context, provider_evidence):
+        winner = route.get("winner")
+        if (
+            route.get("kind") != "selected"
+            or winner is None
+            or winner.profile_id != "required-cross-family"
+            or provider_evidence.get("available") is not True
+        ):
+            raise ValueError("S-016 issue route is not eligible")
+        return {
+            "profile_id": winner.profile_id,
+            "context_hash": self.request.context_hash,
+        }
+
+    def build_command(self, prepared, grant, lease, revalidated):
+        from research_system.adapters.base import ProviderCommand
+
+        profile_id = prepared.route["winner"].profile_id
+        if revalidated["profile_id"] != profile_id:
+            raise ValueError("S-016 revalidation changed selected profile")
+        self.managed_content = str(prepared.context["managed_content"])
+        return ProviderCommand(
+            provider_command_id="pcmd_" + "5" * 32,
+            revision=1,
+            revision_hash="e" * 64,
+            provider=profile_id,
+            model="evaluated-r3-profile",
+            profile_id=profile_id,
+            adapter_revision="fake-adapter-v1",
+            policy_hash="f" * 64,
+            context_hash=revalidated["context_hash"],
+            rendered_payload_hash="1" * 64,
+            idempotency_key="s016-issue-time-outage",
+            operation="request_review",
+            timeout_s=30.0,
+            wrapper_accounting={
+                "method": "fake-upper-v1",
+                "raw_capacity": 100,
+                "fixed_overhead": 10,
+                "managed_tokens": 60,
+                "reserved_variable_tokens": 5,
+                "segments": {"managed": "managed", "system": "reserved"},
+            },
+            authorized=bool(grant["authorized"] and lease["active"]),
+        )
+
+    def record_issue_command(self, provider_command):
+        return {
+            "event_type": "ProviderCommandIssued",
+            "provider_command_id": provider_command.provider_command_id,
+            "profile_id": provider_command.profile_id,
+        }
+
+    def issue(self, provider_command, issued_receipt):
+        if issued_receipt.status != "accepted":
+            raise ValueError("S-016 provider command was not recorded")
+        return self.provider.issue(provider_command, self.managed_content)
+
+
+class _S016IssueOperations:
+    """Drive grant, lease, and outage receipt transitions for S-016."""
+
+    def build_request(self, prepared, revalidated):
+        return {
+            "attempt_id": prepared.attempt_id,
+            "profile_id": revalidated["profile_id"],
+        }
+
+    def request_grant_command(self, request):
+        return {
+            "event_type": "ResourceGrantRequested",
+            "attempt_id": request["attempt_id"],
+            "authorized": True,
+        }
+
+    def load_grant(self, grant_receipt):
+        return {"authorized": grant_receipt.status == "accepted"}
+
+    def claim_lease_command(self, grant, attempt_id):
+        return {
+            "event_type": "LeaseClaimed",
+            "attempt_id": attempt_id,
+            "authorized": grant["authorized"],
+        }
+
+    def load_lease(self, lease_receipt):
+        return {"active": lease_receipt.status == "accepted"}
+
+    def record_provider_receipt_command(self, lease, provider_receipt):
+        return {
+            "event_type": (
+                "ProviderOutageRecorded"
+                if provider_receipt.failure_code == "provider_unavailable"
+                else "ProviderReceiptRecorded"
+            ),
+            "lease_active": lease["active"],
+            "receipt_status": provider_receipt.status,
+            "failure_code": provider_receipt.failure_code,
+            "acceptance_allowed": provider_receipt.complete,
+        }
+
+
 def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Exercise pre-dispatch and issue-time outage evidence without fallback."""
+    """Derive distinct pre-dispatch and issue-time provider-outage evidence."""
     if subject == "known_bad":
         return dict(_EVIDENCE["S-016"][0])
     from dataclasses import asdict
 
-    from research_system.adapters.base import ProviderCommand, TransportResult
-    from research_system.adapters.fake import FakeTransport
-    from research_system.adapters.provider import ProviderAdapter
+    from research_system.operations import coordinator
     from research_system.routing.engine import (
         REJECTION_ORDER,
+        PreparedDispatch,
         RouteCandidate,
         select_route,
     )
@@ -307,8 +471,9 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         policy_revision="routing-policy-v1",
         evaluation_revision="gate5-eval-v1",
     )
+    request_before = asdict(request)
 
-    class OutageEvidence:
+    class PreDispatchOutageEvidence:
         routing_evidence_snapshot_id = "res_" + "4" * 32
 
         def hard_gate_failures(self, route_request, candidate):
@@ -319,65 +484,109 @@ def execute_s016(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
                 "subthreshold-fallback": ("capability_insufficient",),
             }[candidate.profile_id]
 
+    class EligibleEvidence:
+        routing_evidence_snapshot_id = "res_" + "6" * 32
+
+        def hard_gate_failures(self, route_request, candidate):
+            assert route_request == request
+            return ()
+
     candidates = [
         RouteCandidate("required-cross-family", 3, 3, 0, 100, 1, 1),
         RouteCandidate("same-family-fallback", 3, 0, 0, 100, 1, 1),
         RouteCandidate("subthreshold-fallback", 0, 3, 0, 100, 1, 1),
     ]
-    route = select_route(request, candidates, OutageEvidence())
+    pre_dispatch = select_route(request, candidates, PreDispatchOutageEvidence())
+    pre_dispatch_trace = _S016CommandTrace()
     codes = sorted(
-        {reason for _candidate, failures in route["evaluated"] for reason in failures},
+        {
+            reason
+            for _candidate, failures in pre_dispatch["evaluated"]
+            for reason in failures
+        },
         key=REJECTION_ORDER.index,
     )
 
-    provider_command = ProviderCommand(
-        provider_command_id="pcmd_" + "5" * 32,
-        revision=1,
-        revision_hash="e" * 64,
-        provider="required-cross-family",
-        model="evaluated-r3-profile",
-        profile_id="required-cross-family",
-        adapter_revision="fake-adapter-v1",
-        policy_hash="f" * 64,
-        context_hash=request.context_hash,
-        rendered_payload_hash="1" * 64,
-        idempotency_key="s016-issue-time-outage",
-        operation="request_review",
-        timeout_s=30.0,
-        wrapper_accounting={
-            "method": "fake-upper-v1",
-            "raw_capacity": 100,
-            "fixed_overhead": 10,
-            "managed_tokens": 60,
-            "reserved_variable_tokens": 5,
-            "segments": {"managed": "managed", "system": "reserved"},
+    issue_route = select_route(request, [candidates[0]], EligibleEvidence())
+    if issue_route["kind"] != "selected":
+        raise ValueError("S-016 issue-time provider was not eligible")
+    prepared = PreparedDispatch(
+        attempt_id="att_" + "7" * 32,
+        assurance_requirement_id=request.assurance_requirement_id,
+        assurance_requirement_hash=request.assurance_requirement_hash,
+        context={
+            "managed_content": "synthetic managed context",
+            "context_hash": request.context_hash,
         },
-        authorized=True,
+        route=issue_route,
+        provider_evidence_id="art_" + "8" * 32,
+        provider_evidence_hash="2" * 64,
+        operational_evidence_id="art_" + "9" * 32,
+        operational_evidence_hash="3" * 64,
+        expires_at="2026-07-11T00:30:00Z",
     )
-    bindings_before = asdict(provider_command)
-    transport = FakeTransport(
-        [TransportResult("provider_unavailable", "", "synthetic outage", None, None)]
+    trace = _S016CommandTrace()
+    provider_command, provider_receipt, _terminal = coordinator.issue_prepared_dispatch(
+        prepared,
+        _S016IssueAdapter(request),
+        _S016IssueOperations(),
+        trace,
     )
-    provider_receipt = ProviderAdapter(["fake-provider"], transport).issue(
-        provider_command,
-        "synthetic managed context",
+
+    issue_events = [
+        event
+        for event in trace.events
+        if event.get("event_type") == "ProviderCommandIssued"
+    ]
+    fallback_events = [
+        event
+        for event in trace.events
+        if event.get("event_type") == "FallbackDispatchIssued"
+    ]
+    acceptance_events = [
+        event
+        for event in trace.events
+        if event.get("event_type") == "TaskAccepted"
+    ]
+    selected_profile = prepared.route["winner"].profile_id
+    fallback_issued = bool(
+        fallback_events
+        or any(event.get("profile_id") != selected_profile for event in issue_events)
+    )
+    bindings_unchanged = (
+        request_before == asdict(request)
+        and provider_command.profile_id == selected_profile
+        and provider_command.context_hash == request.context_hash
+        and provider_command.authorized
     )
     return {
-        "pre_dispatch_failure": "no_eligible_route" if route["kind"] == "failure" else None,
+        "pre_dispatch_failure": (
+            "no_eligible_route" if pre_dispatch["kind"] == "failure" else None
+        ),
         "candidate_rejection_codes": codes,
-        "prepared_dispatch_count": 0 if route["kind"] == "failure" else 1,
-        "fallback_issued": False,
+        "pre_dispatch_prepared_count": (
+            0 if pre_dispatch["kind"] == "failure" else 1
+        ),
+        "issue_time_prepared_count": int(isinstance(prepared, PreparedDispatch)),
+        "pre_dispatch_issued_command_count": len(
+            [
+                event
+                for event in pre_dispatch_trace.events
+                if event.get("event_type") == "ProviderCommandIssued"
+            ]
+        ),
+        "issue_time_issued_command_count": len(issue_events),
+        "fallback_issued": fallback_issued,
         "provider_receipt_status": provider_receipt.status,
         "provider_failure_code": provider_receipt.failure_code,
         "provider_output_present": bool(
             provider_receipt.output_refs or provider_receipt.output_hash
         ),
-        "bindings_unchanged": bindings_before == asdict(provider_command),
-        "canonical_dispatch_events": 0,
-        "canonical_acceptance_events": 0,
-        "task_accepted": False,
+        "bindings_unchanged": bindings_unchanged,
+        "canonical_dispatch_events": len(fallback_events),
+        "canonical_acceptance_events": len(acceptance_events),
+        "task_accepted": trace.task_state == "accepted",
     }
-
 
 RELEASE_TRANCHE_EXECUTORS = {
     "S-014": execute_s014,
