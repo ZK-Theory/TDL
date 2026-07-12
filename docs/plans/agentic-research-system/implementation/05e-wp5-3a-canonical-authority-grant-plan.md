@@ -1,9 +1,9 @@
 # ARS WP5.3-A: Canonical W2 Authority-Grant Source and Resolver Plan
 
-> **Status:** prerequisite direction approved; implementation plan blocked on
-> owner decision G5.3-B. The Owner approved the canonical-source/resolver
-> prerequisite on 2026-07-12, but has not yet selected the actor-authentication
-> threat model exposed by adversarial review. WP5.3 runtime remains blocked.
+> **Status:** owner-approved implementation plan. The Owner approved the
+> canonical-source/resolver prerequisite and G5.3-B(a)'s trusted-local-operator
+> boundary on 2026-07-12. WP5.3 runtime remains blocked until this prerequisite
+> is implemented, independently reviewed, and merged.
 >
 > **Outcome:** a release-publication command can resolve one immutable,
 > canonically activated W2 authority grant and prove, at write time, that it is
@@ -57,7 +57,7 @@ provenance inside a registered control store. They do not authenticate that a
 process presenting a public `act_...` ID is the human/role named by that ID.
 Hash chains cannot create that missing principal-authentication fact.
 
-The Owner must select one option before implementation dispatch:
+The reviewed options were:
 
 - **(a) trusted-local-operator foundation (recommended):** accept the existing
   P0 local-operator trust boundary. The exact bootstrap-manifest hash is recorded
@@ -69,9 +69,12 @@ The Owner must select one option before implementation dispatch:
   principal and signed Owner bootstrap record. This introduces key/signature
   lifecycle, credential handling, and a wider security package before G5.3-A.
 
-This plan is written for option (a) but does not authorize its implementation
-until the Owner accepts it. Option (b) requires a replacement plan. A high-level
-approval to create a canonical resolver does not silently decide this boundary.
+**Owner record (2026-07-12): G5.3-B(a) accepted.** Actor IDs are attribution
+inside this trusted local-operator project. Canonical hashes protect grant
+content, provenance, scope, expiry, and revocation; they do not authenticate a
+human principal. Option (b)'s signatures, keys, credential lifecycle, and
+principal-authentication service are rejected as disproportionate and remain
+out of scope. This decision authorizes implementation of this plan.
 
 ## 2. Authoritative sources and obligation register
 
