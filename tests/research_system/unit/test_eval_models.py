@@ -271,6 +271,37 @@ def test_non_exception_decision_rejects_exception_fields():
         )
 
 
+def test_blocked_parity_can_record_partial_or_missing_bindings():
+    decision = _release_decision(
+        parity_status="blocked",
+        policy_parity_report_id=None,
+        policy_parity_report_hash=None,
+        policy_control_applicability_id=None,
+        policy_control_applicability_hash=None,
+    )
+    assert decision.parity_status == "blocked"
+
+    with pytest.raises(ValueError, match="policy_parity_report_hash"):
+        _release_decision(parity_status="blocked", policy_parity_report_hash="not-a-sha")
+
+
+def test_blocked_parity_schema_allows_missing_bindings_but_pass_does_not():
+    decision = _release_decision(
+        parity_status="blocked",
+        policy_parity_report_id=None,
+        policy_parity_report_hash=None,
+        policy_control_applicability_id=None,
+        policy_control_applicability_hash=None,
+    )
+    payload = jsonable(asdict(decision))
+    payload.update(schema_id="ars://evals/release-gate-decision", schema_version="1.0.0")
+    registry = SchemaRegistry(SCHEMAS)
+    registry.validate("ars://evals/release-gate-decision", payload)
+    payload["parity_status"] = "pass"
+    with pytest.raises(SchemaError, match="policy_parity_report"):
+        registry.validate("ars://evals/release-gate-decision", payload)
+
+
 def test_release_schema_rejects_null_exception_policy_bindings():
     registry = SchemaRegistry(SCHEMAS)
     payload = {

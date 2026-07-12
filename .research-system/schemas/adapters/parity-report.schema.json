@@ -12,10 +12,45 @@
     "canonical_policy_bundle_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
     "applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "rows": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "object"}},
+    "rows": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/row"}},
     "blocking_controls": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "passed": {"type": "boolean"},
     "diagnostic_percentage": {"type": "integer", "minimum": 0, "maximum": 100}
+  },
+  "$defs": {
+    "providers": {
+      "type": "object",
+      "required": ["fake-claude-adapter-v1", "fake-codex-adapter-v1"],
+      "properties": {
+        "fake-claude-adapter-v1": {"enum": ["adapter_enforced", "unsupported", "divergent", "diagnostic_only"]},
+        "fake-codex-adapter-v1": {"enum": ["adapter_enforced", "unsupported", "divergent", "diagnostic_only"]}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["fake-claude-adapter-v1", "fake-codex-adapter-v1"],
+      "properties": {
+        "fake-claude-adapter-v1": {"type": "array", "minItems": 0, "maxItems": 2, "items": {"type": "string"}},
+        "fake-codex-adapter-v1": {"type": "array", "minItems": 0, "maxItems": 2, "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "row": {
+      "type": "object",
+      "required": ["control_id", "control_revision", "required_risk_tiers", "required_operation_classes", "providers", "evidence", "consequence", "owner_resume_condition"],
+      "properties": {
+        "control_id": {"type": "string", "minLength": 1},
+        "control_revision": {"type": "string", "minLength": 1},
+        "required_risk_tiers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "required_operation_classes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "providers": {"$ref": "#/$defs/providers"},
+        "evidence": {"$ref": "#/$defs/evidence"},
+        "consequence": {"enum": ["eligible", "blocked"]},
+        "owner_resume_condition": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

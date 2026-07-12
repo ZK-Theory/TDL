@@ -27,7 +27,13 @@ FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
 def test_f020_r2_preserves_r1_observations_and_derives_ten_control_operations():
     result = require_executor("F-020")(
         "known_good",
-        {"action": {"operation": "compare_adapter_policies", "source_controls": ["readiness", "dispatch_guard"], "target_controls": ["readiness"]}},
+        {
+            "action": {
+                "operation": "compare_adapter_policies",
+                "source_controls": ["readiness", "dispatch_guard"],
+                "target_controls": ["readiness"],
+            }
+        },
     )
     assert result["semantic_parity"] is True
     assert result["poorer_source_overwrite_blocked"] is True
@@ -53,14 +59,51 @@ def test_f020_r2_preserves_r1_observations_and_derives_ten_control_operations():
 def test_f020_each_operation_perturbation_changes_its_control_evidence(control_id, operation):
     observed = require_executor("F-020")(
         "known_good",
-        {"action": {"operation": "compare_adapter_policies", "source_controls": ["readiness", "dispatch_guard"], "target_controls": ["readiness"]}},
+        {
+            "action": {
+                "operation": "compare_adapter_policies",
+                "source_controls": ["readiness", "dispatch_guard"],
+                "target_controls": ["readiness"],
+            }
+        },
     )["controls"][control_id]
     changed = copy.deepcopy(observed)
     changed["operations"][operation]["test_perturbation"] = True
     pointer = f"/controls/{control_id}"
-    original_hash = sha256_hex(canonical_bytes({"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": observed}))
-    changed_hash = sha256_hex(canonical_bytes({"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": changed}))
+    original_hash = sha256_hex(
+        canonical_bytes(
+            {"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": observed}
+        )
+    )
+    changed_hash = sha256_hex(
+        canonical_bytes(
+            {"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": changed}
+        )
+    )
     assert changed_hash != original_hash
+
+
+def test_f020_declared_tool_evidence_depends_on_adapter_probe(monkeypatch):
+    from research_system.adapters.provider import ProviderAdapter
+    from research_system.errors import ArsError
+
+    def reject_every_issue(self, command, managed_content):
+        del self, command, managed_content
+        raise ArsError("probe rejected")
+
+    monkeypatch.setattr(ProviderAdapter, "issue", reject_every_issue)
+    observed = require_executor("F-020")(
+        "known_good",
+        {
+            "action": {
+                "operation": "compare_adapter_policies",
+                "source_controls": ["readiness", "dispatch_guard"],
+                "target_controls": ["readiness"],
+            }
+        },
+    )["controls"]
+    assert observed["no-shell"]["operations"]["invoke_declared_tool"]["declared_tool_only"] is False
+
 
 ADAPTER_SCIENTIFIC_CLEAN = [
     "F-007",

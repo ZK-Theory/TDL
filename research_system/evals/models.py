@@ -436,8 +436,25 @@ class ReleaseGateDecision:
             self.policy_control_applicability_id,
             self.policy_control_applicability_hash,
         )
-        if self.parity_status in {"pass", "blocked"} and not all(parity_refs):
-            raise ValueError("evaluated parity requires report and applicability bindings")
+        if self.parity_status == "pass" and not all(parity_refs):
+            raise ValueError("passing parity requires report and applicability bindings")
+        parity_patterns = (
+            (self.policy_parity_report_id, r"ppr_[0-9a-f]{64}", "policy_parity_report_id"),
+            (self.policy_parity_report_hash, r"[0-9a-f]{64}", "policy_parity_report_hash"),
+            (
+                self.policy_control_applicability_id,
+                r"pca_[0-9a-f]{64}",
+                "policy_control_applicability_id",
+            ),
+            (
+                self.policy_control_applicability_hash,
+                r"[0-9a-f]{64}",
+                "policy_control_applicability_hash",
+            ),
+        )
+        for value, pattern, label in parity_patterns:
+            if value is not None and re.fullmatch(pattern, value) is None:
+                raise ValueError(f"invalid {label}")
         exception_policy_fields = (
             self.exception_policy_id,
             self.exception_policy_hash,

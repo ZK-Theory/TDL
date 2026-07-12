@@ -9,10 +9,94 @@
     "applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
     "applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "decision_ref": {"const": "D-G5-5"},
-    "decision_payload": {"type": "object"},
+    "decision_payload": {
+      "type": "object",
+      "required": ["owner", "accepted_on", "control_applicability", "f020_binding"],
+      "properties": {
+        "owner": {"type": "string", "minLength": 1},
+        "accepted_on": {"type": "string", "minLength": 1},
+        "control_applicability": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"$ref": "#/$defs/controlScope"}
+        },
+        "f020_binding": {
+          "type": "object",
+          "required": ["fixture_id", "fixture_revision", "property"],
+          "properties": {
+            "fixture_id": {"const": "F-020"},
+            "fixture_revision": {"const": "r2"},
+            "property": {"const": "adapter_policy_parity"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "decision_record_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "bundle": {"type": "object"},
-    "controls": {"type": "array", "minItems": 4, "maxItems": 4}
+    "bundle": {
+      "type": "object",
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^cpb_"},
+        "revision": {"type": "string", "minLength": 1},
+        "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["control_id", "control_revision", "required_risk_tiers", "required_operation_classes", "provider_requirements"],
+        "properties": {
+          "control_id": {"$ref": "#/$defs/controlId"},
+          "control_revision": {"type": "string", "minLength": 1},
+          "required_risk_tiers": {"$ref": "#/$defs/riskTiers"},
+          "required_operation_classes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+          "provider_requirements": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"$ref": "#/$defs/providerRequirement"}
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "controlId": {"enum": ["no-shell", "no-direct-event-write", "no-live-provider-by-default", "no-raw-transcript-retention"]},
+    "riskTiers": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"enum": ["R0", "R1", "R2", "R3"]}, "uniqueItems": true},
+    "controlScope": {
+      "type": "object",
+      "required": ["control_id", "control_revision", "required_risk_tiers", "required_operation_classes"],
+      "properties": {
+        "control_id": {"$ref": "#/$defs/controlId"},
+        "control_revision": {"type": "string", "minLength": 1},
+        "required_risk_tiers": {"$ref": "#/$defs/riskTiers"},
+        "required_operation_classes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "providerRequirement": {
+      "type": "object",
+      "required": ["provider_variant", "variant_id", "fixture_id", "fixture_revision", "property", "json_pointer", "canonical_observed_value", "expected_observed_value_hash"],
+      "properties": {
+        "provider_variant": {"enum": ["fake-claude-adapter-v1", "fake-codex-adapter-v1"]},
+        "variant_id": {"type": "string", "minLength": 1},
+        "fixture_id": {"const": "F-020"},
+        "fixture_revision": {"const": "r2"},
+        "property": {"const": "adapter_policy_parity"},
+        "json_pointer": {"type": "string", "pattern": "^/controls/"},
+        "canonical_observed_value": {"type": "object", "minProperties": 1},
+        "expected_observed_value_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

@@ -56,7 +56,7 @@
       }
     },
     {
-      "if": {"properties": {"parity_status": {"enum": ["pass", "blocked"]}}},
+      "if": {"properties": {"parity_status": {"const": "pass"}}},
       "then": {
         "required": ["policy_parity_report_id", "policy_parity_report_hash", "policy_control_applicability_id", "policy_control_applicability_hash"],
         "properties": {
