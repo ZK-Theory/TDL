@@ -4,7 +4,9 @@
 
 **Reviewed artefact:** `implementation/05e-wp5-3a-canonical-authority-grant-plan.md`
 
-**Verdict:** `rework_required` pending Owner decision G5.3-B
+**Initial verdict:** `rework_required` pending Owner decision G5.3-B
+
+**Final disposition:** `accept` after Owner acceptance of G5.3-B(a)
 
 **Review mode:** fresh-context read-only subagent, followed by Manager evidence verification and plan correction
 
@@ -17,9 +19,10 @@ and revocation under the writer lock; they cannot authenticate the human or
 process presenting a public actor ID. That is a Critical governance boundary,
 not a missing unit test.
 
-Six implementation-contract findings were corrected in the reviewed plan. Two
-linked owner-authority findings remain open through G5.3-B. No implementation
-Worker may be dispatched until the Owner selects the threat model.
+Six implementation-contract findings were corrected in the reviewed plan. The
+Owner then accepted G5.3-B(a)'s trusted-local-operator boundary and rejected
+cryptographic principal authentication as disproportionate for this project.
+The plan is implementation-ready; WP5.3 runtime still waits for its merge.
 
 ## Findings and dispositions
 
@@ -34,11 +37,10 @@ downstream. `05d` section 4.2 prohibited caller assertion as authority.
 an arbitrary actor; later equality with that public ID proves consistency, not
 principal authentication.
 
-**Disposition:** owner decision required. `05e` now states G5.3-B with two
-options and removes the cryptographic-authenticity claim. Option (a), the
-recommended P0 boundary, records trusted-local-operator provenance and an exact
-Owner-approved bootstrap hash as an explicit capability restriction. Option
-(b) requires a wider signed-principal/key-lifecycle package.
+**Disposition:** resolved. The Owner accepted G5.3-B(a). The plan records
+trusted-local-operator provenance and an exact Owner-approved bootstrap hash as
+an explicit capability restriction. Signed-principal/key-lifecycle work is
+rejected as disproportionate and remains out of scope.
 
 ### ADR-02 - Major - genesis root activation was underspecified
 
@@ -115,18 +117,18 @@ policy.
 **Failure:** implementation could turn a Manager-selected trust model into an
 irreversible owner-approved architecture by implication.
 
-**Disposition:** corrected as a governance gate, not silently decided. `05e`,
-`05d`, and the Gate 5 master plan now record G5.3-B as open. The implementation
-status is blocked until the Owner records option (a) or requests option (b).
+**Disposition:** resolved through the governance gate. The Owner accepted
+G5.3-B(a); `05e`, `05d`, and the Gate 5 master plan record the trusted-local-
+operator boundary and leave cryptographic principal authentication out of scope.
 
 ## Decision audit
 
 | Decision | Disposition |
 | --- | --- |
 | G5.3-A canonical source/resolver prerequisite | Keep; direction owner-approved. |
-| G5.3-B principal-authentication boundary | Open; Owner must choose (a) or (b). |
-| AuthorityGrant 1.1 typed scope | Proposed under option (a); implementation blocked. |
-| New-store-only staged genesis | Proposed under option (a); no existing-store migration. |
+| G5.3-B principal-authentication boundary | Option (a) accepted; option (b) rejected as disproportionate. |
+| AuthorityGrant 1.1 typed scope | Accepted under option (a). |
+| New-store-only staged genesis | Accepted under option (a); no existing-store migration. |
 | Exact bootstrap-manifest hash | Owner approval required before integrated publication. |
 | O12/WP5.3 publication | Deferred until prerequisite implementation merges. |
 | O15/Gate 5/Gate 6 | Unchanged and open/restricted as previously recorded. |
@@ -145,7 +147,7 @@ status is blocked until the Owner records option (a) or requests option (b).
 
 ## Practicality and residual risk
 
-Option (a) is proportionate for the current synthetic, offline, trusted-local-
+The Owner accepted option (a) as proportionate for the current synthetic, offline, trusted-local-
 operator P0 foundation and avoids introducing credentials or a signing service.
 Its residual risk is explicit: a malicious process with authority to initialize
 or replace the registered store is outside the authenticated-principal threat
