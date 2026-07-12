@@ -180,9 +180,7 @@ grader discipline as the F-corpus (06-evaluation §S rows):
 
 #### WP5.4 Worker implementation record (2026-07-11)
 
-**Status:** Worker-complete on branch `pipe/ars-gate5-release-tranche`; ready PR
-#78 is published and CodeRabbit review is concluded. Manager independent review
-remains pending.
+**Status:** Worker-complete on branch `pipe/ars-gate5-release-tranche`; ready PR #78 is published. Manager review `4678686863` found two P1 authority defects; both are remediated at `14f45fabfddd1988b79617b64db6441b967bae43` and independently revalidated.
 `gate5_authorized` remains false. This is implementation evidence, not a Gate 5
 acceptance decision.
 
@@ -197,7 +195,7 @@ acceptance decision.
 | T7 | Closed | S-016 preserves immutable R3 requirements, returns exact rejection codes, creates no prepared/issued fallback, normalizes issue-time outage to incomplete/no-output, emits no canonical dispatch/accept event, and leaves the Task unaccepted; commit `90638eeaf6752d264434c19dcbbbbe1a023bfbd7`. |
 | T8 | Closed | S-016 D/T/O pass; H remains blocking `unable_to_grade`; strict release and candidate remain `blocked`. |
 | T9 | Closed | Exact grader-key closure yields 132 results with no duplicate, missing, or unexpected keys. |
-| T10 | Worker and CodeRabbit portions closed; Manager review pending | All five materializers pass `--check`; ruff passes; initial final suite `388 passed in 332.10s`; twice-run calibration/coverage and three guard-removal controls are equal. CodeRabbit review `4678167006` concluded with three nitpicks, all remediated by shared canonical JSON normalization, fail-closed lineage-cycle protection, and generator docstrings; post-review suite `390 passed in 167.18s` with exact invariants unchanged. Manager review is intentionally not self-certified. |
+| T10 | Implementation independently validated; merge remains Manager-gated | All five materializers pass `--check`; initial final suite `388 passed in 332.10s`; twice-run calibration/coverage and three guard-removal controls are equal. CodeRabbit review `4678167006` concluded with three nitpicks, all remediated by shared canonical JSON normalization, fail-closed lineage-cycle protection, and generator docstrings; post-review suite `390 passed in 167.18s` with exact invariants unchanged. Manager review `4678686863` found terminal-replacement acceptance and non-load-bearing S-016 outage evidence; both are remediated at `14f45fabfddd1988b79617b64db6441b967bae43`. Independent Manager gates pass: all five materializers, Ruff `0.14.9` (the repository pre-commit pin remains `0.8.4`), `392 passed in 319.95s`, exact `40/15/0/calibrated/132/blocked`, and two release documents with identical stable projections after excluding only decision ID/timestamp. Both Manager threads are resolved. Merge is permitted only after current-head CodeRabbit conclusion; this is Manager-supplied provenance, not Worker self-certification. |
 
 **Provenance and limits:** deterministic synthetic fake transport only; no secret,
 credential, stochastic seed, live provider, research result/cache, paper claim,
