@@ -74,15 +74,101 @@
   "usoc_apr8_w2_headline": {
     "generated": "2026-07-12",
     "stage": "03_usoc_apr8_w2_headline",
-    "wall_s": 403.7,
-    "escalated": true,
-    "benchmark_s_per_pair": 100.70454269647598,
-    "projected_h": 13.98674204117722,
+    "wall_s": 23312.8,
+    "escalated": false,
+    "benchmark_s_per_pair": 60.617682456970215,
+    "projected_h": null,
     "apr8_obs_cardinality": {
       "h0": 4999,
       "h1": 5961
     },
-    "B": 1000
+    "B": 1000,
+    "apr8_stats": {
+      "h0": {
+        "w2_pvalue": 0.000999000999000999,
+        "w2_pvalue_note": "rank assumed 0 (null-null reused from committed; d_perm >> 2 makes this virtually certain)",
+        "pvalue_null_draws": 1000,
+        "effect_null_pairs": 500,
+        "mean_obs_null": 64.01626329630184,
+        "mean_null_null": 4.312135967816683,
+        "d_perm": 50.848883936894225,
+        "t_ratio": 14.845604075122543,
+        "bca_ci_lower": 14.822456144976842,
+        "bca_ci_upper": 14.867676504124953,
+        "null_null_std_derived": 1.174148235044464
+      },
+      "h1": {
+        "w2_pvalue": 0.000999000999000999,
+        "w2_pvalue_note": "rank assumed 0 (null-null reused from committed; d_perm >> 2 makes this virtually certain)",
+        "pvalue_null_draws": 1000,
+        "effect_null_pairs": 500,
+        "mean_obs_null": 12.707316895006842,
+        "mean_null_null": 175.39900129744694,
+        "d_perm": -61.66042111304442,
+        "t_ratio": 0.07244805729228405,
+        "bca_ci_lower": 0.0723518135312394,
+        "bca_ci_upper": 0.07254441831989936,
+        "null_null_std_derived": 2.6385107572355238
+      }
+    },
+    "committed_orphan_stats": {
+      "h0": {
+        "w2_pvalue": 0.000999000999000999,
+        "d_perm": 51.073746407735484,
+        "t_ratio": 14.906831706912568,
+        "bca_ci_lower": 14.539902026455612,
+        "bca_ci_upper": 15.253031903444636,
+        "mean_obs_null": 64.28028516956785,
+        "mean_null_null": 4.312135967816683
+      },
+      "h1": {
+        "w2_pvalue": 0.000999000999000999,
+        "d_perm": 22.090334088910506,
+        "t_ratio": 1.3323028278004532,
+        "bca_ci_lower": 1.3304459726494324,
+        "bca_ci_upper": 1.3341247706467396,
+        "mean_obs_null": 233.6845854219639,
+        "mean_null_null": 175.39900129744694
+      }
+    },
+    "comparison": {
+      "h0": {
+        "d_perm_orphan": 51.073746407735484,
+        "d_perm_apr8": 50.848883936894225,
+        "d_perm_delta": -0.2248624708412592,
+        "d_perm_pct_change": -0.44027017138339825,
+        "mean_obs_null_orphan": 64.28028516956785,
+        "mean_obs_null_apr8": 64.01626329630184,
+        "p_value_orphan": 0.000999000999000999,
+        "p_value_apr8": 0.000999000999000999,
+        "p_value_same": true,
+        "decision_threshold_crossed": false
+      },
+      "h1": {
+        "d_perm_orphan": 22.090334088910506,
+        "d_perm_apr8": -61.66042111304442,
+        "d_perm_delta": -83.75075520195493,
+        "d_perm_pct_change": -379.12851324416306,
+        "mean_obs_null_orphan": 233.6845854219639,
+        "mean_obs_null_apr8": 12.707316895006842,
+        "p_value_orphan": 0.000999000999000999,
+        "p_value_apr8": 0.000999000999000999,
+        "p_value_same": true,
+        "decision_threshold_crossed": false
+      }
+    },
+    "h0_obs_null_w2_summary": {
+      "mean": 64.01626329630184,
+      "std": 1.5669238919841089,
+      "min": 58.973918091474474,
+      "max": 69.13684897979464
+    },
+    "h1_obs_null_w2_summary": {
+      "mean": 12.707316895006842,
+      "std": 0.27503569938539857,
+      "min": 11.826857483657191,
+      "max": 13.554504288835533
+    }
   },
   "bhps_bank_vintage_probe": {
     "generated": "2026-07-12",
@@ -455,7 +541,14 @@
   "sanity_crosscheck": {
     "orphan_vs_committed_match": true,
     "notes": [
-      "WARNING: committed_orphan_stats not in W2 result (escalated?)"
+      "  OK h0.d_perm matches",
+      "  OK h0.mean_obs_null matches",
+      "  OK h0.mean_null_null matches",
+      "  OK h0.w2_pvalue matches",
+      "  OK h1.d_perm matches",
+      "  OK h1.mean_obs_null matches",
+      "  OK h1.mean_null_null matches",
+      "  OK h1.w2_pvalue matches"
     ]
   }
 }
