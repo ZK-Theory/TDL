@@ -58,7 +58,74 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     streams = updated.setdefault('streams', {})
     stream_id = event['stream_id']
     event_type = event['event_type']
-    if event_type in {'TaskCreated', 'TaskSuperseded'}:
+    if event_type == 'AuthorityRootInitialized':
+        payload = event['payload']
+        if set(payload) != {
+            'bootstrap_manifest_sha256', 'authorizing_grant_id',
+            'authorizing_grant_sha256', 'activated_grant_id',
+            'activated_grant_sha256',
+        }:
+            raise IntegrityError('authority root payload fields must be exact')
+        if event.get('global_position') != 1 or event.get('transaction_index') != 1 or event.get('transaction_count') != 2:
+            raise IntegrityError('authority root must be genesis index 1/2')
+        if payload.get('activated_grant_id') != stream_id or payload.get('authorizing_grant_id') != stream_id:
+            raise IntegrityError('authority root stream binding mismatch')
+        if payload.get('activated_grant_sha256') != payload.get('authorizing_grant_sha256'):
+            raise IntegrityError('authority root hash binding mismatch')
+        grants = updated.setdefault('authority_grants', {})
+        if grants:
+            raise IntegrityError('authority root already initialized')
+        grants[stream_id] = {
+            'authority_grant_id': stream_id,
+            'authority_grant_sha256': payload['activated_grant_sha256'],
+            'status': 'active',
+            'activation_event_id': event['event_id'],
+            'activation_position': event['global_position'],
+            'revocation_event_id': None,
+        }
+        updated['authority_root_id'] = stream_id
+        updated['bootstrap_manifest_sha256'] = payload['bootstrap_manifest_sha256']
+    elif event_type == 'AuthorityGrantActivated':
+        payload = event['payload']
+        if set(payload) != {
+            'authorizing_grant_id', 'authorizing_grant_sha256',
+            'activated_grant_id', 'activated_grant_sha256',
+        }:
+            raise IntegrityError('authority activation payload fields must be exact')
+        grants = updated.setdefault('authority_grants', {})
+        root_id = updated.get('authority_root_id')
+        if event.get('global_position') != 2 or event.get('transaction_index') != 2 or event.get('transaction_count') != 2:
+            raise IntegrityError('publication grant must be genesis index 2/2')
+        if payload.get('authorizing_grant_id') != root_id or payload.get('authorizing_grant_sha256') != grants.get(root_id, {}).get('authority_grant_sha256'):
+            raise IntegrityError('publication activation authority mismatch')
+        if payload.get('activated_grant_id') != stream_id or stream_id in grants:
+            raise IntegrityError('publication activation stream mismatch or duplicate')
+        grants[stream_id] = {
+            'authority_grant_id': stream_id,
+            'authority_grant_sha256': payload['activated_grant_sha256'],
+            'status': 'active',
+            'activation_event_id': event['event_id'],
+            'activation_position': event['global_position'],
+            'revocation_event_id': None,
+        }
+    elif event_type == 'AuthorityGrantRevoked':
+        payload = event['payload']
+        if set(payload) != {
+            'project_id', 'target_grant_id', 'target_grant_sha256',
+            'authorizing_grant_id', 'authorizing_grant_sha256', 'reason',
+        }:
+            raise IntegrityError('authority revocation payload fields must be exact')
+        grants = updated.setdefault('authority_grants', {})
+        current = grants.get(stream_id)
+        root_id = updated.get('authority_root_id')
+        if current is None or current['status'] != 'active':
+            raise IntegrityError('authority revocation requires active grant')
+        if payload.get('target_grant_id') != stream_id or payload.get('target_grant_sha256') != current['authority_grant_sha256']:
+            raise IntegrityError('authority revocation target mismatch')
+        if payload.get('authorizing_grant_id') != root_id or payload.get('authorizing_grant_sha256') != grants.get(root_id, {}).get('authority_grant_sha256'):
+            raise IntegrityError('authority revocation root mismatch')
+        grants[stream_id] = {**current, 'status': 'revoked', 'revocation_event_id': event['event_id']}
+    elif event_type in {'TaskCreated', 'TaskSuperseded'}:
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type == 'DispatchClaimed':
         current = streams.get(

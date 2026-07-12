@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from research_system.authority import authority_bootstrap_sha256
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService
 from research_system.schema_registry import SchemaRegistry
@@ -18,6 +20,75 @@ ACTORS = {
     'actor-a': 'act_01978abc-1002-7000-8000-000000001002',
     'actor-b': 'act_01978abc-1003-7000-8000-000000001003',
 }
+ROOT_AUTHORITY_GRANT_ID = 'agr_01978abc-1004-7000-8000-000000001004'
+RELEASE_DECISION_ID = 'rgd_01978abc-1003-7000-8000-000000001003'
+
+
+def authority_bootstrap() -> dict[str, Any]:
+    def grant(
+        grant_id: str,
+        command: str,
+        kind: str,
+        subject_id: str,
+        expires_at: str | None,
+    ) -> dict[str, Any]:
+        return {
+            'schema_id': 'ars://core/authority-grant',
+            'schema_version': '1.1.0',
+            'authority_grant_id': grant_id,
+            'actor_id': ACTORS['actor-a'],
+            'allowed_command_types': [command],
+            'subject_scope': {
+                'project_id': PROJECT_ID,
+                'subject': {'kind': kind, 'id': subject_id},
+            },
+            'risk_ceiling': 'R2',
+            'effective_at': '2026-07-12T00:00:00Z',
+            'expires_at': expires_at,
+            'delegable': False,
+            'revoked': False,
+        }
+
+    root = grant(
+        ROOT_AUTHORITY_GRANT_ID,
+        'RevokeAuthorityGrant',
+        'authority_grant',
+        AUTHORITY_GRANT_ID,
+        None,
+    )
+    publication = grant(
+        AUTHORITY_GRANT_ID,
+        'PublishReleaseGateDecision',
+        'release_gate_decision',
+        RELEASE_DECISION_ID,
+        '2026-07-13T00:00:00Z',
+    )
+    return {
+        'schema_id': 'ars://core/authority-bootstrap-manifest',
+        'schema_version': '1.0.0',
+        'project_id': PROJECT_ID,
+        'owner_actor_id': ACTORS['actor-a'],
+        'root_grant': root,
+        'root_grant_sha256': sha256_hex(canonical_bytes(root)),
+        'publication_grant': publication,
+        'publication_grant_sha256': sha256_hex(canonical_bytes(publication)),
+        'publication_target_id': RELEASE_DECISION_ID,
+    }
+
+
+def write_authority_bootstrap_input(path: Path) -> Path:
+    manifest = authority_bootstrap()
+    path.write_bytes(
+        canonical_bytes(
+            {
+                'schema_id': 'ars://core/authority-bootstrap-input',
+                'schema_version': '1.0.0',
+                'approved_bootstrap_sha256': authority_bootstrap_sha256(manifest),
+                'manifest': manifest,
+            }
+        )
+    )
+    return path
 
 
 @dataclass(frozen=True)

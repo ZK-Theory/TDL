@@ -1,0 +1,404 @@
+from __future__ import annotations
+
+import json
+import os
+import secrets
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.ids import new_id, validate_id
+
+
+_GRANT_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "authority_grant_id",
+        "actor_id",
+        "allowed_command_types",
+        "subject_scope",
+        "risk_ceiling",
+        "effective_at",
+        "expires_at",
+        "delegable",
+        "revoked",
+    }
+)
+_SUBJECT_KINDS = {
+    "authority_grant": "authority_grant",
+    "release_gate_decision": "release_gate_decision",
+}
+
+
+def _utc(value: object, field: str) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ValueError(f"{field} must be a UTC RFC 3339 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+    except ValueError as exc:
+        raise ValueError(f"{field} must be a UTC RFC 3339 timestamp") from exc
+    if parsed.tzinfo != UTC:
+        raise ValueError(f"{field} must use UTC")
+    return parsed
+
+
+@dataclass(frozen=True)
+class AuthorityScope:
+    project_id: str
+    subject_kind: str
+    subject_id: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> AuthorityScope:
+        if not isinstance(value, dict) or set(value) != {"project_id", "subject"}:
+            raise ValueError("subject_scope fields must be exact")
+        subject = value["subject"]
+        if not isinstance(subject, dict) or set(subject) != {"kind", "id"}:
+            raise ValueError("subject fields must be exact")
+        project_id = validate_id(str(value["project_id"]), "project")
+        kind = subject["kind"]
+        if kind not in _SUBJECT_KINDS:
+            raise ValueError("unsupported authority subject kind")
+        subject_id = validate_id(str(subject["id"]), _SUBJECT_KINDS[kind])
+        return cls(project_id, str(kind), subject_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "project_id": self.project_id,
+            "subject": {"kind": self.subject_kind, "id": self.subject_id},
+        }
+
+
+@dataclass(frozen=True)
+class AuthorityGrant:
+    authority_grant_id: str
+    actor_id: str
+    allowed_command_types: tuple[str, ...]
+    subject_scope: AuthorityScope
+    risk_ceiling: str
+    effective_at: datetime
+    expires_at: datetime | None
+    canonical_sha256: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> AuthorityGrant:
+        canonical_bytes(value)
+        if not isinstance(value, dict) or set(value) != _GRANT_FIELDS:
+            raise ValueError("AuthorityGrant fields must be exact")
+        if value["schema_id"] != "ars://core/authority-grant":
+            raise ValueError("invalid AuthorityGrant schema")
+        if value["schema_version"] != "1.1.0":
+            raise ValueError("AuthorityGrant 1.1.0 is required")
+        if value["delegable"] is not False or value["revoked"] is not False:
+            raise ValueError("AuthorityGrant must be non-delegable and immutable-active")
+        grant_id = validate_id(str(value["authority_grant_id"]), "authority_grant")
+        actor_id = validate_id(str(value["actor_id"]), "actor")
+        commands = value["allowed_command_types"]
+        if (
+            not isinstance(commands, list)
+            or not commands
+            or len(commands) != len(set(commands))
+            or not all(
+                isinstance(command, str)
+                and command
+                and command.isascii()
+                and command != "*"
+                and "/" not in command
+                and "\\" not in command
+                for command in commands
+            )
+        ):
+            raise ValueError("allowed command types must be unique exact ASCII names")
+        risk = value["risk_ceiling"]
+        if not isinstance(risk, str) or risk not in {"R0", "R1", "R2", "R3"}:
+            raise ValueError("invalid risk ceiling")
+        effective_at = _utc(value["effective_at"], "effective_at")
+        expires_at = (
+            None if value["expires_at"] is None else _utc(value["expires_at"], "expires_at")
+        )
+        if expires_at is not None and expires_at <= effective_at:
+            raise ValueError("expires_at must be strictly after effective_at")
+        scope = AuthorityScope.from_dict(value["subject_scope"])
+        return cls(
+            authority_grant_id=grant_id,
+            actor_id=actor_id,
+            allowed_command_types=tuple(commands),
+            subject_scope=scope,
+            risk_ceiling=risk,
+            effective_at=effective_at,
+            expires_at=expires_at,
+            canonical_sha256=sha256_hex(canonical_bytes(value)),
+        )
+
+
+@dataclass(frozen=True)
+class AuthorityGrantResolution:
+    authority_grant_id: str
+    authority_grant_sha256: str
+    actor_id: str
+    subject_scope: AuthorityScope
+    effective_at: datetime
+    expires_at: datetime | None
+    activation_event_id: str
+    activation_position: int
+    status: str
+    revocation_event_id: str | None
+
+
+def authority_bootstrap_sha256(value: object) -> str:
+    return sha256_hex(canonical_bytes(value))
+
+
+def _manifest_hash(manifest: dict[str, Any]) -> str:
+    return sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+
+
+def _validate_bootstrap(value: object, project_id: str) -> tuple[dict[str, Any], AuthorityGrant, AuthorityGrant]:
+    canonical_bytes(value)
+    fields = {
+        "schema_id", "schema_version", "project_id", "owner_actor_id",
+        "root_grant", "root_grant_sha256", "publication_grant",
+        "publication_grant_sha256", "publication_target_id",
+    }
+    if not isinstance(value, dict) or set(value) != fields:
+        raise ValueError("authority bootstrap fields must be exact")
+    if value["schema_id"] != "ars://core/authority-bootstrap-manifest" or value["schema_version"] != "1.0.0":
+        raise ValueError("invalid authority bootstrap schema")
+    if validate_id(str(value["project_id"]), "project") != project_id:
+        raise ValueError("authority bootstrap project mismatch")
+    owner = validate_id(str(value["owner_actor_id"]), "actor")
+    root = AuthorityGrant.from_dict(value["root_grant"])
+    publication = AuthorityGrant.from_dict(value["publication_grant"])
+    target = validate_id(str(value["publication_target_id"]), "release_gate_decision")
+    if root.actor_id != owner or publication.actor_id != owner:
+        raise ValueError("authority bootstrap actor mismatch")
+    if root.canonical_sha256 != value["root_grant_sha256"] or publication.canonical_sha256 != value["publication_grant_sha256"]:
+        raise ValueError("authority bootstrap grant hash mismatch")
+    if root.allowed_command_types != ("RevokeAuthorityGrant",):
+        raise ValueError("administrative root command scope mismatch")
+    if root.subject_scope != AuthorityScope(project_id, "authority_grant", publication.authority_grant_id):
+        raise ValueError("administrative root subject scope mismatch")
+    if publication.allowed_command_types != ("PublishReleaseGateDecision",):
+        raise ValueError("publication command scope mismatch")
+    if publication.subject_scope != AuthorityScope(project_id, "release_gate_decision", target):
+        raise ValueError("publication subject scope mismatch")
+    if publication.expires_at is None:
+        raise ValueError("publication grant requires expiry")
+    return dict(value), root, publication
+
+
+def _write_identity(stage: Path, final_root: Path, code_roots: list[Path], project_id: str, bootstrap_hash: str) -> str:
+    nonce = secrets.token_hex(16)
+    stable = {
+        "schema_id": "ars://core/store-identity",
+        "schema_version": "1.1.0",
+        "store_nonce": nonce,
+        "project_id": project_id,
+        "bootstrap_manifest_sha256": bootstrap_hash,
+    }
+    identity = sha256_hex(canonical_bytes(stable))
+    manifest: dict[str, Any] = {
+        **stable,
+        "store_identity": identity,
+        "control_root": str(final_root.resolve(strict=False)),
+        "code_roots": sorted(str(root.resolve(strict=True)) for root in code_roots),
+        "endpoint_scheme": "local-cli",
+    }
+    manifest["manifest_hash"] = _manifest_hash(manifest)
+    path = stage / "manifests" / "store-identity.json"
+    with path.open("xb") as handle:
+        handle.write(canonical_bytes(manifest))
+        handle.flush()
+        os.fsync(handle.fileno())
+    return identity
+
+
+def _verify_complete_store(control_root: Path, project_id: str, bootstrap_hash: str) -> str:
+    from research_system.projection.replay import replay
+    from research_system.store.identity import load_store_manifest
+    from research_system.store.ledger import EventLedger
+
+    manifest = load_store_manifest(control_root)
+    if manifest.get("schema_version") != "1.1.0":
+        raise ConflictError("authority_bootstrap_required")
+    if manifest.get("project_id") != project_id or manifest.get("bootstrap_manifest_sha256") != bootstrap_hash:
+        raise ConflictError("authority bootstrap conflicts with existing store")
+    state = replay(EventLedger(control_root, project_id).iter_events())
+    grants = state.get("authority_grants", {})
+    if len(grants) != 2 or state.get("authority_root_id") not in grants:
+        raise IntegrityError("authority genesis is incomplete")
+    return str(manifest["store_identity"])
+
+
+def initialize_authority_control_store(
+    code_roots: list[Path],
+    control_root: Path,
+    project_id: str,
+    bootstrap: object,
+    approved_bootstrap_sha256: str,
+) -> str:
+    """Publish one complete authority-aware control store by absent-target rename."""
+    from research_system.projection.replay import replay
+    from research_system.store.ledger import EventLedger
+    from research_system.store.objects import ObjectStore
+
+    project_id = validate_id(project_id, "project")
+    value, root, publication = _validate_bootstrap(bootstrap, project_id)
+    bootstrap_hash = authority_bootstrap_sha256(value)
+    if approved_bootstrap_sha256 != bootstrap_hash:
+        raise ArsError("approved authority bootstrap hash mismatch")
+    final_root = control_root.parent.resolve(strict=True) / control_root.name
+    resolved_codes = [root_path.resolve(strict=True) for root_path in code_roots]
+    if not resolved_codes:
+        raise ArsError("registered code roots required")
+    for code_root in resolved_codes:
+        if final_root == code_root or code_root in final_root.parents or final_root in code_root.parents:
+            raise ArsError("control root must be disjoint from every code root")
+    if final_root.exists():
+        return _verify_complete_store(final_root, project_id, bootstrap_hash)
+    stage = final_root.with_name(f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}")
+    stage.mkdir()
+    for name in ("objects", "events", "manifests", "receipts", "snapshots", "runtime"):
+        (stage / name).mkdir()
+    marker = {"schema_id": "ars://core/authority-bootstrap-stage", "schema_version": "1.0.0", "bootstrap_manifest_sha256": bootstrap_hash}
+    (stage / "runtime" / "authority-bootstrap-stage.json").write_bytes(canonical_bytes(marker))
+    identity = _write_identity(stage, final_root, resolved_codes, project_id, bootstrap_hash)
+    (stage / "manifests" / "authority-bootstrap.json").write_bytes(canonical_bytes(value))
+    objects = ObjectStore(stage)
+    objects.write("authority_grant", root.authority_grant_id, 1, value["root_grant"])
+    objects.write("authority_grant", publication.authority_grant_id, 1, value["publication_grant"])
+    command_id = new_id("command")
+    common = {
+        "command_id": command_id,
+        "command_type": "InitializeAuthorityRoot",
+        "actor_id": root.actor_id,
+        "authority_grant_id": root.authority_grant_id,
+        "idempotency_key": f"authority-bootstrap:{bootstrap_hash}",
+        "command_payload_hash": bootstrap_hash,
+        "correlation_id": f"authority-bootstrap:{bootstrap_hash}",
+        "causation_id": None,
+        "schema_version": "1.0.0",
+        "occurred_at": None,
+    }
+    ledger = EventLedger(stage, project_id)
+    ledger.append([
+        {
+            **common,
+            "event_type": "AuthorityRootInitialized",
+            "stream_id": root.authority_grant_id,
+            "schema_id": "ars://core/event/AuthorityRootInitialized",
+            "payload": {
+                "bootstrap_manifest_sha256": bootstrap_hash,
+                "authorizing_grant_id": root.authority_grant_id,
+                "authorizing_grant_sha256": root.canonical_sha256,
+                "activated_grant_id": root.authority_grant_id,
+                "activated_grant_sha256": root.canonical_sha256,
+            },
+        },
+        {
+            **common,
+            "event_type": "AuthorityGrantActivated",
+            "stream_id": publication.authority_grant_id,
+            "schema_id": "ars://core/event/AuthorityGrantActivated",
+            "payload": {
+                "authorizing_grant_id": root.authority_grant_id,
+                "authorizing_grant_sha256": root.canonical_sha256,
+                "activated_grant_id": publication.authority_grant_id,
+                "activated_grant_sha256": publication.canonical_sha256,
+            },
+        },
+    ])
+    state = replay(ledger.iter_events())
+    if len(state.get("authority_grants", {})) != 2:
+        raise IntegrityError("staged authority replay incomplete")
+    (stage / "runtime" / "authority-bootstrap-stage.json").unlink()
+    try:
+        os.rename(stage, final_root)
+    except FileExistsError:
+        try:
+            return _verify_complete_store(final_root, project_id, bootstrap_hash)
+        except (ArsError, OSError) as verify_error:
+            raise ConflictError(
+                "competing authority initializer published a foreign store"
+            ) from verify_error
+    return identity
+
+
+class LedgerAuthorityGrantResolver:
+    def __init__(self, control_root: Path, project_id: str, expected_store_identity: str) -> None:
+        self.control_root = control_root
+        self.project_id = validate_id(project_id, "project")
+        self.expected_store_identity = expected_store_identity
+
+    def _projection(self) -> dict[str, Any]:
+        from research_system.projection.replay import replay
+        from research_system.store.identity import load_store_manifest, verify_store_identity
+        from research_system.store.ledger import EventLedger
+
+        try:
+            verify_store_identity(self.control_root, self.project_id, self.expected_store_identity)
+        except (OSError, IntegrityError) as exc:
+            raise ArsError("authority_bootstrap_required") from exc
+        manifest = load_store_manifest(self.control_root)
+        if manifest.get("schema_version") != "1.1.0":
+            raise ArsError("authority_bootstrap_required")
+        bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
+        try:
+            bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise IntegrityError("authority bootstrap manifest invalid") from exc
+        bootstrap_hash = authority_bootstrap_sha256(bootstrap)
+        if bootstrap_hash != manifest.get("bootstrap_manifest_sha256"):
+            raise IntegrityError("authority bootstrap identity binding mismatch")
+        projection = replay(EventLedger(self.control_root, self.project_id).iter_events())
+        if projection.get("bootstrap_manifest_sha256") != bootstrap_hash:
+            raise IntegrityError("authority bootstrap ledger binding mismatch")
+        return projection
+
+    def _load_grant(self, grant_id: str, projection: dict[str, Any]) -> tuple[AuthorityGrant, dict[str, Any]]:
+        record = projection.get("authority_grants", {}).get(grant_id)
+        if record is None:
+            raise ArsError("authority grant is not activated")
+        directory = self.control_root / "objects" / "authority_grant" / grant_id
+        matches = sorted(directory.glob("00000001-*.json"))
+        if len(matches) != 1:
+            raise IntegrityError("authority grant object missing or duplicated")
+        try:
+            value = json.loads(matches[0].read_text(encoding="utf-8"))
+            grant = AuthorityGrant.from_dict(value)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            raise IntegrityError("authority grant object invalid") from exc
+        if grant.authority_grant_id != grant_id or grant.canonical_sha256 != record["authority_grant_sha256"] or not matches[0].name.endswith(f"-{grant.canonical_sha256}.json"):
+            raise IntegrityError("authority grant object hash mismatch")
+        return grant, record
+
+    def grant_at(self, grant_id: str, now: datetime) -> AuthorityGrantResolution:
+        if now.tzinfo != UTC:
+            raise ValueError("trusted authority time must be UTC")
+        projection = self._projection()
+        grant, record = self._load_grant(grant_id, projection)
+        if record["status"] == "revoked":
+            raise ArsError("authority grant revoked")
+        if now < grant.effective_at:
+            raise ArsError("authority grant not effective")
+        if grant.expires_at is not None and now >= grant.expires_at:
+            raise ArsError("authority grant expired")
+        return AuthorityGrantResolution(grant_id, grant.canonical_sha256, grant.actor_id, grant.subject_scope, grant.effective_at, grant.expires_at, record["activation_event_id"], record["activation_position"], record["status"], record.get("revocation_event_id"))
+
+    def resolve(self, grant_id: str, actor_id: str, command_type: str, project_id: str, subject_kind: str, subject_id: str, now: datetime) -> AuthorityGrantResolution:
+        result = self.grant_at(grant_id, now)
+        projection = self._projection()
+        grant, _ = self._load_grant(grant_id, projection)
+        if result.actor_id != actor_id:
+            raise ArsError("authority actor mismatch")
+        if command_type not in grant.allowed_command_types:
+            raise ArsError("authority command mismatch")
+        if result.subject_scope != AuthorityScope(project_id, subject_kind, subject_id):
+            raise ArsError("authority subject scope mismatch")
+        return result

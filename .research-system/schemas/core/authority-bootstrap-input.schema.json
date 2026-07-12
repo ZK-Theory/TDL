@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/authority-bootstrap-input",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "approved_bootstrap_sha256", "manifest"],
+  "properties": {
+    "schema_id": {"const": "ars://core/authority-bootstrap-input"},
+    "schema_version": {"const": "1.0.0"},
+    "approved_bootstrap_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "manifest": {"type": "object"}
+  },
+  "additionalProperties": false
+}

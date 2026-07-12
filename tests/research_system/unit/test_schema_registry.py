@@ -51,10 +51,16 @@ def test_registry_rejects_unknown_schema():
 def test_every_core_schema_declares_closed_object_contract():
     paths = sorted((SCHEMAS / 'core').glob('*.schema.json'))
     assert {path.name for path in paths} == {
+        'authority-bootstrap-input.schema.json',
+        'authority-bootstrap-manifest.schema.json',
+        'authority-grant-activated.schema.json',
+        'authority-grant-revoked.schema.json',
         'authority-grant.schema.json',
+        'authority-root-initialized.schema.json',
         'command.schema.json',
         'event.schema.json',
         'receipt.schema.json',
+        'store-identity-1.1.schema.json',
         'task.schema.json',
     }
     for path in paths:

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from research_system.canonical import canonical_bytes
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ConflictError
 
@@ -49,6 +49,8 @@ class ReceiptStore:
         self.runtime_root = control_root / 'runtime'
         self.receipts_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root.mkdir(parents=True, exist_ok=True)
+        self.index_root = self.receipts_root / 'idempotency'
+        self.index_root.mkdir(parents=True, exist_ok=True)
 
     def load(self, command_id: str) -> Receipt | None:
         path = self.receipts_root / f'{command_id}.json'
@@ -72,6 +74,63 @@ class ReceiptStore:
         self._after_temp_fsync(temporary)
         self._publish(temporary, target)
         self._after_publish(target)
+        return receipt
+
+    def load_scoped(
+        self,
+        scope: tuple[str, str, str, str],
+        payload_hash: str,
+        authority_grant_sha256: str,
+    ) -> Receipt | None:
+        key = sha256_hex(canonical_bytes(list(scope)))
+        path = self.index_root / f'{key}.json'
+        if not path.exists():
+            return None
+        try:
+            record = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConflictError('invalid idempotency index') from exc
+        if record.get('scope') != list(scope):
+            raise ConflictError('idempotency index scope mismatch')
+        if (
+            record.get('payload_hash') != payload_hash
+            or record.get('authority_grant_sha256') != authority_grant_sha256
+        ):
+            raise ConflictError('idempotency key conflicts with stored outcome')
+        return _receipt_from_record(record['receipt'])
+
+    def write_scoped(
+        self,
+        scope: tuple[str, str, str, str],
+        authority_grant_sha256: str,
+        receipt: Receipt,
+    ) -> Receipt:
+        key = sha256_hex(canonical_bytes(list(scope)))
+        target = self.index_root / f'{key}.json'
+        record = {
+            'schema_id': 'ars://core/authority-receipt-index',
+            'schema_version': '1.0.0',
+            'scope': list(scope),
+            'payload_hash': receipt.payload_hash,
+            'authority_grant_sha256': authority_grant_sha256,
+            'receipt': _receipt_record(receipt),
+        }
+        data = canonical_bytes(record)
+        if target.exists():
+            if target.read_bytes() != data:
+                existing = self.load_scoped(
+                    scope, receipt.payload_hash, authority_grant_sha256
+                )
+                if existing != receipt:
+                    raise ConflictError('idempotency index outcome mismatch')
+            return receipt
+        temporary = self.runtime_root / f'{key}.idempotency.tmp'
+        with temporary.open('xb') as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        self._publish(temporary, target)
+        self.write(receipt)
         return receipt
 
     def _after_temp_fsync(self, temporary: Path) -> None:

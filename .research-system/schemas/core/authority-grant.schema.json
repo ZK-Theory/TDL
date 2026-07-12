@@ -5,16 +5,46 @@
   "required": ["schema_id", "schema_version", "authority_grant_id", "actor_id", "allowed_command_types", "subject_scope", "risk_ceiling", "effective_at", "expires_at", "delegable", "revoked"],
   "properties": {
     "schema_id": {"const": "ars://core/authority-grant"},
-    "schema_version": {"const": "1.0.0"},
+    "schema_version": {"enum": ["1.0.0", "1.1.0"]},
     "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "allowed_command_types": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
-    "subject_scope": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "subject_scope": {},
     "risk_ceiling": {"enum": ["R0", "R1", "R2", "R3"]},
     "effective_at": {"type": "string", "format": "date-time"},
     "expires_at": {"type": ["string", "null"], "format": "date-time"},
     "delegable": {"type": "boolean"},
     "revoked": {"type": "boolean"}
   },
+  "oneOf": [
+    {
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "subject_scope": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+      }
+    },
+    {
+      "properties": {
+        "schema_version": {"const": "1.1.0"},
+        "subject_scope": {
+          "type": "object",
+          "required": ["project_id", "subject"],
+          "properties": {
+            "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+            "subject": {
+              "type": "object",
+              "required": ["kind", "id"],
+              "properties": {
+                "kind": {"enum": ["authority_grant", "release_gate_decision"]},
+                "id": {"type": "string", "pattern": "^(?:agr|rgd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -8,6 +8,10 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
 
+from research_system.authority import (
+    authority_bootstrap_sha256,
+    initialize_authority_control_store,
+)
 from research_system.canonical import canonical_bytes, jsonable
 from research_system.command.service import CommandService
 from research_system.config import ControlBinding
@@ -29,7 +33,7 @@ from research_system.evals.retention_authorizer import (
 )
 from research_system.projection.replay import rebuild_projection, replay
 from research_system.schema_registry import SchemaRegistry
-from research_system.store.identity import initialize_control_store, load_store_manifest
+from research_system.store.identity import load_store_manifest
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -80,8 +84,28 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _store_init(args: argparse.Namespace) -> int:
     roots = _registered_code_roots(args.code_root)
-    identity = initialize_control_store(roots, args.control_root, args.project_id)
-    _print_json({'project_id': args.project_id, 'store_identity': identity})
+    bootstrap_input = _read_json(args.authority_bootstrap)
+    if set(bootstrap_input) != {
+        'schema_id',
+        'schema_version',
+        'approved_bootstrap_sha256',
+        'manifest',
+    } or bootstrap_input.get('schema_id') != 'ars://core/authority-bootstrap-input' or bootstrap_input.get('schema_version') != '1.0.0':
+        raise ConfigurationError('invalid authority bootstrap input')
+    manifest = bootstrap_input['manifest']
+    approved = bootstrap_input['approved_bootstrap_sha256']
+    if not isinstance(manifest, dict) or not isinstance(approved, str):
+        raise ConfigurationError('invalid authority bootstrap input')
+    identity = initialize_authority_control_store(
+        roots, args.control_root, args.project_id, manifest, approved
+    )
+    _print_json(
+        {
+            'project_id': args.project_id,
+            'store_identity': identity,
+            'bootstrap_manifest_sha256': authority_bootstrap_sha256(manifest),
+        }
+    )
     return 0
 
 
@@ -277,6 +301,7 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument('--code-root', type=Path, action='append', required=True)
     init.add_argument('--control-root', type=Path, required=True)
     init.add_argument('--project-id', required=True)
+    init.add_argument('--authority-bootstrap', type=Path, required=True)
     init.set_defaults(handler=_store_init)
 
     command = groups.add_parser('command')

@@ -21,6 +21,7 @@ from tests.research_system.factories import (
     PROJECT_ID,
     control_plane,
     create_task_command,
+    write_authority_bootstrap_input,
 )
 
 COMMAND_ID = 'cmd_01978abc-4001-7000-8000-000000004001'
@@ -153,6 +154,8 @@ def test_store_init_fails_closed_when_worktrees_cannot_be_enumerated(
                 str(tmp_path / 'control'),
                 '--project-id',
                 PROJECT_ID,
+                '--authority-bootstrap',
+                str(tmp_path / 'unread-bootstrap.json'),
             ]
         )
     assert not (tmp_path / 'control').exists()
@@ -181,6 +184,8 @@ def test_store_init_fails_closed_when_worktree_enumeration_times_out(
                 str(tmp_path / 'control'),
                 '--project-id',
                 PROJECT_ID,
+                '--authority-bootstrap',
+                str(tmp_path / 'unread-bootstrap.json'),
             ]
         )
     assert not (tmp_path / 'control').exists()
@@ -199,6 +204,9 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(
         ),
     )
     control_root = tmp_path / 'control'
+    bootstrap_path = write_authority_bootstrap_input(
+        tmp_path / 'authority-bootstrap.json'
+    )
     assert main(
         [
             'store',
@@ -209,6 +217,8 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(
             str(control_root),
             '--project-id',
             PROJECT_ID,
+            '--authority-bootstrap',
+            str(bootstrap_path),
         ]
     ) == 0
     identity = json.loads(capsys.readouterr().out)['store_identity']
@@ -256,7 +266,7 @@ def test_s006_cli_uses_namespaced_projection_and_explicit_binding(
             str(output),
         ]
     ) == 0
-    assert json.loads(output.read_text(encoding='utf-8'))['last_position'] == 1
+    assert json.loads(output.read_text(encoding='utf-8'))['last_position'] == 3
     with pytest.raises(ArsError, match='namespaced projection root'):
         main(
             [
