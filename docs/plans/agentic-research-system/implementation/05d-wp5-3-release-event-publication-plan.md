@@ -1,10 +1,9 @@
 # ARS WP5.3: Canonical Release-Event Publication Plan
 
-> **Status:** review-ready planning only. G5.3-A's prerequisite direction is
-> owner-approved, but adversarial review exposed owner decision G5.3-B on the
-> principal-authentication threat model. Runtime implementation remains blocked
-> until G5.3-B is accepted and the authority package is implemented, reviewed,
-> and merged.
+> **Status:** review-ready planning only. G5.3-A's prerequisite and G5.3-B(a)'s
+> trusted-local-operator boundary are owner-approved. Runtime implementation
+> remains blocked until the canonical authority package is implemented,
+> independently reviewed, and merged.
 >
 > **Outcome:** publish an already verified, blocked P0 ReleaseGateDecision as exactly one canonical W2 event. Publication records a decision; it does not authorize Gate 5.
 
@@ -116,17 +115,15 @@ The record must name:
 5. immutable content identity/hash binding the command to the grant; and
 6. expiry/revocation validation repeated under the writer lock.
 
-**Current disposition: PREREQUISITE DIRECTION APPROVED; G5.3-B OPEN.** On
-2026-07-12 the Owner approved the separately scoped W2 authority-source
-prerequisite recorded in `05e-wp5-3a-canonical-authority-grant-plan.md`.
-Adversarial review then established that the current local CLI can provide
-canonical store provenance but cannot authenticate the human/process presenting
-a public actor ID. G5.3-B must select the trusted-local-operator restriction or
-a wider authenticated-principal package. No WP5.3 runtime Worker may be
-dispatched until that decision is recorded and the resulting prerequisite is
-implemented, independently reviewed, and merged. A test-injected resolver may
-test fail-closed interfaces but cannot satisfy G5.3-A or publish the production
-P0 decision.
+**Current disposition: PREREQUISITE AND G5.3-B(a) APPROVED; IMPLEMENTATION
+OPEN.** On 2026-07-12 the Owner approved the separately scoped W2 authority-
+source prerequisite and accepted the trusted-local-operator boundary recorded
+in `05e-wp5-3a-canonical-authority-grant-plan.md`. Actor IDs are attribution;
+cryptographic principal authentication and its key/credential lifecycle are
+out of scope. No WP5.3 runtime Worker may be dispatched until the prerequisite
+is implemented, independently reviewed, and merged. A test-injected resolver
+may test fail-closed interfaces but cannot satisfy G5.3-A or publish the
+production P0 decision.
 
 After an accepted decision, implementation may add a narrow injected
 ReleasePublicationAuthorizer protocol. It verifies authority; it never creates
