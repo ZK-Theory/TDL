@@ -11,6 +11,7 @@ def compile_projection(bundle: CanonicalPolicyBundle, manifest) -> dict:
     controls = [
         {
             "control_id": control.control_id,
+            "control_revision": control.revision,
             "semantic_class": control.semantic_class,
             "disposition": manifest.disposition(control.control_id),
             "failure_mode": control.failure_mode,

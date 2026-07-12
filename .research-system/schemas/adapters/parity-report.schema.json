@@ -2,13 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://adapters/parity-report",
   "type": "object",
-  "required": ["schema_id", "schema_version", "rows", "blocking_controls", "passed"],
+  "required": ["schema_id", "schema_version", "policy_parity_report_id", "report_hash", "canonical_policy_bundle_id", "canonical_policy_bundle_hash", "applicability_id", "applicability_hash", "rows", "blocking_controls", "passed", "diagnostic_percentage"],
   "properties": {
     "schema_id": {"const": "ars://adapters/parity-report"},
     "schema_version": {"const": "1.0.0"},
-    "rows": {"type": "array", "items": {"type": "object"}},
+    "policy_parity_report_id": {"type": "string", "pattern": "^ppr_[0-9a-f]{64}$"},
+    "report_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "canonical_policy_bundle_id": {"type": "string", "pattern": "^cpb_"},
+    "canonical_policy_bundle_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
+    "applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rows": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "object"}},
     "blocking_controls": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "passed": {"type": "boolean"}
+    "passed": {"type": "boolean"},
+    "diagnostic_percentage": {"type": "integer", "minimum": 0, "maximum": 100}
   },
   "additionalProperties": false
 }

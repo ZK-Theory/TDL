@@ -1,7 +1,7 @@
 schema_id: ars://evals/fixture-definition
 schema_version: 1.0.0
 fixture_id: F-020
-fixture_revision: r1
+fixture_revision: r2
 title: Provider policy drift
 owner: evaluation_owner
 status: authored
@@ -14,7 +14,7 @@ assurance_lanes:
 failure_class: provider_policy_drift
 priority: P0
 gate_stage: p0_materialization
-source_manifest_hash: 3015b8fa3aa4ce9bf9cf2044f946bc64043d38e3e6d05c13fd4bf9d1db2d6341
+source_manifest_hash: 978bc27b3c0dde644d6cace3a4aea0da422c14b2566805df069539df3e26af45
 decision_refs:
 - P-030
 policy_versions:
@@ -25,9 +25,9 @@ confidentiality: internal
 permitted_consumers:
 - eval
 setup_hash: fc17258608cba58d097b45b70bf697d88fbe6a9e6b92ec61842d55fa861960da
-stimulus_hash: d1d9a1ec6f95290b0771ff862894ad68e0b3a49c3ab4fb283befe6d81ec8e8d0
-pre_control_oracle_hash: aed18605c0ffd7213629db96aaae9e6cc0dfb2eeaea19c139ccbd4dbf4cfc812
-post_control_oracle_hash: 3f913aa25dcbd309c6e56e7f91e65633bca5077706331a4d1bb903bd26c71646
+stimulus_hash: 36418b8b988b9a564c89792d049ea9f08239bfcfc551b3ac31406d4fa6855d32
+pre_control_oracle_hash: feb928d9be824d581eabf1184f367c4e256e58e523570854f1db51812d26cefa
+post_control_oracle_hash: 89e0086fb35d2fce4840c0d7a739927dbcbe3993bda34a3d6906729cb8cd44ed
 required_trajectory:
 - PolicyParityCompared
 forbidden_trajectory:
@@ -71,8 +71,8 @@ threshold_policy_ids:
 required_evidence_classes:
 - adapter_policy_parity
 - normalized_trace
-known_bad_reference_hash: aed18605c0ffd7213629db96aaae9e6cc0dfb2eeaea19c139ccbd4dbf4cfc812
-known_good_reference_hash: 3f913aa25dcbd309c6e56e7f91e65633bca5077706331a4d1bb903bd26c71646
+known_bad_reference_hash: feb928d9be824d581eabf1184f367c4e256e58e523570854f1db51812d26cefa
+known_good_reference_hash: 89e0086fb35d2fce4840c0d7a739927dbcbe3993bda34a3d6906729cb8cd44ed
 mutation_ids:
 - adapter_policy_parity-violation
 safe_variation_ids:

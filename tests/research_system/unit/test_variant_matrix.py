@@ -2,8 +2,11 @@ import math
 from pathlib import Path
 
 import yaml
+import pytest
 
 from research_system.evals.coverage import P0_CASES
+from research_system.evals.errors import FixtureDefinitionError
+from research_system.evals.variants import load_gate5_variant_rows
 
 ROOT = Path(__file__).resolve().parents[3]
 EVALS = ROOT / ".research-system" / "evals"
@@ -75,3 +78,25 @@ def test_package_bindings_are_matrix_rows():
         )
         for binding in manifest["variant_bindings"]:
             assert (fixture_id, binding["variant_id"]) in matrix_ids, (fixture_id, binding["variant_id"])
+
+
+def test_typed_gate5_loader_closes_exact_46_bound_rows():
+    from research_system.evals.coverage import load_p0_coverage
+
+    coverage = load_p0_coverage(EVALS / "p0-coverage.yaml", fixture_root=EVALS / "fixtures", schema_root=ROOT / ".research-system" / "schemas")
+    rows = load_gate5_variant_rows(EVALS / "p0-variant-matrix.yaml", coverage)
+    assert len(rows) == 46
+    assert len({(row.fixture_id, row.variant_id) for row in rows}) == 46
+    assert all(row.fixture_revision == dict(coverage.selected_fixture_revisions)[row.fixture_id] for row in rows)
+
+
+def test_typed_gate5_loader_rejects_stale_row_before_execution(tmp_path):
+    from research_system.evals.coverage import load_p0_coverage
+
+    coverage = load_p0_coverage(EVALS / "p0-coverage.yaml", fixture_root=EVALS / "fixtures", schema_root=ROOT / ".research-system" / "schemas")
+    payload = _matrix()
+    next(row for row in payload["rows"] if row["execution_stage"] == "gate5")["fixture_revision"] = "stale"
+    path = tmp_path / "matrix.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    with pytest.raises(FixtureDefinitionError, match="stale"):
+        load_gate5_variant_rows(path, coverage)

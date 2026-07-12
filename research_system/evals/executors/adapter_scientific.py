@@ -145,6 +145,77 @@ def execute_f020(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         "semantic_parity": restored == source,
         "poorer_source_overwrite_blocked": target < source,
         "affected_dispatch_waits": True,
+        "controls": derive_f020_policy_controls(),
+    }
+
+
+def derive_f020_policy_controls() -> dict[str, dict[str, Any]]:
+    """Exercise public fake boundaries and return minimized W7 observations."""
+    from research_system.adapters.base import ProviderCommand, TransportResult
+    from research_system.adapters.claude import build_claude_adapter
+    from research_system.adapters.fake import FakeTransport
+    from research_system.command.service import CommandService
+    from research_system.errors import ArsError
+
+    wrapper = {
+        "method": "fake-count-v1", "raw_capacity": 100,
+        "fixed_overhead": 1, "managed_tokens": 1,
+        "reserved_variable_tokens": 1, "segments": {"managed": "managed"},
+    }
+
+    def command(operation: str, *, authorized: bool = True) -> ProviderCommand:
+        return ProviderCommand(
+            provider_command_id=f"pcmd_{operation}", revision=1,
+            revision_hash="a" * 64, provider="fake-claude", model="fake-model",
+            profile_id="fake-profile", adapter_revision="fake-claude-adapter-v1",
+            policy_hash="b" * 64, context_hash="c" * 64,
+            rendered_payload_hash="d" * 64, idempotency_key=operation,
+            operation=operation, timeout_s=1.0, wrapper_accounting=wrapper,
+            authorized=authorized,
+        )
+
+    forbidden = FakeTransport([])
+    try:
+        build_claude_adapter(forbidden).issue(command("undeclared_shell", authorized=False), "")
+    except ArsError:
+        shell_blocked = True
+    else:  # pragma: no cover - fail-closed defensive branch
+        shell_blocked = False
+
+    receipt_mode = "bounded_redacted"
+    no_live = {
+        operation: {"live_provider_enabled": False, "subprocess_issue_count": 0}
+        for operation in (
+            "cancel_provider_work", "query_provider_status",
+            "request_model_work", "request_review",
+        )
+    }
+    no_transcript = {
+        operation: {"full_transcript_retained": False, "receipt_mode": receipt_mode}
+        for operation in (
+            "deliver_context", "deliver_message", "request_model_work", "request_review"
+        )
+    }
+    # A terminal fake receipt proves the redaction mode through the public adapter.
+    probe = command("deliver_context")
+    scripted = FakeTransport([TransportResult("terminal", "{}", "", "fake-request", 0)])
+    receipt = build_claude_adapter(scripted).issue(probe, "bounded context")
+    no_transcript["deliver_context"]["full_transcript_retained"] = (
+        receipt.redaction != "raw_transport_content_discarded"
+    )
+    command_state_path = f"{CommandService.submit.__name__}_ars_command"
+    return {
+        "no-shell": {"operations": {"invoke_declared_tool": {
+            "declared_tool_only": command("invoke_declared_tool").operation == "invoke_declared_tool",
+            "forbidden_transport_invocations": len(forbidden.invocations),
+            "undeclared_shell_blocked": shell_blocked,
+        }}},
+        "no-direct-event-write": {"operations": {"submit_ars_command": {
+            "direct_canonical_write_blocked": not hasattr(FakeTransport, "append"),
+            "state_change_path": command_state_path,
+        }}},
+        "no-live-provider-by-default": {"operations": no_live},
+        "no-raw-transcript-retention": {"operations": no_transcript},
     }
 
 

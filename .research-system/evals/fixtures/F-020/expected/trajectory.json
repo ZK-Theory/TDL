@@ -1,1 +1,1 @@
-{"fixture_id":"F-020","fixture_revision":"r1","forbidden":["WeakerPolicyActivated"],"required":["PolicyParityCompared"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}
+{"fixture_id":"F-020","fixture_revision":"r2","forbidden":["WeakerPolicyActivated"],"required":["PolicyParityCompared"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}

@@ -14,7 +14,7 @@ class _Manifest:
 
 
 def _bundle():
-    control = Control("no-shell", "execution_boundary", True, "block")
+    control = Control("no-shell", "r1", "execution_boundary", True, "block")
     return CanonicalPolicyBundle("cpb_" + "1" * 32, "r1", "a" * 64, (control,))
 
 

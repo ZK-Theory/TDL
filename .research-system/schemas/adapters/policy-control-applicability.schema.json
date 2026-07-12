@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/policy-control-applicability",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "applicability_id", "applicability_hash", "decision_ref", "decision_payload", "decision_record_hash", "bundle", "controls"],
+  "properties": {
+    "schema_id": {"const": "ars://adapters/policy-control-applicability"},
+    "schema_version": {"const": "1.0.0"},
+    "applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
+    "applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision_ref": {"const": "D-G5-5"},
+    "decision_payload": {"type": "object"},
+    "decision_record_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "bundle": {"type": "object"},
+    "controls": {"type": "array", "minItems": 4, "maxItems": 4}
+  },
+  "additionalProperties": false
+}

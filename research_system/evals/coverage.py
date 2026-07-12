@@ -144,6 +144,7 @@ def load_p0_coverage(
                 grader["grader_id"],
                 grader["grader_class"],
                 grader["grader_version"],
+                "baseline",
             )
             for grader in definition["required_graders"]
         )

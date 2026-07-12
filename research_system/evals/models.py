@@ -44,7 +44,7 @@ RUN_STATES = frozenset(
 RELEASE_DECISIONS = frozenset({"pass", "fail", "blocked", "exception_limited"})
 RETENTION_CLASSES = frozenset({"R0", "R1", "R2"})
 
-ResultKey = tuple[str, str, str, str, str]
+ResultKey = tuple[str, str, str, str, str, str]
 
 
 def _require_choice(value: str, choices: frozenset[str], label: str) -> None:
@@ -301,6 +301,7 @@ class GraderResult:
     evaluation_run_id: str
     fixture_id: str
     fixture_revision: str
+    variant_id: str
     grader_id: str
     grader_class: str
     grader_version: str
@@ -329,6 +330,7 @@ class GraderResult:
         validate_id(self.grader_result_id, "grader_result")
         validate_id(self.evaluation_run_id, "evaluation_run")
         validate_id(self.executed_by_actor_id, "actor")
+        _require_nonempty(self.variant_id, "variant_id")
         _require_choice(self.grader_class, GRADER_CLASSES, "grader_class")
         _require_choice(self.verdict, VERDICTS, "verdict")
         _require_choice(self.severity, SEVERITIES, "severity")
@@ -362,6 +364,7 @@ class GraderResult:
             self.grader_id,
             self.grader_class,
             self.grader_version,
+            self.variant_id,
         )
 
 
@@ -408,6 +411,10 @@ class ReleaseGateDecision:
     decision: str
     decided_at: str
     canonical_event_ref: str
+    policy_parity_report_id: str | None = None
+    policy_parity_report_hash: str | None = None
+    policy_control_applicability_id: str | None = None
+    policy_control_applicability_hash: str | None = None
     exception_policy_id: str | None = None
     exception_policy_hash: str | None = None
     exception_scope: str | None = None
@@ -423,6 +430,14 @@ class ReleaseGateDecision:
             "release_gate_decision_id",
         )
         _require_choice(self.decision, RELEASE_DECISIONS, "decision")
+        parity_refs = (
+            self.policy_parity_report_id,
+            self.policy_parity_report_hash,
+            self.policy_control_applicability_id,
+            self.policy_control_applicability_hash,
+        )
+        if self.parity_status in {"pass", "blocked"} and not all(parity_refs):
+            raise ValueError("evaluated parity requires report and applicability bindings")
         exception_policy_fields = (
             self.exception_policy_id,
             self.exception_policy_hash,

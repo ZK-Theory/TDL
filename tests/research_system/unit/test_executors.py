@@ -5,6 +5,11 @@ coverage for the remaining P0 cases to this module.
 """
 
 from pathlib import Path
+import copy
+
+import pytest
+
+from research_system.canonical import canonical_bytes, sha256_hex
 
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals import coverage as coverage_module
@@ -17,6 +22,45 @@ from research_system.evals.executors.control_store import (
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
+
+
+def test_f020_r2_preserves_r1_observations_and_derives_ten_control_operations():
+    result = require_executor("F-020")(
+        "known_good",
+        {"action": {"operation": "compare_adapter_policies", "source_controls": ["readiness", "dispatch_guard"], "target_controls": ["readiness"]}},
+    )
+    assert result["semantic_parity"] is True
+    assert result["poorer_source_overwrite_blocked"] is True
+    assert result["affected_dispatch_waits"] is True
+    assert sum(len(item["operations"]) for item in result["controls"].values()) == 10
+
+
+@pytest.mark.parametrize(
+    ("control_id", "operation"),
+    [
+        ("no-shell", "invoke_declared_tool"),
+        ("no-direct-event-write", "submit_ars_command"),
+        ("no-live-provider-by-default", "cancel_provider_work"),
+        ("no-live-provider-by-default", "query_provider_status"),
+        ("no-live-provider-by-default", "request_model_work"),
+        ("no-live-provider-by-default", "request_review"),
+        ("no-raw-transcript-retention", "deliver_context"),
+        ("no-raw-transcript-retention", "deliver_message"),
+        ("no-raw-transcript-retention", "request_model_work"),
+        ("no-raw-transcript-retention", "request_review"),
+    ],
+)
+def test_f020_each_operation_perturbation_changes_its_control_evidence(control_id, operation):
+    observed = require_executor("F-020")(
+        "known_good",
+        {"action": {"operation": "compare_adapter_policies", "source_controls": ["readiness", "dispatch_guard"], "target_controls": ["readiness"]}},
+    )["controls"][control_id]
+    changed = copy.deepcopy(observed)
+    changed["operations"][operation]["test_perturbation"] = True
+    pointer = f"/controls/{control_id}"
+    original_hash = sha256_hex(canonical_bytes({"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": observed}))
+    changed_hash = sha256_hex(canonical_bytes({"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": changed}))
+    assert changed_hash != original_hash
 
 ADAPTER_SCIENTIFIC_CLEAN = [
     "F-007",
