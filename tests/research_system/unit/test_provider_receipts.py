@@ -120,3 +120,17 @@ def test_normalized_receipt_excludes_raw_transcripts():
     assert secret not in serialized
     assert "stdout" not in serialized
     assert "stderr" not in serialized
+
+
+def test_provider_outage_normalizes_to_incomplete_typed_receipt_without_output():
+    transport = FakeTransport(
+        [TransportResult("provider_unavailable", "", "synthetic outage", None, None)]
+    )
+    receipt = ProviderAdapter(["fake-provider"], transport).issue(
+        _command(), "managed context"
+    )
+    assert receipt.status == "incomplete"
+    assert receipt.complete is False
+    assert receipt.failure_code == "provider_unavailable"
+    assert receipt.output_refs == ()
+    assert receipt.output_hash is None

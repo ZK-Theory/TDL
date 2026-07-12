@@ -11,17 +11,21 @@ from research_system.errors import ConflictError
 
 
 def _receipt_record(receipt: Receipt) -> dict[str, Any]:
+    outcome: dict[str, Any] = {
+        'event_batch_id': receipt.event_batch_id,
+        'observed_stream_version': receipt.observed_stream_version,
+        'reason_code': receipt.reason_code,
+    }
+    if receipt.status == 'rejected':
+        outcome['explanation'] = receipt.explanation
+        outcome['unmet_preconditions'] = list(receipt.unmet_preconditions)
     return {
         'schema_id': 'ars://core/receipt',
         'schema_version': '1.0.0',
         'command_id': receipt.command_id,
         'status': receipt.status,
         'payload_hash': receipt.payload_hash,
-        'outcome': {
-            'event_batch_id': receipt.event_batch_id,
-            'observed_stream_version': receipt.observed_stream_version,
-            'reason_code': receipt.reason_code,
-        },
+        'outcome': outcome,
     }
 
 
@@ -34,6 +38,8 @@ def _receipt_from_record(record: dict[str, Any]) -> Receipt:
         event_batch_id=outcome.get('event_batch_id'),
         observed_stream_version=outcome['observed_stream_version'],
         reason_code=outcome.get('reason_code'),
+        explanation=outcome.get('explanation'),
+        unmet_preconditions=tuple(outcome.get('unmet_preconditions', ())),
     )
 
 

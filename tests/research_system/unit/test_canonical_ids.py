@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 
+from research_system import canonical as canonical_module
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConfigurationError
 from research_system.ids import IdRegistry, new_id, validate_id
@@ -13,6 +14,13 @@ def test_canonical_bytes_are_order_independent():
     assert left == b'{"a":1,"b":2}'
     assert left == right
     assert sha256_hex(left) == sha256_hex(right)
+
+
+def test_jsonable_recursively_normalizes_tuples_for_canonical_bytes():
+    value = {"outer": ({"inner": (1, 2)},)}
+    normalized = canonical_module.jsonable(value)
+    assert normalized == {"outer": [{"inner": [1, 2]}]}
+    assert canonical_bytes(normalized) == b'{"outer":[{"inner":[1,2]}]}'
 
 
 @pytest.mark.parametrize(

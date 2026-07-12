@@ -13,6 +13,7 @@ from research_system.evals.executors.context_routing import (
     CONTEXT_ROUTING_EXECUTORS,
 )
 from research_system.evals.executors.control_store import CONTROL_STORE_EXECUTORS
+from research_system.evals.executors.release_tranche import RELEASE_TRANCHE_EXECUTORS
 
 FixtureExecutor = Callable[[str, dict[str, Any]], dict[str, Any]]
 
@@ -20,6 +21,7 @@ EXECUTORS: dict[str, FixtureExecutor] = {
     **CONTROL_STORE_EXECUTORS,
     **ADAPTER_SCIENTIFIC_EXECUTORS,
     **CONTEXT_ROUTING_EXECUTORS,
+    **RELEASE_TRANCHE_EXECUTORS,
 }
 
 

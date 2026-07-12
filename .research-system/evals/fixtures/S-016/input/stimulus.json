@@ -1,0 +1,1 @@
+{"fixture_id":"S-016","fixture_revision":"r1","payload":{"action":{"operation":"route_r3_review","provider_status":"unavailable","required_family_count":2,"required_independence":"I3","required_risk":"R3"},"contract":"r3_provider_outage_preserves_requirements"},"schema_id":"ars://evals/fixture-stimulus","schema_version":"1.0.0","stimulus_kind":"gate5_release_tranche_contract"}

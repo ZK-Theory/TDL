@@ -58,7 +58,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     streams = updated.setdefault('streams', {})
     stream_id = event['stream_id']
     event_type = event['event_type']
-    if event_type == 'TaskCreated':
+    if event_type in {'TaskCreated', 'TaskSuperseded'}:
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type == 'DispatchClaimed':
         current = streams.get(

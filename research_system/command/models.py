@@ -43,3 +43,5 @@ class Receipt:
     event_batch_id: str | None
     observed_stream_version: int
     reason_code: str | None = None
+    explanation: str | None = None
+    unmet_preconditions: tuple[str, ...] = ()

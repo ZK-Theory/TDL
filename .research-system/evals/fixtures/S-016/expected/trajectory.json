@@ -1,0 +1,1 @@
+{"fixture_id":"S-016","fixture_revision":"r1","forbidden":["FallbackDispatchIssued","TaskAccepted"],"required":["ProviderOutageRecorded","NoEligibleRoute"],"schema_id":"ars://evals/fixture-trajectory","schema_version":"1.0.0"}
