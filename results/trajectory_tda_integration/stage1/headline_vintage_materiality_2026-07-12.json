@@ -1,0 +1,461 @@
+{
+  "schema": "headline_vintage_materiality/v1",
+  "generated": "2026-07-12",
+  "audit_task": "WT-1",
+  "seed": 42,
+  "input_provenance": {
+    "canonical_sequences": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
+      "sha256": "7a4869170bb8c0f096c407a636ec09ee1926946372b27c18762734d96059e3b8"
+    },
+    "orphan_sequences": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+      "sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8"
+    },
+    "bhps_sequences": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+      "sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+    },
+    "usoc_frozen_cache": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+      "sha256": "298917893c45261e74ac2063d9fbfe34ef3f6a01ca7e6749e9e5f041ba56df0f"
+    },
+    "committed_headline": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\usoc_headline_frozen_2026-05-28.json",
+      "sha256": "2adfcb9394750d1c74f9577114bb8a7c22aab84889926fbce59a9578077d89df"
+    },
+    "pvalue_denominator_cleanup": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\pvalue_denominator_cleanup_2026-05-28.json",
+      "formula": "(r+1)/(B+1)"
+    }
+  },
+  "usoc_obs_diagram_reconstruction": {
+    "generated": "2026-07-12",
+    "stage": "02_usoc_apr8_obs_diagram",
+    "wall_s": 81.1,
+    "stop_condition_triggered": false,
+    "cache": {
+      "path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+      "sha256": "298917893c45261e74ac2063d9fbfe34ef3f6a01ca7e6749e9e5f041ba56df0f",
+      "obs_h0_card": 4999,
+      "obs_h1_card": 6004
+    },
+    "orphan": {
+      "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+      "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+      "n_trajectories": 27280,
+      "wall_s": 46.5,
+      "recon_h0_card": 4999,
+      "recon_h1_card": 6004,
+      "cache_h0_card": 4999,
+      "cache_h1_card": 6004,
+      "bottleneck_h0": 6.51037529733035e-309,
+      "bottleneck_h1": 2.0394948098167607e-308,
+      "cardinality_h0_match": true,
+      "cardinality_h1_match": true,
+      "reproduced": true
+    },
+    "apr8": {
+      "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
+      "seq_sha256": "7a4869170bb8c0f096c407a636ec09ee1926946372b27c18762734d96059e3b8",
+      "n_trajectories": 27280,
+      "wall_s": 33.7,
+      "recon_h0_card": 4999,
+      "recon_h1_card": 5961,
+      "cache_h0_card": 4999,
+      "cache_h1_card": 6004,
+      "bottleneck_h0": 0.5974206924438474,
+      "bottleneck_h1": 0.41237401962280273,
+      "cardinality_h0_match": true,
+      "cardinality_h1_match": false,
+      "reproduced": false
+    }
+  },
+  "usoc_apr8_w2_headline": {
+    "generated": "2026-07-12",
+    "stage": "03_usoc_apr8_w2_headline",
+    "wall_s": 403.7,
+    "escalated": true,
+    "benchmark_s_per_pair": 100.70454269647598,
+    "projected_h": 13.98674204117722,
+    "apr8_obs_cardinality": {
+      "h0": 4999,
+      "h1": 5961
+    },
+    "B": 1000
+  },
+  "bhps_bank_vintage_probe": {
+    "generated": "2026-07-12",
+    "stage": "01_bhps_vintage_probe",
+    "wall_s": 500.5,
+    "n_banks_checked": 8,
+    "n_reproduced": 6,
+    "n_unresolved": 2,
+    "banks": [
+      {
+        "cache_file": "null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-26.npz",
+        "cache_sha256": "b459718df41dc4382c0e34eaee4377af459722da9c2e03fa82ca81bb996babea",
+        "cache_exists": true,
+        "cache_obs_h0_card": 4970,
+        "cache_obs_h1_card": 3458,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 37.1,
+            "recon_h0_card": 4970,
+            "recon_h1_card": 3458,
+            "cache_h0_card": 4970,
+            "cache_h1_card": 3458,
+            "bottleneck_h0": 7.686464285493245e-309,
+            "bottleneck_h1": 6.167349745438347e-309,
+            "cardinality_h0_match": true,
+            "cardinality_h1_match": true,
+            "reproduced": true
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 39.9,
+            "recon_h0_card": 4999,
+            "recon_h1_card": 6004,
+            "cache_h0_card": 4970,
+            "cache_h1_card": 3458,
+            "bottleneck_h0": 3.988973617553711,
+            "bottleneck_h1": 1.594563484191894,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "REPRODUCED",
+        "reproduced_by": "bhps_canonical",
+        "source_seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+        "source_seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+      },
+      {
+        "cache_file": "null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz",
+        "cache_sha256": "67ccf3f32dd1a9aafcde0be0b2bae4c397530b083dbdc8d9e4403b132e9203db",
+        "cache_exists": true,
+        "cache_obs_h0_card": 4970,
+        "cache_obs_h1_card": 3458,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 31.9,
+            "recon_h0_card": 4970,
+            "recon_h1_card": 3458,
+            "cache_h0_card": 4970,
+            "cache_h1_card": 3458,
+            "bottleneck_h0": 7.686464285493245e-309,
+            "bottleneck_h1": 6.167349745438347e-309,
+            "cardinality_h0_match": true,
+            "cardinality_h1_match": true,
+            "reproduced": true
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 40.7,
+            "recon_h0_card": 4999,
+            "recon_h1_card": 6004,
+            "cache_h0_card": 4970,
+            "cache_h1_card": 3458,
+            "bottleneck_h0": 3.988973617553711,
+            "bottleneck_h1": 1.594563484191894,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "REPRODUCED",
+        "reproduced_by": "bhps_canonical",
+        "source_seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+        "source_seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+      },
+      {
+        "cache_file": "null_diagrams_bhps_length_matched_truncate_frozen_B1000_L5000_seed42_2026-05-29.npz",
+        "cache_sha256": "1628b0a422573d4c07ea76d39a00a9e9427cc3d8cdd1775e51672900dc8c6a99",
+        "cache_exists": true,
+        "cache_obs_h0_card": 4829,
+        "cache_obs_h1_card": 3144,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 29.7,
+            "recon_h0_card": 4828,
+            "recon_h1_card": 3146,
+            "cache_h0_card": 4829,
+            "cache_h1_card": 3144,
+            "bottleneck_h0": 4.214684778958144e-08,
+            "bottleneck_h1": 0.40105485916137695,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 38.7,
+            "recon_h0_card": 4998,
+            "recon_h1_card": 5789,
+            "cache_h0_card": 4829,
+            "cache_h1_card": 3144,
+            "bottleneck_h0": 3.1185531616210938,
+            "bottleneck_h1": 1.282708644866943,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "UNRESOLVED",
+        "source_seq_path": null,
+        "source_seq_sha256": null
+      },
+      {
+        "cache_file": "null_diagrams_bhps_length_matched_truncate_frozen_B1000_L5000_seed42_2026-05-30.npz",
+        "cache_sha256": "b7323d661a71e8999e2dba382d57d1e8396891eaa00d3d66d81c3000a651f6e2",
+        "cache_exists": true,
+        "cache_obs_h0_card": 4828,
+        "cache_obs_h1_card": 3146,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 33.1,
+            "recon_h0_card": 4828,
+            "recon_h1_card": 3146,
+            "cache_h0_card": 4828,
+            "cache_h1_card": 3146,
+            "bottleneck_h0": 1.1448558218787844e-308,
+            "bottleneck_h1": 1.2610305630005547e-308,
+            "cardinality_h0_match": true,
+            "cardinality_h1_match": true,
+            "reproduced": true
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 28.8,
+            "recon_h0_card": 4998,
+            "recon_h1_card": 5789,
+            "cache_h0_card": 4828,
+            "cache_h1_card": 3146,
+            "bottleneck_h0": 3.118553161621093,
+            "bottleneck_h1": 1.282708644866943,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "REPRODUCED",
+        "reproduced_by": "bhps_canonical",
+        "source_seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+        "source_seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+      },
+      {
+        "cache_file": "null_diagrams_bhps_length_matched_truncate_frozen_probe-pinned-thresh_B1000_L5000_seed42_2026-05-31.npz",
+        "cache_sha256": "b352e901ce22aa24cdcbe897b21b8ce369091b6619d2d612db616112af3496b1",
+        "cache_exists": true,
+        "cache_obs_h0_card": 4860,
+        "cache_obs_h1_card": 3174,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 33.7,
+            "recon_h0_card": 4860,
+            "recon_h1_card": 3174,
+            "cache_h0_card": 4860,
+            "cache_h1_card": 3174,
+            "bottleneck_h0": 1.5020197514172033e-308,
+            "bottleneck_h1": 6.295739424366113e-309,
+            "cardinality_h0_match": true,
+            "cardinality_h1_match": true,
+            "reproduced": true
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 39.0,
+            "recon_h0_card": 4999,
+            "recon_h1_card": 5790,
+            "cache_h0_card": 4860,
+            "cache_h1_card": 3174,
+            "bottleneck_h0": 9.612689971923828,
+            "bottleneck_h1": 1.2532444000244136,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "REPRODUCED",
+        "reproduced_by": "bhps_canonical",
+        "source_seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+        "source_seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+      },
+      {
+        "cache_file": "null_diagrams_bhps_length_matched_truncate_frozen_probe-symmetric-dedup_B1000_L5000_seed42_2026-05-30.npz",
+        "cache_sha256": "20606b18d93124ffd19e3e51b2bbff1c2dee7eca23d031b1703f10e6182083ae",
+        "cache_exists": true,
+        "cache_obs_h0_card": 4828,
+        "cache_obs_h1_card": 3146,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 35.8,
+            "recon_h0_card": 4828,
+            "recon_h1_card": 3146,
+            "cache_h0_card": 4828,
+            "cache_h1_card": 3146,
+            "bottleneck_h0": 1.1448558218787844e-308,
+            "bottleneck_h1": 1.2610305630005547e-308,
+            "cardinality_h0_match": true,
+            "cardinality_h1_match": true,
+            "reproduced": true
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 38.4,
+            "recon_h0_card": 4998,
+            "recon_h1_card": 5789,
+            "cache_h0_card": 4828,
+            "cache_h1_card": 3146,
+            "bottleneck_h0": 3.118553161621093,
+            "bottleneck_h1": 1.282708644866943,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "REPRODUCED",
+        "reproduced_by": "bhps_canonical",
+        "source_seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+        "source_seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+      },
+      {
+        "cache_file": "null_diagrams_bhps_length_matched_first13_frozen_B1000_L5000_seed42_2026-05-30.npz",
+        "cache_sha256": "4fcb317cd33faf79eff1c10c87f5f2290c9dc76038e4d8771e2e8b3354a85751",
+        "cache_exists": true,
+        "cache_obs_h0_card": 3068,
+        "cache_obs_h1_card": 2060,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 13.9,
+            "recon_h0_card": 3068,
+            "recon_h1_card": 2060,
+            "cache_h0_card": 3068,
+            "cache_h1_card": 2060,
+            "bottleneck_h0": 1.4383375051081823e-308,
+            "bottleneck_h1": 5.41868900527526e-309,
+            "cardinality_h0_match": true,
+            "cardinality_h1_match": true,
+            "reproduced": true
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 32.5,
+            "recon_h0_card": 4996,
+            "recon_h1_card": 5420,
+            "cache_h0_card": 3068,
+            "cache_h1_card": 2060,
+            "bottleneck_h0": 2.3244709968566895,
+            "bottleneck_h1": 1.5273761749267578,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "REPRODUCED",
+        "reproduced_by": "bhps_canonical",
+        "source_seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+        "source_seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490"
+      },
+      {
+        "cache_file": "null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz",
+        "cache_sha256": "eca763a50b0a68ddae62a5045921c06af756eb8684d3129b0aab990606f8bad8",
+        "cache_exists": true,
+        "cache_obs_h0_card": 2440,
+        "cache_obs_h1_card": 1181,
+        "candidates": [
+          {
+            "label": "bhps_canonical",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
+            "seq_sha256": "b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490",
+            "exists": true,
+            "wall_s": 9.6,
+            "recon_h0_card": 2874,
+            "recon_h1_card": 1181,
+            "cache_h0_card": 2440,
+            "cache_h1_card": 1181,
+            "bottleneck_h0": 1.234145514672491e-07,
+            "bottleneck_h1": 9.722403701883724e-309,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": true,
+            "reproduced": false
+          },
+          {
+            "label": "orphan_01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json.orphan_2026-05-02",
+            "seq_sha256": "31bbbcef0a204533727805b52f20c26bbc6992f6e2b8295c1261c86958b0fec8",
+            "exists": true,
+            "wall_s": 11.4,
+            "recon_h0_card": 2451,
+            "recon_h1_card": 1260,
+            "cache_h0_card": 2440,
+            "cache_h1_card": 1181,
+            "bottleneck_h0": 0.3596339225769043,
+            "bottleneck_h1": 0.8386058807373047,
+            "cardinality_h0_match": false,
+            "cardinality_h1_match": false,
+            "reproduced": false
+          }
+        ],
+        "verdict": "UNRESOLVED",
+        "source_seq_path": null,
+        "source_seq_sha256": null
+      }
+    ]
+  },
+  "sanity_crosscheck": {
+    "orphan_vs_committed_match": true,
+    "notes": [
+      "WARNING: committed_orphan_stats not in W2 result (escalated?)"
+    ]
+  }
+}
