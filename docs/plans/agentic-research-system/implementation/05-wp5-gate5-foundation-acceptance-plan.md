@@ -246,15 +246,21 @@ WP5.5 owner decisions (parallel; D-G5-1/2/4) ───────────�
 | D-G5-2 | **`DeleteEvidenceObject` registration (O15).** Name specified (04-plan:517); payload schema + emitted event are not. | Design anchor: `DeleteEvidenceObject → EvidenceDeletionPending` (the event `replay.py:90` already consumes but nothing emits). Confirm name+schema+event, or defer past Gate 5 with the capability restriction recorded. |
 | D-G5-3 | **Invariant re-baseline approvals.** WP5.2 and WP5.4 change `result_count`/`fixture_count`/`blocked_fixture_count`. | Each dispatch plan pre-registers exact new values; owner approves the plan (and thereby the re-baseline) before execution. Silent drift remains a stop condition. |
 | D-G5-4 | **R12 confirmation.** Two provider-specific F-021 sizing rows instead of the plan's single `variant` scalar (no-wildcard rule made one row impossible). Flagged in PR #71 body; merge ≠ recorded confirmation. | Confirm the two-row form (recommended — it is the only spec-consistent shape) and record a `[DECISION]` closing R12. |
+| G5.3-A | **Canonical release-publication authority source.** The current CommandService and AuthorityGrant schema do not establish a trusted current/revoked resolver. | Implement the separately scoped canonical W2 authority-grant source/resolver in `05e-wp5-3a-canonical-authority-grant-plan.md` before WP5.3 runtime. |
+| G5.3-B | **Principal-authentication boundary.** Canonical local store provenance does not authenticate the process/human presenting a public actor ID. | (a) accept the trusted-local-operator foundation with an explicit capability restriction and exact Owner-approved bootstrap hash; or (b) require signed principal/bootstrap authentication first. |
 
-**Owner record (2026-07-10, updated 2026-07-11):** D-G5-1 option (a)
+**Owner record (2026-07-10, updated 2026-07-12):** D-G5-1 option (a)
 approved -- Gate 5 may accept the foundation only with the M/H capability restriction
 explicit while required M/H rows remain blocking. D-G5-4 confirmed -- the two
 provider-specific F-021 sizing rows are the accepted R12 form. D-G5-2 is resolved
 for Gate 5 as an approved deferral: deletion initiation stays capability-disabled
 and O15 remains open. D-G5-3 is approved for WP5.4 at exact
 `40/15/0/calibrated/132/blocked`; it remains a per-dispatch-plan approval process
-for other invariant-changing work.
+for other invariant-changing work. G5.3-A's canonical W2 authority-grant
+source/resolver prerequisite direction is approved. G5.3-B remains open after
+adversarial review exposed the principal-authentication boundary; WP5.3 runtime
+remains blocked until G5.3-B is recorded and the resulting prerequisite is
+implemented, independently reviewed, and merged.
 
 ## 7. Invariant re-baseline rule
 

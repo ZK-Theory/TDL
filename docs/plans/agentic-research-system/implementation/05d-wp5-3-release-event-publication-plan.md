@@ -1,7 +1,10 @@
 # ARS WP5.3: Canonical Release-Event Publication Plan
 
-> **Status:** review-ready planning only. Runtime implementation is blocked on
-> open owner gate G5.3-A; this document contains no runtime code.
+> **Status:** review-ready planning only. G5.3-A's prerequisite direction is
+> owner-approved, but adversarial review exposed owner decision G5.3-B on the
+> principal-authentication threat model. Runtime implementation remains blocked
+> until G5.3-B is accepted and the authority package is implemented, reviewed,
+> and merged.
 >
 > **Outcome:** publish an already verified, blocked P0 ReleaseGateDecision as exactly one canonical W2 event. Publication records a decision; it does not authorize Gate 5.
 
@@ -33,7 +36,7 @@ The full typed decision, its evidence identities, the event hash-chain entry, th
 
 - Do not implement WP5.2 variant parity, WP5.6 deletion/O15, live-provider enablement, Gate 5 acceptance, Gate 6, research computation, or paper claims.
 - Do not alter W6 decision policy, W7/W8 parity policy, P0 coverage, fixture membership, deletion/retention behavior, or the blocked P0 disposition.
-- Do not introduce a grant store, authority lifecycle, provider adapter, network client, direct ledger writer, generic permission bypass, or path-based trust rule **without a separately approved prerequisite/amendment**. Because the current implementation has no trusted authority resolver, this boundary keeps G5.3-A open rather than licensing a fake authority source.
+- Do not introduce a grant store, authority lifecycle, provider adapter, network client, direct ledger writer, generic permission bypass, or path-based trust rule outside the exact owner-approved prerequisite in `05e-wp5-3a-canonical-authority-grant-plan.md`. Until that implementation merges, this boundary keeps WP5.3 runtime blocked rather than licensing a fake authority source.
 - Do not copy or read .env files; use credentials; invoke live providers or the network; serialize raw transcripts; or use restricted data.
 - Configuration must be explicitly injected, non-secret, and schema-validated. An approved secret manager, if ever required, is a separate owner-gated follow-on, never a .env workaround.
 - Do not request or provoke CodeRabbit during drafting. The Manager owns any normal repository review workflow after the plan PR.
@@ -47,6 +50,7 @@ The full typed decision, its evidence identities, the event hash-chain entry, th
 | docs/plans/agentic-research-system/implementation/05a-wp5-1-grading-integrity-plan.md and merged implementation | Accepted release-coordination/authority boundary; no widening of release semantics. |
 | docs/plans/agentic-research-system/implementation/05b-wp5-4-release-tranche-plan.md and merged implementation | Pre-WP5.2 P0 evidence: 40 foundation cases, 15 blocked, zero live calls, 132 results, gate5_authorized=false, candidate_status=blocked. |
 | docs/plans/agentic-research-system/implementation/05c-wp5-2-variant-parity-plan.md and PR #82 amendment | Approved post-WP5.2 re-baseline: 40 foundation cases, 15 blocked, zero uncalibrated mutations, 302 results, calibrated, gate5_authorized=false, candidate_status=blocked, with typed W7 parity evidence. |
+| docs/plans/agentic-research-system/implementation/05e-wp5-3a-canonical-authority-grant-plan.md | Owner-approved G5.3-A prerequisite and the exact typed source, resolver, actor/scope, immutable-hash, bootstrap, revocation, expiry, and writer-lock contract. |
 | docs/plans/agentic-research-system/implementation/04a-wp4-8-verdict-derivation-and-release-evidence-plan.md | O12 wording and the temporary P0 sentinel. |
 | docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md | W2 identities, canonical JSON/hash, command validation, receipts, locking, idempotency, and replay. |
 | docs/plans/agentic-research-system/design/06-evaluation-observability-and-audit.md | W6 decision evidence, non-aggregation, blocked precedence, and privacy requirements. |
@@ -79,7 +83,8 @@ The command accepts a typed ReleasePublicationRequest:
   "release_decision_id": "rgd_...",
   "evaluation_runs_manifest_ref": "art_...",
   "control_binding_ref": "art_...",
-  "publication_authority_ref": "art_...",
+  "publication_authority_grant_id": "agr_...",
+  "publication_authority_sha256": "lowercase-hex-sha256",
   "idempotency_key": "release-publication:..."
 }
 ~~~
@@ -111,13 +116,17 @@ The record must name:
 5. immutable content identity/hash binding the command to the grant; and
 6. expiry/revocation validation repeated under the writer lock.
 
-**Current disposition: OPEN.** The plan PR may be reviewed and merged, but no
-WP5.3 runtime Worker may be dispatched until the Owner selects a trusted source.
-The recommended resolution is a separately scoped W2 authority-source
-prerequisite that canonically activates immutable AuthorityGrant revisions and
-resolves revocation/expiry. If the Owner instead defers that prerequisite,
-WP5.3/O12 remains blocked. A test-injected resolver may test fail-closed
-interfaces but cannot satisfy G5.3-A or publish the production P0 decision.
+**Current disposition: PREREQUISITE DIRECTION APPROVED; G5.3-B OPEN.** On
+2026-07-12 the Owner approved the separately scoped W2 authority-source
+prerequisite recorded in `05e-wp5-3a-canonical-authority-grant-plan.md`.
+Adversarial review then established that the current local CLI can provide
+canonical store provenance but cannot authenticate the human/process presenting
+a public actor ID. G5.3-B must select the trusted-local-operator restriction or
+a wider authenticated-principal package. No WP5.3 runtime Worker may be
+dispatched until that decision is recorded and the resulting prerequisite is
+implemented, independently reviewed, and merged. A test-injected resolver may
+test fail-closed interfaces but cannot satisfy G5.3-A or publish the production
+P0 decision.
 
 After an accepted decision, implementation may add a narrow injected
 ReleasePublicationAuthorizer protocol. It verifies authority; it never creates
@@ -154,7 +163,7 @@ An authorized, verified request appends exactly one event:
     "evaluation_runs_manifest_sha256": "lowercase-hex-sha256",
     "control_binding_ref": "art_...",
     "control_binding_sha256": "lowercase-hex-sha256",
-    "publication_authority_ref": "art_...",
+    "publication_authority_grant_id": "agr_...",
     "publication_authority_sha256": "lowercase-hex-sha256"
   }
 }
@@ -302,7 +311,10 @@ The first red failure must describe the missing public contract, not an incident
 
 1. Register strict schemas.
 2. Implement frozen models and canonical evidence comparison.
-3. Add the narrow authorizer protocol and only a test-injected resolver for the Manager-approved source.
+3. Add the narrow authorizer protocol and wire the implemented
+   `LedgerAuthorityGrantResolver` from the G5.3-A prerequisite. Test-injected
+   resolvers are permitted only for fail-closed interface controls and cannot
+   satisfy the production path.
 4. Add PublishReleaseGateDecision to the existing W2 validation order, including rechecks under lock.
 5. Add the typed ledger draft/finalizer without exposing protected ledger fields.
 6. Extend the canonical receipt model/store with the exact W2 idempotency-scope index; atomically persist accepted, duplicate, rejected, and conflict outcomes so exact retries return the original receipt and changed payloads conflict.
@@ -331,10 +343,14 @@ It takes only schema-valid injected non-secret control/authority bindings and ty
 
 Post-implementation invocation contract. The Worker first verifies each parser
 with `--help`, then materializes only synthetic, non-secret files under
-`C:/tmp` and runs these exact shapes:
+`C:/tmp`. After the typed unpublished decision allocates its exact `rgd_...`
+ID, the Worker builds the strict G5.3-A bootstrap input for that target,
+initializes the absent control store, records its returned expected store
+identity in the control binding, and runs these exact shapes:
 
 ~~~powershell
-uv run --no-sync python -m research_system.cli eval publish-release --config C:/tmp/ars-wp53-control-binding.yaml --publication-authority C:/tmp/ars-wp53-publication-authority.yaml --evaluation-runs C:/tmp/ars-wp53-evaluation-runs.json --output C:/tmp/ars-wp53-publish-receipt.json
+uv run --no-sync python -m research_system.cli store init --code-root C:/tmp/ars-wp53-code --control-root C:/tmp/ars-wp53-control --project-id prj_01978abc-1000-7000-8000-000000001000 --authority-bootstrap C:/tmp/ars-wp53-authority-bootstrap.json
+uv run --no-sync python -m research_system.cli eval publish-release --config C:/tmp/ars-wp53-control-binding.yaml --actor-id act_01978abc-1002-7000-8000-000000001002 --authority-grant-id agr_01978abc-1001-7000-8000-000000001001 --evaluation-runs C:/tmp/ars-wp53-evaluation-runs.json --output C:/tmp/ars-wp53-publish-receipt.json
 uv run --no-sync python -m research_system.cli replay verify --control-root C:/tmp/ars-wp53-control
 uv run --no-sync python -m research_system.cli eval release --config C:/tmp/ars-wp53-control-binding.yaml --evaluation-runs C:/tmp/ars-wp53-evaluation-runs.json
 ~~~
