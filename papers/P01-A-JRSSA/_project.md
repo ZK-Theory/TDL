@@ -186,7 +186,7 @@ Headline categories:
       `papers/P01-A-JRSSA/drafts/sections/results-bhps-robustness.md` (distinct from the
       `supplement-S6-length-matched-dedup.md` supplement). Covers: (a) H1 length-matched
       conclusion — the BHPS/USoc H1 asymmetry survives length-matching both ways (truncate
-      p=0.001, first13 p=0.001), so it is NOT an observation-window artefact (Outcome A);
+      p=0.001, first-13 p=0.001), so it is NOT an observation-window artefact (Outcome A);
       the v1 "future work" window hedge is replaced with the tested claim. (b) BHPS Markov-1
       credibility diagnostic — calibration double-null non-uniform (calibrated=false, KS
       p=1.3e-14, mean double-null p=0.40<0.5 → anti-conservative), null-null variance clean
@@ -211,10 +211,14 @@ Headline categories:
       locked power caveat, NOT counter-evidence to heterogeneity). Three BH
       families (gender, NS-SEC, cohort). Numbers traced to
       `stratified_w2_bh_per_family_2026-07-09.json` + `stratified_w2_recompute_2026-07-09.json`.
-      notation-check clean. **TWO decisions pending:** (1) the Task Prompt said BY
-      for cohort; the files + governing 2026-06-27 amendment say BH (drafted to BH,
-      User to confirm prompt was stale); (2) single-combined-table vs USoc-block +
-      BHPS-in-§6.2 structure choice. Reported Partial pending both.
+      notation-check clean. **Both prior decisions resolved (2026-07-12):** (1)
+      cohort FDR is **BH**, matching the authoritative
+      `contracts/panel-output-schemas/stratified-w2-fdr-families-output.yaml` and the
+      governing 2026-06-27 pre-reg amendment (disjoint per-subgroup-vs-own-null tests
+      are mutually independent → standard BH); the Task Prompt's "BY cohort" was stale
+      base-2026-06-13 text, superseded. (2) Structure is a **single combined
+      23-subgroup section** (USoc + BHPS blocks together), User-approved. Both sections
+      User-approved 2026-07-11.
 - [x] **§5 Mapper-vocabulary audit + threshold sensitivity — COMPLETE 2026-06-22;
       Manager-accepted (FLAG 2.6-A no decision needed, STANDS).** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-mapper-vocabulary-audit.md`.

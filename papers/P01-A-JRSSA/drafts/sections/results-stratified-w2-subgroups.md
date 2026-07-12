@@ -94,7 +94,7 @@ The BHPS strata are smaller, and here nine of eleven subgroups reject their own
 Markov-1 null after within-family FDR correction (Table 6.1b). The two exceptions
 are the two smallest strata in the entire stratified design — parental
 Professional/Managerial ($n = 335$) and the 1980s cohort ($n = 223$) — and both are
-treated below under an explicit power caveat. Every well-powered BHPS stratum
+treated below under an explicit power caveat. Every other BHPS stratum
 rejects, with effect sizes from 2.18 (1940s) to 5.68 (women).
 
 **Table 6.1b. BHPS per-subgroup Markov-1 $W_2$ tests (three FDR families).**
@@ -118,10 +118,9 @@ Columns as in Table 6.1a.
 stratum ($n = 335$) and the 1980s cohort ($n = 223$) are the two smallest cells in
 the stratified design and were pre-registered as underpowered for a per-subgroup
 Markov-1 $W_2$ test. Their effect sizes ($T = 1.60$ and $T = 1.53$) sit only
-marginally above unity with tight intervals, which is the signature of a test with
-too few landmarks to separate observed structure from its null rather than of an
-established topological equivalence. These two cells are therefore reported as
-inconclusive on power grounds; they are not evidence that career topology in these
+marginally above unity. Because both cells were pre-registered as underpowered, this
+marginal separation is not read as an established topological equivalence. These two
+cells are therefore reported as inconclusive on power grounds; they are not evidence that career topology in these
 subgroups is reducible to a Markov-1 process, and they must not be read as
 counter-evidence to the topological heterogeneity documented across the remaining
 strata. (Consistent with this, the two metrics disagree in the smallest cells: for
