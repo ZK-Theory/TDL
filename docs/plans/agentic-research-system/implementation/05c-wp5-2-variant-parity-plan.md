@@ -59,11 +59,13 @@ and bounded fake F-020 r2 evidence below; it is not provider enablement.
 - gate5_authorized remains false and candidate_status remains blocked. A fake
   parity pass documents only the bounded fake-adapter surface; it cannot
   authorize Gate 5, live providers, or a capability restriction.
-- The only accepted generated-input change is F-020 r1 -> r2, its two existing
-  fake-adapter matrix-row revisions, canonical-policy per-control revisions,
-  and their existing materializers/tests. Do not add a fixture, matrix row,
-  grader, provider variant, or result key. Do not edit any other fixture,
-  coverage selection, WP5.4 implementation, WP5.3 event publication,
+- The only accepted generated-input change is F-020 r1 -> r2, the F-020
+  revision pin in p0-coverage.yaml, all three existing F-020 matrix-row
+  revisions (one baseline plus two fake-adapter Gate-5 rows), canonical-policy
+  per-control revisions, and their existing materializers/tests. Do not add a
+  fixture, matrix row, grader, provider variant, or result key. Do not edit any
+  other fixture or coverage selection, WP5.4 implementation, WP5.3 event
+  publication,
   live-grader policy, Gate 6, research results, or paper claims.
 - Preserve exact result-key closure and anti-anchoring. Missing, stale,
   duplicate, unexpected, or unbound matrix/grader evidence blocks release; no
@@ -98,8 +100,12 @@ Gate-5 rows expand as follows:
 - Added result keys = 2 x (53 + 32) = 170; target = 132 + 170 = 302.
 
 F-020 r2 retains its three required graders and the same two Gate-5 provider
-rows. Its composite post-control value adds four control-addressable subpaths;
-it changes neither the 53 adapter/rendering grader sum nor any invariant.
+rows. It advances the selected coverage pin and all three existing matrix rows
+(one baseline plus two Gate-5 rows) in place. Its additive composite
+post-control value preserves the three r1 observations and adds four
+control-addressable objects containing ten operation-addressable observations;
+it changes neither the 53 adapter/rendering grader sum, the 132 baseline, nor
+any invariant.
 
 D-G5-3 approval covers only this table. It does not accept Gate 5.
 
@@ -147,25 +153,34 @@ valid only when all of the following are true:
   canonical_observed_value}))`. The loader recomputes this hash.
 
 F-020 r2 keeps one oracle assertion named `adapter_policy_parity`, because the
-calibration seam consumes a single assertion. Its canonical observed value
-contains a `controls` object with four independently addressable records:
+calibration seam consumes a single assertion. The r2 canonical observed value
+is additive and has exactly four top-level members: the existing
+`semantic_parity: true`, `poorer_source_overwrite_blocked: true`, and
+`affected_dispatch_waits: true` r1 observations, plus `controls`. No r1
+observation may be removed, renamed, or replaced. The exact control values are:
 
 | JSON Pointer | Exact canonical observed value |
 |---|---|
-| `/controls/no-shell` | `{"declared_tool_only":true,"forbidden_transport_invocations":0,"undeclared_shell_blocked":true}` |
-| `/controls/no-direct-event-write` | `{"direct_canonical_write_blocked":true,"state_change_path":"submit_ars_command"}` |
-| `/controls/no-live-provider-by-default` | `{"live_provider_enabled":false,"subprocess_issue_count":0}` |
-| `/controls/no-raw-transcript-retention` | `{"full_transcript_retained":false,"receipt_mode":"bounded_redacted"}` |
+| `/controls/no-shell` | `{"operations":{"invoke_declared_tool":{"declared_tool_only":true,"forbidden_transport_invocations":0,"undeclared_shell_blocked":true}}}` |
+| `/controls/no-direct-event-write` | `{"operations":{"submit_ars_command":{"direct_canonical_write_blocked":true,"state_change_path":"submit_ars_command"}}}` |
+| `/controls/no-live-provider-by-default` | `{"operations":{"cancel_provider_work":{"live_provider_enabled":false,"subprocess_issue_count":0},"query_provider_status":{"live_provider_enabled":false,"subprocess_issue_count":0},"request_model_work":{"live_provider_enabled":false,"subprocess_issue_count":0},"request_review":{"live_provider_enabled":false,"subprocess_issue_count":0}}}` |
+| `/controls/no-raw-transcript-retention` | `{"operations":{"deliver_context":{"full_transcript_retained":false,"receipt_mode":"bounded_redacted"},"deliver_message":{"full_transcript_retained":false,"receipt_mode":"bounded_redacted"},"request_model_work":{"full_transcript_retained":false,"receipt_mode":"bounded_redacted"},"request_review":{"full_transcript_retained":false,"receipt_mode":"bounded_redacted"}}}` |
 
 Object keys are canonicalized in sorted order before the observed-value hash is
-computed. These objects are the accepted values; prose, booleans without the
-declared fields, or adjacent receipt/transport metadata are not substitutes.
+computed. Each control object's `operations` keys must equal its accepted
+operation-class set exactly; a missing, extra, substituted, or duplicate
+operation is invalid. These objects are the accepted values; prose, aggregate
+booleans, or adjacent receipt/transport metadata are not substitutes.
 
-The r2 executor derives those records through named public fake adapter,
-command, transport, and receipt seams. It may not return hard-coded pass labels,
-read expected oracle values, or reuse the D-G5-5 comparator as observation.
-Four independent known-bad mutations must each break one control subpath while
-the other three remain intact.
+The r2 executor derives all ten operation records through named public fake
+adapter, command, transport, and receipt seams. It may not return hard-coded
+pass labels, read expected oracle values, or reuse the D-G5-5 comparator as
+observation. Preserve the existing r1 known-bad calibration behavior and its
+single registered mutation. Separately, public-seam negative tests perturb
+each of the ten derived operation records one at a time while every other
+operation and all three preserved r1 observations remain intact. Those ten
+test-only perturbations are not fixture `mutation_ids`, do not enter the W6
+calibration loop, and require no calibration.py change.
 
 The applicability schema rejects missing, extra, stale, duplicate, unknown, or
 wildcard controls/selectors, a mismatched decision hash, and an expected hash
@@ -193,11 +208,12 @@ tests/research_system/unit/test_policy_control_applicability.py
 tests/research_system/unit/test_policy_loader.py
 ~~~
 variants.py owns typed matrix loading, exact row/coverage binding, fake-only
-execution, twice-run normalized-decision comparison, execution-derived observed
-assertion evidence, and variant result expansion. The variant-execution schema
+execution, twice-run normalized-decision comparison, execution-derived
+per-operation observed assertion evidence, and variant result expansion. The variant-execution schema
 fixes the immutable record and its content-addressed hash.
 `parity_evidence.py` owns the frozen fake-parity evidence model and
-the sole builder from completed variant execution to control/provider evidence.
+the sole builder from completed variant execution to
+control/operation/provider-closed evidence.
 loader.py owns loading the committed canonical policy and the D-G5-5
 applicability source; it never reads provider configuration from the
 environment.
@@ -225,6 +241,7 @@ research_system/cli.py
 .research-system/evals/fixtures/F-020/graders/required.json
 .research-system/evals/fixtures/F-020/input/source-manifest.json
 .research-system/evals/p0-variant-matrix.yaml
+.research-system/evals/p0-coverage.yaml
 research_system/policy/models.py
 research_system/policy/compiler.py
 research_system/evals/executors/adapter_scientific.py
@@ -244,12 +261,13 @@ docs/plans/agentic-research-system/implementation/04a-wp4-8-verdict-derivation-a
 docs/plans/agentic-research-system/implementation/04b-wp4-9-corpus-restore-to-spec-plan.md
 vault/04-Methods/Computational-Log.md
 ~~~
-Apart from the exact F-020 r2, canonical-policy, two matrix-row revision, and
-named materializer changes above, do not modify the matrix, any fixture
-directory, p0-coverage.yaml, provider YAMLs, WP5.4 files,
-research_system/command, research_system/projection, or a W2 event surface. If
-the four behaviors cannot be derived through existing public fake seams, stop
-Partial rather than substitute a label or widen scope.
+Apart from the exact F-020 r2 package, its p0-coverage revision pin, all three
+existing F-020 matrix-row revisions, canonical-policy, and named materializer
+changes above, do not modify any other matrix row, fixture directory, coverage
+selection, provider YAML, WP5.4 file, research_system/command,
+research_system/projection, or W2 event surface. If the ten operation behaviors
+cannot be derived through existing public fake seams, stop Partial rather than
+substitute a label or widen scope.
 
 The existing adapter capability-manifest schema is not a parity-evidence input:
 it has no per-control disposition/evidence binding. Do not extend or accept a
@@ -307,8 +325,9 @@ fake-adapter evidence surfaces.
 ## Task 0: Materialize the accepted D-G5-5 and F-020 r2 contract
 
 **Files:** modify canonical-policy.yaml, its schema/model/compiler tests, the
-F-020 package and adapter-scientific executor/materializer/tests, exactly two
-F-020 matrix row revisions and the matrix materializer/tests; create the
+F-020 package and adapter-scientific executor/materializer/tests, the F-020
+revision pin in p0-coverage.yaml, all three existing F-020 matrix row revisions
+(one baseline plus two Gate-5 rows), and the matrix/coverage tests; create the
 D-G5-5 applicability source and schema.
 
 - [ ] **Step 1: write red public-seam tests.** Require per-control `revision`
@@ -316,12 +335,15 @@ D-G5-5 applicability source and schema.
   table, decision-payload hash, bundle hash, two selectors per control, JSON
   Pointer, canonical expected value, and recomputed expected-value hash. Reject
   a missing/extra operation, wildcard, duplicate control/provider, old F-020
-  revision, old bundle hash, or copied hash.
-- [ ] **Step 2: write four independent F-020 behavior tests.** Through public
-  fake seams, prove the composite `adapter_policy_parity.controls` record
-  derives shell rejection, command-service-only canonical writes, disabled live
-  issue, and bounded/redacted receipts. Each known-bad mutation changes exactly
-  one subpath and fails its expected hash without making the other three fail.
+  revision, stale coverage pin, stale baseline row, stale Gate-5 row, old bundle
+  hash, or copied hash.
+- [ ] **Step 2: write additive F-020 r2 behavior tests.** Through public fake
+  seams, first regression-test the three exact r1 observations and the existing
+  single registered known-bad calibration mutation. Then prove all ten accepted
+  operation records under `adapter_policy_parity.controls`. Ten separate
+  test-only perturbations each change one operation record and fail its control
+  hash while every other operation and all three r1 observations remain intact.
+  Assert these perturbations never enter the fixture mutation/calibration loop.
   Reading the oracle/D-G5-5 source inside the executor or returning literal
   pass/disposition labels is a test failure.
 - [ ] **Step 3: run red.**
@@ -330,9 +352,12 @@ D-G5-5 applicability source and schema.
 uv run --no-sync pytest tests/research_system/unit/test_policy_projection.py tests/research_system/unit/test_wp3_configuration.py tests/research_system/unit/test_policy_control_applicability.py tests/research_system/unit/test_policy_loader.py tests/research_system/unit/test_executors.py tests/research_system/integration/test_adapter_scientific_fixture_corpus.py tests/research_system/unit/test_variant_matrix.py -q --no-cov
 ~~~
 - [ ] **Step 4: implement and materialize minimally.** Advance only F-020 to r2,
-  preserve its one oracle assertion and three graders, update only its two
-  Gate-5 matrix row revisions, add `revision: r1` to the four canonical
-  controls, and recompute every affected content/bundle/decision/value hash.
+  preserve its one oracle assertion, three r1 observations, one registered
+  calibration mutation, and three graders; update its selected coverage pin and
+  all three existing matrix rows (one baseline plus two Gate-5 rows); add
+  `revision: r1` to the four canonical controls; and recompute every affected
+  content/bundle/decision/value hash. Re-prove that baseline execution still
+  yields 132 results before adding the unchanged 170 Gate-5 results.
 - [ ] **Step 5: run green and invariant smoke.**
 
 ~~~shell
@@ -494,10 +519,11 @@ and named parity/CLI/model tests.
   applicability and never reads a provider environment/configuration.
 - PolicyControlApplicability contains one ControlApplicability per canonical
   control and exact ProviderEvidenceRequirement values. Each requirement has
-  accepted required risk tiers/capabilities, provider variant, matrix selector,
-  post-control assertion property, and expected assertion evidence hash. The
-  loader rejects missing, extra, stale, duplicate, conflicting, incompatible,
-  and wildcard controls/providers/selectors.
+  accepted required risk tiers and operation classes, provider variant, matrix
+  selector, post-control assertion property/JSON Pointer, the exact canonical
+  per-operation object, and its expected assertion evidence hash. The loader
+  rejects missing, extra, stale, duplicate, conflicting, incompatible, and
+  wildcard controls/providers/selectors/operations.
 - build_fake_adapter_parity_evidence in parity_evidence.py is the sole producer
   accepted by build_parity_report. It accepts frozen VariantExecutionEvidence,
   the typed applicability source, and the loaded canonical bundle; it rejects a
@@ -508,10 +534,15 @@ and named parity/CLI/model tests.
   exact sorted six-element grader result keys, and exact completeness of the
   execution-derived observed-assertion set. It then resolves exactly one
   `ObservedAssertionEvidence` record by the D-G5-5-required property and JSON
-  Pointer and compares that record's equal first/second observed-value hash to the
-  owner-approved expected hash. The owner mapping is only the comparator: it
-  cannot supply or replace observed evidence. The producer may not reread raw
-  fixtures, transport output, or caller dictionaries. It emits a frozen
+  Pointer, requires the observed control object's operation-key set to equal
+  the requirement's operation-class set exactly, verifies every per-operation
+  value was independently derived in both fake attempts, and compares the
+  equal first/second whole-control observed-value hash to the owner-approved
+  expected hash. Thus requirement/evidence closure is
+  control × operation × provider even though one content-addressed control
+  object carries the operation set. The owner mapping is only the comparator:
+  it cannot supply or replace observed evidence. The producer may not reread
+  raw fixtures, transport output, or caller dictionaries. It emits a frozen
   FakeAdapterParityEvidence record with the Task 2 execution_evidence_hash,
   selected observed-assertion property/hash, and a content-addressed evidence
   ID:
@@ -532,7 +563,7 @@ and named parity/CLI/model tests.
   proves a bounded fake adapter surface and makes no live-provider claim.
 - build_parity_report(bundle, applicability, evidence_records) accepts only
   those three frozen typed inputs. It requires exact equality between the
-  D-G5-5 control/provider requirement set and evidence set, then emits one W7
+  D-G5-5 control/operation/provider requirement set and evidence set, then emits one W7
   row with control ID/revision, accepted risk/capability applicability, fake
   provider disposition, bound evidence IDs/hashes, consequence, and
   owner/resume condition. It emits ppr_ identity, canonical report hash, bundle
@@ -556,17 +587,18 @@ and named parity/CLI/model tests.
   any provider execution.
 
   test_fake_adapter_parity_evidence.py constructs real typed 46-row execution
-  evidence and requires every control/provider requirement to resolve to one
-  exact record and one execution-derived observed assertion. Reject
+  evidence and requires every control/operation/provider requirement to close through one
+  exact record and one execution-derived observed assertion per control. Reject
   arbitrary/plain manifests, self-attested evidence, missing/extra/stale/
   duplicate/provider-incompatible records, missing/extra/duplicate assertion
-  records, changed execution hash, changed grader result key, changed observed
-  assertion property/hash, a second-run assertion mismatch, and an owner
-  expected hash passed off as an observed hash. Explicitly prove a claimed
+  records or operation keys, changed execution hash, changed grader result key,
+  changed observed assertion property/hash, any per-operation value mismatch,
+  a second-run assertion mismatch, and an owner expected hash passed off as an
+  observed hash. Explicitly prove a claimed
   native or adapter_enforced disposition cannot reach a passing report without
   bound execution and observed-assertion evidence.
 
-  test_adapter_parity.py requires complete control/provider/evidence equality,
+  test_adapter_parity.py requires complete control/operation/provider/evidence equality,
   critical-gap blocking, and non-compensability by high percentage.
   test_eval_cli.py and test_eval_models.py prove no report is not_evaluated,
   forged passed=true cannot create pass, a complete real fake report stores
@@ -666,10 +698,14 @@ git diff --check
 3. Strict release closure has 302 unique six-element keys: 132 baseline plus
    170 row-specific variants; no grader result is overwritten or ignored.
 4. A schema-valid D-G5-5 source supplies the exact accepted R0-R3/operation
-   table and two F-020 r2 provider selectors per control; semantic_class is
-   never treated as applicability.
-5. F-020 r2 exposes one composite oracle assertion with four independently
-   mutated control subpaths, retains three graders/two provider rows, and changes
+   table and two F-020 r2 provider selectors per control; every selector's
+   observed object closes exactly over its mapped operation classes, and
+   semantic_class is never treated as applicability.
+5. F-020 r2 preserves the three exact r1 provider-policy-drift observations and
+   its single calibration mutation, then adds one composite controls object
+   with ten independently derived operation records. Ten test-only
+   perturbations each fail one operation without entering calibration. It
+   retains three graders, one baseline row, and two provider rows, and changes
    no invariant. Each W7 disposition is produced only from content-addressed
    typed evidence bound to an actual execution record whose immutable hash includes
    independently derived, two-run-equal observed-assertion evidence. The
@@ -699,15 +735,16 @@ Stop Partial and escalate if:
    uncalibrated, calibrated, blocked; or matrix derivation is not exactly 46
    rows/170 added results.
 3. A row is stale, unbound, wildcarded, duplicated, needs any matrix/fixture
-   rewrite beyond the exact F-020 r2 and its two row revisions, or cannot run
-   twice fake-only.
+   rewrite beyond the exact additive F-020 r2 package, its one coverage pin,
+   and its three existing row revisions, or cannot run twice fake-only.
 4. Variant identity cannot be carried through accepted W6 schemas without an
    unplanned W6/W2 redesign.
 5. A source derives applicability from semantic_class/fixture labels, permits a
-   wildcard/default, lacks decision/bundle binding, or an evidence/assertion
-   record is missing/extra/stale/duplicate/incompatible/self-attested; observed
-   assertion evidence is not derived independently from both fake runs and
-   included in execution_evidence_hash.
+   wildcard/default, lacks decision/bundle binding, or an evidence/assertion/
+   operation record is missing/extra/stale/duplicate/incompatible/self-attested;
+   observed evidence does not close exactly over every required operation, is
+   not derived independently from both fake runs, or is not included in
+   execution_evidence_hash.
 6. A canonical control lacks actual fake evidence; a claimed native or
    adapter_enforced disposition lacks its exact bound execution record; a
    critical gap is averaged away; caller input can force pass; or the report
@@ -726,16 +763,18 @@ Before accepting the report or merging, independently verify:
   D-G5-5 applicability decision;
 - 40/15/132 baseline and 132+170=302 arithmetic from coverage, matrix, and
   required graders;
-- F-020 r2's four independently mutated public-seam behaviors, unchanged
-  three-grader/two-row arithmetic, all 46 bindings, fake-only transport
-  evidence, and two-run hash pairs;
+- F-020 r2's preserved three r1 observations/single calibration mutation,
+  ten independently derived operation behaviors and ten test-only
+  perturbations, unchanged three-grader/one-baseline/two-Gate-5-row arithmetic,
+  all 46 Gate-5 bindings, fake-only transport evidence, and two-run hash pairs;
 - D-G5-5 decision-hash/source/bundle binding, the exact accepted operation
   table, four per-control revisions, two F-020 r2 selectors per control, and
   proof that semantic_class was not substituted;
 - typed variant-execution and fake-evidence schemas; execution-hash derivation
   from the actual 46 records plus independently derived two-run observed
-  assertions; exact expected-property/hash comparison, evidence-ID/hash
-  derivation, and requirement/evidence equality; and negatives for
+  assertions; exact expected-property/hash and per-operation comparison, evidence-ID/hash
+  derivation, and control/operation/provider requirement/evidence equality; and
+  negatives for
   plain/self-attested, missing/extra/stale/duplicate/incompatible execution or
   assertion evidence and unbound native/adapter_enforced claims;
 - parity schema/ID/hash/full rows plus a critical-gap negative that percentage
