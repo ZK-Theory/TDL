@@ -5,8 +5,10 @@
 > The accepted W6/W7 specifications and this approved dispatch plan are the
 > control-plane contract authority; do not author a new mathematical contract.
 
-**Status:** draft for Manager/PR review and Stephen's D-G5-3 approval. This is
-not implementation authority.
+**Status:** approved for bounded implementation amendment. Stephen merged the
+reviewed plan and, on 2026-07-12, accepted D-G5-5's explicit applicability and
+F-020 r2 evidence recommendation and instructed the Manager to proceed. This
+does not accept Gate 5 or authorize a live provider.
 
 **Goal:** discharge 04b R8 and 04a O11 by executing every Gate-5 matrix row
 against its bound fixture revision through deterministic fake Claude/Codex
@@ -24,32 +26,26 @@ hash, never a caller-supplied boolean, determine parity_status in the release
 decision.
 
 **Owner authorization:** Stephen approved Gate 5 scope, D-G5-1(a), and D-G5-4
-on 2026-07-10. D-G5-2/O15 remains deferred. D-G5-3 for this package is
-approved only when Stephen approves this exact plan after review. **D-G5-5 is
-open:** W7 requires a risk/capability applicability mapping that current
-canonical policy does not contain; Stephen must approve that mapping before
-implementation can produce a passing parity report.
+on 2026-07-10. D-G5-2/O15 remains deferred. On 2026-07-12 Stephen accepted the
+exact D-G5-3 values and D-G5-5 mapping in this amended plan and instructed the
+Manager to proceed. D-G5-5 authorizes only the explicit R0-R3 applicability
+and bounded fake F-020 r2 evidence below; it is not provider enablement.
 
 ## Dispatch Gate and Global Constraints
 
-- **Never implement from this documentation branch.** Work begins only after PR
-  #78 has independent review, CodeRabbit has concluded, and its exact reviewed
-  head (currently candidate dependency head
-  f6450248bc5a40352ed01a06641012f48188eac7) is merged to main. The Worker
-  proves its eventual merge contains that head with git merge-base --is-ancestor,
-  creates pipe/ars-gate5-variant-parity with git switch -c from that detached
-  merge commit, and reports branch plus exact HEAD before editing.
-- Stephen must explicitly approve this WP5.2 plan and its D-G5-3 table before
-  the first implementation write. A planning-branch merge is not approval.
-- **D-G5-5 is an additional owner gate, not an implementation inference.** W7
-  section 17 requires each parity row to name where its control is mandatory,
-  but the accepted canonical policy exposes only `semantic_class`, `critical`,
-  and `failure_mode`. `semantic_class` is not a risk/capability applicability
-  declaration. Before Task 3, Stephen must approve an exact no-wildcard mapping
-  in the typed source and schema specified below. If it is absent, stale, or
-  lacks an accepted decision reference, the Worker reports Partial and stops;
-  it must not assign values such as `all`, derive them from a class name, or
-  reuse a fixture label as policy applicability.
+- **Never implement from this documentation branch.** Work begins from merged
+  main containing PR #78 merge `8224ce043d250b56aba086de3d4e627545f65dda`
+  and PR #80 merge `f9a72c45808f654be97c74369e9ff323c9f8230f`,
+  plus the independently reviewed amendment merge. The Worker proves all three
+  are ancestors, creates `pipe/ars-gate5-variant-parity` from that exact merge,
+  and reports branch plus exact HEAD before editing.
+- Stephen's 2026-07-12 "Recommendation is accepted. Proceed." records D-G5-5
+  and authorizes this bounded implementation after the amendment is merged. It
+  does not authorize Gate 5 acceptance or broader applicability.
+- **D-G5-5 is literal, not an implementation inference.** Use only the exact
+  no-wildcard table and evidence selectors below. `semantic_class`, fixture
+  risk, and provider labels are not alternate applicability sources. Missing,
+  stale, or conflicting decision/bundle/evidence binding is Partial and stop.
 - Before every write and commit, verify the intended worktree, branch,
   scope-understood status, and reviewed-WP5.4 merge ancestry. The Worker commits
   and reports; the Manager alone merges after independent review.
@@ -63,10 +59,12 @@ implementation can produce a passing parity report.
 - gate5_authorized remains false and candidate_status remains blocked. A fake
   parity pass documents only the bounded fake-adapter surface; it cannot
   authorize Gate 5, live providers, or a capability restriction.
-- Do not edit the generated matrix, its generator, fixture packages, coverage
-  selection, WP5.4 release-tranche implementation, WP5.3 event publication,
-  live-grader policy, Gate 6, research results, or paper claims. They are
-  verification inputs only.
+- The only accepted generated-input change is F-020 r1 -> r2, its two existing
+  fake-adapter matrix-row revisions, canonical-policy per-control revisions,
+  and their existing materializers/tests. Do not add a fixture, matrix row,
+  grader, provider variant, or result key. Do not edit any other fixture,
+  coverage selection, WP5.4 implementation, WP5.3 event publication,
+  live-grader policy, Gate 6, research results, or paper claims.
 - Preserve exact result-key closure and anti-anchoring. Missing, stale,
   duplicate, unexpected, or unbound matrix/grader evidence blocks release; no
   oracle, threshold, calibration policy, or expected count is adjusted to pass.
@@ -80,7 +78,7 @@ This pre-registration is derived from committed artifacts, not estimated.
 
 | Invariant | Post-WP5.4 baseline | WP5.2 target | Exact derivation and smoke assertion |
 |---|---:|---:|---|
-| fixture_count | 40 | **40** | WP5.2 adds no package; 46 rows re-execute bound selected revisions. Assert 40. |
+| fixture_count | 40 | **40** | WP5.2 adds no package; F-020 advances in place to r2 and 46 rows execute bound selected revisions. Assert 40. |
 | blocked_fixture_count | 15 | **15** | Existing fourteen M/H blocks plus S-016's H row remain under D-G5-1(a). Assert 15. |
 | result_count | 132 | **302** | 132 + 170. The matrix has 46 rows: 30 adapter/rendering and 16 sizing. Two providers multiply 53 adapter/rendering required-grader rows plus 32 sizing required-grader rows: 2 x (53 + 32) = 170. A terminal variant_id makes them distinct. Assert 302. |
 | fixtures_with_uncalibrated_mutations | 0 | **0** | Repetition adds no mutation or calibration relaxation. Assert 0. |
@@ -99,44 +97,89 @@ Gate-5 rows expand as follows:
   F-031, F-033, F-035 = 4+4+5+2+3+4+5+5 = 32.
 - Added result keys = 2 x (53 + 32) = 170; target = 132 + 170 = 302.
 
+F-020 r2 retains its three required graders and the same two Gate-5 provider
+rows. Its composite post-control value adds four control-addressable subpaths;
+it changes neither the 53 adapter/rendering grader sum nor any invariant.
+
 D-G5-3 approval covers only this table. It does not accept Gate 5.
 
-## D-G5-5: Owner-Approved W7 Control Applicability
+## D-G5-5: Accepted W7 Control Applicability and Evidence Binding
 
-**Decision required before implementation:** Stephen must approve the exact
-W7 control-to-applicability-and-evidence mapping. The accepted W7 text requires
-the field but does not supply values for the four current policy controls, so
-the Worker cannot derive them from `semantic_class` or fixture names.
+**Owner decision accepted 2026-07-12:** every current canonical control is
+mandatory at each explicit risk tier `R0`, `R1`, `R2`, and `R3`.
+Capability values are W7 normalized operation classes, not W4 model capability
+labels. The accepted mapping is exact:
 
-The only accepted runtime source is the committed,
-schema-validated `.research-system/policies/gate5-policy-control-applicability.yaml`.
-It is valid only when all of the following are true:
+| control_id | control_revision | required operation classes |
+|---|---|---|
+| `no-shell` | `r1` | `invoke_declared_tool` |
+| `no-direct-event-write` | `r1` | `submit_ars_command` |
+| `no-live-provider-by-default` | `r1` | `request_model_work`, `request_review`, `query_provider_status`, `cancel_provider_work` |
+| `no-raw-transcript-retention` | `r1` | `deliver_context`, `request_model_work`, `deliver_message`, `request_review` |
 
-- its `decision_ref` is the owner-recorded **D-G5-5** decision and its
-  `decision_record_hash` equals the accepted decision record;
-- it binds the exact canonical policy bundle ID, revision, and content hash;
-- it contains each and only each canonical control exactly once, with that
-  control's exact revision, non-empty explicit `required_risk_tiers` and
-  `required_capabilities`, and no wildcard/default/fallback field;
-- for each required fake provider it contains exact evidence selectors:
-  `(fixture_id, fixture_revision, variant_id, provider_variant)`, each of
-  which resolves to a committed `execution_stage: gate5` matrix row; and
-- every selector names the exact post-control assertion property and expected
-  evidence hash that the actual execution must satisfy. The source is an
-  applicability/evidence map, never a claimed provider disposition.
+All four rows carry `required_risk_tiers: [R0, R1, R2, R3]` literally. There
+is no wildcard, default, semantic-class derivation, or implication that every
+operation class applies to every control.
 
-`.research-system/schemas/adapters/policy-control-applicability.schema.json`
-defines that source and rejects missing, extra, stale, duplicate, unknown, or
-wildcard controls/selectors. `load_policy_control_applicability` returns its
-frozen typed model only after schema and bundle binding validation. There is no
-default applicability model. Until D-G5-5 is accepted and this file validates,
-the required outcome is **Partial — owner applicability mapping required**.
+The canonical bundle remains `cpb_p0_foundation`, but each control gains the
+explicit `revision: r1` required by W7 control identity. The bundle content
+hash therefore changes. Every applicability/evidence record must bind the
+newly loaded bundle hash; no hash from the old bundle may be copied.
+
+The only accepted runtime source is the committed, schema-validated
+`.research-system/policies/gate5-policy-control-applicability.yaml`. It is
+valid only when all of the following are true:
+
+- `decision_ref` is `D-G5-5`; its embedded canonical decision payload names
+  Stephen, acceptance date 2026-07-12, the exact table above, and the F-020 r2
+  binding; `decision_record_hash` is recomputed from that payload;
+- it binds the exact canonical bundle ID, revision, and newly computed hash;
+- it contains each and only each canonical control once, with exact revision,
+  literal risk tiers, exact operation classes, and no wildcard/default/fallback;
+- each control has exactly two selectors: F-020 r2 with
+  `fake-claude-adapter-v1-windows-fake-transport` /
+  `fake-claude-adapter-v1`, and F-020 r2 with
+  `fake-codex-adapter-v1-windows-fake-transport` /
+  `fake-codex-adapter-v1`; and
+- each selector names `adapter_policy_parity`, one exact JSON Pointer under
+  `/controls/<control-id>`, the accepted canonical expected value, and
+  `sha256(canonical_bytes({property, json_pointer,
+  canonical_observed_value}))`. The loader recomputes this hash.
+
+F-020 r2 keeps one oracle assertion named `adapter_policy_parity`, because the
+calibration seam consumes a single assertion. Its canonical observed value
+contains a `controls` object with four independently addressable records:
+
+| JSON Pointer | Exact canonical observed value |
+|---|---|
+| `/controls/no-shell` | `{"declared_tool_only":true,"forbidden_transport_invocations":0,"undeclared_shell_blocked":true}` |
+| `/controls/no-direct-event-write` | `{"direct_canonical_write_blocked":true,"state_change_path":"submit_ars_command"}` |
+| `/controls/no-live-provider-by-default` | `{"live_provider_enabled":false,"subprocess_issue_count":0}` |
+| `/controls/no-raw-transcript-retention` | `{"full_transcript_retained":false,"receipt_mode":"bounded_redacted"}` |
+
+Object keys are canonicalized in sorted order before the observed-value hash is
+computed. These objects are the accepted values; prose, booleans without the
+declared fields, or adjacent receipt/transport metadata are not substitutes.
+
+The r2 executor derives those records through named public fake adapter,
+command, transport, and receipt seams. It may not return hard-coded pass labels,
+read expected oracle values, or reuse the D-G5-5 comparator as observation.
+Four independent known-bad mutations must each break one control subpath while
+the other three remain intact.
+
+The applicability schema rejects missing, extra, stale, duplicate, unknown, or
+wildcard controls/selectors, a mismatched decision hash, and an expected hash
+that does not recompute. `load_policy_control_applicability` returns its
+frozen typed model only after decision, bundle, selector, expected-value, and
+hash validation. There is no default applicability model. D-G5-5 is accepted;
+absence or invalidity of this exact source is **Partial — applicability
+evidence invalid**.
 
 ## File Map
 
 **Create:**
 
-~~~
+~~~text
 research_system/evals/variants.py
 research_system/adapters/parity_evidence.py
 research_system/policy/loader.py
@@ -149,7 +192,6 @@ tests/research_system/unit/test_fake_adapter_parity_evidence.py
 tests/research_system/unit/test_policy_control_applicability.py
 tests/research_system/unit/test_policy_loader.py
 ~~~
-
 variants.py owns typed matrix loading, exact row/coverage binding, fake-only
 execution, twice-run normalized-decision comparison, execution-derived observed
 assertion evidence, and variant result expansion. The variant-execution schema
@@ -162,7 +204,7 @@ environment.
 
 **Modify only for the interfaces below:**
 
-~~~
+~~~text
 research_system/adapters/parity.py
 research_system/evals/models.py
 research_system/evals/coverage.py
@@ -173,6 +215,21 @@ research_system/cli.py
 .research-system/schemas/evals/coverage-manifest.schema.json
 .research-system/schemas/evals/grader-result.schema.json
 .research-system/schemas/evals/release-gate-decision.schema.json
+.research-system/policies/canonical-policy.yaml
+.research-system/schemas/adapters/canonical-policy-bundle.schema.json
+.research-system/evals/fixtures/F-020/fixture.yaml
+.research-system/evals/fixtures/F-020/input/stimulus.json
+.research-system/evals/fixtures/F-020/expected/pre-control.json
+.research-system/evals/fixtures/F-020/expected/post-control.json
+.research-system/evals/fixtures/F-020/expected/trajectory.json
+.research-system/evals/fixtures/F-020/graders/required.json
+.research-system/evals/fixtures/F-020/input/source-manifest.json
+.research-system/evals/p0-variant-matrix.yaml
+research_system/policy/models.py
+research_system/policy/compiler.py
+research_system/evals/executors/adapter_scientific.py
+tools/ars/materialize_adapter_scientific_fixtures.py
+tools/ars/materialize_p0_variant_matrix.py
 tests/research_system/unit/test_adapter_parity.py
 tests/research_system/unit/test_canonical_ids.py
 tests/research_system/unit/test_coverage.py
@@ -187,12 +244,12 @@ docs/plans/agentic-research-system/implementation/04a-wp4-8-verdict-derivation-a
 docs/plans/agentic-research-system/implementation/04b-wp4-9-corpus-restore-to-spec-plan.md
 vault/04-Methods/Computational-Log.md
 ~~~
-
-Do not modify the matrix, any fixture directory, tools/ars/materialize_*.py,
-p0-coverage.yaml, provider YAMLs, WP5.4 files, research_system/command,
-research_system/projection, or a W2 event surface. If this cannot be done
-through the listed W6/W7 schemas and evaluation seams, stop Partial rather than
-widen scope.
+Apart from the exact F-020 r2, canonical-policy, two matrix-row revision, and
+named materializer changes above, do not modify the matrix, any fixture
+directory, p0-coverage.yaml, provider YAMLs, WP5.4 files,
+research_system/command, research_system/projection, or a W2 event surface. If
+the four behaviors cannot be derived through existing public fake seams, stop
+Partial rather than substitute a label or widen scope.
 
 The existing adapter capability-manifest schema is not a parity-evidence input:
 it has no per-control disposition/evidence binding. Do not extend or accept a
@@ -203,7 +260,7 @@ fake-adapter evidence surfaces.
 
 | ID | Source | Obligation | Owner | Disposition |
 |---|---|---|---|---|
-| V0 | W7 §17 applicability field | Approve exact control risk/capability and matrix-evidence applicability mapping | Stephen | **D-G5-5 owner gate; Partial/stop until accepted** |
+| V0 | W7 §17 applicability field | Approve exact control risk/capability and matrix-evidence applicability mapping | Stephen | **Accepted 2026-07-12; Task 0 materializes the exact decision** |
 | V1 | 04b R8 / Gate 5 scope | Run every Gate-5 matrix row on its exact fixture revision via fake Claude/Codex only | WP5.2 | Tasks 1-2 |
 | V2 | 05-plan §7.3 / 04a O1 | Each Gate-5 row runs twice with byte-identical normalized decisions | WP5.2 | Task 2 |
 | V3 | W7 §17 / 04a O11 | Field-by-field semantic parity from typed, bound fake execution evidence; one missing critical control blocks | WP5.2 | Task 3 after V0 |
@@ -242,10 +299,51 @@ fake-adapter evidence surfaces.
   code/schemas/tests, generated checks, two-run hashes, temporary output
   documents, review/PR, obligation closure, and a top-of-page [PIPELINE] vault
   entry.
-- **Partial:** absent/unapproved D-G5-5 mapping, unbound row, live/secrets
+- **Partial:** invalid/stale D-G5-5 mapping, unbound row, live/secrets
   requirement, missing critical control, plain/self-attested parity evidence,
   percentage/caller-forced parity pass, result-key/schema failure, invariant
   drift, or new out-of-scope surface.
+
+## Task 0: Materialize the accepted D-G5-5 and F-020 r2 contract
+
+**Files:** modify canonical-policy.yaml, its schema/model/compiler tests, the
+F-020 package and adapter-scientific executor/materializer/tests, exactly two
+F-020 matrix row revisions and the matrix materializer/tests; create the
+D-G5-5 applicability source and schema.
+
+- [ ] **Step 1: write red public-seam tests.** Require per-control `revision`
+  in the loaded bundle and schema. Require the exact accepted risk/operation
+  table, decision-payload hash, bundle hash, two selectors per control, JSON
+  Pointer, canonical expected value, and recomputed expected-value hash. Reject
+  a missing/extra operation, wildcard, duplicate control/provider, old F-020
+  revision, old bundle hash, or copied hash.
+- [ ] **Step 2: write four independent F-020 behavior tests.** Through public
+  fake seams, prove the composite `adapter_policy_parity.controls` record
+  derives shell rejection, command-service-only canonical writes, disabled live
+  issue, and bounded/redacted receipts. Each known-bad mutation changes exactly
+  one subpath and fails its expected hash without making the other three fail.
+  Reading the oracle/D-G5-5 source inside the executor or returning literal
+  pass/disposition labels is a test failure.
+- [ ] **Step 3: run red.**
+
+~~~shell
+uv run --no-sync pytest tests/research_system/unit/test_policy_projection.py tests/research_system/unit/test_wp3_configuration.py tests/research_system/unit/test_policy_control_applicability.py tests/research_system/unit/test_policy_loader.py tests/research_system/unit/test_executors.py tests/research_system/integration/test_adapter_scientific_fixture_corpus.py tests/research_system/unit/test_variant_matrix.py -q --no-cov
+~~~
+- [ ] **Step 4: implement and materialize minimally.** Advance only F-020 to r2,
+  preserve its one oracle assertion and three graders, update only its two
+  Gate-5 matrix row revisions, add `revision: r1` to the four canonical
+  controls, and recompute every affected content/bundle/decision/value hash.
+- [ ] **Step 5: run green and invariant smoke.**
+
+~~~shell
+uv run --no-sync python tools/ars/materialize_adapter_scientific_fixtures.py --root .research-system/evals/fixtures --check
+uv run --no-sync python tools/ars/materialize_p0_variant_matrix.py --check
+uv run --no-sync pytest tests/research_system/unit/test_policy_projection.py tests/research_system/unit/test_wp3_configuration.py tests/research_system/unit/test_policy_control_applicability.py tests/research_system/unit/test_policy_loader.py tests/research_system/unit/test_executors.py tests/research_system/integration/test_adapter_scientific_fixture_corpus.py tests/research_system/unit/test_variant_matrix.py -q --no-cov
+~~~
+  Assert exact fixture_count=40, blocked_fixture_count=15, Gate-5 row_count=46,
+  F-020 provider-row count=2, and no grader/result-count change.
+- [ ] **Step 6: commit.** Subject:
+  `[PIPELINE] P00: materialize Gate 5 parity applicability evidence`
 
 ## Task 1: Bind Gate-5 rows and variant result keys
 
@@ -261,8 +359,8 @@ matrix/coverage/model/schema/release tests.
   operational_profile; count rows also retain reference_count, exact_tokens,
   and evaluated_tokens.
 - It rejects a missing field, wildcard, duplicate fixture_id/variant_id,
-  unknown fake provider revision, stale fixture revision, or fixture outside
-  selected 40-case coverage before execution.
+  unknown fake provider revision, stale fixture revision (including F-020 r1),
+  or fixture outside selected 40-case coverage before execution.
 - Extend ResultKey with a terminal, non-empty variant_id. Baseline rows use
   literal baseline; Gate-5 rows use their exact matrix variant_id. Update
   GraderResult.result_key, all binding maps, and both W6 schemas from five to
@@ -284,21 +382,19 @@ matrix/coverage/model/schema/release tests.
   with its exact matrix variant.
 - [ ] **Step 2: run red.**
 
-~~~
+~~~shell
 uv run --no-sync pytest tests/research_system/unit/test_variant_matrix.py tests/research_system/unit/test_coverage.py tests/research_system/unit/test_eval_models.py tests/research_system/unit/test_eval_schema_surface.py -q --no-cov
 ~~~
-
   Record named failures; collection/environment failure is not red evidence.
 - [ ] **Step 3: implement only typed loading and key closure.** Canonically
   order full row tuples. Keep all matrix/package bytes unchanged. Do not execute
   an adapter or build parity in this task.
 - [ ] **Step 4: run green.**
 
-~~~
+~~~shell
 uv run --no-sync pytest tests/research_system/unit/test_variant_matrix.py tests/research_system/unit/test_coverage.py tests/research_system/unit/test_eval_models.py tests/research_system/unit/test_eval_schema_surface.py tests/research_system/unit/test_release_gate.py -q --no-cov
 uv run --no-sync python tools/ars/materialize_p0_variant_matrix.py --check
 ~~~
-
 - [ ] **Step 5: commit.** Subject: [PIPELINE] P00: bind Gate 5 matrix rows to result closure
 
 ## Task 2: Execute every fake variant twice (R8)
@@ -325,10 +421,12 @@ and test_gate5_variant_execution.py.
   keys, sorted `ObservedAssertionEvidence`, and an
   `execution_evidence_hash`. Each observed-assertion record is derived
   independently from the actual normalized result of both fake attempts; it
-  binds the exact matrix tuple and fixture revision, assertion property,
+  binds the exact matrix tuple and fixture revision, assertion property, exact
+  JSON Pointer (empty only for a whole-property assertion),
   `first_observed_value_hash`, `second_observed_value_hash`, and equality
   status. An observed-value hash is
-  `sha256(canonical_bytes({property, canonical_observed_value}))`; neither the
+  `sha256(canonical_bytes({property, json_pointer,
+  canonical_observed_value}))`; neither the
   expected D-G5-5 hash nor a caller-supplied label may populate it. The two
   attempts must have exact assertion-property-set equality and equal hashes
   before evidence is admitted.
@@ -357,35 +455,34 @@ and test_gate5_variant_execution.py.
   from expected capability blocks, not an omitted row.
 - [ ] **Step 2: run red.**
 
-~~~
+~~~shell
 uv run --no-sync pytest tests/research_system/integration/test_gate5_variant_execution.py tests/research_system/integration/test_release_coordinator.py -q --no-cov
 ~~~
-
 - [ ] **Step 3: implement minimal fake-only execution.** Reuse current
   calibration/oracle validation. Bind each result to the exact matrix variant_id
   and preserve fake provider/counting revision in evidence. A stale row fails
   before fixture execution.
 - [ ] **Step 4: run green.**
 
-~~~
+~~~shell
 uv run --no-sync pytest tests/research_system/unit/test_variant_matrix.py tests/research_system/integration/test_gate5_variant_execution.py tests/research_system/integration/test_release_coordinator.py tests/research_system/unit/test_release_gate.py -q --no-cov
 uv run --no-sync ruff check research_system/evals/variants.py research_system/evals/harness.py research_system/evals/coverage.py research_system/evals/models.py tests/research_system/integration/test_gate5_variant_execution.py
 ~~~
-
 - [ ] **Step 5: commit.** Subject: [PIPELINE] P00: execute Gate 5 fake provider variants
 
 ## Task 3: Produce load-bearing W7 parity evidence and bind it to release (O11)
 
-**Precondition:** D-G5-5 is recorded and the exact applicability source in
-this plan validates. Otherwise do not write a parity producer or report
-implementation; return **Partial — owner applicability mapping required**.
+**Precondition:** Task 0 has materialized the accepted D-G5-5 source, F-020 r2,
+and canonical bundle, and all exact bindings validate. Otherwise do not write a
+parity producer or report implementation; return **Partial — applicability
+evidence invalid**.
 
-**Files:** create policy/loader.py, adapters/parity_evidence.py, the D-G5-5
-applicability YAML, both new adapter schemas, the Task 2 variant-execution
-schema, and the named applicability/evidence tests; modify adapters/parity.py,
-harness.py, models.py, cli.py, the
-ID registry, parity/release schemas, test_wp3_configuration.py, and named
-parity/CLI/model tests.
+**Files:** create policy/loader.py, adapters/parity_evidence.py, the fake
+adapter parity-evidence schema, and the named applicability/evidence tests;
+consume the Task 0 D-G5-5 applicability YAML/schema and the Task 2
+variant-execution schema; modify adapters/parity.py, harness.py, models.py,
+cli.py, the ID registry, parity/release schemas, test_wp3_configuration.py,
+and named parity/CLI/model tests.
 
 **Interfaces:**
 
@@ -410,8 +507,8 @@ parity/CLI/model tests.
   the complete matrix tuple, equal first/second normalized-decision hashes,
   exact sorted six-element grader result keys, and exact completeness of the
   execution-derived observed-assertion set. It then resolves exactly one
-  `ObservedAssertionEvidence` record by the D-G5-5-required property and
-  compares that record's equal first/second observed-value hash to the
+  `ObservedAssertionEvidence` record by the D-G5-5-required property and JSON
+  Pointer and compares that record's equal first/second observed-value hash to the
   owner-approved expected hash. The owner mapping is only the comparator: it
   cannot supply or replace observed evidence. The producer may not reread raw
   fixtures, transport output, or caller dictionaries. It emits a frozen
@@ -478,10 +575,9 @@ parity/CLI/model tests.
   blocked due to M/H.
 - [ ] **Step 2: run red.**
 
-~~~
+~~~shell
 uv run --no-sync pytest tests/research_system/unit/test_policy_loader.py tests/research_system/unit/test_policy_control_applicability.py tests/research_system/unit/test_fake_adapter_parity_evidence.py tests/research_system/unit/test_adapter_parity.py tests/research_system/unit/test_canonical_ids.py tests/research_system/unit/test_eval_models.py tests/research_system/unit/test_wp3_configuration.py tests/research_system/integration/test_eval_cli.py -q --no-cov
 ~~~
-
 - [ ] **Step 3: implement only after D-G5-5 evidence is present.** Validate
   the applicability source, each fake evidence record, and the report before it
   enters EvaluationEvidence; validate release serialization after report
@@ -490,11 +586,10 @@ uv run --no-sync pytest tests/research_system/unit/test_policy_loader.py tests/r
   canonical event; that is WP5.3.
 - [ ] **Step 4: run green.**
 
-~~~
+~~~shell
 uv run --no-sync pytest tests/research_system/unit/test_policy_loader.py tests/research_system/unit/test_policy_control_applicability.py tests/research_system/unit/test_fake_adapter_parity_evidence.py tests/research_system/unit/test_adapter_parity.py tests/research_system/unit/test_canonical_ids.py tests/research_system/unit/test_eval_models.py tests/research_system/unit/test_wp3_configuration.py tests/research_system/integration/test_gate5_variant_execution.py tests/research_system/integration/test_eval_cli.py -q --no-cov
 uv run --no-sync ruff check research_system/adapters/parity.py research_system/adapters/parity_evidence.py research_system/policy/loader.py research_system/evals/harness.py research_system/evals/models.py research_system/cli.py tests/research_system
 ~~~
-
 - [ ] **Step 5: commit.** Subject: [PIPELINE] P00: bind W7 parity evidence to release decisions
 
 ## Task 4: Verify, close obligations, and hand off
@@ -505,19 +600,18 @@ vault/04-Methods/Computational-Log.md after D-G5-5 and all evidence succeed.
 
 - [ ] **Step 1: run generated-input checks.**
 
-~~~
+~~~shell
 uv run --no-sync python tools/ars/materialize_control_store_fixtures.py --root .research-system/evals/fixtures --check
 uv run --no-sync python tools/ars/materialize_context_routing_fixtures.py --root .research-system/evals/fixtures --check
 uv run --no-sync python tools/ars/materialize_adapter_scientific_fixtures.py --root .research-system/evals/fixtures --check
 uv run --no-sync python tools/ars/materialize_p0_variant_matrix.py --check
 uv run --no-sync python tools/ars/materialize_gate5_release_tranche.py --check
 ~~~
-
   Every command must be byte-identical. Audit that the matrix, packages, and
   materializers have no scoped diff.
 - [ ] **Step 2: run full gates.**
 
-~~~
+~~~shell
 uv run --no-sync ruff check research_system tools/ars tests/research_system
 uv run --no-sync pytest tests/research_system -q --no-cov
 uv run --no-sync python -m research_system.cli eval validate --catalogue .research-system/evals/catalogue.yaml
@@ -525,7 +619,6 @@ uv run --no-sync python -m research_system.cli eval calibrate --coverage .resear
 uv run --no-sync python -m research_system.cli eval run --coverage .research-system/evals/p0-coverage.yaml --transport fake
 git diff --check
 ~~~
-
   Assert validate selects 40; calibration emits 40, 15, 0, calibrated; run
   emits candidate_status=blocked and result_count=302.
 - [ ] **Step 3: inspect two release documents.** Write two eval run --output
@@ -572,11 +665,13 @@ git diff --check
    decisions.
 3. Strict release closure has 302 unique six-element keys: 132 baseline plus
    170 row-specific variants; no grader result is overwritten or ignored.
-4. A schema-valid D-G5-5 source supplies accepted risk/capability applicability
-   and exact control -> provider -> matrix selector bindings; semantic_class is
+4. A schema-valid D-G5-5 source supplies the exact accepted R0-R3/operation
+   table and two F-020 r2 provider selectors per control; semantic_class is
    never treated as applicability.
-5. Each W7 disposition is produced only from content-addressed typed evidence
-   bound to an actual execution record whose immutable hash includes
+5. F-020 r2 exposes one composite oracle assertion with four independently
+   mutated control subpaths, retains three graders/two provider rows, and changes
+   no invariant. Each W7 disposition is produced only from content-addressed
+   typed evidence bound to an actual execution record whose immutable hash includes
    independently derived, two-run-equal observed-assertion evidence. The
    owner-approved expected property/hash is only a comparator; arbitrary/
    self-attested manifests, unbound assertions, unbound native claims, and
@@ -597,14 +692,15 @@ git diff --check
 
 Stop Partial and escalate if:
 
-1. PR #78 is unreviewed/unmerged, source merge cannot be proven to contain its
-   reviewed head, Stephen has not approved this plan/D-G5-3 table, or D-G5-5
-   is not an accepted exact applicability decision/source.
+1. Source ancestry cannot prove PR #78, PR #80, and the reviewed amendment
+   merge, or the accepted D-G5-3/D-G5-5 decision payload/source does not
+   validate exactly.
 2. Baseline is not exactly 40 fixtures, 15 blocked, 132 results, 0
    uncalibrated, calibrated, blocked; or matrix derivation is not exactly 46
    rows/170 added results.
-3. A row is stale, unbound, wildcarded, duplicated, needs a matrix/fixture
-   rewrite, or cannot run twice fake-only.
+3. A row is stale, unbound, wildcarded, duplicated, needs any matrix/fixture
+   rewrite beyond the exact F-020 r2 and its two row revisions, or cannot run
+   twice fake-only.
 4. Variant identity cannot be carried through accepted W6 schemas without an
    unplanned W6/W2 redesign.
 5. A source derives applicability from semantic_class/fixture labels, permits a
@@ -630,10 +726,12 @@ Before accepting the report or merging, independently verify:
   D-G5-5 applicability decision;
 - 40/15/132 baseline and 132+170=302 arithmetic from coverage, matrix, and
   required graders;
-- all 46 bindings, fake-only transport evidence, and two-run hash pairs;
-- D-G5-5 schema/source bundle binding and exact no-wildcard control ->
-  provider -> matrix selector applicability, including proof that semantic_class
-  was not substituted;
+- F-020 r2's four independently mutated public-seam behaviors, unchanged
+  three-grader/two-row arithmetic, all 46 bindings, fake-only transport
+  evidence, and two-run hash pairs;
+- D-G5-5 decision-hash/source/bundle binding, the exact accepted operation
+  table, four per-control revisions, two F-020 r2 selectors per control, and
+  proof that semantic_class was not substituted;
 - typed variant-execution and fake-evidence schemas; execution-hash derivation
   from the actual 46 records plus independently derived two-run observed
   assertions; exact expected-property/hash comparison, evidence-ID/hash
@@ -648,7 +746,9 @@ Before accepting the report or merging, independently verify:
 - generated checks, full gates, scoped diff, register/vault claims, CodeRabbit
   conclusion, and no unresolved critical/high finding.
 
-Approval phrase: **Approved D-G5-3 / WP5.2 plan**. Approval authorizes only
-this bounded implementation after the WP5.4 merge; it does not authorize Gate 5
+**Owner implementation record:** Stephen's 2026-07-12
+“Recommendation is accepted. Proceed.” approves D-G5-3, D-G5-5, and this
+bounded amended plan after its independently reviewed merge. No further
+implementation phrase is required. This authority does not authorize Gate 5
 acceptance, live providers, O15 closure, WP5.3 publication, or Manager merge
 without independent review.
