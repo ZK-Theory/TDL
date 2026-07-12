@@ -25,6 +25,11 @@ RELEASE_DECISION_ID = 'rgd_01978abc-1003-7000-8000-000000001003'
 
 
 def authority_bootstrap() -> dict[str, Any]:
+    """Return the canonical synthetic two-grant authority bootstrap fixture.
+
+    Returns:
+        A non-secret bootstrap manifest with root and publication grants.
+    """
     def grant(
         grant_id: str,
         command: str,
@@ -77,6 +82,14 @@ def authority_bootstrap() -> dict[str, Any]:
 
 
 def write_authority_bootstrap_input(path: Path) -> Path:
+    """Write the approved synthetic authority bootstrap input fixture.
+
+    Args:
+        path: Destination JSON path.
+
+    Returns:
+        The destination path.
+    """
     manifest = authority_bootstrap()
     path.write_bytes(
         canonical_bytes(

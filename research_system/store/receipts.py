@@ -10,6 +10,84 @@ from research_system.command.models import Receipt
 from research_system.errors import ConflictError
 
 
+_RECEIPT_FIELDS = {
+    'schema_id',
+    'schema_version',
+    'command_id',
+    'status',
+    'payload_hash',
+    'outcome',
+}
+_INDEX_FIELDS = {
+    'schema_id',
+    'schema_version',
+    'scope',
+    'payload_hash',
+    'authority_grant_sha256',
+    'receipt',
+}
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in '0123456789abcdef' for character in value)
+    )
+
+
+def _validated_receipt(record: object) -> Receipt:
+    if not isinstance(record, dict) or set(record) != _RECEIPT_FIELDS:
+        raise ConflictError('invalid idempotency index receipt')
+    outcome = record.get('outcome')
+    status = record.get('status')
+    expected_outcome = {
+        'event_batch_id',
+        'observed_stream_version',
+        'reason_code',
+    }
+    if status == 'rejected':
+        expected_outcome |= {'explanation', 'unmet_preconditions'}
+    if (
+        record.get('schema_id') != 'ars://core/receipt'
+        or record.get('schema_version') != '1.0.0'
+        or status not in {'accepted', 'duplicate', 'rejected', 'conflict'}
+        or not isinstance(record.get('command_id'), str)
+        or not _is_sha256(record.get('payload_hash'))
+        or not isinstance(outcome, dict)
+        or set(outcome) != expected_outcome
+        or not isinstance(outcome.get('observed_stream_version'), int)
+        or isinstance(outcome.get('observed_stream_version'), bool)
+        or outcome['observed_stream_version'] < 0
+        or not (
+            outcome.get('event_batch_id') is None
+            or isinstance(outcome.get('event_batch_id'), str)
+        )
+        or not (
+            outcome.get('reason_code') is None
+            or isinstance(outcome.get('reason_code'), str)
+        )
+    ):
+        raise ConflictError('invalid idempotency index receipt')
+    if status == 'rejected' and (
+        outcome.get('event_batch_id') is not None
+        or not isinstance(outcome.get('reason_code'), str)
+        or not outcome['reason_code']
+        or not isinstance(outcome.get('explanation'), str)
+        or not outcome['explanation']
+        or not isinstance(outcome.get('unmet_preconditions'), list)
+        or not outcome['unmet_preconditions']
+        or not all(
+            isinstance(item, str) and item
+            for item in outcome['unmet_preconditions']
+        )
+        or len(outcome['unmet_preconditions'])
+        != len(set(outcome['unmet_preconditions']))
+    ):
+        raise ConflictError('invalid idempotency index receipt')
+    return _receipt_from_record(record)
+
+
 def _receipt_record(receipt: Receipt) -> dict[str, Any]:
     outcome: dict[str, Any] = {
         'event_batch_id': receipt.event_batch_id,
@@ -82,6 +160,19 @@ class ReceiptStore:
         payload_hash: str,
         authority_grant_sha256: str,
     ) -> Receipt | None:
+        """Load an exact authority-scoped idempotency outcome.
+
+        Args:
+            scope: Actor, grant, command, and idempotency-key tuple.
+            payload_hash: Canonical command payload digest required for retry.
+            authority_grant_sha256: Exact authorizing grant digest.
+
+        Returns:
+            The validated stored receipt, or ``None`` when no index exists.
+
+        Raises:
+            ConflictError: If stored index data is malformed or conflicts.
+        """
         key = sha256_hex(canonical_bytes(list(scope)))
         path = self.index_root / f'{key}.json'
         if not path.exists():
@@ -90,6 +181,18 @@ class ReceiptStore:
             record = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError) as exc:
             raise ConflictError('invalid idempotency index') from exc
+        if (
+            not isinstance(record, dict)
+            or set(record) != _INDEX_FIELDS
+            or record.get('schema_id') != 'ars://core/authority-receipt-index'
+            or record.get('schema_version') != '1.0.0'
+            or not isinstance(record.get('scope'), list)
+            or len(record['scope']) != 4
+            or not all(isinstance(item, str) and item for item in record['scope'])
+            or not _is_sha256(record.get('payload_hash'))
+            or not _is_sha256(record.get('authority_grant_sha256'))
+        ):
+            raise ConflictError('invalid idempotency index')
         if record.get('scope') != list(scope):
             raise ConflictError('idempotency index scope mismatch')
         if (
@@ -97,7 +200,10 @@ class ReceiptStore:
             or record.get('authority_grant_sha256') != authority_grant_sha256
         ):
             raise ConflictError('idempotency key conflicts with stored outcome')
-        return _receipt_from_record(record['receipt'])
+        receipt = _validated_receipt(record['receipt'])
+        if receipt.payload_hash != payload_hash:
+            raise ConflictError('idempotency index receipt payload mismatch')
+        return receipt
 
     def write_scoped(
         self,
@@ -105,6 +211,20 @@ class ReceiptStore:
         authority_grant_sha256: str,
         receipt: Receipt,
     ) -> Receipt:
+        """Atomically publish one authority-scoped idempotency outcome.
+
+        Args:
+            scope: Actor, grant, command, and idempotency-key tuple.
+            authority_grant_sha256: Exact authorizing grant digest.
+            receipt: Terminal command receipt to index and persist.
+
+        Returns:
+            The newly written or exact existing receipt.
+
+        Raises:
+            ConflictError: If existing or recoverable data conflicts.
+            OSError: If durable publication fails.
+        """
         key = sha256_hex(canonical_bytes(list(scope)))
         target = self.index_root / f'{key}.json'
         record = {
@@ -125,10 +245,14 @@ class ReceiptStore:
                     raise ConflictError('idempotency index outcome mismatch')
             return receipt
         temporary = self.runtime_root / f'{key}.idempotency.tmp'
-        with temporary.open('xb') as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
+        if temporary.exists():
+            if temporary.read_bytes() != data:
+                raise ConflictError('idempotency index temporary outcome mismatch')
+        else:
+            with temporary.open('xb') as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
         self._publish(temporary, target)
         self.write(receipt)
         return receipt

@@ -20,6 +20,7 @@ def test_command_submit_derives_retention_policy_path_from_binding(
         control_root=tmp_path / "control",
         project_id=PROJECT_ID,
         schema_root=SCHEMAS,
+        store_identity="a" * 64,
     )
     registry = SimpleNamespace(policy_revision="p0-retention-v1")
     authorizer = object()

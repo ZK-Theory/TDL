@@ -174,6 +174,8 @@ class CommandService:
                     prepared_payload = self._prepare_authority_revocation(
                         command, observed_version
                     )
+                except IntegrityError:
+                    raise
                 except ArsError as exc:
                     rejected = self._rejected(
                         command,
@@ -208,7 +210,25 @@ class CommandService:
         subject_id: str,
         callback: Callable[[Any], Any],
     ) -> Any:
-        """Recheck current canonical authority and run one callback under W2 lock."""
+        """Recheck current canonical authority and run a callback under W2 lock.
+
+        Args:
+            authority_grant_id: Grant to revalidate against canonical history.
+            actor_id: Attributed actor performing the governed operation.
+            command_type: Exact governed command type.
+            project_id: Project identity of the governed target.
+            subject_kind: Registered governed subject kind.
+            subject_id: Exact governed subject identity.
+            callback: Operation invoked with replay-derived authority evidence.
+
+        Returns:
+            The callback result.
+
+        Raises:
+            ArsError: If no resolver exists or current authority is invalid.
+            ConflictError: If the W2 writer lock cannot be acquired.
+            IntegrityError: If canonical authority evidence is invalid.
+        """
         resolver = self.authority_resolver
         if resolver is None:
             raise ArsError('governed operation requires authority resolver')

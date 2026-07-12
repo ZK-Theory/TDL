@@ -118,6 +118,8 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         grants = updated.setdefault('authority_grants', {})
         current = grants.get(stream_id)
         root_id = updated.get('authority_root_id')
+        if payload.get('project_id') != updated.get('project_id'):
+            raise IntegrityError('authority revocation project mismatch')
         if current is None or current['status'] != 'active':
             raise IntegrityError('authority revocation requires active grant')
         if payload.get('target_grant_id') != stream_id or payload.get('target_grant_sha256') != current['authority_grant_sha256']:

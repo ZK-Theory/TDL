@@ -26,6 +26,14 @@
     {
       "properties": {
         "schema_version": {"const": "1.1.0"},
+        "allowed_command_types": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "pattern": "^(?!.*[*/\\\\])[\\x00-\\x7F]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "delegable": {"const": false},
+        "revoked": {"const": false},
         "subject_scope": {
           "type": "object",
           "required": ["project_id", "subject"],
@@ -38,6 +46,16 @@
                 "kind": {"enum": ["authority_grant", "release_gate_decision"]},
                 "id": {"type": "string", "pattern": "^(?:agr|rgd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}
               },
+              "allOf": [
+                {
+                  "if": {"properties": {"kind": {"const": "authority_grant"}}, "required": ["kind"]},
+                  "then": {"properties": {"id": {"pattern": "^agr_"}}}
+                },
+                {
+                  "if": {"properties": {"kind": {"const": "release_gate_decision"}}, "required": ["kind"]},
+                  "then": {"properties": {"id": {"pattern": "^rgd_"}}}
+                }
+              ],
               "additionalProperties": false
             }
           },

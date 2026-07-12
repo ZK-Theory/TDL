@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from research_system.authority import (
+    LedgerAuthorityGrantResolver,
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
@@ -120,6 +121,11 @@ def _command_submit(args: argparse.Namespace) -> int:
         ObjectStore(binding.control_root),
         ReceiptStore(binding.control_root),
         schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+        ),
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)

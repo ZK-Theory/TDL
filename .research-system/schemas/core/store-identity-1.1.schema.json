@@ -7,7 +7,7 @@
     "schema_id": {"const": "ars://core/store-identity"},
     "schema_version": {"const": "1.1.0"},
     "store_nonce": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
-    "project_id": {"type": "string", "pattern": "^prj_"},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "bootstrap_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "control_root": {"type": "string", "minLength": 1},

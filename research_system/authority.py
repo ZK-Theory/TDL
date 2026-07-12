@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import errno
 import json
 import os
 import secrets
+import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,12 +50,31 @@ def _utc(value: object, field: str) -> datetime:
 
 @dataclass(frozen=True)
 class AuthorityScope:
+    """Canonical project and subject tuple governed by an authority grant.
+
+    Attributes:
+        project_id: Project identity containing the governed subject.
+        subject_kind: Registered governed subject kind.
+        subject_id: Exact governed subject identity.
+    """
+
     project_id: str
     subject_kind: str
     subject_id: str
 
     @classmethod
     def from_dict(cls, value: object) -> AuthorityScope:
+        """Build and validate an exact typed authority scope.
+
+        Args:
+            value: Candidate scope mapping.
+
+        Returns:
+            The validated immutable scope.
+
+        Raises:
+            ValueError: If the mapping, project, kind, or subject ID is invalid.
+        """
         if not isinstance(value, dict) or set(value) != {"project_id", "subject"}:
             raise ValueError("subject_scope fields must be exact")
         subject = value["subject"]
@@ -67,6 +88,11 @@ class AuthorityScope:
         return cls(project_id, str(kind), subject_id)
 
     def to_dict(self) -> dict[str, Any]:
+        """Return the canonical JSON-compatible scope representation.
+
+        Returns:
+            A project mapping containing the typed subject mapping.
+        """
         return {
             "project_id": self.project_id,
             "subject": {"kind": self.subject_kind, "id": self.subject_id},
@@ -75,6 +101,19 @@ class AuthorityScope:
 
 @dataclass(frozen=True)
 class AuthorityGrant:
+    """Validated immutable AuthorityGrant 1.1.0 object.
+
+    Attributes:
+        authority_grant_id: Canonical grant identity.
+        actor_id: Attributed actor identity.
+        allowed_command_types: Exact command names governed by the grant.
+        subject_scope: Typed project and subject scope.
+        risk_ceiling: Closed maximum risk tier.
+        effective_at: Inclusive trusted UTC activation time.
+        expires_at: Exclusive trusted UTC expiry, if any.
+        canonical_sha256: Digest of the canonical grant representation.
+    """
+
     authority_grant_id: str
     actor_id: str
     allowed_command_types: tuple[str, ...]
@@ -86,6 +125,17 @@ class AuthorityGrant:
 
     @classmethod
     def from_dict(cls, value: object) -> AuthorityGrant:
+        """Build an immutable grant from its exact canonical representation.
+
+        Args:
+            value: Candidate AuthorityGrant mapping.
+
+        Returns:
+            The validated grant with its canonical SHA-256 digest.
+
+        Raises:
+            ValueError: If any field or cross-field invariant is invalid.
+        """
         canonical_bytes(value)
         if not isinstance(value, dict) or set(value) != _GRANT_FIELDS:
             raise ValueError("AuthorityGrant fields must be exact")
@@ -101,7 +151,6 @@ class AuthorityGrant:
         if (
             not isinstance(commands, list)
             or not commands
-            or len(commands) != len(set(commands))
             or not all(
                 isinstance(command, str)
                 and command
@@ -112,6 +161,8 @@ class AuthorityGrant:
                 for command in commands
             )
         ):
+            raise ValueError("allowed command types must be unique exact ASCII names")
+        if len(commands) != len(set(commands)):
             raise ValueError("allowed command types must be unique exact ASCII names")
         risk = value["risk_ceiling"]
         if not isinstance(risk, str) or risk not in {"R0", "R1", "R2", "R3"}:
@@ -137,6 +188,21 @@ class AuthorityGrant:
 
 @dataclass(frozen=True)
 class AuthorityGrantResolution:
+    """Replay-derived evidence for one currently usable authority grant.
+
+    Attributes:
+        authority_grant_id: Resolved grant identity.
+        authority_grant_sha256: Canonical immutable grant digest.
+        actor_id: Attributed actor bound by the grant.
+        subject_scope: Exact typed governed scope.
+        effective_at: Inclusive trusted UTC activation time.
+        expires_at: Exclusive trusted UTC expiry, if any.
+        activation_event_id: Ledger event that activated the grant.
+        activation_position: Global ledger position of activation.
+        status: Current replay-derived grant status.
+        revocation_event_id: Revocation event identity, if revoked.
+    """
+
     authority_grant_id: str
     authority_grant_sha256: str
     actor_id: str
@@ -150,6 +216,17 @@ class AuthorityGrantResolution:
 
 
 def authority_bootstrap_sha256(value: object) -> str:
+    """Return the canonical SHA-256 digest of an authority bootstrap value.
+
+    Args:
+        value: JSON-compatible bootstrap value.
+
+    Returns:
+        Lowercase hexadecimal SHA-256 digest.
+
+    Raises:
+        ValueError: If the value is not canonical JSON-compatible.
+    """
     return sha256_hex(canonical_bytes(value))
 
 
@@ -243,7 +320,24 @@ def initialize_authority_control_store(
     bootstrap: object,
     approved_bootstrap_sha256: str,
 ) -> str:
-    """Publish one complete authority-aware control store by absent-target rename."""
+    """Publish one complete authority-aware control store atomically.
+
+    Args:
+        code_roots: Registered and existing code worktree roots.
+        control_root: Absent target directory for the canonical control store.
+        project_id: Project identity bound into the store and ledger.
+        bootstrap: Approved authority bootstrap manifest.
+        approved_bootstrap_sha256: Operator-approved canonical manifest digest.
+
+    Returns:
+        The published or exactly recovered store identity.
+
+    Raises:
+        ArsError: If inputs or an existing store fail authority requirements.
+        ConflictError: If a competing publication is not the exact same store.
+        IntegrityError: If staged or published authority history is incomplete.
+        OSError: If staging or publication fails at the filesystem boundary.
+    """
     from research_system.projection.replay import replay
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
@@ -257,6 +351,8 @@ def initialize_authority_control_store(
     resolved_codes = [root_path.resolve(strict=True) for root_path in code_roots]
     if not resolved_codes:
         raise ArsError("registered code roots required")
+    if len(resolved_codes) != len(set(resolved_codes)):
+        raise ArsError("duplicate registered code roots")
     for code_root in resolved_codes:
         if final_root == code_root or code_root in final_root.parents or final_root in code_root.parents:
             raise ArsError("control root must be disjoint from every code root")
@@ -320,17 +416,34 @@ def initialize_authority_control_store(
     (stage / "runtime" / "authority-bootstrap-stage.json").unlink()
     try:
         os.rename(stage, final_root)
-    except FileExistsError:
+    except OSError as publish_error:
+        collision = publish_error.errno in {errno.EEXIST, errno.ENOTEMPTY}
+        if not collision and not final_root.exists():
+            raise
         try:
             return _verify_complete_store(final_root, project_id, bootstrap_hash)
         except (ArsError, OSError) as verify_error:
             raise ConflictError(
                 "competing authority initializer published a foreign store"
             ) from verify_error
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage)
     return identity
 
 
 class LedgerAuthorityGrantResolver:
+    """Resolve authority exclusively from a bound store and verified replay.
+
+    Args:
+        control_root: Canonical authority-aware control-store root.
+        project_id: Project identity bound into that store.
+        expected_store_identity: Validated store identity from ControlBinding.
+
+    Raises:
+        ValueError: If ``project_id`` is malformed.
+    """
+
     def __init__(self, control_root: Path, project_id: str, expected_store_identity: str) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
@@ -379,6 +492,20 @@ class LedgerAuthorityGrantResolver:
         return grant, record
 
     def grant_at(self, grant_id: str, now: datetime) -> AuthorityGrantResolution:
+        """Resolve a currently active grant at a trusted UTC time.
+
+        Args:
+            grant_id: Activated authority grant identity.
+            now: Trusted local operator time in UTC.
+
+        Returns:
+            Replay-derived immutable grant evidence.
+
+        Raises:
+            ValueError: If ``now`` is not UTC.
+            ArsError: If the grant is unavailable, inactive, or out of time.
+            IntegrityError: If canonical store evidence is invalid.
+        """
         if now.tzinfo != UTC:
             raise ValueError("trusted authority time must be UTC")
         projection = self._projection()
@@ -392,6 +519,25 @@ class LedgerAuthorityGrantResolver:
         return AuthorityGrantResolution(grant_id, grant.canonical_sha256, grant.actor_id, grant.subject_scope, grant.effective_at, grant.expires_at, record["activation_event_id"], record["activation_position"], record["status"], record.get("revocation_event_id"))
 
     def resolve(self, grant_id: str, actor_id: str, command_type: str, project_id: str, subject_kind: str, subject_id: str, now: datetime) -> AuthorityGrantResolution:
+        """Resolve a grant and enforce its exact actor, command, and subject scope.
+
+        Args:
+            grant_id: Activated authority grant identity.
+            actor_id: Attributed command actor identity.
+            command_type: Exact command type being authorized.
+            project_id: Project identity of the governed target.
+            subject_kind: Registered governed subject kind.
+            subject_id: Exact governed subject identity.
+            now: Trusted local operator time in UTC.
+
+        Returns:
+            Replay-derived immutable grant evidence.
+
+        Raises:
+            ArsError: If any authority constraint is not satisfied.
+            IntegrityError: If canonical store evidence is invalid.
+            ValueError: If an identity or trusted time is malformed.
+        """
         result = self.grant_at(grant_id, now)
         projection = self._projection()
         grant, _ = self._load_grant(grant_id, projection)
