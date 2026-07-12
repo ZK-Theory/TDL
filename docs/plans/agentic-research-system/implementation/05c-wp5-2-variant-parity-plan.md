@@ -34,8 +34,8 @@ implementation can produce a passing parity report.
 
 - **Never implement from this documentation branch.** Work begins only after PR
   #78 has independent review, CodeRabbit has concluded, and its exact reviewed
-  head (currently dependency evidence
-  50fa4fffe89ebc6f6069838d5ffe6ea5a024cf95) is merged to main. The Worker
+  head (currently candidate dependency head
+  f6450248bc5a40352ed01a06641012f48188eac7) is merged to main. The Worker
   proves its eventual merge contains that head with git merge-base --is-ancestor,
   creates pipe/ars-gate5-variant-parity with git switch -c from that detached
   merge commit, and reports branch plus exact HEAD before editing.
@@ -143,6 +143,7 @@ research_system/policy/loader.py
 .research-system/policies/gate5-policy-control-applicability.yaml
 .research-system/schemas/adapters/fake-adapter-parity-evidence.schema.json
 .research-system/schemas/adapters/policy-control-applicability.schema.json
+.research-system/schemas/evals/variant-execution-evidence.schema.json
 tests/research_system/integration/test_gate5_variant_execution.py
 tests/research_system/unit/test_fake_adapter_parity_evidence.py
 tests/research_system/unit/test_policy_control_applicability.py
@@ -150,8 +151,10 @@ tests/research_system/unit/test_policy_loader.py
 ~~~
 
 variants.py owns typed matrix loading, exact row/coverage binding, fake-only
-execution, twice-run normalized-decision comparison, and variant result
-expansion. `parity_evidence.py` owns the frozen fake-parity evidence model and
+execution, twice-run normalized-decision comparison, execution-derived observed
+assertion evidence, and variant result expansion. The variant-execution schema
+fixes the immutable record and its content-addressed hash.
+`parity_evidence.py` owns the frozen fake-parity evidence model and
 the sole builder from completed variant execution to control/provider evidence.
 loader.py owns loading the committed canonical policy and the D-G5-5
 applicability source; it never reads provider configuration from the
@@ -301,7 +304,8 @@ uv run --no-sync python tools/ars/materialize_p0_variant_matrix.py --check
 ## Task 2: Execute every fake variant twice (R8)
 
 **Files:** modify variants.py, harness.py, coverage.py, models.py, and the named
-variant/release-coordinator tests; create test_gate5_variant_execution.py.
+variant/release-coordinator tests; create the variant-execution-evidence schema
+and test_gate5_variant_execution.py.
 
 **Interfaces:**
 
@@ -315,25 +319,42 @@ variant/release-coordinator tests; create test_gate5_variant_execution.py.
   semantics, sorted grader verdicts, and blocking reason. IDs/timestamps are
   excluded only from this declared comparison projection. The two canonical byte
   strings must match; otherwise reject before adding results.
-- The runner returns a frozen `VariantExecutionEvidence` record for each of the
-  46 rows: exact matrix tuple, first and second normalized-decision hashes,
-  equality status, sorted six-element grader result keys, and an
-  `execution_evidence_hash`. That hash is
+- The runner returns a schema-valid frozen `VariantExecutionEvidence` record
+  for each of the 46 rows: exact matrix tuple, first and second
+  normalized-decision hashes, equality status, sorted six-element grader result
+  keys, sorted `ObservedAssertionEvidence`, and an
+  `execution_evidence_hash`. Each observed-assertion record is derived
+  independently from the actual normalized result of both fake attempts; it
+  binds the exact matrix tuple and fixture revision, assertion property,
+  `first_observed_value_hash`, `second_observed_value_hash`, and equality
+  status. An observed-value hash is
+  `sha256(canonical_bytes({property, canonical_observed_value}))`; neither the
+  expected D-G5-5 hash nor a caller-supplied label may populate it. The two
+  attempts must have exact assertion-property-set equality and equal hashes
+  before evidence is admitted.
+- The execution hash is
   `sha256(canonical_bytes({matrix_tuple, first_hash, second_hash,
   sorted(result_key, verdict, trace_hash, oracle_hash, policy_hash,
-  threshold_policy_hash)}))`. It is the only execution input Task 3 may bind;
-  raw transport stdout, arbitrary dicts, and hand-authored manifest labels are
-  not evidence.
+  threshold_policy_hash), sorted(observed_assertion_evidence)}))`. Typed model
+  validation recomputes the hash while the schema fixes the represented fields;
+  together they reject a missing, extra, duplicate, stale,
+  property-mismatched, fixture-mismatched, or changed assertion record. `VariantExecutionEvidence` is the only execution input
+  Task 3 may bind; raw transport stdout, arbitrary dicts, hand-authored manifest
+  labels, and the D-G5-5 expected mapping are not observed execution evidence.
 - run_p0_coverage combines 132 baseline results and 170 variant grader results,
   binding every six-element key in the strict maps. The CLI eval run surface
   therefore emits exactly 302 results.
 
 - [ ] **Step 1: write red public-seam tests.** The real coverage/harness seam
   with a FakeTransport spy must show 46 rows, two equal normalized byte strings
-  per row, 170 variant plus 132 baseline results, exact release closure, and no
-  subprocess/live path. A deliberately changed second fake receipt must block
-  before evidence. test_release_coordinator.py must show 302 unique keys and a
-  blocked decision from expected capability blocks, not an omitted row.
+  per row, schema round-trip of every immutable execution record, independently
+  derived and equal observed-assertion evidence from both attempts, 170 variant
+  plus 132 baseline results, exact release closure, and no subprocess/live path.
+  A deliberately changed second fake receipt or observed assertion must block
+  before evidence. Reject missing, extra, duplicate, changed, stale-fixture, or
+  matrix-mismatched assertion evidence and an execution hash that omits it.
+  test_release_coordinator.py must show 302 unique keys and a blocked decision
+  from expected capability blocks, not an omitted row.
 - [ ] **Step 2: run red.**
 
 ~~~
@@ -360,8 +381,9 @@ this plan validates. Otherwise do not write a parity producer or report
 implementation; return **Partial — owner applicability mapping required**.
 
 **Files:** create policy/loader.py, adapters/parity_evidence.py, the D-G5-5
-applicability YAML, both new adapter schemas, and the named applicability/
-evidence tests; modify adapters/parity.py, harness.py, models.py, cli.py, the
+applicability YAML, both new adapter schemas, the Task 2 variant-execution
+schema, and the named applicability/evidence tests; modify adapters/parity.py,
+harness.py, models.py, cli.py, the
 ID registry, parity/release schemas, test_wp3_configuration.py, and named
 parity/CLI/model tests.
 
@@ -386,20 +408,30 @@ parity/CLI/model tests.
 - For every exact control -> provider -> selector requirement, the producer
   resolves one and only one of the 46 completed execution records. It verifies
   the complete matrix tuple, equal first/second normalized-decision hashes,
-  expected post-control assertion property/hash, and exact sorted six-element
-  grader result keys. It emits a frozen FakeAdapterParityEvidence record with
-  Task 2 execution_evidence_hash and a content-addressed evidence ID:
+  exact sorted six-element grader result keys, and exact completeness of the
+  execution-derived observed-assertion set. It then resolves exactly one
+  `ObservedAssertionEvidence` record by the D-G5-5-required property and
+  compares that record's equal first/second observed-value hash to the
+  owner-approved expected hash. The owner mapping is only the comparator: it
+  cannot supply or replace observed evidence. The producer may not reread raw
+  fixtures, transport output, or caller dictionaries. It emits a frozen
+  FakeAdapterParityEvidence record with the Task 2 execution_evidence_hash,
+  selected observed-assertion property/hash, and a content-addressed evidence
+  ID:
 
   evidence_id = fpe_ + sha256(canonical_bytes(bundle ID/revision/hash,
   applicability hash, control ID/revision, provider variant, matrix tuple,
-  execution evidence hash, sorted grader result keys)).
+  execution evidence hash, selected observed assertion property/hash,
+  sorted grader result keys)).
 
   The fake-evidence schema fixes this relationship and validates the ID/hash
   pair. Fake paths may not claim native. adapter_enforced is derived only after
   every exact bound execution and assertion succeeds; a claimed native or
   adapter_enforced disposition without typed bound evidence is rejected.
 - Missing, extra, stale, duplicate, provider-mismatched, result-key-mismatched,
-  incompatible, or self-attested evidence blocks its control. The producer
+  assertion-missing, assertion-extra, assertion-duplicate,
+  assertion-property-mismatched, assertion-hash-mismatched, incompatible, or
+  self-attested evidence blocks its control. The producer
   proves a bounded fake adapter surface and makes no live-provider claim.
 - build_parity_report(bundle, applicability, evidence_records) accepts only
   those three frozen typed inputs. It requires exact equality between the
@@ -428,11 +460,14 @@ parity/CLI/model tests.
 
   test_fake_adapter_parity_evidence.py constructs real typed 46-row execution
   evidence and requires every control/provider requirement to resolve to one
-  exact record. Reject arbitrary/plain manifests, self-attested evidence,
-  missing/extra/stale/duplicate/provider-incompatible records, changed
-  execution hash, changed grader result key, and changed post-control assertion
-  hash. Explicitly prove a claimed native or adapter_enforced disposition cannot
-  reach a passing report without bound execution evidence.
+  exact record and one execution-derived observed assertion. Reject
+  arbitrary/plain manifests, self-attested evidence, missing/extra/stale/
+  duplicate/provider-incompatible records, missing/extra/duplicate assertion
+  records, changed execution hash, changed grader result key, changed observed
+  assertion property/hash, a second-run assertion mismatch, and an owner
+  expected hash passed off as an observed hash. Explicitly prove a claimed
+  native or adapter_enforced disposition cannot reach a passing report without
+  bound execution and observed-assertion evidence.
 
   test_adapter_parity.py requires complete control/provider/evidence equality,
   critical-gap blocking, and non-compensability by high percentage.
@@ -541,8 +576,11 @@ git diff --check
    and exact control -> provider -> matrix selector bindings; semantic_class is
    never treated as applicability.
 5. Each W7 disposition is produced only from content-addressed typed evidence
-   bound to an actual execution record; arbitrary/self-attested manifests,
-   unbound native claims, and unbound adapter_enforced claims are rejected.
+   bound to an actual execution record whose immutable hash includes
+   independently derived, two-run-equal observed-assertion evidence. The
+   owner-approved expected property/hash is only a comparator; arbitrary/
+   self-attested manifests, unbound assertions, unbound native claims, and
+   unbound adapter_enforced claims are rejected.
 6. W7 evidence has one full row per canonical control, both provider
    dispositions/evidence, and non-compensable critical-gap blocking.
 7. Release references schema-valid applicability and real report IDs/hashes; it
@@ -570,8 +608,10 @@ Stop Partial and escalate if:
 4. Variant identity cannot be carried through accepted W6 schemas without an
    unplanned W6/W2 redesign.
 5. A source derives applicability from semantic_class/fixture labels, permits a
-   wildcard/default, lacks decision/bundle binding, or an evidence record is
-   missing/extra/stale/duplicate/incompatible/self-attested.
+   wildcard/default, lacks decision/bundle binding, or an evidence/assertion
+   record is missing/extra/stale/duplicate/incompatible/self-attested; observed
+   assertion evidence is not derived independently from both fake runs and
+   included in execution_evidence_hash.
 6. A canonical control lacks actual fake evidence; a claimed native or
    adapter_enforced disposition lacks its exact bound execution record; a
    critical gap is averaged away; caller input can force pass; or the report
@@ -594,10 +634,12 @@ Before accepting the report or merging, independently verify:
 - D-G5-5 schema/source bundle binding and exact no-wildcard control ->
   provider -> matrix selector applicability, including proof that semantic_class
   was not substituted;
-- typed fake-evidence producer/schema, evidence-ID/hash derivation from the
-  actual 46 records, exact requirement/evidence equality, and negatives for
-  plain/self-attested, missing/extra/stale/duplicate/incompatible evidence and
-  unbound native/adapter_enforced claims;
+- typed variant-execution and fake-evidence schemas; execution-hash derivation
+  from the actual 46 records plus independently derived two-run observed
+  assertions; exact expected-property/hash comparison, evidence-ID/hash
+  derivation, and requirement/evidence equality; and negatives for
+  plain/self-attested, missing/extra/stale/duplicate/incompatible execution or
+  assertion evidence and unbound native/adapter_enforced claims;
 - parity schema/ID/hash/full rows plus a critical-gap negative that percentage
   cannot mask;
 - release derives parity from typed applicability and report evidence, preserves
