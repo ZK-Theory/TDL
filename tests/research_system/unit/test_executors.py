@@ -4,12 +4,11 @@ Task 1 registers only the F-001 control/store executor; Tasks 2-3 append
 coverage for the remaining P0 cases to this module.
 """
 
+from dataclasses import replace
 from pathlib import Path
-import copy
+from types import SimpleNamespace
 
 import pytest
-
-from research_system.canonical import canonical_bytes, sha256_hex
 
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals import coverage as coverage_module
@@ -25,39 +24,15 @@ FIXTURES = ROOT / ".research-system" / "evals" / "fixtures"
 
 
 def test_f020_r2_preserves_r1_observations_and_derives_ten_control_operations():
-    result = require_executor("F-020")(
-        "known_good",
-        {
-            "action": {
-                "operation": "compare_adapter_policies",
-                "source_controls": ["readiness", "dispatch_guard"],
-                "target_controls": ["readiness"],
-            }
-        },
-    )
+    result = _f020_result()
     assert result["semantic_parity"] is True
     assert result["poorer_source_overwrite_blocked"] is True
     assert result["affected_dispatch_waits"] is True
     assert sum(len(item["operations"]) for item in result["controls"].values()) == 10
 
 
-@pytest.mark.parametrize(
-    ("control_id", "operation"),
-    [
-        ("no-shell", "invoke_declared_tool"),
-        ("no-direct-event-write", "submit_ars_command"),
-        ("no-live-provider-by-default", "cancel_provider_work"),
-        ("no-live-provider-by-default", "query_provider_status"),
-        ("no-live-provider-by-default", "request_model_work"),
-        ("no-live-provider-by-default", "request_review"),
-        ("no-raw-transcript-retention", "deliver_context"),
-        ("no-raw-transcript-retention", "deliver_message"),
-        ("no-raw-transcript-retention", "request_model_work"),
-        ("no-raw-transcript-retention", "request_review"),
-    ],
-)
-def test_f020_each_operation_perturbation_changes_its_control_evidence(control_id, operation):
-    observed = require_executor("F-020")(
+def _f020_result() -> dict:
+    return require_executor("F-020")(
         "known_good",
         {
             "action": {
@@ -66,21 +41,119 @@ def test_f020_each_operation_perturbation_changes_its_control_evidence(control_i
                 "target_controls": ["readiness"],
             }
         },
-    )["controls"][control_id]
-    changed = copy.deepcopy(observed)
-    changed["operations"][operation]["test_perturbation"] = True
-    pointer = f"/controls/{control_id}"
-    original_hash = sha256_hex(
-        canonical_bytes(
-            {"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": observed}
-        )
     )
-    changed_hash = sha256_hex(
-        canonical_bytes(
-            {"property": "adapter_policy_parity", "json_pointer": pointer, "canonical_observed_value": changed}
-        )
+
+
+def _assert_only_operation_changed(before: dict, after: dict, control_id: str, operation: str) -> None:
+    assert {key: before[key] for key in before if key != "controls"} == {
+        key: after[key] for key in after if key != "controls"
+    }
+    for observed_control, control in before["controls"].items():
+        for observed_operation, record in control["operations"].items():
+            changed = after["controls"][observed_control]["operations"][observed_operation]
+            if (observed_control, observed_operation) == (control_id, operation):
+                assert changed != record
+            else:
+                assert changed == record
+
+
+def test_f020_authorized_undeclared_shell_regression_changes_only_shell_evidence(monkeypatch):
+    from research_system.adapters import provider as provider_module
+
+    before = _f020_result()
+    original = getattr(provider_module, "enforce_provider_operation_policy", None)
+
+    def allow_undeclared_shell(command, policy):
+        if command.operation == "undeclared_shell":
+            return None
+        return original(command, policy)
+
+    monkeypatch.setattr(
+        provider_module,
+        "enforce_provider_operation_policy",
+        allow_undeclared_shell,
+        raising=False,
     )
-    assert changed_hash != original_hash
+    _assert_only_operation_changed(before, _f020_result(), "no-shell", "invoke_declared_tool")
+
+
+def test_f020_direct_writer_regression_changes_only_command_service_evidence(monkeypatch):
+    from research_system.operations import coordinator
+
+    before = _f020_result()
+
+    def direct_writer(command_service, command):
+        return SimpleNamespace(
+            receipt=command_service.submit(command),
+            state_change_path="direct_event_writer",
+            direct_writer_used=True,
+        )
+
+    monkeypatch.setattr(coordinator, "submit_ars_command", direct_writer, raising=False)
+    _assert_only_operation_changed(
+        before,
+        _f020_result(),
+        "no-direct-event-write",
+        "submit_ars_command",
+    )
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ("cancel_provider_work", "query_provider_status", "request_model_work", "request_review"),
+)
+def test_f020_default_live_route_regression_changes_only_selected_operation(monkeypatch, operation):
+    from research_system.adapters import provider as provider_module
+
+    before = _f020_result()
+    original = getattr(provider_module, "enforce_provider_operation_policy", None)
+
+    def allow_selected_live_route(command, policy):
+        if command.operation == operation:
+            return None
+        return original(command, policy)
+
+    monkeypatch.setattr(
+        provider_module,
+        "enforce_provider_operation_policy",
+        allow_selected_live_route,
+        raising=False,
+    )
+    _assert_only_operation_changed(
+        before,
+        _f020_result(),
+        "no-live-provider-by-default",
+        operation,
+    )
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ("deliver_context", "deliver_message", "request_model_work", "request_review"),
+)
+def test_f020_receipt_retention_regression_changes_only_selected_operation(monkeypatch, operation):
+    from research_system.adapters import provider as provider_module
+
+    before = _f020_result()
+    original = provider_module.normalize_receipt
+
+    def retain_selected_raw_transcript(command, result):
+        receipt = original(command, result)
+        if command.operation == operation:
+            return replace(receipt, redaction="raw_transport_content_retained")
+        return receipt
+
+    monkeypatch.setattr(provider_module, "normalize_receipt", retain_selected_raw_transcript)
+    after = _f020_result()
+    _assert_only_operation_changed(
+        before,
+        after,
+        "no-raw-transcript-retention",
+        operation,
+    )
+    assert after["controls"]["no-raw-transcript-retention"]["operations"][operation][
+        "receipt_mode"
+    ] == "raw_retained"
 
 
 def test_f020_declared_tool_evidence_depends_on_adapter_probe(monkeypatch):

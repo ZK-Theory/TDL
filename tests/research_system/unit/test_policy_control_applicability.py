@@ -1,8 +1,10 @@
+import copy
 from pathlib import Path
 
 import pytest
 import yaml
 
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import SchemaError
 from research_system.policy.loader import load_canonical_policy_bundle, load_policy_control_applicability
 from research_system.schema_registry import SchemaRegistry
@@ -65,3 +67,42 @@ def test_dg55_schema_rejects_unbound_nested_objects():
     payload["bundle"]["unexpected"] = True
     with pytest.raises(SchemaError, match="unexpected"):
         registry.validate("ars://adapters/policy-control-applicability", payload)
+
+
+def _write_self_consistent_applicability(path, payload):
+    payload["decision_record_hash"] = sha256_hex(canonical_bytes(payload["decision_payload"]))
+    identity_payload = copy.deepcopy(payload)
+    identity_payload.pop("applicability_id")
+    identity_payload.pop("applicability_hash")
+    digest = sha256_hex(canonical_bytes(identity_payload))
+    payload["applicability_id"] = f"pca_{digest}"
+    payload["applicability_hash"] = digest
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+
+@pytest.mark.parametrize("drift", ("owner", "accepted_on", "table", "f020_binding"))
+def test_dg55_rejects_self_consistent_caller_replacement_of_accepted_decision(tmp_path, drift):
+    bundle = load_canonical_policy_bundle(POLICY)
+    payload = yaml.safe_load(APPLICABILITY.read_text(encoding="utf-8"))
+    if drift == "owner":
+        payload["decision_payload"]["owner"] = "Mallory"
+    elif drift == "accepted_on":
+        payload["decision_payload"]["accepted_on"] = "2026-07-13"
+    elif drift == "table":
+        payload["decision_payload"]["control_applicability"][0]["required_risk_tiers"] = ["R0"]
+    else:
+        payload["decision_payload"]["f020_binding"]["fixture_revision"] = "r3"
+    path = tmp_path / f"{drift}.yaml"
+    _write_self_consistent_applicability(path, payload)
+    with pytest.raises(ValueError, match="accepted D-G5-5 decision"):
+        load_policy_control_applicability(path, bundle=bundle)
+
+
+def test_dg55_rejects_outer_control_table_that_differs_from_embedded_decision(tmp_path):
+    bundle = load_canonical_policy_bundle(POLICY)
+    payload = yaml.safe_load(APPLICABILITY.read_text(encoding="utf-8"))
+    payload["controls"][0], payload["controls"][1] = payload["controls"][1], payload["controls"][0]
+    path = tmp_path / "outer-table-drift.yaml"
+    _write_self_consistent_applicability(path, payload)
+    with pytest.raises(ValueError, match="outer controls"):
+        load_policy_control_applicability(path, bundle=bundle)

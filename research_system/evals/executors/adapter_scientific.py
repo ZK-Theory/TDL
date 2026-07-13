@@ -157,8 +157,10 @@ def derive_f020_policy_controls(
     from research_system.adapters.claude import build_claude_adapter
     from research_system.adapters.codex import build_codex_adapter
     from research_system.adapters.fake import FakeTransport
-    from research_system.command.service import CommandService
+    from research_system.adapters.provider import receipt_retention_mode
+    from research_system.command.models import Receipt
     from research_system.errors import ArsError
+    from research_system.operations import coordinator
 
     wrapper = {
         "method": "fake-count-v1",
@@ -216,9 +218,10 @@ def derive_f020_policy_controls(
     else:
         declared_tool_only = declared_receipt.complete and len(declared_transport.invocations) == 1
 
-    forbidden = FakeTransport([])
+    forbidden_command = command("undeclared_shell")
+    forbidden = FakeTransport([terminal_result(forbidden_command)])
     try:
-        adapter_builder(forbidden).issue(command("undeclared_shell", authorized=False), "")
+        adapter_builder(forbidden).issue(forbidden_command, "")
     except ArsError:
         shell_blocked = True
     else:  # pragma: no cover - fail-closed defensive branch
@@ -231,9 +234,10 @@ def derive_f020_policy_controls(
         "request_model_work",
         "request_review",
     ):
-        live_transport = FakeTransport([])
+        live_command = command(operation)
+        live_transport = FakeTransport([terminal_result(live_command)])
         try:
-            adapter_builder(live_transport).issue(command(operation, authorized=False), "")
+            adapter_builder(live_transport).issue(live_command, "")
         except ArsError:
             live_enabled = False
         else:  # pragma: no cover - fail-closed defensive branch
@@ -243,7 +247,6 @@ def derive_f020_policy_controls(
             "subprocess_issue_count": len(live_transport.invocations),
         }
 
-    receipt_mode = "bounded_redacted"
     no_transcript = {}
     for operation in (
         "deliver_context",
@@ -254,24 +257,37 @@ def derive_f020_policy_controls(
         transcript_command = command(operation)
         scripted = FakeTransport([terminal_result(transcript_command)])
         try:
-            receipt = adapter_builder(scripted).issue(transcript_command, "bounded context")
+            receipt = adapter_builder(scripted, live_provider_enabled=True).issue(
+                transcript_command,
+                "bounded context",
+            )
         except ArsError:
             full_transcript_retained = True
+            retention_mode = "unavailable"
         else:
-            full_transcript_retained = receipt.redaction != "raw_transport_content_discarded"
+            retention_mode = receipt_retention_mode(receipt)
+            full_transcript_retained = retention_mode != "bounded_redacted"
         no_transcript[operation] = {
             "full_transcript_retained": full_transcript_retained,
-            "receipt_mode": receipt_mode,
+            "receipt_mode": retention_mode,
         }
 
-    direct_transport = FakeTransport([])
-    try:
-        adapter_builder(direct_transport).issue(command("submit_ars_command", authorized=False), "")
-    except ArsError:
-        direct_write_blocked = len(direct_transport.invocations) == 0
-    else:  # pragma: no cover - fail-closed defensive branch
-        direct_write_blocked = False
-    command_state_path = f"{CommandService.submit.__name__}_ars_command"
+    class ProbeCommandService:
+        def __init__(self) -> None:
+            self.submissions: list[dict[str, Any]] = []
+
+        def submit(self, ars_command: dict[str, Any]) -> Receipt:
+            self.submissions.append(ars_command)
+            return Receipt("accepted", "cmd_f020", "e" * 64, None, 1)
+
+    command_service = ProbeCommandService()
+    submission = coordinator.submit_ars_command(
+        command_service,
+        {"event_type": "F020PolicyProbe"},
+    )
+    direct_write_blocked = (
+        not submission.direct_writer_used and len(command_service.submissions) == 1
+    )
     return {
         "no-shell": {
             "operations": {
@@ -286,7 +302,7 @@ def derive_f020_policy_controls(
             "operations": {
                 "submit_ars_command": {
                     "direct_canonical_write_blocked": direct_write_blocked,
-                    "state_change_path": command_state_path,
+                    "state_change_path": submission.state_change_path,
                 }
             }
         },

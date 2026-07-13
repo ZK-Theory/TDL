@@ -32,9 +32,9 @@ from research_system.evals.policies import (
 from research_system.evals.release import BLOCKING, decide_release
 from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
-from research_system.evals.variants import VariantExecutionEvidence
+from research_system.evals.variants import Gate5VariantRow, VariantExecutionEvidence
 from research_system.ids import new_id
-from research_system.policy.models import PolicyControlApplicability
+from research_system.policy.models import CanonicalPolicyBundle, PolicyControlApplicability
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +59,8 @@ class EvaluationEvidence:
     bindings: ReleaseBindings
     results: tuple[GraderResult, ...]
     variant_executions: tuple[VariantExecutionEvidence, ...] = ()
+    variant_rows: tuple[Gate5VariantRow, ...] = ()
+    canonical_policy_bundle: CanonicalPolicyBundle | None = None
     parity_report: PolicyParityReport | None = None
     policy_applicability: PolicyControlApplicability | None = None
     parity_evidence: tuple[FakeAdapterParityEvidence, ...] = ()
@@ -66,6 +68,13 @@ class EvaluationEvidence:
     def __post_init__(self) -> None:
         if not all(isinstance(item, VariantExecutionEvidence) for item in self.variant_executions):
             raise TypeError("typed VariantExecutionEvidence required")
+        if not all(isinstance(item, Gate5VariantRow) for item in self.variant_rows):
+            raise TypeError("typed Gate5VariantRow required")
+        if self.canonical_policy_bundle is not None and not isinstance(
+            self.canonical_policy_bundle,
+            CanonicalPolicyBundle,
+        ):
+            raise TypeError("typed CanonicalPolicyBundle required")
         if self.parity_report is not None and not isinstance(self.parity_report, PolicyParityReport):
             raise TypeError("typed PolicyParityReport required")
         if self.policy_applicability is not None and not isinstance(
@@ -75,6 +84,55 @@ class EvaluationEvidence:
             raise TypeError("typed PolicyControlApplicability required")
         if not all(isinstance(item, FakeAdapterParityEvidence) for item in self.parity_evidence):
             raise TypeError("typed FakeAdapterParityEvidence required")
+        _rebuild_attached_parity(self)
+
+
+def _rebuild_attached_parity(evidence: EvaluationEvidence) -> PolicyParityReport | None:
+    """Rebuild parity solely from execution, result, applicability, and bundle sources."""
+    artifacts_present = any(
+        (
+            evidence.variant_executions,
+            evidence.variant_rows,
+            evidence.canonical_policy_bundle is not None,
+            evidence.parity_report is not None,
+            evidence.policy_applicability is not None,
+            evidence.parity_evidence,
+        )
+    )
+    if not artifacts_present:
+        return None
+    if (
+        evidence.canonical_policy_bundle is None
+        or evidence.policy_applicability is None
+        or evidence.parity_report is None
+        or not evidence.variant_executions
+        or not evidence.variant_rows
+        or not evidence.parity_evidence
+    ):
+        raise ValueError("partial parity evidence is not admissible")
+    from research_system.adapters.parity import build_parity_report
+    from research_system.adapters.parity_evidence import build_fake_adapter_parity_evidence
+
+    rebuilt_evidence = build_fake_adapter_parity_evidence(
+        evidence.variant_executions,
+        evidence.policy_applicability,
+        evidence.canonical_policy_bundle,
+        matrix_rows=evidence.variant_rows,
+        results=evidence.results,
+    )
+    if rebuilt_evidence != evidence.parity_evidence:
+        raise ValueError("attached parity evidence differs from execution-derived evidence")
+    rebuilt_report = build_parity_report(
+        evidence.canonical_policy_bundle,
+        evidence.policy_applicability,
+        rebuilt_evidence,
+        executions=evidence.variant_executions,
+        matrix_rows=evidence.variant_rows,
+        results=evidence.results,
+    )
+    if rebuilt_report != evidence.parity_report:
+        raise ValueError("attached parity report differs from execution-derived report")
+    return rebuilt_report
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,16 +403,32 @@ def run_p0_coverage(
     applicability = load_policy_control_applicability(
         resolved_policy_root / "gate5-policy-control-applicability.yaml", bundle=bundle
     )
-    parity_evidence = build_fake_adapter_parity_evidence(variant_executions, applicability, bundle)
-    parity_report = build_parity_report(bundle, applicability, parity_evidence)
-    return EvaluationEvidence(
-        coverage,
-        bindings,
-        tuple(results),
+    result_tuple = tuple(results)
+    parity_evidence = build_fake_adapter_parity_evidence(
         variant_executions,
-        parity_report,
+        applicability,
+        bundle,
+        matrix_rows=rows,
+        results=result_tuple,
+    )
+    parity_report = build_parity_report(
+        bundle,
         applicability,
         parity_evidence,
+        executions=variant_executions,
+        matrix_rows=rows,
+        results=result_tuple,
+    )
+    return EvaluationEvidence(
+        coverage=coverage,
+        bindings=bindings,
+        results=result_tuple,
+        variant_executions=variant_executions,
+        variant_rows=rows,
+        canonical_policy_bundle=bundle,
+        parity_report=parity_report,
+        policy_applicability=applicability,
+        parity_evidence=parity_evidence,
     )
 
 
@@ -394,18 +468,27 @@ def build_release_decision(
     """
     outcome = decide_release(evidence.bindings, evidence.results)
     operations_status = "pass" if {result.scenario_id for result in scenario_results} == set("ABCDE") else "blocked"
-    report = evidence.parity_report
-    applicability = evidence.policy_applicability
-    if report is None:
+    parity_invalid = False
+    try:
+        report = _rebuild_attached_parity(evidence)
+    except (TypeError, ValueError):
+        report = None
+        applicability = None
+        parity_invalid = True
+    else:
+        applicability = evidence.policy_applicability
+    if parity_invalid:
+        parity_status = "blocked"
+    elif report is None:
         parity_status = "not_evaluated"
-    elif (
+    elif report is not None and (
         report.passed
         and applicability is not None
         and report.applicability_id == applicability.applicability_id
         and report.applicability_hash == applicability.applicability_hash
     ):
         parity_status = "pass"
-    else:
+    elif report is not None:
         parity_status = "blocked"
     decision = outcome["decision"]
     if decision == "pass" and not (operations_status == "pass" and parity_status == "pass"):

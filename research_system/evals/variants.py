@@ -151,17 +151,28 @@ class VariantExecutionEvidence:
     second_normalized_decision_hash: str
     decisions_equal: bool
     grader_result_keys: tuple[tuple[str, str, str, str, str, str], ...]
+    grader_result_bindings: tuple[tuple[object, ...], ...]
     observed_assertions: tuple[ObservedAssertionEvidence, ...]
     execution_evidence_hash: str
 
     def __post_init__(self) -> None:
         if not self.decisions_equal or self.first_normalized_decision_hash != self.second_normalized_decision_hash:
             raise ValueError("variant repeat mismatch")
+        if (
+            self.grader_result_bindings != tuple(sorted(self.grader_result_bindings))
+            or any(len(item) != 6 for item in self.grader_result_bindings)
+            or tuple(item[0] for item in self.grader_result_bindings) != self.grader_result_keys
+            or len(set(self.grader_result_keys)) != len(self.grader_result_keys)
+        ):
+            raise ValueError("grader result binding mismatch")
         payload = {
             "matrix_tuple": list(self.matrix_row.matrix_tuple),
             "first_hash": self.first_normalized_decision_hash,
             "second_hash": self.second_normalized_decision_hash,
             "grader_result_keys": [list(item) for item in self.grader_result_keys],
+            "grader_results": [
+                [list(item[0]), *item[1:]] for item in self.grader_result_bindings
+            ],
             "observed_assertions": [
                 {
                     "property": item.property,
@@ -410,11 +421,27 @@ def execute_gate5_variant_rows_twice(
         if first_hash != second_hash:
             raise ValueError("variant repeat mismatch")
         keys = tuple(sorted(item.result_key for item in row_results))
+        grader_bindings = tuple(
+            sorted(
+                (
+                    item.result_key,
+                    item.verdict,
+                    item.trace_hash,
+                    item.oracle_hash,
+                    item.policy_hash,
+                    item.threshold_policy_hash,
+                )
+                for item in row_results
+            )
+        )
         hash_payload = {
             "matrix_tuple": list(row.matrix_tuple),
             "first_hash": first_hash,
             "second_hash": second_hash,
             "grader_result_keys": [list(item) for item in keys],
+            "grader_results": [
+                [list(item[0]), *item[1:]] for item in grader_bindings
+            ],
             "observed_assertions": [
                 {
                     "property": item.property,
@@ -428,7 +455,18 @@ def execute_gate5_variant_rows_twice(
             ],
         }
         evidence_hash = sha256_hex(canonical_bytes(hash_payload))
-        evidences.append(VariantExecutionEvidence(row, first_hash, second_hash, True, keys, assertions, evidence_hash))
+        evidences.append(
+            VariantExecutionEvidence(
+                row,
+                first_hash,
+                second_hash,
+                True,
+                keys,
+                grader_bindings,
+                assertions,
+                evidence_hash,
+            )
+        )
         variant_results.extend(row_results)
     if len(variant_results) != 170 or len({item.result_key for item in variant_results}) != 170:
         raise ValueError("expected exact 170 unique Gate-5 result keys")
