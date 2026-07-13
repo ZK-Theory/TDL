@@ -4,6 +4,7 @@ import json
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,12 +75,17 @@ class CommandService:
         objects: ObjectStore,
         receipts: ReceiptStore,
         schemas: SchemaRegistry,
+        *,
+        authority_resolver: Any | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.control_root = control_root
         self.ledger = ledger
         self.objects = objects
         self.receipts = receipts
         self.schemas = schemas
+        self.authority_resolver = authority_resolver
+        self.clock = clock or (lambda: datetime.now(UTC))
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: Callable[
             [dict[str, Any], str, str],
@@ -130,6 +136,9 @@ class CommandService:
             self.control_root / 'runtime' / 'writer.lock',
             {'command_id': command.command_id},
         ):
+            scoped = self._scoped_authority_receipt(command)
+            if scoped is not None:
+                return scoped
             stored_conflict = self._stored_conflict_receipt(command)
             if stored_conflict is not None:
                 return stored_conflict
@@ -143,8 +152,7 @@ class CommandService:
                 return self._return_or_reconstruct(existing)
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             if observed_version != command.expected_stream_version:
-                return self.receipts.write(
-                    Receipt(
+                receipt = Receipt(
                         status='conflict',
                         command_id=command.command_id,
                         payload_hash=command.payload_hash,
@@ -152,7 +160,7 @@ class CommandService:
                         observed_stream_version=observed_version,
                         reason_code='stream_version_conflict',
                     )
-                )
+                return self._write_receipt(command, receipt)
             prepared_payload = None
             if command.envelope['command_type'] == 'SupersedeTask':
                 prepared = self._prepare_supersession(
@@ -161,6 +169,21 @@ class CommandService:
                 if isinstance(prepared, Receipt):
                     return self.receipts.write(prepared)
                 prepared_payload = prepared
+            elif command.envelope['command_type'] == 'RevokeAuthorityGrant':
+                try:
+                    prepared_payload = self._prepare_authority_revocation(
+                        command, observed_version
+                    )
+                except IntegrityError:
+                    raise
+                except ArsError as exc:
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        'authority_revocation_unauthorized',
+                        str(exc),
+                    )
+                    return self._write_receipt(command, rejected)
             event = self._build_event(command, prepared_payload)
             ledger_receipt = self.ledger.append([event], snapshot=snapshot)
             updated = self.ledger.snapshot()
@@ -174,7 +197,88 @@ class CommandService:
                     'resulting_stream_versions'
                 ][command.target_stream_id],
             )
-            return self.receipts.write(accepted)
+            return self._write_receipt(command, accepted)
+
+    def with_locked_authority(
+        self,
+        *,
+        authority_grant_id: str,
+        actor_id: str,
+        command_type: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        callback: Callable[[Any], Any],
+    ) -> Any:
+        """Recheck current canonical authority and run a callback under W2 lock.
+
+        Args:
+            authority_grant_id: Grant to revalidate against canonical history.
+            actor_id: Attributed actor performing the governed operation.
+            command_type: Exact governed command type.
+            project_id: Project identity of the governed target.
+            subject_kind: Registered governed subject kind.
+            subject_id: Exact governed subject identity.
+            callback: Operation invoked with replay-derived authority evidence.
+
+        Returns:
+            The callback result.
+
+        Raises:
+            ArsError: If no resolver exists or current authority is invalid.
+            ConflictError: If the W2 writer lock cannot be acquired.
+            IntegrityError: If canonical authority evidence is invalid.
+        """
+        resolver = self.authority_resolver
+        if resolver is None:
+            raise ArsError('governed operation requires authority resolver')
+        with WriterLock(
+            self.control_root / 'runtime' / 'writer.lock',
+            {'command_id': new_id('command')},
+        ):
+            snapshot = self.ledger.snapshot()
+            replay(snapshot.events)
+            resolved = resolver.resolve(
+                authority_grant_id,
+                actor_id,
+                command_type,
+                project_id,
+                subject_kind,
+                subject_id,
+                self.clock(),
+            )
+            return callback(resolved)
+
+    @staticmethod
+    def _authority_scope(command: Command) -> tuple[str, str, str, str]:
+        return (
+            command.actor_id,
+            command.envelope['authority_grant_id'],
+            command.envelope['command_type'],
+            command.idempotency_key,
+        )
+
+    def _scoped_authority_receipt(self, command: Command) -> Receipt | None:
+        if command.envelope['command_type'] != 'RevokeAuthorityGrant':
+            return None
+        grant_hash = command.envelope.get('payload', {}).get(
+            'authority_grant_sha256'
+        )
+        if not isinstance(grant_hash, str):
+            return None
+        return self.receipts.load_scoped(
+            self._authority_scope(command), command.payload_hash, grant_hash
+        )
+
+    def _write_receipt(self, command: Command, receipt: Receipt) -> Receipt:
+        if command.envelope['command_type'] != 'RevokeAuthorityGrant':
+            return self.receipts.write(receipt)
+        grant_hash = command.envelope['payload'].get('authority_grant_sha256')
+        if not isinstance(grant_hash, str):
+            return self.receipts.write(receipt)
+        return self.receipts.write_scoped(
+            self._authority_scope(command), grant_hash, receipt
+        )
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
         """Return an idempotent rejected receipt while holding WriterLock."""
@@ -471,7 +575,7 @@ class CommandService:
                 first.get('command_payload_hash') == command.payload_hash
                 and first.get('stream_id') == command.target_stream_id
             )
-            if first.get('command_id') == command.command_id and same_submission:
+            if same_submission:
                 return list(scoped)
             raise ConflictError('idempotency key conflicts with committed command')
         identified = view.batches_by_command_id.get(command.command_id)
@@ -536,6 +640,11 @@ class CommandService:
             if payload.get('status') != 'verified':
                 raise ArsError('deletion manifest authorizer did not verify')
             event_type = 'EvidenceDeletionVerified'
+        elif command_type == 'RevokeAuthorityGrant':
+            if prepared_payload is None:
+                raise IntegrityError('RevokeAuthorityGrant requires prepared payload')
+            event_type = 'AuthorityGrantRevoked'
+            payload = prepared_payload
         else:
             raise ArsError(f'unsupported command type: {command_type}')
         return {
@@ -553,4 +662,50 @@ class CommandService:
             'schema_version': '1.0.0',
             'occurred_at': None,
             'payload': payload,
+        }
+
+    def _prepare_authority_revocation(
+        self, command: Command, observed_version: int
+    ) -> dict[str, Any]:
+        resolver = self.authority_resolver
+        if resolver is None:
+            raise ArsError('RevokeAuthorityGrant requires authority resolver')
+        payload = command.envelope['payload']
+        fields = {
+            'project_id',
+            'target_grant_id',
+            'target_grant_sha256',
+            'authority_grant_sha256',
+            'reason',
+        }
+        if set(payload) != fields or not isinstance(payload.get('reason'), str) or not payload['reason']:
+            raise ArsError('invalid authority revocation payload')
+        if payload['project_id'] != self.ledger.project_id:
+            raise ArsError('authority revocation project mismatch')
+        if payload['target_grant_id'] != command.target_stream_id:
+            raise ArsError('authority revocation target mismatch')
+        now = self.clock()
+        authorizing = resolver.resolve(
+            command.envelope['authority_grant_id'],
+            command.actor_id,
+            'RevokeAuthorityGrant',
+            self.ledger.project_id,
+            'authority_grant',
+            command.target_stream_id,
+            now,
+        )
+        target = resolver.grant_at(command.target_stream_id, now)
+        if authorizing.authority_grant_sha256 != payload['authority_grant_sha256']:
+            raise ArsError('authority revocation authorizing hash mismatch')
+        if target.authority_grant_sha256 != payload['target_grant_sha256']:
+            raise ArsError('authority revocation target hash mismatch')
+        if observed_version != 1:
+            raise ArsError('authority revocation requires active version 1')
+        return {
+            'project_id': self.ledger.project_id,
+            'target_grant_id': target.authority_grant_id,
+            'target_grant_sha256': target.authority_grant_sha256,
+            'authorizing_grant_id': authorizing.authority_grant_id,
+            'authorizing_grant_sha256': authorizing.authority_grant_sha256,
+            'reason': payload['reason'],
         }

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/event/AuthorityGrantActivated/payload",
+  "type": "object",
+  "required": ["authorizing_grant_id", "authorizing_grant_sha256", "activated_grant_id", "activated_grant_sha256"],
+  "properties": {
+    "authorizing_grant_id": {"type": "string", "pattern": "^agr_"},
+    "authorizing_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "activated_grant_id": {"type": "string", "pattern": "^agr_"},
+    "activated_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

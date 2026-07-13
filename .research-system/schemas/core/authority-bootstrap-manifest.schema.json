@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/authority-bootstrap-manifest",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "project_id", "owner_actor_id", "root_grant", "root_grant_sha256", "publication_grant", "publication_grant_sha256", "publication_target_id"],
+  "properties": {
+    "schema_id": {"const": "ars://core/authority-bootstrap-manifest"},
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "owner_actor_id": {"type": "string", "pattern": "^act_"},
+    "root_grant": {"type": "object"},
+    "root_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "publication_grant": {"type": "object"},
+    "publication_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "publication_target_id": {"type": "string", "pattern": "^rgd_"}
+  },
+  "additionalProperties": false
+}
