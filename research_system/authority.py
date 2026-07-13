@@ -270,6 +270,96 @@ def _validate_bootstrap(value: object, project_id: str) -> tuple[dict[str, Any],
     return dict(value), root, publication
 
 
+def _verify_grant_object(
+    control_root: Path,
+    grant: AuthorityGrant,
+    expected_value: object,
+) -> None:
+    directory = control_root / "objects" / "authority_grant" / grant.authority_grant_id
+    matches = sorted(directory.glob("00000001-*.json"))
+    expected_name = f"00000001-{grant.canonical_sha256}.json"
+    if (
+        len(matches) != 1
+        or matches[0].name != expected_name
+        or matches[0].read_bytes() != canonical_bytes(expected_value)
+    ):
+        raise IntegrityError("authority bootstrap grant object mismatch")
+
+
+def _verify_bootstrap_bindings(
+    control_root: Path,
+    project_id: str,
+    bootstrap: object,
+    events: tuple[dict[str, Any], ...],
+    projection: dict[str, Any],
+) -> None:
+    try:
+        value, root, publication = _validate_bootstrap(bootstrap, project_id)
+    except ValueError as exc:
+        raise IntegrityError("authority bootstrap manifest invalid") from exc
+    bootstrap_hash = authority_bootstrap_sha256(value)
+    _verify_grant_object(control_root, root, value["root_grant"])
+    _verify_grant_object(control_root, publication, value["publication_grant"])
+    if len(events) < 2:
+        raise IntegrityError("authority bootstrap genesis missing")
+    root_event, publication_event = events[:2]
+    expected_common = {
+        "command_type": "InitializeAuthorityRoot",
+        "actor_id": value["owner_actor_id"],
+        "authority_grant_id": root.authority_grant_id,
+        "idempotency_key": f"authority-bootstrap:{bootstrap_hash}",
+        "command_payload_hash": bootstrap_hash,
+        "correlation_id": f"authority-bootstrap:{bootstrap_hash}",
+        "causation_id": None,
+    }
+    for field, expected in expected_common.items():
+        if root_event.get(field) != expected or publication_event.get(field) != expected:
+            raise IntegrityError("authority bootstrap genesis envelope mismatch")
+    if root_event.get("command_id") != publication_event.get("command_id"):
+        raise IntegrityError("authority bootstrap genesis command mismatch")
+    if (
+        root_event.get("event_type") != "AuthorityRootInitialized"
+        or root_event.get("schema_id")
+        != "ars://core/event/AuthorityRootInitialized"
+        or root_event.get("stream_id") != root.authority_grant_id
+        or root_event.get("payload")
+        != {
+            "bootstrap_manifest_sha256": bootstrap_hash,
+            "authorizing_grant_id": root.authority_grant_id,
+            "authorizing_grant_sha256": root.canonical_sha256,
+            "activated_grant_id": root.authority_grant_id,
+            "activated_grant_sha256": root.canonical_sha256,
+        }
+    ):
+        raise IntegrityError("authority bootstrap root binding mismatch")
+    if (
+        publication_event.get("event_type") != "AuthorityGrantActivated"
+        or publication_event.get("schema_id")
+        != "ars://core/event/AuthorityGrantActivated"
+        or publication_event.get("stream_id") != publication.authority_grant_id
+        or publication_event.get("payload")
+        != {
+            "authorizing_grant_id": root.authority_grant_id,
+            "authorizing_grant_sha256": root.canonical_sha256,
+            "activated_grant_id": publication.authority_grant_id,
+            "activated_grant_sha256": publication.canonical_sha256,
+        }
+    ):
+        raise IntegrityError("authority bootstrap publication binding mismatch")
+    grants = projection.get("authority_grants", {})
+    if (
+        projection.get("project_id") != project_id
+        or projection.get("bootstrap_manifest_sha256") != bootstrap_hash
+        or projection.get("authority_root_id") != root.authority_grant_id
+        or set(grants) != {root.authority_grant_id, publication.authority_grant_id}
+        or grants[root.authority_grant_id].get("authority_grant_sha256")
+        != root.canonical_sha256
+        or grants[publication.authority_grant_id].get("authority_grant_sha256")
+        != publication.canonical_sha256
+    ):
+        raise IntegrityError("authority bootstrap projection mismatch")
+
+
 def _write_identity(stage: Path, final_root: Path, code_roots: list[Path], project_id: str, bootstrap_hash: str) -> str:
     nonce = secrets.token_hex(16)
     stable = {
@@ -296,21 +386,190 @@ def _write_identity(stage: Path, final_root: Path, code_roots: list[Path], proje
     return identity
 
 
-def _verify_complete_store(control_root: Path, project_id: str, bootstrap_hash: str) -> str:
-    from research_system.projection.replay import replay
-    from research_system.store.identity import load_store_manifest
-    from research_system.store.ledger import EventLedger
+def _bootstrap_failpoint(point: str) -> None:
+    """Test seam overridden only by subprocess crash-boundary controls."""
 
-    manifest = load_store_manifest(control_root)
-    if manifest.get("schema_version") != "1.1.0":
-        raise ConflictError("authority_bootstrap_required")
+
+def _write_durable(path: Path, data: bytes, *, exclusive: bool = False) -> None:
+    mode = "xb" if exclusive else "wb"
+    with path.open(mode) as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _fsync_directory(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 5:
+            return
+        if exc.errno in {errno.EACCES, errno.EINVAL, errno.ENOTSUP}:
+            return
+        raise
+    try:
+        os.fsync(descriptor)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) not in {1, 5, 87}:
+            raise
+    finally:
+        os.close(descriptor)
+
+
+def _flush_tree(root: Path) -> None:
+    for path in sorted(item for item in root.rglob("*") if item.is_file()):
+        with path.open("r+b") as handle:
+            os.fsync(handle.fileno())
+    directories = [root, *(item for item in root.rglob("*") if item.is_dir())]
+    for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+        _fsync_directory(directory)
+
+
+def _stage_marker(bootstrap_hash: str, status: str) -> dict[str, str]:
+    return {
+        "schema_id": "ars://core/authority-bootstrap-stage",
+        "schema_version": "1.0.0",
+        "bootstrap_manifest_sha256": bootstrap_hash,
+        "status": status,
+    }
+
+
+def _write_stage_marker(stage: Path, bootstrap_hash: str, status: str) -> None:
+    path = stage / "runtime" / "authority-bootstrap-stage.json"
+    temporary = path.with_suffix(".json.tmp")
+    _write_durable(temporary, canonical_bytes(_stage_marker(bootstrap_hash, status)))
+    os.replace(temporary, path)
+    _fsync_directory(path.parent)
+
+
+def _load_bound_manifest(store_root: Path, expected_control_root: Path) -> dict[str, Any]:
+    path = store_root / "manifests" / "store-identity.json"
+    try:
+        data = path.read_bytes()
+        manifest = json.loads(data)
+    except (OSError, json.JSONDecodeError, UnicodeError) as exc:
+        raise IntegrityError("authority store identity manifest invalid") from exc
+    if not isinstance(manifest, dict) or data != canonical_bytes(manifest):
+        raise IntegrityError("authority store identity manifest is not canonical")
+    if manifest.get("manifest_hash") != _manifest_hash(manifest):
+        raise IntegrityError("authority store identity manifest hash mismatch")
+    if manifest.get("control_root") != str(expected_control_root.resolve(strict=False)):
+        raise IntegrityError("authority store control-root binding mismatch")
+    stable = {
+        "schema_id": manifest.get("schema_id"),
+        "schema_version": manifest.get("schema_version"),
+        "store_nonce": manifest.get("store_nonce"),
+        "project_id": manifest.get("project_id"),
+        "bootstrap_manifest_sha256": manifest.get(
+            "bootstrap_manifest_sha256"
+        ),
+    }
+    if (
+        manifest.get("schema_id") != "ars://core/store-identity"
+        or manifest.get("schema_version") != "1.1.0"
+        or manifest.get("store_identity") != sha256_hex(canonical_bytes(stable))
+    ):
+        raise IntegrityError("authority store identity derivation mismatch")
+    return manifest
+
+
+def _read_event_batches(
+    store_root: Path, project_id: str
+) -> tuple[tuple[dict[str, Any], ...], ...]:
+    events_root = store_root / "events" / project_id
+    if not events_root.is_dir():
+        raise IntegrityError("authority event store missing")
+    paths = list(events_root.rglob("*.jsonl"))
+    try:
+        paths.sort(key=lambda path: int(path.name.partition("-")[0]))
+    except ValueError as exc:
+        raise IntegrityError("authority event batch filename invalid") from exc
+    batches: list[tuple[dict[str, Any], ...]] = []
+    try:
+        for path in paths:
+            batch = tuple(
+                json.loads(line)
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line
+            )
+            if not batch:
+                raise IntegrityError("authority event batch is empty")
+            batches.append(batch)
+    except (OSError, json.JSONDecodeError, UnicodeError) as exc:
+        raise IntegrityError("authority event batch invalid") from exc
+    return tuple(batches)
+
+
+def _verify_complete_store(
+    store_root: Path,
+    expected_control_root: Path,
+    project_id: str,
+    bootstrap: object,
+    code_roots: list[Path],
+    *,
+    require_genesis_only: bool = False,
+) -> str:
+    from research_system.projection.replay import replay
+
+    try:
+        value, _, _ = _validate_bootstrap(bootstrap, project_id)
+    except ValueError as exc:
+        raise IntegrityError("authority bootstrap manifest invalid") from exc
+    bootstrap_bytes = canonical_bytes(value)
+    bootstrap_hash = authority_bootstrap_sha256(value)
+    manifest = _load_bound_manifest(store_root, expected_control_root)
     if manifest.get("project_id") != project_id or manifest.get("bootstrap_manifest_sha256") != bootstrap_hash:
         raise ConflictError("authority bootstrap conflicts with existing store")
-    state = replay(EventLedger(control_root, project_id).iter_events())
-    grants = state.get("authority_grants", {})
-    if len(grants) != 2 or state.get("authority_root_id") not in grants:
-        raise IntegrityError("authority genesis is incomplete")
+    expected_roots = sorted(str(root.resolve(strict=True)) for root in code_roots)
+    if manifest.get("code_roots") != expected_roots:
+        raise ConflictError("authority store code root binding mismatch")
+    bootstrap_path = store_root / "manifests" / "authority-bootstrap.json"
+    try:
+        stored_bootstrap = bootstrap_path.read_bytes()
+    except OSError as exc:
+        raise IntegrityError("authority bootstrap manifest missing") from exc
+    if stored_bootstrap != bootstrap_bytes:
+        raise IntegrityError("authority bootstrap manifest bytes mismatch")
+    batches = _read_event_batches(store_root, project_id)
+    if not batches or len(batches[0]) != 2:
+        raise IntegrityError("authority genesis batch is split or incomplete")
+    events = tuple(event for batch in batches for event in batch)
+    if require_genesis_only and (len(batches) != 1 or len(events) != 2):
+        raise IntegrityError("staged authority store contains non-genesis history")
+    state = replay(events)
+    _verify_bootstrap_bindings(store_root, project_id, value, events, state)
     return str(manifest["store_identity"])
+
+
+def _matching_complete_stage(
+    final_root: Path,
+    project_id: str,
+    bootstrap: object,
+    bootstrap_hash: str,
+    code_roots: list[Path],
+) -> tuple[Path, str] | None:
+    prefix = f".{final_root.name}.authority-stage-"
+    for stage in sorted(final_root.parent.glob(f"{prefix}*")):
+        marker_path = stage / "runtime" / "authority-bootstrap-stage.json"
+        try:
+            marker = json.loads(marker_path.read_bytes())
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            continue
+        if marker != _stage_marker(bootstrap_hash, "complete"):
+            continue
+        try:
+            identity = _verify_complete_store(
+                stage,
+                final_root,
+                project_id,
+                bootstrap,
+                code_roots,
+                require_genesis_only=True,
+            )
+        except (ArsError, OSError, ValueError):
+            continue
+        return stage, identity
+    return None
 
 
 def initialize_authority_control_store(
@@ -338,7 +597,6 @@ def initialize_authority_control_store(
         IntegrityError: If staged or published authority history is incomplete.
         OSError: If staging or publication fails at the filesystem boundary.
     """
-    from research_system.projection.replay import replay
     from research_system.store.ledger import EventLedger
     from research_system.store.objects import ObjectStore
 
@@ -357,63 +615,120 @@ def initialize_authority_control_store(
         if final_root == code_root or code_root in final_root.parents or final_root in code_root.parents:
             raise ArsError("control root must be disjoint from every code root")
     if final_root.exists():
-        return _verify_complete_store(final_root, project_id, bootstrap_hash)
-    stage = final_root.with_name(f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}")
-    stage.mkdir()
-    for name in ("objects", "events", "manifests", "receipts", "snapshots", "runtime"):
-        (stage / name).mkdir()
-    marker = {"schema_id": "ars://core/authority-bootstrap-stage", "schema_version": "1.0.0", "bootstrap_manifest_sha256": bootstrap_hash}
-    (stage / "runtime" / "authority-bootstrap-stage.json").write_bytes(canonical_bytes(marker))
-    identity = _write_identity(stage, final_root, resolved_codes, project_id, bootstrap_hash)
-    (stage / "manifests" / "authority-bootstrap.json").write_bytes(canonical_bytes(value))
-    objects = ObjectStore(stage)
-    objects.write("authority_grant", root.authority_grant_id, 1, value["root_grant"])
-    objects.write("authority_grant", publication.authority_grant_id, 1, value["publication_grant"])
-    command_id = new_id("command")
-    common = {
-        "command_id": command_id,
-        "command_type": "InitializeAuthorityRoot",
-        "actor_id": root.actor_id,
-        "authority_grant_id": root.authority_grant_id,
-        "idempotency_key": f"authority-bootstrap:{bootstrap_hash}",
-        "command_payload_hash": bootstrap_hash,
-        "correlation_id": f"authority-bootstrap:{bootstrap_hash}",
-        "causation_id": None,
-        "schema_version": "1.0.0",
-        "occurred_at": None,
-    }
-    ledger = EventLedger(stage, project_id)
-    ledger.append([
-        {
-            **common,
-            "event_type": "AuthorityRootInitialized",
-            "stream_id": root.authority_grant_id,
-            "schema_id": "ars://core/event/AuthorityRootInitialized",
-            "payload": {
-                "bootstrap_manifest_sha256": bootstrap_hash,
-                "authorizing_grant_id": root.authority_grant_id,
-                "authorizing_grant_sha256": root.canonical_sha256,
-                "activated_grant_id": root.authority_grant_id,
-                "activated_grant_sha256": root.canonical_sha256,
-            },
-        },
-        {
-            **common,
-            "event_type": "AuthorityGrantActivated",
-            "stream_id": publication.authority_grant_id,
-            "schema_id": "ars://core/event/AuthorityGrantActivated",
-            "payload": {
-                "authorizing_grant_id": root.authority_grant_id,
-                "authorizing_grant_sha256": root.canonical_sha256,
-                "activated_grant_id": publication.authority_grant_id,
-                "activated_grant_sha256": publication.canonical_sha256,
-            },
-        },
-    ])
-    state = replay(ledger.iter_events())
-    if len(state.get("authority_grants", {})) != 2:
-        raise IntegrityError("staged authority replay incomplete")
-    (stage / "runtime" / "authority-bootstrap-stage.json").unlink()
+        return _verify_complete_store(
+            final_root,
+            final_root,
+            project_id,
+            value,
+            resolved_codes,
+        )
+    resumed = _matching_complete_stage(
+        final_root,
+        project_id,
+        value,
+        bootstrap_hash,
+        resolved_codes,
+    )
+    if resumed is None:
+        stage = final_root.with_name(
+            f".{final_root.name}.authority-stage-"
+            f"{bootstrap_hash[:12]}-{secrets.token_hex(4)}"
+        )
+        stage.mkdir()
+        for name in (
+            "objects",
+            "events",
+            "manifests",
+            "receipts",
+            "snapshots",
+            "runtime",
+        ):
+            (stage / name).mkdir()
+        _write_stage_marker(stage, bootstrap_hash, "building")
+        _bootstrap_failpoint("after-stage-marker")
+        identity = _write_identity(
+            stage, final_root, resolved_codes, project_id, bootstrap_hash
+        )
+        _bootstrap_failpoint("after-identity")
+        _write_durable(
+            stage / "manifests" / "authority-bootstrap.json",
+            canonical_bytes(value),
+            exclusive=True,
+        )
+        _bootstrap_failpoint("after-bootstrap")
+        objects = ObjectStore(stage)
+        objects.write(
+            "authority_grant", root.authority_grant_id, 1, value["root_grant"]
+        )
+        _bootstrap_failpoint("after-root-object")
+        objects.write(
+            "authority_grant",
+            publication.authority_grant_id,
+            1,
+            value["publication_grant"],
+        )
+        _bootstrap_failpoint("after-publication-object")
+        command_id = new_id("command")
+        common = {
+            "command_id": command_id,
+            "command_type": "InitializeAuthorityRoot",
+            "actor_id": root.actor_id,
+            "authority_grant_id": root.authority_grant_id,
+            "idempotency_key": f"authority-bootstrap:{bootstrap_hash}",
+            "command_payload_hash": bootstrap_hash,
+            "correlation_id": f"authority-bootstrap:{bootstrap_hash}",
+            "causation_id": None,
+            "schema_version": "1.0.0",
+            "occurred_at": None,
+        }
+        ledger = EventLedger(stage, project_id)
+        ledger.append(
+            [
+                {
+                    **common,
+                    "event_type": "AuthorityRootInitialized",
+                    "stream_id": root.authority_grant_id,
+                    "schema_id": "ars://core/event/AuthorityRootInitialized",
+                    "payload": {
+                        "bootstrap_manifest_sha256": bootstrap_hash,
+                        "authorizing_grant_id": root.authority_grant_id,
+                        "authorizing_grant_sha256": root.canonical_sha256,
+                        "activated_grant_id": root.authority_grant_id,
+                        "activated_grant_sha256": root.canonical_sha256,
+                    },
+                },
+                {
+                    **common,
+                    "event_type": "AuthorityGrantActivated",
+                    "stream_id": publication.authority_grant_id,
+                    "schema_id": "ars://core/event/AuthorityGrantActivated",
+                    "payload": {
+                        "authorizing_grant_id": root.authority_grant_id,
+                        "authorizing_grant_sha256": root.canonical_sha256,
+                        "activated_grant_id": publication.authority_grant_id,
+                        "activated_grant_sha256": publication.canonical_sha256,
+                    },
+                },
+            ]
+        )
+        _bootstrap_failpoint("after-event-batch")
+        _write_stage_marker(stage, bootstrap_hash, "complete")
+        _flush_tree(stage)
+        _verify_complete_store(
+            stage,
+            final_root,
+            project_id,
+            value,
+            resolved_codes,
+            require_genesis_only=True,
+        )
+    else:
+        stage, identity = resumed
+        _flush_tree(stage)
+    _bootstrap_failpoint("after-staged-replay")
+    marker_path = stage / "runtime" / "authority-bootstrap-stage.json"
+    marker_path.unlink()
+    _fsync_directory(marker_path.parent)
     try:
         os.rename(stage, final_root)
     except OSError as publish_error:
@@ -421,7 +736,13 @@ def initialize_authority_control_store(
         if not collision and not final_root.exists():
             raise
         try:
-            return _verify_complete_store(final_root, project_id, bootstrap_hash)
+            return _verify_complete_store(
+                final_root,
+                final_root,
+                project_id,
+                value,
+                resolved_codes,
+            )
         except (ArsError, OSError) as verify_error:
             raise ConflictError(
                 "competing authority initializer published a foreign store"
@@ -429,6 +750,8 @@ def initialize_authority_control_store(
     finally:
         if stage.exists():
             shutil.rmtree(stage)
+    _bootstrap_failpoint("after-rename")
+    _fsync_directory(final_root.parent)
     return identity
 
 
@@ -463,15 +786,26 @@ class LedgerAuthorityGrantResolver:
             raise ArsError("authority_bootstrap_required")
         bootstrap_path = self.control_root / "manifests" / "authority-bootstrap.json"
         try:
-            bootstrap = json.loads(bootstrap_path.read_text(encoding="utf-8"))
+            bootstrap_bytes = bootstrap_path.read_bytes()
+            bootstrap = json.loads(bootstrap_bytes)
         except (OSError, json.JSONDecodeError) as exc:
             raise IntegrityError("authority bootstrap manifest invalid") from exc
+        if bootstrap_bytes != canonical_bytes(bootstrap):
+            raise IntegrityError("authority bootstrap manifest is not canonical")
         bootstrap_hash = authority_bootstrap_sha256(bootstrap)
         if bootstrap_hash != manifest.get("bootstrap_manifest_sha256"):
             raise IntegrityError("authority bootstrap identity binding mismatch")
-        projection = replay(EventLedger(self.control_root, self.project_id).iter_events())
+        events = tuple(EventLedger(self.control_root, self.project_id).iter_events())
+        projection = replay(events)
         if projection.get("bootstrap_manifest_sha256") != bootstrap_hash:
             raise IntegrityError("authority bootstrap ledger binding mismatch")
+        _verify_bootstrap_bindings(
+            self.control_root,
+            self.project_id,
+            bootstrap,
+            events,
+            projection,
+        )
         return projection
 
     def _load_grant(self, grant_id: str, projection: dict[str, Any]) -> tuple[AuthorityGrant, dict[str, Any]]:

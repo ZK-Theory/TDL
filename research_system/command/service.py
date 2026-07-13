@@ -130,6 +130,11 @@ class CommandService:
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
         self.schemas.validate('ars://core/command', envelope)
+        if envelope.get('command_type') == 'RevokeAuthorityGrant':
+            self.schemas.validate(
+                'ars://core/command/RevokeAuthorityGrant/payload',
+                envelope.get('payload'),
+            )
         command = Command(dict(envelope))
         self._recheck_moved_restore(command)
         with WriterLock(
@@ -149,7 +154,10 @@ class CommandService:
             view = self._view_for(snapshot)
             existing = self._matching_committed(command, view)
             if existing is not None:
-                return self._return_or_reconstruct(existing)
+                return self._write_receipt(
+                    command,
+                    self._return_or_reconstruct(existing),
+                )
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
             if observed_version != command.expected_stream_version:
                 receipt = Receipt(
@@ -266,9 +274,71 @@ class CommandService:
         )
         if not isinstance(grant_hash, str):
             return None
-        return self.receipts.load_scoped(
-            self._authority_scope(command), command.payload_hash, grant_hash
+        receipt = self.receipts.load_scoped(
+            self._authority_scope(command),
+            command.payload_hash,
+            grant_hash,
+            command.expected_stream_version,
         )
+        if receipt is None:
+            return receipt
+        self._reconcile_scoped_authority_receipt(command, receipt)
+        if command.command_id == receipt.command_id:
+            return receipt
+        if self.receipts.load(command.command_id) is not None:
+            raise ConflictError('command ID conflicts with stored receipt')
+        if any(
+            event.get('command_id') == command.command_id
+            for event in self.ledger.snapshot().events
+        ):
+            raise ConflictError('command ID conflicts with committed command')
+        return receipt
+
+    def _reconcile_scoped_authority_receipt(
+        self, command: Command, receipt: Receipt
+    ) -> None:
+        scope = self._authority_scope(command)
+        events = tuple(self.ledger.snapshot().events)
+        scoped_events = tuple(
+            event
+            for event in events
+            if (
+                event.get('actor_id'),
+                event.get('authority_grant_id'),
+                event.get('command_type'),
+                event.get('idempotency_key'),
+            )
+            == scope
+        )
+        if receipt.status == 'accepted':
+            matching = tuple(
+                event
+                for event in scoped_events
+                if event.get('transaction_id') == receipt.event_batch_id
+            )
+            if (
+                len(matching) != 1
+                or matching[0].get('event_type') != 'AuthorityGrantRevoked'
+                or matching[0].get('command_id') != receipt.command_id
+                or matching[0].get('command_payload_hash') != receipt.payload_hash
+                or matching[0].get('stream_id') != command.target_stream_id
+                or matching[0].get('stream_version')
+                != command.expected_stream_version + 1
+                or receipt.observed_stream_version
+                != matching[0].get('stream_version')
+            ):
+                raise IntegrityError(
+                    'scoped accepted receipt does not match canonical ledger'
+                )
+        elif scoped_events:
+            raise IntegrityError(
+                'scoped terminal receipt conflicts with canonical ledger'
+            )
+        stored = self.receipts.load(receipt.command_id)
+        if stored is None:
+            self.receipts.write(receipt)
+        elif stored != receipt:
+            raise IntegrityError('scoped index does not match stored receipt')
 
     def _write_receipt(self, command: Command, receipt: Receipt) -> Receipt:
         if command.envelope['command_type'] != 'RevokeAuthorityGrant':
@@ -277,7 +347,10 @@ class CommandService:
         if not isinstance(grant_hash, str):
             return self.receipts.write(receipt)
         return self.receipts.write_scoped(
-            self._authority_scope(command), grant_hash, receipt
+            self._authority_scope(command),
+            grant_hash,
+            command.expected_stream_version,
+            receipt,
         )
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
@@ -574,6 +647,8 @@ class CommandService:
             same_submission = (
                 first.get('command_payload_hash') == command.payload_hash
                 and first.get('stream_id') == command.target_stream_id
+                and first.get('stream_version')
+                == command.expected_stream_version + 1
             )
             if same_submission:
                 return list(scoped)

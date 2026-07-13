@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 import errno
 import json
 import shutil
+import subprocess
+import sys
 import threading
 
 import pytest
@@ -17,13 +19,13 @@ from research_system.authority import (
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.service import CommandService
 from research_system.cli import main
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
-from tests.research_system.factories import REPO_ROOT
+from tests.research_system.factories import REPO_ROOT, create_task_command
 
 
 PROJECT_ID = "prj_01978abc-1000-7000-8000-000000001000"
@@ -33,6 +35,12 @@ PUBLICATION_ID = "agr_01978abc-1001-7000-8000-000000001001"
 DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
 CMD_REVOKE = "cmd_01978abc-1005-7000-8000-000000001005"
 CMD_RETRY = "cmd_01978abc-1006-7000-8000-000000001006"
+SUBSTITUTE_ACTOR_ID = "act_01978abc-1010-7000-8000-000000001010"
+SUBSTITUTE_DECISION_ID = "rgd_01978abc-1011-7000-8000-000000001011"
+FOREIGN_PUBLICATION_ID = "agr_01978abc-1012-7000-8000-000000001012"
+REUSED_TASK_ID = "tsk_01978abc-1013-7000-8000-000000001013"
+SUBSTITUTE_BATCH_ID = "txb_01978abc-1014-7000-8000-000000001014"
+SUBSTITUTE_EVENT_ID = "evt_01978abc-1015-7000-8000-000000001015"
 
 
 def _grant(
@@ -101,6 +109,73 @@ def _initialized(tmp_path):
     return control_root, bootstrap, identity
 
 
+def _replace_grant_object(control_root, grant_id, value) -> str:
+    directory = control_root / "objects" / "authority_grant" / grant_id
+    for path in directory.glob("*.json"):
+        path.unlink()
+    digest = sha256_hex(canonical_bytes(value))
+    (directory / f"00000001-{digest}.json").write_bytes(canonical_bytes(value))
+    return digest
+
+
+def _rewrite_genesis(control_root, mutate) -> None:
+    batch_path = next((control_root / "events" / PROJECT_ID).rglob("*.jsonl"))
+    events = [
+        json.loads(line)
+        for line in batch_path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    mutate(events)
+    previous_hash = "0" * 64
+    for event in events:
+        event["previous_event_hash"] = previous_hash
+        event.pop("event_hash", None)
+        event["event_hash"] = sha256_hex(canonical_bytes(event))
+        previous_hash = event["event_hash"]
+    batch_path.write_bytes(
+        b"".join(canonical_bytes(event) + b"\n" for event in events)
+    )
+
+
+def _hard_exit_initializer(tmp_path, failpoint: str):
+    bootstrap_path = tmp_path / "bootstrap.json"
+    bootstrap = _bootstrap()
+    bootstrap_path.write_bytes(canonical_bytes(bootstrap))
+    script = """
+import json
+import os
+from pathlib import Path
+import sys
+import research_system.authority as authority
+
+base = Path(sys.argv[1])
+failpoint = sys.argv[2]
+bootstrap = json.loads((base / "bootstrap.json").read_bytes())
+
+def stop(point):
+    if point == failpoint:
+        os._exit(86)
+
+authority._bootstrap_failpoint = stop
+if failpoint == "after-staged-replay":
+    authority.os.rename = lambda *args: os._exit(86)
+authority.initialize_authority_control_store(
+    [base / "repo"],
+    base / "control",
+    sys.argv[3],
+    bootstrap,
+    authority.authority_bootstrap_sha256(bootstrap),
+)
+"""
+    return subprocess.run(  # nosec B603 - current interpreter, synthetic args
+        [sys.executable, "-c", script, str(tmp_path), failpoint, PROJECT_ID],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def test_genesis_is_atomic_replay_derived_and_exact_retry_is_read_only(tmp_path) -> None:
     control_root, bootstrap, identity = _initialized(tmp_path)
     before = sorted(
@@ -130,6 +205,49 @@ def test_genesis_is_atomic_replay_derived_and_exact_retry_is_read_only(tmp_path)
     assert state["authority_grants"][PUBLICATION_ID]["status"] == "active"
 
 
+def test_replay_rejects_mismatched_genesis_envelope(tmp_path) -> None:
+    control_root, _, _ = _initialized(tmp_path)
+    events = list(EventLedger(control_root, PROJECT_ID).iter_events())
+    events[1]["actor_id"] = SUBSTITUTE_ACTOR_ID
+    events[1].pop("event_hash")
+    events[1]["event_hash"] = sha256_hex(canonical_bytes(events[1]))
+
+    with pytest.raises(IntegrityError, match="genesis envelope"):
+        replay(events)
+
+
+@pytest.mark.parametrize("mutation", ["wrong-event", "duplicate-activation"])
+def test_replay_rejects_wrong_or_duplicate_genesis_activation(
+    tmp_path, mutation
+) -> None:
+    control_root, _, _ = _initialized(tmp_path)
+    events = list(EventLedger(control_root, PROJECT_ID).iter_events())
+    if mutation == "wrong-event":
+        events[1]["event_type"] = "AuthorityRootInitialized"
+        events[1]["schema_id"] = "ars://core/event/AuthorityRootInitialized"
+        events[1].pop("event_hash")
+        events[1]["event_hash"] = sha256_hex(canonical_bytes(events[1]))
+    else:
+        duplicate = deepcopy(events[1])
+        duplicate.update(
+            {
+                "event_id": SUBSTITUTE_EVENT_ID,
+                "global_position": 3,
+                "previous_event_hash": events[1]["event_hash"],
+                "stream_version": 2,
+                "transaction_id": SUBSTITUTE_BATCH_ID,
+                "transaction_index": 1,
+                "transaction_count": 1,
+            }
+        )
+        duplicate.pop("event_hash")
+        duplicate["event_hash"] = sha256_hex(canonical_bytes(duplicate))
+        events.append(duplicate)
+
+    with pytest.raises(IntegrityError):
+        replay(events)
+
+
 def test_genesis_rejects_duplicate_resolved_code_roots(tmp_path) -> None:
     code_root = tmp_path / "repo"
     code_root.mkdir()
@@ -146,6 +264,29 @@ def test_genesis_rejects_duplicate_resolved_code_roots(tmp_path) -> None:
         )
 
     assert not control_root.exists()
+
+
+def test_genesis_rejects_nonempty_target_without_mutation(tmp_path) -> None:
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    control_root = tmp_path / "control"
+    control_root.mkdir()
+    sentinel = control_root / "foreign.txt"
+    sentinel.write_bytes(b"foreign-store")
+    bootstrap = _bootstrap()
+
+    with pytest.raises(IntegrityError, match="identity manifest"):
+        initialize_authority_control_store(
+            [code_root],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+
+    assert sentinel.read_bytes() == b"foreign-store"
+    assert tuple(control_root.iterdir()) == (sentinel,)
+    assert not list(tmp_path.glob(".control.authority-stage-*"))
 
 
 def test_changed_retry_legacy_store_and_inert_object_fail_closed(tmp_path) -> None:
@@ -183,6 +324,76 @@ def test_changed_retry_legacy_store_and_inert_object_fail_closed(tmp_path) -> No
         )
 
 
+@pytest.mark.parametrize("missing", ["bootstrap", "root_object", "publication_object"])
+def test_exact_retry_rejects_missing_bound_authority_evidence(
+    tmp_path, missing
+) -> None:
+    control_root, bootstrap, _ = _initialized(tmp_path)
+    paths = {
+        "bootstrap": control_root / "manifests" / "authority-bootstrap.json",
+        "root_object": next(
+            (control_root / "objects" / "authority_grant" / ROOT_ID).glob("*.json")
+        ),
+        "publication_object": next(
+            (control_root / "objects" / "authority_grant" / PUBLICATION_ID).glob(
+                "*.json"
+            )
+        ),
+    }
+    paths[missing].unlink()
+
+    with pytest.raises(IntegrityError):
+        initialize_authority_control_store(
+            [tmp_path / "repo"],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+
+
+def test_exact_retry_rejects_rehashed_code_root_store_swap(tmp_path) -> None:
+    control_root, bootstrap, _ = _initialized(tmp_path)
+    foreign_root = tmp_path / "foreign-repo"
+    foreign_root.mkdir()
+    manifest_path = control_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["code_roots"] = [str(foreign_root.resolve())]
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes(
+            {key: value for key, value in manifest.items() if key != "manifest_hash"}
+        )
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+
+    with pytest.raises(ConflictError, match="code root"):
+        initialize_authority_control_store(
+            [tmp_path / "repo"],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+
+
+def test_exact_retry_rejects_foreign_two_grant_genesis(tmp_path) -> None:
+    control_root, bootstrap, _ = _initialized(tmp_path)
+
+    def substitute_publication_stream(events) -> None:
+        events[1]["stream_id"] = FOREIGN_PUBLICATION_ID
+        events[1]["payload"]["activated_grant_id"] = FOREIGN_PUBLICATION_ID
+
+    _rewrite_genesis(control_root, substitute_publication_stream)
+
+    with pytest.raises(IntegrityError, match="bootstrap"):
+        initialize_authority_control_store(
+            [tmp_path / "repo"],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+
 def test_resolver_enforces_hash_actor_command_project_target_time_and_tamper(tmp_path) -> None:
     control_root, bootstrap, identity = _initialized(tmp_path)
     resolver = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
@@ -196,6 +407,24 @@ def test_resolver_enforces_hash_actor_command_project_target_time_and_tamper(tmp
         datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
     assert result.authority_grant_sha256 == bootstrap["publication_grant_sha256"]
+    assert resolver.resolve(
+        PUBLICATION_ID,
+        ACTOR_ID,
+        "PublishReleaseGateDecision",
+        PROJECT_ID,
+        "release_gate_decision",
+        DECISION_ID,
+        datetime(2026, 7, 12, tzinfo=UTC),
+    ).status == "active"
+    assert resolver.resolve(
+        ROOT_ID,
+        ACTOR_ID,
+        "RevokeAuthorityGrant",
+        PROJECT_ID,
+        "authority_grant",
+        PUBLICATION_ID,
+        datetime(2036, 7, 12, tzinfo=UTC),
+    ).expires_at is None
     for changed in [
         ("act_01978abc-1008-7000-8000-000000001008", "PublishReleaseGateDecision", PROJECT_ID, "release_gate_decision", DECISION_ID),
         (ACTOR_ID, "RevokeAuthorityGrant", PROJECT_ID, "release_gate_decision", DECISION_ID),
@@ -208,11 +437,49 @@ def test_resolver_enforces_hash_actor_command_project_target_time_and_tamper(tmp
         resolver.resolve(PUBLICATION_ID, ACTOR_ID, "PublishReleaseGateDecision", PROJECT_ID, "release_gate_decision", DECISION_ID, datetime(2026, 7, 11, tzinfo=UTC))
     with pytest.raises(ArsError, match="expired"):
         resolver.resolve(PUBLICATION_ID, ACTOR_ID, "PublishReleaseGateDecision", PROJECT_ID, "release_gate_decision", DECISION_ID, datetime(2026, 7, 13, tzinfo=UTC))
+    with pytest.raises(ArsError, match="expired"):
+        resolver.resolve(PUBLICATION_ID, ACTOR_ID, "PublishReleaseGateDecision", PROJECT_ID, "release_gate_decision", DECISION_ID, datetime(2026, 7, 14, tzinfo=UTC))
 
     grant_path = next((control_root / "objects" / "authority_grant" / PUBLICATION_ID).glob("*.json"))
     grant_path.write_bytes(canonical_bytes({**bootstrap["publication_grant"], "risk_ceiling": "R3"}))
     with pytest.raises(IntegrityError, match="object"):
         resolver.resolve(PUBLICATION_ID, ACTOR_ID, "PublishReleaseGateDecision", PROJECT_ID, "release_gate_decision", DECISION_ID, datetime(2026, 7, 12, 12, tzinfo=UTC))
+
+
+def test_resolver_rejects_coordinated_genesis_and_grant_substitution(tmp_path) -> None:
+    control_root, bootstrap, identity = _initialized(tmp_path)
+    substituted_root = deepcopy(bootstrap["root_grant"])
+    substituted_root["actor_id"] = SUBSTITUTE_ACTOR_ID
+    substituted_publication = deepcopy(bootstrap["publication_grant"])
+    substituted_publication["actor_id"] = SUBSTITUTE_ACTOR_ID
+    substituted_publication["subject_scope"]["subject"]["id"] = (
+        SUBSTITUTE_DECISION_ID
+    )
+    root_hash = _replace_grant_object(control_root, ROOT_ID, substituted_root)
+    publication_hash = _replace_grant_object(
+        control_root, PUBLICATION_ID, substituted_publication
+    )
+
+    def substitute(events) -> None:
+        for event in events:
+            event["actor_id"] = SUBSTITUTE_ACTOR_ID
+        events[0]["payload"]["authorizing_grant_sha256"] = root_hash
+        events[0]["payload"]["activated_grant_sha256"] = root_hash
+        events[1]["payload"]["authorizing_grant_sha256"] = root_hash
+        events[1]["payload"]["activated_grant_sha256"] = publication_hash
+
+    _rewrite_genesis(control_root, substitute)
+
+    with pytest.raises(IntegrityError, match="bootstrap"):
+        LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity).resolve(
+            PUBLICATION_ID,
+            SUBSTITUTE_ACTOR_ID,
+            "PublishReleaseGateDecision",
+            PROJECT_ID,
+            "release_gate_decision",
+            SUBSTITUTE_DECISION_ID,
+            datetime(2026, 7, 12, 12, tzinfo=UTC),
+        )
 
 
 def _revoke_command(command_id: str) -> dict[str, object]:
@@ -241,6 +508,30 @@ def _revoke_command(command_id: str) -> dict[str, object]:
             "reason": "synthetic revocation",
         },
     }
+
+
+def test_revoke_payload_schema_rejects_extra_field_before_mutation(tmp_path) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    ledger = EventLedger(control_root, PROJECT_ID)
+    service = CommandService(
+        control_root,
+        ledger,
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    command = _revoke_command(CMD_REVOKE)
+    command["payload"]["unexpected"] = True
+    before = tuple(ledger.iter_events())
+
+    with pytest.raises(SchemaError, match="Additional properties"):
+        service.submit(command)
+
+    assert tuple(ledger.iter_events()) == before
 
 
 def test_revoke_is_locked_monotonic_and_exact_retry_survives_restart(tmp_path) -> None:
@@ -277,6 +568,84 @@ def test_revoke_is_locked_monotonic_and_exact_retry_survives_restart(tmp_path) -
     with pytest.raises(ArsError, match="revoked"):
         resolver.resolve(PUBLICATION_ID, ACTOR_ID, "PublishReleaseGateDecision", PROJECT_ID, "release_gate_decision", DECISION_ID, datetime(2026, 7, 12, 12, tzinfo=UTC))
     assert replay(EventLedger(control_root, PROJECT_ID).iter_events())["authority_grants"][PUBLICATION_ID]["revocation_event_id"]
+
+
+def test_scoped_retry_rejects_changed_expected_stream_version(tmp_path) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
+    changed_version = _revoke_command(CMD_RETRY)
+    changed_version["expected_stream_version"] = 2
+
+    with pytest.raises(ConflictError, match="expected stream version"):
+        service.submit(changed_version)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("reason", "changed revocation reason"),
+        ("target_grant_sha256", "e" * 64),
+        ("authority_grant_sha256", "f" * 64),
+    ],
+)
+def test_scoped_retry_rejects_changed_payload_or_grant_hash(
+    tmp_path, field, value
+) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
+    changed = _revoke_command(CMD_RETRY)
+    changed["payload"][field] = value
+
+    with pytest.raises(ConflictError, match="idempotency key"):
+        service.submit(changed)
+
+
+def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
+    unrelated = create_task_command(
+        CMD_RETRY,
+        "unrelated-command-id-use",
+        REUSED_TASK_ID,
+        {"title": "unrelated"},
+    )
+    assert service.submit(unrelated).status == "accepted"
+
+    with pytest.raises(ConflictError, match="command ID"):
+        service.submit(_revoke_command(CMD_RETRY))
 
 
 def test_rejected_exact_retry_is_returned_before_current_authority_recheck(tmp_path) -> None:
@@ -394,6 +763,52 @@ def test_scoped_receipt_rejects_tampered_embedded_payload_hash(tmp_path) -> None
         restarted.submit(_revoke_command(CMD_RETRY))
 
 
+@pytest.mark.parametrize("tamper", ["event_batch_id", "status"])
+def test_scoped_receipt_reconciles_accepted_outcome_with_ledger(
+    tmp_path, tamper
+) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
+    index_path = next((control_root / "receipts" / "idempotency").glob("*.json"))
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    if tamper == "event_batch_id":
+        index["receipt"]["outcome"]["event_batch_id"] = SUBSTITUTE_BATCH_ID
+    else:
+        index["receipt"]["status"] = "conflict"
+        index["receipt"]["outcome"]["event_batch_id"] = None
+        index["receipt"]["outcome"]["reason_code"] = "stream_version_conflict"
+    index_path.write_bytes(canonical_bytes(index))
+    (control_root / "receipts" / f"{CMD_REVOKE}.json").write_bytes(
+        canonical_bytes(index["receipt"])
+    )
+    restarted = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+
+    with pytest.raises(IntegrityError, match="ledger"):
+        restarted.submit(_revoke_command(CMD_RETRY))
+
+
 def test_scoped_receipt_rejects_malformed_index_and_embedded_receipt(tmp_path) -> None:
     control_root, bootstrap, identity = _initialized(tmp_path)
     receipts = ReceiptStore(control_root)
@@ -431,6 +846,7 @@ def test_scoped_receipt_rejects_malformed_index_and_embedded_receipt(tmp_path) -
                 scope,
                 original["payload_hash"],
                 bootstrap["root_grant_sha256"],
+                1,
             )
 
 
@@ -468,6 +884,110 @@ def test_scoped_receipt_exact_retry_recovers_stale_matching_temp(
     assert retry.status == "rejected"
     assert len(list((control_root / "receipts" / "idempotency").glob("*.json"))) == 1
     assert not list((control_root / "runtime").glob("*.idempotency.tmp"))
+
+
+def test_restart_rebuilds_missing_scoped_index_from_canonical_batch(tmp_path) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    original = service.submit(_revoke_command(CMD_REVOKE))
+    index_path = next((control_root / "receipts" / "idempotency").glob("*.json"))
+    index_path.unlink()
+    restarted = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+
+    assert restarted.submit(_revoke_command(CMD_RETRY)) == original
+    assert len(list((control_root / "receipts" / "idempotency").glob("*.json"))) == 1
+
+
+def test_restart_rebuilds_missing_operational_receipt_from_scoped_index(
+    tmp_path,
+) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    original = service.submit(_revoke_command(CMD_REVOKE))
+    receipt_path = control_root / "receipts" / f"{CMD_REVOKE}.json"
+    receipt_path.unlink()
+    restarted = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+
+    assert restarted.submit(_revoke_command(CMD_RETRY)) == original
+    assert receipt_path.is_file()
+
+
+def test_restart_rejects_changed_expected_version_without_scoped_index(
+    tmp_path,
+) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
+    next((control_root / "receipts" / "idempotency").glob("*.json")).unlink()
+    changed_version = _revoke_command(CMD_RETRY)
+    changed_version["expected_stream_version"] = 2
+    restarted = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+
+    with pytest.raises(ConflictError, match="idempotency key"):
+        restarted.submit(changed_version)
 
 
 def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(
@@ -509,7 +1029,7 @@ def test_cli_store_init_requires_and_publishes_approved_authority_bootstrap(
 
 
 def test_cli_command_submit_wires_validated_authority_resolver(
-    tmp_path, capsys
+    tmp_path, capsys, monkeypatch
 ) -> None:
     control_root, _, identity = _initialized(tmp_path)
     config_path = tmp_path / "binding.json"
@@ -529,6 +1049,11 @@ def test_cli_command_submit_wires_validated_authority_resolver(
     )
     command_path = tmp_path / "revoke.json"
     command_path.write_bytes(canonical_bytes(_revoke_command(CMD_REVOKE)))
+    monkeypatch.setattr(
+        "research_system.cli._authority_clock",
+        lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+        raising=False,
+    )
 
     assert main(
         [
@@ -568,6 +1093,129 @@ def test_pre_rename_crash_leaves_no_visible_store_and_exact_retry_recovers(
         [code_root], control_root, PROJECT_ID, bootstrap, approved
     )
     assert LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+
+
+def test_hard_exit_complete_stage_resumes_byte_for_byte(tmp_path) -> None:
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    bootstrap = _bootstrap()
+
+    crashed = _hard_exit_initializer(tmp_path, "after-staged-replay")
+
+    assert crashed.returncode == 86, crashed.stderr
+    assert not (tmp_path / "control").exists()
+    stage = next(tmp_path.glob(".control.authority-stage-*"))
+    staged_files = {
+        path.relative_to(stage).as_posix(): path.read_bytes()
+        for path in stage.rglob("*")
+        if path.is_file()
+        and path.name != "authority-bootstrap-stage.json"
+    }
+    staged_identity = json.loads(
+        (stage / "manifests" / "store-identity.json").read_text(encoding="utf-8")
+    )["store_identity"]
+
+    identity = initialize_authority_control_store(
+        [code_root],
+        tmp_path / "control",
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+
+    final_root = tmp_path / "control"
+    final_files = {
+        path.relative_to(final_root).as_posix(): path.read_bytes()
+        for path in final_root.rglob("*")
+        if path.is_file()
+    }
+    assert identity == staged_identity
+    assert final_files == staged_files
+
+
+@pytest.mark.parametrize(
+    "failpoint",
+    [
+        "after-stage-marker",
+        "after-identity",
+        "after-bootstrap",
+        "after-root-object",
+        "after-publication-object",
+        "after-event-batch",
+        "after-staged-replay",
+        "after-rename",
+    ],
+)
+def test_hard_exit_boundaries_recover_only_one_complete_store(
+    tmp_path, failpoint
+) -> None:
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    bootstrap = _bootstrap()
+
+    crashed = _hard_exit_initializer(tmp_path, failpoint)
+
+    assert crashed.returncode == 86, crashed.stderr
+    control_root = tmp_path / "control"
+    if control_root.exists():
+        assert failpoint == "after-rename"
+    else:
+        assert list(tmp_path.glob(".control.authority-stage-*"))
+    identity = initialize_authority_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+    resolved = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity).resolve(
+        PUBLICATION_ID,
+        ACTOR_ID,
+        "PublishReleaseGateDecision",
+        PROJECT_ID,
+        "release_gate_decision",
+        DECISION_ID,
+        datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert resolved.authority_grant_sha256 == bootstrap["publication_grant_sha256"]
+
+
+def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    bootstrap = _bootstrap()
+    crashed = _hard_exit_initializer(tmp_path, "after-identity")
+    assert crashed.returncode == 86, crashed.stderr
+    partial_stage = next(tmp_path.glob(".control.authority-stage-*"))
+    partial_identity = json.loads(
+        (partial_stage / "manifests" / "store-identity.json").read_text(
+            encoding="utf-8"
+        )
+    )["store_identity"]
+    foreign_stage = tmp_path / ".control.authority-stage-foreign"
+    (foreign_stage / "runtime").mkdir(parents=True)
+    (foreign_stage / "runtime" / "authority-bootstrap-stage.json").write_bytes(
+        canonical_bytes(
+            {
+                "schema_id": "ars://core/authority-bootstrap-stage",
+                "schema_version": "1.0.0",
+                "bootstrap_manifest_sha256": "f" * 64,
+                "status": "complete",
+            }
+        )
+    )
+
+    identity = initialize_authority_control_store(
+        [code_root],
+        tmp_path / "control",
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+
+    assert identity != partial_identity
+    assert partial_stage.exists()
+    assert foreign_stage.exists()
 
 
 def test_portable_publication_collision_verifies_winner_and_cleans_loser(

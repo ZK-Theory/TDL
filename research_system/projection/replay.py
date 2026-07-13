@@ -68,6 +68,21 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             raise IntegrityError('authority root payload fields must be exact')
         if event.get('global_position') != 1 or event.get('transaction_index') != 1 or event.get('transaction_count') != 2:
             raise IntegrityError('authority root must be genesis index 1/2')
+        bootstrap_hash = payload.get('bootstrap_manifest_sha256')
+        bootstrap_key = f'authority-bootstrap:{bootstrap_hash}'
+        if (
+            event.get('schema_id')
+            != 'ars://core/event/AuthorityRootInitialized'
+            or event.get('command_type') != 'InitializeAuthorityRoot'
+            or event.get('authority_grant_id') != stream_id
+            or not isinstance(event.get('command_id'), str)
+            or not isinstance(event.get('actor_id'), str)
+            or event.get('command_payload_hash') != bootstrap_hash
+            or event.get('idempotency_key') != bootstrap_key
+            or event.get('correlation_id') != bootstrap_key
+            or event.get('causation_id') is not None
+        ):
+            raise IntegrityError('authority genesis envelope binding mismatch')
         if payload.get('activated_grant_id') != stream_id or payload.get('authorizing_grant_id') != stream_id:
             raise IntegrityError('authority root stream binding mismatch')
         if payload.get('activated_grant_sha256') != payload.get('authorizing_grant_sha256'):
@@ -85,6 +100,19 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         }
         updated['authority_root_id'] = stream_id
         updated['bootstrap_manifest_sha256'] = payload['bootstrap_manifest_sha256']
+        updated['_authority_genesis_envelope'] = {
+            field: event.get(field)
+            for field in (
+                'command_id',
+                'command_type',
+                'actor_id',
+                'authority_grant_id',
+                'idempotency_key',
+                'command_payload_hash',
+                'correlation_id',
+                'causation_id',
+            )
+        }
     elif event_type == 'AuthorityGrantActivated':
         payload = event['payload']
         if set(payload) != {
@@ -96,6 +124,17 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
         root_id = updated.get('authority_root_id')
         if event.get('global_position') != 2 or event.get('transaction_index') != 2 or event.get('transaction_count') != 2:
             raise IntegrityError('publication grant must be genesis index 2/2')
+        genesis_envelope = updated.pop('_authority_genesis_envelope', None)
+        if (
+            event.get('schema_id')
+            != 'ars://core/event/AuthorityGrantActivated'
+            or not isinstance(genesis_envelope, dict)
+            or any(
+                event.get(field) != expected
+                for field, expected in genesis_envelope.items()
+            )
+        ):
+            raise IntegrityError('authority genesis envelope binding mismatch')
         if payload.get('authorizing_grant_id') != root_id or payload.get('authorizing_grant_sha256') != grants.get(root_id, {}).get('authority_grant_sha256'):
             raise IntegrityError('publication activation authority mismatch')
         if payload.get('activated_grant_id') != stream_id or stream_id in grants:
