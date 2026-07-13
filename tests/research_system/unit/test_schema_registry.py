@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -48,6 +49,35 @@ def test_registry_rejects_unknown_schema():
         SchemaRegistry(SCHEMAS).validate('ars://missing', {})
 
 
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("extra",), "forbidden"),
+        (("project_id",), "prj_not-a-uuid7"),
+        (("target_grant_id",), "agr_not-a-uuid7"),
+        (("target_grant_sha256",), "0" * 63),
+        (("authority_grant_sha256",), "not-a-hash"),
+        (("reason",), ""),
+    ],
+)
+def test_revoke_authority_grant_payload_schema_is_strict(path, value):
+    payload = {
+        "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+        "target_grant_id": "agr_01978abc-1001-7000-8000-000000001001",
+        "target_grant_sha256": "1" * 64,
+        "authority_grant_sha256": "2" * 64,
+        "reason": "synthetic revocation",
+    }
+    invalid = deepcopy(payload)
+    invalid[path[0]] = value
+    registry = SchemaRegistry(SCHEMAS)
+    registry.validate("ars://core/command/RevokeAuthorityGrant/payload", payload)
+    with pytest.raises(SchemaError):
+        registry.validate(
+            "ars://core/command/RevokeAuthorityGrant/payload", invalid
+        )
+
+
 def test_every_core_schema_declares_closed_object_contract():
     paths = sorted((SCHEMAS / 'core').glob('*.schema.json'))
     assert {path.name for path in paths} == {
@@ -60,6 +90,7 @@ def test_every_core_schema_declares_closed_object_contract():
         'command.schema.json',
         'event.schema.json',
         'receipt.schema.json',
+        'revoke-authority-grant.schema.json',
         'store-identity-1.1.schema.json',
         'task.schema.json',
     }

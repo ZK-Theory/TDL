@@ -24,6 +24,7 @@ _INDEX_FIELDS = {
     'scope',
     'payload_hash',
     'authority_grant_sha256',
+    'expected_stream_version',
     'receipt',
 }
 
@@ -84,6 +85,20 @@ def _validated_receipt(record: object) -> Receipt:
         or len(outcome['unmet_preconditions'])
         != len(set(outcome['unmet_preconditions']))
     ):
+        raise ConflictError('invalid idempotency index receipt')
+    if status == 'accepted' and (
+        not isinstance(outcome.get('event_batch_id'), str)
+        or not outcome['event_batch_id']
+        or outcome.get('reason_code') is not None
+        or outcome['observed_stream_version'] < 1
+    ):
+        raise ConflictError('invalid idempotency index receipt')
+    if status == 'conflict' and (
+        outcome.get('event_batch_id') is not None
+        or outcome.get('reason_code') != 'stream_version_conflict'
+    ):
+        raise ConflictError('invalid idempotency index receipt')
+    if status == 'duplicate':
         raise ConflictError('invalid idempotency index receipt')
     return _receipt_from_record(record)
 
@@ -159,6 +174,7 @@ class ReceiptStore:
         scope: tuple[str, str, str, str],
         payload_hash: str,
         authority_grant_sha256: str,
+        expected_stream_version: int,
     ) -> Receipt | None:
         """Load an exact authority-scoped idempotency outcome.
 
@@ -166,6 +182,7 @@ class ReceiptStore:
             scope: Actor, grant, command, and idempotency-key tuple.
             payload_hash: Canonical command payload digest required for retry.
             authority_grant_sha256: Exact authorizing grant digest.
+            expected_stream_version: Stream version bound into the submission.
 
         Returns:
             The validated stored receipt, or ``None`` when no index exists.
@@ -185,12 +202,15 @@ class ReceiptStore:
             not isinstance(record, dict)
             or set(record) != _INDEX_FIELDS
             or record.get('schema_id') != 'ars://core/authority-receipt-index'
-            or record.get('schema_version') != '1.0.0'
+            or record.get('schema_version') != '1.1.0'
             or not isinstance(record.get('scope'), list)
             or len(record['scope']) != 4
             or not all(isinstance(item, str) and item for item in record['scope'])
             or not _is_sha256(record.get('payload_hash'))
             or not _is_sha256(record.get('authority_grant_sha256'))
+            or not isinstance(record.get('expected_stream_version'), int)
+            or isinstance(record.get('expected_stream_version'), bool)
+            or record['expected_stream_version'] < 0
         ):
             raise ConflictError('invalid idempotency index')
         if record.get('scope') != list(scope):
@@ -200,6 +220,10 @@ class ReceiptStore:
             or record.get('authority_grant_sha256') != authority_grant_sha256
         ):
             raise ConflictError('idempotency key conflicts with stored outcome')
+        if record['expected_stream_version'] != expected_stream_version:
+            raise ConflictError(
+                'idempotency key conflicts with expected stream version'
+            )
         receipt = _validated_receipt(record['receipt'])
         if receipt.payload_hash != payload_hash:
             raise ConflictError('idempotency index receipt payload mismatch')
@@ -209,6 +233,7 @@ class ReceiptStore:
         self,
         scope: tuple[str, str, str, str],
         authority_grant_sha256: str,
+        expected_stream_version: int,
         receipt: Receipt,
     ) -> Receipt:
         """Atomically publish one authority-scoped idempotency outcome.
@@ -216,6 +241,7 @@ class ReceiptStore:
         Args:
             scope: Actor, grant, command, and idempotency-key tuple.
             authority_grant_sha256: Exact authorizing grant digest.
+            expected_stream_version: Stream version bound into the submission.
             receipt: Terminal command receipt to index and persist.
 
         Returns:
@@ -229,17 +255,21 @@ class ReceiptStore:
         target = self.index_root / f'{key}.json'
         record = {
             'schema_id': 'ars://core/authority-receipt-index',
-            'schema_version': '1.0.0',
+            'schema_version': '1.1.0',
             'scope': list(scope),
             'payload_hash': receipt.payload_hash,
             'authority_grant_sha256': authority_grant_sha256,
+            'expected_stream_version': expected_stream_version,
             'receipt': _receipt_record(receipt),
         }
         data = canonical_bytes(record)
         if target.exists():
             if target.read_bytes() != data:
                 existing = self.load_scoped(
-                    scope, receipt.payload_hash, authority_grant_sha256
+                    scope,
+                    receipt.payload_hash,
+                    authority_grant_sha256,
+                    expected_stream_version,
                 )
                 if existing != receipt:
                     raise ConflictError('idempotency index outcome mismatch')

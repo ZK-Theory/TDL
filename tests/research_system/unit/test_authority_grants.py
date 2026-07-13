@@ -101,6 +101,34 @@ def test_authority_grant_rejects_unhashable_command_elements_as_value_error() ->
         AuthorityGrant.from_dict(payload)
 
 
+@pytest.mark.parametrize(
+    "expires_at",
+    ["2026-07-12T00:00:00Z", "2026-07-11T23:59:59Z"],
+)
+def test_authority_grant_rejects_equal_or_inverted_time_range(
+    expires_at: str,
+) -> None:
+    payload = {
+        "schema_id": "ars://core/authority-grant",
+        "schema_version": "1.1.0",
+        "authority_grant_id": GRANT_ID,
+        "actor_id": ACTOR_ID,
+        "allowed_command_types": ["PublishReleaseGateDecision"],
+        "subject_scope": {
+            "project_id": PROJECT_ID,
+            "subject": {"kind": "release_gate_decision", "id": DECISION_ID},
+        },
+        "risk_ceiling": "R2",
+        "effective_at": "2026-07-12T00:00:00Z",
+        "expires_at": expires_at,
+        "delegable": False,
+        "revoked": False,
+    }
+
+    with pytest.raises(ValueError, match="strictly after"):
+        AuthorityGrant.from_dict(payload)
+
+
 def test_registered_authority_grant_110_schema_rejects_extra_scope() -> None:
     registry = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     payload = {

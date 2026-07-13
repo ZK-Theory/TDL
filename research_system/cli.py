@@ -5,6 +5,7 @@ import json
 import subprocess  # nosec B404 - fixed git discovery command
 import sys
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -42,6 +43,10 @@ from research_system.store.receipts import ReceiptStore
 
 def _print_json(value: Any) -> None:
     print(canonical_bytes(jsonable(value)).decode('utf-8'))
+
+
+def _authority_clock() -> datetime:
+    return datetime.now(UTC)
 
 
 def _registered_code_roots(roots: list[Path]) -> list[Path]:
@@ -126,6 +131,7 @@ def _command_submit(args: argparse.Namespace) -> int:
             binding.project_id,
             binding.store_identity,
         ),
+        clock=_authority_clock,
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
