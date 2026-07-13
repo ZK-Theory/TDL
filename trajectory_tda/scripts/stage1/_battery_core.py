@@ -25,6 +25,12 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from trajectory_tda.topology.compute_profile import (
+    peak_rss_bytes,
+    profile_from_diagrams,
+    wall_timer,
+)
+
 logger = logging.getLogger(__name__)
 
 # --- Pre-registered defaults (locked 2026-05-13) -----------------------------
@@ -257,6 +263,7 @@ def aggregate_combined(
     n_null_pairs_cap: int = DEFAULT_N_NULL_PAIRS,
     phase_label: str = "",
     n_jobs: int = 4,
+    profile_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Aggregate W2 + landscape L2 from a shared set of null permutation results.
 
@@ -277,9 +284,24 @@ def aggregate_combined(
         phase_label: Label used in log messages.
         n_jobs: Parallelism for the null-null W2/landscape-L2 aggregation
             (Level 2 of the two-level parallelism architecture).
+        profile_context: Optional per-cell compute-profile context (amendment
+            B7) — ``method``, ``dataset``, ``points`` (landmark sample used
+            for observed PH), ``n_landmarks``, ``max_edge_length``,
+            ``backend``, ``complex_construction_wall_s``, ``ph_wall_s``,
+            ``peak_rss``. When ``None`` (default), no ``compute_profile`` key
+            is attached and behaviour is identical to before this parameter
+            existed. When provided, one :class:`ComputeProfile` is recorded
+            per homology dimension under the additive ``compute_profile`` key
+            of the returned dict — the W2-aggregation cost
+            (``w2_pair_count``/``w2_total_wall_s``) is measured per dimension
+            inside this function; the upstream complex-construction/PH costs
+            are shared across dimensions since PH is computed once for all
+            dims.
 
     Returns:
-        Dict keyed ``h0``/``h1``/... with W2 + landscape fields per dimension.
+        Dict keyed ``h0``/``h1``/... with W2 + landscape fields per dimension,
+        plus an additive ``compute_profile`` key when ``profile_context`` is
+        provided.
     """
     from joblib import Parallel, delayed
 
@@ -304,6 +326,7 @@ def aggregate_combined(
     )
 
     output: dict[str, Any] = {}
+    profile_out: dict[str, Any] = {}
     for dim in range(max_dim + 1):
         key = f"H{dim}"
         cell_key = f"h{dim}"
@@ -354,11 +377,12 @@ def aggregate_combined(
             n_null_pairs,
             n_pvalue_pairs,
         )
-        null_null_w2_all = list(
-            Parallel(n_jobs=n_jobs, verbose=10)(
-                delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim) for (i, j) in pair_indices_all
+        with wall_timer() as w2_timer:
+            null_null_w2_all = list(
+                Parallel(n_jobs=n_jobs, verbose=10)(
+                    delayed(_null_null_w2_worker)(null_dgms[i], null_dgms[j], dim) for (i, j) in pair_indices_all
+                )
             )
-        )
         logger.info("%s   dim=%d null-null W2 done in %.1fs", tag, dim, time.time() - t_w2)
 
         null_null_w2 = null_null_w2_all[:n_null_pairs]
@@ -439,6 +463,27 @@ def aggregate_combined(
         if dim == 0:
             cell["lower_tail_pvalue"] = lower_tail_pvalue
         output[cell_key] = cell
+
+        if profile_context is not None:
+            raw_dgm = ph_obs.dgms.get(dim, np.empty((0, 2)))
+            profile = profile_from_diagrams(
+                method=profile_context["method"],
+                dataset=profile_context["dataset"],
+                points=profile_context["points"],
+                dgms={dim: raw_dgm},
+                backend=profile_context["backend"],
+                n_landmarks=profile_context["n_landmarks"],
+                max_edge_length=profile_context["max_edge_length"],
+                complex_construction_wall_s=profile_context["complex_construction_wall_s"],
+                ph_wall_s=profile_context["ph_wall_s"],
+                peak_rss=profile_context["peak_rss"],
+                w2_pair_count=len(pair_indices_all),
+                w2_total_wall_s=w2_timer.elapsed,
+            )
+            profile_out[cell_key] = profile.to_dict()
+
+    if profile_context is not None:
+        output["compute_profile"] = profile_out
 
     logger.info("%s aggregation total elapsed: %.1fs", tag, time.time() - t_agg_total)
     return output
@@ -639,47 +684,47 @@ def run_headline_from_embeddings(
 
     n = embeddings.shape[0]
     actual_lm = min(n_landmarks, n)
-    t_lm = time.time()
-    if actual_lm < n:
-        _, obs_landmarks = maxmin_landmarks(embeddings, actual_lm, seed=seed)
-    else:
-        obs_landmarks = embeddings
+    with wall_timer() as cc_timer:
+        if actual_lm < n:
+            _, obs_landmarks = maxmin_landmarks(embeddings, actual_lm, seed=seed)
+        else:
+            obs_landmarks = embeddings
 
-    # Optional external dedup for the observed PD per the
-    # length-matched-dedup-via-n-perm formula contract. Call shape is
-    # bit-for-bit unchanged when dedup_length_matched=False (default) so
-    # existing callers and monkeypatches are unaffected.
-    obs_n_perm_used: int | None = None
-    obs_covering_radius: float | None = None
-    obs_landmarks_for_ph = obs_landmarks
-    if dedup_length_matched:
-        obs_n_perm_used, obs_covering_radius, obs_dedup_idx = compute_greedy_dedup_count(obs_landmarks)
-        logger.info(
-            "[PHASE %s] dedup observed: n_dedup=%d, covering_radius=%.3e (tolerance=%.0e, L=%d)",
-            label,
-            obs_n_perm_used,
-            obs_covering_radius,
-            DEDUP_TOLERANCE,
-            actual_lm,
-        )
-        obs_landmarks_for_ph = obs_landmarks[obs_dedup_idx]
+        # Optional external dedup for the observed PD per the
+        # length-matched-dedup-via-n-perm formula contract. Call shape is
+        # bit-for-bit unchanged when dedup_length_matched=False (default) so
+        # existing callers and monkeypatches are unaffected.
+        obs_n_perm_used: int | None = None
+        obs_covering_radius: float | None = None
+        obs_landmarks_for_ph = obs_landmarks
+        if dedup_length_matched:
+            obs_n_perm_used, obs_covering_radius, obs_dedup_idx = compute_greedy_dedup_count(obs_landmarks)
+            logger.info(
+                "[PHASE %s] dedup observed: n_dedup=%d, covering_radius=%.3e (tolerance=%.0e, L=%d)",
+                label,
+                obs_n_perm_used,
+                obs_covering_radius,
+                DEDUP_TOLERANCE,
+                actual_lm,
+            )
+            obs_landmarks_for_ph = obs_landmarks[obs_dedup_idx]
 
-    # Probe-mode pinned thresh — compute the enclosing radius of the
-    # observed (post-dedup) landmark sample once and pass it to ripser for
-    # BOTH the observed and every null PD. Eliminates the auto-thresh
-    # divergence from compute_rips_ph's per-call 500-pt subsample. Default
-    # path (probe_pinned_thresh=False) leaves ph_kwargs empty so
-    # compute_rips_ph runs its existing auto-thresh logic unchanged.
-    pinned_thresh_value: float | None = None
-    if probe_pinned_thresh:
-        from scipy.spatial.distance import pdist
+        # Probe-mode pinned thresh — compute the enclosing radius of the
+        # observed (post-dedup) landmark sample once and pass it to ripser for
+        # BOTH the observed and every null PD. Eliminates the auto-thresh
+        # divergence from compute_rips_ph's per-call 500-pt subsample. Default
+        # path (probe_pinned_thresh=False) leaves ph_kwargs empty so
+        # compute_rips_ph runs its existing auto-thresh logic unchanged.
+        pinned_thresh_value: float | None = None
+        if probe_pinned_thresh:
+            from scipy.spatial.distance import pdist
 
-        pinned_thresh_value = float(pdist(obs_landmarks_for_ph).max())
-        logger.info(
-            "[PHASE %s] probe pinned thresh = %.4f (enclosing radius of observed post-dedup landmarks)",
-            label,
-            pinned_thresh_value,
-        )
+            pinned_thresh_value = float(pdist(obs_landmarks_for_ph).max())
+            logger.info(
+                "[PHASE %s] probe pinned thresh = %.4f (enclosing radius of observed post-dedup landmarks)",
+                label,
+                pinned_thresh_value,
+            )
 
     obs_ph_kwargs: dict[str, Any] = {"max_dim": 1}
     if pinned_thresh_value is not None:
@@ -691,18 +736,19 @@ def run_headline_from_embeddings(
     # pool — not just failures during the permutation loop itself.
     giotto_pool = None
     try:
-        if rips_backend == "giotto":
-            from poverty_tda.topology.giotto_backend import GiottoPool, compute_rips_ph_giotto
+        with wall_timer() as ph_timer:
+            if rips_backend == "giotto":
+                from poverty_tda.topology.giotto_backend import GiottoPool, compute_rips_ph_giotto
 
-            giotto_pool = GiottoPool(n_workers=n_jobs, worktree_root=worktree_root())
-            ph_obs = compute_rips_ph_giotto(
-                obs_landmarks_for_ph,
-                giotto_pool,
-                max_dim=obs_ph_kwargs["max_dim"],
-                thresh=obs_ph_kwargs.get("thresh"),
-            )
-        else:
-            ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
+                giotto_pool = GiottoPool(n_workers=n_jobs, worktree_root=worktree_root())
+                ph_obs = compute_rips_ph_giotto(
+                    obs_landmarks_for_ph,
+                    giotto_pool,
+                    max_dim=obs_ph_kwargs["max_dim"],
+                    thresh=obs_ph_kwargs.get("thresh"),
+                )
+            else:
+                ph_obs = compute_rips_ph(obs_landmarks_for_ph, **obs_ph_kwargs)
 
         # Probe-mode forced symmetric dedup — if requested, force every null PD
         # to use n_perm = obs_n_perm_used. Requires dedup_length_matched=True to
@@ -720,9 +766,20 @@ def run_headline_from_embeddings(
         logger.info(
             "[PHASE %s] obs landmarks + PH built in %.1fs (L=%d)",
             label,
-            time.time() - t_lm,
+            cc_timer.elapsed + ph_timer.elapsed,
             actual_lm,
         )
+        profile_context: dict[str, Any] = {
+            "method": f"vr_{rips_backend}",
+            "dataset": label,
+            "points": obs_landmarks_for_ph,
+            "n_landmarks": actual_lm,
+            "max_edge_length": pinned_thresh_value,
+            "backend": rips_backend,
+            "complex_construction_wall_s": cc_timer.elapsed,
+            "ph_wall_s": ph_timer.elapsed,
+            "peak_rss": peak_rss_bytes(),
+        }
 
         write_status(f"PHASE {label} PERMUTATIONS", f"B={n_permutations} n_jobs={n_jobs}")
         logger.info(
@@ -827,13 +884,9 @@ def run_headline_from_embeddings(
         )
 
     if perms_only:
-        logger.info(
-            "[PHASE %s] perms-only — cache written, stopping before AGG", label
-        )
+        logger.info("[PHASE %s] perms-only — cache written, stopping before AGG", label)
         write_status(f"PHASE {label} PERMS DONE", f"B={n_permutations}")
-        logger.info(
-            "[PHASE %s] TOTAL elapsed %.1fs (perms only)", label, time.time() - t_phase
-        )
+        logger.info("[PHASE %s] TOTAL elapsed %.1fs (perms only)", label, time.time() - t_phase)
         logger.info("=" * 70)
         return {"perms_only": True}, null_results, ph_obs
 
@@ -849,6 +902,7 @@ def run_headline_from_embeddings(
         n_null_pairs_cap=n_null_pairs_cap,
         phase_label=label,
         n_jobs=_agg_jobs,
+        profile_context=profile_context,
     )
 
     # Attach dedup provenance for length-matched cells. The caller (e.g.
