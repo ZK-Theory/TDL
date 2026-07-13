@@ -129,6 +129,12 @@ def test_forged_typed_evidence_identity_cannot_produce_a_passing_report(executio
         )
 
 
+def test_valid_typed_evidence_rejects_variant_id_drift(execution):
+    valid = execution.parity_evidence[0]
+    with pytest.raises(ValueError, match="evidence identity"):
+        replace(valid, variant_id="variant-forged")
+
+
 def _replace_execution_bindings(execution, donor):
     payload = {
         "matrix_tuple": list(execution.matrix_row.matrix_tuple),

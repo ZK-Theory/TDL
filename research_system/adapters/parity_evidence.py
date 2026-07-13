@@ -21,6 +21,7 @@ def _record_payload(record: FakeAdapterParityEvidence) -> dict:
         "applicability_hash": record.applicability_hash,
         "control": [record.control_id, record.control_revision],
         "provider_variant": record.provider_variant,
+        "variant_id": record.variant_id,
         "matrix_tuple": list(record.matrix_tuple),
         "execution_evidence_hash": record.execution_evidence_hash,
         "observed": [
@@ -60,6 +61,7 @@ class FakeAdapterParityEvidence:
             self.evidence_hash != digest
             or self.evidence_id != f"fpe_{digest}"
             or len(self.matrix_tuple) != 11
+            or self.variant_id != self.matrix_tuple[2]
             or self.grader_result_keys != tuple(sorted(self.grader_result_keys))
             or len(set(self.grader_result_keys)) != len(self.grader_result_keys)
         ):
@@ -185,6 +187,7 @@ def build_fake_adapter_parity_evidence(
                 "applicability_hash": applicability.applicability_hash,
                 "control": [control.control_id, control.control_revision],
                 "provider_variant": requirement.provider_variant,
+                "variant_id": requirement.variant_id,
                 "matrix_tuple": list(execution.matrix_row.matrix_tuple),
                 "execution_evidence_hash": execution.execution_evidence_hash,
                 "observed": [
