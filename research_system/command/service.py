@@ -298,7 +298,9 @@ class CommandService:
         self, command: Command, receipt: Receipt
     ) -> None:
         scope = self._authority_scope(command)
-        events = tuple(self.ledger.snapshot().events)
+        snapshot = self.ledger.snapshot()
+        replay(snapshot.events)
+        events = tuple(snapshot.events)
         scoped_events = tuple(
             event
             for event in events

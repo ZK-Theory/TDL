@@ -157,7 +157,7 @@ def stop(point):
         os._exit(86)
 
 authority._bootstrap_failpoint = stop
-if failpoint == "after-staged-replay":
+if failpoint == "at-rename":
     authority.os.rename = lambda *args: os._exit(86)
 authority.initialize_authority_control_store(
     [base / "repo"],
@@ -167,7 +167,8 @@ authority.initialize_authority_control_store(
     authority.authority_bootstrap_sha256(bootstrap),
 )
 """
-    return subprocess.run(  # nosec B603 - current interpreter, synthetic args
+    # Current interpreter, fixed argv shape, and synthetic test inputs only.
+    return subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit  # nosec B603
         [sys.executable, "-c", script, str(tmp_path), failpoint, PROJECT_ID],
         cwd=REPO_ROOT,
         capture_output=True,
@@ -728,6 +729,50 @@ def test_replay_rejects_foreign_project_in_revocation_payload(tmp_path) -> None:
         replay(events)
 
 
+def test_scoped_retry_replays_tampered_canonical_revocation_history(tmp_path) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+    service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    original = service.submit(_revoke_command(CMD_REVOKE))
+    assert original.status == "accepted"
+
+    batch_path = next(
+        path
+        for path in (control_root / "events" / PROJECT_ID).rglob("*.jsonl")
+        if '"AuthorityGrantRevoked"' in path.read_text(encoding="utf-8")
+    )
+    event = json.loads(batch_path.read_text(encoding="utf-8"))
+    event["payload"]["project_id"] = "prj_01978abc-1099-7000-8000-000000001099"
+    event.pop("event_hash")
+    event["event_hash"] = sha256_hex(canonical_bytes(event))
+    batch_path.write_bytes(canonical_bytes(event) + b"\n")
+
+    restarted = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root, PROJECT_ID, identity
+        ),
+        clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+
+    with pytest.raises(IntegrityError, match="project"):
+        restarted.submit(_revoke_command(CMD_RETRY))
+
+
 def test_scoped_receipt_rejects_tampered_embedded_payload_hash(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
@@ -1131,6 +1176,46 @@ def test_hard_exit_complete_stage_resumes_byte_for_byte(tmp_path) -> None:
     }
     assert identity == staged_identity
     assert final_files == staged_files
+
+
+def test_hard_exit_at_atomic_rename_resumes_without_orphan(tmp_path) -> None:
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    bootstrap = _bootstrap()
+
+    crashed = _hard_exit_initializer(tmp_path, "at-rename")
+
+    assert crashed.returncode == 86, crashed.stderr
+    assert not (tmp_path / "control").exists()
+    stage = next(tmp_path.glob(".control.authority-stage-*"))
+    marker = stage / "runtime" / "authority-bootstrap-stage.json"
+    assert marker.is_file()
+    staged_files = {
+        path.relative_to(stage).as_posix(): path.read_bytes()
+        for path in stage.rglob("*")
+        if path.is_file() and path != marker
+    }
+    staged_identity = json.loads(
+        (stage / "manifests" / "store-identity.json").read_text(encoding="utf-8")
+    )["store_identity"]
+
+    identity = initialize_authority_control_store(
+        [code_root],
+        tmp_path / "control",
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+
+    final_root = tmp_path / "control"
+    final_files = {
+        path.relative_to(final_root).as_posix(): path.read_bytes()
+        for path in final_root.rglob("*")
+        if path.is_file()
+    }
+    assert identity == staged_identity
+    assert final_files == staged_files
+    assert not list(tmp_path.glob(".control.authority-stage-*"))
 
 
 @pytest.mark.parametrize(

@@ -442,6 +442,12 @@ def _write_stage_marker(stage: Path, bootstrap_hash: str, status: str) -> None:
     _fsync_directory(path.parent)
 
 
+def _remove_stage_marker(store_root: Path) -> None:
+    path = store_root / "runtime" / "authority-bootstrap-stage.json"
+    path.unlink(missing_ok=True)
+    _fsync_directory(path.parent)
+
+
 def _load_bound_manifest(store_root: Path, expected_control_root: Path) -> dict[str, Any]:
     path = store_root / "manifests" / "store-identity.json"
     try:
@@ -726,9 +732,6 @@ def initialize_authority_control_store(
         stage, identity = resumed
         _flush_tree(stage)
     _bootstrap_failpoint("after-staged-replay")
-    marker_path = stage / "runtime" / "authority-bootstrap-stage.json"
-    marker_path.unlink()
-    _fsync_directory(marker_path.parent)
     try:
         os.rename(stage, final_root)
     except OSError as publish_error:
@@ -736,7 +739,7 @@ def initialize_authority_control_store(
         if not collision and not final_root.exists():
             raise
         try:
-            return _verify_complete_store(
+            winner_identity = _verify_complete_store(
                 final_root,
                 final_root,
                 project_id,
@@ -747,9 +750,13 @@ def initialize_authority_control_store(
             raise ConflictError(
                 "competing authority initializer published a foreign store"
             ) from verify_error
+        _remove_stage_marker(final_root)
+        _fsync_directory(final_root.parent)
+        return winner_identity
     finally:
         if stage.exists():
             shutil.rmtree(stage)
+    _remove_stage_marker(final_root)
     _bootstrap_failpoint("after-rename")
     _fsync_directory(final_root.parent)
     return identity
