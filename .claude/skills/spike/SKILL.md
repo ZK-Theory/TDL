@@ -28,6 +28,13 @@ Before running or dispatching any Spike, re-confirm:
    `trajectory_tda.discovery.spike_preregistration.validate_spike_preregistration`.
 5. The probe is toy-scale only: `time_box_hours` between 1 and 4, bounded data,
    no full paper computation, no APM worktree yet.
+6. If the Spike's value proposition is framed as "certifies/licenses step X in
+   the pipeline" (a theorem, a preprocessing step, a scaling mechanism), grep
+   the codebase to confirm step X actually exists as described before locking
+   the pre-registration — or write an explicit "X is planned, adoption-gated"
+   annotation naming the gate. A formal or methodological argument can be
+   correct and still license nothing the codebase does; the empirical referent
+   is a checkable claim, not an inherited assumption from the framing memo.
 
 ## Procedure
 
@@ -36,7 +43,14 @@ Before running or dispatching any Spike, re-confirm:
    section 6).
 2. **Write the pre-registration first.** Create
    `vault/00-Meta/Discovery/<slug>-spike-prereg.md` with the fenced block below.
-   Validate it before doing any compute or handoff.
+   Validate it before doing any compute or handoff. Default `decision_rule` to a
+   **two-sided** test unless a directional argument is explicitly recorded: at
+   spike stage nobody has seen the statistic's direction on real data, and a
+   pre-committed one-sided rule ("observed > 95th percentile") turns a strong
+   finding in the opposite direction into an indistinguishable-from-noise FAIL.
+   Report both tails in the result note regardless of which rule is registered,
+   so a wrong-tail landing stays visible. Reserve one-sided rules for a full
+   dispatch pre-reg where prior evidence already supports a direction.
 3. **Route assurance checks.** For the toy probe, identify the touched lanes:
    topology, null model/statistical design, representation, output/provenance.
    Reuse the lane skills named in the plan; do not create a parallel assurance
@@ -60,11 +74,23 @@ Before running or dispatching any Spike, re-confirm:
   `Start-Job { Start-Process wsl ... }` all silently fail for a long-running
   probe (output file stays empty, no error). Use the Bash tool's
   `run_in_background: true` directly; it is the only mechanism that survives
-  across tool calls. Run WSL Python probes with `python -u` (or explicit
-  flush) so progress prints arrive as the probe runs — stdout is fully
-  buffered off a tty by default, so output otherwise arrives only at exit and
-  a mid-run `Read` looks stalled even though the process is healthy. A lone
-  WSL `fstab` mount warning in the output file is not a failure signal.
+  across tool calls. Even under `run_in_background`, an inner `wsl bash -c
+  '...'` can fail exit-127 with a misleading "No such file or directory" —
+  the background wrapper breaks single-quoted `bash -c` payloads, and MSYS
+  rewrites absolute POSIX paths into Git-Bash-rooted Windows paths. Launch as
+  a direct exec instead, no inner shell: `MSYS_NO_PATHCONV=1 wsl.exe
+  <absolute-wsl-python> -u <script-via-/mnt/c/...>`. Reserve `wsl bash -c` for
+  short foreground commands only.
+- **Progress logging for long background probes.** `python -u` only
+  unbuffers Python's own stdout; the shell reading that pipe (PowerShell
+  `*>`, similar OS-level redirects) can still buffer it, so the on-disk log
+  can lag a live process by minutes — exactly when a mid-run budget/kill
+  decision needs real timings. A lone WSL `fstab` mount warning in the output
+  file is not a failure signal either way. Make the probe self-log: append
+  each progress line to a plain file with an explicit `flush()` (or a
+  `logging` handler configured unbuffered), and read that file for status.
+  Owning the progress signal inside the process removes the shell's
+  buffering from the observability path entirely.
 - **Categorical partition inputs (e.g. MCbiF).** When the toy input is panel
   data with categorical states (employment state, deprivation band), the
   partition at each wave is the state label directly — do not introduce
@@ -74,6 +100,20 @@ Before running or dispatching any Spike, re-confirm:
   choosing the construction method; a frozen embedding built for trajectory-
   geometry tasks is not automatically the right input for a categorical
   partition probe.
+- **Budget-reduced grids: order for a clean truncation.** When per-cell cost
+  is uncertain or possibly super-linear, a wall-time/budget STOP is likely to
+  truncate the run before the full grid completes. Sequence the loop so the
+  smallest COMPLETE, INTERPRETABLE design — every rung including the negative
+  control, at the cheapest parameter setting — finishes first, and every
+  later block only adds resolution; never let one expensive arm starve the
+  control by running rung-major with the slow rung first. Pair with per-cell
+  checkpoint flushing so a STOP is a clean truncation of a valid design, not a
+  half-built one, and benchmark the per-cell cost's *scaling* (not one point)
+  before committing the grid.
+- **Fresh-worktree venv provisioning.** If a Spike runs inside an APM
+  worktree, `uv sync` failures on source-built optional dependencies and
+  file-lock contention from concurrent `uv run` calls are covered in
+  `using-git-worktrees-extras`, not here.
 
 ## Pre-registration Block
 

@@ -68,6 +68,7 @@ Null types that require `trajectories`: `order_shuffle`, `markov`, `stratified_m
 | Seed not planned for Computational-Log | Always note seed before running |
 | No `label_shuffle` or `order_shuffle` in battery | Add as negative-control rungs |
 | Landmarks selected once from observed data | Re-select per permutation (maxmin_landmarks) |
+| Statistic is a function of the same sufficient statistic the null is fit from (e.g. an IFA computed from the transition-count matrix, with a Markov-1 null whose MLE *is* that matrix) | The null is centered on the observed statistic by construction — expect p≈0.5 regardless of signal. Add a lower rung, use a statistic on a richer substrate, or switch to a two-sample design; see `null-operation-invariance-audit`'s centering check. |
 
 ---
 

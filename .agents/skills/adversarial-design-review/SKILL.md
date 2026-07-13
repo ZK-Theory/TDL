@@ -55,6 +55,15 @@ inflating a Minor into a Major.
    absent controls). Check for schemas/contracts that are defined but unenforced
    (registered, validated by nothing). Green tests and clean lint prove the code does
    what it does, never that it does what the plan promised.
+   **Remediation re-review:** when re-reviewing a prior finding's fix, bind the
+   disposition's *prescribed mechanism* (the disposition text, e.g. "re-derive X from
+   Y") to code lines — not to whether the original proof-of-concept still reproduces. A
+   remediation can remove the PoC's vehicle (block the input, delete the test case)
+   while leaving the underlying invariant violated one level down, and can even encode
+   the removed vehicle as a regression test so a superficial fix reads as covered.
+   Separately, for every strict validator/comparison, trace where both the expected
+   side and the observed side get their values — if the same function populates both,
+   the check certifies the producer against itself regardless of how strict it looks.
 2. **Per-component / per-section attack.** For each component or claim: does it have one
    responsibility; is the chosen mechanism actually simpler than the alternative it
    rejects; what are the concurrency, platform (Windows/filesystem), multi-worktree, and
@@ -102,7 +111,15 @@ inflating a Minor into a Major.
      on exact required-set closure, not merely because all supplied evidence passed.
 4. **Currency.** If the document is a dated snapshot, check live state read-only and
    record divergences as a **proposed dated addendum** — never rewrite the snapshot. Do
-   not use active or no-migration work as an experiment.
+   not use active or no-migration work as an experiment. When the artifact set is
+   byte-hash-bound and tracked (fixture manifests, frozen caches), run the acceptance
+   validation in BOTH a fresh worktree/clone AND the canonical working tree the owner
+   will actually use — a post-hoc eol/text attribute (`.gitattributes`) never
+   renormalizes already-checked-out files, so a hash-bound corpus can pass in every
+   fresh clone and silently fail on `main` while `git status` shows nothing.
+   Divergence between the two trees is itself a finding. Do not trust `grep` for
+   `\r`/CRLF detection on Windows/MSYS (it treats CRLF as a normal line ending) —
+   check bytes directly.
 5. **Practicality / proportionality.** Estimate overhead per risk tier / workload class
    (mechanical, implementation, claim-level, long-running, non-core-domain, qualitative).
    Look for bureaucracy that will be bypassed; recommend the smallest control that
@@ -169,6 +186,15 @@ verification evidence for any edits.
   identifiers); and a code-vs-plan review of a committed implementation found the one P1
   in an all-green, ruff-clean package was a claimed control (W2 §8.2 step 4) the code
   silently never implemented.
+- A seventh review (2026-07-07) of a remediation rebuild found the vehicle-removal
+  pattern: a prior Critical ("release gate certifies producer-supplied verdicts")
+  was closed by making the release CLI ignore the flagged input entirely and
+  synthesize verdicts in-process, with a new regression test asserting only a
+  type check — the invariant stayed violated one level down. The same review found
+  a hash-bound fixture corpus that passed in every fresh worktree but failed on the
+  canonical `main` tree, because a `.gitattributes` eol rule added after checkout
+  never renormalized the already-checked-out files; MSYS `grep` could not detect
+  the CRLF bytes that a Python bytes check confirmed.
 
 ## Related Skills
 

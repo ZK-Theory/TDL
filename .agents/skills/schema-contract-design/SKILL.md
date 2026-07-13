@@ -51,6 +51,17 @@ check into a binding contract.
      decision gate, define the predicate and any tolerance explicitly in the
      `expression` (e.g. `calibrated == abs(x - alpha) <= calibration_tolerance`,
      `calibration_tolerance == 0.03`); never leave "approximately" unquantified.
+   - **Fixtures must not depend on gitignored intermediates.** A binding test's
+     fixture must be constructible from committed files alone — reading a
+     gitignored `PROJ_ROOT` intermediate (e.g. hashing a large results file to
+     build a valid-payload skeleton) turns the shared, all-bindings pre-commit
+     gate into a cross-task landmine: any Worker committing in a fresh worktree
+     trips on another task's absent input. Use a fixed literal (a 64-hex
+     placeholder digest, a stub value) for the skeleton needed by negative/
+     rejection cases, and gate any assertion that needs the real file behind
+     `if PATH.exists(): ... else: pytest.skip(...)` — mirroring the skip pattern
+     already used for committed-results tests. A binding test must be runnable
+     from a bare checkout with only committed files present.
 6. **Pending lifecycle.** If the binding test is not yet on the base branch, set
    `pending: true`; gate 1 (meta-schema) still runs, while gates 2-4 are skipped.
    Remove `pending` as soon as the test lands. The pending-debt gate warns when
@@ -81,6 +92,11 @@ The contract YAML + the manifest entry + a one-line note of pending status.
   referencing an undefined `calibrated` predicate / unquantified tolerance — all
   passed the binding tests. Tightening to value+type assertions and pinned
   literals closes the gap. See `[[Enforcement-must-assert-value-not-key-presence]]`.
+- A `test_mcbif_employment_contract.py` binding test's valid-payload fixture
+  called `_sha256()` on a gitignored `results/...` intermediate. In a fresh
+  worktree the file was absent, so the fixture raised `FileNotFoundError`
+  (hard fail, not a skip) and blocked an unrelated task's commit through the
+  shared pre-commit contract gate.
 
 ## Related Skills & Contracts
 

@@ -36,6 +36,26 @@ Vault root: `C:\Users\steph\Documents\TDA-Research\`
 
 ---
 
+## Pre-Write Reconciliation (parallel-session safety)
+
+Vault pages are shared mutable state — Manager, Codex workers, and Cowork
+sessions can all write to the same page in the same window. Before writing any
+entry:
+
+1. Grep/read the target page for an existing entry header covering the same
+   WP/task/date. If a parallel session already logged the same work, reference
+   it rather than duplicating the story.
+2. For a daily note (`05-Daily/YYYY-MM-DD.md`), Glob/read for the same-date
+   file first. If it already exists (e.g. from an unrelated Cowork session),
+   append a titled session section rather than overwrite it.
+3. For a back-dated entry, find the reverse-chronological insertion anchor —
+   the first existing entry header dated **≤** the entry's own date — rather
+   than the literal page top; the top is reserved for the newest entry.
+
+Read-reconcile-place, never blind-prepend.
+
+---
+
 ## Computational-Log entry format
 
 ```markdown
