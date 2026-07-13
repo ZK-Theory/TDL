@@ -1,9 +1,9 @@
 # ARS WP5.3: Canonical Release-Event Publication Plan
 
-> **Status:** review-ready planning only. G5.3-A's prerequisite and G5.3-B(a)'s
-> trusted-local-operator boundary are owner-approved. Runtime implementation
-> remains blocked until the canonical authority package is implemented,
-> independently reviewed, and merged.
+> **Status:** implementation complete with evidence-backed O12 closeout;
+> independent Manager review and merge remain required. G5.3-A was implemented,
+> independently remediated/reviewed, and merged in PR #90. WP5.2 was likewise
+> independently remediated/reviewed and merged in PR #89.
 >
 > **Outcome:** publish an already verified, blocked P0 ReleaseGateDecision as exactly one canonical W2 event. Publication records a decision; it does not authorize Gate 5.
 
@@ -115,15 +115,14 @@ The record must name:
 5. immutable content identity/hash binding the command to the grant; and
 6. expiry/revocation validation repeated under the writer lock.
 
-**Current disposition: PREREQUISITE AND G5.3-B(a) APPROVED; IMPLEMENTATION
-OPEN.** On 2026-07-12 the Owner approved the separately scoped W2 authority-
-source prerequisite and accepted the trusted-local-operator boundary recorded
-in `05e-wp5-3a-canonical-authority-grant-plan.md`. Actor IDs are attribution;
-cryptographic principal authentication and its key/credential lifecycle are
-out of scope. No WP5.3 runtime Worker may be dispatched until the prerequisite
-is implemented, independently reviewed, and merged. A test-injected resolver
-may test fail-closed interfaces but cannot satisfy G5.3-A or publish the
-production P0 decision.
+**Current disposition: G5.3-A SATISFIED; G5.3-B(a) PRESERVED; WP5.3
+IMPLEMENTED.** The approved W2 authority-source prerequisite was implemented in
+PR #87, independently remediated/reviewed in PR #90, and merged. Actor IDs
+remain attribution inside the trusted-local-operator boundary; cryptographic
+principal authentication and its key/credential lifecycle remain out of scope.
+Production publication uses the merged `LedgerAuthorityGrantResolver`. A
+test-injected resolver remains limited to fail-closed interface controls and
+does not satisfy the production authority path.
 
 After an accepted decision, implementation may add a narrow injected
 ReleasePublicationAuthorizer protocol. It verifies authority; it never creates
@@ -449,6 +448,34 @@ WP5.3 is complete only when:
 10. Diff remains under 150 files and within section 5; it does not broaden into WP5.2, WP5.6/O15, live providers, Gate 5/Gate 6, research, or paper work.
 11. O12 is closed only with immutable validation evidence; O15 remains open and Gate 5 remains unauthorized.
 
+### O12 implementation closeout evidence (2026-07-13)
+
+- Source ancestry is `080c54091efaa9120e5432e84f04efaa8f5f51db`, containing
+  the PR #89 merge `a7866c3422a51a3a3b3dc8ff812504959e215c1b` and PR #90
+  merge `080c54091efaa9120e5432e84f04efaa8f5f51db`.
+- The fake-only source re-derived `40` fixtures, `15` blocked fixtures, zero
+  uncalibrated mutations, `302` unique results, calibrated typed W7 parity,
+  `gate5_authorized=false`, and `candidate_status=blocked`.
+- The synthetic `C:/tmp` public flow appended exactly one event at position 3:
+  `evt_019f5d87-4478-791e-9f23-2fc135cf6a27`, event SHA-256
+  `9526a0a0a86bd47ad330a4d99f73378b1492f1e0ef2397a7885362b0a7318993`.
+  Recomputed event hash matched; original and exact-retry receipt SHA-256 both
+  equal `6e8d834b908aece4c4c6343844a7723ac13d13307dd1a23f49e3463acf92f019`;
+  changed payload returned `idempotency_conflict`; replay projection SHA-256 is
+  `4de38cf27abd48b687c32057d036a4f00b6b04260923d6eba72ec3e8aa57e592`;
+  and `eval release` resolved the same event while retaining false/blocked.
+- Focused publication tests include 39 strict authority, idempotency, recovery,
+  concurrency, source/chain, sentinel, unknown, foreign, self-reference, and
+  projection-tamper controls. The final research-system suite is `554 passed in
+  629.18s`; Ruff passes; four semantic materializers pass. The P0 matrix checker
+  reports only inherited `i/lf w/crlf` checkout bytes: LF-normalized worktree and
+  index SHA-256 both equal
+  `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`
+  with no Git diff.
+- O12 is delivered by this bounded WP5.3 implementation. O15 remains open,
+  Gate 5 remains unauthorized, and independent Manager review/merge remain
+  required.
+
 ## 11. Stop conditions
 
 Stop implementation and report evidence to the Manager when:
@@ -480,4 +507,7 @@ Review immutable test/output hashes and source references directly; do not rely 
 
 ## 13. Delivery shape
 
-This document is one planning-only, reviewable PR. It may merge with G5.3-A explicitly open, but it is not an implementation dispatch until the Owner records an accepted authority source or approves the recommended prerequisite. The later implementation should likewise be one bounded PR well below 150 files, use red-to-green public-seam TDD, retain independent Manager review, and must not be merged by the implementation Worker.
+This document began as the reviewable planning contract. The implemented WP5.3
+change remains one bounded PR well below 150 files, uses red-to-green public-seam
+TDD, retains independent Manager review, and must not be merged by the
+implementation Worker.

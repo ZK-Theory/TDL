@@ -26,8 +26,14 @@ from research_system.evals.harness import (
     decision_document,
     run_all_scenarios,
     run_p0_coverage,
-    stable_projection,
 )
+from research_system.evals.release_publication import (
+    BoundReleasePublicationEvidence,
+    ReleasePublicationRequest,
+    content_artefact_id,
+    verify_replayed_release,
+)
+from research_system.ids import new_id
 from research_system.evals.retention import validate_retention_policy
 from research_system.evals.retention_authorizer import (
     build_deletion_manifest_authorizer,
@@ -130,6 +136,7 @@ def _command_submit(args: argparse.Namespace) -> int:
             binding.control_root,
             binding.project_id,
             binding.store_identity,
+            schemas,
         ),
         clock=_authority_clock,
     )
@@ -151,7 +158,9 @@ def _verified_ledger(control_root: Path) -> EventLedger:
 
 def _replay_verify(args: argparse.Namespace) -> int:
     ledger = _verified_ledger(args.control_root)
-    _print_json(replay(ledger.iter_events()))
+    manifest = load_store_manifest(args.control_root)
+    schemas = _schemas_for_store_manifest(manifest)
+    _print_json(replay(ledger.iter_events(), schema_registry=schemas))
     return 0
 
 
@@ -168,7 +177,11 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
     if not any(output == root or root in output.parents for root in projection_roots):
         raise ArsError('projection output must use an ARS namespaced projection root')
     ledger = EventLedger(control_root, manifest['project_id'])
-    state = rebuild_projection(ledger.iter_events(), output)
+    state = rebuild_projection(
+        ledger.iter_events(),
+        output,
+        _schemas_for_store_manifest(manifest),
+    )
     _print_json(state)
     return 0
 
@@ -273,32 +286,196 @@ def _eval_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _eval_release(args: argparse.Namespace) -> int:
-    manifest = _read_json(args.evaluation_runs)
-    coverage_value = manifest.get("coverage")
-    if not isinstance(coverage_value, str):
-        raise ConfigurationError("evaluation runs manifest requires coverage")
-    supplied_document = manifest.get("decision_document")
-    if not isinstance(supplied_document, dict):
-        raise ConfigurationError("evaluation runs manifest requires decision_document")
-    coverage_path = Path(coverage_value)
+def _schemas_for_store_manifest(
+    manifest: dict[str, Any],
+) -> SchemaRegistry | None:
+    candidates = [
+        Path(root) / ".research-system" / "schemas"
+        for root in manifest.get("code_roots", [])
+    ]
+    existing = [
+        path.resolve(strict=True)
+        for path in candidates
+        if (
+            path.is_dir()
+            and (
+                path
+                / "core"
+                / "release-gate-decision-published.schema.json"
+            ).is_file()
+        )
+    ]
+    if not existing:
+        return None
+    return SchemaRegistry(sorted(existing, key=str)[0])
+
+
+def _rederive_bound_decision(
+    binding: ControlBinding,
+    source: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    coverage_path = binding.schema_root.parent / "evals" / "p0-coverage.yaml"
     fixtures, schemas = _eval_roots(coverage_path)
-    schema_registry = SchemaRegistry(schemas)
-    schema_registry.validate(
-        "ars://evals/release-gate-decision", supplied_document
-    )
     evidence = run_p0_coverage(
-        coverage_path, fixture_root=fixtures, schema_root=schemas
+        coverage_path,
+        fixture_root=fixtures,
+        schema_root=schemas,
     )
-    scenario_results = run_all_scenarios()
-    record, outcome = build_release_decision(evidence, scenario_results)
-    fresh_document = decision_document(record)
-    schema_registry.validate("ars://evals/release-gate-decision", fresh_document)
-    if stable_projection(fresh_document) != stable_projection(supplied_document):
-        _print_json({"decision": "blocked", "reason": "evaluation_document_divergence"})
-        return 0
+    record, _ = build_release_decision(
+        evidence,
+        run_all_scenarios(),
+        decided_at=str(source["decided_at"]),
+        release_gate_decision_id=str(source["release_gate_decision_id"]),
+    )
+    return decision_document(record), evidence.coverage.gate5_authorized
+
+
+def _publication_evidence(
+    binding: ControlBinding,
+    source: dict[str, Any],
+) -> tuple[BoundReleasePublicationEvidence, str, str]:
+    manifest = {
+        "schema_id": "ars://evals/release-publication-evidence",
+        "schema_version": "1.0.0",
+        "project_id": binding.project_id,
+        "release_decision": source,
+    }
+    control = {
+        "schema_id": "ars://evals/release-control-binding",
+        "schema_version": "1.0.0",
+        "project_id": binding.project_id,
+        "store_identity": binding.store_identity,
+        "coverage_manifest_id": source["coverage_manifest_id"],
+    }
+    manifest_ref = content_artefact_id(manifest)
+    control_ref = content_artefact_id(control)
+    resolver = BoundReleasePublicationEvidence(
+        evaluation_runs_manifest_ref=manifest_ref,
+        evaluation_runs_manifest=manifest,
+        control_binding_ref=control_ref,
+        control_binding=control,
+        rederive=lambda _manifest, _control: _rederive_bound_decision(
+            binding,
+            source,
+        ),
+    )
+    return resolver, manifest_ref, control_ref
+
+
+def _eval_publish_release(args: argparse.Namespace) -> int:
+    binding = ControlBinding.load(args.config)
+    source = _read_json(args.evaluation_runs)
+    schemas = SchemaRegistry(binding.schema_root)
+    schemas.validate("ars://evals/release-gate-decision", source)
+    if source.get("canonical_event_ref") != "unpublished:p0":
+        raise ArsError("publication requires unpublished:p0 source evidence")
+    evidence, manifest_ref, control_ref = _publication_evidence(binding, source)
+    authority = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+    )
+    resolution = authority.resolve(
+        args.authority_grant_id,
+        args.actor_id,
+        "PublishReleaseGateDecision",
+        binding.project_id,
+        "release_gate_decision",
+        source["release_gate_decision_id"],
+        _authority_clock(),
+    )
+    idempotency_key = (
+        f"release-publication:{source['release_gate_decision_id']}"
+    )
+    request = ReleasePublicationRequest.from_dict(
+        {
+            "schema": "ars://evals/release-publication-request",
+            "project_id": binding.project_id,
+            "release_decision_id": source["release_gate_decision_id"],
+            "evaluation_runs_manifest_ref": manifest_ref,
+            "control_binding_ref": control_ref,
+            "publication_authority_grant_id": args.authority_grant_id,
+            "publication_authority_sha256": (
+                resolution.authority_grant_sha256
+            ),
+            "idempotency_key": idempotency_key,
+        }
+    )
+    command = {
+        "command_id": new_id("command"),
+        "command_type": "PublishReleaseGateDecision",
+        "schema_id": "ars://core/command",
+        "schema_version": "1.0.0",
+        "submitted_at": _authority_clock().isoformat().replace("+00:00", "Z"),
+        "actor_id": args.actor_id,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": args.authority_grant_id,
+        "target_stream_id": source["release_gate_decision_id"],
+        "expected_stream_version": 0,
+        "idempotency_key": idempotency_key,
+        "correlation_id": idempotency_key,
+        "causation_id": None,
+        "reason": "record the verified blocked P0 release decision",
+        "evidence_refs": [manifest_ref, control_ref],
+        "payload": request.to_dict(),
+    }
+    ledger = EventLedger(binding.control_root, binding.project_id)
+    receipt = CommandService(
+        binding.control_root,
+        ledger,
+        ObjectStore(binding.control_root),
+        ReceiptStore(binding.control_root),
+        schemas,
+        authority_resolver=authority,
+        release_publication_evidence=evidence,
+        clock=_authority_clock,
+    ).submit(command)
+    output = args.output
+    if output.exists():
+        raise ArsError(f"output path exists: {output}")
+    try:
+        with output.open("xb") as handle:
+            handle.write(canonical_bytes(jsonable(asdict(receipt))))
+    except FileExistsError as exc:
+        raise ArsError(f"output path exists: {output}") from exc
+    _print_json(asdict(receipt))
+    return 0
+
+
+def _eval_release(args: argparse.Namespace) -> int:
+    if args.config is None:
+        raise ArsError("eval release requires canonical control binding")
+    binding = ControlBinding.load(args.config)
+    supplied = _read_json(args.evaluation_runs)
+    supplied_document = supplied.get("decision_document", supplied)
+    if not isinstance(supplied_document, dict):
+        raise ConfigurationError("evaluation runs require a decision document")
+    schema_registry = SchemaRegistry(binding.schema_root)
+    schema_registry.validate("ars://evals/release-gate-decision", supplied_document)
+    fresh_document, gate5_authorized = _rederive_bound_decision(
+        binding,
+        supplied_document,
+    )
+    if gate5_authorized is not False or fresh_document != supplied_document:
+        raise ArsError("evaluation document divergence")
+    ledger = EventLedger(binding.control_root, binding.project_id)
+    projection = replay(
+        ledger.iter_events(),
+        schema_registry=schema_registry,
+    )
+    record = verify_replayed_release(
+        fresh_document,
+        projection,
+        binding.project_id,
+    )
     _print_json(
-        {"decision": fresh_document["decision"], "missing": len(outcome["missing"])}
+        {
+            "decision": "blocked",
+            "gate5_authorized": False,
+            "candidate_status": "blocked",
+            "canonical_event_ref": record["event_id"],
+        }
     )
     return 0
 
@@ -360,7 +537,16 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument('--output', type=Path, default=None)
     run.set_defaults(handler=_eval_run)
 
+    publish_release = evaluation_actions.add_parser('publish-release')
+    publish_release.add_argument('--config', type=Path, required=True)
+    publish_release.add_argument('--actor-id', required=True)
+    publish_release.add_argument('--authority-grant-id', required=True)
+    publish_release.add_argument('--evaluation-runs', type=Path, required=True)
+    publish_release.add_argument('--output', type=Path, required=True)
+    publish_release.set_defaults(handler=_eval_publish_release)
+
     release = evaluation_actions.add_parser('release')
+    release.add_argument('--config', type=Path, required=True)
     release.add_argument('--evaluation-runs', type=Path, required=True)
     release.set_defaults(handler=_eval_release)
 

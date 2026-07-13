@@ -90,7 +90,7 @@ Decomposed against the P0 state, Gate 5 requires:
 |---|---|---|
 | 04a O10 | `release_gate_decision_id` ID-kind confirmation by WP1 reviewer | WP5.6 (review checklist item; kind already registered) |
 | 04a O11 | parity wiring before any `pass` is reachable | WP5.2 |
-| 04a O12 | publish release decision as canonical event | WP5.3 |
+| 04a O12 | publish release decision as canonical event | Delivered by WP5.3; independent Manager review/merge retained |
 | 04a O14 | cross-family independence branch reachable (real producer/grader family identities) | WP5.1 |
 | 04a O15 | `DeleteEvidenceObject` registration — **owner-gated W1/W6 decision** (name specified at 04-plan:517; payload schema + event semantics are not; design anchor `DeleteEvidenceObject → EvidenceDeletionPending`) | WP5.5 decision D-G5-2; implementation joins WP5.4 (S-014 touches the same deletion surface) once decided |
 | 04a O16 | `current_policy_revision` from canonical `retention-policy.yaml` via `validate_retention_policy`, not `registry.policy_revision` | WP5.1 |
@@ -149,7 +149,14 @@ Small, code-side, no owner input; unblocks the integrity story every later WP re
   The `rgd_` ID kind is already registered.
 - Fail-closed rule: `eval release` verification must reject a decision document whose
   `canonical_event_ref` does not resolve to a stored event.
-- Branch: `pipe/ars-gate5-release-event`.
+- Branch: `pipe/ars-gate5-release-event-publication`.
+- **Delivered (2026-07-13):** `PublishReleaseGateDecision` now publishes exactly
+  one ledger-allocated `ReleaseGateDecisionPublished` event through
+  `CommandService`; strict replay and `eval release` resolve, re-derive, and
+  compare the full canonical decision/evidence while preserving
+  `gate5_authorized=false` and `candidate_status=blocked`. O12 is closed by the
+  bounded WP5.3 implementation evidence; independent Manager review/merge
+  remains required. This does not accept Gate 5, and O15 remains open.
 
 ### WP5.4 — Release tranche: S-014 / S-015 / S-016 (05-plan §4.4)
 
@@ -249,7 +256,7 @@ WP5.5 owner decisions (parallel; D-G5-1/2/4) ───────────�
 | G5.3-A | **Canonical release-publication authority source.** The current CommandService and AuthorityGrant schema do not establish a trusted current/revoked resolver. | Implement the separately scoped canonical W2 authority-grant source/resolver in `05e-wp5-3a-canonical-authority-grant-plan.md` before WP5.3 runtime. |
 | G5.3-B | **Principal-authentication boundary.** Canonical local store provenance does not authenticate the process/human presenting a public actor ID. | Option (a) accepted: actor IDs are attribution inside the trusted-local-operator foundation; signed principal/bootstrap authentication is out of scope. |
 
-**Owner record (2026-07-10, updated 2026-07-12):** D-G5-1 option (a)
+**Owner record (2026-07-10, updated 2026-07-13):** D-G5-1 option (a)
 approved -- Gate 5 may accept the foundation only with the M/H capability restriction
 explicit while required M/H rows remain blocking. D-G5-4 confirmed -- the two
 provider-specific F-021 sizing rows are the accepted R12 form. D-G5-2 is resolved
@@ -257,11 +264,14 @@ for Gate 5 as an approved deferral: deletion initiation stays capability-disable
 and O15 remains open. D-G5-3 is approved for WP5.4 at exact
 `40/15/0/calibrated/132/blocked`; it remains a per-dispatch-plan approval process
 for other invariant-changing work. G5.3-A's canonical W2 authority-grant
-source/resolver prerequisite is approved. G5.3-B option (a) is accepted: actor
-IDs provide attribution inside the trusted-local-operator foundation, while
-cryptographic principal authentication is rejected as disproportionate and
-out of scope. WP5.3 runtime remains blocked until the prerequisite is
-implemented, independently reviewed, and merged.
+source/resolver was implemented in PR #87, independently remediated/reviewed in
+PR #90, and merged. WP5.2 was independently remediated/reviewed in PR #89 and
+merged. G5.3-B option (a) remains accepted: actor IDs provide attribution inside
+the trusted-local-operator foundation, while cryptographic principal
+authentication is rejected as disproportionate and out of scope. WP5.3 now
+delivers O12 with exact `40/15/0/302/calibrated/false/blocked` evidence;
+independent Manager review/merge remains required, O15 remains open, and Gate 5
+remains unauthorized.
 
 ## 7. Invariant re-baseline rule
 

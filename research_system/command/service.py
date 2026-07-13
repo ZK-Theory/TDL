@@ -1,15 +1,29 @@
 from __future__ import annotations
 
 import json
+import sys
+import time
 
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from research_system.command.models import Command, Receipt
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import (
+    ArsError,
+    ConflictError,
+    IdempotencyConflictError,
+    IntegrityError,
+)
+from research_system.evals.release_publication import (
+    PublicationEvidenceError,
+    ReleasePublicationRequest,
+    VerifiedReleasePublication,
+    verify_release_publication,
+)
 from research_system.ids import new_id
 from research_system.operations.backups import (
     RestorePreflightResult,
@@ -17,7 +31,7 @@ from research_system.operations.backups import (
 )
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
-from research_system.store.ledger import EventLedger, LedgerSnapshot
+from research_system.store.ledger import EventDraft, EventLedger, LedgerSnapshot
 from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -31,8 +45,12 @@ class _CommandView:
     stream_versions: dict[str, int]
 
     @classmethod
-    def from_snapshot(cls, snapshot: LedgerSnapshot) -> _CommandView:
-        replay(snapshot.events)
+    def from_snapshot(
+        cls,
+        snapshot: LedgerSnapshot,
+        schemas: SchemaRegistry,
+    ) -> _CommandView:
+        replay(snapshot.events, schema_registry=schemas)
         view = cls(snapshot.fingerprint, {}, {}, dict(snapshot.stream_versions))
         batches: dict[str, list[dict[str, Any]]] = {}
         for event in snapshot.events:
@@ -77,6 +95,7 @@ class CommandService:
         schemas: SchemaRegistry,
         *,
         authority_resolver: Any | None = None,
+        release_publication_evidence: Any | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.control_root = control_root
@@ -85,6 +104,7 @@ class CommandService:
         self.receipts = receipts
         self.schemas = schemas
         self.authority_resolver = authority_resolver
+        self.release_publication_evidence = release_publication_evidence
         self.clock = clock or (lambda: datetime.now(UTC))
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: Callable[
@@ -135,12 +155,15 @@ class CommandService:
                 'ars://core/command/RevokeAuthorityGrant/payload',
                 envelope.get('payload'),
             )
+        elif envelope.get('command_type') == 'PublishReleaseGateDecision':
+            self.schemas.validate(
+                'ars://evals/release-publication-request',
+                envelope.get('payload'),
+            )
+            ReleasePublicationRequest.from_dict(envelope['payload'])
         command = Command(dict(envelope))
         self._recheck_moved_restore(command)
-        with WriterLock(
-            self.control_root / 'runtime' / 'writer.lock',
-            {'command_id': command.command_id},
-        ):
+        with self._submission_lock(command):
             scoped = self._scoped_authority_receipt(command)
             if scoped is not None:
                 return scoped
@@ -159,6 +182,69 @@ class CommandService:
                     self._return_or_reconstruct(existing),
                 )
             observed_version = view.stream_versions.get(command.target_stream_id, 0)
+            prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None
+            if (
+                command.envelope['command_type']
+                == 'PublishReleaseGateDecision'
+            ):
+                request = ReleasePublicationRequest.from_dict(
+                    command.envelope['payload']
+                )
+                if (
+                    request.project_id != self.ledger.project_id
+                    or request.release_decision_id != command.target_stream_id
+                    or request.publication_authority_grant_id
+                    != command.envelope['authority_grant_id']
+                    or request.idempotency_key != command.idempotency_key
+                    or set(command.envelope['evidence_refs'])
+                    != {
+                        request.evaluation_runs_manifest_ref,
+                        request.control_binding_ref,
+                    }
+                ):
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        'release_publication_evidence_mismatch',
+                        'Release publication envelope bindings do not match.',
+                    )
+                    return self._write_receipt(command, rejected)
+                if self.authority_resolver is None:
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        'release_publication_authorizer_unavailable',
+                        'Release publication requires the canonical authority resolver.',
+                    )
+                    return self._write_receipt(command, rejected)
+                try:
+                    prepared_payload = self._prepare_release_publication(command)
+                except IntegrityError:
+                    raise
+                except PublicationEvidenceError as exc:
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        'release_publication_evidence_mismatch',
+                        str(exc),
+                    )
+                    return self._write_receipt(command, rejected)
+                except ArsError as exc:
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        'release_publication_unauthorized',
+                        str(exc),
+                    )
+                    return self._write_receipt(command, rejected)
+                if observed_version > 0:
+                    rejected = self._rejected(
+                        command,
+                        observed_version,
+                        'release_decision_already_published',
+                        'The canonical release decision stream is already published.',
+                    )
+                    return self._write_receipt(command, rejected)
             if observed_version != command.expected_stream_version:
                 receipt = Receipt(
                         status='conflict',
@@ -169,7 +255,6 @@ class CommandService:
                         reason_code='stream_version_conflict',
                     )
                 return self._write_receipt(command, receipt)
-            prepared_payload = None
             if command.envelope['command_type'] == 'SupersedeTask':
                 prepared = self._prepare_supersession(
                     command, snapshot, observed_version
@@ -206,6 +291,31 @@ class CommandService:
                 ][command.target_stream_id],
             )
             return self._write_receipt(command, accepted)
+
+    @contextmanager
+    def _submission_lock(self, command: Command):
+        """Serialize release retries while preserving fail-fast legacy locks."""
+        identity = {'command_id': command.command_id}
+        path = self.control_root / 'runtime' / 'writer.lock'
+        deadline = time.monotonic() + 5.0
+        while True:
+            lock = WriterLock(path, identity)
+            try:
+                lock.__enter__()
+            except ConflictError:
+                if (
+                    command.envelope['command_type']
+                    != 'PublishReleaseGateDecision'
+                    or time.monotonic() >= deadline
+                ):
+                    raise
+                time.sleep(0.01)
+                continue
+            break
+        try:
+            yield
+        finally:
+            lock.__exit__(*sys.exc_info())
 
     def with_locked_authority(
         self,
@@ -245,7 +355,7 @@ class CommandService:
             {'command_id': new_id('command')},
         ):
             snapshot = self.ledger.snapshot()
-            replay(snapshot.events)
+            replay(snapshot.events, schema_registry=self.schemas)
             resolved = resolver.resolve(
                 authority_grant_id,
                 actor_id,
@@ -267,19 +377,47 @@ class CommandService:
         )
 
     def _scoped_authority_receipt(self, command: Command) -> Receipt | None:
-        if command.envelope['command_type'] != 'RevokeAuthorityGrant':
+        command_type = command.envelope['command_type']
+        if command_type not in {
+            'RevokeAuthorityGrant',
+            'PublishReleaseGateDecision',
+        }:
             return None
-        grant_hash = command.envelope.get('payload', {}).get(
-            'authority_grant_sha256'
+        hash_field = (
+            'publication_authority_sha256'
+            if command_type == 'PublishReleaseGateDecision'
+            else 'authority_grant_sha256'
         )
+        grant_hash = command.envelope.get('payload', {}).get(hash_field)
         if not isinstance(grant_hash, str):
             return None
-        receipt = self.receipts.load_scoped(
-            self._authority_scope(command),
-            command.payload_hash,
-            grant_hash,
-            command.expected_stream_version,
-        )
+        publication = command_type == 'PublishReleaseGateDecision'
+        try:
+            receipt = self.receipts.load_scoped(
+                self._authority_scope(command),
+                command.payload_hash,
+                grant_hash,
+                command.expected_stream_version,
+                project_id=self.ledger.project_id if publication else None,
+                target_stream_id=(
+                    command.target_stream_id if publication else None
+                ),
+            )
+        except IdempotencyConflictError:
+            if not publication:
+                raise
+            conflict = Receipt(
+                status='conflict',
+                command_id=command.command_id,
+                payload_hash=command.payload_hash,
+                event_batch_id=None,
+                observed_stream_version=self.ledger.snapshot().stream_versions.get(
+                    command.target_stream_id,
+                    0,
+                ),
+                reason_code='idempotency_conflict',
+            )
+            return self.receipts.write(conflict)
         if receipt is None:
             return receipt
         self._reconcile_scoped_authority_receipt(command, receipt)
@@ -299,7 +437,7 @@ class CommandService:
     ) -> None:
         scope = self._authority_scope(command)
         snapshot = self.ledger.snapshot()
-        replay(snapshot.events)
+        replay(snapshot.events, schema_registry=self.schemas)
         events = tuple(snapshot.events)
         scoped_events = tuple(
             event
@@ -318,9 +456,15 @@ class CommandService:
                 for event in scoped_events
                 if event.get('transaction_id') == receipt.event_batch_id
             )
+            expected_event_type = (
+                'ReleaseGateDecisionPublished'
+                if command.envelope['command_type']
+                == 'PublishReleaseGateDecision'
+                else 'AuthorityGrantRevoked'
+            )
             if (
                 len(matching) != 1
-                or matching[0].get('event_type') != 'AuthorityGrantRevoked'
+                or matching[0].get('event_type') != expected_event_type
                 or matching[0].get('command_id') != receipt.command_id
                 or matching[0].get('command_payload_hash') != receipt.payload_hash
                 or matching[0].get('stream_id') != command.target_stream_id
@@ -328,6 +472,7 @@ class CommandService:
                 != command.expected_stream_version + 1
                 or receipt.observed_stream_version
                 != matching[0].get('stream_version')
+                or matching[0].get('project_id') != self.ledger.project_id
             ):
                 raise IntegrityError(
                     'scoped accepted receipt does not match canonical ledger'
@@ -343,9 +488,19 @@ class CommandService:
             raise IntegrityError('scoped index does not match stored receipt')
 
     def _write_receipt(self, command: Command, receipt: Receipt) -> Receipt:
-        if command.envelope['command_type'] != 'RevokeAuthorityGrant':
+        command_type = command.envelope['command_type']
+        if command_type not in {
+            'RevokeAuthorityGrant',
+            'PublishReleaseGateDecision',
+        }:
             return self.receipts.write(receipt)
-        grant_hash = command.envelope['payload'].get('authority_grant_sha256')
+        publication = command_type == 'PublishReleaseGateDecision'
+        hash_field = (
+            'publication_authority_sha256'
+            if publication
+            else 'authority_grant_sha256'
+        )
+        grant_hash = command.envelope['payload'].get(hash_field)
         if not isinstance(grant_hash, str):
             return self.receipts.write(receipt)
         return self.receipts.write_scoped(
@@ -353,6 +508,10 @@ class CommandService:
             grant_hash,
             command.expected_stream_version,
             receipt,
+            project_id=self.ledger.project_id if publication else None,
+            target_stream_id=(
+                command.target_stream_id if publication else None
+            ),
         )
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
@@ -624,14 +783,15 @@ class CommandService:
         if (
             stored.command_id != command.command_id
             or stored.event_batch_id is not None
-            or stored.reason_code != 'stream_version_conflict'
+            or stored.reason_code
+            not in {'stream_version_conflict', 'idempotency_conflict'}
         ):
             raise IntegrityError('stored conflict receipt is inconsistent')
         return stored
 
     def _view_for(self, snapshot: LedgerSnapshot) -> _CommandView:
         if self._view is None or self._view.fingerprint != snapshot.fingerprint:
-            self._view = _CommandView.from_snapshot(snapshot)
+            self._view = _CommandView.from_snapshot(snapshot, self.schemas)
         return self._view
 
     def _matching_committed(
@@ -682,8 +842,8 @@ class CommandService:
     def _build_event(
         self,
         command: Command,
-        prepared_payload: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        prepared_payload: dict[str, Any] | VerifiedReleasePublication | None = None,
+    ) -> dict[str, Any] | EventDraft:
         command_type = command.envelope['command_type']
         if command_type == 'CreateTask':
             self.objects.write(
@@ -722,9 +882,16 @@ class CommandService:
                 raise IntegrityError('RevokeAuthorityGrant requires prepared payload')
             event_type = 'AuthorityGrantRevoked'
             payload = prepared_payload
+        elif command_type == 'PublishReleaseGateDecision':
+            if not isinstance(prepared_payload, VerifiedReleasePublication):
+                raise IntegrityError(
+                    'PublishReleaseGateDecision requires verified publication'
+                )
+            event_type = 'ReleaseGateDecisionPublished'
+            payload = None
         else:
             raise ArsError(f'unsupported command type: {command_type}')
-        return {
+        envelope = {
             'event_type': event_type,
             'stream_id': command.target_stream_id,
             'command_id': command.command_id,
@@ -738,8 +905,54 @@ class CommandService:
             'schema_id': f'ars://core/event/{event_type}',
             'schema_version': '1.0.0',
             'occurred_at': None,
-            'payload': payload,
         }
+        if command_type == 'PublishReleaseGateDecision':
+            return EventDraft(
+                envelope,
+                lambda allocated: prepared_payload.payload_for(
+                    allocated.event_id
+                ),
+                self.schemas.validate,
+                (
+                    'ars://core/event',
+                    'ars://core/event/ReleaseGateDecisionPublished',
+                ),
+            )
+        return {**envelope, 'payload': payload}
+
+    def _prepare_release_publication(
+        self,
+        command: Command,
+    ) -> VerifiedReleasePublication:
+        evidence = self.release_publication_evidence
+        if evidence is None:
+            raise PublicationEvidenceError(
+                'release publication evidence resolver is unavailable'
+            )
+        request = ReleasePublicationRequest.from_dict(command.envelope['payload'])
+        resolved = self.authority_resolver.resolve(
+            request.publication_authority_grant_id,
+            command.actor_id,
+            'PublishReleaseGateDecision',
+            self.ledger.project_id,
+            'release_gate_decision',
+            command.target_stream_id,
+            self.clock(),
+        )
+        if (
+            resolved.authority_grant_sha256
+            != request.publication_authority_sha256
+        ):
+            raise ArsError('publication authority hash mismatch')
+        verified = verify_release_publication(request, evidence, self.schemas)
+        if (
+            verified.publication_authority_grant_id
+            != command.envelope['authority_grant_id']
+            or verified.publication_authority_sha256
+            != resolved.authority_grant_sha256
+        ):
+            raise ArsError('publication authority evidence mismatch')
+        return verified
 
     def _prepare_authority_revocation(
         self, command: Command, observed_version: int

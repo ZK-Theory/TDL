@@ -7,7 +7,7 @@ from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
-from research_system.errors import ConflictError
+from research_system.errors import ConflictError, IdempotencyConflictError
 
 
 _RECEIPT_FIELDS = {
@@ -27,6 +27,7 @@ _INDEX_FIELDS = {
     'expected_stream_version',
     'receipt',
 }
+_PUBLICATION_INDEX_FIELDS = _INDEX_FIELDS | {'project_id', 'target_stream_id'}
 
 
 def _is_sha256(value: object) -> bool:
@@ -175,6 +176,9 @@ class ReceiptStore:
         payload_hash: str,
         authority_grant_sha256: str,
         expected_stream_version: int,
+        *,
+        project_id: str | None = None,
+        target_stream_id: str | None = None,
     ) -> Receipt | None:
         """Load an exact authority-scoped idempotency outcome.
 
@@ -198,11 +202,17 @@ class ReceiptStore:
             record = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError) as exc:
             raise ConflictError('invalid idempotency index') from exc
+        publication_index = (
+            isinstance(record, dict)
+            and set(record) == _PUBLICATION_INDEX_FIELDS
+        )
+        legacy_index = isinstance(record, dict) and set(record) == _INDEX_FIELDS
         if (
             not isinstance(record, dict)
-            or set(record) != _INDEX_FIELDS
+            or not (publication_index or legacy_index)
             or record.get('schema_id') != 'ars://core/authority-receipt-index'
-            or record.get('schema_version') != '1.1.0'
+            or record.get('schema_version')
+            != ('1.2.0' if publication_index else '1.1.0')
             or not isinstance(record.get('scope'), list)
             or len(record['scope']) != 4
             or not all(isinstance(item, str) and item for item in record['scope'])
@@ -213,15 +223,26 @@ class ReceiptStore:
             or record['expected_stream_version'] < 0
         ):
             raise ConflictError('invalid idempotency index')
+        if project_id is not None or target_stream_id is not None:
+            if (
+                not publication_index
+                or record.get('project_id') != project_id
+                or record.get('target_stream_id') != target_stream_id
+            ):
+                raise IdempotencyConflictError(
+                    'idempotency index target mismatch'
+                )
         if record.get('scope') != list(scope):
             raise ConflictError('idempotency index scope mismatch')
         if (
             record.get('payload_hash') != payload_hash
             or record.get('authority_grant_sha256') != authority_grant_sha256
         ):
-            raise ConflictError('idempotency key conflicts with stored outcome')
+            raise IdempotencyConflictError(
+                'idempotency key conflicts with stored outcome'
+            )
         if record['expected_stream_version'] != expected_stream_version:
-            raise ConflictError(
+            raise IdempotencyConflictError(
                 'idempotency key conflicts with expected stream version'
             )
         receipt = _validated_receipt(record['receipt'])
@@ -235,6 +256,9 @@ class ReceiptStore:
         authority_grant_sha256: str,
         expected_stream_version: int,
         receipt: Receipt,
+        *,
+        project_id: str | None = None,
+        target_stream_id: str | None = None,
     ) -> Receipt:
         """Atomically publish one authority-scoped idempotency outcome.
 
@@ -253,15 +277,22 @@ class ReceiptStore:
         """
         key = sha256_hex(canonical_bytes(list(scope)))
         target = self.index_root / f'{key}.json'
+        if (project_id is None) != (target_stream_id is None):
+            raise ValueError('project and target idempotency bindings are paired')
         record = {
             'schema_id': 'ars://core/authority-receipt-index',
-            'schema_version': '1.1.0',
+            'schema_version': (
+                '1.2.0' if project_id is not None else '1.1.0'
+            ),
             'scope': list(scope),
             'payload_hash': receipt.payload_hash,
             'authority_grant_sha256': authority_grant_sha256,
             'expected_stream_version': expected_stream_version,
             'receipt': _receipt_record(receipt),
         }
+        if project_id is not None:
+            record['project_id'] = project_id
+            record['target_stream_id'] = target_stream_id
         data = canonical_bytes(record)
         if target.exists():
             if target.read_bytes() != data:
@@ -270,6 +301,8 @@ class ReceiptStore:
                     receipt.payload_hash,
                     authority_grant_sha256,
                     expected_stream_version,
+                    project_id=project_id,
+                    target_stream_id=target_stream_id,
                 )
                 if existing != receipt:
                     raise ConflictError('idempotency index outcome mismatch')

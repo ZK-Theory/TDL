@@ -774,10 +774,17 @@ class LedgerAuthorityGrantResolver:
         ValueError: If ``project_id`` is malformed.
     """
 
-    def __init__(self, control_root: Path, project_id: str, expected_store_identity: str) -> None:
+    def __init__(
+        self,
+        control_root: Path,
+        project_id: str,
+        expected_store_identity: str,
+        schema_registry: Any | None = None,
+    ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
         self.expected_store_identity = expected_store_identity
+        self.schema_registry = schema_registry
 
     def _projection(self) -> dict[str, Any]:
         from research_system.projection.replay import replay
@@ -803,7 +810,7 @@ class LedgerAuthorityGrantResolver:
         if bootstrap_hash != manifest.get("bootstrap_manifest_sha256"):
             raise IntegrityError("authority bootstrap identity binding mismatch")
         events = tuple(EventLedger(self.control_root, self.project_id).iter_events())
-        projection = replay(events)
+        projection = replay(events, schema_registry=self.schema_registry)
         if projection.get("bootstrap_manifest_sha256") != bootstrap_hash:
             raise IntegrityError("authority bootstrap ledger binding mismatch")
         _verify_bootstrap_bindings(

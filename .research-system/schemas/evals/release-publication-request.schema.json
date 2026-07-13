@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/release-publication-request",
+  "type": "object",
+  "required": [
+    "schema",
+    "project_id",
+    "release_decision_id",
+    "evaluation_runs_manifest_ref",
+    "control_binding_ref",
+    "publication_authority_grant_id",
+    "publication_authority_sha256",
+    "idempotency_key"
+  ],
+  "properties": {
+    "schema": {"const": "ars://evals/release-publication-request"},
+    "project_id": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "release_decision_id": {"type": "string", "pattern": "^rgd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "evaluation_runs_manifest_ref": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "control_binding_ref": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "publication_authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "publication_authority_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "idempotency_key": {"type": "string", "pattern": "^release-publication:[A-Za-z0-9._:-]+$", "maxLength": 200}
+  },
+  "additionalProperties": false
+}

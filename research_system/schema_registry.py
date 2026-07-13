@@ -39,3 +39,7 @@ class SchemaRegistry:
                 for error in errors
             )
             raise SchemaError(f'{schema_id}: {message}')
+
+    def contains(self, schema_id: str) -> bool:
+        """Return whether an exact schema identifier is registered."""
+        return schema_id in self._schemas

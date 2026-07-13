@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +39,31 @@ class LedgerSnapshot:
     fingerprint: tuple[tuple[str, int, int], ...]
 
 
+@dataclass(frozen=True)
+class AllocatedEvent:
+    """Ledger-owned identity and position exposed only to a draft finalizer."""
+
+    event_id: str
+    project_id: str
+    stream_id: str
+    stream_version: int
+    global_position: int
+    transaction_id: str
+    transaction_index: int
+    transaction_count: int
+    recorded_at: str
+
+
+@dataclass(frozen=True)
+class EventDraft:
+    """Internal typed event whose payload is finalized after allocation."""
+
+    envelope: Mapping[str, Any]
+    finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]]
+    schema_validator: Callable[[str, Any], None]
+    schema_ids: tuple[str, ...]
+
+
 class EventLedger:
     def __init__(self, control_root: Path, project_id: str) -> None:
         self.control_root = control_root
@@ -71,12 +96,12 @@ class EventLedger:
 
     def append(
         self,
-        proposed_events: Iterable[Mapping[str, Any]],
+        proposed_events: Iterable[Mapping[str, Any] | EventDraft],
         *,
         snapshot: LedgerSnapshot | None = None,
     ) -> dict[str, Any]:
         """Atomically append a batch using a caller-verified materialized state."""
-        proposed = [dict(event) for event in proposed_events]
+        proposed = list(proposed_events)
         if not proposed:
             raise ArsError('event batch must not be empty')
         current = self.snapshot() if snapshot is None else snapshot
@@ -93,7 +118,11 @@ class EventLedger:
         recorded_at = datetime.now(UTC)
         count = len(proposed)
         events: list[dict[str, Any]] = []
-        for offset, candidate in enumerate(proposed):
+        for offset, proposed_event in enumerate(proposed):
+            draft = proposed_event if isinstance(proposed_event, EventDraft) else None
+            candidate = dict(
+                draft.envelope if draft is not None else proposed_event
+            )
             protected = _PROTECTED_FIELDS.intersection(candidate)
             if protected:
                 raise ArsError(f'caller supplied protected event fields: {sorted(protected)}')
@@ -104,8 +133,30 @@ class EventLedger:
                 raise ArsError(f'missing event field: {exc.args[0]}') from exc
             stream_version = stream_versions.get(stream_id, 0) + 1
             stream_versions[stream_id] = stream_version
+            event_id = new_id('event')
+            recorded_at_text = recorded_at.isoformat().replace('+00:00', 'Z')
+            if draft is None and event_type == 'ReleaseGateDecisionPublished':
+                raise ArsError('release publication requires a ledger event finalizer')
+            if draft is not None and 'payload' in candidate:
+                raise ArsError('event draft payload must be ledger-finalized')
+            allocated = AllocatedEvent(
+                event_id=event_id,
+                project_id=self.project_id,
+                stream_id=stream_id,
+                stream_version=stream_version,
+                global_position=next_position + offset,
+                transaction_id=transaction_id,
+                transaction_index=offset + 1,
+                transaction_count=count,
+                recorded_at=recorded_at_text,
+            )
+            payload = (
+                dict(draft.finalize_payload(allocated))
+                if draft is not None
+                else candidate.pop('payload', {})
+            )
             event = {
-                'event_id': new_id('event'),
+                'event_id': event_id,
                 'event_type': event_type,
                 'project_id': self.project_id,
                 'stream_id': stream_id,
@@ -114,12 +165,30 @@ class EventLedger:
                 'transaction_id': transaction_id,
                 'transaction_index': offset + 1,
                 'transaction_count': count,
-                'recorded_at': recorded_at.isoformat().replace('+00:00', 'Z'),
-                'payload': candidate.pop('payload', {}),
+                'recorded_at': recorded_at_text,
+                'payload': payload,
                 **candidate,
                 'previous_event_hash': previous_hash,
             }
+            if draft is not None:
+                if event_type == 'ReleaseGateDecisionPublished':
+                    decision = payload.get('release_decision')
+                    if (
+                        candidate.get('occurred_at') is not None
+                        or not isinstance(decision, dict)
+                        or decision.get('release_gate_decision_id') != stream_id
+                        or decision.get('canonical_event_ref') != event_id
+                    ):
+                        raise ArsError(
+                            'release event finalizer violated ledger allocation'
+                        )
+                prehash = {**event, 'event_hash': '0' * 64}
+                for schema_id in draft.schema_ids:
+                    draft.schema_validator(schema_id, prehash)
             event['event_hash'] = sha256_hex(canonical_bytes(event))
+            if draft is not None:
+                for schema_id in draft.schema_ids:
+                    draft.schema_validator(schema_id, event)
             previous_hash = event['event_hash']
             events.append(event)
         date_root = self.events_root / f'{recorded_at.year:04d}' / f'{recorded_at.month:02d}'

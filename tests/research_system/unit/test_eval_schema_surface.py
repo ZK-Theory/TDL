@@ -20,6 +20,7 @@ def test_eval_schema_set_matches_the_w6_contract_surface():
         "fixture-trajectory.schema.json",
         "grader-result.schema.json",
         "release-gate-decision.schema.json",
+        "release-publication-request.schema.json",
         "trace-envelope.schema.json",
         "variant-execution-evidence.schema.json",
     }

@@ -33,7 +33,7 @@ from research_system.evals.release import BLOCKING, decide_release
 from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
 from research_system.evals.variants import Gate5VariantRow, VariantExecutionEvidence
-from research_system.ids import new_id
+from research_system.ids import new_id, validate_id
 from research_system.policy.models import CanonicalPolicyBundle, PolicyControlApplicability
 
 
@@ -453,6 +453,7 @@ def build_release_decision(
     scenario_results: tuple[Gate3ScenarioResult, ...],
     *,
     decided_at: str | None = None,
+    release_gate_decision_id: str | None = None,
 ) -> tuple[ReleaseGateDecision, dict]:
     """Derive the attributed release decision; operations/parity fail closed.
 
@@ -494,7 +495,10 @@ def build_release_decision(
     if decision == "pass" and not (operations_status == "pass" and parity_status == "pass"):
         decision = "blocked"
     record = ReleaseGateDecision(
-        release_gate_decision_id=new_id("release_gate_decision"),
+        release_gate_decision_id=validate_id(
+            release_gate_decision_id or new_id("release_gate_decision"),
+            "release_gate_decision",
+        ),
         coverage_manifest_id=evidence.coverage.coverage_revision,
         baseline_identity="reference-pair-p0",
         candidate_identity="foundation-p0",
