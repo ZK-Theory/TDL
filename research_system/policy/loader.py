@@ -34,6 +34,30 @@ PROVIDERS = {
     "fake-claude-adapter-v1": "fake-claude-adapter-v1-windows-fake-transport",
     "fake-codex-adapter-v1": "fake-codex-adapter-v1-windows-fake-transport",
 }
+ACCEPTED_DG55_DECISION_PAYLOAD = {
+    "owner": "Stephen",
+    "accepted_on": "2026-07-12",
+    "control_applicability": [
+        {
+            "control_id": control_id,
+            "control_revision": "r1",
+            "required_risk_tiers": list(RISK_TIERS),
+            "required_operation_classes": list(operations),
+        }
+        for control_id, operations in OPERATIONS.items()
+    ],
+    "f020_binding": {
+        "fixture_id": "F-020",
+        "fixture_revision": "r2",
+        "property": "adapter_policy_parity",
+    },
+}
+ACCEPTED_DG55_DECISION_RECORD_HASH = sha256_hex(
+    canonical_bytes(ACCEPTED_DG55_DECISION_PAYLOAD)
+)
+ACCEPTED_DG55_APPLICABILITY_HASH = (
+    "fa81d6de64ea73575ac3fe715b38984ef7c99e9ec1761736711094a26bb1d7b0"
+)
 
 
 def _read_yaml(path: Path | str) -> dict[str, Any]:
@@ -87,6 +111,52 @@ def _require_sha(value: object, label: str) -> str:
     return text
 
 
+def require_accepted_policy_control_applicability(
+    applicability: PolicyControlApplicability,
+    bundle: CanonicalPolicyBundle,
+) -> None:
+    """Validate a typed applicability object against the accepted D-G5-5 scope."""
+    if not isinstance(applicability, PolicyControlApplicability):
+        raise TypeError("typed PolicyControlApplicability required")
+    if (
+        applicability.applicability_id
+        != f"pca_{ACCEPTED_DG55_APPLICABILITY_HASH}"
+        or applicability.applicability_hash != ACCEPTED_DG55_APPLICABILITY_HASH
+        or
+        applicability.decision_ref != "D-G5-5"
+        or applicability.decision_record_hash != ACCEPTED_DG55_DECISION_RECORD_HASH
+        or (
+            applicability.bundle_id,
+            applicability.bundle_revision,
+            applicability.bundle_hash,
+        )
+        != (
+            bundle.canonical_policy_bundle_id,
+            bundle.revision,
+            bundle.content_hash,
+        )
+    ):
+        raise ValueError("typed applicability differs from accepted D-G5-5 decision")
+    expected = {
+        item["control_id"]: (
+            item["control_revision"],
+            tuple(item["required_risk_tiers"]),
+            tuple(item["required_operation_classes"]),
+        )
+        for item in ACCEPTED_DG55_DECISION_PAYLOAD["control_applicability"]
+    }
+    observed = {
+        item.control_id: (
+            item.control_revision,
+            item.required_risk_tiers,
+            item.required_operation_classes,
+        )
+        for item in applicability.controls
+    }
+    if len(observed) != len(applicability.controls) or observed != expected:
+        raise ValueError("typed applicability controls differ from accepted D-G5-5 decision")
+
+
 def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPolicyBundle) -> PolicyControlApplicability:
     """Load only the exact owner-approved, bundle-bound D-G5-5 mapping.
 
@@ -119,8 +189,13 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
         raise ValueError("unsupported applicability schema")
     if payload["decision_ref"] != "D-G5-5":
         raise ValueError("decision_ref must be D-G5-5")
+    if payload["decision_payload"] != ACCEPTED_DG55_DECISION_PAYLOAD:
+        raise ValueError("accepted D-G5-5 decision payload mismatch")
     decision_hash = sha256_hex(canonical_bytes(payload["decision_payload"]))
-    if payload["decision_record_hash"] != decision_hash:
+    if (
+        decision_hash != ACCEPTED_DG55_DECISION_RECORD_HASH
+        or payload["decision_record_hash"] != decision_hash
+    ):
         raise ValueError("decision_record_hash mismatch")
     binding = payload["bundle"]
     if binding != {
@@ -225,6 +300,17 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
                 tuple(sorted(requirements, key=lambda item: item.provider_variant)),
             )
         )
+    outer_scope = [
+        {
+            "control_id": raw["control_id"],
+            "control_revision": raw["control_revision"],
+            "required_risk_tiers": raw["required_risk_tiers"],
+            "required_operation_classes": raw["required_operation_classes"],
+        }
+        for raw in raw_controls
+    ]
+    if outer_scope != ACCEPTED_DG55_DECISION_PAYLOAD["control_applicability"]:
+        raise ValueError("outer controls differ from accepted D-G5-5 decision")
     if seen != set(OPERATIONS):
         raise ValueError("missing canonical control")
     hash_payload = copy.deepcopy(payload)
@@ -233,7 +319,7 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
     actual_hash = sha256_hex(canonical_bytes(hash_payload))
     if declared_hash != actual_hash or payload["applicability_id"] != f"pca_{actual_hash}":
         raise ValueError("applicability identity/hash mismatch")
-    return PolicyControlApplicability(
+    applicability = PolicyControlApplicability(
         str(payload["applicability_id"]),
         actual_hash,
         "D-G5-5",
@@ -243,3 +329,5 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
         bundle.content_hash,
         tuple(sorted(controls, key=lambda item: item.control_id)),
     )
+    require_accepted_policy_control_applicability(applicability, bundle)
+    return applicability

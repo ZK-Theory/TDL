@@ -323,7 +323,15 @@ class _S016IssueAdapter:
             ]
         )
         self.request = request
-        self.provider = ProviderAdapter(["fake-provider"], transport)
+        from research_system.adapters.provider import default_provider_operation_policy
+
+        self.provider = ProviderAdapter(
+            ["fake-provider"],
+            transport,
+            operation_policy=default_provider_operation_policy(
+                live_provider_enabled=True
+            ),
+        )
         self.managed_content = ""
 
     def load_evidence(self, evidence_id: str, content_hash: str) -> dict[str, Any]:

@@ -1,11 +1,12 @@
 import shutil
-from dataclasses import replace
+from dataclasses import asdict, fields, replace
 from pathlib import Path
 
 import pytest
 
 from research_system.adapters.base import TransportResult
 from research_system.adapters.fake import FakeTransport
+from research_system.canonical import jsonable
 from research_system.evals.errors import FixtureDefinitionError
 from research_system.evals.harness import (
     build_release_decision,
@@ -18,6 +19,7 @@ from research_system.evals.variants import (
     execute_gate5_variant_rows_twice,
     load_gate5_variant_rows,
 )
+from research_system.schema_registry import SchemaRegistry
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -44,6 +46,15 @@ def test_gate5_rows_execute_twice_fake_only_and_close_302_keys(gate5_evidence):
     assert len(evidence.results) == 302
     assert len({item.result_key for item in evidence.results}) == 302
     assert decide_p0_release(evidence)["decision"] == "blocked"
+    payload = jsonable(asdict(evidence.variant_executions[0]))
+    payload.update(
+        schema_id="ars://evals/variant-execution-evidence",
+        schema_version="1.0.0",
+    )
+    SchemaRegistry(ROOT / ".research-system" / "schemas").validate(
+        "ars://evals/variant-execution-evidence",
+        payload,
+    )
 
 
 def test_changed_second_fake_observation_is_rejected_before_evidence():
@@ -99,16 +110,48 @@ def test_gate5_execution_rejects_tampered_materialized_package(gate5_evidence, t
 
 def test_conflicting_applicability_binding_blocks_release(gate5_evidence):
     conflicting = replace(gate5_evidence.policy_applicability, applicability_hash="0" * 64)
-    evidence = replace(gate5_evidence, policy_applicability=conflicting)
-    decision, _ = build_release_decision(
-        evidence,
-        run_all_scenarios(),
-        decided_at="2026-07-13T00:00:00Z",
-    )
-    assert decision.parity_status == "blocked"
-    assert decision.decision == "blocked"
+    with pytest.raises(ValueError, match="accepted D-G5-5"):
+        replace(gate5_evidence, policy_applicability=conflicting)
 
 
 def test_evaluation_evidence_rejects_untyped_parity_artifacts(gate5_evidence):
     with pytest.raises(TypeError, match="PolicyParityReport"):
         replace(gate5_evidence, parity_report=object())
+
+
+def test_direct_typed_parity_self_attestation_cannot_reach_release_pass(gate5_evidence):
+    with pytest.raises(ValueError, match="parity report identity"):
+        replace(
+            gate5_evidence.parity_report,
+            policy_parity_report_id="ppr_" + "0" * 64,
+            report_hash="0" * 64,
+            passed=True,
+            blocking_controls=(),
+        )
+
+
+def test_release_rebuild_blocks_typed_report_that_bypasses_constructor_validation(gate5_evidence):
+    forged_report = object.__new__(type(gate5_evidence.parity_report))
+    for field in fields(gate5_evidence.parity_report):
+        object.__setattr__(
+            forged_report,
+            field.name,
+            getattr(gate5_evidence.parity_report, field.name),
+        )
+    object.__setattr__(forged_report, "report_hash", "0" * 64)
+    object.__setattr__(forged_report, "policy_parity_report_id", "ppr_" + "0" * 64)
+
+    forged_evidence = object.__new__(type(gate5_evidence))
+    for field in fields(gate5_evidence):
+        object.__setattr__(
+            forged_evidence,
+            field.name,
+            forged_report if field.name == "parity_report" else getattr(gate5_evidence, field.name),
+        )
+    decision, _ = build_release_decision(
+        forged_evidence,
+        run_all_scenarios(),
+        decided_at="2026-07-13T00:00:00Z",
+    )
+    assert decision.parity_status == "blocked"
+    assert decision.decision == "blocked"

@@ -1,17 +1,68 @@
 """Normalized issue boundary and privacy-preserving receipt extraction."""
 
 import json
+from dataclasses import dataclass
 
 from research_system.adapters.base import (
     ProviderCommand,
     ProviderReceipt,
     TransportResult,
 )
+from research_system.adapters.fake import FakeTransport
 from research_system.canonical import sha256_hex
 from research_system.errors import ArsError
 
 
 _ALLOWED_SEGMENT_BUCKETS = frozenset({"managed", "reserved"})
+_DECLARED_PROVIDER_OPERATIONS = frozenset(
+    {
+        "cancel_provider_work",
+        "deliver_context",
+        "deliver_message",
+        "evaluate_gate5_fixture",
+        "invoke_declared_tool",
+        "query_provider_status",
+        "request_model_work",
+        "request_review",
+    }
+)
+_LIVE_PROVIDER_OPERATIONS = frozenset(
+    {
+        "cancel_provider_work",
+        "query_provider_status",
+        "request_model_work",
+        "request_review",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderOperationPolicy:
+    """Declared adapter operations and reviewed live-provider enablement."""
+
+    declared_operations: frozenset[str]
+    live_provider_operations: frozenset[str]
+    live_provider_enabled: bool
+
+
+def default_provider_operation_policy(*, live_provider_enabled: bool = False) -> ProviderOperationPolicy:
+    """Return the fake-safe default policy shared by both provider builders."""
+    return ProviderOperationPolicy(
+        _DECLARED_PROVIDER_OPERATIONS,
+        _LIVE_PROVIDER_OPERATIONS,
+        live_provider_enabled,
+    )
+
+
+def enforce_provider_operation_policy(
+    command: ProviderCommand,
+    policy: ProviderOperationPolicy,
+) -> None:
+    """Reject undeclared or default-live operations before transport issue."""
+    if command.operation not in policy.declared_operations:
+        raise ArsError("undeclared_adapter_operation")
+    if command.operation in policy.live_provider_operations and not policy.live_provider_enabled:
+        raise ArsError("live_provider_disabled")
 
 
 def validate_wrapper_accounting(accounting: dict) -> None:
@@ -113,16 +164,36 @@ def normalize_receipt(
     )
 
 
+def receipt_retention_mode(receipt: ProviderReceipt) -> str:
+    """Derive the retention classification solely from normalized receipt data."""
+    if receipt.redaction == "raw_transport_content_discarded":
+        return "bounded_redacted"
+    return "raw_retained"
+
+
 class ProviderAdapter:
-    def __init__(self, argv: list[str], transport):
+    def __init__(
+        self,
+        argv: list[str],
+        transport,
+        *,
+        operation_policy: ProviderOperationPolicy | None = None,
+    ):
         if not argv or not all(isinstance(value, str) and value for value in argv):
             raise ArsError("invalid provider argument array")
         self._argv = list(argv)
         self._transport = transport
+        self._operation_policy = operation_policy or default_provider_operation_policy()
+        if self._operation_policy.live_provider_enabled and not isinstance(
+            transport,
+            FakeTransport,
+        ):
+            raise ArsError("live_provider_capability_not_implemented")
 
     def issue(self, command: ProviderCommand, managed_content: str) -> ProviderReceipt:
         if not command.authorized:
             raise ArsError("unauthorized_adapter_command")
+        enforce_provider_operation_policy(command, self._operation_policy)
         validate_wrapper_accounting(command.wrapper_accounting)
         result = self._transport.invoke(
             list(self._argv), managed_content, command.timeout_s

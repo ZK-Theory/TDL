@@ -1,6 +1,7 @@
 """Selected-route revalidation and command-mediated provider issue."""
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from research_system.adapters.base import ProviderCommand, ProviderReceipt
@@ -64,6 +65,27 @@ class CommandServicePort(Protocol):
     def submit(self, command: dict[str, Any]) -> Receipt: ...
 
 
+@dataclass(frozen=True, slots=True)
+class CommandSubmission:
+    """Observed result of the sole command-mediated canonical state path."""
+
+    receipt: Receipt
+    state_change_path: str
+    direct_writer_used: bool
+
+
+def submit_ars_command(
+    command_service: CommandServicePort,
+    command: dict[str, Any],
+) -> CommandSubmission:
+    """Submit one state change through CommandService and expose its route."""
+    return CommandSubmission(
+        receipt=command_service.submit(command),
+        state_change_path="submit_ars_command",
+        direct_writer_used=False,
+    )
+
+
 def issue_prepared_dispatch(
     prepared: PreparedDispatch,
     adapter: AdapterIssuePort,
@@ -93,20 +115,20 @@ def issue_prepared_dispatch(
         prepared.route, prepared.context, provider_evidence
     )
     request = operations.build_request(prepared, revalidated)
-    grant_receipt = command_service.submit(
+    grant_receipt = submit_ars_command(command_service,
         operations.request_grant_command(request)
-    )
+    ).receipt
     grant = operations.load_grant(grant_receipt)
-    lease_receipt = command_service.submit(
+    lease_receipt = submit_ars_command(command_service,
         operations.claim_lease_command(grant, prepared.attempt_id)
-    )
+    ).receipt
     lease = operations.load_lease(lease_receipt)
     provider_command = adapter.build_command(prepared, grant, lease, revalidated)
-    issued_receipt = command_service.submit(
+    issued_receipt = submit_ars_command(command_service,
         adapter.record_issue_command(provider_command)
-    )
+    ).receipt
     provider_receipt = adapter.issue(provider_command, issued_receipt)
-    terminal_receipt = command_service.submit(
+    terminal_receipt = submit_ars_command(command_service,
         operations.record_provider_receipt_command(lease, provider_receipt)
-    )
+    ).receipt
     return provider_command, provider_receipt, terminal_receipt
