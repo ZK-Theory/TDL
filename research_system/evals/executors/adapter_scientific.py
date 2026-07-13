@@ -145,6 +145,153 @@ def execute_f020(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         "semantic_parity": restored == source,
         "poorer_source_overwrite_blocked": target < source,
         "affected_dispatch_waits": True,
+        "controls": derive_f020_policy_controls(str(payload.get("_provider_variant", "fake-claude-adapter-v1"))),
+    }
+
+
+def derive_f020_policy_controls(
+    provider_variant: str = "fake-claude-adapter-v1",
+) -> dict[str, dict[str, Any]]:
+    """Exercise public fake boundaries and return minimized W7 observations."""
+    from research_system.adapters.base import ProviderCommand, TransportResult
+    from research_system.adapters.claude import build_claude_adapter
+    from research_system.adapters.codex import build_codex_adapter
+    from research_system.adapters.fake import FakeTransport
+    from research_system.command.service import CommandService
+    from research_system.errors import ArsError
+
+    wrapper = {
+        "method": "fake-count-v1",
+        "raw_capacity": 100,
+        "fixed_overhead": 1,
+        "managed_tokens": 1,
+        "reserved_variable_tokens": 1,
+        "segments": {"managed": "managed"},
+    }
+
+    if provider_variant not in {"fake-claude-adapter-v1", "fake-codex-adapter-v1"}:
+        raise ValueError("unsupported fake provider variant")
+    provider = "fake-claude" if provider_variant.startswith("fake-claude") else "fake-codex"
+    adapter_builder = build_claude_adapter if provider == "fake-claude" else build_codex_adapter
+
+    def command(operation: str, *, authorized: bool = True) -> ProviderCommand:
+        return ProviderCommand(
+            provider_command_id=f"pcmd_{operation}",
+            revision=1,
+            revision_hash="a" * 64,
+            provider=provider,
+            model="fake-model",
+            profile_id="fake-profile",
+            adapter_revision=provider_variant,
+            policy_hash="b" * 64,
+            context_hash="c" * 64,
+            rendered_payload_hash="d" * 64,
+            idempotency_key=operation,
+            operation=operation,
+            timeout_s=1.0,
+            wrapper_accounting=wrapper,
+            authorized=authorized,
+        )
+
+    def terminal_result(provider_command: ProviderCommand) -> TransportResult:
+        payload = {
+            "provider": provider_command.provider,
+            "model": provider_command.model,
+            "profile_id": provider_command.profile_id,
+            "adapter_revision": provider_command.adapter_revision,
+            "command_revision": provider_command.revision,
+            "command_revision_hash": provider_command.revision_hash,
+            "delivered_context_hash": provider_command.context_hash,
+        }
+        import json
+
+        return TransportResult("terminal", json.dumps(payload), "", "fake-request", 0)
+
+    declared_command = command("invoke_declared_tool")
+    declared_transport = FakeTransport([terminal_result(declared_command)])
+    try:
+        declared_receipt = adapter_builder(declared_transport).issue(declared_command, "declared input")
+    except ArsError:
+        declared_tool_only = False
+    else:
+        declared_tool_only = declared_receipt.complete and len(declared_transport.invocations) == 1
+
+    forbidden = FakeTransport([])
+    try:
+        adapter_builder(forbidden).issue(command("undeclared_shell", authorized=False), "")
+    except ArsError:
+        shell_blocked = True
+    else:  # pragma: no cover - fail-closed defensive branch
+        shell_blocked = False
+
+    no_live = {}
+    for operation in (
+        "cancel_provider_work",
+        "query_provider_status",
+        "request_model_work",
+        "request_review",
+    ):
+        live_transport = FakeTransport([])
+        try:
+            adapter_builder(live_transport).issue(command(operation, authorized=False), "")
+        except ArsError:
+            live_enabled = False
+        else:  # pragma: no cover - fail-closed defensive branch
+            live_enabled = True
+        no_live[operation] = {
+            "live_provider_enabled": live_enabled,
+            "subprocess_issue_count": len(live_transport.invocations),
+        }
+
+    receipt_mode = "bounded_redacted"
+    no_transcript = {}
+    for operation in (
+        "deliver_context",
+        "deliver_message",
+        "request_model_work",
+        "request_review",
+    ):
+        transcript_command = command(operation)
+        scripted = FakeTransport([terminal_result(transcript_command)])
+        try:
+            receipt = adapter_builder(scripted).issue(transcript_command, "bounded context")
+        except ArsError:
+            full_transcript_retained = True
+        else:
+            full_transcript_retained = receipt.redaction != "raw_transport_content_discarded"
+        no_transcript[operation] = {
+            "full_transcript_retained": full_transcript_retained,
+            "receipt_mode": receipt_mode,
+        }
+
+    direct_transport = FakeTransport([])
+    try:
+        adapter_builder(direct_transport).issue(command("submit_ars_command", authorized=False), "")
+    except ArsError:
+        direct_write_blocked = len(direct_transport.invocations) == 0
+    else:  # pragma: no cover - fail-closed defensive branch
+        direct_write_blocked = False
+    command_state_path = f"{CommandService.submit.__name__}_ars_command"
+    return {
+        "no-shell": {
+            "operations": {
+                "invoke_declared_tool": {
+                    "declared_tool_only": declared_tool_only,
+                    "forbidden_transport_invocations": len(forbidden.invocations),
+                    "undeclared_shell_blocked": shell_blocked,
+                }
+            }
+        },
+        "no-direct-event-write": {
+            "operations": {
+                "submit_ars_command": {
+                    "direct_canonical_write_blocked": direct_write_blocked,
+                    "state_change_path": command_state_path,
+                }
+            }
+        },
+        "no-live-provider-by-default": {"operations": no_live},
+        "no-raw-transcript-retention": {"operations": no_transcript},
     }
 
 
@@ -194,9 +341,7 @@ def execute_f036(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         "expected_value_recomputed": True,
         "anchoring_detected": action["producer_reported_value"] != recomputed,
         "degenerate_fallback_detected": action["fallback_constant"] != recomputed,
-        "null_invariance_detected": (
-            action["object_hash_before_null_op"] == action["object_hash_after_null_op"]
-        ),
+        "null_invariance_detected": (action["object_hash_before_null_op"] == action["object_hash_after_null_op"]),
         "producer_flag_trusted": False,
     }
 

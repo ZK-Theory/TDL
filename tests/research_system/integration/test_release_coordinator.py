@@ -26,6 +26,7 @@ def test_evaluation_execution_identity_is_unique_with_lineage_separate():
 def test_strict_release_consumes_exact_typed_results_and_blocks_missing_mh():
     evidence = run_p0_coverage(COVERAGE, fixture_root=FIXTURES, schema_root=SCHEMAS)
     assert len(evidence.results) == len(evidence.coverage.required_result_keys)
+    assert len(evidence.results) == 302
     assert {result.result_key for result in evidence.results} == set(evidence.coverage.required_result_keys)
     assessment = decide_p0_release(evidence)
     assert assessment["decision"] == "blocked"
@@ -45,7 +46,9 @@ def test_strict_release_consumes_exact_typed_results_and_blocks_missing_mh():
     )
     assert raw["decision"] == "blocked"
     assert decision.decision == "blocked"
-    assert decision.parity_status == "not_evaluated"
+    assert decision.parity_status == "pass"
+    assert decision.policy_parity_report_id.startswith("ppr_")
+    assert decision.policy_control_applicability_id.startswith("pca_")
 
 
 def test_fake_p0_family_identity_reaches_cross_family_rejection():

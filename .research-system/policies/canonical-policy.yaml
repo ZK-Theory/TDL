@@ -3,18 +3,22 @@ canonical_policy_bundle_id: cpb_p0_foundation
 revision: r1
 controls:
   no-shell:
+    revision: r1
     semantic_class: execution_boundary
     critical: true
     failure_mode: block
   no-direct-event-write:
+    revision: r1
     semantic_class: single_writer_boundary
     critical: true
     failure_mode: block
   no-live-provider-by-default:
+    revision: r1
     semantic_class: provider_enablement
     critical: true
     failure_mode: block
   no-raw-transcript-retention:
+    revision: r1
     semantic_class: privacy_retention
     critical: true
     failure_mode: block

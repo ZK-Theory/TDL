@@ -44,7 +44,13 @@ def test_tampered_oracle_yields_fixture_error_and_blocked(tmp_path):
         (tmp_path / policy).write_bytes((EVALS / policy).read_bytes())
     _tamper_post_control(fixtures, "F-001")
 
-    evidence = run_p0_coverage(coverage, fixture_root=fixtures, schema_root=SCHEMAS)
+    evidence = run_p0_coverage(
+        coverage,
+        fixture_root=fixtures,
+        schema_root=SCHEMAS,
+        variant_matrix_path=EVALS / "p0-variant-matrix.yaml",
+        policy_root=ROOT / ".research-system" / "policies",
+    )
     tampered = {r.verdict for r in evidence.results if r.fixture_id == "F-001"}
     assert "fixture_error" in tampered
     assert "pass" not in tampered

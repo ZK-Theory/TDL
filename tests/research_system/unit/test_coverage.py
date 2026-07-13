@@ -34,6 +34,7 @@ def test_foundation_coverage_selects_exact_release_tranche_closure():
         fixture_id: "r1" for fixture_id in sorted(coverage_module.FOUNDATION_CASES)
     }
     expected["F-021"] = "r2"
+    expected["F-020"] = "r2"
     expected["F-036"] = "r2"
     assert dict(coverage.selected_fixture_revisions) == expected
     assert len(coverage.required_result_keys) == len(set(coverage.required_result_keys))

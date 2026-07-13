@@ -1,0 +1,53 @@
+schema_id: ars://adapters/policy-control-applicability
+schema_version: 1.0.0
+applicability_id: pca_fa81d6de64ea73575ac3fe715b38984ef7c99e9ec1761736711094a26bb1d7b0
+applicability_hash: fa81d6de64ea73575ac3fe715b38984ef7c99e9ec1761736711094a26bb1d7b0
+decision_ref: D-G5-5
+decision_payload:
+  owner: Stephen
+  accepted_on: '2026-07-12'
+  control_applicability:
+  - {control_id: no-shell, control_revision: r1, required_risk_tiers: [R0, R1, R2, R3], required_operation_classes: [invoke_declared_tool]}
+  - {control_id: no-direct-event-write, control_revision: r1, required_risk_tiers: [R0, R1, R2, R3], required_operation_classes: [submit_ars_command]}
+  - {control_id: no-live-provider-by-default, control_revision: r1, required_risk_tiers: [R0, R1, R2, R3], required_operation_classes: [cancel_provider_work, query_provider_status, request_model_work, request_review]}
+  - {control_id: no-raw-transcript-retention, control_revision: r1, required_risk_tiers: [R0, R1, R2, R3], required_operation_classes: [deliver_context, deliver_message, request_model_work, request_review]}
+  f020_binding: {fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity}
+decision_record_hash: 43f6fcd7d2a3540eb7a351834622130257d79f578393c7748a44087df5350a20
+bundle: {id: cpb_p0_foundation, revision: r1, hash: 1a698d4fbbbdd0d26dda6a6eff3588a8caeabf7bd2ffd4a7f9a4afe28712891b}
+controls:
+- control_id: no-shell
+  control_revision: r1
+  required_risk_tiers: [R0, R1, R2, R3]
+  required_operation_classes: [invoke_declared_tool]
+  provider_requirements:
+  - &shell_claude
+    provider_variant: fake-claude-adapter-v1
+    variant_id: fake-claude-adapter-v1-windows-fake-transport
+    fixture_id: F-020
+    fixture_revision: r2
+    property: adapter_policy_parity
+    json_pointer: /controls/no-shell
+    canonical_observed_value: &shell_value {operations: {invoke_declared_tool: {declared_tool_only: true, forbidden_transport_invocations: 0, undeclared_shell_blocked: true}}}
+    expected_observed_value_hash: 2ffd3d54c06966e52be82e82cd203f3f2d3609c652593b6d45cd5e9ef732d84c
+  - {provider_variant: fake-codex-adapter-v1, variant_id: fake-codex-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-shell, canonical_observed_value: *shell_value, expected_observed_value_hash: 2ffd3d54c06966e52be82e82cd203f3f2d3609c652593b6d45cd5e9ef732d84c}
+- control_id: no-direct-event-write
+  control_revision: r1
+  required_risk_tiers: [R0, R1, R2, R3]
+  required_operation_classes: [submit_ars_command]
+  provider_requirements:
+  - {provider_variant: fake-claude-adapter-v1, variant_id: fake-claude-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-direct-event-write, canonical_observed_value: &write_value {operations: {submit_ars_command: {direct_canonical_write_blocked: true, state_change_path: submit_ars_command}}}, expected_observed_value_hash: 2db8cdf053335dc3cd4068e9027741eab988291c3f6dd6f15fa4c8e532684ef4}
+  - {provider_variant: fake-codex-adapter-v1, variant_id: fake-codex-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-direct-event-write, canonical_observed_value: *write_value, expected_observed_value_hash: 2db8cdf053335dc3cd4068e9027741eab988291c3f6dd6f15fa4c8e532684ef4}
+- control_id: no-live-provider-by-default
+  control_revision: r1
+  required_risk_tiers: [R0, R1, R2, R3]
+  required_operation_classes: [cancel_provider_work, query_provider_status, request_model_work, request_review]
+  provider_requirements:
+  - {provider_variant: fake-claude-adapter-v1, variant_id: fake-claude-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-live-provider-by-default, canonical_observed_value: &live_value {operations: {cancel_provider_work: {live_provider_enabled: false, subprocess_issue_count: 0}, query_provider_status: {live_provider_enabled: false, subprocess_issue_count: 0}, request_model_work: {live_provider_enabled: false, subprocess_issue_count: 0}, request_review: {live_provider_enabled: false, subprocess_issue_count: 0}}}, expected_observed_value_hash: 67f16b52a476d923c058d680b0dc84394e5ef955cbf6bc66cafb988a67a0bee4}
+  - {provider_variant: fake-codex-adapter-v1, variant_id: fake-codex-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-live-provider-by-default, canonical_observed_value: *live_value, expected_observed_value_hash: 67f16b52a476d923c058d680b0dc84394e5ef955cbf6bc66cafb988a67a0bee4}
+- control_id: no-raw-transcript-retention
+  control_revision: r1
+  required_risk_tiers: [R0, R1, R2, R3]
+  required_operation_classes: [deliver_context, deliver_message, request_model_work, request_review]
+  provider_requirements:
+  - {provider_variant: fake-claude-adapter-v1, variant_id: fake-claude-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-raw-transcript-retention, canonical_observed_value: &transcript_value {operations: {deliver_context: {full_transcript_retained: false, receipt_mode: bounded_redacted}, deliver_message: {full_transcript_retained: false, receipt_mode: bounded_redacted}, request_model_work: {full_transcript_retained: false, receipt_mode: bounded_redacted}, request_review: {full_transcript_retained: false, receipt_mode: bounded_redacted}}}, expected_observed_value_hash: 7ce10c995d24d969349f81d04db6133dec18c72eec6e023d62495ae78e109652}
+  - {provider_variant: fake-codex-adapter-v1, variant_id: fake-codex-adapter-v1-windows-fake-transport, fixture_id: F-020, fixture_revision: r2, property: adapter_policy_parity, json_pointer: /controls/no-raw-transcript-retention, canonical_observed_value: *transcript_value, expected_observed_value_hash: 7ce10c995d24d969349f81d04db6133dec18c72eec6e023d62495ae78e109652}

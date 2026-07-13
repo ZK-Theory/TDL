@@ -54,7 +54,9 @@ def test_eval_run_persists_dated_schema_valid_decision(capsys, tmp_path):
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["decision"] == "blocked"
     assert payload["operations_status"] == "pass"
-    assert payload["parity_status"] == "not_evaluated"
+    assert payload["parity_status"] == "pass"
+    assert payload["policy_parity_report_id"].startswith("ppr_")
+    assert payload["policy_control_applicability_id"].startswith("pca_")
     assert payload["release_gate_decision_id"].startswith("rgd_")
     assert payload["decided_at"].endswith("+00:00") or payload["decided_at"].endswith("Z")
     capsys.readouterr()

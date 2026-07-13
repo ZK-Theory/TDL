@@ -24,3 +24,4 @@ kinds:
   grader_result: grr
   evaluation_run: run
   release_gate_decision: rgd
+  policy_parity_report: ppr

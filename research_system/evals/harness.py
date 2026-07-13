@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
 
 import yaml
 
+from research_system.adapters.parity import PolicyParityReport
+from research_system.adapters.parity_evidence import FakeAdapterParityEvidence
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import P0Coverage, load_p0_coverage
@@ -30,7 +32,9 @@ from research_system.evals.policies import (
 from research_system.evals.release import BLOCKING, decide_release
 from research_system.evals.scenarios import Gate3ScenarioResult, run_gate3_scenario
 from research_system.evals.trace import assert_trace_complete
+from research_system.evals.variants import VariantExecutionEvidence
 from research_system.ids import new_id
+from research_system.policy.models import PolicyControlApplicability
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +58,23 @@ class EvaluationEvidence:
     coverage: P0Coverage
     bindings: ReleaseBindings
     results: tuple[GraderResult, ...]
+    variant_executions: tuple[VariantExecutionEvidence, ...] = ()
+    parity_report: PolicyParityReport | None = None
+    policy_applicability: PolicyControlApplicability | None = None
+    parity_evidence: tuple[FakeAdapterParityEvidence, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not all(isinstance(item, VariantExecutionEvidence) for item in self.variant_executions):
+            raise TypeError("typed VariantExecutionEvidence required")
+        if self.parity_report is not None and not isinstance(self.parity_report, PolicyParityReport):
+            raise TypeError("typed PolicyParityReport required")
+        if self.policy_applicability is not None and not isinstance(
+            self.policy_applicability,
+            PolicyControlApplicability,
+        ):
+            raise TypeError("typed PolicyControlApplicability required")
+        if not all(isinstance(item, FakeAdapterParityEvidence) for item in self.parity_evidence):
+            raise TypeError("typed FakeAdapterParityEvidence required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,16 +115,11 @@ def fake_execution_context_factory(
         family=transport,
         profile=f"reference-subject:{fixture_id}:{fixture_revision}:{run_id}",
     )
-    grader_profile = (
-        "live-judgment-pending" if live_unavailable else "deterministic-package-grader"
-    )
+    grader_profile = "live-judgment-pending" if live_unavailable else "deterministic-package-grader"
     grader_context = ExecutionContextIdentity(
         actor_id=new_id("actor"),
         family=transport,
-        profile=(
-            f"{fixture_id}:{fixture_revision}:{grader.grader_class}:"
-            f"{grader.grader_id}:{grader_profile}"
-        ),
+        profile=(f"{fixture_id}:{fixture_revision}:{grader.grader_class}:{grader.grader_id}:{grader_profile}"),
     )
     return producer, grader_context
 
@@ -120,9 +136,9 @@ def run_p0_coverage(
     *,
     fixture_root: Path | str,
     schema_root: Path | str,
-    execution_context_factory: ExecutionContextFactory = (
-        fake_execution_context_factory
-    ),
+    variant_matrix_path: Path | str | None = None,
+    policy_root: Path | str | None = None,
+    execution_context_factory: ExecutionContextFactory = (fake_execution_context_factory),
 ) -> EvaluationEvidence:
     """Assemble the typed release-evidence surface over all P0 packages.
 
@@ -134,6 +150,19 @@ def run_p0_coverage(
     that must pass ``assert_trace_complete`` before any verdict is derived.
     M/H (live-judgment) rows remain ``unable_to_grade`` regardless of
     calibration outcome, so the aggregate release decision stays ``blocked``.
+
+    Args:
+        coverage_path: Coverage manifest selecting exact fixture revisions.
+        fixture_root: Root containing the selected fixture packages.
+        schema_root: Root containing the accepted evaluation schemas.
+        variant_matrix_path: Optional exact variant matrix path. Defaults to
+            ``p0-variant-matrix.yaml`` beside the coverage manifest.
+        policy_root: Optional canonical-policy directory. Defaults to the
+            repository policy directory resolved from ``fixture_root``.
+        execution_context_factory: Factory for typed producer/grader identities.
+
+    Returns:
+        Complete typed baseline, variant, applicability, and parity evidence.
     """
     coverage = load_p0_coverage(
         coverage_path,
@@ -207,7 +236,14 @@ def run_p0_coverage(
         threshold_hash = sha256_hex(canonical_bytes(raw["threshold_policy_ids"]))
         producer_context: ExecutionContextIdentity | None = None
         for grader in definition.required_graders:
-            key = (fixture_id, fixture_revision, grader.grader_id, grader.grader_class, grader.grader_version)
+            key = (
+                fixture_id,
+                fixture_revision,
+                grader.grader_id,
+                grader.grader_class,
+                grader.grader_version,
+                "baseline",
+            )
             maps["subject"][key] = subject_hash
             maps["trace"][key] = trace_hash
             maps["oracle"][key] = oracle_hash
@@ -236,6 +272,7 @@ def run_p0_coverage(
                     evaluation_run_id=run_id,
                     fixture_id=fixture_id,
                     fixture_revision=fixture_revision,
+                    variant_id="baseline",
                     grader_id=grader.grader_id,
                     grader_class=grader.grader_class,
                     grader_version=grader.grader_version,
@@ -260,6 +297,35 @@ def run_p0_coverage(
                     executed_by_actor_id=grader_context.actor_id,
                 )
             )
+    from research_system.adapters.fake import FakeTransport
+    from research_system.evals.variants import (
+        execute_gate5_variant_rows_twice,
+        load_gate5_variant_rows,
+    )
+
+    rows = load_gate5_variant_rows(variant_matrix_path or root.parent / "p0-variant-matrix.yaml", coverage)
+    variant_executions, variant_results = execute_gate5_variant_rows_twice(
+        rows,
+        coverage,
+        fixture_root=root,
+        schema_root=schema_root,
+        baseline_results=tuple(results),
+        fake_transport_factory=FakeTransport,
+    )
+    for result in variant_results:
+        key = result.result_key
+        maps["subject"][key] = result.subject_hash
+        maps["trace"][key] = result.trace_hash
+        maps["oracle"][key] = result.oracle_hash
+        maps["policy"][key] = result.policy_hash
+        maps["threshold"][key] = result.threshold_policy_hash
+        maps["independence"][key] = result.context_relationship
+        maps["criticality"][key] = result.critical
+    results.extend(variant_results)
+    coverage = replace(
+        coverage,
+        required_result_keys=tuple((*coverage.required_result_keys, *(item.result_key for item in variant_results))),
+    )
     bindings = ReleaseBindings(
         required_result_keys=coverage.required_result_keys,
         expected_subject_hashes=MappingProxyType(maps["subject"]),
@@ -270,7 +336,26 @@ def run_p0_coverage(
         required_independence=MappingProxyType(maps["independence"]),
         required_criticality=MappingProxyType(maps["criticality"]),
     )
-    return EvaluationEvidence(coverage, bindings, tuple(results))
+    from research_system.adapters.parity import build_parity_report
+    from research_system.adapters.parity_evidence import build_fake_adapter_parity_evidence
+    from research_system.policy.loader import load_canonical_policy_bundle, load_policy_control_applicability
+
+    resolved_policy_root = Path(policy_root) if policy_root is not None else root.parents[1] / "policies"
+    bundle = load_canonical_policy_bundle(resolved_policy_root / "canonical-policy.yaml")
+    applicability = load_policy_control_applicability(
+        resolved_policy_root / "gate5-policy-control-applicability.yaml", bundle=bundle
+    )
+    parity_evidence = build_fake_adapter_parity_evidence(variant_executions, applicability, bundle)
+    parity_report = build_parity_report(bundle, applicability, parity_evidence)
+    return EvaluationEvidence(
+        coverage,
+        bindings,
+        tuple(results),
+        variant_executions,
+        parity_report,
+        applicability,
+        parity_evidence,
+    )
 
 
 def decide_p0_release(evidence: EvaluationEvidence) -> dict:
@@ -308,38 +393,42 @@ def build_release_decision(
         ``decide_release`` outcome dict it was derived from.
     """
     outcome = decide_release(evidence.bindings, evidence.results)
-    operations_status = (
-        "pass"
-        if {result.scenario_id for result in scenario_results} == set("ABCDE")
-        else "blocked"
-    )
-    parity_status = "not_evaluated"  # Gate 5 dependency (obligation O11)
-    decision = outcome["decision"]
-    if decision == "pass" and not (
-        operations_status == "pass" and parity_status == "pass"
+    operations_status = "pass" if {result.scenario_id for result in scenario_results} == set("ABCDE") else "blocked"
+    report = evidence.parity_report
+    applicability = evidence.policy_applicability
+    if report is None:
+        parity_status = "not_evaluated"
+    elif (
+        report.passed
+        and applicability is not None
+        and report.applicability_id == applicability.applicability_id
+        and report.applicability_hash == applicability.applicability_hash
     ):
+        parity_status = "pass"
+    else:
+        parity_status = "blocked"
+    decision = outcome["decision"]
+    if decision == "pass" and not (operations_status == "pass" and parity_status == "pass"):
         decision = "blocked"
     record = ReleaseGateDecision(
         release_gate_decision_id=new_id("release_gate_decision"),
         coverage_manifest_id=evidence.coverage.coverage_revision,
         baseline_identity="reference-pair-p0",
         candidate_identity="foundation-p0",
-        evidence_snapshot_hash=sha256_hex(
-            canonical_bytes(sorted(result.trace_hash for result in evidence.results))
-        ),
-        required_verdicts=tuple(
-            (result.result_key, result.verdict) for result in evidence.results
-        ),
+        evidence_snapshot_hash=sha256_hex(canonical_bytes(sorted(result.trace_hash for result in evidence.results))),
+        required_verdicts=tuple((result.result_key, result.verdict) for result in evidence.results),
         critical_failures=tuple(
-            result.result_key
-            for result in evidence.results
-            if result.critical and result.verdict in BLOCKING
+            result.result_key for result in evidence.results if result.critical and result.verdict in BLOCKING
         ),
         parity_status=parity_status,
         operations_status=operations_status,
         decision=decision,
         decided_at=decided_at or datetime.now(timezone.utc).isoformat(),
         canonical_event_ref="unpublished:p0",  # obligation O12
+        policy_parity_report_id=(report.policy_parity_report_id if report else None),
+        policy_parity_report_hash=(report.report_hash if report else None),
+        policy_control_applicability_id=(applicability.applicability_id if applicability else None),
+        policy_control_applicability_hash=(applicability.applicability_hash if applicability else None),
         rationale=outcome.get("reason"),
     )
     return record, outcome
@@ -358,9 +447,7 @@ def decision_document(record: ReleaseGateDecision) -> dict:
     payload = asdict(record)
     payload["schema_id"] = "ars://evals/release-gate-decision"
     payload["schema_version"] = "1.0.0"
-    payload["required_verdicts"] = [
-        [list(key), verdict] for key, verdict in record.required_verdicts
-    ]
+    payload["required_verdicts"] = [[list(key), verdict] for key, verdict in record.required_verdicts]
     payload["critical_failures"] = [list(key) for key in record.critical_failures]
     return payload
 
