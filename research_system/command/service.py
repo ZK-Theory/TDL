@@ -20,6 +20,7 @@ from research_system.errors import (
 )
 from research_system.evals.release_publication import (
     PublicationEvidenceError,
+    ReleasePublicationEvidenceResolver,
     ReleasePublicationRequest,
     VerifiedReleasePublication,
     verify_release_publication,
@@ -95,8 +96,9 @@ class CommandService:
         schemas: SchemaRegistry,
         *,
         authority_resolver: Any | None = None,
-        release_publication_evidence: Any | None = None,
+        release_publication_evidence: ReleasePublicationEvidenceResolver | None = None,
         clock: Callable[[], datetime] | None = None,
+        release_lock_timeout_seconds: float = 300.0,
     ) -> None:
         self.control_root = control_root
         self.ledger = ledger
@@ -106,6 +108,9 @@ class CommandService:
         self.authority_resolver = authority_resolver
         self.release_publication_evidence = release_publication_evidence
         self.clock = clock or (lambda: datetime.now(UTC))
+        if release_lock_timeout_seconds <= 0:
+            raise ValueError('release lock timeout must be positive')
+        self.release_lock_timeout_seconds = release_lock_timeout_seconds
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: Callable[
             [dict[str, Any], str, str],
@@ -162,8 +167,8 @@ class CommandService:
             )
             ReleasePublicationRequest.from_dict(envelope['payload'])
         command = Command(dict(envelope))
-        self._recheck_moved_restore(command)
         with self._submission_lock(command):
+            self._recheck_moved_restore(command)
             scoped = self._scoped_authority_receipt(command)
             if scoped is not None:
                 return scoped
@@ -297,7 +302,7 @@ class CommandService:
         """Serialize release retries while preserving fail-fast legacy locks."""
         identity = {'command_id': command.command_id}
         path = self.control_root / 'runtime' / 'writer.lock'
-        deadline = time.monotonic() + 5.0
+        deadline = time.monotonic() + self.release_lock_timeout_seconds
         while True:
             lock = WriterLock(path, identity)
             try:
@@ -911,11 +916,6 @@ class CommandService:
                 envelope,
                 lambda allocated: prepared_payload.payload_for(
                     allocated.event_id
-                ),
-                self.schemas.validate,
-                (
-                    'ars://core/event',
-                    'ars://core/event/ReleaseGateDecisionPublished',
                 ),
             )
         return {**envelope, 'payload': payload}

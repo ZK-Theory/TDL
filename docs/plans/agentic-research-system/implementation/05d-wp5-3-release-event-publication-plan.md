@@ -476,6 +476,38 @@ WP5.3 is complete only when:
   Gate 5 remains unauthorized, and independent Manager review/merge remain
   required.
 
+### PR #92 review-remediation evidence (2026-07-14)
+
+- The release verifier now rejects `unpublished:p0` and resolves only the exact
+  published `evt_` reference. It compares the full decision plus manifest,
+  control, authority, project, stream, event, source-hash, and false/blocked
+  bindings. Manifest and control documents are immutable revision-1 canonical
+  objects, and restart, byte/schema tamper, foreign-store, nested callback
+  mutation, and producer-seam tests fail closed.
+- `EventLedger` owns trusted generic and event-specific schema validation;
+  release drafts cannot supply validators. Replay binds the payload authority
+  ID/hash to the event and replayed active grant. Exact concurrent retries wait
+  beyond the former five-second cutoff, while output preflight, durable
+  same-directory temporary writes, and exclusive atomic publication cover
+  pre-existing, interrupted, and racing receipt paths.
+- The final focused command is `92 passed in 405.16s`; the full research-system
+  suite is `568 passed in 733.86s`; Ruff passes; four semantic materializers
+  pass. The inherited matrix CRLF variance remains LF-normalized byte-identical
+  at SHA-256 `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`.
+- The fake-only source again derived 40 fixtures, 15 blocked fixtures, zero
+  uncalibrated mutations, 302 results, calibrated typed parity, and blocked.
+  The real unmocked offline release path retained `gate5_authorized=false`.
+- The final `C:/tmp` flow emitted event
+  `evt_019f5e0e-dcc2-75ad-a656-629bc576a590` with event SHA-256
+  `f7b5b20da0594461c866a32571e61ab110c14bf3bb58f3223cfc36c9dc65ab2f`;
+  recomputation matched. Original/retry receipt SHA-256 is
+  `d69d6873e716deabe27741150f14246ce43538065ca04dd3e4851c40d54514c0`,
+  projection SHA-256 is
+  `4887c39bc29bdbcd1601e5f0cb6ef0095def98b56e3b26c00d7cfbf2536e369c`,
+  changed payload returned `idempotency_conflict`, and the ledger retained one
+  release event. O12 remains delivered; O15 remains open; Gate 5 remains
+  unauthorized and unaccepted pending Manager review.
+
 ## 11. Stop conditions
 
 Stop implementation and report evidence to the Manager when:

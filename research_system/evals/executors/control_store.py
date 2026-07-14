@@ -9,6 +9,7 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.ids import new_id
 from research_system.store.ledger import EventLedger
+from research_system.schema_registry import bundled_schema_registry
 
 
 def execute_f001(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -161,13 +162,13 @@ def execute_s008(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
 def execute_s009(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     with TemporaryDirectory() as directory:
         project_id = new_id("project")
-        ledger = EventLedger(Path(directory), project_id)
+        ledger = EventLedger(Path(directory), project_id, bundled_schema_registry())
         ledger.append([{"event_type": "ProjectionSourceEvent", "stream_id": "projection"}])
         first = sha256_hex(
-            canonical_bytes([dict(event) for event in EventLedger(Path(directory), project_id).iter_events()])
+            canonical_bytes([dict(event) for event in EventLedger(Path(directory), project_id, bundled_schema_registry()).iter_events()])
         )
         second = sha256_hex(
-            canonical_bytes([dict(event) for event in EventLedger(Path(directory), project_id).iter_events()])
+            canonical_bytes([dict(event) for event in EventLedger(Path(directory), project_id, bundled_schema_registry()).iter_events()])
         )
     if subject == "known_bad":
         stale_database = sha256_hex(canonical_bytes(["stale-view"]))
@@ -205,9 +206,9 @@ def execute_s011(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     for _window in action["windows"]:
         with TemporaryDirectory() as directory:
             project_id = new_id("project")
-            ledger = EventLedger(Path(directory), project_id)
+            ledger = EventLedger(Path(directory), project_id, bundled_schema_registry())
             ledger.append([{"event_type": "CrashWindowEvent", "stream_id": "writer"}])
-            restored = EventLedger(Path(directory), project_id)
+            restored = EventLedger(Path(directory), project_id, bundled_schema_registry())
             observed_counts.add(len(tuple(restored.iter_batches())))
     return {
         "possible_batch_counts": sorted(observed_counts | {0}),

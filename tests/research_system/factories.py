@@ -31,6 +31,10 @@ def authority_bootstrap(
 ) -> dict[str, Any]:
     """Return the canonical synthetic two-grant authority bootstrap fixture.
 
+    Args:
+        publication_target_id: Exact governed release-decision identity.
+        publication_expires_at: Optional UTC expiry for the publication grant.
+
     Returns:
         A non-secret bootstrap manifest with root and publication grants.
     """
@@ -232,7 +236,11 @@ def synthetic_release_decision(
 def synthetic_publication_evidence(
     store_identity: str,
 ) -> BoundReleasePublicationEvidence:
-    """Return narrow stored-reference evidence with independent re-derivation."""
+    """Return narrow stored-reference evidence with independent re-derivation.
+
+    Args:
+        store_identity: Exact canonical control-store identity.
+    """
     source = synthetic_release_decision()
     manifest_ref = 'art_01978abc-2001-7000-8000-000000002001'
     control_ref = 'art_01978abc-2002-7000-8000-000000002002'
@@ -249,12 +257,28 @@ def synthetic_publication_evidence(
         'store_identity': store_identity,
         'coverage_manifest_id': source['coverage_manifest_id'],
     }
+    def rederive(
+        resolved_manifest: dict[str, Any],
+        resolved_control: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        resolved_source = resolved_manifest["release_decision"]
+        if (
+            resolved_manifest["project_id"] != PROJECT_ID
+            or resolved_control["project_id"] != PROJECT_ID
+            or resolved_control["store_identity"] != store_identity
+            or resolved_control["coverage_manifest_id"]
+            != resolved_source["coverage_manifest_id"]
+        ):
+            raise ValueError("synthetic publication evidence binding mismatch")
+        return dict(resolved_source), False
+
     return BoundReleasePublicationEvidence(
         manifest_ref,
         manifest,
         control_ref,
         control,
-        lambda _manifest, _control: (source, False),
+        store_identity,
+        rederive,
     )
 
 
@@ -262,7 +286,12 @@ def publish_release_command(
     command_id: str,
     authority_grant_sha256: str,
 ) -> dict[str, Any]:
-    """Return the exact W2 publication command for the synthetic decision."""
+    """Return the exact W2 publication command for the synthetic decision.
+
+    Args:
+        command_id: Fresh command identity for this submission attempt.
+        authority_grant_sha256: Canonical hash of the publication grant.
+    """
     manifest_ref = 'art_01978abc-2001-7000-8000-000000002001'
     control_ref = 'art_01978abc-2002-7000-8000-000000002002'
     idempotency_key = 'release-publication:synthetic-p0'

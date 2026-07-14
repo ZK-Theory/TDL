@@ -13,6 +13,7 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.ids import new_id, validate_id
+from research_system.schema_registry import SchemaRegistry, bundled_schema_registry
 
 
 _GRANT_FIELDS = frozenset(
@@ -687,7 +688,19 @@ def initialize_authority_control_store(
             "schema_version": "1.0.0",
             "occurred_at": None,
         }
-        ledger = EventLedger(stage, project_id)
+        schema_roots = {
+            root / ".research-system" / "schemas"
+            for root in resolved_codes
+            if (root / ".research-system" / "schemas").is_dir()
+        }
+        if len(schema_roots) > 1:
+            raise ArsError("authority bootstrap requires one canonical schema root")
+        bootstrap_schemas = (
+            SchemaRegistry(schema_roots.pop())
+            if schema_roots
+            else bundled_schema_registry()
+        )
+        ledger = EventLedger(stage, project_id, bootstrap_schemas)
         ledger.append(
             [
                 {
@@ -769,6 +782,7 @@ class LedgerAuthorityGrantResolver:
         control_root: Canonical authority-aware control-store root.
         project_id: Project identity bound into that store.
         expected_store_identity: Validated store identity from ControlBinding.
+        schema_registry: Trusted registry used for mandatory ledger replay.
 
     Raises:
         ValueError: If ``project_id`` is malformed.
@@ -779,11 +793,13 @@ class LedgerAuthorityGrantResolver:
         control_root: Path,
         project_id: str,
         expected_store_identity: str,
-        schema_registry: Any | None = None,
+        schema_registry: SchemaRegistry,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
         self.expected_store_identity = expected_store_identity
+        if not isinstance(schema_registry, SchemaRegistry):
+            raise TypeError("authority resolver requires a trusted SchemaRegistry")
         self.schema_registry = schema_registry
 
     def _projection(self) -> dict[str, Any]:
@@ -809,7 +825,13 @@ class LedgerAuthorityGrantResolver:
         bootstrap_hash = authority_bootstrap_sha256(bootstrap)
         if bootstrap_hash != manifest.get("bootstrap_manifest_sha256"):
             raise IntegrityError("authority bootstrap identity binding mismatch")
-        events = tuple(EventLedger(self.control_root, self.project_id).iter_events())
+        events = tuple(
+            EventLedger(
+                self.control_root,
+                self.project_id,
+                self.schema_registry,
+            ).iter_events()
+        )
         projection = replay(events, schema_registry=self.schema_registry)
         if projection.get("bootstrap_manifest_sha256") != bootstrap_hash:
             raise IntegrityError("authority bootstrap ledger binding mismatch")

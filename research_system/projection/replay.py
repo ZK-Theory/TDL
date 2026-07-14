@@ -253,6 +253,10 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             raise IntegrityError('release publication payload fields must be exact')
         decision = payload.get('release_decision')
         stream_id = event.get('stream_id')
+        publication_grant_id = payload.get('publication_authority_grant_id')
+        publication_grant = updated.get('authority_grants', {}).get(
+            publication_grant_id
+        )
         if (
             not isinstance(decision, dict)
             or not isinstance(stream_id, str)
@@ -262,6 +266,11 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             or decision.get('decision') != 'blocked'
             or payload.get('gate5_authorized') is not False
             or payload.get('candidate_status') != 'blocked'
+            or event.get('authority_grant_id') != publication_grant_id
+            or not isinstance(publication_grant, dict)
+            or publication_grant.get('status') != 'active'
+            or publication_grant.get('authority_grant_sha256')
+            != payload.get('publication_authority_sha256')
         ):
             raise IntegrityError('release publication identity or disposition mismatch')
         source = deepcopy(decision)

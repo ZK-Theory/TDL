@@ -187,13 +187,18 @@ class ReceiptStore:
             payload_hash: Canonical command payload digest required for retry.
             authority_grant_sha256: Exact authorizing grant digest.
             expected_stream_version: Stream version bound into the submission.
+            project_id: Optional project binding paired with target stream.
+            target_stream_id: Optional target binding paired with project.
 
         Returns:
             The validated stored receipt, or ``None`` when no index exists.
 
         Raises:
             ConflictError: If stored index data is malformed or conflicts.
+            ValueError: If only one target binding is supplied.
         """
+        if (project_id is None) != (target_stream_id is None):
+            raise ValueError('project and target idempotency bindings are paired')
         key = sha256_hex(canonical_bytes(list(scope)))
         path = self.index_root / f'{key}.json'
         if not path.exists():
@@ -267,6 +272,8 @@ class ReceiptStore:
             authority_grant_sha256: Exact authorizing grant digest.
             expected_stream_version: Stream version bound into the submission.
             receipt: Terminal command receipt to index and persist.
+            project_id: Optional project binding paired with target stream.
+            target_stream_id: Optional target binding paired with project.
 
         Returns:
             The newly written or exact existing receipt.
@@ -274,6 +281,7 @@ class ReceiptStore:
         Raises:
             ConflictError: If existing or recoverable data conflicts.
             OSError: If durable publication fails.
+            ValueError: If only one target binding is supplied.
         """
         key = sha256_hex(canonical_bytes(list(scope)))
         target = self.index_root / f'{key}.json'

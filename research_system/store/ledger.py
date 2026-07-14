@@ -11,6 +11,7 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError
 from research_system.ids import new_id, validate_id
+from research_system.schema_registry import SchemaRegistry, bundled_schema_registry
 
 _PROTECTED_FIELDS = frozenset(
     {
@@ -60,14 +61,20 @@ class EventDraft:
 
     envelope: Mapping[str, Any]
     finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]]
-    schema_validator: Callable[[str, Any], None]
-    schema_ids: tuple[str, ...]
 
 
 class EventLedger:
-    def __init__(self, control_root: Path, project_id: str) -> None:
+    def __init__(
+        self,
+        control_root: Path,
+        project_id: str,
+        schemas: SchemaRegistry = bundled_schema_registry(),
+    ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, 'project')
+        if not isinstance(schemas, SchemaRegistry):
+            raise TypeError('EventLedger requires a trusted SchemaRegistry')
+        self.schemas = schemas
         self.events_root = control_root / 'events' / project_id
         self.runtime_root = control_root / 'runtime'
         self.events_root.mkdir(parents=True, exist_ok=True)
@@ -155,6 +162,25 @@ class EventLedger:
                 if draft is not None
                 else candidate.pop('payload', {})
             )
+            if draft is None:
+                internal_key = (
+                    f'ledger-internal:{transaction_id}:{offset + 1}'
+                )
+                candidate.setdefault(
+                    'schema_id', f'ars://core/event/{event_type}'
+                )
+                candidate.setdefault('schema_version', '1.0.0')
+                candidate.setdefault('command_id', new_id('command'))
+                candidate.setdefault('command_type', 'LedgerInternalAppend')
+                candidate.setdefault('idempotency_key', internal_key)
+                candidate.setdefault(
+                    'command_payload_hash', sha256_hex(canonical_bytes(payload))
+                )
+                candidate.setdefault('correlation_id', internal_key)
+                candidate.setdefault('causation_id', None)
+                candidate.setdefault('actor_id', new_id('actor'))
+                candidate.setdefault('authority_grant_id', new_id('authority_grant'))
+                candidate.setdefault('occurred_at', None)
             event = {
                 'event_id': event_id,
                 'event_type': event_type,
@@ -170,25 +196,26 @@ class EventLedger:
                 **candidate,
                 'previous_event_hash': previous_hash,
             }
-            if draft is not None:
-                if event_type == 'ReleaseGateDecisionPublished':
-                    decision = payload.get('release_decision')
-                    if (
-                        candidate.get('occurred_at') is not None
-                        or not isinstance(decision, dict)
-                        or decision.get('release_gate_decision_id') != stream_id
-                        or decision.get('canonical_event_ref') != event_id
-                    ):
-                        raise ArsError(
-                            'release event finalizer violated ledger allocation'
-                        )
-                prehash = {**event, 'event_hash': '0' * 64}
-                for schema_id in draft.schema_ids:
-                    draft.schema_validator(schema_id, prehash)
+            if draft is not None and event_type == 'ReleaseGateDecisionPublished':
+                decision = payload.get('release_decision')
+                if (
+                    candidate.get('occurred_at') is not None
+                    or not isinstance(decision, dict)
+                    or decision.get('release_gate_decision_id') != stream_id
+                    or decision.get('canonical_event_ref') != event_id
+                ):
+                    raise ArsError(
+                        'release event finalizer violated ledger allocation'
+                    )
+            prehash = {**event, 'event_hash': '0' * 64}
+            self.schemas.validate('ars://core/event', prehash)
+            event_schema = f'ars://core/event/{event_type}'
+            if self.schemas.contains(event_schema):
+                self.schemas.validate(event_schema, prehash)
             event['event_hash'] = sha256_hex(canonical_bytes(event))
-            if draft is not None:
-                for schema_id in draft.schema_ids:
-                    draft.schema_validator(schema_id, event)
+            self.schemas.validate('ars://core/event', event)
+            if self.schemas.contains(event_schema):
+                self.schemas.validate(event_schema, event)
             previous_hash = event['event_hash']
             events.append(event)
         date_root = self.events_root / f'{recorded_at.year:04d}' / f'{recorded_at.month:02d}'

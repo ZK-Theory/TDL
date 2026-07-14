@@ -12,6 +12,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.ids import validate_id
 from research_system.schema_registry import SchemaRegistry
+from research_system.store.objects import ObjectStore
 
 
 _REQUEST_FIELDS = frozenset(
@@ -91,6 +92,9 @@ class ReleasePublicationAuthorizer(Protocol):
 class ReleasePublicationEvidenceResolver(Protocol):
     """Resolve and independently re-derive publication evidence."""
 
+    @property
+    def expected_store_identity(self) -> str: ...
+
     def resolve_evaluation_runs(self, reference: str) -> dict[str, Any]: ...
 
     def resolve_control_binding(self, reference: str) -> dict[str, Any]: ...
@@ -110,6 +114,7 @@ class BoundReleasePublicationEvidence:
     evaluation_runs_manifest: dict[str, Any]
     control_binding_ref: str
     control_binding: dict[str, Any]
+    expected_store_identity: str
     rederive: Callable[
         [dict[str, Any], dict[str, Any]],
         tuple[dict[str, Any], object],
@@ -138,6 +143,37 @@ class BoundReleasePublicationEvidence:
         if reference != self.control_binding_ref:
             raise PublicationEvidenceError("control binding reference is unknown")
         return json.loads(self._control_bytes)
+
+    def rederive_release_decision(
+        self,
+        manifest: dict[str, Any],
+        control_binding: dict[str, Any],
+    ) -> tuple[dict[str, Any], object]:
+        return self.rederive(manifest, control_binding)
+
+
+@dataclass(frozen=True, slots=True)
+class StoredReleasePublicationEvidence:
+    """Resolve immutable release evidence from the canonical object store."""
+
+    objects: ObjectStore
+    expected_store_identity: str
+    rederive: Callable[
+        [dict[str, Any], dict[str, Any]],
+        tuple[dict[str, Any], object],
+    ]
+
+    def _resolve(self, reference: str) -> dict[str, Any]:
+        value = self.objects.read("artefact", reference, 1)
+        if not isinstance(value, dict) or content_artefact_id(value) != reference:
+            raise PublicationEvidenceError("publication evidence identity mismatch")
+        return value
+
+    def resolve_evaluation_runs(self, reference: str) -> dict[str, Any]:
+        return self._resolve(reference)
+
+    def resolve_control_binding(self, reference: str) -> dict[str, Any]:
+        return self._resolve(reference)
 
     def rederive_release_decision(
         self,
@@ -232,7 +268,11 @@ def verify_release_publication(
         or control["project_id"] != request.project_id
     ):
         raise PublicationEvidenceError("publication evidence project mismatch")
-    source = manifest["release_decision"]
+    manifest_bytes = canonical_bytes(manifest)
+    control_bytes = canonical_bytes(control)
+    manifest_snapshot = json.loads(manifest_bytes)
+    control_snapshot = json.loads(control_bytes)
+    source = manifest_snapshot["release_decision"]
     if not isinstance(source, dict):
         raise PublicationEvidenceError("release decision document is missing")
     schemas.validate("ars://evals/release-gate-decision", source)
@@ -243,18 +283,14 @@ def verify_release_publication(
         or source.get("decision") != "blocked"
     ):
         raise PublicationEvidenceError("unpublished blocked decision required")
-    if control["coverage_manifest_id"] != source.get("coverage_manifest_id"):
+    if control_snapshot["coverage_manifest_id"] != source.get("coverage_manifest_id"):
         raise PublicationEvidenceError("control binding coverage mismatch")
-    store_identity = control.get("store_identity")
-    if (
-        not isinstance(store_identity, str)
-        or len(store_identity) != 64
-        or any(character not in "0123456789abcdef" for character in store_identity)
-    ):
-        raise PublicationEvidenceError("control binding store identity is invalid")
+    store_identity = control_snapshot.get("store_identity")
+    if store_identity != resolver.expected_store_identity:
+        raise PublicationEvidenceError("control binding store identity mismatch")
     derived, gate5_authorized = resolver.rederive_release_decision(
-        manifest,
-        control,
+        json.loads(manifest_bytes),
+        json.loads(control_bytes),
     )
     if gate5_authorized is not False:
         raise PublicationEvidenceError("Gate 5 must remain unauthorized")
@@ -266,9 +302,9 @@ def verify_release_publication(
         source_decision_bytes=source_bytes,
         source_decision_sha256=sha256_hex(source_bytes),
         evaluation_runs_manifest_ref=request.evaluation_runs_manifest_ref,
-        evaluation_runs_manifest_sha256=sha256_hex(canonical_bytes(manifest)),
+        evaluation_runs_manifest_sha256=sha256_hex(manifest_bytes),
         control_binding_ref=request.control_binding_ref,
-        control_binding_sha256=sha256_hex(canonical_bytes(control)),
+        control_binding_sha256=sha256_hex(control_bytes),
         publication_authority_grant_id=(
             request.publication_authority_grant_id
         ),
@@ -286,36 +322,63 @@ def content_artefact_id(value: Any) -> str:
 
 
 def verify_replayed_release(
-    source_decision: dict[str, Any],
+    published_decision: dict[str, Any],
+    rederived_source: dict[str, Any],
     projection: dict[str, Any],
     project_id: str,
+    resolver: ReleasePublicationEvidenceResolver,
 ) -> dict[str, Any]:
     """Resolve and compare one canonical publication from replayed state."""
-    decision_id = source_decision.get("release_gate_decision_id")
+    decision_id = published_decision.get("release_gate_decision_id")
+    event_ref = published_decision.get("canonical_event_ref")
     if (
-        source_decision.get("canonical_event_ref") != "unpublished:p0"
-        or source_decision.get("decision") != "blocked"
+        event_ref == "unpublished:p0"
+        or not isinstance(event_ref, str)
+        or not event_ref.startswith("evt_")
+        or published_decision.get("decision") != "blocked"
         or not isinstance(decision_id, str)
     ):
         raise PublicationEvidenceError(
-            "release verification requires the unpublished blocked source"
+            "release verification requires a published blocked decision"
         )
     record = projection.get("release_decisions", {}).get(decision_id)
     if not isinstance(record, dict):
         raise PublicationEvidenceError("canonical release event is unavailable")
-    event_id = record.get("event_id")
-    published = dict(source_decision)
-    published["canonical_event_ref"] = event_id
+    source = dict(published_decision)
+    source["canonical_event_ref"] = "unpublished:p0"
+    authority_id = record.get("publication_authority_grant_id")
+    authority = projection.get("authority_grants", {}).get(authority_id)
     if (
         record.get("project_id") != project_id
         or record.get("release_decision_id") != decision_id
-        or record.get("release_decision") != published
+        or record.get("event_id") != event_ref
+        or record.get("release_decision") != published_decision
         or record.get("source_decision_sha256")
-        != sha256_hex(canonical_bytes(source_decision))
+        != sha256_hex(canonical_bytes(source))
+        or canonical_bytes(rederived_source) != canonical_bytes(source)
         or record.get("gate5_authorized") is not False
         or record.get("candidate_status") != "blocked"
-        or not isinstance(event_id, str)
-        or not event_id.startswith("evt_")
+        or not isinstance(authority, dict)
+        or authority.get("status") != "active"
+        or authority.get("authority_grant_sha256")
+        != record.get("publication_authority_sha256")
     ):
         raise PublicationEvidenceError("canonical release projection mismatch")
+    manifest = resolver.resolve_evaluation_runs(
+        record["evaluation_runs_manifest_ref"]
+    )
+    control = resolver.resolve_control_binding(record["control_binding_ref"])
+    if (
+        sha256_hex(canonical_bytes(manifest))
+        != record.get("evaluation_runs_manifest_sha256")
+        or sha256_hex(canonical_bytes(control))
+        != record.get("control_binding_sha256")
+        or manifest.get("project_id") != project_id
+        or manifest.get("release_decision") != source
+        or control.get("project_id") != project_id
+        or control.get("store_identity") != resolver.expected_store_identity
+        or control.get("coverage_manifest_id")
+        != source.get("coverage_manifest_id")
+    ):
+        raise PublicationEvidenceError("canonical release evidence mismatch")
     return record

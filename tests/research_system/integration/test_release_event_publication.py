@@ -44,7 +44,7 @@ def publication_service(tmp_path):
         authority_bootstrap_sha256(bootstrap),
     )
     schemas = SchemaRegistry(SCHEMAS)
-    ledger = EventLedger(control_root, PROJECT_ID)
+    ledger = EventLedger(control_root, PROJECT_ID, schemas)
     resolver = LedgerAuthorityGrantResolver(
         control_root,
         PROJECT_ID,
@@ -89,10 +89,15 @@ def test_canonical_resolver_command_ledger_replay_and_release_are_bound(
     assert event["authority_grant_id"] == AUTHORITY_GRANT_ID
     assert event["payload"]["release_decision"]["canonical_event_ref"] == event["event_id"]
     projection = replay(events, schema_registry=schemas)
+    source = synthetic_release_decision()
+    published = dict(source)
+    published["canonical_event_ref"] = event["event_id"]
     resolved = verify_replayed_release(
-        synthetic_release_decision(),
+        published,
+        source,
         projection,
         PROJECT_ID,
+        service.release_publication_evidence,
     )
     assert resolved["event_id"] == event["event_id"]
     assert resolved["gate5_authorized"] is False
@@ -149,6 +154,45 @@ def test_offline_cli_publish_retry_replay_and_release(
         "--output",
         str(first_output),
     ]
+    first_output.write_bytes(b"pre-existing")
+    assert main(command) == 1
+    capsys.readouterr()
+    assert len(tuple(EventLedger(control_root, PROJECT_ID, SchemaRegistry(SCHEMAS)).iter_events())) == 2
+    first_output.unlink()
+
+    def interrupt(_temporary):
+        raise OSError("injected output interruption")
+
+    monkeypatch.setattr(
+        "research_system.cli._after_receipt_output_fsync", interrupt
+    )
+    try:
+        main(command)
+    except OSError as exc:
+        assert str(exc) == "injected output interruption"
+    else:  # pragma: no cover - fail closed if CLI starts swallowing OSError
+        raise AssertionError("injected output interruption was not raised")
+    assert not first_output.exists()
+    monkeypatch.setattr(
+        "research_system.cli._after_receipt_output_fsync", lambda _path: None
+    )
+
+    race_output = tmp_path / "receipt-race.json"
+    command[-1] = str(race_output)
+
+    def create_race(_temporary):
+        race_output.write_bytes(b"racing writer")
+
+    monkeypatch.setattr(
+        "research_system.cli._after_receipt_output_fsync", create_race
+    )
+    assert main(command) == 1
+    capsys.readouterr()
+    assert race_output.read_bytes() == b"racing writer"
+    monkeypatch.setattr(
+        "research_system.cli._after_receipt_output_fsync", lambda _path: None
+    )
+    command[-1] = str(first_output)
     assert main(command) == 0
     capsys.readouterr()
     second_output = tmp_path / "receipt-2.json"
@@ -172,7 +216,116 @@ def test_offline_cli_publish_retry_replay_and_release(
             "--evaluation-runs",
             str(evaluation_runs),
         ]
+    ) == 1
+    capsys.readouterr()
+    published = dict(source)
+    published["canonical_event_ref"] = replayed["release_decisions"][
+        RELEASE_DECISION_ID
+    ]["event_id"]
+    evaluation_runs.write_bytes(canonical_bytes(published))
+    assert main(
+        [
+            "eval",
+            "release",
+            "--config",
+            str(config),
+            "--evaluation-runs",
+            str(evaluation_runs),
+        ]
     ) == 0
     released = json.loads(capsys.readouterr().out)
     assert released["candidate_status"] == "blocked"
     assert released["gate5_authorized"] is False
+
+
+def test_real_offline_cli_rederivation_reaches_published_release(
+    tmp_path,
+    capsys,
+) -> None:
+    coverage = ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
+    source_path = tmp_path / "real-source.json"
+    assert main(
+        [
+            "eval",
+            "run",
+            "--coverage",
+            str(coverage),
+            "--transport",
+            "fake",
+            "--output",
+            str(source_path),
+        ]
+    ) == 0
+    capsys.readouterr()
+    source = json.loads(source_path.read_text(encoding="utf-8"))
+    decision_id = source["release_gate_decision_id"]
+    bootstrap = authority_bootstrap(
+        publication_target_id=decision_id,
+        publication_expires_at="2099-01-01T00:00:00Z",
+    )
+    control_root = tmp_path / "real-control"
+    identity = initialize_authority_control_store(
+        [ROOT],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+    )
+    config = tmp_path / "real-binding.json"
+    config.write_bytes(
+        canonical_bytes(
+            {
+                "code_roots": [str(ROOT.resolve())],
+                "control_root": str(control_root.resolve()),
+                "project_id": PROJECT_ID,
+                "schema_root": str(SCHEMAS.resolve()),
+                "store_identity": identity,
+            }
+        )
+    )
+    receipt = tmp_path / "real-receipt.json"
+    assert main(
+        [
+            "eval",
+            "publish-release",
+            "--config",
+            str(config),
+            "--actor-id",
+            "act_01978abc-1002-7000-8000-000000001002",
+            "--authority-grant-id",
+            AUTHORITY_GRANT_ID,
+            "--evaluation-runs",
+            str(source_path),
+            "--output",
+            str(receipt),
+        ]
+    ) == 0
+    capsys.readouterr()
+    schemas = SchemaRegistry(SCHEMAS)
+    projection = replay(
+        EventLedger(control_root, PROJECT_ID, schemas).iter_events(),
+        schema_registry=schemas,
+    )
+    published = dict(source)
+    published["canonical_event_ref"] = projection["release_decisions"][
+        decision_id
+    ]["event_id"]
+    published_path = tmp_path / "real-published.json"
+    published_path.write_bytes(canonical_bytes(published))
+    assert main(
+        [
+            "eval",
+            "release",
+            "--config",
+            str(config),
+            "--evaluation-runs",
+            str(published_path),
+        ]
+    ) == 0
+    released = json.loads(capsys.readouterr().out)
+    assert released == {
+        "candidate_status": "blocked",
+        "canonical_event_ref": published["canonical_event_ref"],
+        "decision": "blocked",
+        "gate5_authorized": False,
+    }

@@ -12,7 +12,7 @@ import threading
 import pytest
 
 from research_system.authority import (
-    LedgerAuthorityGrantResolver,
+    LedgerAuthorityGrantResolver as _LedgerAuthorityGrantResolver,
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
@@ -41,6 +41,22 @@ FOREIGN_PUBLICATION_ID = "agr_01978abc-1012-7000-8000-000000001012"
 REUSED_TASK_ID = "tsk_01978abc-1013-7000-8000-000000001013"
 SUBSTITUTE_BATCH_ID = "txb_01978abc-1014-7000-8000-000000001014"
 SUBSTITUTE_EVENT_ID = "evt_01978abc-1015-7000-8000-000000001015"
+
+
+def LedgerAuthorityGrantResolver(
+    control_root,
+    project_id,
+    expected_store_identity,
+    schema_registry=None,
+):
+    """Construct the resolver with this test module's trusted registry."""
+    return _LedgerAuthorityGrantResolver(
+        control_root,
+        project_id,
+        expected_store_identity,
+        schema_registry
+        or SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+    )
 
 
 def _grant(

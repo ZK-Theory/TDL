@@ -157,6 +157,13 @@ Small, code-side, no owner input; unblocks the integrity story every later WP re
   `gate5_authorized=false` and `candidate_status=blocked`. O12 is closed by the
   bounded WP5.3 implementation evidence; independent Manager review/merge
   remains required. This does not accept Gate 5, and O15 remains open.
+- **Review-remediated (2026-07-14, PR #92):** canonical manifest/control
+  evidence is now durably restart-resolvable; release rejects the unpublished
+  sentinel and resolves the exact event; trusted ledger/replay authority and
+  schema bindings, long-running exact concurrency, and atomic exclusive receipt
+  publication are covered by 92 focused and 568 full-suite passing tests.
+  O12 remains delivered, O15 remains open, and Gate 5 remains unauthorized and
+  unaccepted pending independent Manager review.
 
 ### WP5.4 — Release tranche: S-014 / S-015 / S-016 (05-plan §4.4)
 

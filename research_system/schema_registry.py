@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -43,3 +44,11 @@ class SchemaRegistry:
     def contains(self, schema_id: str) -> bool:
         """Return whether an exact schema identifier is registered."""
         return schema_id in self._schemas
+
+
+@lru_cache(maxsize=1)
+def bundled_schema_registry() -> SchemaRegistry:
+    """Return the immutable schema registry shipped with this code checkout."""
+    return SchemaRegistry(
+        Path(__file__).resolve().parent.parent / '.research-system' / 'schemas'
+    )

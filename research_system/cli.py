@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess  # nosec B404 - fixed git discovery command
 import sys
 from dataclasses import asdict
@@ -28,8 +29,8 @@ from research_system.evals.harness import (
     run_p0_coverage,
 )
 from research_system.evals.release_publication import (
-    BoundReleasePublicationEvidence,
     ReleasePublicationRequest,
+    StoredReleasePublicationEvidence,
     content_artefact_id,
     verify_replayed_release,
 )
@@ -40,7 +41,7 @@ from research_system.evals.retention_authorizer import (
     load_evidence_store_registry,
 )
 from research_system.projection.replay import rebuild_projection, replay
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, bundled_schema_registry
 from research_system.store.identity import load_store_manifest
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
@@ -124,8 +125,8 @@ def _store_init(args: argparse.Namespace) -> int:
 def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     command = _read_json(args.command)
-    ledger = EventLedger(binding.control_root, binding.project_id)
     schemas = SchemaRegistry(binding.schema_root)
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     service = CommandService(
         binding.control_root,
         ledger,
@@ -153,7 +154,10 @@ def _command_submit(args: argparse.Namespace) -> int:
 
 def _verified_ledger(control_root: Path) -> EventLedger:
     manifest = load_store_manifest(control_root)
-    return EventLedger(control_root.resolve(strict=True), manifest['project_id'])
+    schemas = _schemas_for_store_manifest(manifest) or bundled_schema_registry()
+    return EventLedger(
+        control_root.resolve(strict=True), manifest['project_id'], schemas
+    )
 
 
 def _replay_verify(args: argparse.Namespace) -> int:
@@ -176,11 +180,12 @@ def _projection_rebuild(args: argparse.Namespace) -> int:
     ]
     if not any(output == root or root in output.parents for root in projection_roots):
         raise ArsError('projection output must use an ARS namespaced projection root')
-    ledger = EventLedger(control_root, manifest['project_id'])
+    schemas = _schemas_for_store_manifest(manifest) or bundled_schema_registry()
+    ledger = EventLedger(control_root, manifest['project_id'], schemas)
     state = rebuild_projection(
         ledger.iter_events(),
         output,
-        _schemas_for_store_manifest(manifest),
+        schemas,
     )
     _print_json(state)
     return 0
@@ -307,7 +312,10 @@ def _schemas_for_store_manifest(
     ]
     if not existing:
         return None
-    return SchemaRegistry(sorted(existing, key=str)[0])
+    unique = sorted(set(existing), key=str)
+    if len(unique) != 1:
+        raise ConfigurationError("store manifest has ambiguous schema roots")
+    return SchemaRegistry(unique[0])
 
 
 def _rederive_bound_decision(
@@ -333,7 +341,7 @@ def _rederive_bound_decision(
 def _publication_evidence(
     binding: ControlBinding,
     source: dict[str, Any],
-) -> tuple[BoundReleasePublicationEvidence, str, str]:
+) -> tuple[StoredReleasePublicationEvidence, str, str]:
     manifest = {
         "schema_id": "ars://evals/release-publication-evidence",
         "schema_version": "1.0.0",
@@ -349,17 +357,68 @@ def _publication_evidence(
     }
     manifest_ref = content_artefact_id(manifest)
     control_ref = content_artefact_id(control)
-    resolver = BoundReleasePublicationEvidence(
-        evaluation_runs_manifest_ref=manifest_ref,
-        evaluation_runs_manifest=manifest,
-        control_binding_ref=control_ref,
-        control_binding=control,
-        rederive=lambda _manifest, _control: _rederive_bound_decision(
-            binding,
-            source,
-        ),
+    objects = ObjectStore(binding.control_root)
+    objects.write("artefact", manifest_ref, 1, manifest)
+    objects.write("artefact", control_ref, 1, control)
+
+    def rederive(
+        resolved_manifest: dict[str, Any],
+        resolved_control: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        resolved_source = resolved_manifest.get("release_decision")
+        if (
+            not isinstance(resolved_source, dict)
+            or resolved_control.get("coverage_manifest_id")
+            != resolved_source.get("coverage_manifest_id")
+        ):
+            raise ArsError("resolved publication evidence binding mismatch")
+        return _rederive_bound_decision(binding, resolved_source)
+
+    resolver = StoredReleasePublicationEvidence(
+        objects=objects,
+        expected_store_identity=binding.store_identity,
+        rederive=rederive,
     )
     return resolver, manifest_ref, control_ref
+
+
+def _reserve_output(output: Path) -> tuple[Path, int]:
+    """Reserve a same-directory temporary without creating the final path."""
+    if output.exists():
+        raise ArsError(f"output path exists: {output}")
+    parent = output.parent
+    if not parent.is_dir():
+        raise ArsError(f"output directory is unavailable: {parent}")
+    temporary = parent / f".{output.name}.{new_id('command')}.tmp"
+    try:
+        descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except OSError as exc:
+        raise ArsError(f"output path is unavailable: {output}") from exc
+    return temporary, descriptor
+
+
+def _after_receipt_output_fsync(_temporary: Path) -> None:
+    """Test seam after durable temporary output and before publication."""
+
+
+def _publish_reserved_output(
+    output: Path,
+    temporary: Path,
+    descriptor: int,
+    data: bytes,
+) -> None:
+    """Durably write then atomically link a receipt without clobbering."""
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    _after_receipt_output_fsync(temporary)
+    try:
+        os.link(temporary, output)
+    except FileExistsError as exc:
+        raise ArsError(f"output path exists: {output}") from exc
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _eval_publish_release(args: argparse.Namespace) -> int:
@@ -369,14 +428,17 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
     schemas.validate("ars://evals/release-gate-decision", source)
     if source.get("canonical_event_ref") != "unpublished:p0":
         raise ArsError("publication requires unpublished:p0 source evidence")
-    evidence, manifest_ref, control_ref = _publication_evidence(binding, source)
-    authority = LedgerAuthorityGrantResolver(
-        binding.control_root,
-        binding.project_id,
-        binding.store_identity,
-        schemas,
-    )
-    resolution = authority.resolve(
+    output = args.output
+    temporary, descriptor = _reserve_output(output)
+    try:
+        evidence, manifest_ref, control_ref = _publication_evidence(binding, source)
+        authority = LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+        )
+        resolution = authority.resolve(
         args.authority_grant_id,
         args.actor_id,
         "PublishReleaseGateDecision",
@@ -385,10 +447,10 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
         source["release_gate_decision_id"],
         _authority_clock(),
     )
-    idempotency_key = (
+        idempotency_key = (
         f"release-publication:{source['release_gate_decision_id']}"
     )
-    request = ReleasePublicationRequest.from_dict(
+        request = ReleasePublicationRequest.from_dict(
         {
             "schema": "ars://evals/release-publication-request",
             "project_id": binding.project_id,
@@ -402,7 +464,7 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             "idempotency_key": idempotency_key,
         }
     )
-    command = {
+        command = {
         "command_id": new_id("command"),
         "command_type": "PublishReleaseGateDecision",
         "schema_id": "ars://core/command",
@@ -420,8 +482,8 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
         "evidence_refs": [manifest_ref, control_ref],
         "payload": request.to_dict(),
     }
-    ledger = EventLedger(binding.control_root, binding.project_id)
-    receipt = CommandService(
+        ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+        receipt = CommandService(
         binding.control_root,
         ledger,
         ObjectStore(binding.control_root),
@@ -430,15 +492,19 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
         authority_resolver=authority,
         release_publication_evidence=evidence,
         clock=_authority_clock,
-    ).submit(command)
-    output = args.output
-    if output.exists():
-        raise ArsError(f"output path exists: {output}")
-    try:
-        with output.open("xb") as handle:
-            handle.write(canonical_bytes(jsonable(asdict(receipt))))
-    except FileExistsError as exc:
-        raise ArsError(f"output path exists: {output}") from exc
+        ).submit(command)
+        reserved_descriptor = descriptor
+        descriptor = -1
+        _publish_reserved_output(
+            output,
+            temporary,
+            reserved_descriptor,
+            canonical_bytes(jsonable(asdict(receipt))),
+        )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
     _print_json(asdict(receipt))
     return 0
 
@@ -453,21 +519,36 @@ def _eval_release(args: argparse.Namespace) -> int:
         raise ConfigurationError("evaluation runs require a decision document")
     schema_registry = SchemaRegistry(binding.schema_root)
     schema_registry.validate("ars://evals/release-gate-decision", supplied_document)
+    if supplied_document.get("canonical_event_ref") == "unpublished:p0":
+        raise ArsError("eval release requires a canonical published event reference")
+    source_document = dict(supplied_document)
+    source_document["canonical_event_ref"] = "unpublished:p0"
     fresh_document, gate5_authorized = _rederive_bound_decision(
         binding,
-        supplied_document,
+        source_document,
     )
-    if gate5_authorized is not False or fresh_document != supplied_document:
+    if gate5_authorized is not False or fresh_document != source_document:
         raise ArsError("evaluation document divergence")
-    ledger = EventLedger(binding.control_root, binding.project_id)
+    ledger = EventLedger(
+        binding.control_root, binding.project_id, schema_registry
+    )
     projection = replay(
         ledger.iter_events(),
         schema_registry=schema_registry,
     )
     record = verify_replayed_release(
+        supplied_document,
         fresh_document,
         projection,
         binding.project_id,
+        StoredReleasePublicationEvidence(
+            ObjectStore(binding.control_root),
+            binding.store_identity,
+            lambda manifest, control: _rederive_bound_decision(
+                binding,
+                manifest["release_decision"],
+            ),
+        ),
     )
     _print_json(
         {

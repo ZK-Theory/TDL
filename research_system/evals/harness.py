@@ -462,6 +462,7 @@ def build_release_decision(
         scenario_results: Gate 3 scenario results from ``run_all_scenarios``.
         decided_at: ISO-8601 timestamp to record. Defaults to the current
             UTC time.
+        release_gate_decision_id: Optional stable identity for re-derivation.
 
     Returns:
         A tuple of the immutable ``ReleaseGateDecision`` record and the raw
