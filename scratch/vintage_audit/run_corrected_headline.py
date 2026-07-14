@@ -129,8 +129,9 @@ def compute_block(name: str, arg_iter: list[tuple], n_workers: int) -> np.ndarra
     n = len(arg_iter)
     result = np.full(n, np.nan, dtype=np.float64)
     if ckpt.exists():
-        prev = np.load(ckpt)["w2"]
-        result[: len(prev)] = prev[: len(result)]
+        with np.load(ckpt) as data:
+            prev = data["w2"]
+            result[: len(prev)] = prev[: len(result)]
         done0 = int(np.sum(~np.isnan(result)))
         print(f"  [{name}] resumed: {done0}/{n} done", flush=True)
     todo = [i for i in range(n) if np.isnan(result[i])]
