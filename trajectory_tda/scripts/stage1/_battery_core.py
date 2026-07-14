@@ -719,7 +719,10 @@ def run_headline_from_embeddings(
         if probe_pinned_thresh:
             from scipy.spatial.distance import pdist
 
-            pinned_thresh_value = float(pdist(obs_landmarks_for_ph).max())
+            if len(obs_landmarks_for_ph) > 1:
+                pinned_thresh_value = float(pdist(obs_landmarks_for_ph).max())
+            else:
+                pinned_thresh_value = 0.0
             logger.info(
                 "[PHASE %s] probe pinned thresh = %.4f (enclosing radius of observed post-dedup landmarks)",
                 label,
