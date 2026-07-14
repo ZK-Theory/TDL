@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/release-publication-evidence",
+  "type": "object",
+  "required": [
+    "schema_id", "schema_version", "project_id", "release_decision",
+    "coverage", "release_bindings", "release_results", "variant_rows",
+    "variant_executions", "canonical_policy_bundle", "policy_applicability",
+    "parity_evidence", "parity_report", "operations_scenarios"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://evals/release-publication-evidence"},
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "release_decision": {"type": "object"},
+    "coverage": {
+      "type": "object",
+      "required": ["coverage_revision", "transport", "selected_fixture_revisions", "required_result_keys", "accepted_grader_classes", "unavailable_grader_classes", "omitted_gate5", "omitted_p0", "scenarios", "gate5_authorized"],
+      "properties": {
+        "coverage_revision": {"type": "string", "minLength": 1},
+        "transport": {"const": "fake"},
+        "selected_fixture_revisions": {"type": "array", "minItems": 40, "maxItems": 40},
+        "required_result_keys": {"type": "array", "minItems": 302, "maxItems": 302, "uniqueItems": true},
+        "accepted_grader_classes": {"type": "array", "uniqueItems": true},
+        "unavailable_grader_classes": {"type": "array", "uniqueItems": true},
+        "omitted_gate5": {"type": "array"},
+        "omitted_p0": {"type": "array"},
+        "scenarios": {"const": ["A", "B", "C", "D", "E"]},
+        "gate5_authorized": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "release_bindings": {"type": "array", "minItems": 302, "maxItems": 302, "uniqueItems": true, "items": {"$ref": "#/$defs/binding"}},
+    "release_results": {"type": "array", "minItems": 302, "maxItems": 302, "uniqueItems": true, "items": {"$ref": "#/$defs/result"}},
+    "variant_rows": {"type": "array", "minItems": 46, "maxItems": 46, "uniqueItems": true, "items": {"type": "object"}},
+    "variant_executions": {"type": "array", "minItems": 46, "maxItems": 46, "uniqueItems": true, "items": {"type": "object"}},
+    "canonical_policy_bundle": {"type": "object"},
+    "policy_applicability": {"type": "object"},
+    "parity_evidence": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "items": {"type": "object"}},
+    "parity_report": {"type": "object"},
+    "operations_scenarios": {"type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/scenario"}}
+  },
+  "$defs": {
+    "resultKey": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"type": "string", "minLength": 1}},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "binding": {
+      "type": "object",
+      "required": ["result_key", "subject_hash", "trace_hash", "oracle_hash", "policy_hash", "threshold_policy_hash", "independence", "critical"],
+      "properties": {
+        "result_key": {"$ref": "#/$defs/resultKey"},
+        "subject_hash": {"$ref": "#/$defs/sha256"},
+        "trace_hash": {"$ref": "#/$defs/sha256"},
+        "oracle_hash": {"$ref": "#/$defs/sha256"},
+        "policy_hash": {"$ref": "#/$defs/sha256"},
+        "threshold_policy_hash": {"$ref": "#/$defs/sha256"},
+        "independence": {"type": "string", "minLength": 1},
+        "critical": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "required": ["result_key", "verdict", "severity", "critical", "required", "subject_hash", "trace_hash", "oracle_hash", "policy_hash", "threshold_policy_hash", "independently_recomputed", "producer_family", "grader_family", "context_relationship", "limitations", "redactions", "duration_ms", "cost_microunits", "supersedes"],
+      "properties": {
+        "result_key": {"$ref": "#/$defs/resultKey"},
+        "verdict": {"enum": ["pass", "fail", "unable_to_grade", "fixture_error"]},
+        "severity": {"type": "string", "minLength": 1},
+        "critical": {"type": "boolean"},
+        "required": {"const": true},
+        "subject_hash": {"$ref": "#/$defs/sha256"},
+        "trace_hash": {"$ref": "#/$defs/sha256"},
+        "oracle_hash": {"$ref": "#/$defs/sha256"},
+        "policy_hash": {"$ref": "#/$defs/sha256"},
+        "threshold_policy_hash": {"$ref": "#/$defs/sha256"},
+        "independently_recomputed": {"type": "boolean"},
+        "producer_family": {"type": "string", "minLength": 1},
+        "grader_family": {"type": "string", "minLength": 1},
+        "context_relationship": {"type": "string", "minLength": 1},
+        "limitations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "redactions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "duration_ms": {"type": "integer", "minimum": 0},
+        "cost_microunits": {"type": "integer", "minimum": 0},
+        "supersedes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["scenario_id", "event_types", "producer_actor_id", "verifier_actor_id", "original_requirement_id", "reroute_requirement_id", "provider_command_count", "initial_epoch", "resume_epoch", "published_batch_count", "replay_integrity", "decision_reason"],
+      "properties": {
+        "scenario_id": {"enum": ["A", "B", "C", "D", "E"]},
+        "event_types": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "producer_actor_id": {"type": ["string", "null"]},
+        "verifier_actor_id": {"type": ["string", "null"]},
+        "original_requirement_id": {"type": ["string", "null"]},
+        "reroute_requirement_id": {"type": ["string", "null"]},
+        "provider_command_count": {"type": "integer", "minimum": 0},
+        "initial_epoch": {"type": "integer", "minimum": 0},
+        "resume_epoch": {"type": "integer", "minimum": 0},
+        "published_batch_count": {"type": "integer", "minimum": 0},
+        "replay_integrity": {"type": ["string", "null"]},
+        "decision_reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

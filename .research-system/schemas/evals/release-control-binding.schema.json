@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://evals/release-control-binding",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "project_id", "store_identity", "coverage_manifest_id", "transport", "gate5_authorized", "operations_scenarios", "derivation_contract_version", "canonical_policy_bundle_id", "canonical_policy_bundle_hash", "policy_control_applicability_id", "policy_control_applicability_hash"],
+  "properties": {
+    "schema_id": {"const": "ars://evals/release-control-binding"},
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "store_identity": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "coverage_manifest_id": {"type": "string", "minLength": 1},
+    "transport": {"const": "fake"},
+    "gate5_authorized": {"const": false},
+    "operations_scenarios": {"const": ["A", "B", "C", "D", "E"]},
+    "derivation_contract_version": {"const": "wp5.3-release-publication-v1"},
+    "canonical_policy_bundle_id": {"type": "string", "pattern": "^cpb_"},
+    "canonical_policy_bundle_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_control_applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
+    "policy_control_applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

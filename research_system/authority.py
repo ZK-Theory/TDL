@@ -189,7 +189,7 @@ class AuthorityGrant:
 
 @dataclass(frozen=True)
 class AuthorityGrantResolution:
-    """Replay-derived evidence for one currently usable authority grant.
+    """Replay-derived immutable identity plus current grant status.
 
     Attributes:
         authority_grant_id: Resolved grant identity.
@@ -513,6 +513,7 @@ def _verify_complete_store(
     project_id: str,
     bootstrap: object,
     code_roots: list[Path],
+    schemas: SchemaRegistry,
     *,
     require_genesis_only: bool = False,
 ) -> str:
@@ -543,7 +544,7 @@ def _verify_complete_store(
     events = tuple(event for batch in batches for event in batch)
     if require_genesis_only and (len(batches) != 1 or len(events) != 2):
         raise IntegrityError("staged authority store contains non-genesis history")
-    state = replay(events)
+    state = replay(events, schema_registry=schemas)
     _verify_bootstrap_bindings(store_root, project_id, value, events, state)
     return str(manifest["store_identity"])
 
@@ -554,6 +555,7 @@ def _matching_complete_stage(
     bootstrap: object,
     bootstrap_hash: str,
     code_roots: list[Path],
+    schemas: SchemaRegistry,
 ) -> tuple[Path, str] | None:
     prefix = f".{final_root.name}.authority-stage-"
     for stage in sorted(final_root.parent.glob(f"{prefix}*")):
@@ -571,12 +573,29 @@ def _matching_complete_stage(
                 project_id,
                 bootstrap,
                 code_roots,
+                schemas,
                 require_genesis_only=True,
             )
         except (ArsError, OSError, ValueError):
             continue
         return stage, identity
     return None
+
+
+def _authority_schema_registry(code_roots: list[Path]) -> SchemaRegistry:
+    """Resolve the one trusted registered schema root for store verification."""
+    schema_roots = {
+        root / ".research-system" / "schemas"
+        for root in code_roots
+        if (root / ".research-system" / "schemas").is_dir()
+    }
+    if len(schema_roots) > 1:
+        raise ArsError("authority bootstrap requires one canonical schema root")
+    return (
+        SchemaRegistry(schema_roots.pop())
+        if schema_roots
+        else bundled_schema_registry()
+    )
 
 
 def initialize_authority_control_store(
@@ -621,6 +640,7 @@ def initialize_authority_control_store(
     for code_root in resolved_codes:
         if final_root == code_root or code_root in final_root.parents or final_root in code_root.parents:
             raise ArsError("control root must be disjoint from every code root")
+    bootstrap_schemas = _authority_schema_registry(resolved_codes)
     if final_root.exists():
         return _verify_complete_store(
             final_root,
@@ -628,6 +648,7 @@ def initialize_authority_control_store(
             project_id,
             value,
             resolved_codes,
+            bootstrap_schemas,
         )
     resumed = _matching_complete_stage(
         final_root,
@@ -635,6 +656,7 @@ def initialize_authority_control_store(
         value,
         bootstrap_hash,
         resolved_codes,
+        bootstrap_schemas,
     )
     if resumed is None:
         stage = final_root.with_name(
@@ -688,18 +710,6 @@ def initialize_authority_control_store(
             "schema_version": "1.0.0",
             "occurred_at": None,
         }
-        schema_roots = {
-            root / ".research-system" / "schemas"
-            for root in resolved_codes
-            if (root / ".research-system" / "schemas").is_dir()
-        }
-        if len(schema_roots) > 1:
-            raise ArsError("authority bootstrap requires one canonical schema root")
-        bootstrap_schemas = (
-            SchemaRegistry(schema_roots.pop())
-            if schema_roots
-            else bundled_schema_registry()
-        )
         ledger = EventLedger(stage, project_id, bootstrap_schemas)
         ledger.append(
             [
@@ -739,6 +749,7 @@ def initialize_authority_control_store(
             project_id,
             value,
             resolved_codes,
+            bootstrap_schemas,
             require_genesis_only=True,
         )
     else:
@@ -758,6 +769,7 @@ def initialize_authority_control_store(
                 project_id,
                 value,
                 resolved_codes,
+                bootstrap_schemas,
             )
         except (ArsError, OSError) as verify_error:
             raise ConflictError(
@@ -878,6 +890,7 @@ class LedgerAuthorityGrantResolver:
         """
         if now.tzinfo != UTC:
             raise ValueError("trusted authority time must be UTC")
+        result = self.grant_identity(grant_id)
         projection = self._projection()
         grant, record = self._load_grant(grant_id, projection)
         if record["status"] == "revoked":
@@ -886,7 +899,35 @@ class LedgerAuthorityGrantResolver:
             raise ArsError("authority grant not effective")
         if grant.expires_at is not None and now >= grant.expires_at:
             raise ArsError("authority grant expired")
-        return AuthorityGrantResolution(grant_id, grant.canonical_sha256, grant.actor_id, grant.subject_scope, grant.effective_at, grant.expires_at, record["activation_event_id"], record["activation_position"], record["status"], record.get("revocation_event_id"))
+        return result
+
+    def grant_identity(self, grant_id: str) -> AuthorityGrantResolution:
+        """Resolve immutable grant identity without asserting current usability.
+
+        Args:
+            grant_id: Activated authority grant identity.
+
+        Returns:
+            Replay-derived grant identity, hash, scope, and current status.
+
+        Raises:
+            ArsError: If the grant has no canonical activation history.
+            IntegrityError: If canonical store evidence is invalid.
+        """
+        projection = self._projection()
+        grant, record = self._load_grant(grant_id, projection)
+        return AuthorityGrantResolution(
+            grant_id,
+            grant.canonical_sha256,
+            grant.actor_id,
+            grant.subject_scope,
+            grant.effective_at,
+            grant.expires_at,
+            record["activation_event_id"],
+            record["activation_position"],
+            record["status"],
+            record.get("revocation_event_id"),
+        )
 
     def resolve(self, grant_id: str, actor_id: str, command_type: str, project_id: str, subject_kind: str, subject_id: str, now: datetime) -> AuthorityGrantResolution:
         """Resolve a grant and enforce its exact actor, command, and subject scope.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +11,16 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService
 from research_system.evals.release_publication import BoundReleasePublicationEvidence
+from research_system.evals.harness import (
+    build_release_decision,
+    decision_document,
+    run_all_scenarios,
+    run_p0_coverage,
+)
+from research_system.evals.release_snapshot import (
+    build_release_snapshot_documents,
+    rederive_release_from_snapshot,
+)
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
@@ -199,38 +211,31 @@ def claim_dispatch_command(
     )
 
 
+@lru_cache(maxsize=1)
+def _release_producer():
+    coverage_path = REPO_ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
+    evidence = run_p0_coverage(
+        coverage_path,
+        fixture_root=coverage_path.parent / "fixtures",
+        schema_root=REPO_ROOT / ".research-system" / "schemas",
+    )
+    scenarios = run_all_scenarios()
+    record, _ = build_release_decision(
+        evidence,
+        scenarios,
+        decided_at="2026-07-12T12:00:00Z",
+        release_gate_decision_id=RELEASE_DECISION_ID,
+    )
+    return evidence, scenarios, decision_document(record)
+
+
 def synthetic_release_decision(
     canonical_event_ref: str = 'unpublished:p0',
 ) -> dict[str, Any]:
     """Return one complete blocked typed decision for publication tests."""
-    return {
-        'schema_id': 'ars://evals/release-gate-decision',
-        'schema_version': '1.0.0',
-        'release_gate_decision_id': RELEASE_DECISION_ID,
-        'coverage_manifest_id': 'foundation-coverage-v2',
-        'baseline_identity': 'reference-pair-p0',
-        'candidate_identity': 'foundation-p0',
-        'evidence_snapshot_hash': 'b' * 64,
-        'required_verdicts': [],
-        'critical_failures': [],
-        'parity_status': 'pass',
-        'operations_status': 'pass',
-        'decision': 'blocked',
-        'decided_at': '2026-07-12T12:00:00Z',
-        'canonical_event_ref': canonical_event_ref,
-        'policy_parity_report_id': 'ppr_' + 'c' * 64,
-        'policy_parity_report_hash': 'c' * 64,
-        'policy_control_applicability_id': 'pca_' + 'd' * 64,
-        'policy_control_applicability_hash': 'd' * 64,
-        'exception_policy_id': None,
-        'exception_policy_hash': None,
-        'exception_scope': None,
-        'exception_expiry': None,
-        'disabled_or_constrained_capability': None,
-        'rationale': None,
-        'human_authority_id': None,
-        'supersedes': None,
-    }
+    source = deepcopy(_release_producer()[2])
+    source['canonical_event_ref'] = canonical_event_ref
+    return source
 
 
 def synthetic_publication_evidence(
@@ -240,37 +245,29 @@ def synthetic_publication_evidence(
 
     Args:
         store_identity: Exact canonical control-store identity.
+
+    Returns:
+        Immutable synthetic evidence resolver bound to the supplied store.
     """
-    source = synthetic_release_decision()
+    evidence, scenarios, stored_source = _release_producer()
+    source = deepcopy(stored_source)
     manifest_ref = 'art_01978abc-2001-7000-8000-000000002001'
     control_ref = 'art_01978abc-2002-7000-8000-000000002002'
-    manifest = {
-        'schema_id': 'ars://evals/release-publication-evidence',
-        'schema_version': '1.0.0',
-        'project_id': PROJECT_ID,
-        'release_decision': source,
-    }
-    control = {
-        'schema_id': 'ars://evals/release-control-binding',
-        'schema_version': '1.0.0',
-        'project_id': PROJECT_ID,
-        'store_identity': store_identity,
-        'coverage_manifest_id': source['coverage_manifest_id'],
-    }
+    manifest, control = build_release_snapshot_documents(
+        evidence,
+        scenarios,
+        source,
+        project_id=PROJECT_ID,
+        store_identity=store_identity,
+    )
     def rederive(
         resolved_manifest: dict[str, Any],
         resolved_control: dict[str, Any],
     ) -> tuple[dict[str, Any], bool]:
-        resolved_source = resolved_manifest["release_decision"]
-        if (
-            resolved_manifest["project_id"] != PROJECT_ID
-            or resolved_control["project_id"] != PROJECT_ID
-            or resolved_control["store_identity"] != store_identity
-            or resolved_control["coverage_manifest_id"]
-            != resolved_source["coverage_manifest_id"]
-        ):
-            raise ValueError("synthetic publication evidence binding mismatch")
-        return dict(resolved_source), False
+        return rederive_release_from_snapshot(
+            resolved_manifest,
+            resolved_control,
+        )
 
     return BoundReleasePublicationEvidence(
         manifest_ref,
@@ -291,6 +288,9 @@ def publish_release_command(
     Args:
         command_id: Fresh command identity for this submission attempt.
         authority_grant_sha256: Canonical hash of the publication grant.
+
+    Returns:
+        Exact synthetic ``PublishReleaseGateDecision`` command envelope.
     """
     manifest_ref = 'art_01978abc-2001-7000-8000-000000002001'
     control_ref = 'art_01978abc-2002-7000-8000-000000002002'

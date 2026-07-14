@@ -218,19 +218,18 @@ class VerifiedReleasePublication:
         }
 
 
-def _exact_document(
+def _validated_document(
     value: object,
-    fields: set[str],
     schema_id: str,
+    schemas: SchemaRegistry,
 ) -> dict[str, Any]:
-    if (
-        not isinstance(value, dict)
-        or set(value) != fields
-        or value.get("schema_id") != schema_id
-        or value.get("schema_version") != "1.0.0"
-    ):
+    if not isinstance(value, dict):
         raise PublicationEvidenceError(f"invalid {schema_id} document")
-    canonical_bytes(value)
+    try:
+        schemas.validate(schema_id, value)
+        canonical_bytes(value)
+    except (ArsError, TypeError, ValueError) as exc:
+        raise PublicationEvidenceError(f"invalid {schema_id} document") from exc
     return value
 
 
@@ -240,28 +239,17 @@ def verify_release_publication(
     schemas: SchemaRegistry,
 ) -> VerifiedReleasePublication:
     """Resolve, re-derive, and compare every publication evidence identity."""
-    manifest = _exact_document(
+    manifest = _validated_document(
         resolver.resolve_evaluation_runs(
             request.evaluation_runs_manifest_ref
         ),
-        {
-            "schema_id",
-            "schema_version",
-            "project_id",
-            "release_decision",
-        },
         "ars://evals/release-publication-evidence",
+        schemas,
     )
-    control = _exact_document(
+    control = _validated_document(
         resolver.resolve_control_binding(request.control_binding_ref),
-        {
-            "schema_id",
-            "schema_version",
-            "project_id",
-            "store_identity",
-            "coverage_manifest_id",
-        },
         "ars://evals/release-control-binding",
+        schemas,
     )
     if (
         manifest["project_id"] != request.project_id
@@ -288,10 +276,17 @@ def verify_release_publication(
     store_identity = control_snapshot.get("store_identity")
     if store_identity != resolver.expected_store_identity:
         raise PublicationEvidenceError("control binding store identity mismatch")
-    derived, gate5_authorized = resolver.rederive_release_decision(
-        json.loads(manifest_bytes),
-        json.loads(control_bytes),
-    )
+    try:
+        derived, gate5_authorized = resolver.rederive_release_decision(
+            json.loads(manifest_bytes),
+            json.loads(control_bytes),
+        )
+    except PublicationEvidenceError:
+        raise
+    except (ArsError, KeyError, TypeError, ValueError) as exc:
+        raise PublicationEvidenceError(
+            "typed release evidence re-derivation failed"
+        ) from exc
     if gate5_authorized is not False:
         raise PublicationEvidenceError("Gate 5 must remain unauthorized")
     schemas.validate("ars://evals/release-gate-decision", derived)
@@ -327,6 +322,7 @@ def verify_replayed_release(
     projection: dict[str, Any],
     project_id: str,
     resolver: ReleasePublicationEvidenceResolver,
+    schemas: SchemaRegistry,
 ) -> dict[str, Any]:
     """Resolve and compare one canonical publication from replayed state."""
     decision_id = published_decision.get("release_gate_decision_id")
@@ -348,6 +344,12 @@ def verify_replayed_release(
     source["canonical_event_ref"] = "unpublished:p0"
     authority_id = record.get("publication_authority_grant_id")
     authority = projection.get("authority_grants", {}).get(authority_id)
+    publication_position = record.get("event_position")
+    revocation_position = (
+        authority.get("revocation_position")
+        if isinstance(authority, dict)
+        else None
+    )
     if (
         record.get("project_id") != project_id
         or record.get("release_decision_id") != decision_id
@@ -359,15 +361,47 @@ def verify_replayed_release(
         or record.get("gate5_authorized") is not False
         or record.get("candidate_status") != "blocked"
         or not isinstance(authority, dict)
-        or authority.get("status") != "active"
         or authority.get("authority_grant_sha256")
         != record.get("publication_authority_sha256")
+        or not isinstance(publication_position, int)
+        or record.get("publication_authority_activation_position")
+        != authority.get("activation_position")
+        or not isinstance(authority.get("activation_position"), int)
+        or authority["activation_position"] >= publication_position
+        or (
+            revocation_position is not None
+            and (
+                not isinstance(revocation_position, int)
+                or revocation_position <= publication_position
+            )
+        )
     ):
         raise PublicationEvidenceError("canonical release projection mismatch")
     manifest = resolver.resolve_evaluation_runs(
         record["evaluation_runs_manifest_ref"]
     )
     control = resolver.resolve_control_binding(record["control_binding_ref"])
+    manifest = _validated_document(
+        manifest,
+        "ars://evals/release-publication-evidence",
+        schemas,
+    )
+    control = _validated_document(
+        control,
+        "ars://evals/release-control-binding",
+        schemas,
+    )
+    try:
+        resolved_source, resolved_gate = resolver.rederive_release_decision(
+            json.loads(canonical_bytes(manifest)),
+            json.loads(canonical_bytes(control)),
+        )
+    except PublicationEvidenceError:
+        raise
+    except (ArsError, KeyError, TypeError, ValueError) as exc:
+        raise PublicationEvidenceError(
+            "typed release evidence re-derivation failed"
+        ) from exc
     if (
         sha256_hex(canonical_bytes(manifest))
         != record.get("evaluation_runs_manifest_sha256")
@@ -375,6 +409,8 @@ def verify_replayed_release(
         != record.get("control_binding_sha256")
         or manifest.get("project_id") != project_id
         or manifest.get("release_decision") != source
+        or canonical_bytes(resolved_source) != canonical_bytes(source)
+        or resolved_gate is not False
         or control.get("project_id") != project_id
         or control.get("store_identity") != resolver.expected_store_identity
         or control.get("coverage_manifest_id")

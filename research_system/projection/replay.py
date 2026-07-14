@@ -98,6 +98,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'activation_event_id': event['event_id'],
             'activation_position': event['global_position'],
             'revocation_event_id': None,
+            'revocation_position': None,
         }
         updated['authority_root_id'] = stream_id
         updated['bootstrap_manifest_sha256'] = payload['bootstrap_manifest_sha256']
@@ -147,6 +148,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'activation_event_id': event['event_id'],
             'activation_position': event['global_position'],
             'revocation_event_id': None,
+            'revocation_position': None,
         }
     elif event_type == 'AuthorityGrantRevoked':
         payload = event['payload']
@@ -166,7 +168,12 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             raise IntegrityError('authority revocation target mismatch')
         if payload.get('authorizing_grant_id') != root_id or payload.get('authorizing_grant_sha256') != grants.get(root_id, {}).get('authority_grant_sha256'):
             raise IntegrityError('authority revocation root mismatch')
-        grants[stream_id] = {**current, 'status': 'revoked', 'revocation_event_id': event['event_id']}
+        grants[stream_id] = {
+            **current,
+            'status': 'revoked',
+            'revocation_event_id': event['event_id'],
+            'revocation_position': event['global_position'],
+        }
     elif event_type in {'TaskCreated', 'TaskSuperseded'}:
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type == 'DispatchClaimed':
@@ -286,6 +293,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'release_decision_id': stream_id,
             'event_id': event['event_id'],
             'event_hash': event['event_hash'],
+            'event_position': event['global_position'],
             'project_id': event['project_id'],
             'release_decision': decision,
             'source_decision_sha256': payload['source_decision_sha256'],
@@ -302,6 +310,9 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             ],
             'publication_authority_sha256': payload[
                 'publication_authority_sha256'
+            ],
+            'publication_authority_activation_position': publication_grant[
+                'activation_position'
             ],
             'gate5_authorized': False,
             'candidate_status': 'blocked',

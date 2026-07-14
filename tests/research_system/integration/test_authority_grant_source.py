@@ -12,7 +12,7 @@ import threading
 import pytest
 
 from research_system.authority import (
-    LedgerAuthorityGrantResolver as _LedgerAuthorityGrantResolver,
+    LedgerAuthorityGrantResolver,
     authority_bootstrap_sha256,
     initialize_authority_control_store,
 )
@@ -43,19 +43,20 @@ SUBSTITUTE_BATCH_ID = "txb_01978abc-1014-7000-8000-000000001014"
 SUBSTITUTE_EVENT_ID = "evt_01978abc-1015-7000-8000-000000001015"
 
 
-def LedgerAuthorityGrantResolver(
+SCHEMAS = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
+
+
+def _resolver(
     control_root,
     project_id,
     expected_store_identity,
-    schema_registry=None,
 ):
-    """Construct the resolver with this test module's trusted registry."""
-    return _LedgerAuthorityGrantResolver(
+    """Construct the production resolver with this module's trusted registry."""
+    return LedgerAuthorityGrantResolver(
         control_root,
         project_id,
         expected_store_identity,
-        schema_registry
-        or SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
+        SCHEMAS,
     )
 
 
@@ -328,7 +329,7 @@ def test_changed_retry_legacy_store_and_inert_object_fail_closed(tmp_path) -> No
         "authority_grant", PUBLICATION_ID, 1, bootstrap["publication_grant"]
     )
     with pytest.raises(ArsError, match="authority_bootstrap_required"):
-        LedgerAuthorityGrantResolver(
+        _resolver(
             inert_root, PROJECT_ID, "0" * 64
         ).resolve(
             PUBLICATION_ID,
@@ -413,7 +414,7 @@ def test_exact_retry_rejects_foreign_two_grant_genesis(tmp_path) -> None:
 
 def test_resolver_enforces_hash_actor_command_project_target_time_and_tamper(tmp_path) -> None:
     control_root, bootstrap, identity = _initialized(tmp_path)
-    resolver = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+    resolver = _resolver(control_root, PROJECT_ID, identity)
     result = resolver.resolve(
         PUBLICATION_ID,
         ACTOR_ID,
@@ -488,7 +489,7 @@ def test_resolver_rejects_coordinated_genesis_and_grant_substitution(tmp_path) -
     _rewrite_genesis(control_root, substitute)
 
     with pytest.raises(IntegrityError, match="bootstrap"):
-        LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity).resolve(
+        _resolver(control_root, PROJECT_ID, identity).resolve(
             PUBLICATION_ID,
             SUBSTITUTE_ACTOR_ID,
             "PublishReleaseGateDecision",
@@ -536,7 +537,7 @@ def test_revoke_payload_schema_rejects_extra_field_before_mutation(tmp_path) -> 
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -553,7 +554,7 @@ def test_revoke_payload_schema_rejects_extra_field_before_mutation(tmp_path) -> 
 
 def test_revoke_is_locked_monotonic_and_exact_retry_survives_restart(tmp_path) -> None:
     control_root, bootstrap, identity = _initialized(tmp_path)
-    resolver = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+    resolver = _resolver(control_root, PROJECT_ID, identity)
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,
@@ -573,7 +574,7 @@ def test_revoke_is_locked_monotonic_and_exact_retry_survives_restart(tmp_path) -
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -595,7 +596,7 @@ def test_scoped_retry_rejects_changed_expected_stream_version(tmp_path) -> None:
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -626,7 +627,7 @@ def test_scoped_retry_rejects_changed_payload_or_grant_hash(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -647,7 +648,7 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -668,7 +669,7 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
 def test_rejected_exact_retry_is_returned_before_current_authority_recheck(tmp_path) -> None:
     control_root, _, identity = _initialized(tmp_path)
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
-    resolver = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+    resolver = _resolver(control_root, PROJECT_ID, identity)
     rejected_service = CommandService(
         control_root,
         EventLedger(control_root, PROJECT_ID),
@@ -709,7 +710,7 @@ def test_authority_integrity_failure_propagates_without_cached_rejection(tmp_pat
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -729,7 +730,7 @@ def test_replay_rejects_foreign_project_in_revocation_payload(tmp_path) -> None:
         ObjectStore(control_root),
         ReceiptStore(control_root),
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -754,7 +755,7 @@ def test_scoped_retry_replays_tampered_canonical_revocation_history(tmp_path) ->
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -779,7 +780,7 @@ def test_scoped_retry_replays_tampered_canonical_revocation_history(tmp_path) ->
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -798,7 +799,7 @@ def test_scoped_receipt_rejects_tampered_embedded_payload_hash(tmp_path) -> None
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -814,7 +815,7 @@ def test_scoped_receipt_rejects_tampered_embedded_payload_hash(tmp_path) -> None
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -836,7 +837,7 @@ def test_scoped_receipt_reconciles_accepted_outcome_with_ledger(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -860,7 +861,7 @@ def test_scoped_receipt_reconciles_accepted_outcome_with_ledger(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -879,7 +880,7 @@ def test_scoped_receipt_rejects_malformed_index_and_embedded_receipt(tmp_path) -
         ObjectStore(control_root),
         receipts,
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -922,7 +923,7 @@ def test_scoped_receipt_exact_retry_recovers_stale_matching_temp(
         ObjectStore(control_root),
         receipts,
         SchemaRegistry(REPO_ROOT / ".research-system" / "schemas"),
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 11, tzinfo=UTC),
@@ -956,7 +957,7 @@ def test_restart_rebuilds_missing_scoped_index_from_canonical_batch(tmp_path) ->
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -970,7 +971,7 @@ def test_restart_rebuilds_missing_scoped_index_from_canonical_batch(tmp_path) ->
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -991,7 +992,7 @@ def test_restart_rebuilds_missing_operational_receipt_from_scoped_index(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -1005,7 +1006,7 @@ def test_restart_rebuilds_missing_operational_receipt_from_scoped_index(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -1026,7 +1027,7 @@ def test_restart_rejects_changed_expected_version_without_scoped_index(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -1041,7 +1042,7 @@ def test_restart_rejects_changed_expected_version_without_scoped_index(
         ObjectStore(control_root),
         ReceiptStore(control_root),
         schemas,
-        authority_resolver=LedgerAuthorityGrantResolver(
+        authority_resolver=_resolver(
             control_root, PROJECT_ID, identity
         ),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
@@ -1153,7 +1154,7 @@ def test_pre_rename_crash_leaves_no_visible_store_and_exact_retry_recovers(
     identity = initialize_authority_control_store(
         [code_root], control_root, PROJECT_ID, bootstrap, approved
     )
-    assert LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+    assert _resolver(control_root, PROJECT_ID, identity)
 
 
 def test_hard_exit_complete_stage_resumes_byte_for_byte(tmp_path) -> None:
@@ -1269,7 +1270,7 @@ def test_hard_exit_boundaries_recover_only_one_complete_store(
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
     )
-    resolved = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity).resolve(
+    resolved = _resolver(control_root, PROJECT_ID, identity).resolve(
         PUBLICATION_ID,
         ACTOR_ID,
         "PublishReleaseGateDecision",
@@ -1340,7 +1341,7 @@ def test_portable_publication_collision_verifies_winner_and_cleans_loser(
         authority_bootstrap_sha256(bootstrap),
     )
 
-    assert LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+    assert _resolver(control_root, PROJECT_ID, identity)
     assert not list(tmp_path.glob(".control.authority-stage-*"))
 
 
@@ -1380,7 +1381,7 @@ def test_governed_authority_hook_rechecks_under_same_writer_lock_as_revoke(
     tmp_path
 ) -> None:
     control_root, _, identity = _initialized(tmp_path)
-    resolver = LedgerAuthorityGrantResolver(control_root, PROJECT_ID, identity)
+    resolver = _resolver(control_root, PROJECT_ID, identity)
     schemas = SchemaRegistry(REPO_ROOT / ".research-system" / "schemas")
     service = CommandService(
         control_root,

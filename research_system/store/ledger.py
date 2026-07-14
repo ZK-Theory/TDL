@@ -55,12 +55,29 @@ class AllocatedEvent:
     recorded_at: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class EventDraft:
-    """Internal typed event whose payload is finalized after allocation."""
+    """CommandService-capability event finalized after ledger allocation."""
 
     envelope: Mapping[str, Any]
     finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]]
+    _capability: object
+
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
+        raise ArsError('release event drafts require CommandService capability')
+
+    @classmethod
+    def _authorized(
+        cls,
+        envelope: Mapping[str, Any],
+        finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]],
+        capability: object,
+    ) -> EventDraft:
+        draft = object.__new__(cls)
+        object.__setattr__(draft, 'envelope', envelope)
+        object.__setattr__(draft, 'finalize_payload', finalize_payload)
+        object.__setattr__(draft, '_capability', capability)
+        return draft
 
 
 class EventLedger:
@@ -80,6 +97,27 @@ class EventLedger:
         self.events_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._snapshot: LedgerSnapshot | None = None
+        self._release_draft_capability: object | None = None
+
+    def _bind_command_service_release_factory(
+        self,
+        capability: object,
+    ) -> Callable[
+        [Mapping[str, Any], Callable[[AllocatedEvent], Mapping[str, Any]]],
+        EventDraft,
+    ]:
+        """Bind one internal release-draft factory to this ledger instance."""
+        if self._release_draft_capability not in {None, capability}:
+            raise ArsError('release publication capability is already bound')
+        self._release_draft_capability = capability
+
+        def create(
+            envelope: Mapping[str, Any],
+            finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]],
+        ) -> EventDraft:
+            return EventDraft._authorized(envelope, finalize_payload, capability)
+
+        return create
 
     def snapshot(self) -> LedgerSnapshot:
         """Return a verified-state input, reloading only when ledger files change."""
@@ -127,6 +165,16 @@ class EventLedger:
         events: list[dict[str, Any]] = []
         for offset, proposed_event in enumerate(proposed):
             draft = proposed_event if isinstance(proposed_event, EventDraft) else None
+            if (
+                draft is not None
+                and (
+                    self._release_draft_capability is None
+                    or draft._capability is not self._release_draft_capability
+                )
+            ):
+                raise ArsError(
+                    'release event draft lacks this CommandService capability'
+                )
             candidate = dict(
                 draft.envelope if draft is not None else proposed_event
             )

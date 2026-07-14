@@ -1,13 +1,15 @@
 import json
+from pathlib import Path
+import threading
 
 import pytest
 
 from research_system.command.models import Receipt
-from research_system.errors import ArsError, ConflictError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store.lock import WriterLock
-from research_system.store.objects import write_object
+from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
 
 
@@ -78,6 +80,93 @@ def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
     assert first == second
     with pytest.raises(ConflictError, match='object revision already exists'):
         write_object(tmp_path, 'task', TASK_ID, 1, {'x': 2})
+
+
+def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers(
+    tmp_path, monkeypatch
+):
+    import research_system.store.objects as object_module
+
+    def interrupt(_temporary):
+        raise OSError('injected object publication interruption')
+
+    monkeypatch.setattr(object_module, '_after_object_temp_fsync', interrupt)
+    with pytest.raises(OSError, match='publication interruption'):
+        write_object(tmp_path, 'task', TASK_ID, 1, {'x': 1})
+    directory = tmp_path / 'objects' / 'task' / TASK_ID
+    assert list(directory.glob('00000001-*.json')) == []
+    assert list(directory.glob('.*.tmp')) == []
+
+    monkeypatch.setattr(
+        object_module,
+        '_after_object_temp_fsync',
+        lambda _temporary: None,
+    )
+    path = write_object(tmp_path, 'task', TASK_ID, 1, {'x': 1})
+    assert ObjectStore(tmp_path).read('task', TASK_ID, 1) == {'x': 1}
+    assert path.is_file()
+
+
+def test_two_concurrent_identical_object_writers_publish_one_complete_revision(
+    tmp_path, monkeypatch
+):
+    import research_system.store.objects as object_module
+
+    entered = threading.Barrier(3)
+    release = threading.Event()
+
+    def pause(_temporary):
+        entered.wait(timeout=2)
+        assert release.wait(2)
+
+    monkeypatch.setattr(object_module, '_after_object_temp_fsync', pause)
+    results = []
+    errors = []
+
+    def write():
+        try:
+            results.append(write_object(tmp_path, 'task', TASK_ID, 1, {'x': 1}))
+        except Exception as exc:  # pragma: no branch - asserted below
+            errors.append(exc)
+
+    writers = [threading.Thread(target=write) for _ in range(2)]
+    for writer in writers:
+        writer.start()
+    entered.wait(timeout=2)
+    release.set()
+    for writer in writers:
+        writer.join(timeout=2)
+        assert not writer.is_alive()
+    assert errors == []
+    assert len(set(results)) == 1
+    assert ObjectStore(tmp_path).read('task', TASK_ID, 1) == {'x': 1}
+
+
+def test_object_read_normalizes_io_and_canonicalization_failures(
+    tmp_path, monkeypatch
+):
+    store = ObjectStore(tmp_path)
+    path = store.write('task', TASK_ID, 1, {'x': 1})
+    original_read_bytes = Path.read_bytes
+
+    def fail_read(candidate):
+        if candidate == path:
+            raise OSError('unreadable')
+        return original_read_bytes(candidate)
+
+    monkeypatch.setattr(Path, 'read_bytes', fail_read)
+    with pytest.raises(IntegrityError, match='unreadable'):
+        store.read('task', TASK_ID, 1)
+
+    monkeypatch.setattr(Path, 'read_bytes', original_read_bytes)
+    path.unlink()
+    float_bytes = b'{"x":1.5}'
+    from research_system.canonical import sha256_hex
+
+    float_path = path.with_name(f'00000001-{sha256_hex(float_bytes)}.json')
+    float_path.write_bytes(float_bytes)
+    with pytest.raises(IntegrityError, match='canonical JSON'):
+        store.read('task', TASK_ID, 1)
 
 
 def test_batch_is_invisible_until_atomic_replace(tmp_path, monkeypatch):

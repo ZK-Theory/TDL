@@ -1,7 +1,7 @@
 # ARS WP5.3: Canonical Release-Event Publication Plan
 
 > **Status:** implementation complete with evidence-backed O12 closeout;
-> independent Manager review and merge remain required. G5.3-A was implemented,
+> independent Manager acceptance and merge remain required. G5.3-A was implemented,
 > independently remediated/reviewed, and merged in PR #90. WP5.2 was likewise
 > independently remediated/reviewed and merged in PR #89.
 >
@@ -507,6 +507,45 @@ WP5.3 is complete only when:
   changed payload returned `idempotency_conflict`, and the ledger retained one
   release event. O12 remains delivered; O15 remains open; Gate 5 remains
   unauthorized and unaccepted pending Manager review.
+
+### PR #92 second review-remediation evidence (2026-07-14)
+
+- Ordinary callers cannot construct or append a release draft. A module-private
+  `CommandService` capability is required, remains stable across service
+  restart, and `EventLedger` still owns allocation and mandatory schema
+  validation.
+- Historical exact retries return the original outcome after later
+  expiry/revocation, while new keys revalidate current authority under the
+  writer lock. Replay records activation/publication/revocation positions, so a
+  later valid revocation does not retroactively invalidate publication.
+- Registered strict producer/control schemas bind a complete immutable offline
+  W6/W7/W8 snapshot. Re-derivation consumes stored typed evidence rather than
+  current checkout discovery; restart, nested producer mutation, individual
+  evidence-seam tamper, schema/hash tamper, and checkout-drift controls fail
+  closed.
+- Immutable object publication uses durable same-directory temporaries and
+  exclusive atomic linking. Injected interruption/retry and concurrent
+  identical writers retain one complete content-addressed revision. Receipt
+  publication preserves the same non-clobbering discipline.
+- Final-state validation passes as `412` unit plus `172` integration tests
+  (`584` total); repository-wide Ruff passes. Four semantic materializers pass;
+  the variant-matrix checker has only inherited CRLF variance, with normalized
+  worktree/index SHA-256 both
+  `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`.
+  The fake-only source is `40/15/0/302/calibrated/false/blocked`.
+- The final `C:/tmp` flow emits exactly one release event at position 3:
+  `evt_019f5e97-a682-75b6-a93e-12edb773cbce`, event SHA-256
+  `0a282e717390f3a673dbfc0f9e1d7f96222d56ad6b5dd548330ecf365278bd0f`.
+  Recalculation matches; exact-retry receipt SHA-256 is
+  `a22d4b8edf30b385d2c0561eda2b5279101d3a9d96b0aae5d437dbbf59ac7e8d`;
+  changed source returns `idempotency_conflict`; projection SHA-256 is
+  `32a3a73b39fc99313625e46071fdb2f003deca540fa1cde9b1a99eacd364b962`.
+  Manifest/control hashes are respectively
+  `ed3eee585f7013f3a94d3783fbeebe70547962685f78fe54bbe245b1b0112b32`
+  and `af7c714f07823a493cf31264ac39f607ae3002f3e194e0abdd94dd0b94030869`.
+- This evidence supports O12 implementation closeout, but independent Manager
+  acceptance and merge remain pending. O15 remains open; Gate 5 remains
+  unauthorized and unaccepted.
 
 ## 11. Stop conditions
 

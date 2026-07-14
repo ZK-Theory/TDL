@@ -38,6 +38,9 @@ from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
 
+_RELEASE_DRAFT_CAPABILITY = object()
+
+
 @dataclass
 class _CommandView:
     fingerprint: tuple[tuple[str, int, int], ...]
@@ -99,6 +102,8 @@ class CommandService:
         release_publication_evidence: ReleasePublicationEvidenceResolver | None = None,
         clock: Callable[[], datetime] | None = None,
         release_lock_timeout_seconds: float = 300.0,
+        monotonic: Callable[[], float] | None = None,
+        lock_wait: Callable[[float], None] | None = None,
     ) -> None:
         self.control_root = control_root
         self.ledger = ledger
@@ -111,6 +116,11 @@ class CommandService:
         if release_lock_timeout_seconds <= 0:
             raise ValueError('release lock timeout must be positive')
         self.release_lock_timeout_seconds = release_lock_timeout_seconds
+        self._monotonic = monotonic or time.monotonic
+        self._lock_wait = lock_wait or time.sleep
+        self._release_draft_factory = ledger._bind_command_service_release_factory(
+            _RELEASE_DRAFT_CAPABILITY
+        )
         self._view: _CommandView | None = None
         self.deletion_manifest_authorizer: Callable[
             [dict[str, Any], str, str],
@@ -302,7 +312,7 @@ class CommandService:
         """Serialize release retries while preserving fail-fast legacy locks."""
         identity = {'command_id': command.command_id}
         path = self.control_root / 'runtime' / 'writer.lock'
-        deadline = time.monotonic() + self.release_lock_timeout_seconds
+        deadline = self._monotonic() + self.release_lock_timeout_seconds
         while True:
             lock = WriterLock(path, identity)
             try:
@@ -311,10 +321,10 @@ class CommandService:
                 if (
                     command.envelope['command_type']
                     != 'PublishReleaseGateDecision'
-                    or time.monotonic() >= deadline
+                    or self._monotonic() >= deadline
                 ):
                     raise
-                time.sleep(0.01)
+                self._lock_wait(0.01)
                 continue
             break
         try:
@@ -912,7 +922,7 @@ class CommandService:
             'occurred_at': None,
         }
         if command_type == 'PublishReleaseGateDecision':
-            return EventDraft(
+            return self._release_draft_factory(
                 envelope,
                 lambda allocated: prepared_payload.payload_for(
                     allocated.event_id

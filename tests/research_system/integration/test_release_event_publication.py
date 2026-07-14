@@ -18,8 +18,10 @@ from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
+    ACTORS,
     PROJECT_ID,
     RELEASE_DECISION_ID,
+    ROOT_AUTHORITY_GRANT_ID,
     authority_bootstrap,
     publish_release_command,
     synthetic_publication_evidence,
@@ -98,6 +100,7 @@ def test_canonical_resolver_command_ledger_replay_and_release_are_bound(
         projection,
         PROJECT_ID,
         service.release_publication_evidence,
+        schemas,
     )
     assert resolved["event_id"] == event["event_id"]
     assert resolved["gate5_authorized"] is False
@@ -135,10 +138,6 @@ def test_offline_cli_publish_retry_replay_and_release(
     source = synthetic_release_decision()
     evaluation_runs = tmp_path / "evaluation-runs.json"
     evaluation_runs.write_bytes(canonical_bytes(source))
-    monkeypatch.setattr(
-        "research_system.cli._rederive_bound_decision",
-        lambda _binding, _source: (source, False),
-    )
     first_output = tmp_path / "receipt-1.json"
     command = [
         "eval",
@@ -201,6 +200,77 @@ def test_offline_cli_publish_retry_replay_and_release(
     capsys.readouterr()
     assert json.loads(first_output.read_text(encoding="utf-8")) == json.loads(
         second_output.read_text(encoding="utf-8")
+    )
+    changed_source = dict(source)
+    changed_source["decided_at"] = "2026-07-14T04:00:00+00:00"
+    changed_source_path = tmp_path / "evaluation-runs-changed.json"
+    changed_source_path.write_bytes(canonical_bytes(changed_source))
+    changed_output = tmp_path / "receipt-changed.json"
+    command[-3] = str(changed_source_path)
+    command[-1] = str(changed_output)
+    assert main(command) == 0
+    capsys.readouterr()
+    changed_receipt = json.loads(changed_output.read_text(encoding="utf-8"))
+    assert changed_receipt["status"] == "conflict"
+    assert changed_receipt["reason_code"] == "idempotency_conflict"
+    assert len(
+        [
+            event
+            for event in EventLedger(
+                control_root, PROJECT_ID, SchemaRegistry(SCHEMAS)
+            ).iter_events()
+            if event["event_type"] == "ReleaseGateDecisionPublished"
+        ]
+    ) == 1
+    command[-3] = str(evaluation_runs)
+    schemas = SchemaRegistry(SCHEMAS)
+    revocation_service = CommandService(
+        control_root,
+        EventLedger(control_root, PROJECT_ID, schemas),
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+        authority_resolver=LedgerAuthorityGrantResolver(
+            control_root,
+            PROJECT_ID,
+            identity,
+            schemas,
+        ),
+        clock=lambda: datetime(2026, 7, 14, 12, tzinfo=UTC),
+    )
+    revoked = revocation_service.submit(
+        {
+            "command_id": "cmd_01978abc-3090-7000-8000-000000003090",
+            "command_type": "RevokeAuthorityGrant",
+            "schema_id": "ars://core/command",
+            "schema_version": "1.0.0",
+            "submitted_at": "2026-07-14T12:00:00Z",
+            "actor_id": ACTORS["actor-a"],
+            "on_behalf_of_actor_id": None,
+            "authority_grant_id": ROOT_AUTHORITY_GRANT_ID,
+            "target_stream_id": AUTHORITY_GRANT_ID,
+            "expected_stream_version": 1,
+            "idempotency_key": "revoke-after-release-publication",
+            "correlation_id": "release-publication-revocation",
+            "causation_id": None,
+            "reason": "prove historical publication remains valid",
+            "evidence_refs": [],
+            "payload": {
+                "project_id": PROJECT_ID,
+                "target_grant_id": AUTHORITY_GRANT_ID,
+                "target_grant_sha256": bootstrap["publication_grant_sha256"],
+                "authority_grant_sha256": bootstrap["root_grant_sha256"],
+                "reason": "prove historical publication remains valid",
+            },
+        }
+    )
+    assert revoked.status == "accepted"
+    post_revocation_output = tmp_path / "receipt-post-revocation.json"
+    command[-1] = str(post_revocation_output)
+    assert main(command) == 0
+    capsys.readouterr()
+    assert json.loads(post_revocation_output.read_text(encoding="utf-8")) == (
+        json.loads(first_output.read_text(encoding="utf-8"))
     )
     assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
     replayed = json.loads(capsys.readouterr().out)

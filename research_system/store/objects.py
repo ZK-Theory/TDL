@@ -3,11 +3,16 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import secrets
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, IntegrityError
 from research_system.ids import validate_id
+
+
+def _after_object_temp_fsync(_temporary: Path) -> None:
+    """Test seam after a complete durable temporary and before publication."""
 
 
 def write_object(
@@ -47,18 +52,28 @@ def write_object(
             return existing[0]
         raise ConflictError(f'object revision already exists: {kind}/{object_id}/{revision}')
     target = directory / f'{prefix}{digest}.json'
+    temporary = directory / f'.{target.name}.{secrets.token_hex(8)}.tmp'
     try:
-        fd = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except FileExistsError:
-        if target.read_bytes() == data:
-            return target
-        raise ConflictError(
-            f'object revision already exists: {kind}/{object_id}/{revision}'
-        ) from None
-    with os.fdopen(fd, 'wb') as handle:
-        handle.write(data)
-        handle.flush()
-        os.fsync(handle.fileno())
+        fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _after_object_temp_fsync(temporary)
+        try:
+            os.link(temporary, target)
+        except FileExistsError:
+            try:
+                matches = sorted(directory.glob(f'{prefix}*.json'))
+                matching = len(matches) == 1 and matches[0].read_bytes() == data
+            except OSError:
+                matching = False
+            if not matching:
+                raise ConflictError(
+                    f'object revision already exists: {kind}/{object_id}/{revision}'
+                ) from None
+    finally:
+        temporary.unlink(missing_ok=True)
     return target
 
 
@@ -109,19 +124,29 @@ class ObjectStore:
         if revision < 1:
             raise ValueError('object revision must be positive')
         directory = self.control_root / 'objects' / kind / object_id
-        matches = sorted(directory.glob(f'{revision:08d}-*.json'))
+        try:
+            matches = sorted(directory.glob(f'{revision:08d}-*.json'))
+        except OSError as exc:
+            raise IntegrityError('object revision is unreadable') from exc
         if len(matches) != 1:
             raise IntegrityError(
                 f'object revision must resolve exactly once: '
                 f'{kind}/{object_id}/{revision}'
             )
         path = matches[0]
-        data = path.read_bytes()
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            raise IntegrityError('object revision is unreadable') from exc
         try:
             value = json.loads(data)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise IntegrityError('object revision is not canonical JSON') from exc
-        if canonical_bytes(value) != data:
+        try:
+            canonical = canonical_bytes(value)
+        except (TypeError, ValueError) as exc:
+            raise IntegrityError('object revision is not canonical JSON') from exc
+        if canonical != data:
             raise IntegrityError('object revision bytes are not canonical')
         expected_name = f'{revision:08d}-{sha256_hex(data)}.json'
         if path.name != expected_name:

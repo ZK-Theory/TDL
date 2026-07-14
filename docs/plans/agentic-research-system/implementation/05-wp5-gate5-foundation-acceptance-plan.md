@@ -90,7 +90,7 @@ Decomposed against the P0 state, Gate 5 requires:
 |---|---|---|
 | 04a O10 | `release_gate_decision_id` ID-kind confirmation by WP1 reviewer | WP5.6 (review checklist item; kind already registered) |
 | 04a O11 | parity wiring before any `pass` is reachable | WP5.2 |
-| 04a O12 | publish release decision as canonical event | Delivered by WP5.3; independent Manager review/merge retained |
+| 04a O12 | publish release decision as canonical event | WP5.3 implementation complete; independent Manager acceptance/merge pending |
 | 04a O14 | cross-family independence branch reachable (real producer/grader family identities) | WP5.1 |
 | 04a O15 | `DeleteEvidenceObject` registration — **owner-gated W1/W6 decision** (name specified at 04-plan:517; payload schema + event semantics are not; design anchor `DeleteEvidenceObject → EvidenceDeletionPending`) | WP5.5 decision D-G5-2; implementation joins WP5.4 (S-014 touches the same deletion surface) once decided |
 | 04a O16 | `current_policy_revision` from canonical `retention-policy.yaml` via `validate_retention_policy`, not `registry.policy_revision` | WP5.1 |
@@ -164,6 +164,17 @@ Small, code-side, no owner input; unblocks the integrity story every later WP re
   publication are covered by 92 focused and 568 full-suite passing tests.
   O12 remains delivered, O15 remains open, and Gate 5 remains unauthorized and
   unaccepted pending independent Manager review.
+- **Second review remediation (2026-07-14, PR #92):** release drafts now
+  require a restart-stable private `CommandService` capability; historical
+  retries and release verification bind authority state at publication rather
+  than final active status; registered typed producer/control snapshots are
+  re-derived entirely from immutable stored W6/W7/W8 evidence; and object
+  publication is crash-safe and concurrency-safe. Final validation is `412`
+  unit plus `172` integration tests (`584` total), Ruff clean, four semantic
+  materializers clean, inherited matrix CRLF normalized byte-identical, and
+  exact `40/15/0/302/calibrated/false/blocked`. This supports O12
+  implementation closeout; independent Manager acceptance/merge remains
+  pending. O15 stays open and Gate 5 stays unauthorized and unaccepted.
 
 ### WP5.4 — Release tranche: S-014 / S-015 / S-016 (05-plan §4.4)
 
@@ -276,9 +287,10 @@ PR #90, and merged. WP5.2 was independently remediated/reviewed in PR #89 and
 merged. G5.3-B option (a) remains accepted: actor IDs provide attribution inside
 the trusted-local-operator foundation, while cryptographic principal
 authentication is rejected as disproportionate and out of scope. WP5.3 now
-delivers O12 with exact `40/15/0/302/calibrated/false/blocked` evidence;
-independent Manager review/merge remains required, O15 remains open, and Gate 5
-remains unauthorized.
+supports O12 implementation closeout with exact
+`40/15/0/302/calibrated/false/blocked` evidence; independent Manager
+acceptance/merge remains required, O15 remains open, and Gate 5 remains
+unauthorized.
 
 ## 7. Invariant re-baseline rule
 

@@ -34,6 +34,10 @@ from research_system.evals.release_publication import (
     content_artefact_id,
     verify_replayed_release,
 )
+from research_system.evals.release_snapshot import (
+    build_release_snapshot_documents,
+    rederive_release_from_snapshot,
+)
 from research_system.ids import new_id
 from research_system.evals.retention import validate_retention_policy
 from research_system.evals.retention_authorizer import (
@@ -342,42 +346,69 @@ def _publication_evidence(
     binding: ControlBinding,
     source: dict[str, Any],
 ) -> tuple[StoredReleasePublicationEvidence, str, str]:
-    manifest = {
-        "schema_id": "ars://evals/release-publication-evidence",
-        "schema_version": "1.0.0",
-        "project_id": binding.project_id,
-        "release_decision": source,
-    }
-    control = {
-        "schema_id": "ars://evals/release-control-binding",
-        "schema_version": "1.0.0",
-        "project_id": binding.project_id,
-        "store_identity": binding.store_identity,
-        "coverage_manifest_id": source["coverage_manifest_id"],
-    }
+    schemas = SchemaRegistry(binding.schema_root)
+    existing_projection = replay(
+        EventLedger(binding.control_root, binding.project_id, schemas).iter_events(),
+        schema_registry=schemas,
+    )
+    existing = existing_projection.get("release_decisions", {}).get(
+        source["release_gate_decision_id"]
+    )
+    if isinstance(existing, dict):
+        resolver = StoredReleasePublicationEvidence(
+            objects=ObjectStore(binding.control_root),
+            expected_store_identity=binding.store_identity,
+            rederive=rederive_release_from_snapshot,
+        )
+        manifest_ref = existing["evaluation_runs_manifest_ref"]
+        control_ref = existing["control_binding_ref"]
+        manifest = resolver.resolve_evaluation_runs(manifest_ref)
+        control = resolver.resolve_control_binding(control_ref)
+        schemas.validate("ars://evals/release-publication-evidence", manifest)
+        schemas.validate("ars://evals/release-control-binding", control)
+        derived, gate5_authorized = resolver.rederive_release_decision(
+            manifest,
+            control,
+        )
+        if gate5_authorized is not False:
+            raise ArsError("stored publication evidence differs from source")
+        if derived == source:
+            return resolver, manifest_ref, control_ref
+    coverage_path = binding.schema_root.parent / "evals" / "p0-coverage.yaml"
+    fixtures, schemas_root = _eval_roots(coverage_path)
+    producer_evidence = run_p0_coverage(
+        coverage_path,
+        fixture_root=fixtures,
+        schema_root=schemas_root,
+    )
+    scenarios = run_all_scenarios()
+    record, _ = build_release_decision(
+        producer_evidence,
+        scenarios,
+        decided_at=str(source["decided_at"]),
+        release_gate_decision_id=str(source["release_gate_decision_id"]),
+    )
+    if decision_document(record) != source:
+        raise ArsError("publication source differs from producer evidence")
+    manifest, control = build_release_snapshot_documents(
+        producer_evidence,
+        scenarios,
+        source,
+        project_id=binding.project_id,
+        store_identity=binding.store_identity,
+    )
+    schemas.validate("ars://evals/release-publication-evidence", manifest)
+    schemas.validate("ars://evals/release-control-binding", control)
     manifest_ref = content_artefact_id(manifest)
     control_ref = content_artefact_id(control)
     objects = ObjectStore(binding.control_root)
     objects.write("artefact", manifest_ref, 1, manifest)
     objects.write("artefact", control_ref, 1, control)
 
-    def rederive(
-        resolved_manifest: dict[str, Any],
-        resolved_control: dict[str, Any],
-    ) -> tuple[dict[str, Any], bool]:
-        resolved_source = resolved_manifest.get("release_decision")
-        if (
-            not isinstance(resolved_source, dict)
-            or resolved_control.get("coverage_manifest_id")
-            != resolved_source.get("coverage_manifest_id")
-        ):
-            raise ArsError("resolved publication evidence binding mismatch")
-        return _rederive_bound_decision(binding, resolved_source)
-
     resolver = StoredReleasePublicationEvidence(
         objects=objects,
         expected_store_identity=binding.store_identity,
-        rederive=rederive,
+        rederive=rederive_release_from_snapshot,
     )
     return resolver, manifest_ref, control_ref
 
@@ -438,15 +469,7 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             binding.store_identity,
             schemas,
         )
-        resolution = authority.resolve(
-        args.authority_grant_id,
-        args.actor_id,
-        "PublishReleaseGateDecision",
-        binding.project_id,
-        "release_gate_decision",
-        source["release_gate_decision_id"],
-        _authority_clock(),
-    )
+        resolution = authority.grant_identity(args.authority_grant_id)
         idempotency_key = (
         f"release-publication:{source['release_gate_decision_id']}"
     )
@@ -521,14 +544,6 @@ def _eval_release(args: argparse.Namespace) -> int:
     schema_registry.validate("ars://evals/release-gate-decision", supplied_document)
     if supplied_document.get("canonical_event_ref") == "unpublished:p0":
         raise ArsError("eval release requires a canonical published event reference")
-    source_document = dict(supplied_document)
-    source_document["canonical_event_ref"] = "unpublished:p0"
-    fresh_document, gate5_authorized = _rederive_bound_decision(
-        binding,
-        source_document,
-    )
-    if gate5_authorized is not False or fresh_document != source_document:
-        raise ArsError("evaluation document divergence")
     ledger = EventLedger(
         binding.control_root, binding.project_id, schema_registry
     )
@@ -536,19 +551,34 @@ def _eval_release(args: argparse.Namespace) -> int:
         ledger.iter_events(),
         schema_registry=schema_registry,
     )
+    decision_id = supplied_document["release_gate_decision_id"]
+    projected = projection.get("release_decisions", {}).get(decision_id)
+    if not isinstance(projected, dict):
+        raise ArsError("canonical release event is unavailable")
+    resolver = StoredReleasePublicationEvidence(
+        ObjectStore(binding.control_root),
+        binding.store_identity,
+        rederive_release_from_snapshot,
+    )
+    manifest = resolver.resolve_evaluation_runs(
+        projected["evaluation_runs_manifest_ref"]
+    )
+    control = resolver.resolve_control_binding(projected["control_binding_ref"])
+    fresh_document, gate5_authorized = resolver.rederive_release_decision(
+        manifest,
+        control,
+    )
+    source_document = dict(supplied_document)
+    source_document["canonical_event_ref"] = "unpublished:p0"
+    if gate5_authorized is not False or fresh_document != source_document:
+        raise ArsError("evaluation document divergence")
     record = verify_replayed_release(
         supplied_document,
         fresh_document,
         projection,
         binding.project_id,
-        StoredReleasePublicationEvidence(
-            ObjectStore(binding.control_root),
-            binding.store_identity,
-            lambda manifest, control: _rederive_bound_decision(
-                binding,
-                manifest["release_decision"],
-            ),
-        ),
+        resolver,
+        schema_registry,
     )
     _print_json(
         {
