@@ -1,7 +1,7 @@
 # ARS WP5.3: Canonical Release-Event Publication Plan
 
-> **Status:** implementation complete with evidence-backed O12 closeout;
-> independent Manager acceptance and merge remain required. G5.3-A was implemented,
+> **Status:** implementation remediation complete; O12 remains pending independent
+> Manager acceptance and merge. G5.3-A was implemented,
 > independently remediated/reviewed, and merged in PR #90. WP5.2 was likewise
 > independently remediated/reviewed and merged in PR #89.
 >
@@ -472,9 +472,9 @@ WP5.3 is complete only when:
   index SHA-256 both equal
   `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`
   with no Git diff.
-- O12 is delivered by this bounded WP5.3 implementation. O15 remains open,
-  Gate 5 remains unauthorized, and independent Manager review/merge remain
-  required.
+- This bounded WP5.3 implementation supplied initial O12 evidence. O12 remains
+  pending independent Manager acceptance/merge; O15 remains open and Gate 5
+  remains unauthorized.
 
 ### PR #92 review-remediation evidence (2026-07-14)
 
@@ -505,8 +505,8 @@ WP5.3 is complete only when:
   projection SHA-256 is
   `4887c39bc29bdbcd1601e5f0cb6ef0095def98b56e3b26c00d7cfbf2536e369c`,
   changed payload returned `idempotency_conflict`, and the ledger retained one
-  release event. O12 remains delivered; O15 remains open; Gate 5 remains
-  unauthorized and unaccepted pending Manager review.
+  release event. O12 remains pending independent Manager acceptance; O15
+  remains open; Gate 5 remains unauthorized and unaccepted.
 
 ### PR #92 second review-remediation evidence (2026-07-14)
 
@@ -546,6 +546,48 @@ WP5.3 is complete only when:
 - This evidence supports O12 implementation closeout, but independent Manager
   acceptance and merge remain pending. O15 remains open; Gate 5 remains
   unauthorized and unaccepted.
+
+### PR #92 third review-remediation evidence (2026-07-14)
+
+- Release draft issuance and consumption now occur atomically inside a narrow
+  ledger-specific `CommandService` append boundary. No reusable capability is
+  retained by the ledger or draft; caller mint, raw append, cross-ledger use,
+  and reuse fail closed while ledger-owned event identity, position, timestamp,
+  transaction identity, self-reference, and hash chain remain protected.
+- `ReleaseGateDecisionPublished` requires its exact registered schema and is
+  validated before and after allocation. A missing release schema leaves no
+  durable event or projection mutation.
+- The frozen publication-evidence schema strictly types every rehydrated nested
+  boundary. Exact `GraderResult` fields round-trip without synthesized
+  identities; retained-hash policy tamper is rejected using canonical
+  source/preimage revalidation; D-G5-5 applicability/provider bindings use the
+  canonical loaders. Actual producer perturbations and the reachable stored-
+  evidence CLI restart seam are exercised rather than only post-production
+  dictionary tamper.
+- Immutable objects contend on one revision-scoped publication claim:
+  identical concurrent content is idempotent, conflicting content yields one
+  success and one conflict, and interruption/retry leaves one readable
+  canonical revision. Each public authority resolution derives identity,
+  scope, temporal, and revocation state from one verified projection.
+- Final validation passes as `439` unit plus `172` integration tests (`611`
+  total), including the `131`-test focused WP5.3 matrix. Scoped Ruff and four
+  semantic materializers pass. The variant matrix has only inherited CRLF
+  checkout variance; normalized worktree/index SHA-256 both equal
+  `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`.
+  The fake-only source remains `40/15/0/302/calibrated/false/blocked`.
+- The final fresh `C:/tmp` offline flow publishes exactly one event at position
+  3: `evt_019f62b8-2eda-7112-81a9-f0a50e2d323a`, event SHA-256
+  `f3436581c548e9cd194bf416f55de3bc3dabad5a561f66594e1b29b532856fa5`.
+  Recalculation matches; exact-retry receipt SHA-256 is
+  `78800047ab320873b60031a575ca49059b8169565c9349c5c6089605c140ded6`;
+  changed source returns `idempotency_conflict`; projection SHA-256 is
+  `dd7b8d30479d85fe7efea05d0083f127e46e96c307076a94bbb8e3e15aa3b57b`.
+  Manifest/control hashes are respectively
+  `b96ad92a066e1241cac469786cc98b272174191146e4411736df212a208ae3c6`
+  and `acd2187addd73f18c850fae644d86b1e0e6cf87684aaacb3d2cfb74bd220606c`.
+- This evidence completes the Worker remediation package, but O12 remains
+  pending independent Manager acceptance and merge. O15 remains open; Gate 5
+  remains unauthorized and unaccepted.
 
 ## 11. Stop conditions
 

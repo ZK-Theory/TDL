@@ -150,20 +150,20 @@ Small, code-side, no owner input; unblocks the integrity story every later WP re
 - Fail-closed rule: `eval release` verification must reject a decision document whose
   `canonical_event_ref` does not resolve to a stored event.
 - Branch: `pipe/ars-gate5-release-event-publication`.
-- **Delivered (2026-07-13):** `PublishReleaseGateDecision` now publishes exactly
+- **Initial implementation evidence (2026-07-13):** `PublishReleaseGateDecision` publishes exactly
   one ledger-allocated `ReleaseGateDecisionPublished` event through
   `CommandService`; strict replay and `eval release` resolve, re-derive, and
   compare the full canonical decision/evidence while preserving
-  `gate5_authorized=false` and `candidate_status=blocked`. O12 is closed by the
-  bounded WP5.3 implementation evidence; independent Manager review/merge
-  remains required. This does not accept Gate 5, and O15 remains open.
+  `gate5_authorized=false` and `candidate_status=blocked`. Independent Manager
+  acceptance/merge remains required before O12 closes. This does not accept
+  Gate 5, and O15 remains open.
 - **Review-remediated (2026-07-14, PR #92):** canonical manifest/control
   evidence is now durably restart-resolvable; release rejects the unpublished
   sentinel and resolves the exact event; trusted ledger/replay authority and
   schema bindings, long-running exact concurrency, and atomic exclusive receipt
   publication are covered by 92 focused and 568 full-suite passing tests.
-  O12 remains delivered, O15 remains open, and Gate 5 remains unauthorized and
-  unaccepted pending independent Manager review.
+  O12 remains pending independent Manager acceptance, O15 remains open, and
+  Gate 5 remains unauthorized and unaccepted.
 - **Second review remediation (2026-07-14, PR #92):** release drafts now
   require a restart-stable private `CommandService` capability; historical
   retries and release verification bind authority state at publication rather
@@ -175,6 +175,19 @@ Small, code-side, no owner input; unblocks the integrity story every later WP re
   exact `40/15/0/302/calibrated/false/blocked`. This supports O12
   implementation closeout; independent Manager acceptance/merge remains
   pending. O15 stays open and Gate 5 stays unauthorized and unaccepted.
+- **Third review remediation (2026-07-14, PR #92):** release-draft issuance is
+  now ledger-specific, single-use, and atomic inside the `CommandService`
+  publication path; the exact release schema is mandatory before persistence;
+  frozen producer/control evidence is fully strict and preserves canonical
+  policy preimages plus exact `GraderResult` identities; actual producer and
+  stored-evidence CLI seams are exercised; conflicting immutable-object writers
+  contend on one revision claim; and each authority resolution uses one
+  verified projection. Final validation is `439` unit plus `172` integration
+  tests (`611` total), the `131`-test focused WP5.3 matrix, scoped Ruff, four
+  semantic materializers, inherited matrix CRLF normalized byte-identical, and
+  exact `40/15/0/302/calibrated/false/blocked`. O12 implementation evidence is
+  complete but O12 remains pending independent Manager acceptance/merge. O15
+  stays open and Gate 5 stays unauthorized and unaccepted.
 
 ### WP5.4 — Release tranche: S-014 / S-015 / S-016 (05-plan §4.4)
 

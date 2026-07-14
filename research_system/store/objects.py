@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import time
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
@@ -13,6 +14,20 @@ from research_system.ids import validate_id
 
 def _after_object_temp_fsync(_temporary: Path) -> None:
     """Test seam after a complete durable temporary and before publication."""
+
+
+def _existing_revision(
+    directory: Path,
+    prefix: str,
+    data: bytes,
+    description: str,
+) -> Path | None:
+    existing = sorted(directory.glob(f"{prefix}*.json"))
+    if not existing:
+        return None
+    if len(existing) == 1 and existing[0].read_bytes() == data:
+        return existing[0]
+    raise ConflictError(f"object revision already exists: {description}")
 
 
 def write_object(
@@ -40,39 +55,52 @@ def write_object(
     """
     validate_id(object_id, kind)
     if revision < 1:
-        raise ValueError('object revision must be positive')
+        raise ValueError("object revision must be positive")
     data = canonical_bytes(value)
     digest = sha256_hex(data)
-    directory = control_root / 'objects' / kind / object_id
+    directory = control_root / "objects" / kind / object_id
     directory.mkdir(parents=True, exist_ok=True)
-    prefix = f'{revision:08d}-'
-    existing = sorted(directory.glob(f'{prefix}*.json'))
-    if existing:
-        if len(existing) == 1 and existing[0].read_bytes() == data:
-            return existing[0]
-        raise ConflictError(f'object revision already exists: {kind}/{object_id}/{revision}')
-    target = directory / f'{prefix}{digest}.json'
-    temporary = directory / f'.{target.name}.{secrets.token_hex(8)}.tmp'
+    prefix = f"{revision:08d}-"
+    description = f"{kind}/{object_id}/{revision}"
+    existing = _existing_revision(directory, prefix, data, description)
+    if existing is not None:
+        return existing
+    target = directory / f"{prefix}{digest}.json"
+    temporary = directory / f".{target.name}.{secrets.token_hex(8)}.tmp"
+    claim = directory / f".{revision:08d}.publication-claim"
+    claim_descriptor = -1
     try:
         fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        with os.fdopen(fd, 'wb') as handle:
+        with os.fdopen(fd, "wb") as handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         _after_object_temp_fsync(temporary)
-        try:
-            os.link(temporary, target)
-        except FileExistsError:
+        deadline = time.monotonic() + 30.0
+        while claim_descriptor < 0:
+            existing = _existing_revision(directory, prefix, data, description)
+            if existing is not None:
+                return existing
             try:
-                matches = sorted(directory.glob(f'{prefix}*.json'))
-                matching = len(matches) == 1 and matches[0].read_bytes() == data
-            except OSError:
-                matching = False
-            if not matching:
-                raise ConflictError(
-                    f'object revision already exists: {kind}/{object_id}/{revision}'
-                ) from None
+                claim_descriptor = os.open(
+                    claim,
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                )
+            except FileExistsError:
+                if time.monotonic() >= deadline:
+                    raise ConflictError(f"object revision publication is busy: {description}") from None
+                time.sleep(0.01)
+        os.close(claim_descriptor)
+        claim_descriptor = -2
+        existing = _existing_revision(directory, prefix, data, description)
+        if existing is not None:
+            return existing
+        os.link(temporary, target)
     finally:
+        if claim_descriptor >= 0:
+            os.close(claim_descriptor)
+        if claim_descriptor == -2:
+            claim.unlink(missing_ok=True)
         temporary.unlink(missing_ok=True)
     return target
 
@@ -122,33 +150,30 @@ class ObjectStore:
         """
         validate_id(object_id, kind)
         if revision < 1:
-            raise ValueError('object revision must be positive')
-        directory = self.control_root / 'objects' / kind / object_id
+            raise ValueError("object revision must be positive")
+        directory = self.control_root / "objects" / kind / object_id
         try:
-            matches = sorted(directory.glob(f'{revision:08d}-*.json'))
+            matches = sorted(directory.glob(f"{revision:08d}-*.json"))
         except OSError as exc:
-            raise IntegrityError('object revision is unreadable') from exc
+            raise IntegrityError("object revision is unreadable") from exc
         if len(matches) != 1:
-            raise IntegrityError(
-                f'object revision must resolve exactly once: '
-                f'{kind}/{object_id}/{revision}'
-            )
+            raise IntegrityError(f"object revision must resolve exactly once: {kind}/{object_id}/{revision}")
         path = matches[0]
         try:
             data = path.read_bytes()
         except OSError as exc:
-            raise IntegrityError('object revision is unreadable') from exc
+            raise IntegrityError("object revision is unreadable") from exc
         try:
             value = json.loads(data)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise IntegrityError('object revision is not canonical JSON') from exc
+            raise IntegrityError("object revision is not canonical JSON") from exc
         try:
             canonical = canonical_bytes(value)
         except (TypeError, ValueError) as exc:
-            raise IntegrityError('object revision is not canonical JSON') from exc
+            raise IntegrityError("object revision is not canonical JSON") from exc
         if canonical != data:
-            raise IntegrityError('object revision bytes are not canonical')
-        expected_name = f'{revision:08d}-{sha256_hex(data)}.json'
+            raise IntegrityError("object revision bytes are not canonical")
+        expected_name = f"{revision:08d}-{sha256_hex(data)}.json"
         if path.name != expected_name:
-            raise IntegrityError('object revision filename hash mismatch')
+            raise IntegrityError("object revision filename hash mismatch")
         return value

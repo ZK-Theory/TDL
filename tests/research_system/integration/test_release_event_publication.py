@@ -9,6 +9,7 @@ from research_system.authority import (
 )
 from research_system.command.service import CommandService
 from research_system.canonical import canonical_bytes
+import research_system.cli as cli_module
 from research_system.cli import main
 from research_system.evals.release_publication import verify_replayed_release
 from research_system.projection.replay import replay
@@ -71,20 +72,12 @@ def test_canonical_resolver_command_ledger_replay_and_release_are_bound(
 ) -> None:
     service, ledger, schemas, bootstrap = publication_service(tmp_path)
     authority_hash = bootstrap["publication_grant_sha256"]
-    original = service.submit(
-        publish_release_command(COMMAND_ID, authority_hash)
-    )
-    duplicate = service.submit(
-        publish_release_command(RETRY_ID, authority_hash)
-    )
+    original = service.submit(publish_release_command(COMMAND_ID, authority_hash))
+    duplicate = service.submit(publish_release_command(RETRY_ID, authority_hash))
     assert original.status == "accepted"
     assert duplicate == original
     events = tuple(ledger.iter_events())
-    publication = [
-        event
-        for event in events
-        if event["event_type"] == "ReleaseGateDecisionPublished"
-    ]
+    publication = [event for event in events if event["event_type"] == "ReleaseGateDecisionPublished"]
     assert len(publication) == 1
     event = publication[0]
     assert event["stream_id"] == RELEASE_DECISION_ID
@@ -113,9 +106,7 @@ def test_offline_cli_publish_retry_replay_and_release(
     capsys,
 ) -> None:
     control_root = tmp_path / "cli-control"
-    bootstrap = authority_bootstrap(
-        publication_expires_at="2099-01-01T00:00:00Z"
-    )
+    bootstrap = authority_bootstrap(publication_expires_at="2099-01-01T00:00:00Z")
     identity = initialize_authority_control_store(
         [ROOT],
         control_root,
@@ -162,9 +153,7 @@ def test_offline_cli_publish_retry_replay_and_release(
     def interrupt(_temporary):
         raise OSError("injected output interruption")
 
-    monkeypatch.setattr(
-        "research_system.cli._after_receipt_output_fsync", interrupt
-    )
+    monkeypatch.setattr("research_system.cli._after_receipt_output_fsync", interrupt)
     try:
         main(command)
     except OSError as exc:
@@ -172,9 +161,7 @@ def test_offline_cli_publish_retry_replay_and_release(
     else:  # pragma: no cover - fail closed if CLI starts swallowing OSError
         raise AssertionError("injected output interruption was not raised")
     assert not first_output.exists()
-    monkeypatch.setattr(
-        "research_system.cli._after_receipt_output_fsync", lambda _path: None
-    )
+    monkeypatch.setattr("research_system.cli._after_receipt_output_fsync", lambda _path: None)
 
     race_output = tmp_path / "receipt-race.json"
     command[-1] = str(race_output)
@@ -182,25 +169,28 @@ def test_offline_cli_publish_retry_replay_and_release(
     def create_race(_temporary):
         race_output.write_bytes(b"racing writer")
 
-    monkeypatch.setattr(
-        "research_system.cli._after_receipt_output_fsync", create_race
-    )
+    monkeypatch.setattr("research_system.cli._after_receipt_output_fsync", create_race)
     assert main(command) == 1
     capsys.readouterr()
     assert race_output.read_bytes() == b"racing writer"
-    monkeypatch.setattr(
-        "research_system.cli._after_receipt_output_fsync", lambda _path: None
-    )
+    monkeypatch.setattr("research_system.cli._after_receipt_output_fsync", lambda _path: None)
     command[-1] = str(first_output)
     assert main(command) == 0
     capsys.readouterr()
     second_output = tmp_path / "receipt-2.json"
     command[-1] = str(second_output)
+    checkout_producer = cli_module.run_p0_coverage
+    monkeypatch.setattr(
+        cli_module,
+        "run_p0_coverage",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("exact retry must use stored producer evidence")
+        ),
+    )
     assert main(command) == 0
     capsys.readouterr()
-    assert json.loads(first_output.read_text(encoding="utf-8")) == json.loads(
-        second_output.read_text(encoding="utf-8")
-    )
+    monkeypatch.setattr(cli_module, "run_p0_coverage", checkout_producer)
+    assert json.loads(first_output.read_text(encoding="utf-8")) == json.loads(second_output.read_text(encoding="utf-8"))
     changed_source = dict(source)
     changed_source["decided_at"] = "2026-07-14T04:00:00+00:00"
     changed_source_path = tmp_path / "evaluation-runs-changed.json"
@@ -213,15 +203,16 @@ def test_offline_cli_publish_retry_replay_and_release(
     changed_receipt = json.loads(changed_output.read_text(encoding="utf-8"))
     assert changed_receipt["status"] == "conflict"
     assert changed_receipt["reason_code"] == "idempotency_conflict"
-    assert len(
-        [
-            event
-            for event in EventLedger(
-                control_root, PROJECT_ID, SchemaRegistry(SCHEMAS)
-            ).iter_events()
-            if event["event_type"] == "ReleaseGateDecisionPublished"
-        ]
-    ) == 1
+    assert (
+        len(
+            [
+                event
+                for event in EventLedger(control_root, PROJECT_ID, SchemaRegistry(SCHEMAS)).iter_events()
+                if event["event_type"] == "ReleaseGateDecisionPublished"
+            ]
+        )
+        == 1
+    )
     command[-3] = str(evaluation_runs)
     schemas = SchemaRegistry(SCHEMAS)
     revocation_service = CommandService(
@@ -274,35 +265,37 @@ def test_offline_cli_publish_retry_replay_and_release(
     )
     assert main(["replay", "verify", "--control-root", str(control_root)]) == 0
     replayed = json.loads(capsys.readouterr().out)
-    assert replayed["release_decisions"][RELEASE_DECISION_ID][
-        "gate5_authorized"
-    ] is False
-    assert main(
-        [
-            "eval",
-            "release",
-            "--config",
-            str(config),
-            "--evaluation-runs",
-            str(evaluation_runs),
-        ]
-    ) == 1
+    assert replayed["release_decisions"][RELEASE_DECISION_ID]["gate5_authorized"] is False
+    assert (
+        main(
+            [
+                "eval",
+                "release",
+                "--config",
+                str(config),
+                "--evaluation-runs",
+                str(evaluation_runs),
+            ]
+        )
+        == 1
+    )
     capsys.readouterr()
     published = dict(source)
-    published["canonical_event_ref"] = replayed["release_decisions"][
-        RELEASE_DECISION_ID
-    ]["event_id"]
+    published["canonical_event_ref"] = replayed["release_decisions"][RELEASE_DECISION_ID]["event_id"]
     evaluation_runs.write_bytes(canonical_bytes(published))
-    assert main(
-        [
-            "eval",
-            "release",
-            "--config",
-            str(config),
-            "--evaluation-runs",
-            str(evaluation_runs),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "eval",
+                "release",
+                "--config",
+                str(config),
+                "--evaluation-runs",
+                str(evaluation_runs),
+            ]
+        )
+        == 0
+    )
     released = json.loads(capsys.readouterr().out)
     assert released["candidate_status"] == "blocked"
     assert released["gate5_authorized"] is False
@@ -314,18 +307,21 @@ def test_real_offline_cli_rederivation_reaches_published_release(
 ) -> None:
     coverage = ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
     source_path = tmp_path / "real-source.json"
-    assert main(
-        [
-            "eval",
-            "run",
-            "--coverage",
-            str(coverage),
-            "--transport",
-            "fake",
-            "--output",
-            str(source_path),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "eval",
+                "run",
+                "--coverage",
+                str(coverage),
+                "--transport",
+                "fake",
+                "--output",
+                str(source_path),
+            ]
+        )
+        == 0
+    )
     capsys.readouterr()
     source = json.loads(source_path.read_text(encoding="utf-8"))
     decision_id = source["release_gate_decision_id"]
@@ -354,22 +350,25 @@ def test_real_offline_cli_rederivation_reaches_published_release(
         )
     )
     receipt = tmp_path / "real-receipt.json"
-    assert main(
-        [
-            "eval",
-            "publish-release",
-            "--config",
-            str(config),
-            "--actor-id",
-            "act_01978abc-1002-7000-8000-000000001002",
-            "--authority-grant-id",
-            AUTHORITY_GRANT_ID,
-            "--evaluation-runs",
-            str(source_path),
-            "--output",
-            str(receipt),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "eval",
+                "publish-release",
+                "--config",
+                str(config),
+                "--actor-id",
+                "act_01978abc-1002-7000-8000-000000001002",
+                "--authority-grant-id",
+                AUTHORITY_GRANT_ID,
+                "--evaluation-runs",
+                str(source_path),
+                "--output",
+                str(receipt),
+            ]
+        )
+        == 0
+    )
     capsys.readouterr()
     schemas = SchemaRegistry(SCHEMAS)
     projection = replay(
@@ -377,21 +376,22 @@ def test_real_offline_cli_rederivation_reaches_published_release(
         schema_registry=schemas,
     )
     published = dict(source)
-    published["canonical_event_ref"] = projection["release_decisions"][
-        decision_id
-    ]["event_id"]
+    published["canonical_event_ref"] = projection["release_decisions"][decision_id]["event_id"]
     published_path = tmp_path / "real-published.json"
     published_path.write_bytes(canonical_bytes(published))
-    assert main(
-        [
-            "eval",
-            "release",
-            "--config",
-            str(config),
-            "--evaluation-runs",
-            str(published_path),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "eval",
+                "release",
+                "--config",
+                str(config),
+                "--evaluation-runs",
+                str(published_path),
+            ]
+        )
+        == 0
+    )
     released = json.loads(capsys.readouterr().out)
     assert released == {
         "candidate_status": "blocked",

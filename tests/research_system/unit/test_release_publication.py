@@ -1,5 +1,5 @@
-from copy import deepcopy
-from dataclasses import FrozenInstanceError, fields
+from copy import copy, deepcopy
+from dataclasses import FrozenInstanceError, asdict, fields
 from datetime import UTC, datetime
 from functools import lru_cache
 import inspect
@@ -40,6 +40,7 @@ from research_system.evals.harness import (
     run_p0_coverage,
 )
 from research_system.evals.release_snapshot import (
+    _result,
     build_release_snapshot_documents,
     rederive_release_from_snapshot,
 )
@@ -63,8 +64,8 @@ BATCH_ID = "txb_01978abc-2005-7000-8000-000000002005"
 
 
 @lru_cache(maxsize=1)
-def producer_snapshot() -> tuple[dict, dict, dict]:
-    """Build one exact cached fake W6/W7/W8 publication snapshot."""
+def producer_inputs():
+    """Build one exact cached set of typed fake W6/W7/W8 producer inputs."""
     coverage_path = ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
     evidence = run_p0_coverage(
         coverage_path,
@@ -72,6 +73,13 @@ def producer_snapshot() -> tuple[dict, dict, dict]:
         schema_root=ROOT / ".research-system" / "schemas",
     )
     scenarios = run_all_scenarios()
+    return evidence, scenarios
+
+
+@lru_cache(maxsize=1)
+def producer_snapshot() -> tuple[dict, dict, dict]:
+    """Build one exact cached fake W6/W7/W8 publication snapshot."""
+    evidence, scenarios = producer_inputs()
     record, _ = build_release_decision(
         evidence,
         scenarios,
@@ -184,8 +192,7 @@ def evidence_resolver(*, derived: dict | None = None, gate: object = False):
             resolved_manifest["project_id"] != PROJECT_ID
             or resolved_control["project_id"] != PROJECT_ID
             or resolved_control["store_identity"] != "4" * 64
-            or resolved_control["coverage_manifest_id"]
-            != resolved_source["coverage_manifest_id"]
+            or resolved_control["coverage_manifest_id"] != resolved_source["coverage_manifest_id"]
         ):
             raise ValueError("unit publication evidence binding mismatch")
         if derived is not None:
@@ -221,9 +228,7 @@ def canonical_publication_plane(tmp_path):
     ledger = EventLedger(control_root, PROJECT_ID, schemas)
     objects = ObjectStore(control_root)
     receipts = ReceiptStore(control_root)
-    service = CommandService(
-        control_root, ledger, objects, receipts, schemas
-    )
+    service = CommandService(control_root, ledger, objects, receipts, schemas)
     return SimpleNamespace(
         service=service,
         ledger=ledger,
@@ -292,9 +297,7 @@ def test_store_manifest_schema_root_ambiguity_fails_closed(tmp_path) -> None:
             root / ".research-system" / "schemas",
         )
     with pytest.raises(ConfigurationError, match="ambiguous schema roots"):
-        _schemas_for_store_manifest(
-            {"code_roots": [str(root) for root in roots]}
-        )
+        _schemas_for_store_manifest({"code_roots": [str(root) for root in roots]})
 
 
 def test_authority_resolver_rejects_missing_registry(tmp_path) -> None:
@@ -341,6 +344,93 @@ def test_full_canonical_evidence_is_rederived_and_bound() -> None:
     assert payload["release_decision"]["decision"] == "blocked"
     assert payload["gate5_authorized"] is False
     assert payload["candidate_status"] == "blocked"
+
+
+def test_snapshot_round_trips_every_grader_result_field_exactly() -> None:
+    evidence, _scenarios = producer_inputs()
+    _source, manifest, _control = producer_snapshot()
+    restored = tuple(_result(item) for item in manifest["release_results"])
+    assert tuple(asdict(item) for item in restored) == tuple(asdict(item) for item in evidence.results)
+    assert set(manifest["release_results"][0]) == {item.name for item in fields(type(evidence.results[0]))}
+
+
+def test_retained_policy_hash_cannot_attest_changed_policy_semantics() -> None:
+    _source, stored_manifest, stored_control = producer_snapshot()
+    manifest = deepcopy(stored_manifest)
+    manifest["canonical_policy_bundle"]["controls"][0]["failure_mode"] = "allow"
+    resolver = BoundReleasePublicationEvidence(
+        MANIFEST_REF,
+        manifest,
+        CONTROL_REF,
+        deepcopy(stored_control),
+        "4" * 64,
+        rederive_release_from_snapshot,
+    )
+    with pytest.raises(PublicationEvidenceError):
+        verify_release_publication(
+            ReleasePublicationRequest.from_dict(publication_request()),
+            resolver,
+            SchemaRegistry(ROOT / ".research-system" / "schemas"),
+        )
+
+
+@pytest.mark.parametrize(
+    "producer_boundary",
+    [
+        "coverage_selection",
+        "variant_row",
+        "variant_execution",
+        "variant_binding",
+        "observed_assertion",
+        "canonical_bundle",
+        "applicability_requirement",
+        "applicability_decision",
+        "applicability_operation",
+        "parity_evidence",
+        "parity_report_row",
+    ],
+)
+def test_release_evidence_schema_rejects_unknown_nested_fields(
+    producer_boundary,
+) -> None:
+    _source, stored_manifest, _stored_control = producer_snapshot()
+    manifest = deepcopy(stored_manifest)
+    if producer_boundary == "coverage_selection":
+        manifest["coverage"]["selected_fixture_revisions"][0].append("extra")
+    elif producer_boundary == "variant_row":
+        manifest["variant_rows"][0]["unexpected"] = True
+    elif producer_boundary == "variant_execution":
+        manifest["variant_executions"][0]["matrix_row"]["unexpected"] = True
+    elif producer_boundary == "variant_binding":
+        manifest["variant_executions"][0]["grader_result_bindings"][0].append(
+            "unexpected"
+        )
+    elif producer_boundary == "observed_assertion":
+        manifest["variant_executions"][0]["observed_assertions"][0][
+            "unexpected"
+        ] = True
+    elif producer_boundary == "canonical_bundle":
+        manifest["canonical_policy_bundle"]["unexpected"] = True
+    elif producer_boundary == "applicability_requirement":
+        manifest["policy_applicability"]["controls"][0]["provider_requirements"][0]["unexpected"] = True
+    elif producer_boundary == "applicability_decision":
+        manifest["policy_applicability"]["source"]["decision_payload"][
+            "unexpected"
+        ] = True
+    elif producer_boundary == "applicability_operation":
+        operations = manifest["policy_applicability"]["source"]["controls"][0][
+            "provider_requirements"
+        ][0]["canonical_observed_value"]["operations"]
+        next(iter(operations.values()))["unexpected"] = True
+    elif producer_boundary == "parity_evidence":
+        manifest["parity_evidence"][0]["unexpected"] = True
+    else:
+        manifest["parity_report"]["rows"][0]["unexpected"] = True
+    with pytest.raises(SchemaError):
+        SchemaRegistry(ROOT / ".research-system" / "schemas").validate(
+            "ars://evals/release-publication-evidence",
+            manifest,
+        )
 
 
 def test_stored_evidence_resolves_after_restart_and_rejects_byte_tamper(
@@ -400,12 +490,8 @@ def test_rederivation_callback_mutation_cannot_change_attested_snapshots() -> No
         mutating,
         SchemaRegistry(ROOT / ".research-system" / "schemas"),
     )
-    assert verified.evaluation_runs_manifest_sha256 == sha256_hex(
-        canonical_bytes(original_manifest)
-    )
-    assert verified.control_binding_sha256 == sha256_hex(
-        canonical_bytes(original_control)
-    )
+    assert verified.evaluation_runs_manifest_sha256 == sha256_hex(canonical_bytes(original_manifest))
+    assert verified.control_binding_sha256 == sha256_hex(canonical_bytes(original_control))
 
 
 def test_semantic_rederivation_mismatch_fails_closed() -> None:
@@ -432,7 +518,7 @@ def test_semantic_rederivation_mismatch_fails_closed() -> None:
         "control_version",
     ],
 )
-def test_typed_producer_snapshot_rejects_one_at_a_time_seam_tamper(
+def test_stored_snapshot_rejects_one_at_a_time_document_tamper(
     producer_seam,
 ) -> None:
     _source, stored_manifest, stored_control = producer_snapshot()
@@ -443,9 +529,7 @@ def test_typed_producer_snapshot_rejects_one_at_a_time_seam_tamper(
     elif producer_seam == "result_trace":
         manifest["release_results"][0]["trace_hash"] = "0" * 64
     elif producer_seam == "variant_execution":
-        manifest["variant_executions"][0]["observed_assertions"][0][
-            "canonical_observed_value"
-        ] = {"tampered": True}
+        manifest["variant_executions"][0]["observed_assertions"][0]["canonical_observed_value"] = {"tampered": True}
     elif producer_seam == "parity_evidence":
         manifest["parity_evidence"][0]["evidence_hash"] = "0" * 64
     elif producer_seam == "parity_report":
@@ -472,6 +556,94 @@ def test_typed_producer_snapshot_rejects_one_at_a_time_seam_tamper(
         )
 
 
+@pytest.mark.parametrize(
+    "producer_seam",
+    [
+        "grader_results",
+        "variant_execution",
+        "parity_evidence",
+        "parity_report",
+        "applicability",
+        "operations_scenarios",
+    ],
+)
+def test_public_verifier_rejects_pre_serialization_producer_perturbation(
+    producer_seam,
+) -> None:
+    evidence, scenarios = producer_inputs()
+    evidence = copy(evidence)
+    if producer_seam == "grader_results":
+        object.__setattr__(evidence, "results", evidence.results[:-1])
+    elif producer_seam == "variant_execution":
+        object.__setattr__(
+            evidence,
+            "variant_executions",
+            evidence.variant_executions[:-1],
+        )
+    elif producer_seam == "parity_evidence":
+        object.__setattr__(
+            evidence,
+            "parity_evidence",
+            evidence.parity_evidence[:-1],
+        )
+    elif producer_seam == "parity_report":
+        report = copy(evidence.parity_report)
+        object.__setattr__(report, "report_hash", "0" * 64)
+        object.__setattr__(evidence, "parity_report", report)
+    elif producer_seam == "applicability":
+        applicability = copy(evidence.policy_applicability)
+        object.__setattr__(
+            applicability,
+            "applicability_hash",
+            "0" * 64,
+        )
+        object.__setattr__(evidence, "policy_applicability", applicability)
+    else:
+        scenarios = scenarios[:-1]
+    source = deepcopy(producer_snapshot()[0])
+    manifest, control = build_release_snapshot_documents(
+        evidence,
+        scenarios,
+        source,
+        project_id=PROJECT_ID,
+        store_identity="4" * 64,
+    )
+    resolver = BoundReleasePublicationEvidence(
+        MANIFEST_REF,
+        manifest,
+        CONTROL_REF,
+        control,
+        "4" * 64,
+        rederive_release_from_snapshot,
+    )
+    with pytest.raises(PublicationEvidenceError):
+        verify_release_publication(
+            ReleasePublicationRequest.from_dict(publication_request()),
+            resolver,
+            SchemaRegistry(ROOT / ".research-system" / "schemas"),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("grader_result_id", "grr_invalid"),
+        ("evaluation_run_id", "run_invalid"),
+        ("executed_by_actor_id", "act_invalid"),
+        ("evidence_refs", ["trc_invalid"]),
+    ],
+)
+def test_release_result_identity_tamper_fails_closed(field, invalid) -> None:
+    _source, stored_manifest, _control = producer_snapshot()
+    manifest = deepcopy(stored_manifest)
+    manifest["release_results"][0][field] = invalid
+    with pytest.raises(SchemaError):
+        SchemaRegistry(ROOT / ".research-system" / "schemas").validate(
+            "ars://evals/release-publication-evidence",
+            manifest,
+        )
+
+
 def test_stored_snapshot_rederivation_does_not_rediscover_current_checkout(
     tmp_path,
     monkeypatch,
@@ -486,9 +658,7 @@ def test_stored_snapshot_rederivation_does_not_rediscover_current_checkout(
     objects.write("artefact", control_ref, 1, control)
     monkeypatch.setattr(
         "research_system.cli.run_p0_coverage",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("checkout producer must not be rediscovered")
-        ),
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("checkout producer must not be rediscovered")),
     )
     verified = verify_release_publication(
         ReleasePublicationRequest.from_dict(
@@ -505,9 +675,7 @@ def test_stored_snapshot_rederivation_does_not_rediscover_current_checkout(
         ),
         SchemaRegistry(ROOT / ".research-system" / "schemas"),
     )
-    assert verified.source_decision_sha256 == sha256_hex(
-        canonical_bytes(source_decision())
-    )
+    assert verified.source_decision_sha256 == sha256_hex(canonical_bytes(source_decision()))
 
 
 def test_concurrent_identical_producer_snapshot_writes_are_idempotent(
@@ -595,6 +763,15 @@ def test_caller_built_release_draft_cannot_bypass_command_service(
         }
     }
     ledger = EventLedger(tmp_path / "control", PROJECT_ID)
+    service = CommandService(
+        ledger.control_root,
+        ledger,
+        ObjectStore(ledger.control_root),
+        ReceiptStore(ledger.control_root),
+        schemas,
+    )
+    assert not hasattr(ledger, "_release_draft_capability")
+    assert not hasattr(service, "_release_draft_factory")
     constructor = EventDraft
     with pytest.raises(ArsError, match="CommandService"):
         caller_draft = constructor(
@@ -602,14 +779,118 @@ def test_caller_built_release_draft_cannot_bypass_command_service(
             lambda allocated: verified.payload_for(allocated.event_id),
         )
         ledger.append([caller_draft])
-    forged_internal = EventDraft._authorized(
-        base,
-        lambda allocated: verified.payload_for(allocated.event_id),
-        None,
-    )
-    with pytest.raises(ArsError, match="CommandService"):
+    with pytest.raises(ArsError, match="issued by this ledger"):
+        forged_internal = object.__new__(EventDraft)
+        object.__setattr__(forged_internal, "envelope", base)
+        object.__setattr__(
+            forged_internal,
+            "finalize_payload",
+            lambda allocated: verified.payload_for(allocated.event_id),
+        )
         ledger.append([forged_internal])
     assert tuple(ledger.iter_events()) == ()
+
+
+def test_release_draft_is_bound_to_one_ledger_and_consumed_once(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
+    verified = verify_release_publication(
+        ReleasePublicationRequest.from_dict(publication_request()),
+        evidence_resolver(),
+        schemas,
+    )
+    base = {
+        key: value
+        for key, value in published_event().items()
+        if key
+        not in {
+            "event_id",
+            "project_id",
+            "stream_version",
+            "global_position",
+            "transaction_id",
+            "transaction_index",
+            "transaction_count",
+            "recorded_at",
+            "payload",
+            "previous_event_hash",
+            "event_hash",
+        }
+    }
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    first = control_plane(first_root)
+    second = control_plane(second_root)
+    captured = []
+    consume = first.ledger._consume_release_draft
+
+    def capture(draft):
+        captured.append(draft)
+        consume(draft)
+
+    monkeypatch.setattr(first.ledger, "_consume_release_draft", capture)
+    first.ledger._append_release_from_command_service(
+        first.service,
+        base,
+        lambda allocated: verified.payload_for(allocated.event_id),
+    )
+    assert len(captured) == 1
+    consumed = captured[0]
+    with pytest.raises(ArsError, match="ledger"):
+        second.ledger.append([consumed])
+    assert tuple(second.ledger.iter_events()) == ()
+    with pytest.raises(ArsError, match="consumed|ledger"):
+        first.ledger.append([consumed])
+    assert len(tuple(first.ledger.iter_events())) == 1
+
+
+def test_release_append_requires_exact_registered_release_schema(tmp_path) -> None:
+    schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
+    schemas._schemas.pop("ars://core/event/ReleaseGateDecisionPublished")
+    control_root = tmp_path / "control"
+    ledger = EventLedger(control_root, PROJECT_ID, schemas)
+    service = CommandService(
+        control_root,
+        ledger,
+        ObjectStore(control_root),
+        ReceiptStore(control_root),
+        schemas,
+    )
+    verified = verify_release_publication(
+        ReleasePublicationRequest.from_dict(publication_request()),
+        evidence_resolver(),
+        SchemaRegistry(ROOT / ".research-system" / "schemas"),
+    )
+    envelope = {
+        key: value
+        for key, value in published_event().items()
+        if key
+        not in {
+            "event_id",
+            "project_id",
+            "stream_version",
+            "global_position",
+            "transaction_id",
+            "transaction_index",
+            "transaction_count",
+            "recorded_at",
+            "payload",
+            "previous_event_hash",
+            "event_hash",
+        }
+    }
+    with pytest.raises(SchemaError, match="ReleaseGateDecisionPublished"):
+        ledger._append_release_from_command_service(
+            service,
+            envelope,
+            lambda allocated: verified.payload_for(allocated.event_id),
+        )
+    assert tuple(ledger.iter_events()) == ()
+    assert list(control_root.rglob("*.jsonl")) == []
 
 
 def test_valid_publication_request_fails_closed_without_authorizer(tmp_path) -> None:
@@ -625,9 +906,7 @@ def test_authorized_verified_command_publishes_one_self_referential_event(
 ) -> None:
     harness = control_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256="a" * 64
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     receipt = harness.service.submit(publication_command())
@@ -644,22 +923,21 @@ def test_authority_store_init_is_idempotent_after_release_publication(
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256=harness.authority_hash
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
     )
     harness.service.release_publication_evidence = evidence_resolver()
-    assert harness.service.submit(canonical_publication_command(harness)).status == (
-        "accepted"
-    )
+    assert harness.service.submit(canonical_publication_command(harness)).status == ("accepted")
     bootstrap = authority_bootstrap()
-    assert initialize_authority_control_store(
-        [ROOT],
-        harness.ledger.control_root,
-        PROJECT_ID,
-        bootstrap,
-        authority_bootstrap_sha256(bootstrap),
-    ) == harness.identity
+    assert (
+        initialize_authority_control_store(
+            [ROOT],
+            harness.ledger.control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+        == harness.identity
+    )
 
 
 def test_rejected_exact_retry_with_new_command_id_returns_original_outcome(
@@ -668,14 +946,10 @@ def test_rejected_exact_retry_with_new_command_id_returns_original_outcome(
     harness = control_plane(tmp_path)
     original = harness.service.submit(publication_command())
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256="a" * 64
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
     )
     harness.service.release_publication_evidence = evidence_resolver()
-    retry = publication_command(
-        "cmd_01978abc-2006-7000-8000-000000002006"
-    )
+    retry = publication_command("cmd_01978abc-2006-7000-8000-000000002006")
     assert harness.service.submit(retry) == original
     assert tuple(harness.ledger.iter_events()) == ()
 
@@ -685,9 +959,7 @@ def test_scoped_retry_with_changed_payload_returns_conflict_without_event(
 ) -> None:
     harness = control_plane(tmp_path)
     harness.service.submit(publication_command())
-    changed = publication_command(
-        "cmd_01978abc-2007-7000-8000-000000002007"
-    )
+    changed = publication_command("cmd_01978abc-2007-7000-8000-000000002007")
     changed_ref = "art_01978abc-2008-7000-8000-000000002008"
     changed["payload"] = {
         **changed["payload"],
@@ -705,16 +977,11 @@ def test_accepted_exact_retry_with_new_command_id_returns_original_event(
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256=harness.authority_hash
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     original = harness.service.submit(canonical_publication_command(harness))
-    retry = canonical_publication_command(
-        harness,
-        "cmd_01978abc-2009-7000-8000-000000002009"
-    )
+    retry = canonical_publication_command(harness, "cmd_01978abc-2009-7000-8000-000000002009")
     assert harness.service.submit(retry) == original
     assert len(tuple(harness.ledger.iter_events())) == 3
 
@@ -735,9 +1002,7 @@ def test_historical_publication_retry_and_eval_survive_later_revocation(
     harness.service.clock = lambda: datetime(2026, 7, 12, 12, tzinfo=UTC)
     original = harness.service.submit(canonical_publication_command(harness))
     assert original.status == "accepted"
-    assert harness.service.submit(revoke_publication_command(harness)).status == (
-        "accepted"
-    )
+    assert harness.service.submit(revoke_publication_command(harness)).status == ("accepted")
 
     retry = canonical_publication_command(
         harness,
@@ -760,14 +1025,17 @@ def test_historical_publication_retry_and_eval_survive_later_revocation(
     projection = replay(harness.ledger.iter_events(), schema_registry=schemas)
     assert projection["authority_grants"][GRANT_ID]["status"] == "revoked"
     record = projection["release_decisions"][DECISION_ID]
-    assert verify_replayed_release(
-        record["release_decision"],
-        source_decision(),
-        projection,
-        PROJECT_ID,
-        evidence_resolver(),
-        schemas,
-    ) == record
+    assert (
+        verify_replayed_release(
+            record["release_decision"],
+            source_decision(),
+            projection,
+            PROJECT_ID,
+            evidence_resolver(),
+            schemas,
+        )
+        == record
+    )
 
 
 def test_authority_identity_lookup_survives_expiry_without_authorizing_use(
@@ -793,6 +1061,40 @@ def test_authority_identity_lookup_survives_expiry_without_authorizing_use(
             DECISION_ID,
             datetime(2026, 7, 14, tzinfo=UTC),
         )
+
+
+def test_authority_resolution_replays_one_verified_projection(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    harness = canonical_publication_plane(tmp_path)
+    schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
+    authority = LedgerAuthorityGrantResolver(
+        harness.ledger.control_root,
+        PROJECT_ID,
+        harness.identity,
+        schemas,
+    )
+    calls = 0
+    project = authority._projection
+
+    def counted_projection():
+        nonlocal calls
+        calls += 1
+        return project()
+
+    monkeypatch.setattr(authority, "_projection", counted_projection)
+    command = canonical_publication_command(harness)
+    authority.resolve(
+        GRANT_ID,
+        command["actor_id"],
+        "PublishReleaseGateDecision",
+        PROJECT_ID,
+        "release_gate_decision",
+        DECISION_ID,
+        datetime(2026, 7, 12, 12, tzinfo=UTC),
+    )
+    assert calls == 1
 
 
 @pytest.mark.parametrize(
@@ -830,9 +1132,7 @@ def test_publication_schemas_reject_forbidden_surfaces(target, value) -> None:
         elif target == "event_authorized":
             document["payload"]["gate5_authorized"] = value
         else:
-            document["payload"]["release_decision"][
-                "canonical_event_ref"
-            ] = value
+            document["payload"]["release_decision"]["canonical_event_ref"] = value
         schema_id = "ars://core/event/ReleaseGateDecisionPublished"
     with pytest.raises(SchemaError):
         registry.validate(schema_id, document)
@@ -886,9 +1186,9 @@ def test_release_draft_cannot_supply_noop_validation_or_append_invalid_payload(
     assert {item.name for item in fields(EventDraft)} == {
         "envelope",
         "finalize_payload",
-        "_capability",
     }
     ledger = EventLedger(tmp_path / "trusted", PROJECT_ID)
+
     def invalid_payload(allocated):
         payload = deepcopy(event["payload"])
         payload["release_decision"]["canonical_event_ref"] = allocated.event_id
@@ -906,9 +1206,7 @@ def test_replay_requires_schema_validation_and_rejects_self_reference_tamper(
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256=harness.authority_hash
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     harness.service.submit(canonical_publication_command(harness))
@@ -917,13 +1215,9 @@ def test_replay_requires_schema_validation_and_rejects_self_reference_tamper(
     with pytest.raises(IntegrityError, match="schema validator unavailable"):
         replay(events)
     schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
-    assert replay(events, schema_registry=schemas)["release_decisions"][
-        DECISION_ID
-    ]["candidate_status"] == "blocked"
+    assert replay(events, schema_registry=schemas)["release_decisions"][DECISION_ID]["candidate_status"] == "blocked"
     tampered = deepcopy(event)
-    tampered["payload"]["release_decision"]["canonical_event_ref"] = (
-        "evt_01978abc-2010-7000-8000-000000002010"
-    )
+    tampered["payload"]["release_decision"]["canonical_event_ref"] = "evt_01978abc-2010-7000-8000-000000002010"
     unsigned = dict(tampered)
     unsigned.pop("event_hash")
     tampered["event_hash"] = sha256_hex(canonical_bytes(unsigned))
@@ -947,9 +1241,7 @@ def test_replay_rejects_release_source_and_chain_tamper(
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256=harness.authority_hash
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     harness.service.submit(canonical_publication_command(harness))
@@ -960,9 +1252,7 @@ def test_replay_rejects_release_source_and_chain_tamper(
     elif tamper == "previous_hash":
         event["previous_event_hash"] = "1" * 64
     elif tamper == "authority_id":
-        event["payload"]["publication_authority_grant_id"] = (
-            "agr_01978abc-9997-7000-8000-000000009997"
-        )
+        event["payload"]["publication_authority_grant_id"] = "agr_01978abc-9997-7000-8000-000000009997"
     else:
         event["payload"]["publication_authority_sha256"] = "0" * 64
     unsigned = dict(event)
@@ -1030,9 +1320,7 @@ def test_release_resolution_rejects_sentinel_unknown_foreign_and_projection_tamp
     elif tamper == "projection_source":
         record["source_decision_sha256"] = "0" * 64
     elif tamper == "event_ref":
-        published["canonical_event_ref"] = (
-            "evt_01978abc-9998-7000-8000-000000009998"
-        )
+        published["canonical_event_ref"] = "evt_01978abc-9998-7000-8000-000000009998"
     elif tamper == "manifest_hash":
         record["evaluation_runs_manifest_sha256"] = "0" * 64
     elif tamper == "control_hash":
@@ -1040,9 +1328,7 @@ def test_release_resolution_rejects_sentinel_unknown_foreign_and_projection_tamp
     elif tamper == "authority_hash":
         record["publication_authority_sha256"] = "0" * 64
     elif tamper == "authority_id":
-        record["publication_authority_grant_id"] = (
-            "agr_01978abc-9997-7000-8000-000000009997"
-        )
+        record["publication_authority_grant_id"] = "agr_01978abc-9997-7000-8000-000000009997"
     elif tamper == "authorized":
         record["gate5_authorized"] = True
     else:
@@ -1101,9 +1387,7 @@ def test_foreign_project_binding_is_a_stable_rejection(tmp_path) -> None:
 def test_stale_expected_version_conflicts_without_append(tmp_path) -> None:
     harness = control_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256="a" * 64
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     command = publication_command()
@@ -1118,15 +1402,11 @@ def test_stale_expected_version_conflicts_without_append(tmp_path) -> None:
 def test_distinct_command_cannot_republish_existing_decision(tmp_path) -> None:
     harness = control_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256="a" * 64
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     harness.service.submit(publication_command())
-    second = publication_command(
-        "cmd_01978abc-2012-7000-8000-000000002012"
-    )
+    second = publication_command("cmd_01978abc-2012-7000-8000-000000002012")
     second["idempotency_key"] = "release-publication:distinct"
     second["payload"] = {
         **second["payload"],
@@ -1144,9 +1424,7 @@ def test_index_first_receipt_crash_recovers_exactly_one_publication(
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256=harness.authority_hash
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     original_write = harness.receipts.write
@@ -1160,10 +1438,7 @@ def test_index_first_receipt_crash_recovers_exactly_one_publication(
     assert len(tuple(harness.ledger.iter_events())) == 3
     monkeypatch.setattr(harness.receipts, "write", original_write)
     recovered = harness.service.submit(
-        canonical_publication_command(
-            harness,
-            "cmd_01978abc-2013-7000-8000-000000002013"
-        )
+        canonical_publication_command(harness, "cmd_01978abc-2013-7000-8000-000000002013")
     )
     assert recovered.status == "accepted"
     assert len(tuple(harness.ledger.iter_events())) == 3
@@ -1175,9 +1450,7 @@ def test_concurrent_exact_publications_serialize_to_one_original_receipt(
 ) -> None:
     harness = canonical_publication_plane(tmp_path)
     harness.service.authority_resolver = SimpleNamespace(
-        resolve=lambda *_args: SimpleNamespace(
-            authority_grant_sha256=harness.authority_hash
-        )
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256=harness.authority_hash)
     )
     harness.service.release_publication_evidence = evidence_resolver()
     entered = threading.Event()
@@ -1210,17 +1483,10 @@ def test_concurrent_exact_publications_serialize_to_one_original_receipt(
         except Exception as exc:  # pragma: no branch - asserted below
             errors.append(exc)
 
-    first = threading.Thread(
-        target=submit, args=(canonical_publication_command(harness),)
-    )
+    first = threading.Thread(target=submit, args=(canonical_publication_command(harness),))
     second = threading.Thread(
         target=submit,
-        args=(
-                canonical_publication_command(
-                    harness,
-                    "cmd_01978abc-2014-7000-8000-000000002014"
-                ),
-        ),
+        args=(canonical_publication_command(harness, "cmd_01978abc-2014-7000-8000-000000002014"),),
     )
     first.start()
     assert entered.wait(2)

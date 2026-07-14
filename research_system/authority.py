@@ -169,9 +169,7 @@ class AuthorityGrant:
         if not isinstance(risk, str) or risk not in {"R0", "R1", "R2", "R3"}:
             raise ValueError("invalid risk ceiling")
         effective_at = _utc(value["effective_at"], "effective_at")
-        expires_at = (
-            None if value["expires_at"] is None else _utc(value["expires_at"], "expires_at")
-        )
+        expires_at = None if value["expires_at"] is None else _utc(value["expires_at"], "expires_at")
         if expires_at is not None and expires_at <= effective_at:
             raise ValueError("expires_at must be strictly after effective_at")
         scope = AuthorityScope.from_dict(value["subject_scope"])
@@ -232,17 +230,21 @@ def authority_bootstrap_sha256(value: object) -> str:
 
 
 def _manifest_hash(manifest: dict[str, Any]) -> str:
-    return sha256_hex(
-        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
-    )
+    return sha256_hex(canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"}))
 
 
 def _validate_bootstrap(value: object, project_id: str) -> tuple[dict[str, Any], AuthorityGrant, AuthorityGrant]:
     canonical_bytes(value)
     fields = {
-        "schema_id", "schema_version", "project_id", "owner_actor_id",
-        "root_grant", "root_grant_sha256", "publication_grant",
-        "publication_grant_sha256", "publication_target_id",
+        "schema_id",
+        "schema_version",
+        "project_id",
+        "owner_actor_id",
+        "root_grant",
+        "root_grant_sha256",
+        "publication_grant",
+        "publication_grant_sha256",
+        "publication_target_id",
     }
     if not isinstance(value, dict) or set(value) != fields:
         raise ValueError("authority bootstrap fields must be exact")
@@ -256,7 +258,10 @@ def _validate_bootstrap(value: object, project_id: str) -> tuple[dict[str, Any],
     target = validate_id(str(value["publication_target_id"]), "release_gate_decision")
     if root.actor_id != owner or publication.actor_id != owner:
         raise ValueError("authority bootstrap actor mismatch")
-    if root.canonical_sha256 != value["root_grant_sha256"] or publication.canonical_sha256 != value["publication_grant_sha256"]:
+    if (
+        root.canonical_sha256 != value["root_grant_sha256"]
+        or publication.canonical_sha256 != value["publication_grant_sha256"]
+    ):
         raise ValueError("authority bootstrap grant hash mismatch")
     if root.allowed_command_types != ("RevokeAuthorityGrant",):
         raise ValueError("administrative root command scope mismatch")
@@ -320,8 +325,7 @@ def _verify_bootstrap_bindings(
         raise IntegrityError("authority bootstrap genesis command mismatch")
     if (
         root_event.get("event_type") != "AuthorityRootInitialized"
-        or root_event.get("schema_id")
-        != "ars://core/event/AuthorityRootInitialized"
+        or root_event.get("schema_id") != "ars://core/event/AuthorityRootInitialized"
         or root_event.get("stream_id") != root.authority_grant_id
         or root_event.get("payload")
         != {
@@ -335,8 +339,7 @@ def _verify_bootstrap_bindings(
         raise IntegrityError("authority bootstrap root binding mismatch")
     if (
         publication_event.get("event_type") != "AuthorityGrantActivated"
-        or publication_event.get("schema_id")
-        != "ars://core/event/AuthorityGrantActivated"
+        or publication_event.get("schema_id") != "ars://core/event/AuthorityGrantActivated"
         or publication_event.get("stream_id") != publication.authority_grant_id
         or publication_event.get("payload")
         != {
@@ -353,10 +356,8 @@ def _verify_bootstrap_bindings(
         or projection.get("bootstrap_manifest_sha256") != bootstrap_hash
         or projection.get("authority_root_id") != root.authority_grant_id
         or set(grants) != {root.authority_grant_id, publication.authority_grant_id}
-        or grants[root.authority_grant_id].get("authority_grant_sha256")
-        != root.canonical_sha256
-        or grants[publication.authority_grant_id].get("authority_grant_sha256")
-        != publication.canonical_sha256
+        or grants[root.authority_grant_id].get("authority_grant_sha256") != root.canonical_sha256
+        or grants[publication.authority_grant_id].get("authority_grant_sha256") != publication.canonical_sha256
     ):
         raise IntegrityError("authority bootstrap projection mismatch")
 
@@ -467,9 +468,7 @@ def _load_bound_manifest(store_root: Path, expected_control_root: Path) -> dict[
         "schema_version": manifest.get("schema_version"),
         "store_nonce": manifest.get("store_nonce"),
         "project_id": manifest.get("project_id"),
-        "bootstrap_manifest_sha256": manifest.get(
-            "bootstrap_manifest_sha256"
-        ),
+        "bootstrap_manifest_sha256": manifest.get("bootstrap_manifest_sha256"),
     }
     if (
         manifest.get("schema_id") != "ars://core/store-identity"
@@ -480,9 +479,7 @@ def _load_bound_manifest(store_root: Path, expected_control_root: Path) -> dict[
     return manifest
 
 
-def _read_event_batches(
-    store_root: Path, project_id: str
-) -> tuple[tuple[dict[str, Any], ...], ...]:
+def _read_event_batches(store_root: Path, project_id: str) -> tuple[tuple[dict[str, Any], ...], ...]:
     events_root = store_root / "events" / project_id
     if not events_root.is_dir():
         raise IntegrityError("authority event store missing")
@@ -494,11 +491,7 @@ def _read_event_batches(
     batches: list[tuple[dict[str, Any], ...]] = []
     try:
         for path in paths:
-            batch = tuple(
-                json.loads(line)
-                for line in path.read_text(encoding="utf-8").splitlines()
-                if line
-            )
+            batch = tuple(json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line)
             if not batch:
                 raise IntegrityError("authority event batch is empty")
             batches.append(batch)
@@ -585,17 +578,11 @@ def _matching_complete_stage(
 def _authority_schema_registry(code_roots: list[Path]) -> SchemaRegistry:
     """Resolve the one trusted registered schema root for store verification."""
     schema_roots = {
-        root / ".research-system" / "schemas"
-        for root in code_roots
-        if (root / ".research-system" / "schemas").is_dir()
+        root / ".research-system" / "schemas" for root in code_roots if (root / ".research-system" / "schemas").is_dir()
     }
     if len(schema_roots) > 1:
         raise ArsError("authority bootstrap requires one canonical schema root")
-    return (
-        SchemaRegistry(schema_roots.pop())
-        if schema_roots
-        else bundled_schema_registry()
-    )
+    return SchemaRegistry(schema_roots.pop()) if schema_roots else bundled_schema_registry()
 
 
 def initialize_authority_control_store(
@@ -659,10 +646,7 @@ def initialize_authority_control_store(
         bootstrap_schemas,
     )
     if resumed is None:
-        stage = final_root.with_name(
-            f".{final_root.name}.authority-stage-"
-            f"{bootstrap_hash[:12]}-{secrets.token_hex(4)}"
-        )
+        stage = final_root.with_name(f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}")
         stage.mkdir()
         for name in (
             "objects",
@@ -675,9 +659,7 @@ def initialize_authority_control_store(
             (stage / name).mkdir()
         _write_stage_marker(stage, bootstrap_hash, "building")
         _bootstrap_failpoint("after-stage-marker")
-        identity = _write_identity(
-            stage, final_root, resolved_codes, project_id, bootstrap_hash
-        )
+        identity = _write_identity(stage, final_root, resolved_codes, project_id, bootstrap_hash)
         _bootstrap_failpoint("after-identity")
         _write_durable(
             stage / "manifests" / "authority-bootstrap.json",
@@ -686,9 +668,7 @@ def initialize_authority_control_store(
         )
         _bootstrap_failpoint("after-bootstrap")
         objects = ObjectStore(stage)
-        objects.write(
-            "authority_grant", root.authority_grant_id, 1, value["root_grant"]
-        )
+        objects.write("authority_grant", root.authority_grant_id, 1, value["root_grant"])
         _bootstrap_failpoint("after-root-object")
         objects.write(
             "authority_grant",
@@ -772,9 +752,7 @@ def initialize_authority_control_store(
                 bootstrap_schemas,
             )
         except (ArsError, OSError) as verify_error:
-            raise ConflictError(
-                "competing authority initializer published a foreign store"
-            ) from verify_error
+            raise ConflictError("competing authority initializer published a foreign store") from verify_error
         _remove_stage_marker(final_root)
         _fsync_directory(final_root.parent)
         return winner_identity
@@ -869,9 +847,48 @@ class LedgerAuthorityGrantResolver:
             grant = AuthorityGrant.from_dict(value)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             raise IntegrityError("authority grant object invalid") from exc
-        if grant.authority_grant_id != grant_id or grant.canonical_sha256 != record["authority_grant_sha256"] or not matches[0].name.endswith(f"-{grant.canonical_sha256}.json"):
+        if (
+            grant.authority_grant_id != grant_id
+            or grant.canonical_sha256 != record["authority_grant_sha256"]
+            or not matches[0].name.endswith(f"-{grant.canonical_sha256}.json")
+        ):
             raise IntegrityError("authority grant object hash mismatch")
         return grant, record
+
+    def _resolution_from_projection(
+        self,
+        grant_id: str,
+        projection: dict[str, Any],
+    ) -> tuple[AuthorityGrantResolution, AuthorityGrant, dict[str, Any]]:
+        grant, record = self._load_grant(grant_id, projection)
+        result = AuthorityGrantResolution(
+            authority_grant_id=grant_id,
+            authority_grant_sha256=grant.canonical_sha256,
+            actor_id=grant.actor_id,
+            subject_scope=grant.subject_scope,
+            effective_at=grant.effective_at,
+            expires_at=grant.expires_at,
+            activation_event_id=record["activation_event_id"],
+            activation_position=record["activation_position"],
+            status=record["status"],
+            revocation_event_id=record.get("revocation_event_id"),
+        )
+        return result, grant, record
+
+    @staticmethod
+    def _validate_current_grant(
+        grant: AuthorityGrant,
+        record: dict[str, Any],
+        now: datetime,
+    ) -> None:
+        if now.tzinfo != UTC:
+            raise ValueError("trusted authority time must be UTC")
+        if record["status"] == "revoked":
+            raise ArsError("authority grant revoked")
+        if now < grant.effective_at:
+            raise ArsError("authority grant not effective")
+        if grant.expires_at is not None and now >= grant.expires_at:
+            raise ArsError("authority grant expired")
 
     def grant_at(self, grant_id: str, now: datetime) -> AuthorityGrantResolution:
         """Resolve a currently active grant at a trusted UTC time.
@@ -888,17 +905,9 @@ class LedgerAuthorityGrantResolver:
             ArsError: If the grant is unavailable, inactive, or out of time.
             IntegrityError: If canonical store evidence is invalid.
         """
-        if now.tzinfo != UTC:
-            raise ValueError("trusted authority time must be UTC")
-        result = self.grant_identity(grant_id)
         projection = self._projection()
-        grant, record = self._load_grant(grant_id, projection)
-        if record["status"] == "revoked":
-            raise ArsError("authority grant revoked")
-        if now < grant.effective_at:
-            raise ArsError("authority grant not effective")
-        if grant.expires_at is not None and now >= grant.expires_at:
-            raise ArsError("authority grant expired")
+        result, grant, record = self._resolution_from_projection(grant_id, projection)
+        self._validate_current_grant(grant, record, now)
         return result
 
     def grant_identity(self, grant_id: str) -> AuthorityGrantResolution:
@@ -915,21 +924,19 @@ class LedgerAuthorityGrantResolver:
             IntegrityError: If canonical store evidence is invalid.
         """
         projection = self._projection()
-        grant, record = self._load_grant(grant_id, projection)
-        return AuthorityGrantResolution(
-            grant_id,
-            grant.canonical_sha256,
-            grant.actor_id,
-            grant.subject_scope,
-            grant.effective_at,
-            grant.expires_at,
-            record["activation_event_id"],
-            record["activation_position"],
-            record["status"],
-            record.get("revocation_event_id"),
-        )
+        result, _, _ = self._resolution_from_projection(grant_id, projection)
+        return result
 
-    def resolve(self, grant_id: str, actor_id: str, command_type: str, project_id: str, subject_kind: str, subject_id: str, now: datetime) -> AuthorityGrantResolution:
+    def resolve(
+        self,
+        grant_id: str,
+        actor_id: str,
+        command_type: str,
+        project_id: str,
+        subject_kind: str,
+        subject_id: str,
+        now: datetime,
+    ) -> AuthorityGrantResolution:
         """Resolve a grant and enforce its exact actor, command, and subject scope.
 
         Args:
@@ -949,9 +956,9 @@ class LedgerAuthorityGrantResolver:
             IntegrityError: If canonical store evidence is invalid.
             ValueError: If an identity or trusted time is malformed.
         """
-        result = self.grant_at(grant_id, now)
         projection = self._projection()
-        grant, _ = self._load_grant(grant_id, projection)
+        result, grant, record = self._resolution_from_projection(grant_id, projection)
+        self._validate_current_grant(grant, record, now)
         if result.actor_id != actor_id:
             raise ArsError("authority actor mismatch")
         if command_type not in grant.allowed_command_types:

@@ -52,12 +52,8 @@ ACCEPTED_DG55_DECISION_PAYLOAD = {
         "property": "adapter_policy_parity",
     },
 }
-ACCEPTED_DG55_DECISION_RECORD_HASH = sha256_hex(
-    canonical_bytes(ACCEPTED_DG55_DECISION_PAYLOAD)
-)
-ACCEPTED_DG55_APPLICABILITY_HASH = (
-    "fa81d6de64ea73575ac3fe715b38984ef7c99e9ec1761736711094a26bb1d7b0"
-)
+ACCEPTED_DG55_DECISION_RECORD_HASH = sha256_hex(canonical_bytes(ACCEPTED_DG55_DECISION_PAYLOAD))
+ACCEPTED_DG55_APPLICABILITY_HASH = "fa81d6de64ea73575ac3fe715b38984ef7c99e9ec1761736711094a26bb1d7b0"
 
 
 def _read_yaml(path: Path | str) -> dict[str, Any]:
@@ -79,13 +75,43 @@ def load_canonical_policy_bundle(path: Path | str) -> CanonicalPolicyBundle:
     Raises:
         ValueError: If the document or accepted control set is malformed.
     """
-    payload = _read_yaml(path)
+    return canonical_policy_bundle_from_payload(_read_yaml(path))
+
+
+def canonical_policy_bundle_from_payload(
+    payload: dict[str, Any],
+) -> CanonicalPolicyBundle:
+    """Validate and construct the canonical bundle from its exact preimage.
+
+    Args:
+        payload: Complete canonical policy document decoded from YAML or JSON.
+
+    Returns:
+        An immutable, content-addressed canonical policy bundle.
+
+    Raises:
+        ValueError: If the document or accepted control set is malformed.
+    """
+    required_top = {
+        "schema_version",
+        "canonical_policy_bundle_id",
+        "revision",
+        "controls",
+    }
+    if set(payload) != required_top or payload["schema_version"] != "1.0.0":
+        raise ValueError("canonical policy bundle fields are invalid")
     controls_payload = payload.get("controls")
     if not isinstance(controls_payload, dict) or set(controls_payload) != set(OPERATIONS):
         raise ValueError("canonical controls must equal the accepted control set")
     controls = []
     for control_id, item in sorted(controls_payload.items()):
-        if not isinstance(item, dict) or not item.get("revision"):
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"revision", "semantic_class", "critical", "failure_mode"}
+            or not item.get("revision")
+            or item["critical"] is not True
+            or item["failure_mode"] != "block"
+        ):
             raise ValueError(f"control {control_id} revision is required")
         controls.append(
             Control(
@@ -119,11 +145,9 @@ def require_accepted_policy_control_applicability(
     if not isinstance(applicability, PolicyControlApplicability):
         raise TypeError("typed PolicyControlApplicability required")
     if (
-        applicability.applicability_id
-        != f"pca_{ACCEPTED_DG55_APPLICABILITY_HASH}"
+        applicability.applicability_id != f"pca_{ACCEPTED_DG55_APPLICABILITY_HASH}"
         or applicability.applicability_hash != ACCEPTED_DG55_APPLICABILITY_HASH
-        or
-        applicability.decision_ref != "D-G5-5"
+        or applicability.decision_ref != "D-G5-5"
         or applicability.decision_record_hash != ACCEPTED_DG55_DECISION_RECORD_HASH
         or (
             applicability.bundle_id,
@@ -157,7 +181,11 @@ def require_accepted_policy_control_applicability(
         raise ValueError("typed applicability controls differ from accepted D-G5-5 decision")
 
 
-def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPolicyBundle) -> PolicyControlApplicability:
+def load_policy_control_applicability(
+    path: Path | str,
+    *,
+    bundle: CanonicalPolicyBundle,
+) -> PolicyControlApplicability:
     """Load only the exact owner-approved, bundle-bound D-G5-5 mapping.
 
     Args:
@@ -171,7 +199,30 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
         ValueError: If schema identity, decision authority, hashes, selectors,
             or provider/control closure are unsupported or inconsistent.
     """
-    payload = _read_yaml(path)
+    return policy_control_applicability_from_payload(
+        _read_yaml(path),
+        bundle=bundle,
+    )
+
+
+def policy_control_applicability_from_payload(
+    payload: dict[str, Any],
+    *,
+    bundle: CanonicalPolicyBundle,
+) -> PolicyControlApplicability:
+    """Validate D-G5-5 applicability from its exact canonical preimage.
+
+    Args:
+        payload: Complete applicability decision decoded from YAML or JSON.
+        bundle: Accepted canonical bundle that the decision must bind.
+
+    Returns:
+        Immutable, execution-bound policy-control applicability.
+
+    Raises:
+        ValueError: If identity, authority, hashes, selectors, provider mapping,
+            or provider/control closure are unsupported or inconsistent.
+    """
     required_top = {
         "schema_id",
         "schema_version",
@@ -192,10 +243,7 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
     if payload["decision_payload"] != ACCEPTED_DG55_DECISION_PAYLOAD:
         raise ValueError("accepted D-G5-5 decision payload mismatch")
     decision_hash = sha256_hex(canonical_bytes(payload["decision_payload"]))
-    if (
-        decision_hash != ACCEPTED_DG55_DECISION_RECORD_HASH
-        or payload["decision_record_hash"] != decision_hash
-    ):
+    if decision_hash != ACCEPTED_DG55_DECISION_RECORD_HASH or payload["decision_record_hash"] != decision_hash:
         raise ValueError("decision_record_hash mismatch")
     binding = payload["bundle"]
     if binding != {
@@ -281,23 +329,23 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
                 raise ValueError("expected_observed_value_hash mismatch")
             requirements.append(
                 ProviderEvidenceRequirement(
-                    provider,
-                    str(req["variant_id"]),
-                    "F-020",
-                    "r2",
-                    "adapter_policy_parity",
-                    str(req["json_pointer"]),
-                    observed,
-                    expected_hash,
+                    provider_variant=provider,
+                    variant_id=str(req["variant_id"]),
+                    fixture_id="F-020",
+                    fixture_revision="r2",
+                    property="adapter_policy_parity",
+                    json_pointer=str(req["json_pointer"]),
+                    canonical_observed_value=observed,
+                    expected_observed_value_hash=expected_hash,
                 )
             )
         controls.append(
             ControlApplicability(
-                control_id,
-                str(raw["control_revision"]),
-                risks,
-                operations,
-                tuple(sorted(requirements, key=lambda item: item.provider_variant)),
+                control_id=control_id,
+                control_revision=str(raw["control_revision"]),
+                required_risk_tiers=risks,
+                required_operation_classes=operations,
+                provider_requirements=tuple(sorted(requirements, key=lambda item: item.provider_variant)),
             )
         )
     outer_scope = [
@@ -320,14 +368,17 @@ def load_policy_control_applicability(path: Path | str, *, bundle: CanonicalPoli
     if declared_hash != actual_hash or payload["applicability_id"] != f"pca_{actual_hash}":
         raise ValueError("applicability identity/hash mismatch")
     applicability = PolicyControlApplicability(
-        str(payload["applicability_id"]),
-        actual_hash,
-        "D-G5-5",
-        _require_sha(payload["decision_record_hash"], "decision_record_hash"),
-        bundle.canonical_policy_bundle_id,
-        bundle.revision,
-        bundle.content_hash,
-        tuple(sorted(controls, key=lambda item: item.control_id)),
+        applicability_id=str(payload["applicability_id"]),
+        applicability_hash=actual_hash,
+        decision_ref="D-G5-5",
+        decision_record_hash=_require_sha(
+            payload["decision_record_hash"],
+            "decision_record_hash",
+        ),
+        bundle_id=bundle.canonical_policy_bundle_id,
+        bundle_revision=bundle.revision,
+        bundle_hash=bundle.content_hash,
+        controls=tuple(sorted(controls, key=lambda item: item.control_id)),
     )
     require_accepted_policy_control_applicability(applicability, bundle)
     return applicability
