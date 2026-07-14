@@ -43,7 +43,14 @@ def finite_pairs(dgm: Any) -> NDArray[np.float64]:
 
 
 def load_cache(cache_path: Path) -> dict[str, Any]:
-    """Load a null-diagram cache .npz (obs + B null diagrams per dim + metadata)."""
+    """Load a null-diagram cache .npz (obs + B null diagrams per dim + metadata).
+
+    Security:
+        ``allow_pickle=True`` is required because the battery stores its metadata
+        dict as a pickled object array. Unpickling executes arbitrary code, so
+        ``cache_path`` must only ever reference a trusted pipeline-generated cache
+        under ``CACHE_DIR`` — never an untrusted or externally-supplied .npz.
+    """
     with np.load(cache_path, allow_pickle=True) as data:
         h0_arr = data["h0_diagrams"]
         h1_arr = data["h1_diagrams"]

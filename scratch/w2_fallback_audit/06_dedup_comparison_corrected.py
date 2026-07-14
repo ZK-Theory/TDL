@@ -28,6 +28,7 @@ from typing import Any
 
 import audit_lib as al
 import numpy as np
+from numpy.typing import NDArray
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -49,7 +50,7 @@ def _ver(mod: str) -> str:
         return "absent"
 
 
-def load_blocks(ckpt_dir: Path, prefix: str, expected: int) -> np.ndarray:
+def load_blocks(ckpt_dir: Path, prefix: str, expected: int) -> NDArray[np.float64]:
     """Concatenate disjoint checkpoint blocks in start order; assert completeness."""
     files = sorted(ckpt_dir.glob(f"{prefix}_*.npz"), key=lambda p: int(p.stem.split("_")[-1]))
     chunks: list[np.ndarray] = []
@@ -133,7 +134,7 @@ def main() -> None:
     identical = sum(
         1
         for a, bb in zip(cache29["h1_diagrams"], cache30["h1_diagrams"])
-        if a.shape == bb.shape and float(np.abs(a - bb).max()) == 0.0
+        if a.shape == bb.shape and (a.size == 0 or float(np.abs(a - bb).max()) == 0.0)
     )
     p29 = o29[:, 1] - o29[:, 0]
     obs_obs_w2 = al.exact_w2(o29, o30)

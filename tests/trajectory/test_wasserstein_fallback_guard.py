@@ -31,6 +31,7 @@ _DGM_A = [[0.5, 3.0], [4.0, 4.6], [8.0, 8.5], [12.0, 12.4]]
 _DGM_B = [[8.2, 8.7], [0.4, 2.9], [11.8, 12.3], [3.9, 4.4]]
 
 
+@pytest.mark.validation
 def test_pot_present_returns_exact() -> None:
     """With POT importable, the exact optimal-transport value is returned."""
     solver = _import_exact_wasserstein_solver()
@@ -44,6 +45,7 @@ def test_pot_present_returns_exact() -> None:
     assert got == pytest.approx(ref, rel=1e-12, abs=1e-12)
 
 
+@pytest.mark.validation
 def test_pot_absent_raises_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     """With POT hidden, the default call RAISES rather than degrading silently."""
     monkeypatch.setitem(sys.modules, "gudhi.wasserstein", None)
@@ -53,6 +55,7 @@ def test_pot_absent_raises_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
         wasserstein_distance(_ph(_DGM_A), _ph(_DGM_B), dim=1, p=2)
 
 
+@pytest.mark.validation
 def test_pot_absent_greedy_requires_explicit_optin(monkeypatch: pytest.MonkeyPatch) -> None:
     """Greedy is reachable ONLY via explicit opt-in, and it differs from exact."""
     exact = wasserstein_distance(_ph(_DGM_A), _ph(_DGM_B), dim=1, p=2)
@@ -66,6 +69,7 @@ def test_pot_absent_greedy_requires_explicit_optin(monkeypatch: pytest.MonkeyPat
     assert greedy > exact
 
 
+@pytest.mark.validation
 def test_greedy_optin_ignored_when_pot_present() -> None:
     """allow_greedy_fallback has no effect when POT is available: exact wins."""
     exact = wasserstein_distance(_ph(_DGM_A), _ph(_DGM_B), dim=1, p=2)
