@@ -279,6 +279,42 @@ Three journal-targeted papers replacing the original four technique-first papers
   any error. The JSON source is the only safe, version-stable route. Locked
   2026-05-02; see `sklearn-cross-version-silent-GMM-failure` permanent note.
 
+- **ALWAYS assert the solver identity in any metric computation — fail loud,
+  never fall back silently.** A fallback that changes the metric is a
+  **different statistic, not a degraded one**: the greedy persistence-rank
+  fallback inside `vectorisation.wasserstein_distance` (active whenever POT
+  was absent, era ≤ 2026-05-29) inflated the frozen H1 W₂ headlines ~18–56×
+  and diluted both citable rejections (USoc d_perm +22.09 → exact +31.16;
+  BHPS +2.06 → +19.26, borderline p 0.019 → floor). Solver imports must be
+  asserted up front and raise when unavailable; any intentional fallback is
+  opt-in-only and stamps its `convention` into the output. A fallback that
+  preserves the estimand (e.g. scipy Hungarian on diagonally-augmented
+  diagrams — exact W₂ by another algorithm) is acceptable; one that changes
+  it is a defect. Result files record solver + version per cell. Locked
+  2026-07-14 (WT-6 audit, PR #94); see
+  [[silent-solver-fallbacks-swap-the-statistic-not-the-precision]] and
+  [[silent-greedy-w2-fallback-when-POT-absent]].
+
+- **ALWAYS write a sidecar provenance manifest (`<cache>.provenance.json`)
+  for every frozen diagram/null cache at generation time**, recording the
+  cache sha256, source-input paths + sha256s (sequences, embedding/loadings),
+  seed policy, L, B, threshold, and backend + version. The frozen 2026-05-28
+  USoc banks were computed on a sequence file later superseded (the May-2
+  orphan) and this went undetected for six weeks because nothing bound the
+  cache to its inputs; the B9 audit then mis-attributed the vintage from
+  mtimes. Retrofit manifests: WT-1 (2026-07-12). Locked 2026-07-14; closes
+  skill observation #53.
+
+- **ALWAYS retain spike branches and worktrees until their scratch reference
+  implementations have been promoted by the consuming dispatch (or the line
+  is formally PARKed).** Spike deliverables intentionally live in gitignored
+  `scratch/` — the drivers are the reference implementations later
+  confirmatory dispatches promote into tested modules, and escalation files
+  may exist nowhere else. Deleting the branches early forced a restore on
+  2026-07-12 (and the orphan sequences file was lost from disk in the
+  shuffle). Anything escalated to User/Manager must be promoted out of
+  scratch immediately. Locked 2026-07-14.
+
 - **ALWAYS follow the BHPS split rule when allocating content across P01-A and
   P01-B.** "How UK careers looked 1991–2008" (regime structure k=8, qualitative
   similarity) → P01-A §6. "How the methodology performs on a second dataset"
@@ -486,4 +522,4 @@ Set `TRAJECTORY_TDA_DATA_DIR` when running `run_wasserstein_battery.py` outside 
 
 ---
 
-*Last updated: 2026-06-22*
+*Last updated: 2026-07-14*

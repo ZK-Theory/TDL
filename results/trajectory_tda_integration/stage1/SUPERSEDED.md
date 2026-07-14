@@ -2,8 +2,47 @@
 
 **Status:** authoritative supersession manifest for the Stage-1 headline battery.
 **Created:** 2026-06-21 (Manager 11), ahead of the Stage-2 writing phase.
+**Updated:** 2026-07-14 (Manager 13) — solver-artifact supersession of the H1 W₂
+statistics and the sequence-vintage note (sections below).
 **Scope:** `results/trajectory_tda_integration/stage1/` and
 `results/trajectory_tda_bhps/stage1/`.
+
+## Solver-artifact supersession — H1 W₂ statistics (2026-07-14 `[DECISION]`)
+
+The W₂ solver silently degraded to a greedy persistence-rank matching whenever
+POT was absent from the venv (era ≤ 2026-05-29; fail-loud fix + full audit:
+WT-6, PR #94, `w2_fallback_audit_2026-07-14.json`). **H0 and landscape-L²
+values are unaffected** (immunity verified, not assumed). For **H1 W₂**
+inference the canonical citable values move:
+
+| Object (H1 W₂ only) | ❌ Superseded — do NOT cite | ✅ Canonical (cite this) |
+|---|---|---|
+| USoc headline H1 W₂ | H1 W₂ block of `usoc_headline_frozen_2026-05-28.json` (greedy: obs-null 233.68, d_perm +22.09) | `headline_vintage_materiality_corrected_2026-07-14.json` (exact: obs-null 12.68, d_perm +31.16, p floor) |
+| BHPS headline H1 W₂ | H1 W₂ block of `bhps_headline_frozen_2026-05-28.json` (greedy: d_perm +2.06, p 0.019) | `…/trajectory_tda_bhps/stage1/bhps_headline_frozen_corrected_2026-07-14.json` (exact: d_perm +19.26, p floor; lands with PR #94) |
+
+The frozen 2026-05-28 files remain canonical for **H0 W₂ and landscape-L²**.
+Additional constraints from the audit:
+
+- `lm_sensitivity_L2500/L8000` (all four): H1 W₂ numbers are
+  **SUSPECT-UNVERIFIABLE** (no cached diagrams) — unciteable in manuscripts
+  without a production re-run. Their design-choice role (L=5000 selection,
+  internally greedy-consistent) stands.
+- `dedup_amendment_comparison_*` "rejection direction preserved / 0 changes":
+  **do not rely** pending exact re-derivation of the 2026-05-29 arm (its arms
+  straddle the solver boundary).
+
+## Sequence-vintage note (2026-07-14 `[DECISION]`, ruling (a))
+
+The frozen 2026-05-28 USoc headline and its null banks were computed on the
+**May-2 orphan** sequence file, not the canonical Apr-8 build (established
+bit-for-bit by Spike Set B, 2026-07-10, superseding the B9 2026-06-22
+mtime-based "Apr-8-rooted" assertion). Exact-W₂ re-derivation on the canonical
+Apr-8 sequences (WT-1c, `headline_vintage_materiality_corrected_2026-07-14.json`)
+moves d_perm by ≤ 0.11 (H1) / 0.23 (H0) and flips no conclusion — the vintage
+is **immaterial** and the headline stands with this note carried into any
+citing prose. BHPS banks: 6/8 reproduce bit-for-bit from canonical BHPS
+(per-bank verdicts in the 2026-07-12 memo/result JSON). Per-cache source
+vintages: `cache/*.provenance.json` sidecar manifests.
 
 ## Why this file exists
 
