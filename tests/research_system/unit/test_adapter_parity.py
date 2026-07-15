@@ -140,10 +140,12 @@ def _replace_execution_bindings(execution, donor):
         "matrix_tuple": list(execution.matrix_row.matrix_tuple),
         "first_hash": execution.first_normalized_decision_hash,
         "second_hash": execution.second_normalized_decision_hash,
+        "expected_evidence_hash": execution.expected_evidence_hash,
+        "first_observed_evidence_hash": execution.first_observed_evidence_hash,
+        "second_observed_evidence_hash": execution.second_observed_evidence_hash,
+        "oracle_match": execution.oracle_match,
         "grader_result_keys": [list(item) for item in donor.grader_result_keys],
-        "grader_results": [
-            [list(item[0]), *item[1:]] for item in donor.grader_result_bindings
-        ],
+        "grader_results": [[list(item[0]), *item[1:]] for item in donor.grader_result_bindings],
         "observed_assertions": [
             {
                 "property": item.property,
@@ -160,6 +162,36 @@ def _replace_execution_bindings(execution, donor):
         execution,
         grader_result_keys=donor.grader_result_keys,
         grader_result_bindings=donor.grader_result_bindings,
+        execution_evidence_hash=sha256_hex(canonical_bytes(payload)),
+    )
+
+
+def _oracle_forged_execution(execution):
+    payload = {
+        "matrix_tuple": list(execution.matrix_row.matrix_tuple),
+        "first_hash": execution.first_normalized_decision_hash,
+        "second_hash": execution.second_normalized_decision_hash,
+        "expected_evidence_hash": execution.expected_evidence_hash,
+        "first_observed_evidence_hash": execution.first_observed_evidence_hash,
+        "second_observed_evidence_hash": execution.second_observed_evidence_hash,
+        "oracle_match": False,
+        "grader_result_keys": [list(item) for item in execution.grader_result_keys],
+        "grader_results": [[list(item[0]), *item[1:]] for item in execution.grader_result_bindings],
+        "observed_assertions": [
+            {
+                "property": item.property,
+                "json_pointer": item.json_pointer,
+                "canonical_observed_value": item.canonical_observed_value,
+                "first_observed_value_hash": item.first_observed_value_hash,
+                "second_observed_value_hash": item.second_observed_value_hash,
+                "equal": item.equal,
+            }
+            for item in execution.observed_assertions
+        ],
+    }
+    return replace(
+        execution,
+        oracle_match=False,
         execution_evidence_hash=sha256_hex(canonical_bytes(payload)),
     )
 
@@ -183,6 +215,37 @@ def test_parity_producer_rejects_typed_execution_with_other_rows_result_bindings
             matrix_rows=rows,
             results=execution.results,
         )
+
+
+def test_parity_producer_rejects_self_consistent_forged_oracle_outcome(execution):
+    bundle = load_canonical_policy_bundle(POLICIES / "canonical-policy.yaml")
+    rows = load_gate5_variant_rows(EVALS / "p0-variant-matrix.yaml", execution.coverage)
+    forged = _oracle_forged_execution(execution.variant_executions[0])
+    with pytest.raises(ValueError, match="oracle verdict binding"):
+        build_fake_adapter_parity_evidence(
+            (forged, *execution.variant_executions[1:]),
+            execution.policy_applicability,
+            bundle,
+            matrix_rows=rows,
+            results=execution.results,
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "expected_evidence_hash",
+        "first_observed_evidence_hash",
+        "second_observed_evidence_hash",
+        "oracle_match",
+        "execution_evidence_hash",
+    ],
+)
+def test_variant_execution_evidence_rejects_one_field_oracle_tampering(execution, field):
+    value = execution.variant_executions[0]
+    change = False if field == "oracle_match" else "0" * 64
+    with pytest.raises(ValueError, match="execution_evidence_hash mismatch"):
+        replace(value, **{field: change})
 
 
 def test_parity_producer_rejects_unrelated_release_result(execution):

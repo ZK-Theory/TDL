@@ -8,6 +8,7 @@ from research_system.adapters.base import TransportResult
 from research_system.adapters.fake import FakeTransport
 from research_system.canonical import jsonable
 from research_system.evals.errors import FixtureDefinitionError
+from research_system.evals import variants
 from research_system.evals.harness import (
     build_release_decision,
     decide_p0_release,
@@ -43,6 +44,11 @@ def test_gate5_rows_execute_twice_fake_only_and_close_302_keys(gate5_evidence):
         item.first_normalized_decision_hash == item.second_normalized_decision_hash
         for item in evidence.variant_executions
     )
+    assert all(item.oracle_match for item in evidence.variant_executions)
+    assert all(
+        item.expected_evidence_hash == item.first_observed_evidence_hash == item.second_observed_evidence_hash
+        for item in evidence.variant_executions
+    )
     assert len(evidence.results) == 302
     assert len({item.result_key for item in evidence.results}) == 302
     assert decide_p0_release(evidence)["decision"] == "blocked"
@@ -63,6 +69,101 @@ def test_changed_second_fake_observation_is_rejected_before_evidence():
             "adapter_policy_parity",
             {"semantic_parity": True},
             {"semantic_parity": False},
+        )
+
+
+def test_wrong_f007_producer_observation_cannot_inherit_passing_variant_verdicts(monkeypatch):
+    """A stable non-parity producer error blocks its own variant graders."""
+    original = variants.require_executor
+
+    def wrong_f007_executor(fixture_id):
+        execute = original(fixture_id)
+        if fixture_id != "F-007":
+            return execute
+
+        def execute_wrong(subject, payload):
+            observed = execute(subject, payload)
+            return {**observed, "producer_seam_corruption": True}
+
+        return execute_wrong
+
+    monkeypatch.setattr(variants, "require_executor", wrong_f007_executor)
+    evidence = run_p0_coverage(
+        EVALS / "p0-coverage.yaml",
+        fixture_root=EVALS / "fixtures",
+        schema_root=ROOT / ".research-system" / "schemas",
+    )
+    f007_variants = tuple(
+        item for item in evidence.results if item.fixture_id == "F-007" and item.variant_id != "baseline"
+    )
+    assert len(f007_variants) == 8
+    assert {item.verdict for item in f007_variants} == {"fixture_error"}
+    assert evidence.parity_report.passed is True
+    assert decide_p0_release(evidence)["decision"] == "blocked"
+    assert evidence.coverage.gate5_authorized is False
+
+
+def test_all_registered_matrix_executor_provider_families_fail_closed_on_wrong_observations(
+    gate5_evidence, monkeypatch
+):
+    """Exercise every committed executor/row family without copied test cases."""
+    original = variants.require_executor
+    observed_families = set()
+
+    def wrong_executor(fixture_id):
+        execute = original(fixture_id)
+
+        def execute_wrong(subject, payload):
+            observed_families.add((fixture_id, payload["_provider_variant"]))
+            return {**execute(subject, payload), "producer_seam_corruption": fixture_id}
+
+        return execute_wrong
+
+    monkeypatch.setattr(variants, "require_executor", wrong_executor)
+    rows = load_gate5_variant_rows(EVALS / "p0-variant-matrix.yaml", gate5_evidence.coverage)
+    executions, results = execute_gate5_variant_rows_twice(
+        rows,
+        gate5_evidence.coverage,
+        fixture_root=EVALS / "fixtures",
+        schema_root=ROOT / ".research-system" / "schemas",
+        baseline_results=tuple(item for item in gate5_evidence.results if item.variant_id == "baseline"),
+        fake_transport_factory=FakeTransport,
+    )
+    expected_families = {(row.fixture_id, row.provider_variant) for row in rows}
+    assert observed_families == expected_families
+    assert {row.provider_variant.split("-")[1] for row in rows} == {"claude", "codex"}
+    assert {row.provider_variant.endswith("-count-v1") for row in rows} == {False, True}
+    assert all(not execution.oracle_match for execution in executions)
+    assert {item.verdict for item in results} == {"fixture_error"}
+
+
+def test_variant_repeat_mismatch_stops_before_evidence_admission(gate5_evidence, monkeypatch):
+    original = variants.require_executor
+    calls = 0
+
+    def alternating_f007_executor(fixture_id):
+        execute = original(fixture_id)
+        if fixture_id != "F-007":
+            return execute
+
+        def execute_alternating(subject, payload):
+            nonlocal calls
+            calls += 1
+            observed = execute(subject, payload)
+            return observed if calls == 1 else {**observed, "second_run_only": True}
+
+        return execute_alternating
+
+    monkeypatch.setattr(variants, "require_executor", alternating_f007_executor)
+    rows = load_gate5_variant_rows(EVALS / "p0-variant-matrix.yaml", gate5_evidence.coverage)
+    with pytest.raises(ValueError, match="variant repeat mismatch"):
+        execute_gate5_variant_rows_twice(
+            rows,
+            gate5_evidence.coverage,
+            fixture_root=EVALS / "fixtures",
+            schema_root=ROOT / ".research-system" / "schemas",
+            baseline_results=tuple(item for item in gate5_evidence.results if item.variant_id == "baseline"),
+            fake_transport_factory=FakeTransport,
         )
 
 
