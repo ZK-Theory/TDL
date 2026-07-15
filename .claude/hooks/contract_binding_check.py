@@ -465,25 +465,56 @@ def _is_legacy_exempt(ov_contract: dict, filename_rel: str | Path) -> bool:
     return rel_posix in exemptions
 
 
+def _matches_pattern(pattern: str, rel_posix: str, fname_only: str) -> bool:
+    """Match a contract pattern against a path or bare filename.
+
+    Patterns containing a separator match the repo-relative path; all others
+    match the filename only. Windows-style backslashes are normalised first so
+    pattern and target are both POSIX-style, then matched flavour-independently.
+    """
+    pattern = pattern.replace("\\", "/")
+    target = rel_posix if "/" in pattern else fname_only
+    return PurePosixPath(target).match(pattern)
+
+
+def _is_pattern_excluded(ov_contract: dict, filename_rel: str | Path) -> bool:
+    """Return whether exclude_filename_patterns rules this JSON out of scope.
+
+    Unlike legacy_exempt (which grandfathers files of this kind that predate
+    the contract), this marks files that are a different artifact kind and were
+    never in scope — the glob simply over-matches them.
+    """
+    rel_posix = Path(filename_rel).as_posix()
+    fname_only = Path(filename_rel).name
+    excludes = ov_contract["output_validation"].get("exclude_filename_patterns", [])
+    return any(
+        _matches_pattern(entry["filename_pattern"], rel_posix, fname_only)
+        for entry in excludes
+    )
+
+
 def _dispatch_schema_id(ov_contract: dict, filename_rel: str) -> str | None:
     """Pick a schema contract id for a filename/path using file_dispatch.
 
-    When `file_dispatch` is set, acts as a positive filter: only filenames
-    or repo-relative paths matching one of the dispatch patterns are validated;
-    unmatched files return None. When `file_dispatch` is absent, all files
-    matching the applies_to_glob are validated against schema_contracts[0].
+    Returns None when the file is out of scope. `exclude_filename_patterns` is
+    applied first as a negative filter. Then, when `file_dispatch` is set, it
+    acts as a positive filter: only filenames or repo-relative paths matching
+    one of the dispatch patterns are validated; unmatched files return None.
+    When `file_dispatch` is absent, all files matching the applies_to_glob are
+    validated against schema_contracts[0].
+
+    Both gate-4 modes (staged and --all-jsons) route through here, so exclusion
+    cannot drift between them.
     """
     ov = ov_contract["output_validation"]
     rel_posix = Path(filename_rel).as_posix()
     fname_only = Path(filename_rel).name
+    if _is_pattern_excluded(ov_contract, filename_rel):
+        return None
     dispatch = ov.get("file_dispatch")
     if dispatch:
         for entry in dispatch:
-            # Normalize Windows-style backslashes so pattern and target are both
-            # POSIX-style, then match flavour-independently (PurePosixPath).
-            pattern = entry["filename_pattern"].replace("\\", "/")
-            target = rel_posix if "/" in pattern else fname_only
-            if PurePosixPath(target).match(pattern):
+            if _matches_pattern(entry["filename_pattern"], rel_posix, fname_only):
                 return entry["schema_contract"]
         return None
     return ov["schema_contracts"][0]

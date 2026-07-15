@@ -22,6 +22,26 @@ output_validation:
   wrapper_key: result
   schema_contracts:
     - stage1-aggregate-output-cell
+  # Negative filter, applied before file_dispatch. Both entries are DIFFERENT
+  # artifact kinds that the dispatch patterns below unavoidably over-match on
+  # filename — neither is a defective battery output, so neither should be
+  # judged against the battery's aggregate cell schema.
+  exclude_filename_patterns:
+    - filename_pattern: "*.provenance.json"
+      reason: >
+        Null-diagram cache provenance sidecars (null_diagrams_*.provenance.json,
+        written beside the .npz caches). They record cache_file / cache_sha256 /
+        source_sequences_path, carry no h-cells at all, and match only because
+        the cache filename embeds the run tag (e.g. length_matched_truncate_frozen).
+        Cache provenance is validated by the data-provenance contracts, not here.
+    - filename_pattern: "*headline_frozen_corrected_*.json"
+      reason: >
+        WT-6 exact-W2 audit corrective artifacts (schema_version
+        w2-exact-corrected-headline/v1), written by scratch/w2_fallback_audit/
+        03_assemble_audit.py rather than the Stage-1 battery. They hold a
+        committed_greedy-vs-corrected_exact comparison and no h0 cell (H0 is
+        solver-immune, so the committed H0 stands), which is a deliberate shape,
+        not a truncation. Validated by w2-exact-corrected-headline-json-validation.
   # file_dispatch acts as a positive filter — only filenames matching one
   # of these patterns are validated. Pre-fix legacy JSONs (those generated
   # under the buggy p-value denominator before the 2026-05-27 corrective fix)

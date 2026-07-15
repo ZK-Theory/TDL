@@ -1,0 +1,74 @@
+id: w2-exact-corrected-headline-cell
+kind: schema
+
+description: >
+  The per-dimension cell of a WT-6 exact-W2 corrected-headline artifact
+  (schema_version w2-exact-corrected-headline/v1), written by
+  scratch/w2_fallback_audit/03_assemble_audit.py. This is NOT a Stage-1
+  battery output: it re-derives a frozen headline's W2 values with the exact
+  POT/EMD solver on the same cached diagrams, draws, seed-42 pair sample and
+  aggregation as the committed greedy-era run, so the delta is attributable
+  solely to the solver convention. Because the file is a citable headline
+  backing P01 H1 claims, every field a claim or comparison table reads must be
+  present: the greedy values it supersedes, the exact values that replace them,
+  the diagonal-bound screen that proves the greedy values were not W2
+  distances, and whether the alpha=0.05 rejection flips. Dropping the
+  committed_greedy block or the rejection flip flag would leave the correction
+  uncheckable — the reader could no longer see what changed or whether it
+  mattered.
+
+spec_citation:
+  source: "WT-6 exact-W2 re-derivation, assembled by scratch/w2_fallback_audit/03_assemble_audit.py (schema_version w2-exact-corrected-headline/v1, commit b17d9da)"
+  vault_entry_date: "2026-07-14"
+
+schema_def:
+  applies_to: "Each h{N} cell at the top level of a bhps_headline_frozen_corrected_<date>.json artifact. Sibling metadata keys (schema_version, inputs, solver, method, h0_immunity_gate) are not cells and are not covered by this schema."
+  required_keys:
+    - name: committed_greedy
+      type: "dict[str, float]"
+      description: "The superseded values as computed by the greedy rank-matching solver, carried forward verbatim from the committed headline named in inputs.committed_headline. Retained so the correction's magnitude stays auditable without reopening the superseded file."
+      implementation_source: "03_assemble_audit.py — corrected-headline assembly"
+    - name: corrected_exact
+      type: "dict[str, float]"
+      description: "The exact-solver replacement values (gudhi.wasserstein, order=2, internal_p=2, POT/EMD optimal transport). Carries the same statistics as committed_greedy plus the pair counts backing them."
+      implementation_source: "03_assemble_audit.py — corrected-headline assembly"
+    - name: diagonal_bound_mean
+      type: float
+      description: "Mean over null draws of the diagonal bound: the W2 cost of matching every point of both diagrams to the diagonal. No true W2 distance can exceed this value, so it screens greedy artifacts."
+      implementation_source: "03_assemble_audit.py — diagonal-bound screen"
+    - name: diagonal_bound_max
+      type: float
+      description: "Maximum of the same per-draw diagonal bound. Reported alongside the mean so the screen cannot be dismissed as an averaging artifact."
+      implementation_source: "03_assemble_audit.py — diagonal-bound screen"
+    - name: committed_exceeds_diagonal_bound
+      type: bool
+      description: "True when committed_greedy.mean_obs_null exceeds diagonal_bound_max, which proves the committed value was not a W2 distance. This is the machine-checkable form of the ARTIFACT-CONFIRMED classification."
+      implementation_source: "03_assemble_audit.py — diagonal-bound screen"
+    - name: rejection_at_alpha_0.05
+      type: "dict[str, bool]"
+      description: "Whether the committed and corrected values each reject at alpha=0.05, and whether the decision flips between them. This is the field a paper claim reads to state that the correction hardened the result rather than reversing it."
+      implementation_source: "03_assemble_audit.py — corrected-headline assembly"
+    - name: per_pair
+      type: "dict[str, list]"
+      description: "Retained per-pair arrays backing every aggregate above, so a reviewer can recompute the means without re-running the solver: obs_null_exact (1000 floats), null_null_exact (1000 floats), and null_null_pair_indices (1000 two-element index pairs identifying which cached null draws each null-null distance came from). Typed dict-of-lists rather than dict[str, list[float]] because the index array is a list of pairs; the element types are pinned here in the description because the schema grammar cannot vary a value type per dict key."
+      implementation_source: "03_assemble_audit.py — corrected-headline assembly"
+  conditional_keys: []
+  # No forbidden_keys: gate 4 applies forbidden_keys per h-cell, but the
+  # artifact-kind discriminator worth guarding here (absence of the Stage-1
+  # 'result' wrapper) lives at the TOP level, one scope above any cell.
+  # Declaring it here would be checked against the cell and pass vacuously, so
+  # the binding test asserts it at the top level instead.
+  forbidden_keys: []
+
+binding:
+  test_file: "tests/trajectory_tda/test_w2_exact_corrected_headline_contracts.py"
+  test_function: "test_corrected_headline_cell_schema"
+  must_assert: >
+    Every h{N} cell of every corrected-headline artifact in the working tree
+    contains committed_greedy, corrected_exact, diagonal_bound_mean,
+    diagonal_bound_max, committed_exceeds_diagonal_bound, rejection_at_alpha_0.05
+    and per_pair, each matching its declared type; no artifact carries a
+    top-level 'result' wrapper, which is the discriminator separating this
+    artifact kind from a Stage-1 battery output; and a cell missing a required
+    key, or an artifact carrying the wrapper, is rejected rather than passed
+    over silently.
