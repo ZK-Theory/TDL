@@ -1,0 +1,71 @@
+id: sheaf-laplacian-employment-result
+kind: schema
+
+description: >
+  Schema contract for the LOCKED 2026-07-10 pre-registration
+  vault/00-Meta/Discovery/sheaf-laplacian-employment-dispatch-prereg-2026-07-10.md
+  (materialised from its planned_contracts block, contract id
+  sheaf-laplacian-employment-result). Pins the schema_version, substrate
+  provenance, locked stochastic parameters (B=1000, seed=42,
+  null_model=stratified-label-permutation), per-family-x-substrate statistics,
+  the null-construction-verified flag, and the additive/redundant/negative
+  decision rule for the cellular-sheaf energy battery on the 9-state
+  employment transition graph. Binding test authored on run/sheaf-pl-confirmatory
+  (2026-07-15) and pending cleared; the binding is hermetic — the A4 checkpoint
+  anchors are injected rather than read from PROJ_ROOT, so it does not depend on
+  gitignored intermediates being present in a fresh worktree.
+
+spec_citation:
+  source: "vault/00-Meta/Discovery/sheaf-laplacian-employment-dispatch-prereg-2026-07-10.md"
+  anchor: "planned_contracts (id: sheaf-laplacian-employment-result)"
+  vault_entry_date: "2026-07-10"
+
+schema_def:
+  applies_to: "results/trajectory_tda_sheaf/sheaf_laplacian_employment_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Must equal 'sheaf-laplacian-employment/v1'."
+    - name: substrate_sha256
+      type: dict
+      description: "bhps + integration entries."
+    - name: params
+      type: dict
+      description: "Must contain B==1000, seed==42, null_model=='stratified-label-permutation'."
+    - name: families
+      type: list
+      description: >
+        Per family x substrate: p_upper, p_lower, p_fdr, rho_chi2, rho_js,
+        effect_size, group_ns. Every p_upper and p_lower value must fall in
+        [1/(B+1), 1]; abs(rho_chi2) and abs(rho_js) must each be <= 1; group
+        n values must match the A4 checkpoint values where checkpoints exist.
+    - name: null_model_construction_verified
+      type: bool
+      description: "Must equal true."
+    - name: decision
+      type: dict
+      description: >
+        verdict in {additive, redundant, negative}, consistent with the
+        locked rule recomputed from the stored p_fdr and rho values.
+
+binding:
+  test_file: "tests/discovery/test_sheaf_laplacian_employment_contract.py"
+  test_function: "test_sheaf_result_rejects_invalid_payloads"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where:
+    (a) required top-level evidence is missing;
+    (b) schema_version differs from 'sheaf-laplacian-employment/v1';
+    (c) params.B differs from 1000;
+    (d) params.seed differs from 42 or has the wrong type;
+    (e) params.null_model differs from 'stratified-label-permutation';
+    (f) null_model_construction_verified is not true;
+    (g) a family x substrate row's p_upper or p_lower falls outside
+    [1/(B+1), 1];
+    (h) a family x substrate row's abs(rho_chi2) or abs(rho_js) exceeds 1;
+    (i) decision.verdict is outside additive, redundant, or negative;
+    (j) decision.verdict is inconsistent with the locked rule recomputed
+    from the stored p_fdr and rho values;
+    (k) a family's group n value differs from its A4 checkpoint value where
+    a checkpoint exists;
+    (l) substrate_sha256 is missing the bhps or integration entry;
+    (m) a contract-pinned value is supplied as the wrong type.
