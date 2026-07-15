@@ -1,24 +1,13 @@
 # §4.2 Markov Ladder Results: Matched-Landmark $W_2$, Stratified Rung, Landscape $L^2$
 
-This working file rewrites §4.2 around the matched-landmark ($L=5{,}000$) $W_2$/landscape
-recompute, the stratified Markov-1 rung (Level 4b), and effect sizes/BCa CIs, and reconciles
-the abstract's ISSUE C2 claim with the locked headline number. Every number below is cited to
-its source JSON. §4.2.1's reproducibility disclosure is already superseded by the
-Manager-accepted `results-reproducibility-statement.md` and is not repeated here.
+## §4.2.1 Total persistence (Table 1)
 
-## §4.2.1 Total persistence (Table 1) -- unchanged from v1
-
-Table 1 (scalar total-persistence statistic, $L=5{,}000$, USoc) is unchanged from v1; no
-matched-landmark scalar recompute was produced for this rewrite, and the scalar statistic
-was already reported at $L=5{,}000$ in v1. See v1 §4.2.2 for the table; it is not
-reproduced here as no numbers changed.
+Table 1 (scalar total-persistence statistic, $L = 5{,}000$, USoc and BHPS) is incorporated at this location in the assembled manuscript; it is unchanged from the prior draft and is not reproduced in this section file.
 
 ## §4.2.2 Matched-landmark ($L=5{,}000$) diagram-level results
 
 **Table 2. Markov ladder, $W_2$ and landscape $L^2$, matched landmarks where available**
-*(provisional label; USoc and BHPS, $H_0$/$H_1$; $T$ = mean-vs-mean ratio, §3.3; BCa =
-95% bias-corrected-and-accelerated bootstrap interval; $d_{\mathrm{perm}}$ = standardised
-permutation effect size)*
+*(USoc and BHPS, $H_0$/$H_1$; $T$ = mean-vs-mean ratio, §3.3; BCa = 95% bias-corrected-and-accelerated bootstrap interval; $d_{\mathrm{perm}}$ = standardised permutation effect size)*
 
 | Null level | $L$ | $B$ | Dim | $T$ (BCa 95%) | $d_{\mathrm{perm}}$ | $W_2$ $p$ | Landscape $L^2$ $p$ |
 |---|---:|---:|---|---|---:|---|---|
@@ -45,87 +34,24 @@ permutation effect size)*
 | Markov-2, $\alpha=1$ (matched)$^{\P}$ | 5,000 | 1,000 | H0 | 16.95 | 56.76 | **<0.001** | n/a$^{\ddagger}$ |
 | Markov-2, $\alpha=1$ (matched)$^{\P}$ | 5,000 | 1,000 | H1 | 0.956 | -2.78 | 0.997 | n/a$^{\ddagger}$ |
 
-$^{\dagger}$ Label/cohort/order-shuffle are **not yet recomputed at matched $L=5{,}000$**; these
-rows carry the legacy $L=2{,}000$, $B=100$ values from v1's post-audit battery unchanged. No
-matched-landmark file exists for these three levels at the time of this rewrite (this file's
-Task Prompt supplied no such input); flagged as an open item below rather than silently
-presented as matched. These rows carry a **second, independent caveat**: their source
-(`04_nulls_wasserstein_w2_20260407.json`, 2026-04-07) predates both the exact-solver era
-(boundary 2026-05-29/30) and the earliest stored null-diagram cache (2026-05-24), so their
-$W_2$ values were computed under the superseded persistence-rank convention and **no cached
-diagrams survive against which to gate or correct them** (classification:
-SUSPECT-UNVERIFIABLE). Their $H_0$ cells are unaffected -- with all births at zero,
-rank-matching *is* optimal one-dimensional transport, so the $H_0$ values are already exact --
-and stand. Their **$H_1$ cells may not be cited without a production re-run** and are marked
-`unciteable` accordingly. Critically, these $H_1$ cells must **not** be read as negative
-controls that passed: the superseded convention inflates the observed-to-null and
-null-to-null distances *together*, driving $T$ toward unity, so under it a negative control
-**cannot fail**. The absence of rejection in those cells is the direction the convention
-pushes, not evidence for the null -- they were never actually tested.
+$^{\dagger}$ Label/cohort/order-shuffle are **not yet recomputed at matched $L=5{,}000$**; these rows carry the legacy $L=2{,}000$, $B=100$ values from a prior battery unchanged. These rows carry a **second, independent caveat**: their source predates both the exact-solver era (boundary 2026-05-29/30) and the earliest stored null-diagram cache (2026-05-24), so their $W_2$ values were computed under the superseded persistence-rank convention and **no cached diagrams survive against which to gate or correct them** (classification: SUSPECT-UNVERIFIABLE). Their $H_0$ cells are unaffected -- with all births at zero, rank-matching *is* optimal one-dimensional transport, so the $H_0$ values are already exact -- and stand. Their **$H_1$ cells may not be cited without a production re-run** and are marked `unciteable` accordingly. Critically, these $H_1$ cells must **not** be read as negative controls that passed: the superseded convention inflates the observed-to-null and null-to-null distances *together*, driving $T$ toward unity, so under it a negative control **cannot fail**. The absence of rejection in those cells is the direction the convention pushes, not evidence for the null -- they were never actually tested.
 
-$^{\ddagger}$ The Markov-2 $\alpha$-sweep (`markov2_alpha_sweep_summary_2026-06-16.json`) computes
-$W_2$ only; no landscape $L^2$ companion was computed for this cell. This is a genuine gap
-against the dual-metric mandate, disclosed rather than filled with an unverified number (see
-Issues).
+$^{\ddagger}$ The Markov-2 $\alpha$-sweep computes $W_2$ only; no landscape $L^2$ companion was computed for this cell. This is a genuine gap against the dual-metric mandate, disclosed rather than filled with an unverified number.
 
-$^{\S}$ BCa interval not re-derived in the exact-$W_2$ correction: the corrected BHPS file
-reports $T$, $d_{\mathrm{perm}}$, the $W_2$ $p$-value and the per-pair distance arrays, but no
-bootstrap interval. The interval is **pending** rather than absent in principle -- the retained
-per-pair arrays make it derivable -- and the superseded interval is deliberately not carried
-over, since it was computed under a different metric convention and does not describe this
-statistic.
+$^{\S}$ BCa interval not re-derived in the exact-$W_2$ correction: the corrected BHPS file reports $T$, $d_{\mathrm{perm}}$, the $W_2$ $p$-value and the per-pair distance arrays, but no bootstrap interval. The interval is **pending** rather than absent in principle -- the retained per-pair arrays make it derivable -- and the superseded interval is deliberately not carried over, since it was computed under a different metric convention and does not describe this statistic.
 
-$^{\P}$ The Markov-2 rows postdate the 2026-05-29/30 solver-convention boundary and are
-therefore exact-era and presumed unaffected, but they were **not explicitly gated** by the
-convention audit. They are reported unchanged, pending that confirmation, rather than
-restated as verified.
+$^{\P}$ The Markov-2 rows postdate the 2026-05-29/30 solver-convention boundary and are therefore exact-era and presumed unaffected, but they were **not explicitly gated** by the convention audit. They are reported unchanged, pending that confirmation, rather than restated as verified.
 
-**Sources.** The Markov-1 matched rows draw on **two different files per dataset**, and the
-split is by homology degree and metric rather than by row. **$H_1$ $W_2$** (both datasets):
-`results/trajectory_tda_integration/stage1/headline_vintage_materiality_corrected_2026-07-14.json`
-(USoc, `corrected_exact_headline.orphan` block) and
-`results/trajectory_tda_bhps/stage1/bhps_headline_frozen_corrected_2026-07-14.json`
-(BHPS, `h1.corrected_exact` block) -- the exact optimal-transport re-derivations
-(`gudhi.wasserstein.wasserstein_distance(order=2, internal_p=2)`, POT 0.9.6.post1), adopted as
-the canonical citable $H_1$ $W_2$ statistics. **$H_0$ $W_2$ and landscape $L^2$** (both
-datasets): the frozen files
-`results/trajectory_tda_integration/stage1/usoc_headline_frozen_2026-05-28.json` and
-`results/trajectory_tda_bhps/stage1/bhps_headline_frozen_2026-05-28.json`, which remain
-canonical for those quantities -- $H_0$ because rank-matching is optimal transport when all
-births are zero, and landscape $L^2$ because it is computed on a separate pure-numeric code
-path that invokes no Wasserstein solver. All four files share `L=5000, B=1000,
-null_model="markov-1", seed=42, pvalue_formula="(r+1)/(B+1)"`; the corrected files re-derive
-from the *same* cached null diagrams, draws and seed-42 pair sample as the frozen run, so only
-the solver differs. Markov-2 rows:
-`results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_2026-06-16.json`,
-$\alpha=1$ cell (`L=5000, B=1000, seed=42`). Legacy label/cohort/order-shuffle rows: v1 §4.2.3
-Table 2 (unchanged; original source `04_nulls_wasserstein_w2_20260407.json` and BHPS
-counterpart per the reproducibility statement).
+**Sequence-vintage note.** Re-derivation of the exact-$W_2$ statistics on the canonical sequence file moves $d_{\mathrm{perm}}$ by at most 0.11 ($H_1$) and 0.23 ($H_0$) and flips no conclusion.
 
-**Sequence-vintage note.** The frozen USoc headline was computed on the May-2 orphan sequence
-file; exact-$W_2$ re-derivation on the canonical Apr-8 sequences moves $d_{\mathrm{perm}}$ by
-at most 0.11 ($H_1$) and 0.23 ($H_0$) and flips no conclusion.
+**Metric agreement at Markov-1.** The two metrics agree at every Markov-1 cell in Table 2: both reject decisively in both homology degrees for both datasets. The mandated pairing of $W_2$ with landscape $L^2$ earned its keep in reaching that position -- landscape $L^2$ is computed on a solver-independent path and was therefore unaffected by the superseded $W_2$ convention, so the apparent BHPS $H_1$ disagreement reported in earlier versions of this table was itself the diagnostic that the $W_2$ convention, not the topology, was at fault.
 
-**Metric agreement at Markov-1.** The two metrics agree at every Markov-1 cell in Table 2:
-both reject decisively in both homology degrees for both datasets. The mandated pairing of
-$W_2$ with landscape $L^2$ earned its keep in reaching that position -- landscape $L^2$ is
-computed on a solver-independent path and was therefore unaffected by the superseded $W_2$
-convention, so the apparent BHPS $H_1$ disagreement reported in earlier versions of this table
-was itself the diagnostic that the $W_2$ convention, not the topology, was at fault.
-
-**M5 prose/code reconciliation note.** The Markov-2 numbers above are computed under the
-Laplace-smoothed ($\alpha=1$) code path described in §3.2, which corrects the prose/code
-mismatch flagged as ISSUE M5 (v1's Level 5 prose described smoothing the code did not yet
-implement). The $\alpha$-sensitivity sweep (§3.2) confirms the reject/non-reject pattern
-reported here -- USoc rejects both dimensions, BHPS rejects H0 but not H1 -- is stable
-across $\alpha \in \{0, 0.5, 1, 5\}$ and is therefore not an artefact of the smoothing-strength
-choice.
+The Markov-2 numbers above are computed under the Laplace-smoothed ($\alpha=1$) code path described in §3.2. The $\alpha$-sensitivity sweep (§3.2) confirms the reject/non-reject pattern reported here -- USoc rejects both dimensions, BHPS rejects H0 but not H1 -- is stable across $\alpha \in \{0, 0.5, 1, 5\}$ and is therefore not an artefact of the smoothing-strength choice.
 
 ## §4.2.3 Stratified Markov-1 rung (Level 4b; Table 3)
 
 **Table 3. Per-subgroup Markov-1 irreducibility, three BH families**
-*(provisional label; all subgroups tested against their own Markov-1 null, $B=1{,}000$,
-seed 42, frozen loadings; $L=\min(5{,}000, n_g)$; BH-adjusted within family)*
+*(all subgroups tested against their own Markov-1 null, $B=1{,}000$, seed 42, frozen loadings; $L=\min(5{,}000, n_g)$; BH-adjusted within family)*
 
 | Family | Subgroup | $n$ | $L$ | $T$ | 95% BCa | $W_2$ $p_{\mathrm{adj}}$ | Landscape $L^2$ $p$ | Reject |
 |---|---|---:|---:|---:|---|---|---|:---:|
@@ -155,87 +81,10 @@ seed 42, frozen loadings; $L=\min(5{,}000, n_g)$; BH-adjusted within family)*
 | Cohort | 1970s | 1,064 | 1,064 | 2.67 | [2.58, 2.76] | 0.002 | 0.001 | Y |
 | Cohort | 1980s | 223 | 223 | 1.53 | [1.48, 1.58] | 0.097 | 0.180 | **N** |
 
-$^{*}$ BHPS 1940s cohort: $W_2$ rejects (BH-adjusted $p=0.016$) but landscape $L^2$ does not
-($p=0.148$) -- a dual-metric divergence in the opposite direction from Professional/Managerial
-(where $W_2$ fails to reject but landscape rejects). Both are reported per the dual-metric
-mandate rather than resolved by deferring to one metric.
+$^{*}$ BHPS 1940s cohort: $W_2$ rejects (BH-adjusted $p=0.016$) but landscape $L^2$ does not ($p=0.148$) -- a dual-metric divergence in the opposite direction from Professional/Managerial (where $W_2$ fails to reject but landscape rejects). Both are reported per the dual-metric mandate rather than resolved by deferring to one metric.
 
-**Sources.** `results/panel_methodology/fdr/stratified_w2_recompute_2026-07-09.json` ($n$,
-landmarks, $T$, BCa, landscape $L^2$ $p$) and
-`results/panel_methodology/fdr/stratified_w2_bh_per_family_2026-07-09.json` (BH-adjusted
-$W_2$ $p$, reject flag, per pre-registration amendment 2026-06-27/-28).
+**What this rung tests (restated from §3.2).** Each row asks whether subgroup $g$'s topology exceeds *its own* first-order Markov baseline, estimated on that subgroup's own transition data -- a test of per-subgroup Markov-1 irreducibility, not a between-subgroup heterogeneity test. All three families (gender, NS-SEC, cohort) are BH-corrected for both datasets (not BY; the per-subgroup construction runs on disjoint subgroups and the tests are mutually independent, unlike the earlier pairwise adjacent-cohort design).
 
-**What this rung tests (restated from §3.2).** Each row asks whether subgroup $g$'s topology
-exceeds *its own* first-order Markov baseline, estimated on that subgroup's own transition
-data -- a test of per-subgroup Markov-1 irreducibility, not a between-subgroup heterogeneity
-test. All three families (gender, NS-SEC, cohort) are BH-corrected for both datasets (not BY;
-the per-subgroup construction runs on disjoint subgroups and the tests are mutually
-independent, unlike the earlier pairwise adjacent-cohort design).
+**USoc: 12/12 subgroups reject.** Every USoc subgroup across all three families rejects its own Markov-1 null under both metrics ($T$ ranging 3.20-11.63).
 
-**USoc: 12/12 subgroups reject.** Every USoc subgroup across all three families rejects its
-own Markov-1 null under both metrics ($T$ ranging 3.20-11.63).
-
-**BHPS: 9/11 reject under $W_2$, with three distinct dual-metric patterns.** Two subgroups do
-not reject under $W_2$ after BH adjustment -- Professional/Managerial ($n=335$, $T=1.60$,
-$p_{\mathrm{adj}}=0.086$) and 1980s cohort ($n=223$, $T=1.53$, $p_{\mathrm{adj}}=0.097$) --
-both the two smallest BHPS cells and both **pre-registered as underpowered**, not evidence of
-equivalence to the Markov-1 null. Three qualitatively different metric patterns appear across
-the eleven BHPS subgroups: (i) agreement on non-rejection (1980s cohort: neither metric
-rejects), (ii) $W_2$ rejects but landscape does not (1940s cohort), and (iii) landscape rejects
-but $W_2$ does not (Professional/Managerial). All three are disclosed in Table 3 rather than
-summarised as a single "two non-rejections" statement, since the metrics disagree on *which*
-cells reject. Any interpretation of BHPS stratified rejections should be read together with
-the BHPS-specific Markov-1 null-credibility caveat reported elsewhere in this paper (the
-calibration diagnostic finding the BHPS Markov-1 null anti-conservative; P01-A §6.2) -- the
-BHPS rejections in this table carry that caveat.
-
-## §4.2.4 Reconciling the abstract's ISSUE C2 claim with the matched-landmark headline
-
-v1's abstract states the Markov-1 discrepancy at the legacy landmark-mismatched figure
-($p=0.002$), while v1's Table 2 (mismatched $L=2{,}000$) reports $p=0.070$ for the same cell --
-an internal contradiction (ISSUE C1/C2) that the matched-landmark recompute above resolves.
-**At matched $L=5{,}000$, USoc Markov-1 $H_0$ rejects decisively under $W_2$
-($p<0.001$, $T=14.91$, $d_{\mathrm{perm}}=51.07$)**, and $H_1$ also rejects decisively
-($p<0.001$, $T=3.479$, $d_{\mathrm{perm}}=31.16$) -- both stronger than either legacy number.
-Per the response plan's pre-registered publication rule
-(whatever the matched-$L$ result is, the abstract, §4.2, and the discussion must all use the
-same number, with no legacy figure surviving anywhere in the headline narrative), the
-reconciled statement for both the abstract and this section is:
-
-> The scalar (total-persistence) test reports that first-order Markov dynamics account for
-> the topology ($p=1.000$; Table 1), while $W_2$ at the matched landmark count decisively
-> rejects the same first-order null ($p<0.001$; Table 2). Second-order Markov dynamics
-> (Table 2, $\alpha=1$) reject as well for USoc, localising -- though not eliminating -- the
-> discrepancy as a matched-landmark, dual-metric-confirmed finding rather than a
-> landmark-count artefact.
-
-This differs from all three of v1's abstract numbers ($p=0.002$ legacy, $p=0.070$
-mismatched-$L$ post-audit) and from the original pre-registered contingency's most
-conservative branch: the matched-$L$ result is decisive ($p<0.001$), not borderline, so no
-major restructuring of the paper's central claim is triggered. The abstract text itself is
-out of scope for this Task (§4.2 only); this reconciled sentence is provided so the Manager
-can apply it verbatim to the abstract, §4.2, and any discussion-section restatement,
-satisfying the "no legacy numbers anywhere" publication rule.
-
-## Issues (for Manager review before v2 assembly)
-
-- **No matched-$L=5{,}000$ recompute exists for label/cohort/order-shuffle.** Table 2's
-  three legacy rows remain at $L=2{,}000$; if full landmark-count matching across all five
-  rungs is required for JRSS-B submission (per the response plan's original ISSUE C1
-  strategy), this recompute is still outstanding and was not an input to this Task.
-- **No landscape $L^2$ companion exists for the Markov-2 $\alpha$-sweep.** The dual-metric
-  mandate is not yet satisfied for the Markov-2 rows; flagged as `n/a` rather than a
-  fabricated number.
-- **The legacy shuffle rows' $H_1$ $W_2$ cells are unciteable pending a production re-run.**
-  Their source predates the exact-solver era and no cached diagrams survive to gate against
-  (footnote $\dagger$). Only a re-run can settle them; until then their $H_1$ non-rejections
-  must not be presented as negative controls that passed, because under the superseded
-  convention a negative control cannot fail. Their $H_0$ cells stand.
-- **No BCa interval for the corrected BHPS Markov-1 $H_1$ cell.** The exact-$W_2$ correction
-  did not re-derive one, and the superseded interval is not carried over (footnote $\S$). The
-  per-pair arrays are retained in the corrected file, so the interval is derivable on demand;
-  flagged for a decision on whether v2 requires it.
-- **The Markov-2 rows are exact-era but not explicitly gated** by the convention audit
-  (footnote $\P$). Reported unchanged pending that confirmation.
-- Figure placeholders `[Figure 1]`, `[Figure 2]` from v1 are not re-created here; assign at
-  v2 figure-production pass.
+**BHPS: 9/11 reject under $W_2$, with three distinct dual-metric patterns.** Two subgroups do not reject under $W_2$ after BH adjustment -- Professional/Managerial ($n=335$, $T=1.60$, $p_{\mathrm{adj}}=0.086$) and 1980s cohort ($n=223$, $T=1.53$, $p_{\mathrm{adj}}=0.097$) -- both the two smallest BHPS cells and both **pre-registered as underpowered**, not evidence of equivalence to the Markov-1 null. Three qualitatively different metric patterns appear across the eleven BHPS subgroups: (i) agreement on non-rejection (1980s cohort: neither metric rejects), (ii) $W_2$ rejects but landscape does not (1940s cohort), and (iii) landscape rejects but $W_2$ does not (Professional/Managerial). All three are disclosed in Table 3 rather than summarised as a single "two non-rejections" statement, since the metrics disagree on *which* cells reject. Any interpretation of BHPS stratified rejections should be read together with the BHPS-specific Markov-1 null-credibility caveat reported elsewhere in this paper (the calibration diagnostic finding the BHPS Markov-1 null anti-conservative; P01-A §6.2) -- the BHPS rejections in this table carry that caveat.
