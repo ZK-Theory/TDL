@@ -103,21 +103,38 @@ inputs:
     root: worktree
     expected:
       # Presence-checked, NOT sha256-pinned — and the reason is a gate defect
-      # this manifest surfaced (Manager 14, 2026-07-15). The repo sets
-      # core.autocrlf=true with no .gitattributes normalisation, so a text file
-      # whose git blob stores LF is checked out with CRLF into a fresh worktree
-      # while an older working copy keeps LF. SUPERSEDED.md is byte-identical in
-      # git across main and origin/main and clean in both, yet its working-tree
-      # sha256 differs by checkout: 9,041 bytes / 0 CRLF at PROJ_ROOT versus
-      # 9,179 bytes / 138 CRLF in this worktree. A sha256 over working-tree bytes
-      # is therefore NOT a stable signature for an LF-blob text file, and pinning
-      # one here produces a guaranteed false VIOLATION in every fresh worktree —
-      # a gate that cries wolf and trains its operator to override it.
-      # The committed JSON inputs above are unaffected: their blobs already store
-      # CRLF, so checkout is a no-op and their shas are stable (verified on both
-      # sides). This file is a governing document the Task must not contradict,
-      # not a data input whose bytes feed a computation, so presence is the real
-      # requirement and content-pinning was over-specification.
+      # this manifest surfaced (Manager 14, 2026-07-15; mechanism corrected
+      # 2026-07-16 after checking `git ls-files --eol` rather than inferring from
+      # a byte comparison).
+      #
+      # The repo sets core.autocrlf=true and .gitattributes normalises only
+      # .research-system/evals/fixtures/**. EVERY text blob in this tree is LF
+      # (i/lf), so checkout rewrites it to CRLF (w/crlf). The working-tree bytes
+      # of a text file therefore depend on HOW THE FILE GOT THERE, not on its
+      # blob:
+      #   - checked out by git      -> CRLF
+      #   - written in place by a tool -> LF
+      # SUPERSEDED.md is `i/lf w/lf` at PROJ_ROOT (a tool wrote it) and `i/lf
+      # w/crlf` here (git checked it out): 9,041 bytes / 0 CRLF versus 9,179 /
+      # 138 CRLF. Same blob, clean in both, different sha256.
+      #
+      # So a sha256 over working-tree bytes is NOT a stable signature for ANY
+      # text file in this repo — it is stable only between two copies that were
+      # produced the same way. The committed JSON inputs above are pinned safely
+      # only because both their copies were checked out (both w/crlf, verified
+      # identical); their blobs are LF too (`i/lf w/crlf`), so they are one
+      # in-place rewrite away from the same false VIOLATION. The earlier claim
+      # that they were safe "because their blobs already store CRLF" was wrong.
+      #
+      # A gate that fires on a correct input trains its operator to override it,
+      # and the next override lands on a true positive. The root fix is to sign
+      # the git BLOB hash (checkout-invariant by construction), not working-tree
+      # bytes; tracked as the pre-audit exception in
+      # docs/plans/strategy/Gate-Liveness-Audit-Plan-2026-07-15.md.
+      #
+      # This file is a governing document the Task must not contradict, not a
+      # data input whose bytes feed a computation, so presence is the real
+      # requirement and content-pinning was over-specification regardless.
       exists: true
 
   - path: results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_2026-06-16.json
