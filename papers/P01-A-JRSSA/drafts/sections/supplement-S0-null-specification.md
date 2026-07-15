@@ -1,36 +1,3 @@
-<!--
-Target location in v2: Supplement §S0 (precedes the existing S1–S5 outline in
-v1-2026-04.md lines 395–405).
-
-Evidence sources verified during drafting:
-  • `trajectory_tda/topology/permutation_nulls.py`
-      `_label_shuffle` lines 53–64,
-      `_cohort_shuffle` lines 67–92,
-      `_order_shuffle` lines 95–113,
-      `_markov_shuffle` (orders 1 and 2) lines 116–241,
-      `_stratified_markov_shuffle` lines 249–383,
-      `permutation_test_trajectories` lines 571–752.
-  • `trajectory_tda/scripts/run_wasserstein_battery.py` `run_battery` lines
-    298–434 — drives the post-audit JSON outputs.
-  • `results/trajectory_tda_integration/post_audit/04_nulls_wasserstein_w2_L5000_20260502.json`
-    and the BHPS counterpart at the same date — provide the empirical
-    `n_permutations` and `n_null_null_pairs` for the post-audit summary.
-  • `papers/P01-A-JRSSA/notes/2026-05-01-reviewer-response-plan.md`
-    Reviewer 1 issue R1-M1 — explicit null-model specification required.
-
-Forbidden content (verified absent below): no reporting of $p$-values, no
-claim about which nulls reject which dimensions. §S0 specifies the
-machinery; the empirical results live in §4.3, §6.2, and the gated tables.
-
-DEVIATION FROM TASK PROMPT: the Task description states that the stratified
-Markov-1 null uses "α = 1 Laplace smoothing"; the canonical implementation
-in `_stratified_markov_shuffle` uses raw maximum-likelihood per-regime
-transition matrices with zero-row safety (no Laplace term). Laplace
-smoothing with α = 1 is applied only to the Markov-2 conditional bigram
-probabilities in `_markov_shuffle(markov_order = 2)`. The text below
-matches the code.
--->
-
 # Supplement §S0 — Null-Model Specification
 
 The five Markov-memory rungs and the stratified Markov-1 rung referenced in
@@ -44,7 +11,7 @@ deliberate choice and is restated below.
 
 ## §S0.1 Label shuffle
 
-Algorithm — `_label_shuffle` in `trajectory_tda/topology/permutation_nulls.py`:
+Algorithm:
 
 ```
 permutation ← rng.permutation(N)            # N = number of point-cloud rows
@@ -58,7 +25,7 @@ preserved.
 
 ## §S0.2 Cohort shuffle
 
-Algorithm — `_cohort_shuffle`:
+Algorithm:
 
 ```
 for each cohort bin c in unique(cohort_labels):
@@ -77,7 +44,7 @@ metadata.
 
 ## §S0.3 Order shuffle
 
-Algorithm — `_order_shuffle`:
+Algorithm:
 
 ```
 for each trajectory traj_i (length T_i):
@@ -94,7 +61,7 @@ preserved; bigram and higher-order temporal structure are destroyed.
 
 ## §S0.4 Markov-1
 
-Algorithm — `_markov_shuffle(markov_order = 1)`:
+Algorithm:
 
 ```
 TM        ← (n_states × n_states) zero matrix
@@ -127,7 +94,7 @@ Laplace smoothing is applied at this order.
 
 ## §S0.5 Stratified Markov-1
 
-Algorithm — `_stratified_markov_shuffle`:
+Algorithm:
 
 ```
 for each regime k in unique(regime_labels):
@@ -150,8 +117,7 @@ Per-regime transition matrices are fitted on regime-specific trajectories
 only and applied to generate per-regime synthetic sequences. The
 `min_regime_n = 30` fallback transfers a regime to the global transition
 matrix when fewer than 30 trajectories support it. The regime labels are
-the integer GMM assignments from `05_analysis.json` (the same labels used
-in Table 2); the function rejects scalar inputs (cluster count `k`) and
+the integer GMM assignments used in Table 2; the function rejects scalar inputs (cluster count `k`) and
 length-mismatched label arrays, with explicit error messages, to prevent
 the two most common misuse patterns.
 
@@ -161,7 +127,7 @@ prior is applied at this order.
 
 ## §S0.6 Markov-2
 
-Algorithm — `_markov_shuffle(markov_order = 2, alpha = 1.0)`:
+Algorithm:
 
 ```
 init_cnts     ← n_states zeros
@@ -230,9 +196,8 @@ The four cross-cutting policies that apply to every rung above:
 ## §S0.8 Permutation budget and $p$-value computation
 
 Each null type is run for $B$ permutations and $N_{\text{pairs}}$ null-null
-pairs. The pre-registration (T1.1, 2026-05-13) locks $B = 1{,}000$ and
-$N_{\text{pairs}} = 500$ for the headline relaunch when the resumed
-phase-split pipeline (T0.12) emits the next round of diagrams. The headline
+pairs. The pre-registration (2026-05-13) locks $B = 1{,}000$ and
+$N_{\text{pairs}} = 500$ for the headline run. The headline
 $p$-value uses the Edgington form
 
 $$
@@ -244,9 +209,7 @@ W_2\big(D^{(j)}_{\text{null}}, D^{(j')}_{\text{null}}\big)
 $$
 
 with $\overline{W_2}(\cdot, \cdot)$ the mean across the $B$ stored
-obs-null distances. The headline implementation
-(`trajectory_tda/scripts/run_stage1_battery.py`, line 466 for $W_2$ and
-line 486 for the companion landscape $L^2$ statistic) writes the full
+obs-null distances. The headline implementation writes the full
 `obs_null_distribution` array and the null-null summary statistics to JSON
 for downstream effect-size and CI computation (Tables 1 and S1). The
 resolution floor of $1 / (1 + N_{\text{pairs}}) \approx 0.002$ at
@@ -254,21 +217,16 @@ $N_{\text{pairs}} = 500$ replaces the strict-zero floor that the raw
 empirical fraction produces when all null-null distances fall below the
 obs-null mean.
 
-> *Note on legacy data.* Some figures and tables consume post-audit JSON
-> output computed under the legacy code path
-> (`trajectory_tda/topology/permutation_nulls.py` lines 571–752,
-> `permutation_test_trajectories`), which used the empirical-fraction form
+> *Note on legacy data.* Some figures and tables consume post-audit output
+> computed under a legacy code path that used the empirical-fraction form
 > $\hat p_{\text{legacy}} = N_{\text{pairs}}^{-1} \,|\{\ldots\}|$ rather
 > than the Edgington form $(1 + |\{\ldots\}|) / (1 + N_{\text{pairs}})$.
 > Above the resolution floor the two formulas agree to within
 > $1 / (1 + N_{\text{pairs}}) \approx 0.002$; the only practical
 > difference is the floor itself ($0$ vs $\approx 0.002$). The headline
-> $B = 1{,}000$ results currently in production (T1.2) use the Edgington
-> form; legacy values are labelled in the supplement where they appear and
-> will be re-reported under Edgington once the headline relaunch lands.
-> The post-audit canonical runs deposited in
-> `results/trajectory_tda_integration/post_audit/` and
-> `results/trajectory_tda_bhps/post_audit/` (May 2026; $L = 5{,}000$,
-> $B = 100$, $N_{\text{pairs}} = 500$) are the legacy-formula values
-> consumed by the Supplement §S1 and Table 1 cells that label themselves
-> *post-audit canonical*.
+> $B = 1{,}000$ results use the Edgington form; legacy values are labelled
+> in the supplement where they appear and will be re-reported under the
+> Edgington form in the final submission. The post-audit canonical runs
+> ($L = 5{,}000$, $B = 100$, $N_{\text{pairs}} = 500$) are the
+> legacy-formula values consumed by the Supplement §S1 and Table 1 cells
+> that label themselves *post-audit canonical*.
