@@ -9,7 +9,7 @@ paths:
 - **Type hints** mandatory on all public APIs; use `numpy.typing.NDArray`, not bare `np.ndarray`.
 - **Docstrings:** Google-style on all public functions/classes.
 - **Imports:** standard → third-party → local; no wildcard imports.
-- **Pre-commit:** ruff lint/format runs on every commit; never skip hooks.
+- **Pre-commit:** ruff lint/format + the contract validator run on every commit; never skip hooks. **Hooks live in `.githooks/` (tracked), because the repo sets `core.hooksPath=.githooks` — anything placed in `.git/hooks/` is IGNORED by git and silently never runs.** That is not hypothetical: the contract validator sat in `.git/hooks/pre-commit` from 2026-05-27 and never executed once, because the redirect had been in force since 2026-04-10. Never install a hook to `.git/hooks`. Verify the gate is live with `uv run python .claude/hooks/install-git-hooks.py`.
 - **Research context comment** at the top of every new script:
 
   ```python

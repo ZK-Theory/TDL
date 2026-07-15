@@ -41,10 +41,24 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.
 fi
 
 # Gate 2 — math-correctness contract validator.
-# --no-sync keeps a linked worktree from attempting a venv re-sync mid-commit
-# (fresh worktree venvs can lack jsonschema); the validator resolves the project
-# environment from the repo root.
-if ! UV_NO_SYNC=1 uv run --no-sync python "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
+#
+# Environment resolution matters here. A linked worktree has its own (often bare)
+# venv: `uv run` there either attempts a re-sync mid-commit — which can hit a
+# Windows file lock — or, with --no-sync, runs against an environment missing
+# jsonschema and fails the gate spuriously. Either way every Worker commit in a
+# worktree would be blocked by plumbing rather than by a real contract breach.
+#
+# So: take the interpreter from the MAIN repository (git-common-dir's parent,
+# which is the main checkout even when we are inside a linked worktree) while
+# still validating THIS working tree's files — the validator resolves its own
+# targets from `git rev-parse --show-toplevel`.
+GIT_COMMON=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$GIT_COMMON" ]; then
+  MAIN_ROOT=$(cd "$(dirname "$GIT_COMMON")" 2>/dev/null && pwd)
+fi
+[ -z "$MAIN_ROOT" ] && MAIN_ROOT="$REPO_ROOT"
+
+if ! UV_NO_SYNC=1 uv run --project "$MAIN_ROOT" --no-sync python "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
   echo "" >&2
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
   exit 1

@@ -185,6 +185,49 @@ def check_contracts(workspace: Path) -> Check:
     return Check("contracts", proc.returncode == 0, msg)
 
 
+def check_hook_gate(workspace: Path) -> Check:
+    """Assert the Worker's commit-time contract gate is actually live in workspace.
+
+    R-C — the contract/provenance re-assertion at the Worker's commit — is a
+    *passive* gate: nothing runs it, so nothing reports when it is absent. That is
+    how it went unnoticed that core.hooksPath was redirected to .githooks on
+    2026-04-10 while the validator was installed to .git/hooks/pre-commit on
+    2026-05-27, where git never read it: the hook did not fail, it simply never
+    ran, for 47 days.
+
+    R-B (this gate) is *active* — a Manager runs it and reads the output — so the
+    liveness assertion for R-C belongs here. Passive enforcement is unverifiable
+    enforcement; every gate needs a positive liveness signal from somewhere that
+    is actually read.
+
+    Liveness only: presence of an executable pre-commit in the directory git will
+    actually consult. Running the full gate is check_contracts' job.
+    """
+    configured = subprocess.run(
+        ["git", "config", "--get", "core.hooksPath"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+
+    hooks_dir = Path(configured) if configured else Path(".git/hooks")
+    if not hooks_dir.is_absolute():
+        hooks_dir = workspace / hooks_dir
+
+    hook = hooks_dir / "pre-commit"
+    where = f"core.hooksPath={configured or '(unset)'} -> {hook}"
+    if not hook.is_file():
+        return Check(
+            "hook-gate",
+            False,
+            f"NO pre-commit hook where git reads them ({where}) — the Worker's commit-time "
+            f"contract gate would silently not run. Fix before dispatch: "
+            f"uv run python .claude/hooks/install-git-hooks.py",
+        )
+    return Check("hook-gate", True, f"pre-commit live ({where})")
+
+
 def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) -> list[Check]:
     """Run the input-provenance check on each declared manifest."""
     if not manifests:
@@ -276,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
     wt_map = _worktree_paths(proj_root)
     workspace = _resolve_workspace(args.workspace, args.branch, wt_map, proj_root)
     checks.append(check_contracts(workspace))
+    checks.append(check_hook_gate(workspace))
 
     manifests = [Path(m) for m in args.provenance_manifest]
     checks.extend(check_provenance(manifests, repo_root, proj_root))
