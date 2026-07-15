@@ -1,0 +1,53 @@
+#!/bin/bash
+# Pre-commit hook — ACTIVE.
+#
+# This file lives in .githooks/ because the repository sets
+#   core.hooksPath = .githooks
+# Anything placed in .git/hooks/ is IGNORED by git. A hook installed there does
+# not error — it simply never runs, silently. That is exactly what happened:
+# core.hooksPath was set 2026-04-10 (a54a2c4) and the contract validator was
+# installed to .git/hooks/pre-commit on 2026-05-27, where it never executed once.
+# Install hooks with .claude/hooks/install-git-hooks.py, which now resolves
+# core.hooksPath rather than hardcoding .git/hooks.
+#
+# .githooks/ is tracked, so these hooks apply to every clone and every linked
+# worktree.
+#
+# Gates, in order — the first failure blocks the commit:
+#   1. ruff lint + format, via the pre-commit framework (.pre-commit-config.yaml).
+#   2. The math-correctness contract validator: meta-schema validation of every
+#      contract, binding test_file existence + function presence (AST-checked),
+#      pytest invocation of every bound test, and JSON-schema validation of
+#      staged output files. See contracts/README.md.
+#
+# To bypass in a genuine emergency: git commit --no-verify. Project rules forbid
+# this — if a gate fails, fix the cause.
+
+set -o pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$REPO_ROOT" ]; then
+  echo "ERROR: pre-commit could not locate the repo root via git rev-parse." >&2
+  exit 2
+fi
+
+# Gate 1 — ruff via the pre-commit framework, when it is available.
+if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.yaml" ]; then
+  if ! pre-commit run --config "$REPO_ROOT/.pre-commit-config.yaml"; then
+    echo "" >&2
+    echo "pre-commit: ruff gate FAILED — commit blocked." >&2
+    exit 1
+  fi
+fi
+
+# Gate 2 — math-correctness contract validator.
+# --no-sync keeps a linked worktree from attempting a venv re-sync mid-commit
+# (fresh worktree venvs can lack jsonschema); the validator resolves the project
+# environment from the repo root.
+if ! UV_NO_SYNC=1 uv run --no-sync python "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
+  echo "" >&2
+  echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
+  exit 1
+fi
+
+exit 0
