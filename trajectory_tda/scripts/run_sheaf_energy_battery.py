@@ -593,7 +593,10 @@ def main() -> None:
     for substrate in SUBSTRATES:
         sequences, sha, path = _load_substrate(substrate)
         substrate_sha256[substrate] = sha
-        input_paths[substrate] = str(path)
+        # Record the repository-relative identifier, never the machine-local absolute
+        # path: the committed artifact must not carry a local username/worktree layout,
+        # and provenance is pinned by substrate_sha256 above, not by where the file sat.
+        input_paths[substrate] = SUBSTRATES[substrate]["sequences"]
 
         seqs_idx = [np.asarray([STATE_TO_IDX[s] for s in seq], dtype=np.int64) for seq in sequences]
         cov_arrays, family_plan = _rebuild_memberships(substrate, sequences, args.anchored_cohort_only)
@@ -657,7 +660,7 @@ def main() -> None:
                 else "LOCKED pre-registered design (cohort family = decades with n >= 200)."
             ),
             "input_paths": input_paths,
-            "t128_checkpoint_dir": str(T128_CKPT_DIR),
+            "t128_checkpoint_dir": T128_CKPT_DIR.relative_to(PROJ_ROOT).as_posix(),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         },
     }
@@ -694,8 +697,12 @@ def main() -> None:
         return
 
     RESULT_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = "_sensitivity_anchored_cohort" if args.anchored_cohort_only else ""
-    out_path = RESULT_DIR / f"sheaf_laplacian_employment{suffix}_{date.today().isoformat()}.json"
+    # The locked contract's applies_to glob is sheaf_laplacian_employment_*.json. The
+    # sensitivity artifact is supplementary and NOT pre-registered, so it must live
+    # outside that namespace — otherwise a design the pre-registration never locked
+    # would validate as the locked confirmatory result.
+    basename = "sheaf_energy_sensitivity_anchored_cohort" if args.anchored_cohort_only else "sheaf_laplacian_employment"
+    out_path = RESULT_DIR / f"{basename}_{date.today().isoformat()}.json"
     if out_path.exists():
         raise SystemExit(f"STOP: results file already exists, never overwrite: {out_path}")
     out_path.write_text(json.dumps(payload, indent=2))

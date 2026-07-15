@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from trajectory_tda.topology.sheaf_laplacian import (
     build_transition_graph,
@@ -23,7 +24,7 @@ from trajectory_tda.topology.sheaf_laplacian import (
 N_STATES = 3
 
 
-def _toy_sequences() -> list[np.ndarray]:
+def _toy_sequences() -> list[NDArray[np.int64]]:
     """Three short sequences over a 3-state alphabet."""
     return [
         np.array([0, 1, 0, 1], dtype=np.int64),  # 0->1, 1->0, 0->1
@@ -116,7 +117,7 @@ def test_per_trajectory_state_counts_rows_match_each_sequence() -> None:
         np.array([False, False, False]),  # empty group
     ],
 )
-def test_occupancy_from_counts_matches_occupancy_signal(member: np.ndarray) -> None:
+def test_occupancy_from_counts_matches_occupancy_signal(member: NDArray[np.bool_]) -> None:
     """Binding equivalence: the vectorised battery path must equal the reference path."""
     seqs = _toy_sequences()
     counts = per_trajectory_state_counts(seqs, N_STATES)
@@ -190,6 +191,7 @@ def test_sheaf_energy_scales_quadratically_with_signal_amplitude() -> None:
 # ── sheaf_laplacian_matrix / energy identity ─────────────────────────────────
 
 
+@pytest.mark.validation
 def test_sheaf_laplacian_is_symmetric_psd_with_zero_row_sums() -> None:
     weights, edges = build_transition_graph(_toy_sequences(), N_STATES)
     n_groups = 2
@@ -202,6 +204,7 @@ def test_sheaf_laplacian_is_symmetric_psd_with_zero_row_sums() -> None:
     assert np.linalg.eigvalsh(laplacian).min() > -1e-10
 
 
+@pytest.mark.validation
 def test_energy_equals_quadratic_form_of_the_sheaf_laplacian() -> None:
     """E_sheaf(x) == vec(x)^T L_F vec(x) — the identity that makes it a sheaf energy."""
     rng = np.random.default_rng(42)
@@ -218,6 +221,7 @@ def test_energy_equals_quadratic_form_of_the_sheaf_laplacian() -> None:
 # ── sheaf_spectrum ───────────────────────────────────────────────────────────
 
 
+@pytest.mark.validation
 def test_spectrum_repeats_each_graph_laplacian_eigenvalue_n_groups_times() -> None:
     """Identity restrictions make L_F = L_G (x) I_G, so the spectrum is degenerate."""
     weights, edges = build_transition_graph(_toy_sequences(), N_STATES)
@@ -230,6 +234,7 @@ def test_spectrum_repeats_each_graph_laplacian_eigenvalue_n_groups_times() -> No
     np.testing.assert_allclose(spectrum, np.repeat(scalar_spectrum, n_groups), atol=1e-10)
 
 
+@pytest.mark.validation
 def test_spectrum_does_not_depend_on_the_stalk_signals() -> None:
     """The documented reason the pre-registration attaches no p-value to spectra."""
     weights, edges = build_transition_graph(_toy_sequences(), N_STATES)

@@ -19,7 +19,7 @@
     "parallel_workers": 4,
     "checkpoint_interval": 100,
     "wall_time_hours": 4.0,
-    "wall_time_seconds": 41.9
+    "wall_time_seconds": 52.5
   },
   "families": [
     {
@@ -1097,7 +1097,7 @@
         "observed_percentile_of_null": 100.0,
         "centering_argument": "The null is a joint covariate-label permutation within (length, first-state) strata \u2014 it is not a parametric fit through the statistic's sufficient statistic. E_sheaf depends on per-group occupancy signals, which the permutation actively resamples; the transition graph (and hence the edge weights) is held fixed and is not the object the statistic is centered on. Observed is therefore not structurally centered in its own null; the reported percentile is empirical evidence of this."
       },
-      "elapsed_seconds": 4.0,
+      "elapsed_seconds": 3.6,
       "audit_only": false,
       "p_fdr": 0.000999000999000999,
       "rejects_fdr": true
@@ -2233,7 +2233,7 @@
         "observed_percentile_of_null": 100.0,
         "centering_argument": "The null is a joint covariate-label permutation within (length, first-state) strata \u2014 it is not a parametric fit through the statistic's sufficient statistic. E_sheaf depends on per-group occupancy signals, which the permutation actively resamples; the transition graph (and hence the edge weights) is held fixed and is not the object the statistic is centered on. Observed is therefore not structurally centered in its own null; the reported percentile is empirical evidence of this."
       },
-      "elapsed_seconds": 4.5,
+      "elapsed_seconds": 4.2,
       "audit_only": false,
       "p_fdr": 0.000999000999000999,
       "rejects_fdr": true
@@ -3313,7 +3313,7 @@
         "observed_percentile_of_null": 100.0,
         "centering_argument": "The null is a joint covariate-label permutation within (length, first-state) strata \u2014 it is not a parametric fit through the statistic's sufficient statistic. E_sheaf depends on per-group occupancy signals, which the permutation actively resamples; the transition graph (and hence the edge weights) is held fixed and is not the object the statistic is centered on. Observed is therefore not structurally centered in its own null; the reported percentile is empirical evidence of this."
       },
-      "elapsed_seconds": 6.0,
+      "elapsed_seconds": 5.6,
       "audit_only": false,
       "p_fdr": 0.000999000999000999,
       "rejects_fdr": true
@@ -4449,7 +4449,7 @@
         "observed_percentile_of_null": 100.0,
         "centering_argument": "The null is a joint covariate-label permutation within (length, first-state) strata \u2014 it is not a parametric fit through the statistic's sufficient statistic. E_sheaf depends on per-group occupancy signals, which the permutation actively resamples; the transition graph (and hence the edge weights) is held fixed and is not the object the statistic is centered on. Observed is therefore not structurally centered in its own null; the reported percentile is empirical evidence of this."
       },
-      "elapsed_seconds": 6.7,
+      "elapsed_seconds": 7.1,
       "audit_only": false,
       "p_fdr": 0.000999000999000999,
       "rejects_fdr": true
@@ -4463,11 +4463,12 @@
   "provenance": {
     "pre_registration": "vault/00-Meta/Discovery/sheaf-laplacian-employment-dispatch-prereg-2026-07-10.md",
     "pre_registration_status": "LOCKED 2026-07-10",
+    "run_mode": "LOCKED pre-registered design (cohort family = decades with n >= 200).",
     "input_paths": {
-      "bhps": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\sheaf-pl-confirmatory\\results\\trajectory_tda_bhps\\01_trajectories_sequences.json",
-      "integration": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json"
+      "bhps": "results/trajectory_tda_bhps/01_trajectories_sequences.json",
+      "integration": "results/trajectory_tda_integration/01_trajectories_sequences.json"
     },
-    "t128_checkpoint_dir": "C:\\Users\\steph\\TDL\\results\\panel_methodology\\fdr\\subgroup_checkpoints",
-    "generated_at": "2026-07-15T12:09:39.471580+00:00"
+    "t128_checkpoint_dir": "results/panel_methodology/fdr/subgroup_checkpoints",
+    "generated_at": "2026-07-15T13:55:22.349188+00:00"
   }
 }
