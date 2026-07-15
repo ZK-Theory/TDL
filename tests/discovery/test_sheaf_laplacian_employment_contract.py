@@ -51,6 +51,24 @@ def _require_finite_number(value: object, field: str) -> None:
         raise ValueError(f"{field} must be finite")
 
 
+def _bh_adjust(p_values: list[float]) -> list[float]:
+    """Benjamini-Hochberg adjusted p-values (step-up, monotonised, capped at 1).
+
+    Re-derived here independently of the battery so the stored ``p_fdr`` values are
+    checked rather than trusted: a corrupted p_fdr could otherwise flip the verdict
+    while still sitting inside [1/(B+1), 1].
+    """
+    m = len(p_values)
+    order = sorted(range(m), key=lambda i: p_values[i])
+    adjusted = [0.0] * m
+    running = 1.0
+    for rank in range(m - 1, -1, -1):
+        idx = order[rank]
+        running = min(running, min(1.0, p_values[idx] * m / (rank + 1)))
+        adjusted[idx] = running
+    return adjusted
+
+
 def _recompute_verdict(rows: list[dict[str, Any]]) -> str:
     """Locked decision rule, recomputed from stored p_fdr and rho values."""
     rejects = [float(r["p_fdr"]) <= ALPHA for r in rows]
@@ -128,11 +146,15 @@ def validate_sheaf_laplacian_employment_result(
     if payload["null_model_construction_verified"] is not True:
         raise ValueError("null_model_construction_verified must be true")
 
-    # (a) families payload
+    # (a) families payload — exactly the locked 4-cell family x substrate matrix.
+    # The locked rule quantifies over BOTH substrates per family, so a missing,
+    # duplicated, or unknown cell has no defined verdict; without this, a payload
+    # carrying one nssec row would let `all(...)` vacuously return ADDITIVE off a
+    # single substrate.
     rows = payload["families"]
     _require_exact_type(rows, list, "families")
-    if not rows:
-        raise ValueError("families must not be empty")
+    expected_cells = {(family, substrate) for family in FAMILIES for substrate in SUBSTRATES}
+    seen_cells: list[tuple[str, str]] = []
 
     p_floor = 1.0 / (B_EXPECTED + 1)
     for row in rows:
@@ -150,8 +172,13 @@ def validate_sheaf_laplacian_employment_result(
         ):
             if key not in row:
                 raise ValueError(f"families[] missing {key!r}")
+        _require_exact_type(row.get("family"), str, "families[].family")
+        _require_exact_type(row.get("substrate"), str, "families[].substrate")
         if row["substrate"] not in SUBSTRATES:
             raise ValueError(f"families[].substrate {row['substrate']!r} is not a known substrate")
+        if row["family"] not in FAMILIES:
+            raise ValueError(f"families[].family {row['family']!r} is not a locked family")
+        seen_cells.append((row["family"], row["substrate"]))
 
         # (g) p-value range
         for key in ("p_upper", "p_lower", "p_fdr"):
@@ -179,6 +206,23 @@ def validate_sheaf_laplacian_employment_result(
                     f"group n for {row['substrate']}/{row['family']}/{label} is {n_value} "
                     f"but the T1.28 checkpoint anchor is {anchor}"
                 )
+
+    if len(seen_cells) != len(expected_cells) or set(seen_cells) != expected_cells:
+        raise ValueError(
+            "families must contain exactly one row per locked family x substrate cell; "
+            f"expected {sorted(expected_cells)}, got {sorted(seen_cells)}"
+        )
+
+    # BH-FDR is recomputed from p_upper and compared with the stored p_fdr, rather
+    # than trusted: the verdict is a function of p_fdr, so an unchecked p_fdr is an
+    # unenforced statistical claim.
+    recomputed_fdr = _bh_adjust([float(r["p_upper"]) for r in rows])
+    for row, expected in zip(rows, recomputed_fdr):
+        if not math.isclose(float(row["p_fdr"]), expected, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError(
+                f"families[{row['family']}/{row['substrate']}].p_fdr={row['p_fdr']} does not match BH-FDR "
+                f"recomputed from the stored p_upper values ({expected})"
+            )
 
     # (i)(j) decision
     decision = payload["decision"]
@@ -210,7 +254,9 @@ def _valid_payload() -> dict[str, Any]:
                     "substrate": substrate,
                     "p_upper": 0.000999000999000999,
                     "p_lower": 1.0,
-                    "p_fdr": 0.001998001998001998,
+                    # BH over four identical p_upper values leaves them unchanged —
+                    # matching the real battery output (p_upper=0.0010, p_fdr=0.0010).
+                    "p_fdr": 0.000999000999000999,
                     "rho_chi2": 0.24,
                     "rho_js": 0.18,
                     "effect_size": 9.7,
@@ -336,11 +382,38 @@ def test_sheaf_result_rejects_invalid_payloads() -> None:
     with pytest.raises(ValueError, match="inconsistent with the locked rule"):
         validate_sheaf_laplacian_employment_result(payload)
 
-    # No rejections at all -> negative, not additive.
+    # No rejections at all -> negative, not additive. p_upper and p_fdr move together
+    # so the payload stays BH-consistent and the verdict check is what fires.
     payload = _valid_payload()
     for row in payload["families"]:
+        row["p_upper"] = 0.4
         row["p_fdr"] = 0.4
     with pytest.raises(ValueError, match="inconsistent with the locked rule"):
+        validate_sheaf_laplacian_employment_result(payload)
+
+    # A p_fdr that does not follow from the stored p_upper values is rejected on its
+    # own, before any verdict question — an unchecked p_fdr is an unenforced claim.
+    payload = _valid_payload()
+    payload["families"][0]["p_fdr"] = 0.9
+    with pytest.raises(ValueError, match="does not match BH-FDR"):
+        validate_sheaf_laplacian_employment_result(payload)
+
+    # Exactly the locked 4-cell matrix: a dropped cell, a duplicate, and an unknown
+    # family are all rejected (a single nssec row would otherwise vacuously satisfy
+    # "rejects on both substrates").
+    payload = _valid_payload()
+    payload["families"] = [r for r in payload["families"] if r["family"] == "nssec" and r["substrate"] == "bhps"]
+    with pytest.raises(ValueError, match="exactly one row per locked family"):
+        validate_sheaf_laplacian_employment_result(payload)
+
+    payload = _valid_payload()
+    payload["families"].append(copy.deepcopy(payload["families"][0]))
+    with pytest.raises(ValueError, match="exactly one row per locked family"):
+        validate_sheaf_laplacian_employment_result(payload)
+
+    payload = _valid_payload()
+    payload["families"][0]["family"] = "gender"
+    with pytest.raises(ValueError, match="is not a locked family"):
         validate_sheaf_laplacian_employment_result(payload)
 
     # (k) a group n contradicts its A4 checkpoint anchor

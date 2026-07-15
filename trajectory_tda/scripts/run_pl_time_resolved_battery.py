@@ -298,7 +298,22 @@ def classify_verdict(rows: list[dict[str, Any]]) -> tuple[str, str]:
     REDUNDANT: rejections occur but a redundancy gate fails wherever rejection
     occurs (the residual rejecting case).
     NEGATIVE: no rejection after FDR.
+
+    Raises:
+        SystemExit: If the rows do not cover exactly the two locked substrates. Every
+            branch of the locked rule is defined over BOTH substrates ("on BOTH", "on
+            exactly one"), so a partial row set has no defined verdict — and on a
+            single row ``all(rejects)`` would vacuously return ADDITIVE off one
+            substrate, which the rule never permits.
     """
+    seen = [r["substrate"] for r in rows]
+    if sorted(seen) != sorted(SUBSTRATES):
+        raise SystemExit(
+            f"STOP: the locked decision rule is defined over both substrates {sorted(SUBSTRATES)}, "
+            f"but this run covers {sorted(seen)}. A single-substrate run has no pre-registered verdict; "
+            "use --dry-run or --audit-only for exploratory single-substrate work."
+        )
+
     rejects = [r["rejects_fdr"] for r in rows]
     gates = [r["redundancy_gates_pass"] for r in rows]
 
@@ -543,7 +558,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--wall-time-hours", type=float, default=4.0, help="wall-time flag (pre-reg: 4h)")
     parser.add_argument("--audit-only", action="store_true", help="benchmark + invariance audit at small B, then stop")
     parser.add_argument("--audit-draws", type=int, default=20, help="draws for --audit-only")
-    parser.add_argument("--substrate", choices=["bhps", "integration", "all"], default="all")
+    parser.add_argument(
+        "--substrate",
+        choices=["bhps", "integration", "all"],
+        default="all",
+        help=(
+            "Substrates to run (default: all). A single substrate has NO pre-registered verdict — the locked rule "
+            "is defined over both — so pair it with --dry-run/--audit-only; a single-substrate result write is refused."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true", help="run fully but do not write the dated result file")
     return parser.parse_args()
 
@@ -560,6 +583,16 @@ def main() -> None:
     n_draws = args.audit_draws if args.audit_only else args.B
     targets = list(SUBSTRATES) if args.substrate == "all" else [args.substrate]
 
+    # Refuse a partial-coverage result write up front, before spending the battery's
+    # compute: the locked rule is defined over both substrates, so a single-substrate
+    # run has no pre-registered verdict and must not produce a dated artifact.
+    if sorted(targets) != sorted(SUBSTRATES) and not (args.dry_run or args.audit_only):
+        raise SystemExit(
+            f"STOP: --substrate {args.substrate} covers {sorted(targets)}, but the locked rule is defined over both "
+            f"substrates {sorted(SUBSTRATES)}, so this run has no pre-registered verdict and must not write a dated "
+            "result. Pair it with --dry-run or --audit-only for exploratory single-substrate work."
+        )
+
     substrate_sha256: dict[str, str] = {}
     input_paths: dict[str, str] = {}
     rows: list[dict[str, Any]] = []
@@ -567,7 +600,10 @@ def main() -> None:
     for substrate in targets:
         sequences, sha, path = _load_substrate(substrate)
         substrate_sha256[substrate] = sha
-        input_paths[substrate] = str(path)
+        # Repository-relative identifier, never the machine-local absolute path: the
+        # committed artifact must not carry a local username/worktree layout, and
+        # provenance is pinned by substrate_sha256 above.
+        input_paths[substrate] = SUBSTRATES[substrate]["sequences"]
         rows.append(
             run_substrate(
                 substrate=substrate,
@@ -585,6 +621,19 @@ def main() -> None:
     for row, adj in zip(rows, p_fdr):
         row["p_fdr"] = float(adj)
         row["rejects_fdr"] = bool(adj <= ALPHA)
+
+    # Exploratory partial-coverage runs stop here: classify_verdict would (correctly)
+    # refuse them, and a placeholder verdict is deliberately not invented — it would
+    # end up serialised into an artifact the pre-registration never sanctioned. The
+    # per-substrate statistics are already logged by run_substrate above. The
+    # non-exploratory partial case was rejected before any compute ran.
+    if sorted(targets) != sorted(SUBSTRATES):
+        logger.info(
+            "exploratory single-substrate run (%s): no verdict is defined by the locked rule; per-substrate "
+            "statistics are reported above and no result file is written.",
+            sorted(targets),
+        )
+        return
 
     verdict, rationale = classify_verdict(rows)
     elapsed = time.perf_counter() - t_start
