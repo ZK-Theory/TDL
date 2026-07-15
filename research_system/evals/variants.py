@@ -162,14 +162,22 @@ class VariantExecutionEvidence:
     def __post_init__(self) -> None:
         if not self.decisions_equal or self.first_normalized_decision_hash != self.second_normalized_decision_hash:
             raise ValueError("variant repeat mismatch")
+        hashes = (
+            self.expected_evidence_hash,
+            self.first_observed_evidence_hash,
+            self.second_observed_evidence_hash,
+        )
         if not isinstance(self.oracle_match, bool) or any(
-            len(value) != 64
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(char not in "0123456789abcdef" for char in value)
             for value in (
-                self.expected_evidence_hash,
-                self.first_observed_evidence_hash,
-                self.second_observed_evidence_hash,
+                *hashes,
             )
         ):
+            raise ValueError("variant oracle evidence mismatch")
+        observed_repeat = hashes[1] == hashes[2]
+        if not observed_repeat or self.oracle_match != (hashes[0] == hashes[1]):
             raise ValueError("variant oracle evidence mismatch")
         if (
             self.grader_result_bindings != tuple(sorted(self.grader_result_bindings))
