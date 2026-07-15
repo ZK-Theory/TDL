@@ -24,45 +24,94 @@ permutation effect size)*
 |---|---:|---:|---|---|---:|---|---|
 | **USoc** | | | | | | | |
 | Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | 0.452 | -- |
-| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | 0.538 | -- |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | unciteable$^{\dagger}$ | -- |
 | Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | 0.458 | -- |
-| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | 0.604 | -- |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | unciteable$^{\dagger}$ | -- |
 | Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | **<0.001** | -- |
-| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | 0.906 | -- |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | unciteable$^{\dagger}$ | -- |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 14.91 [14.54, 15.25] | 51.07 | **<0.001** | **<0.001** |
-| Markov-1 (matched) | 5,000 | 1,000 | H1 | 1.332 [1.330, 1.334] | 22.09 | **<0.001** | **<0.001** |
-| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H0 | 20.33 | 69.24 | **<0.001** | n/a$^{\ddagger}$ |
-| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H1 | 1.489 | 31.09 | **<0.001** | n/a$^{\ddagger}$ |
+| Markov-1 (matched) | 5,000 | 1,000 | H1 | 3.479 [3.454, 3.503] | 31.16 | **<0.001** | **<0.001** |
+| Markov-2, $\alpha=1$ (matched)$^{\P}$ | 5,000 | 1,000 | H0 | 20.33 | 69.24 | **<0.001** | n/a$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (matched)$^{\P}$ | 5,000 | 1,000 | H1 | 1.489 | 31.09 | **<0.001** | n/a$^{\ddagger}$ |
 | **BHPS** | | | | | | | |
 | Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | 0.036 | -- |
-| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | 0.330 | -- |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | unciteable$^{\dagger}$ | -- |
 | Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | 0.034 | -- |
-| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | 0.266 | -- |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | unciteable$^{\dagger}$ | -- |
 | Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | **<0.001** | -- |
-| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | 0.070 | -- |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | unciteable$^{\dagger}$ | -- |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 9.251 [9.001, 9.504] | 26.53 | **<0.001** | **<0.001** |
-| Markov-1 (matched) | 5,000 | 1,000 | H1 | 1.037 [1.035, 1.039] | 2.06 | **0.019** | **<0.001** |
-| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H0 | 16.95 | 56.76 | **<0.001** | n/a$^{\ddagger}$ |
-| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H1 | 0.956 | -2.78 | 0.997 | n/a$^{\ddagger}$ |
+| Markov-1 (matched) | 5,000 | 1,000 | H1 | 2.175 [--]$^{\S}$ | 19.26 | **<0.001** | **<0.001** |
+| Markov-2, $\alpha=1$ (matched)$^{\P}$ | 5,000 | 1,000 | H0 | 16.95 | 56.76 | **<0.001** | n/a$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (matched)$^{\P}$ | 5,000 | 1,000 | H1 | 0.956 | -2.78 | 0.997 | n/a$^{\ddagger}$ |
 
 $^{\dagger}$ Label/cohort/order-shuffle are **not yet recomputed at matched $L=5{,}000$**; these
 rows carry the legacy $L=2{,}000$, $B=100$ values from v1's post-audit battery unchanged. No
 matched-landmark file exists for these three levels at the time of this rewrite (this file's
 Task Prompt supplied no such input); flagged as an open item below rather than silently
-presented as matched.
+presented as matched. These rows carry a **second, independent caveat**: their source
+(`04_nulls_wasserstein_w2_20260407.json`, 2026-04-07) predates both the exact-solver era
+(boundary 2026-05-29/30) and the earliest stored null-diagram cache (2026-05-24), so their
+$W_2$ values were computed under the superseded persistence-rank convention and **no cached
+diagrams survive against which to gate or correct them** (classification:
+SUSPECT-UNVERIFIABLE). Their $H_0$ cells are unaffected -- with all births at zero,
+rank-matching *is* optimal one-dimensional transport, so the $H_0$ values are already exact --
+and stand. Their **$H_1$ cells may not be cited without a production re-run** and are marked
+`unciteable` accordingly. Critically, these $H_1$ cells must **not** be read as negative
+controls that passed: the superseded convention inflates the observed-to-null and
+null-to-null distances *together*, driving $T$ toward unity, so under it a negative control
+**cannot fail**. The absence of rejection in those cells is the direction the convention
+pushes, not evidence for the null -- they were never actually tested.
 
 $^{\ddagger}$ The Markov-2 $\alpha$-sweep (`markov2_alpha_sweep_summary_2026-06-16.json`) computes
 $W_2$ only; no landscape $L^2$ companion was computed for this cell. This is a genuine gap
 against the dual-metric mandate, disclosed rather than filled with an unverified number (see
 Issues).
 
-**Sources.** Markov-1 matched rows: `results/trajectory_tda_integration/stage1/usoc_headline_frozen_2026-05-28.json`,
-`results/trajectory_tda_bhps/stage1/bhps_headline_frozen_2026-05-28.json` (both `L=5000, B=1000,
-null_model="markov-1", seed=42, pvalue_formula="(r+1)/(B+1)"`). Markov-2 rows:
+$^{\S}$ BCa interval not re-derived in the exact-$W_2$ correction: the corrected BHPS file
+reports $T$, $d_{\mathrm{perm}}$, the $W_2$ $p$-value and the per-pair distance arrays, but no
+bootstrap interval. The interval is **pending** rather than absent in principle -- the retained
+per-pair arrays make it derivable -- and the superseded interval is deliberately not carried
+over, since it was computed under a different metric convention and does not describe this
+statistic.
+
+$^{\P}$ The Markov-2 rows postdate the 2026-05-29/30 solver-convention boundary and are
+therefore exact-era and presumed unaffected, but they were **not explicitly gated** by the
+convention audit. They are reported unchanged, pending that confirmation, rather than
+restated as verified.
+
+**Sources.** The Markov-1 matched rows draw on **two different files per dataset**, and the
+split is by homology degree and metric rather than by row. **$H_1$ $W_2$** (both datasets):
+`results/trajectory_tda_integration/stage1/headline_vintage_materiality_corrected_2026-07-14.json`
+(USoc, `corrected_exact_headline.orphan` block) and
+`results/trajectory_tda_bhps/stage1/bhps_headline_frozen_corrected_2026-07-14.json`
+(BHPS, `h1.corrected_exact` block) -- the exact optimal-transport re-derivations
+(`gudhi.wasserstein.wasserstein_distance(order=2, internal_p=2)`, POT 0.9.6.post1), adopted as
+the canonical citable $H_1$ $W_2$ statistics. **$H_0$ $W_2$ and landscape $L^2$** (both
+datasets): the frozen files
+`results/trajectory_tda_integration/stage1/usoc_headline_frozen_2026-05-28.json` and
+`results/trajectory_tda_bhps/stage1/bhps_headline_frozen_2026-05-28.json`, which remain
+canonical for those quantities -- $H_0$ because rank-matching is optimal transport when all
+births are zero, and landscape $L^2$ because it is computed on a separate pure-numeric code
+path that invokes no Wasserstein solver. All four files share `L=5000, B=1000,
+null_model="markov-1", seed=42, pvalue_formula="(r+1)/(B+1)"`; the corrected files re-derive
+from the *same* cached null diagrams, draws and seed-42 pair sample as the frozen run, so only
+the solver differs. Markov-2 rows:
 `results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_2026-06-16.json`,
 $\alpha=1$ cell (`L=5000, B=1000, seed=42`). Legacy label/cohort/order-shuffle rows: v1 §4.2.3
 Table 2 (unchanged; original source `04_nulls_wasserstein_w2_20260407.json` and BHPS
 counterpart per the reproducibility statement).
+
+**Sequence-vintage note.** The frozen USoc headline was computed on the May-2 orphan sequence
+file; exact-$W_2$ re-derivation on the canonical Apr-8 sequences moves $d_{\mathrm{perm}}$ by
+at most 0.11 ($H_1$) and 0.23 ($H_0$) and flips no conclusion.
+
+**Metric agreement at Markov-1.** The two metrics agree at every Markov-1 cell in Table 2:
+both reject decisively in both homology degrees for both datasets. The mandated pairing of
+$W_2$ with landscape $L^2$ earned its keep in reaching that position -- landscape $L^2$ is
+computed on a solver-independent path and was therefore unaffected by the superseded $W_2$
+convention, so the apparent BHPS $H_1$ disagreement reported in earlier versions of this table
+was itself the diagnostic that the $W_2$ convention, not the topology, was at fault.
 
 **M5 prose/code reconciliation note.** The Markov-2 numbers above are computed under the
 Laplace-smoothed ($\alpha=1$) code path described in §3.2, which corrects the prose/code
@@ -71,13 +120,6 @@ implement). The $\alpha$-sensitivity sweep (§3.2) confirms the reject/non-rejec
 reported here -- USoc rejects both dimensions, BHPS rejects H0 but not H1 -- is stable
 across $\alpha \in \{0, 0.5, 1, 5\}$ and is therefore not an artefact of the smoothing-strength
 choice.
-
-**BHPS dual-metric divergence at Markov-1 H1.** $W_2$ only marginally rejects BHPS $H_1$
-($p=0.019$, $T=1.037$ -- barely above parity), while landscape $L^2$ rejects decisively
-($p<0.001$). Per the dual-metric mandate this divergence is reported, not resolved by
-picking one metric: it indicates the two metrics are sensitive to different aspects of the
-diagram geometry at this cell, consistent with the divergence pattern documented for BHPS
-$H_1$ robustness elsewhere in this paper (P01-A §6.2, non-overlap sensitivity analysis).
 
 ## §4.2.3 Stratified Markov-1 rung (Level 4b; Table 3)
 
@@ -153,8 +195,9 @@ v1's abstract states the Markov-1 discrepancy at the legacy landmark-mismatched 
 ($p=0.002$), while v1's Table 2 (mismatched $L=2{,}000$) reports $p=0.070$ for the same cell --
 an internal contradiction (ISSUE C1/C2) that the matched-landmark recompute above resolves.
 **At matched $L=5{,}000$, USoc Markov-1 $H_0$ rejects decisively under $W_2$
-($p<0.001$, $T=14.91$)**, and $H_1$ also rejects decisively ($p<0.001$, $T=1.332$) -- both
-stronger than either legacy number. Per the response plan's pre-registered publication rule
+($p<0.001$, $T=14.91$, $d_{\mathrm{perm}}=51.07$)**, and $H_1$ also rejects decisively
+($p<0.001$, $T=3.479$, $d_{\mathrm{perm}}=31.16$) -- both stronger than either legacy number.
+Per the response plan's pre-registered publication rule
 (whatever the matched-$L$ result is, the abstract, §4.2, and the discussion must all use the
 same number, with no legacy figure surviving anywhere in the headline narrative), the
 reconciled statement for both the abstract and this section is:
@@ -183,5 +226,16 @@ satisfying the "no legacy numbers anywhere" publication rule.
 - **No landscape $L^2$ companion exists for the Markov-2 $\alpha$-sweep.** The dual-metric
   mandate is not yet satisfied for the Markov-2 rows; flagged as `n/a` rather than a
   fabricated number.
+- **The legacy shuffle rows' $H_1$ $W_2$ cells are unciteable pending a production re-run.**
+  Their source predates the exact-solver era and no cached diagrams survive to gate against
+  (footnote $\dagger$). Only a re-run can settle them; until then their $H_1$ non-rejections
+  must not be presented as negative controls that passed, because under the superseded
+  convention a negative control cannot fail. Their $H_0$ cells stand.
+- **No BCa interval for the corrected BHPS Markov-1 $H_1$ cell.** The exact-$W_2$ correction
+  did not re-derive one, and the superseded interval is not carried over (footnote $\S$). The
+  per-pair arrays are retained in the corrected file, so the interval is derivable on demand;
+  flagged for a decision on whether v2 requires it.
+- **The Markov-2 rows are exact-era but not explicitly gated** by the convention audit
+  (footnote $\P$). Reported unchanged pending that confirmation.
 - Figure placeholders `[Figure 1]`, `[Figure 2]` from v1 are not re-created here; assign at
   v2 figure-production pass.
