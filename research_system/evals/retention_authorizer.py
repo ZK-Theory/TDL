@@ -223,6 +223,8 @@ def load_evidence_store_registry(path: Path, schemas: SchemaRegistry) -> Evidenc
         staging_root=Path(payload["staging_root"]),
         temp_root=Path(payload["temp_root"]),
         replicas=tuple(Path(item) for item in payload["replicas"]),
+        backup_roots=tuple(Path(item) for item in payload["backup_roots"]),
+        restore_roots=tuple(Path(item) for item in payload["restore_roots"]),
         permitted_consumers=tuple(payload["permitted_consumers"]),
         retention_policy_ids=tuple(payload["retention_policy_ids"]),
         verifier_authority_bindings=tuple(tuple(pair) for pair in payload["verifier_authority_bindings"]),

@@ -50,6 +50,7 @@ def _result(**changes: object) -> GraderResult:
         "evaluation_run_id": f"run_{UUID7}",
         "fixture_id": "F-001",
         "fixture_revision": "r1",
+        "variant_id": "baseline",
         "grader_id": "state",
         "grader_class": "D",
         "grader_version": "v1",

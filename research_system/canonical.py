@@ -29,6 +29,14 @@ def _validate_p0_canonical_value(value: Any) -> None:
     raise TypeError(f'unsupported P0 canonical JSON value: {type(value).__name__}')
 
 
+def jsonable(value: Any) -> Any:
+    """Recursively normalize supported containers for canonical JSON."""
+    if isinstance(value, dict):
+        return {key: jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [jsonable(item) for item in value]
+    return value
+
 def canonical_bytes(value: Any) -> bytes:
     _validate_p0_canonical_value(value)
     return json.dumps(

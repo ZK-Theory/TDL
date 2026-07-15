@@ -7,8 +7,8 @@ from research_system.evals.release import decide_release
 
 
 UUID7 = "01978abc-0001-7000-8000-000000000001"
-STATE_KEY = ("F-001", "r1", "state", "D", "v1")
-RESEARCH_KEY = ("F-001", "r1", "research", "R", "v1")
+STATE_KEY = ("F-001", "r1", "state", "D", "v1", "baseline")
+RESEARCH_KEY = ("F-001", "r1", "research", "R", "v1", "baseline")
 
 
 def _coverage(*keys, **changes):
@@ -34,12 +34,13 @@ def _coverage(*keys, **changes):
 
 
 def _result(key, verdict="pass", **changes):
-    fixture_id, fixture_revision, grader_id, grader_class, grader_version = key
+    fixture_id, fixture_revision, grader_id, grader_class, grader_version, variant_id = key
     values = {
         "grader_result_id": f"grr_{UUID7}",
         "evaluation_run_id": f"run_{UUID7}",
         "fixture_id": fixture_id,
         "fixture_revision": fixture_revision,
+        "variant_id": variant_id,
         "grader_id": grader_id,
         "grader_class": grader_class,
         "grader_version": grader_version,
@@ -83,7 +84,7 @@ def test_empty_or_partial_result_set_blocks_on_exact_missing_keys():
 
 def test_stale_revision_duplicate_or_extra_result_blocks():
     coverage = _coverage(STATE_KEY)
-    stale = ("F-001", "r0", "state", "D", "v1")
+    stale = ("F-001", "r0", "state", "D", "v1", "baseline")
     stale_decision = decide_release(coverage, [_result(stale)])
     assert stale_decision["decision"] == "blocked"
     assert stale_decision["missing"] == [STATE_KEY]
@@ -123,7 +124,7 @@ def test_incompatible_result_binding_blocks(change):
 
 @pytest.mark.parametrize("grader_class", ["D", "T", "P", "R", "M", "H"])
 def test_critical_and_required_grader_failures_are_noncompensable(grader_class):
-    key = ("F-001", "r1", f"{grader_class.lower()}-grader", grader_class, "v1")
+    key = ("F-001", "r1", f"{grader_class.lower()}-grader", grader_class, "v1", "baseline")
     decision = decide_release(_coverage(key), [_result(key, "fail")])
     assert decision["decision"] == "fail"
     assert decision["blocking"]

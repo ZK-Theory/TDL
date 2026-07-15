@@ -1,0 +1,830 @@
+{
+  "schema_version": "w2-fallback-audit/v1",
+  "generated_at": "2026-07-14",
+  "task": "WT-6 \u2014 systemic greedy-fallback W2 audit + fail-loud solver fix",
+  "defect": {
+    "summary": "trajectory_tda.topology.vectorisation.wasserstein_distance wrapped the gudhi (POT/EMD) import in try/except (ImportError, AttributeError) and silently fell through to greedy persistence-rank matching, which is NOT optimal transport.",
+    "fix": "The except is narrowed to ImportError and the exact solver is asserted: the function now RAISES RuntimeError when POT is unavailable. The greedy path is reachable only via the explicit allow_greedy_fallback=True argument and logs a loud warning marking its output convention as 'greedy_rank'.",
+    "h0_immunity": {
+      "claim": "H0 is immune for every decision in this audit, but the equality is NOT absolute \u2014 a correction to the WT-1c generalisation.",
+      "mechanism": "With all births = 0 the points lie on a line, so rank-matching is optimal transport FOR THE MATCHED PART. Greedy then dumps the surplus |n-m| points onto the diagonal, where optimal transport may redistribute. The discrepancy therefore scales with the cardinality mismatch between the two diagrams.",
+      "measured_per_cache_6_pairs": {
+        "usoc_frozen_2026-05-28": {
+          "obs_card": 4999,
+          "null_cards": "~4999 (matched)",
+          "max_abs_exact_minus_greedy": 0.0,
+          "relative": 0.0
+        },
+        "bhps_frozen_2026-05-28": {
+          "obs_card": 4970,
+          "null_cards": "~4988 (delta~18)",
+          "max_abs_exact_minus_greedy": 0.004214,
+          "relative": 9.8e-05
+        },
+        "bhps_2026-05-24": {
+          "obs_card": 4970,
+          "null_cards": "~4978 (delta~8)",
+          "max_abs_exact_minus_greedy": 0.01481,
+          "relative": 0.00043
+        },
+        "bhps_length_matched_truncate_frozen_2026-05-29": {
+          "obs_card": 4829,
+          "null_cards": "~4991 (delta~162)",
+          "max_abs_exact_minus_greedy": 0.4086,
+          "relative": 0.0112
+        }
+      },
+      "decision_impact": "None. The largest shift is ~1.1% on a cell whose W2 p-value is already at the floor (0.000999) with d_perm ~26-51. No threshold is approached.",
+      "wt1c_reconciliation": "WT-1c measured 7.1e-15 on USoc, where obs and null cardinalities coincide (4999 vs 4999) \u2014 the exactly-immune case. The 'H0 is immune because births are 0' generalisation carries an unstated equal-cardinality precondition."
+    },
+    "screen": "Exact W2(A,B) <= sqrt(diag(A)^2 + diag(B)^2) (project every point to the diagonal). A committed value above that bound is mathematically impossible as an exact W2."
+  },
+  "era_boundary": {
+    "question": "When did POT (`ot`) actually enter the venv, making gudhi.wasserstein (exact EMD) importable and the greedy fallback unreachable?",
+    "headline": "The venv boundary is 2026-05-29/2026-05-30 \u2014 NOT the 2026-06-16 pyproject core-pin. Established empirically from the stored diagrams, not from git.",
+    "git_evidence_only_bounds_the_question": {
+      "pot_declared_optional": {
+        "commit": "e08917c",
+        "date": "2026-03-23",
+        "subject": "chore: relax python constraint to <3.14, add mapper and wasserstein optional deps",
+        "evidence": "pyproject.toml gained `wasserstein = [\"pot>=0.9.0\"]` under [project.optional-dependencies]. Optional extras are NOT installed by a default `uv sync`/`uv run` \u2014 but they CAN be installed by hand or via --extra at any time, which is exactly what appears to have happened."
+      },
+      "pot_promoted_to_core": {
+        "commit": "ec291c0",
+        "date": "2026-06-16",
+        "subject": "[PIPELINE] P01-A: harden auxiliary diagnostics W2 runner",
+        "evidence": "pyproject.toml `dependencies` gained `pot==0.9.6.post1` (+ uv.lock). This is when POT became GUARANTEED and REPRODUCIBLE for any `uv run` \u2014 not when it first appeared in the venv."
+      },
+      "why_git_is_not_the_answer": "The venv is not git-tracked. A pyproject pin proves when POT became guaranteed; it cannot prove POT was absent before then. Dating the era from the pin alone would have MISCLASSIFIED four exact-era files (2026-05-30/31) as artifacts."
+    },
+    "empirical_boundary_natural_experiment": {
+      "finding": "The dedup amendment re-ran the SAME analysis on consecutive days, and the two runs used DIFFERENT solvers \u2014 pinning the venv boundary to a single day.",
+      "greedy_side": {
+        "file": "results/trajectory_tda_bhps/stage1/bhps_length_matched_truncate_frozen_2026-05-29.json",
+        "committed_h1_mean_obs_null": 202.8400026226595,
+        "diagonal_bound_mean": 20.3715,
+        "greedy_gate_absdiff": 0.0,
+        "verdict": "GREEDY \u2014 the greedy replica reproduces the committed value bit-for-bit, and the committed value is ~10x above the maximum any exact W2 could take."
+      },
+      "exact_side": {
+        "file": "results/trajectory_tda_bhps/stage1/bhps_length_matched_truncate_frozen_2026-05-30.json",
+        "committed_h1_mean_obs_null": 6.6314,
+        "diagonal_bound_mean": 20.3798,
+        "exact_subsample_12_pairs": 6.6695,
+        "greedy_subsample_12_pairs": 203.2209,
+        "verdict": "EXACT \u2014 the committed value matches the exact solver on the same cached diagrams and is nowhere near the greedy value; it also sits below the diagonal bound."
+      },
+      "conclusion": "POT entered the venv between 2026-05-29 and 2026-05-30 \u2014 most plausibly a manual `uv pip install pot` / `uv sync --extra wasserstein` during the dedup-amendment work. The 2026-06-16 core-pin later made that state reproducible."
+    },
+    "verdict": {
+      "greedy_era": "on or before 2026-05-29 \u2014 H1 W2 values computed via vectorisation.wasserstein_distance are greedy artifacts",
+      "exact_era": "on or after 2026-05-30 \u2014 verified exact",
+      "fragile_window": "2026-05-30 to 2026-06-16: the environment was exact but NOT reproducibly so (POT present by hand, undeclared). Results in this window are correct but their provenance was not guaranteed by the lockfile \u2014 a latent reproducibility hole that the core-pin closed.",
+      "method_note": "Era is used ONLY as a prior. Every cell with stored diagrams was decided by the convention gate (bit-for-bit) plus the diagonal-bound screen, which is precisely why the true boundary surfaced instead of the assumed one."
+    }
+  },
+  "solver_now": {
+    "gudhi": "3.11.0",
+    "pot": "0.9.6.post1",
+    "numpy": "2.3.2",
+    "scipy": "1.16.1"
+  },
+  "classification_taxonomy": {
+    "IMMUNE": "Not affected: H0 (greedy == exact), or exact-era, or not computed via the fallback path.",
+    "ARTIFACT-CONFIRMED": "Greedy era, H1, AND the greedy replica reproduces the committed value bit-for-bit, AND (where checkable) the committed value exceeds the diagonal bound so it is impossible as an exact W2.",
+    "SUSPECT-UNVERIFIABLE": "Greedy era, H1, but no cached diagrams exist to gate or screen against.",
+    "DERIVED/INHERITS": "Stores no W2 of its own; each cell inherits its source cell's status.",
+    "SUPERSEDED": "Retained as historical record; must not be cited."
+  },
+  "enforcement_artifacts": {
+    "convention_gate": "A cell is ARTIFACT-CONFIRMED only if the greedy replica reproduces the committed value bit-for-bit. Era is a prior, never a verdict, whenever diagrams exist. Validated against WT-1c: the replica reproduced the frozen USoc H0 and H1 headline statistics with absdiff = 0.0e+00 on all five fields (mean_obs_null, mean_null_null, d_perm, t_ratio, w2_pvalue).",
+    "diagonal_bound_screen": "exact W2(A,B) <= sqrt(diag(A)^2 + diag(B)^2); needs no solver and is O(n). Frozen USoc H1: bound 35.90 vs committed 233.68 => impossible.",
+    "h0_immunity_spot_check": "H0 must reproduce committed bit-for-bit and greedy must equal exact (measured 0.0 over an 8-pair subsample), doubling as a pipeline sanity gate on the replica itself.",
+    "pot_hidden_raise_test": "tests/trajectory/test_wasserstein_fallback_guard.py \u2014 with POT hidden the default call RAISES; with POT present exact values are unchanged; greedy requires explicit opt-in and is ignored when POT is present."
+  },
+  "audit_table": [
+    {
+      "label": "usoc_headline_frozen_2026-05-28",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\usoc_headline_frozen_2026-05-28.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 64.28028516956785,
+            "mean_null_null": 4.312135967816683,
+            "d_perm": 51.073746407735484,
+            "t_ratio": 14.906831706912568,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 64.28028516956785,
+            "mean_null_null": 4.312135967816683,
+            "d_perm": 51.073746407735484,
+            "t_ratio": 14.906831706912568,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 285.53637780990454,
+          "diagonal_bound_max": 287.8537153639417,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 267.1
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 233.6845854219639,
+            "mean_null_null": 175.39900129744694,
+            "d_perm": 22.090334088910506,
+            "t_ratio": 1.3323028278004532,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 233.6845854219639,
+            "mean_null_null": 175.39900129744694,
+            "d_perm": 22.090334088910506,
+            "t_ratio": 1.3323028278004532,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 35.89667981107799,
+          "diagonal_bound_max": 36.41741398101461,
+          "committed_exceeds_diagonal_bound": true,
+          "classification": "ARTIFACT-CONFIRMED",
+          "basis": "greedy reproduces committed bit-for-bit AND committed exceeds the diagonal bound",
+          "wall_s": 240.4
+        }
+      ],
+      "result_sha256": "2adfcb9394750d1c74f9577114bb8a7c22aab84889926fbce59a9578077d89df",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz",
+      "cache_sha256": "298917893c45261e74ac2063d9fbfe34ef3f6a01ca7e6749e9e5f041ba56df0f",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "usoc_headline_2026-05-24",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\usoc_headline_2026-05-24.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 27.992595606369584,
+            "mean_null_null": 7.2260679611442855,
+            "d_perm": 8.839896463274433,
+            "t_ratio": 3.873835086646045,
+            "w2_pvalue": 0.001996007984031936
+          },
+          "greedy_regate": {
+            "mean_obs_null": 27.992595606369584,
+            "mean_null_null": 7.2260679611442855,
+            "d_perm": 8.839896463274433,
+            "t_ratio": 3.873835086646045,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 312.2020613344003,
+          "diagonal_bound_max": 316.11417484644767,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 171.9
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 247.50848933462916,
+            "mean_null_null": 229.294468636928,
+            "d_perm": 3.421403271031472,
+            "t_ratio": 1.0794350635930159,
+            "w2_pvalue": 0.001996007984031936
+          },
+          "greedy_regate": {
+            "mean_obs_null": 247.50848933462916,
+            "mean_null_null": 229.294468636928,
+            "d_perm": 3.421403271031472,
+            "t_ratio": 1.0794350635930159,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 38.196246629697356,
+          "diagonal_bound_max": 39.42797859100014,
+          "committed_exceeds_diagonal_bound": true,
+          "classification": "ARTIFACT-CONFIRMED",
+          "basis": "greedy reproduces committed bit-for-bit AND committed exceeds the diagonal bound",
+          "wall_s": 124.5
+        }
+      ],
+      "result_sha256": "561e532f638f920039ae44e3a770bfd3d580666a9542a82c454a5af1d1b8d563",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_usoc_B1000_L5000_seed42_2026-05-24.npz",
+      "cache_sha256": "733c87472f3be6ea4afba90703c03b21dfc5adb0164f291a4319056c1c61241e",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_headline_frozen_2026-05-28",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_headline_frozen_2026-05-28.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 43.03199506023104,
+            "mean_null_null": 4.651846033278709,
+            "d_perm": 26.525449384203643,
+            "t_ratio": 9.250520062870885,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 43.03199506023104,
+            "mean_null_null": 4.651846033278709,
+            "d_perm": 26.525449384203643,
+            "t_ratio": 9.250520062870885,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 191.893202534746,
+          "diagonal_bound_max": 194.72683799312333,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 39.3
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 190.6371105934569,
+            "mean_null_null": 183.8678569963003,
+            "d_perm": 2.0637087343440994,
+            "t_ratio": 1.0368158617158016,
+            "w2_pvalue": 0.01898101898101898
+          },
+          "greedy_regate": {
+            "mean_obs_null": 190.6371105934569,
+            "mean_null_null": 183.8678569963003,
+            "d_perm": 2.0637087343440994,
+            "t_ratio": 1.0368158617158016,
+            "w2_pvalue": 0.01898101898101898
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 19.72866009492329,
+          "diagonal_bound_max": 20.251197432114957,
+          "committed_exceeds_diagonal_bound": true,
+          "classification": "ARTIFACT-CONFIRMED",
+          "basis": "greedy reproduces committed bit-for-bit AND committed exceeds the diagonal bound",
+          "wall_s": 52.3
+        }
+      ],
+      "result_sha256": "329441e54c8536c0657ba5c744ac76284b32f6abd4d791305fb8d9ef7a5be4dc",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_frozen_B1000_L5000_seed42_2026-05-28.npz",
+      "cache_sha256": "67ccf3f32dd1a9aafcde0be0b2bae4c397530b083dbdc8d9e4403b132e9203db",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_headline_2026-05-24",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\bhps_headline_2026-05-24.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 34.306864097940064,
+            "mean_null_null": 6.796608123071814,
+            "d_perm": 12.414511585710843,
+            "t_ratio": 5.047644865897409,
+            "w2_pvalue": 0.001996007984031936
+          },
+          "greedy_regate": {
+            "mean_obs_null": 34.306864097940064,
+            "mean_null_null": 6.796608123071814,
+            "d_perm": 12.414511585710843,
+            "t_ratio": 5.047644865897409,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 206.44373176880768,
+          "diagonal_bound_max": 211.1254464815343,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 189.8
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 201.91629773299522,
+            "mean_null_null": 211.82483985479925,
+            "d_perm": -2.351973597824917,
+            "t_ratio": 0.9532229452948195,
+            "w2_pvalue": 0.9900199600798403
+          },
+          "greedy_regate": {
+            "mean_obs_null": 201.91629773299522,
+            "mean_null_null": 211.82483985479925,
+            "d_perm": -2.351973597824917,
+            "t_ratio": 0.9532229452948195,
+            "w2_pvalue": 0.991008991008991
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 21.10745003577285,
+          "diagonal_bound_max": 21.952294695607574,
+          "committed_exceeds_diagonal_bound": true,
+          "classification": "ARTIFACT-CONFIRMED",
+          "basis": "greedy reproduces committed bit-for-bit AND committed exceeds the diagonal bound",
+          "wall_s": 158.1
+        }
+      ],
+      "result_sha256": "70edc652e9c414980c851af1d1cc1672935194a5169928c4f2d5edfa74279aea",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_B1000_L5000_seed42_2026-05-24.npz",
+      "cache_sha256": "aa4831b4bc689385d13c2a6f60a751b05fe4801d66613300daf35ed16efff503",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_length_matched_truncate_2026-05-25",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_2026-05-25.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 30.1718221636741,
+            "mean_null_null": 6.9286330250395896,
+            "d_perm": 9.404373011499883,
+            "t_ratio": 4.354657268560086,
+            "w2_pvalue": 0.001996007984031936
+          },
+          "greedy_regate": {
+            "mean_obs_null": 30.1718221636741,
+            "mean_null_null": 6.9286330250395896,
+            "d_perm": 9.404373011499883,
+            "t_ratio": 4.354657268560086,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 196.92826079376437,
+          "diagonal_bound_max": 201.4407298288001,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 185.5
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 211.88831937341294,
+            "mean_null_null": 223.33181656676047,
+            "d_perm": -2.319076837111104,
+            "t_ratio": 0.9487601123330015,
+            "w2_pvalue": 0.9820359281437125
+          },
+          "greedy_regate": {
+            "mean_obs_null": 211.88831937341294,
+            "mean_null_null": 223.33181656676047,
+            "d_perm": -2.319076837111104,
+            "t_ratio": 0.9487601123330015,
+            "w2_pvalue": 0.987012987012987
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 21.764280184881777,
+          "diagonal_bound_max": 22.543196443953974,
+          "committed_exceeds_diagonal_bound": true,
+          "classification": "ARTIFACT-CONFIRMED",
+          "basis": "greedy reproduces committed bit-for-bit AND committed exceeds the diagonal bound",
+          "wall_s": 140.8
+        }
+      ],
+      "result_sha256": "65dc928c6c60dfcbb218b5dcc9a3940a96770700d109dfddbac194f1d328001f",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_B1000_L5000_seed42_2026-05-25.npz",
+      "cache_sha256": "a57e02e15c309af874776dd7f2c31fd012db379bc8fb38a57e9a0d4a628f78a1",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_length_matched_truncate_frozen_2026-05-29",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-29.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 37.50655790352544,
+            "mean_null_null": 4.722691741678542,
+            "d_perm": 22.55335515838482,
+            "t_ratio": 7.941775571021037,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 37.50655790352544,
+            "mean_null_null": 4.722691741678542,
+            "d_perm": 22.55335515838482,
+            "t_ratio": 7.941775571021037,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 185.01847072707034,
+          "diagonal_bound_max": 187.97887837005524,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 184.9
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 202.8400026226595,
+            "mean_null_null": 201.57735166034283,
+            "d_perm": 0.35522285405291826,
+            "t_ratio": 1.006263853314455,
+            "w2_pvalue": 0.34965034965034963
+          },
+          "greedy_regate": {
+            "mean_obs_null": 202.8400026226595,
+            "mean_null_null": 201.57735166034283,
+            "d_perm": 0.35522285405291826,
+            "t_ratio": 1.006263853314455,
+            "w2_pvalue": 0.34965034965034963
+          },
+          "gate_absdiff_mean_obs_null": 0.0,
+          "gate_reproduces_committed": true,
+          "diagonal_bound_mean": 20.371497851212954,
+          "diagonal_bound_max": 20.932843739310492,
+          "committed_exceeds_diagonal_bound": true,
+          "classification": "ARTIFACT-CONFIRMED",
+          "basis": "greedy reproduces committed bit-for-bit AND committed exceeds the diagonal bound",
+          "wall_s": 85.7
+        }
+      ],
+      "result_sha256": "e51f5c338bc9f1eb7af1540124ffde6e2b393a775eb0238edd1869873409a80a",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_B1000_L5000_seed42_2026-05-29.npz",
+      "cache_sha256": "1628b0a422573d4c07ea76d39a00a9e9427cc3d8cdd1775e51672900dc8c6a99",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_length_matched_truncate_frozen_2026-05-30",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_2026-05-30.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 37.12702185634921,
+            "mean_null_null": 4.718287836867707,
+            "d_perm": 22.275764358748543,
+            "t_ratio": 7.868748821605686,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 37.50521486097763,
+            "mean_null_null": 4.718287836867709,
+            "d_perm": 22.535710898103186,
+            "t_ratio": 7.948903534014981,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.37819300462842165,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 185.0175862013006,
+          "diagonal_bound_max": 187.97887837005527,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 164.5
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 6.631409600565725,
+            "mean_null_null": 3.5530593562342654,
+            "d_perm": 13.814156558462313,
+            "t_ratio": 1.8663942635605362,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 203.58964821879258,
+            "mean_null_null": 201.5415158575327,
+            "d_perm": 0.5714998373767235,
+            "t_ratio": 1.0101623348050417,
+            "w2_pvalue": 0.2817182817182817
+          },
+          "gate_absdiff_mean_obs_null": 196.95823861822686,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 20.379765135898392,
+          "diagonal_bound_max": 20.94065866857211,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "UNRESOLVED",
+          "basis": "greedy gate did not reproduce the committed value; convention ambiguous",
+          "wall_s": 142.1
+        }
+      ],
+      "result_sha256": "530b0db879a5927c058cfdae2c306ee1b61534ab34f6cfc0ce13c869f989c442",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_B1000_L5000_seed42_2026-05-30.npz",
+      "cache_sha256": "b7323d661a71e8999e2dba382d57d1e8396891eaa00d3d66d81c3000a651f6e2",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_length_matched_first13_frozen_2026-05-30",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_first13_frozen_2026-05-30.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 33.183189826603275,
+            "mean_null_null": 4.7513484945702915,
+            "d_perm": 18.76474459265695,
+            "t_ratio": 6.983952001105391,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 33.313843546086225,
+            "mean_null_null": 4.753403339314893,
+            "d_perm": 18.835538574895814,
+            "t_ratio": 7.008419266791642,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.13065371948295024,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 160.6479631254672,
+          "diagonal_bound_max": 165.27928921391393,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 131.4
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 5.926320085442837,
+            "mean_null_null": 3.3326855637764434,
+            "d_perm": 12.795588215920572,
+            "t_ratio": 1.778241592863447,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 163.71822920888008,
+            "mean_null_null": 173.60454272011992,
+            "d_perm": -3.0823154693786248,
+            "t_ratio": 0.9430526796342059,
+            "w2_pvalue": 1.0
+          },
+          "gate_absdiff_mean_obs_null": 157.79190912343725,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 17.140998584071028,
+          "diagonal_bound_max": 17.746244984722928,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "UNRESOLVED",
+          "basis": "greedy gate did not reproduce the committed value; convention ambiguous",
+          "wall_s": 127.5
+        }
+      ],
+      "result_sha256": "ff5a604cbdefec01851a73a0a7eb49f6852761ed90ddab50d1ffe84af7177b0b",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_first13_frozen_B1000_L5000_seed42_2026-05-30.npz",
+      "cache_sha256": "4fcb317cd33faf79eff1c10c87f5f2290c9dc76038e4d8771e2e8b3354a85751",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_length_matched_truncate_frozen_probe-pinned-thresh_2026-05-31",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_probe-pinned-thresh_2026-05-31.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 55.016592585869205,
+            "mean_null_null": 6.550541303661137,
+            "d_perm": 21.812366291027207,
+            "t_ratio": 8.39878569349988,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 55.26222063080623,
+            "mean_null_null": 6.550541303661136,
+            "d_perm": 21.922912307171966,
+            "t_ratio": 8.436283059526676,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.24562804493702828,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 196.66234440806332,
+          "diagonal_bound_max": 199.8039232866465,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 213.2
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 7.38305261198816,
+            "mean_null_null": 3.931175166227054,
+            "d_perm": 12.81454879014614,
+            "t_ratio": 1.8780777502402788,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 218.87705601284873,
+            "mean_null_null": 208.34859224643733,
+            "d_perm": 2.8617190815740505,
+            "t_ratio": 1.0505329249067266,
+            "w2_pvalue": 0.003996003996003996
+          },
+          "gate_absdiff_mean_obs_null": 211.49400340086058,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 20.932008766066094,
+          "diagonal_bound_max": 21.690198211994662,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "UNRESOLVED",
+          "basis": "greedy gate did not reproduce the committed value; convention ambiguous",
+          "wall_s": 105.4
+        }
+      ],
+      "result_sha256": "0e21dfd4af56d6a3efe0b8b11b68c3986835f1413d15d332336a91dca43c98a3",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_probe-pinned-thresh_B1000_L5000_seed42_2026-05-31.npz",
+      "cache_sha256": "b352e901ce22aa24cdcbe897b21b8ce369091b6619d2d612db616112af3496b1",
+      "B": 1000,
+      "status": "CACHED"
+    },
+    {
+      "label": "bhps_length_matched_truncate_frozen_probe-symmetric-dedup_2026-05-30",
+      "result_file": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_bhps\\stage1\\bhps_length_matched_truncate_frozen_probe-symmetric-dedup_2026-05-30.json",
+      "cells": [
+        {
+          "dim": "h0",
+          "committed": {
+            "mean_obs_null": 37.021435386064915,
+            "mean_null_null": 4.736316941705849,
+            "d_perm": 22.397529400650896,
+            "t_ratio": 7.81650295825244,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 37.40170625448384,
+            "mean_null_null": 4.7363169417058435,
+            "d_perm": 22.661339117511776,
+            "t_ratio": 7.896791265200498,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "gate_absdiff_mean_obs_null": 0.38027086841892555,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 185.0703184914201,
+          "diagonal_bound_max": 187.99763959582643,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "IMMUNE",
+          "basis": "H0: births all 0 => greedy rank-matching is optimal 1-D transport (greedy==exact)",
+          "wall_s": 171.4
+        },
+        {
+          "dim": "h1",
+          "committed": {
+            "mean_obs_null": 6.642667552402814,
+            "mean_null_null": 3.567576781904192,
+            "d_perm": 13.53750454581678,
+            "t_ratio": 1.8619550351645953,
+            "w2_pvalue": 0.000999000999000999
+          },
+          "greedy_regate": {
+            "mean_obs_null": 203.29504704058053,
+            "mean_null_null": 199.650782143415,
+            "d_perm": 1.0514280985459687,
+            "t_ratio": 1.0182531961960848,
+            "w2_pvalue": 0.16783216783216784
+          },
+          "gate_absdiff_mean_obs_null": 196.6523794881777,
+          "gate_reproduces_committed": false,
+          "diagonal_bound_mean": 20.393952187082913,
+          "diagonal_bound_max": 20.941584279803727,
+          "committed_exceeds_diagonal_bound": false,
+          "classification": "UNRESOLVED",
+          "basis": "greedy gate did not reproduce the committed value; convention ambiguous",
+          "wall_s": 178.0
+        }
+      ],
+      "result_sha256": "f4b4579a0e03dbe87dd94a790818552a323d7211172c8a035f43cf7f6f1d00d9",
+      "declared_cache": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\stage1\\cache\\null_diagrams_bhps_length_matched_truncate_frozen_probe-symmetric-dedup_B1000_L5000_seed42_2026-05-30.npz",
+      "cache_sha256": "20606b18d93124ffd19e3e51b2bbff1c2dee7eca23d031b1703f10e6182083ae",
+      "B": 1000,
+      "status": "CACHED"
+    }
+  ],
+  "non_compute_classified": [
+    {
+      "label": "T1.28 stratified W2 (stratified_w2_recompute_2026-07-09.json, stratified_w2_bh_per_family_2026-07-09.json, fdr/subgroup_checkpoints/*.json)",
+      "path_glob": "results/panel_methodology/fdr/",
+      "dims": "h0+h1",
+      "classification": "IMMUNE (exact era)",
+      "basis": "Routes through the defective path (run_t128_stratified_w2.py -> _battery_core.run_headline_from_embeddings -> _null_null_w2_worker -> vectorisation.wasserstein_distance), so immunity rests on the era. Verified NOT by date but by git ancestry: the run records git_head=8e175cd2f8d629be235317c4cfbceb848678bdf5 (2026-07-01), and `git merge-base --is-ancestor ec291c0 8e175cd` is TRUE \u2014 that checkout contained pot==0.9.6.post1 as a core dependency, so `uv run` synced POT and the exact solver was used. Subgroup checkpoints record completed_at 2026-06-29, also post-boundary.",
+      "residual_risk": "The venv is not git-tracked; a hand-built environment that skipped `uv sync` could in principle still have lacked POT. Checkpoints store only t_ratio/w2_p (no mean_obs_null), so no magnitude screen is possible. Confidence: high, not proven."
+    },
+    {
+      "label": "landscape_sensitivity_usoc_2026-05-25.json, landscape_sensitivity_bhps_2026-05-25.json",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "h0+h1 (landscape-L2 only)",
+      "classification": "IMMUNE (different code path)",
+      "basis": "Two independent grounds. (1) Code: landscape L2 is computed by _battery_core.landscape_l2_distance \u2014 pure numpy sqrt(sum((L1-L2)^2)*dx) on landscape grids; it never calls a Wasserstein solver. (2) Content: these files contain only *_landscape_l2_pvalue fields; no W2 quantity is stored. This answers the brief's 'verify whether the landscape path shares the fallback' \u2014 it does NOT."
+    },
+    {
+      "label": "lm_sensitivity_L2500_2026-05-24, lm_sensitivity_L8000_2026-05-25, lm_sensitivity_L2500_frozen_2026-05-28, lm_sensitivity_L8000_frozen_2026-05-28",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "h0 IMMUNE / h1 SUSPECT-UNVERIFIABLE",
+      "classification": "h0: IMMUNE; h1: SUSPECT-UNVERIFIABLE",
+      "basis": "Greedy era (all pre-2026-06-16) and they route through the defective path, but they ran at L=2500/L=8000 and NO null-diagram cache exists at those landmark counts (the cache directory holds only L5000 and the L500 smoke). With no stored diagrams there is nothing to run the convention gate or the diagonal screen against, and the brief forbids re-running batteries to regenerate nulls.",
+      "magnitude_note": "The frozen L2500 H1 reports mean_obs_null=164.18 / mean_null_null=102.69. For scale, the L5000 frozen USoc H1 diagonal bound is ~35.9 and the exact value ~12.7; an L2500 diagram has ~half the points, so its bound is smaller still. 164.18 is therefore almost certainly a greedy artifact \u2014 but this is an inference from magnitude, NOT a verified screen, which is exactly why the cell is SUSPECT-UNVERIFIABLE rather than ARTIFACT-CONFIRMED."
+    },
+    {
+      "label": "stratified_markov1_battery_2026-05-13.json",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "h0 IMMUNE / h1 SUSPECT-UNVERIFIABLE",
+      "classification": "h0: IMMUNE; h1: SUSPECT-UNVERIFIABLE",
+      "basis": "Greedy era (2026-05-13, B=100, per-regime markov-1). Stores only per-test raw_pvalue and reject flags \u2014 no W2 means \u2014 and predates every null-diagram cache (earliest is 2026-05-24). Nothing to gate or screen against.",
+      "note": "Superseded for paper use by the T1.28 stratified recompute (2026-07-09), which is exact-era IMMUNE \u2014 so this cell's exposure is largely historical."
+    },
+    {
+      "label": "pvalue_denominator_cleanup_2026-05-28.json",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "per-cell",
+      "classification": "INHERITS (W2 H1 cells ARTIFACT; W2 H0 and landscape cells IMMUNE)",
+      "basis": "A denominator-cleanup recompute that re-derives p-values from the same greedy-era caches and carries the same W2 means (e.g. 247.51 usoc H1, 201.92 bhps H1, alongside H0 27.99 / 34.31 and landscape means). It introduces no new W2 computation convention, so each cell inherits the status of its source headline cell."
+    },
+    {
+      "label": "frozen_vs_provisional_comparison_2026-05-29.json, dedup_amendment_comparison_2026-05-30/31/2026-06-01.json",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "per-cell (derived)",
+      "classification": "DERIVED \u2014 INHERITS from sources",
+      "basis": "These files store no W2 of their own; they copy p-values / reject flags out of the underlying headline and length-matched files and compare them. Every W2 H1 cell they quote inherits ARTIFACT status from its source; H0 and landscape cells are IMMUNE.",
+      "conclusion_note": "Both comparisons report rejection_direction_changes = 0 / rejection_direction_preserved = true. Because BOTH sides of each comparison were computed under the SAME greedy convention, the comparison is internally consistent \u2014 but it compares two greedy statistics, so it does not license any claim about exact-W2 agreement between the arms."
+    },
+    {
+      "label": "headline_vintage_materiality_2026-07-12.json",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "h1",
+      "classification": "SUPERSEDED",
+      "basis": "The WT-1 (2026-07-12) result whose H1 conclusion was inverted because it compared a fresh exact value (12.71) against the committed greedy artifact (233.68) and labelled the exact value a degradation. Superseded by headline_vintage_materiality_corrected_2026-07-14.json (WT-1c). Retained as historical record; must not be cited."
+    },
+    {
+      "label": "usoc_headline_frozen_smoke_2026-05-28.json",
+      "path_glob": "results/trajectory_tda_integration/stage1/",
+      "dims": "h0+h1",
+      "classification": "OUT-OF-SCOPE (smoke)",
+      "basis": "B=10 / L=500 smoke artifact for pipeline wiring, not a research result. Greedy era, so its H1 W2 is an artifact on the same reasoning, but nothing cites it."
+    },
+    {
+      "label": "bhps_nonoverlap_reanalysis_2026-06-09.json",
+      "path_glob": "results/panel_methodology/bhps_nonoverlap/",
+      "dims": "h0 IMMUNE / h1 ARTIFACT-SUSPECTED",
+      "classification": "h0: IMMUNE; h1: SUSPECT (cache present, gate deferred)",
+      "basis": "Dated 2026-06-09, i.e. one week BEFORE the 2026-06-16 POT core-pin, so greedy era. Its null cache (null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz) IS present, so this cell is fully gate-able and re-derivable \u2014 it was budget-deferred, not unverifiable. Listed in deferred_work."
+    }
+  ],
+  "compute_budget": {
+    "measured_exact_emd_cost": {
+      "usoc_frozen_h1_6004pts": "12.46 s/pair (8-pair sample); 14.51 s/pair (2-pair sample)",
+      "usoc_frozen_h0_4999pts": "10.67 s/pair (2-pair sample); 50.90 s/pair (8-pair sample)",
+      "bhps_frozen_h1_3458x4831pts": "6.24 s/pair obs-null, 6.68 s/pair null-null (3-pair sample)",
+      "note": "The WT-1c memo's '~5 s/pair on ~5000-pt diagrams' materially UNDERSTATES the cost: measured 6-15 s/pair, and EMD solve time varies ~5x across diagram pairs (H0 10.7 -> 50.9 s/pair between samples). Budget from a measurement on the actual cache, never from the memo figure."
+    },
+    "parallelism": "Independent OS processes on disjoint checkpointed blocks (loky/threads scale negatively \u2014 exact EMD is memory-bandwidth-bound and each worker holds ~1.2 GB). Over-parallelising is actively harmful: 8 blocks + the classifier drove free RAM from 33 GB to 2.9 GB and stalled all workers. 4 blocks ran at 8.2-10.0 s/pair."
+  },
+  "deferred_work": [
+    {
+      "item": "Exact re-derivation of bhps_headline_2026-05-24 H1 (provisional-loadings BHPS headline)",
+      "cache": "null_diagrams_bhps_B1000_L5000_seed42_2026-05-24.npz (present)",
+      "why_deferred": "Budget. ~2000 exact EMD pairs at ~6.5 s/pair = ~3.6 h serial. The frozen BHPS headline was prioritised because it is the citable counterpart of the frozen USoc headline and its H1 rejection is borderline (p=0.019).",
+      "status": "re-derivable on demand; classification already ARTIFACT-CONFIRMED via the gate"
+    },
+    {
+      "item": "Exact re-derivation of the BHPS length-matched / probe family H1 cells (truncate 2026-05-25/29/30, first13 2026-05-30, probe-pinned-thresh 2026-05-31, probe-symmetric-dedup 2026-05-30)",
+      "cache": "all present under stage1/cache/",
+      "why_deferred": "Budget (~3.6 h serial each). These feed the dedup-amendment comparisons, whose reported conclusion is 'rejection direction preserved' across arms \u2014 a within-greedy comparison that is internally consistent, so correcting it is lower priority than the citable headlines.",
+      "status": "re-derivable on demand; classification established by the gate"
+    },
+    {
+      "item": "Exact re-derivation of usoc_headline_2026-05-24 H1 (provisional USoc headline)",
+      "cache": "null_diagrams_usoc_B1000_L5000_seed42_2026-05-24.npz (present)",
+      "why_deferred": "Budget (~7 h serial at USoc diagram sizes). Superseded for paper use by the frozen 2026-05-28 headline, whose H1 WT-1c already corrected.",
+      "status": "re-derivable on demand"
+    },
+    {
+      "item": "Exact re-derivation of bhps_nonoverlap_reanalysis_2026-06-09 H1",
+      "cache": "null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz (present)",
+      "why_deferred": "Budget; identified late in the audit. Greedy era by 7 days.",
+      "status": "re-derivable on demand"
+    },
+    {
+      "item": "lm_sensitivity (L2500/L8000) and stratified_markov1_battery_2026-05-13 H1 cells",
+      "cache": "NONE at those L / dates",
+      "why_deferred": "Not deferrable-by-budget but UNVERIFIABLE: no cached diagrams exist and the brief forbids regenerating nulls. Would require a full battery re-run (a production decision for the User, not an audit action).",
+      "status": "SUSPECT-UNVERIFIABLE"
+    }
+  ],
+  "corrected_files": [
+    "results\\trajectory_tda_bhps\\stage1\\bhps_headline_frozen_corrected_2026-07-14.json"
+  ]
+}

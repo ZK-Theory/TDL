@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "schema_id", "schema_version", "grader_result_id", "evaluation_run_id",
-    "fixture_id", "fixture_revision", "grader_id", "grader_class",
+    "fixture_id", "fixture_revision", "variant_id", "grader_id", "grader_class",
     "grader_version", "verdict", "severity", "critical", "required",
     "subject_hash", "trace_hash", "oracle_hash", "policy_hash",
     "threshold_policy_hash", "evidence_refs", "independently_recomputed",
@@ -19,6 +19,7 @@
     "evaluation_run_id": {"type": "string", "pattern": "^run_"},
     "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
     "fixture_revision": {"type": "string", "minLength": 1},
+    "variant_id": {"type": "string", "minLength": 1},
     "grader_id": {"type": "string", "minLength": 1},
     "grader_class": {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
     "grader_version": {"type": "string", "minLength": 1},

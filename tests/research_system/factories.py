@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from research_system.authority import authority_bootstrap_sha256
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import ControlPlaneState, replay_control_plane
 from research_system.command.service import CommandService
+from research_system.evals.release_publication import BoundReleasePublicationEvidence
+from research_system.evals.harness import (
+    build_release_decision,
+    decision_document,
+    run_all_scenarios,
+    run_p0_coverage,
+)
+from research_system.evals.release_snapshot import (
+    build_release_snapshot_documents,
+    rederive_release_from_snapshot,
+)
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
@@ -18,6 +33,95 @@ ACTORS = {
     'actor-a': 'act_01978abc-1002-7000-8000-000000001002',
     'actor-b': 'act_01978abc-1003-7000-8000-000000001003',
 }
+ROOT_AUTHORITY_GRANT_ID = 'agr_01978abc-1004-7000-8000-000000001004'
+RELEASE_DECISION_ID = 'rgd_01978abc-1003-7000-8000-000000001003'
+
+
+def authority_bootstrap(
+    publication_target_id: str = RELEASE_DECISION_ID,
+    publication_expires_at: str | None = '2026-07-13T00:00:00Z',
+) -> dict[str, Any]:
+    """Return the canonical synthetic two-grant authority bootstrap fixture.
+
+    Args:
+        publication_target_id: Exact governed release-decision identity.
+        publication_expires_at: Optional UTC expiry for the publication grant.
+
+    Returns:
+        A non-secret bootstrap manifest with root and publication grants.
+    """
+    def grant(
+        grant_id: str,
+        command: str,
+        kind: str,
+        subject_id: str,
+        expires_at: str | None,
+    ) -> dict[str, Any]:
+        return {
+            'schema_id': 'ars://core/authority-grant',
+            'schema_version': '1.1.0',
+            'authority_grant_id': grant_id,
+            'actor_id': ACTORS['actor-a'],
+            'allowed_command_types': [command],
+            'subject_scope': {
+                'project_id': PROJECT_ID,
+                'subject': {'kind': kind, 'id': subject_id},
+            },
+            'risk_ceiling': 'R2',
+            'effective_at': '2026-07-12T00:00:00Z',
+            'expires_at': expires_at,
+            'delegable': False,
+            'revoked': False,
+        }
+
+    root = grant(
+        ROOT_AUTHORITY_GRANT_ID,
+        'RevokeAuthorityGrant',
+        'authority_grant',
+        AUTHORITY_GRANT_ID,
+        None,
+    )
+    publication = grant(
+        AUTHORITY_GRANT_ID,
+        'PublishReleaseGateDecision',
+        'release_gate_decision',
+        publication_target_id,
+        publication_expires_at,
+    )
+    return {
+        'schema_id': 'ars://core/authority-bootstrap-manifest',
+        'schema_version': '1.0.0',
+        'project_id': PROJECT_ID,
+        'owner_actor_id': ACTORS['actor-a'],
+        'root_grant': root,
+        'root_grant_sha256': sha256_hex(canonical_bytes(root)),
+        'publication_grant': publication,
+        'publication_grant_sha256': sha256_hex(canonical_bytes(publication)),
+        'publication_target_id': publication_target_id,
+    }
+
+
+def write_authority_bootstrap_input(path: Path) -> Path:
+    """Write the approved synthetic authority bootstrap input fixture.
+
+    Args:
+        path: Destination JSON path.
+
+    Returns:
+        The destination path.
+    """
+    manifest = authority_bootstrap()
+    path.write_bytes(
+        canonical_bytes(
+            {
+                'schema_id': 'ars://core/authority-bootstrap-input',
+                'schema_version': '1.0.0',
+                'approved_bootstrap_sha256': authority_bootstrap_sha256(manifest),
+                'manifest': manifest,
+            }
+        )
+    )
+    return path
 
 
 @dataclass(frozen=True)
@@ -105,3 +209,125 @@ def claim_dispatch_command(
         actor_id=ACTORS[actor],
         expected_version=expected_version,
     )
+
+
+@lru_cache(maxsize=1)
+def _release_producer():
+    coverage_path = REPO_ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
+    evidence = run_p0_coverage(
+        coverage_path,
+        fixture_root=coverage_path.parent / "fixtures",
+        schema_root=REPO_ROOT / ".research-system" / "schemas",
+    )
+    scenarios = run_all_scenarios()
+    record, _ = build_release_decision(
+        evidence,
+        scenarios,
+        decided_at="2026-07-12T12:00:00Z",
+        release_gate_decision_id=RELEASE_DECISION_ID,
+    )
+    return evidence, scenarios, decision_document(record)
+
+
+def synthetic_release_decision(
+    canonical_event_ref: str = 'unpublished:p0',
+) -> dict[str, Any]:
+    """Return one complete blocked typed decision for publication tests.
+
+    Args:
+        canonical_event_ref: The canonical event reference inserted into the
+            synthetic decision.
+
+    Returns:
+        The complete blocked typed decision fixture.
+    """
+    source = deepcopy(_release_producer()[2])
+    source['canonical_event_ref'] = canonical_event_ref
+    return source
+
+
+def synthetic_publication_evidence(
+    store_identity: str,
+) -> BoundReleasePublicationEvidence:
+    """Return narrow stored-reference evidence with independent re-derivation.
+
+    Args:
+        store_identity: Exact canonical control-store identity.
+
+    Returns:
+        Immutable synthetic evidence resolver bound to the supplied store.
+    """
+    evidence, scenarios, stored_source = _release_producer()
+    source = deepcopy(stored_source)
+    manifest_ref = 'art_01978abc-2001-7000-8000-000000002001'
+    control_ref = 'art_01978abc-2002-7000-8000-000000002002'
+    manifest, control = build_release_snapshot_documents(
+        evidence,
+        scenarios,
+        source,
+        project_id=PROJECT_ID,
+        store_identity=store_identity,
+    )
+    def rederive(
+        resolved_manifest: dict[str, Any],
+        resolved_control: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        return rederive_release_from_snapshot(
+            resolved_manifest,
+            resolved_control,
+        )
+
+    return BoundReleasePublicationEvidence(
+        manifest_ref,
+        manifest,
+        control_ref,
+        control,
+        store_identity,
+        rederive,
+    )
+
+
+def publish_release_command(
+    command_id: str,
+    authority_grant_sha256: str,
+) -> dict[str, Any]:
+    """Return the exact W2 publication command for the synthetic decision.
+
+    Args:
+        command_id: Fresh command identity for this submission attempt.
+        authority_grant_sha256: Canonical hash of the publication grant.
+
+    Returns:
+        Exact synthetic ``PublishReleaseGateDecision`` command envelope.
+    """
+    manifest_ref = 'art_01978abc-2001-7000-8000-000000002001'
+    control_ref = 'art_01978abc-2002-7000-8000-000000002002'
+    idempotency_key = 'release-publication:synthetic-p0'
+    request = {
+        'schema': 'ars://evals/release-publication-request',
+        'project_id': PROJECT_ID,
+        'release_decision_id': RELEASE_DECISION_ID,
+        'evaluation_runs_manifest_ref': manifest_ref,
+        'control_binding_ref': control_ref,
+        'publication_authority_grant_id': AUTHORITY_GRANT_ID,
+        'publication_authority_sha256': authority_grant_sha256,
+        'idempotency_key': idempotency_key,
+    }
+    return {
+        'command_id': command_id,
+        'command_type': 'PublishReleaseGateDecision',
+        'schema_id': 'ars://core/command',
+        'schema_version': '1.0.0',
+        'submitted_at': '2026-07-12T12:00:00Z',
+        'actor_id': ACTORS['actor-a'],
+        'on_behalf_of_actor_id': None,
+        'authority_grant_id': AUTHORITY_GRANT_ID,
+        'target_stream_id': RELEASE_DECISION_ID,
+        'expected_stream_version': 0,
+        'idempotency_key': idempotency_key,
+        'correlation_id': 'synthetic-publication',
+        'causation_id': None,
+        'reason': 'record the blocked synthetic P0 decision',
+        'evidence_refs': [manifest_ref, control_ref],
+        'payload': request,
+    }

@@ -1,10 +1,11 @@
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, asdict
 import json
 from pathlib import Path
 
 import pytest
 
 from research_system.errors import SchemaError
+from research_system.canonical import jsonable
 from research_system.evals.models import (
     CoverageManifest,
     EvaluationRun,
@@ -112,6 +113,10 @@ def _release_decision(**changes: object) -> ReleaseGateDecision:
         "decision": "pass",
         "decided_at": "2026-07-03T12:00:00Z",
         "canonical_event_ref": f"evt_{UUID7}",
+        "policy_parity_report_id": "ppr_" + "1" * 64,
+        "policy_parity_report_hash": "1" * 64,
+        "policy_control_applicability_id": "pca_" + "2" * 64,
+        "policy_control_applicability_hash": "2" * 64,
     }
     values.update(changes)
     return ReleaseGateDecision(**values)
@@ -154,6 +159,7 @@ def test_grader_verdict_and_class_are_closed_enums():
         "evaluation_run_id": f"run_{UUID7}",
         "fixture_id": "F-001",
         "fixture_revision": "r1",
+        "variant_id": "baseline",
         "grader_id": "state",
         "grader_class": "D",
         "grader_version": "v1",
@@ -214,7 +220,7 @@ def test_coverage_and_release_models_use_closed_stage_and_decision_enums():
         gate_stage="p0_materialization",
         selected_fixture_revisions=(("F-001", "r1"),),
         omitted_fixtures=(),
-        required_result_keys=(("F-001", "r1", "state", "D", "v1"),),
+        required_result_keys=(("F-001", "r1", "state", "D", "v1", "baseline"),),
         required_parity_controls=(),
         required_operations_scenarios=(),
         expected_evidence_classes=("command_receipt",),
@@ -265,6 +271,37 @@ def test_non_exception_decision_rejects_exception_fields():
         )
 
 
+def test_blocked_parity_can_record_partial_or_missing_bindings():
+    decision = _release_decision(
+        parity_status="blocked",
+        policy_parity_report_id=None,
+        policy_parity_report_hash=None,
+        policy_control_applicability_id=None,
+        policy_control_applicability_hash=None,
+    )
+    assert decision.parity_status == "blocked"
+
+    with pytest.raises(ValueError, match="policy_parity_report_hash"):
+        _release_decision(parity_status="blocked", policy_parity_report_hash="not-a-sha")
+
+
+def test_blocked_parity_schema_allows_missing_bindings_but_pass_does_not():
+    decision = _release_decision(
+        parity_status="blocked",
+        policy_parity_report_id=None,
+        policy_parity_report_hash=None,
+        policy_control_applicability_id=None,
+        policy_control_applicability_hash=None,
+    )
+    payload = jsonable(asdict(decision))
+    payload.update(schema_id="ars://evals/release-gate-decision", schema_version="1.0.0")
+    registry = SchemaRegistry(SCHEMAS)
+    registry.validate("ars://evals/release-gate-decision", payload)
+    payload["parity_status"] = "pass"
+    with pytest.raises(SchemaError, match="policy_parity_report"):
+        registry.validate("ars://evals/release-gate-decision", payload)
+
+
 def test_release_schema_rejects_null_exception_policy_bindings():
     registry = SchemaRegistry(SCHEMAS)
     payload = {
@@ -282,6 +319,10 @@ def test_release_schema_rejects_null_exception_policy_bindings():
         "decision": "exception_limited",
         "decided_at": "2026-07-03T12:00:00Z",
         "canonical_event_ref": f"evt_{UUID7}",
+        "policy_parity_report_id": "ppr_" + "1" * 64,
+        "policy_parity_report_hash": "1" * 64,
+        "policy_control_applicability_id": "pca_" + "2" * 64,
+        "policy_control_applicability_hash": "2" * 64,
         "exception_policy_id": None,
         "exception_policy_hash": None,
         "exception_scope": "provider-parity-only",
@@ -371,6 +412,7 @@ def _valid_grader_result(**changes: object) -> GraderResult:
         "evaluation_run_id": f"run_{UUID7}",
         "fixture_id": "F-001",
         "fixture_revision": "r1",
+        "variant_id": "baseline",
         "grader_id": "state",
         "grader_class": "D",
         "grader_version": "v1",
@@ -456,8 +498,8 @@ def _eval_schema(name: str) -> dict[str, object]:
 def test_release_decision_schema_uses_exact_result_keys():
     schema = _eval_schema("release-gate-decision")
     result_key_schema = schema["$defs"]["resultKey"]
-    assert result_key_schema["minItems"] == 5
-    assert result_key_schema["maxItems"] == 5
+    assert result_key_schema["minItems"] == 6
+    assert result_key_schema["maxItems"] == 6
     assert result_key_schema["prefixItems"][3]["enum"] == [
         "D",
         "T",
@@ -467,7 +509,23 @@ def test_release_decision_schema_uses_exact_result_keys():
         "O",
         "P",
     ]
+    assert result_key_schema["prefixItems"][5]["minLength"] == 1
 
+
+def test_grader_result_requires_terminal_nonempty_variant_identity():
+    result = _valid_grader_result(variant_id="fake-codex-adapter-v1-windows-fake-transport")
+    assert result.result_key[-1] == "fake-codex-adapter-v1-windows-fake-transport"
+    with pytest.raises(ValueError, match="variant_id"):
+        _valid_grader_result(variant_id="")
+
+    payload = jsonable(asdict(result))
+    payload.update(schema_id="ars://evals/grader-result", schema_version="1.0.0")
+    SchemaRegistry(SCHEMAS).validate("ars://evals/grader-result", payload)
+    del payload["variant_id"]
+    with pytest.raises(SchemaError, match="variant_id"):
+        SchemaRegistry(SCHEMAS).validate("ars://evals/grader-result", payload)
+
+    schema = _eval_schema("release-gate-decision")
     verdict_entry_schema = schema["$defs"]["verdictEntry"]
     assert verdict_entry_schema["minItems"] == 2
     assert verdict_entry_schema["maxItems"] == 2

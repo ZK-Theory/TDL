@@ -17,6 +17,7 @@ from research_system.routing.engine import PreparedDispatch, RouteCandidate, sel
 from research_system.routing.independence import RelationshipEvidence, independence_grade
 from research_system.routing.models import RouteRequest
 from research_system.store.ledger import EventLedger
+from research_system.schema_registry import bundled_schema_registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,11 +232,11 @@ class FoundationPorts:
     def recover_writer(self) -> Gate3ScenarioResult:
         with TemporaryDirectory() as directory:
             project_id = new_id("project")
-            ledger = EventLedger(Path(directory), project_id)
+            ledger = EventLedger(Path(directory), project_id, bundled_schema_registry())
             ledger.append(
                 [{"event_type": "ScenarioCommandCommitted", "stream_id": "scenario"}]
             )
-            restored = EventLedger(Path(directory), project_id)
+            restored = EventLedger(Path(directory), project_id, bundled_schema_registry())
             batches = tuple(restored.iter_batches())
             events = tuple(restored.iter_events())
         replay_integrity = (

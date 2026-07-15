@@ -4,7 +4,7 @@ import pytest
 
 from research_system.adapters.base import ProviderCommand, TransportResult
 from research_system.adapters.fake import FakeTransport
-from research_system.adapters.provider import ProviderAdapter
+from research_system.adapters.provider import ProviderAdapter, default_provider_operation_policy
 from research_system.errors import ArsError
 from research_system.operations.coordinator import issue_prepared_dispatch
 from research_system.operations.leases import artifact_disposition, runtime_disposition
@@ -83,7 +83,9 @@ def _checkpoint():
 
 def test_adapter_f020_normalized_fake_receipt_is_complete():
     receipt = ProviderAdapter(
-        ["codex", "exec", "-"], FakeTransport([_result()])
+        ["codex", "exec", "-"],
+        FakeTransport([_result()]),
+        operation_policy=default_provider_operation_policy(live_provider_enabled=True),
     ).issue(_command(), "context")
     assert receipt.complete is True
 
@@ -100,7 +102,9 @@ def test_adapter_s013_unauthorized_command_blocks_before_transport():
 def test_adapter_wrapper_unclassified_segment_blocks_issue():
     with pytest.raises(ArsError, match="wrapper_accounting_incomplete"):
         ProviderAdapter(
-            ["codex", "exec", "-"], FakeTransport([_result()])
+            ["codex", "exec", "-"],
+            FakeTransport([_result()]),
+            operation_policy=default_provider_operation_policy(live_provider_enabled=True),
         ).issue(_command(segments={"mystery": "unclassified"}), "context")
 
 

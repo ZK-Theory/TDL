@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from research_system.evals.harness import decide_p0_release, run_p0_coverage
+from research_system.evals.harness import (
+    build_release_decision,
+    decide_p0_release,
+    run_all_scenarios,
+    run_p0_coverage,
+)
 from research_system.evals.lifecycle import start_evaluation
 
 
@@ -21,12 +26,29 @@ def test_evaluation_execution_identity_is_unique_with_lineage_separate():
 def test_strict_release_consumes_exact_typed_results_and_blocks_missing_mh():
     evidence = run_p0_coverage(COVERAGE, fixture_root=FIXTURES, schema_root=SCHEMAS)
     assert len(evidence.results) == len(evidence.coverage.required_result_keys)
+    assert len(evidence.results) == 302
     assert {result.result_key for result in evidence.results} == set(evidence.coverage.required_result_keys)
     assessment = decide_p0_release(evidence)
     assert assessment["decision"] == "blocked"
     assert assessment["missing"] == []
     assert assessment["unexpected"] == []
     assert assessment["duplicates"] == []
+    s016 = {
+        result.grader_class: result.verdict
+        for result in evidence.results
+        if result.fixture_id == "S-016"
+    }
+    assert s016 == {"D": "pass", "T": "pass", "O": "pass", "H": "unable_to_grade"}
+    decision, raw = build_release_decision(
+        evidence,
+        run_all_scenarios(),
+        decided_at="2026-07-11T00:00:00Z",
+    )
+    assert raw["decision"] == "blocked"
+    assert decision.decision == "blocked"
+    assert decision.parity_status == "pass"
+    assert decision.policy_parity_report_id.startswith("ppr_")
+    assert decision.policy_control_applicability_id.startswith("pca_")
 
 
 def test_fake_p0_family_identity_reaches_cross_family_rejection():

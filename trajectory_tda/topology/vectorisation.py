@@ -176,26 +176,59 @@ def persistence_image(
 # ─────────────────────────────────────────────────────────────────────
 
 
+def _import_exact_wasserstein_solver():  # type: ignore[no-untyped-def]
+    """Return gudhi's exact (POT/EMD optimal-transport) Wasserstein callable.
+
+    ``gudhi.wasserstein`` requires POT (``ot``) to be importable; when POT is
+    absent the import raises :class:`ImportError`. This helper returns the
+    solver callable when available and ``None`` when it is not, so the caller
+    can decide — raise (default) or explicit opt-in fallback — rather than
+    silently degrading to a different statistic.
+    """
+    try:
+        from gudhi.wasserstein import wasserstein_distance as gudhi_wd
+    except ImportError:
+        return None
+    return gudhi_wd
+
+
 def wasserstein_distance(
     ph1: PHResult,
     ph2: PHResult,
     dim: int = 1,
     p: int = 2,
     min_persistence: float = 0.0,
+    *,
+    allow_greedy_fallback: bool = False,
 ) -> float:
-    """Approximate p-Wasserstein distance between persistence diagrams.
+    """Exact p-Wasserstein distance between persistence diagrams.
 
-    Uses an optimal transport approximation: matches features by
-    persistence value, with unmatched features projected to diagonal.
+    Uses gudhi's POT/EMD optimal-transport solver
+    (``order=p, internal_p=2``). When POT (``ot``) is not importable the exact
+    solver is unavailable; by default this raises :class:`RuntimeError` rather
+    than silently substituting the greedy persistence-rank matching below,
+    which is **not** optimal transport and inflates H1 distances (~18x on the
+    frozen USoc headline; WT-1c, 2026-07-14). The greedy path is reachable only
+    by passing ``allow_greedy_fallback=True`` and it emits a loud warning
+    marking its output convention as ``greedy_rank``.
 
     Args:
-        ph1, ph2: PHResult objects to compare
-        dim: Homology dimension
-        p: Wasserstein-p (default 2)
-        min_persistence: Minimum lifetime to include
+        ph1, ph2: PHResult objects to compare.
+        dim: Homology dimension.
+        p: Wasserstein-p (default 2).
+        min_persistence: Minimum lifetime to include.
+        allow_greedy_fallback: When True *and* POT is unavailable, fall back to
+            the greedy persistence-rank matching (convention ``greedy_rank``,
+            NOT optimal transport) instead of raising. Default False. Has no
+            effect when POT is available — the exact solver is always used then.
 
     Returns:
-        Wasserstein distance (float)
+        Wasserstein distance (float). Exact optimal transport unless the
+        opt-in greedy fallback was taken (see ``allow_greedy_fallback``).
+
+    Raises:
+        RuntimeError: If the exact solver (POT) is unavailable and
+            ``allow_greedy_fallback`` is False.
     """
     f1 = ph1.h_features(dim, min_persistence=min_persistence)
     f2 = ph2.h_features(dim, min_persistence=min_persistence)
@@ -223,17 +256,37 @@ def wasserstein_distance(
     pers1 = f1[:, 1] - f1[:, 0]
     pers2 = f2[:, 1] - f2[:, 0]
 
-    # Use gudhi if available for exact computation
-    try:
-        from gudhi.wasserstein import wasserstein_distance as _gudhi_wd
-
+    # Exact optimal transport via gudhi's POT/EMD solver. Refuse to silently
+    # substitute the greedy fallback below when POT is absent — that path is
+    # NOT optimal transport (see WT-1c, 2026-07-14). A real error inside the
+    # gudhi call is intentionally *not* caught here: it propagates rather than
+    # degrading to greedy.
+    exact_wd = _import_exact_wasserstein_solver()
+    if exact_wd is not None:
         dgm1 = np.column_stack([f1[:, 0], f1[:, 1]])
         dgm2 = np.column_stack([f2[:, 0], f2[:, 1]])
-        return float(_gudhi_wd(dgm1, dgm2, order=p, internal_p=2))
-    except (ImportError, AttributeError):
-        pass
+        return float(exact_wd(dgm1, dgm2, order=p, internal_p=2))
 
-    # Fallback: greedy matching by persistence
+    if not allow_greedy_fallback:
+        raise RuntimeError(
+            "Exact Wasserstein-p requires POT (`ot`), but `gudhi.wasserstein` "
+            "is not importable. Refusing to silently fall back to greedy "
+            "persistence-rank matching (convention='greedy_rank'), which is not "
+            "optimal transport and inflates H1 distances (~18x on the frozen "
+            "USoc headline; see WT-1c 2026-07-14). Install POT (bundled in the "
+            "project dependencies since 2026-06-16) or pass "
+            "allow_greedy_fallback=True to explicitly accept the greedy "
+            "approximation."
+        )
+
+    logger.warning(
+        "wasserstein_distance: POT unavailable and allow_greedy_fallback=True — "
+        "using GREEDY persistence-rank matching (convention='greedy_rank'). This "
+        "is NOT optimal transport; H1 distances may be inflated (~18x vs exact "
+        "W2 on the frozen USoc headline). See WT-1c 2026-07-14."
+    )
+
+    # Fallback: greedy matching by persistence (opt-in only; see warning above).
     # Sort by persistence descending
     idx1 = np.argsort(-pers1)
     idx2 = np.argsort(-pers2)
@@ -300,8 +353,7 @@ def compute_w2_ratio_bca_ci(
         raise ValueError("w_obs and w_null_null must be non-empty arrays.")
     if len(w_obs_1d) == 1 or len(w_nn_1d) == 1:
         raise ValueError(
-            "BCa CI requires at least 2 observations in each array; "
-            f"got n_obs={len(w_obs_1d)}, n_null={len(w_nn_1d)}."
+            f"BCa CI requires at least 2 observations in each array; got n_obs={len(w_obs_1d)}, n_null={len(w_nn_1d)}."
         )
 
     _EPS = 1e-12
@@ -316,6 +368,7 @@ def compute_w2_ratio_bca_ci(
         if denom < _EPS:
             return np.nan  # NaN is safer; scipy bootstrap handles NaN gracefully
         return float(x.mean() / denom)
+
     res = bootstrap(
         (w_obs_1d, w_nn_1d),
         statistic=_ratio_stat,
@@ -364,6 +417,7 @@ def compute_w2_ratio_delta_ci(
     ci_lower = float(t_ratio * np.exp(-z * se_log_t))
     ci_upper = float(t_ratio * np.exp(z * se_log_t))
     return ci_lower, ci_upper
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Convenience: vectorise multiple diagrams

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/event/AuthorityGrantRevoked/payload",
+  "type": "object",
+  "required": ["project_id", "target_grant_id", "target_grant_sha256", "authorizing_grant_id", "authorizing_grant_sha256", "reason"],
+  "properties": {
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "target_grant_id": {"type": "string", "pattern": "^agr_"},
+    "target_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authorizing_grant_id": {"type": "string", "pattern": "^agr_"},
+    "authorizing_grant_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reason": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

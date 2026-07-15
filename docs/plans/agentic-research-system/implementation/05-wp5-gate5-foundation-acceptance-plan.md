@@ -90,7 +90,7 @@ Decomposed against the P0 state, Gate 5 requires:
 |---|---|---|
 | 04a O10 | `release_gate_decision_id` ID-kind confirmation by WP1 reviewer | WP5.6 (review checklist item; kind already registered) |
 | 04a O11 | parity wiring before any `pass` is reachable | WP5.2 |
-| 04a O12 | publish release decision as canonical event | WP5.3 |
+| 04a O12 | publish release decision as canonical event | WP5.3 implementation complete; independent Manager acceptance/merge pending |
 | 04a O14 | cross-family independence branch reachable (real producer/grader family identities) | WP5.1 |
 | 04a O15 | `DeleteEvidenceObject` registration — **owner-gated W1/W6 decision** (name specified at 04-plan:517; payload schema + event semantics are not; design anchor `DeleteEvidenceObject → EvidenceDeletionPending`) | WP5.5 decision D-G5-2; implementation joins WP5.4 (S-014 touches the same deletion surface) once decided |
 | 04a O16 | `current_policy_revision` from canonical `retention-policy.yaml` via `validate_retention_policy`, not `registry.policy_revision` | WP5.1 |
@@ -149,7 +149,45 @@ Small, code-side, no owner input; unblocks the integrity story every later WP re
   The `rgd_` ID kind is already registered.
 - Fail-closed rule: `eval release` verification must reject a decision document whose
   `canonical_event_ref` does not resolve to a stored event.
-- Branch: `pipe/ars-gate5-release-event`.
+- Branch: `pipe/ars-gate5-release-event-publication`.
+- **Initial implementation evidence (2026-07-13):** `PublishReleaseGateDecision` publishes exactly
+  one ledger-allocated `ReleaseGateDecisionPublished` event through
+  `CommandService`; strict replay and `eval release` resolve, re-derive, and
+  compare the full canonical decision/evidence while preserving
+  `gate5_authorized=false` and `candidate_status=blocked`. Independent Manager
+  acceptance/merge remains required before O12 closes. This does not accept
+  Gate 5, and O15 remains open.
+- **Review-remediated (2026-07-14, PR #92):** canonical manifest/control
+  evidence is now durably restart-resolvable; release rejects the unpublished
+  sentinel and resolves the exact event; trusted ledger/replay authority and
+  schema bindings, long-running exact concurrency, and atomic exclusive receipt
+  publication are covered by 92 focused and 568 full-suite passing tests.
+  O12 remains pending independent Manager acceptance, O15 remains open, and
+  Gate 5 remains unauthorized and unaccepted.
+- **Second review remediation (2026-07-14, PR #92):** release drafts now
+  require a restart-stable private `CommandService` capability; historical
+  retries and release verification bind authority state at publication rather
+  than final active status; registered typed producer/control snapshots are
+  re-derived entirely from immutable stored W6/W7/W8 evidence; and object
+  publication is crash-safe and concurrency-safe. Final validation is `412`
+  unit plus `172` integration tests (`584` total), Ruff clean, four semantic
+  materializers clean, inherited matrix CRLF normalized byte-identical, and
+  exact `40/15/0/302/calibrated/false/blocked`. This supports O12
+  implementation closeout; independent Manager acceptance/merge remains
+  pending. O15 stays open and Gate 5 stays unauthorized and unaccepted.
+- **Third review remediation (2026-07-14, PR #92):** release-draft issuance is
+  now ledger-specific, single-use, and atomic inside the `CommandService`
+  publication path; the exact release schema is mandatory before persistence;
+  frozen producer/control evidence is fully strict and preserves canonical
+  policy preimages plus exact `GraderResult` identities; actual producer and
+  stored-evidence CLI seams are exercised; conflicting immutable-object writers
+  contend on one revision claim; and each authority resolution uses one
+  verified projection. Final validation is `439` unit plus `172` integration
+  tests (`611` total), the `131`-test focused WP5.3 matrix, scoped Ruff, four
+  semantic materializers, inherited matrix CRLF normalized byte-identical, and
+  exact `40/15/0/302/calibrated/false/blocked`. O12 implementation evidence is
+  complete but O12 remains pending independent Manager acceptance/merge. O15
+  stays open and Gate 5 stays unauthorized and unaccepted.
 
 ### WP5.4 — Release tranche: S-014 / S-015 / S-016 (05-plan §4.4)
 
@@ -177,6 +215,32 @@ grader discipline as the F-corpus (06-evaluation §S rows):
   posture first; `result_count` recomputed from the materialized packages. Exact new
   values are stated in the WP5.4 dispatch plan **before** execution.
 - Branch: `pipe/ars-gate5-release-tranche`.
+
+#### WP5.4 Worker implementation record (2026-07-11)
+
+**Status:** Worker-complete on branch `pipe/ars-gate5-release-tranche`; ready PR #78 is published. Manager review `4678686863` found two P1 authority defects; both are remediated at `14f45fabfddd1988b79617b64db6441b967bae43` and independently revalidated.
+`gate5_authorized` remains false. This is implementation evidence, not a Gate 5
+acceptance decision.
+
+| ID | WP5.4 disposition | Actual evidence |
+|---|---|---|
+| T1 | Closed | S-014/S-015/S-016 are deterministic executable packages with exact D/T/O/P, D/T, and D/T/O/H grader tuples; materializer commit `ec6be3f010d40e1ec37ee417f3d38988e459d00c`. |
+| T2 | Closed | Two independent CLI projections are exactly `40/15/0/calibrated/132/blocked`; canonical calibration hash `153016cec62acdd3aec77f86fe58b29b4373ba0525545f0c946e8805de8a669b`, coverage hash `eb85ede6210e38d1b4ad157755b294b1f8d56db7fc13f593f91e3c57c18e4836`. |
+| T3 | Closed for WP5.4; O15 remains open | D-G5-2 is enforced as `delete_evidence_object: capability_disabled`; no `DeleteEvidenceObject` command or `EvidenceDeletionPending` emission was added. |
+| T4 | Closed | Registered deletion verification covers primary/runtime/staging/temp, replica, backup, and restore roots and blocks uncertain or unregistered copies; commit `9fa6971cd5dcfc6b93a3b034a04a747c71cf44df`. |
+| T5 | Closed | Restore preflight independently verifies store/project, chain/tail, snapshot/replay, endpoint, schema, artefact availability, and registry bindings; status is `verified` iff failed predicates are empty and is rechecked before the writer lock. |
+| T6 | Closed | Revision-qualified supersession graph validates the exact nonterminal C1-to-A1 cycle inside `WriterLock`, preserves history/scope/consumers, and writes one idempotent rejected receipt without lifecycle mutation; commit `a9963a86ed4f9a6528d252e4906b0683e7e2f544`. |
+| T7 | Closed | S-016 preserves immutable R3 requirements, returns exact rejection codes, creates no prepared/issued fallback, normalizes issue-time outage to incomplete/no-output, emits no canonical dispatch/accept event, and leaves the Task unaccepted; commit `90638eeaf6752d264434c19dcbbbbe1a023bfbd7`. |
+| T8 | Closed | S-016 D/T/O pass; H remains blocking `unable_to_grade`; strict release and candidate remain `blocked`. |
+| T9 | Closed | Exact grader-key closure yields 132 results with no duplicate, missing, or unexpected keys. |
+| T10 | Implementation independently validated; merge remains Manager-gated | All five materializers pass `--check`; initial final suite `388 passed in 332.10s`; twice-run calibration/coverage and three guard-removal controls are equal. CodeRabbit review `4678167006` concluded with three nitpicks, all remediated by shared canonical JSON normalization, fail-closed lineage-cycle protection, and generator docstrings; post-review suite `390 passed in 167.18s` with exact invariants unchanged. Manager review `4678686863` found terminal-replacement acceptance and non-load-bearing S-016 outage evidence; both are remediated at `14f45fabfddd1988b79617b64db6441b967bae43`. Independent Manager gates pass: all five materializers, Ruff `0.14.9` (the repository pre-commit pin remains `0.8.4`), `392 passed in 319.95s`, exact `40/15/0/calibrated/132/blocked`, and two release documents with identical stable projections after excluding only decision ID/timestamp. Both Manager threads are resolved. Merge is permitted only after current-head CodeRabbit conclusion; this is Manager-supplied provenance, not Worker self-certification. |
+
+**Provenance and limits:** deterministic synthetic fake transport only; no secret,
+credential, stochastic seed, live provider, research result/cache, paper claim,
+WP5.2 parity/variant execution, WP5.3 release-event publication, or Gate 6 change.
+The P0 matrix checker required only LF working-copy normalization on Windows;
+its Git blob hash stayed identical to HEAD and no matrix content is changed.
+The saved CLI JSON is under `C:\tmp`, outside tracked result roots.
 
 ### WP5.5 — Owner-decision batch (no code until decided)
 
@@ -220,12 +284,26 @@ WP5.5 owner decisions (parallel; D-G5-1/2/4) ───────────�
 | D-G5-2 | **`DeleteEvidenceObject` registration (O15).** Name specified (04-plan:517); payload schema + emitted event are not. | Design anchor: `DeleteEvidenceObject → EvidenceDeletionPending` (the event `replay.py:90` already consumes but nothing emits). Confirm name+schema+event, or defer past Gate 5 with the capability restriction recorded. |
 | D-G5-3 | **Invariant re-baseline approvals.** WP5.2 and WP5.4 change `result_count`/`fixture_count`/`blocked_fixture_count`. | Each dispatch plan pre-registers exact new values; owner approves the plan (and thereby the re-baseline) before execution. Silent drift remains a stop condition. |
 | D-G5-4 | **R12 confirmation.** Two provider-specific F-021 sizing rows instead of the plan's single `variant` scalar (no-wildcard rule made one row impossible). Flagged in PR #71 body; merge ≠ recorded confirmation. | Confirm the two-row form (recommended — it is the only spec-consistent shape) and record a `[DECISION]` closing R12. |
+| G5.3-A | **Canonical release-publication authority source.** The current CommandService and AuthorityGrant schema do not establish a trusted current/revoked resolver. | Implement the separately scoped canonical W2 authority-grant source/resolver in `05e-wp5-3a-canonical-authority-grant-plan.md` before WP5.3 runtime. |
+| G5.3-B | **Principal-authentication boundary.** Canonical local store provenance does not authenticate the process/human presenting a public actor ID. | Option (a) accepted: actor IDs are attribution inside the trusted-local-operator foundation; signed principal/bootstrap authentication is out of scope. |
 
-**Owner record (2026-07-10):** D-G5-1 option (a) approved -- Gate 5 may accept
-the foundation only with the M/H capability restriction explicit while required M/H
-rows remain blocking. D-G5-4 confirmed -- the two provider-specific F-021 sizing rows
-are the accepted R12 form. D-G5-2 remains open; D-G5-3 remains a per-dispatch-plan
-approval process.
+**Owner record (2026-07-10, updated 2026-07-13):** D-G5-1 option (a)
+approved -- Gate 5 may accept the foundation only with the M/H capability restriction
+explicit while required M/H rows remain blocking. D-G5-4 confirmed -- the two
+provider-specific F-021 sizing rows are the accepted R12 form. D-G5-2 is resolved
+for Gate 5 as an approved deferral: deletion initiation stays capability-disabled
+and O15 remains open. D-G5-3 is approved for WP5.4 at exact
+`40/15/0/calibrated/132/blocked`; it remains a per-dispatch-plan approval process
+for other invariant-changing work. G5.3-A's canonical W2 authority-grant
+source/resolver was implemented in PR #87, independently remediated/reviewed in
+PR #90, and merged. WP5.2 was independently remediated/reviewed in PR #89 and
+merged. G5.3-B option (a) remains accepted: actor IDs provide attribution inside
+the trusted-local-operator foundation, while cryptographic principal
+authentication is rejected as disproportionate and out of scope. WP5.3 now
+supports O12 implementation closeout with exact
+`40/15/0/302/calibrated/false/blocked` evidence; independent Manager
+acceptance/merge remains required, O15 remains open, and Gate 5 remains
+unauthorized.
 
 ## 7. Invariant re-baseline rule
 

@@ -203,13 +203,53 @@ CASES = {
             "target_controls": ["readiness"],
         },
         {"semantic_parity": False, "r3_dispatch_allowed": True},
-        {"semantic_parity": True, "poorer_source_overwrite_blocked": True, "affected_dispatch_waits": True},
+        {
+            "semantic_parity": True,
+            "poorer_source_overwrite_blocked": True,
+            "affected_dispatch_waits": True,
+            "controls": {
+                "no-shell": {
+                    "operations": {
+                        "invoke_declared_tool": {
+                            "declared_tool_only": True,
+                            "forbidden_transport_invocations": 0,
+                            "undeclared_shell_blocked": True,
+                        }
+                    }
+                },
+                "no-direct-event-write": {
+                    "operations": {
+                        "submit_ars_command": {
+                            "direct_canonical_write_blocked": True,
+                            "state_change_path": "submit_ars_command",
+                        }
+                    }
+                },
+                "no-live-provider-by-default": {
+                    "operations": {
+                        "cancel_provider_work": {"live_provider_enabled": False, "subprocess_issue_count": 0},
+                        "query_provider_status": {"live_provider_enabled": False, "subprocess_issue_count": 0},
+                        "request_model_work": {"live_provider_enabled": False, "subprocess_issue_count": 0},
+                        "request_review": {"live_provider_enabled": False, "subprocess_issue_count": 0},
+                    }
+                },
+                "no-raw-transcript-retention": {
+                    "operations": {
+                        "deliver_context": {"full_transcript_retained": False, "receipt_mode": "bounded_redacted"},
+                        "deliver_message": {"full_transcript_retained": False, "receipt_mode": "bounded_redacted"},
+                        "request_model_work": {"full_transcript_retained": False, "receipt_mode": "bounded_redacted"},
+                        "request_review": {"full_transcript_retained": False, "receipt_mode": "bounded_redacted"},
+                    }
+                },
+            },
+        },
         ("PolicyParityCompared",),
         ("WeakerPolicyActivated",),
         ("D", "T", "M"),
         "historical",
         "reconstructed",
         "R3",
+        fixture_revision="r2",
     ),
     "F-032": Case(
         "Requirement-preserving outage fallback",

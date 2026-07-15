@@ -63,9 +63,9 @@
       "prefixItems": [
         {"type": "string"}, {"type": "string"}, {"type": "string"},
         {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
-        {"type": "string"}
+        {"type": "string"}, {"type": "string", "minLength": 1}
       ],
-      "minItems": 5, "maxItems": 5
+      "minItems": 6, "maxItems": 6
     }
   },
   "additionalProperties": false

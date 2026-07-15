@@ -69,6 +69,23 @@ Work through each item against the result under review:
     identical bytes. Record a canary PASS as positive coherence evidence, not merely
     "no mismatch found." See
     `[[Regenerated-gitignored-intermediates-can-silently-break-baseline-reproducibility]]`.
+14. **Reusable reference caches self-declare their generative inputs.** A cache
+    or artifact intended for downstream reuse as a reference (frozen null
+    diagrams, calibration banks) must record the sha256 (or key-inventory hash)
+    of every generative input in its own metadata — not just
+    `{B, L, seed, dataset, timestamp}`. Without it, a consumer cannot cheaply
+    verify vintage before an expensive reconstruction; retrofit cache writers to
+    stamp source-sequence / embedding hashes in-band. When a brief says "reuse
+    the frozen cache, do not recompute," resolve the cache's declared
+    source-input hash against the current on-disk input FIRST — a mismatch
+    predicts and names a correspondence failure before the reconstruction is run.
+15. **File provenance rulings under the object they rule on.** A statement that
+    result/cache/bank X is (or is not) affected by a vintage or supersession
+    event belongs in X's own authoritative manifest (e.g. `SUPERSEDED.md`) or a
+    note it wikilinks — not only inside a differently-titled entry that mentions
+    X in passing. State the evidence class explicitly: bit-for-bit reproduction
+    settles a vintage claim; mtime or architecture reasoning alone is
+    provisional until reproduced, and must be labelled as such.
 
 ## Output Format
 
@@ -97,6 +114,15 @@ downstream input or paper-facing source.
   those non-`corrected_` files — so the enforcement never exercised the files it
   was meant to catch. Fix: `git rm` the superseded artifacts and remove the skip.
   See `[[Enforcement-must-assert-value-not-key-presence]]`.
+- The frozen USoc null-diagram cache
+  (`null_diagrams_usoc_frozen_B1000_L5000_seed42_2026-05-28.npz`) was built on a
+  since-superseded May-2 orphan sequences build; its metadata recorded
+  `{B, L, seed, dataset, timestamp}` but not the generative input's sha256, so
+  the mismatch surfaced only after a full reconstruction-and-compare. A B9
+  vintage ruling made in passing inside a `§4-clustering`-titled decision entry
+  was never surfaced to `SUPERSEDED.md`, so a later spike could not find it —
+  and the ruling itself was mtime-reasoned, not reproduction-verified, and
+  turned out to be false.
 
 ## Related Skills & Contracts
 

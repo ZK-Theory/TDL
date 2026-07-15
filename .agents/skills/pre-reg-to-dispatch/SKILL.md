@@ -89,6 +89,22 @@ canary** (refuse to write unless the recomputed value matches within tol). Code-
 reproducibility ("regenerate from the committed script") does not guarantee the *input*
 is the same vintage the baseline used.
 
+## Dispatch Safety
+
+Every Task Prompt this skill produces must, in addition to the Research Assurance
+Requirements block:
+
+- Bound scope with explicit hard stops — "build/run X only; do NOT proceed to Y/Z" —
+  rather than an open-ended "complete the plan."
+- Restate any user-decision gate named in the pre-reg (e.g. PROMOTE, APPROVE) as
+  **blocking**, not advisory.
+- Forbid writing toy/synthetic/illustrative output to `results/` — that tree is for
+  real, provenance-tracked compute only; toy compute stays in a scratch path or
+  uncommitted.
+
+Without these, an autonomous Worker reads the Task Prompt maximally, and a
+date-stamped synthetic file in `results/` is a landmine by review time.
+
 ## Escalate Or Stop When
 
 - No pre-registration exists for an outcome-contingent run.
@@ -99,6 +115,12 @@ is the same vintage the baseline used.
   at dispatch; the Worker writes only the binding test).
 - A confirmatory/bug-fix dispatch restates full compute parameters (B, n) for a fix that
   only touches a downstream derived statistic.
+- The governing pre-registration's value proposition claims a step is "usable in the
+  pipeline" (a theorem, a preprocessing step, a scaling mechanism) without a one-grep
+  confirmation that the pipeline actually contains that step, or an explicit "planned,
+  adoption-gated" annotation naming the gate. A formal argument can be correct and still
+  license nothing the codebase does — verify the referent, not just the derivation,
+  before dispatch.
 
 ## Pressure Scenarios From This Repo
 

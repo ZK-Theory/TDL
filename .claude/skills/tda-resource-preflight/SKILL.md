@@ -51,7 +51,13 @@ for small deterministic unit tests and trivial calculations.
 5. Require, non-negotiably: workers ≥ 4 (or the written justification),
    chunked checkpointing with resume, progress reporting, date-suffixed
    outputs that never overwrite, recorded seeds, and a stated wall-time
-   estimate BEFORE launch.
+   estimate BEFORE launch. When the run is a multi-condition grid/battery
+   (multiple rungs, nulls, or parameters) under a budget that may truncate it,
+   the loop order is part of the plan: sequence cells so the smallest
+   COMPLETE, INTERPRETABLE design — every rung including any negative control,
+   at the cheapest setting — finishes first, and every later block only adds
+   resolution. A checkpoint preserves cells; only the ordering preserves an
+   interpretable comparison if the run is killed mid-grid.
 6. Emit the preflight record and the command template. For anything over
    ~10 minutes, prefer a background task or subagent and write handoff state
    first so a halted job resumes rather than restarts.
@@ -89,11 +95,20 @@ when it exits — `wsl bash -c "... &"`, `Start-Process wsl ... -PassThru`, and
 PowerShell `Start-Job { Start-Process wsl ... }` all detach in appearance but
 the WSL process dies with the parent; the output file stays empty with no
 error. The only mechanism that survives across tool invocations is the Bash
-tool's own `run_in_background: true`. Separately, run WSL Python probes with
-`python -u` (or explicit flush): stdout is fully buffered off a tty, so a
-mid-run `Read` on the output file will show only WSL's startup stderr (e.g.
+tool's own `run_in_background: true`. Even then, an inner `wsl bash -c '...'`
+can fail exit-127 with a misleading "No such file or directory" — the
+background wrapper breaks single-quoted `bash -c` payloads, and MSYS rewrites
+absolute POSIX paths into Git-Bash-rooted Windows paths. Launch as a direct
+exec instead: `MSYS_NO_PATHCONV=1 wsl.exe <absolute-wsl-python> -u
+<script-via-/mnt/c/...>`, no inner shell. Separately, run WSL Python probes
+with `python -u` (or explicit flush): stdout is fully buffered off a tty, so
+a mid-run `Read` on the output file will show only WSL's startup stderr (e.g.
 an `fstab` warning) and look stalled even though the process is healthy —
-output otherwise arrives in one batch at exit.
+output otherwise arrives in one batch at exit. `-u` only unbuffers Python's
+own stdout; a PowerShell `*>` redirect reading that pipe can still buffer it,
+so for a budget decision that depends on mid-run timings, have the script
+self-log (append + `flush()` to a plain file) and read that file rather than
+the shell-redirected log.
 
 ## Windows Runner Scripts
 

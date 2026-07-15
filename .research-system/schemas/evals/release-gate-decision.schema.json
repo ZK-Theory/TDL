@@ -24,6 +24,10 @@
     "decision": {"enum": ["pass", "fail", "blocked", "exception_limited"]},
     "decided_at": {"type": "string", "format": "date-time"},
     "canonical_event_ref": {"type": "string", "minLength": 1},
+    "policy_parity_report_id": {"type": ["string", "null"], "pattern": "^ppr_[0-9a-f]{64}$"},
+    "policy_parity_report_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "policy_control_applicability_id": {"type": ["string", "null"], "pattern": "^pca_[0-9a-f]{64}$"},
+    "policy_control_applicability_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
     "exception_policy_id": {"type": ["string", "null"], "minLength": 1},
     "exception_policy_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
     "exception_scope": {"type": ["string", "null"]},
@@ -50,6 +54,18 @@
           "human_authority_id": {"type": "string", "minLength": 1}
         }
       }
+    },
+    {
+      "if": {"properties": {"parity_status": {"const": "pass"}}},
+      "then": {
+        "required": ["policy_parity_report_id", "policy_parity_report_hash", "policy_control_applicability_id", "policy_control_applicability_hash"],
+        "properties": {
+          "policy_parity_report_id": {"type": "string", "pattern": "^ppr_[0-9a-f]{64}$"},
+          "policy_parity_report_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "policy_control_applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
+          "policy_control_applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
     }
   ],
   "$defs": {
@@ -58,9 +74,9 @@
       "prefixItems": [
         {"type": "string"}, {"type": "string"}, {"type": "string"},
         {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
-        {"type": "string"}
+        {"type": "string"}, {"type": "string", "minLength": 1}
       ],
-      "minItems": 5, "maxItems": 5
+      "minItems": 6, "maxItems": 6
     },
     "verdictEntry": {
       "type": "array",

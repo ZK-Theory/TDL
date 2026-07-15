@@ -5,7 +5,11 @@ import pytest
 
 from research_system.adapters.base import ProviderCommand, TransportResult
 from research_system.adapters.fake import FakeTransport
-from research_system.adapters.provider import ProviderAdapter, normalize_receipt
+from research_system.adapters.provider import (
+    ProviderAdapter,
+    default_provider_operation_policy,
+    normalize_receipt,
+)
 from research_system.errors import ArsError
 
 
@@ -109,6 +113,31 @@ def test_unauthorized_adapter_command_never_invokes_transport():
     assert transport.invocations == []
 
 
+def test_authorized_undeclared_shell_never_invokes_transport():
+    transport = FakeTransport(
+        [TransportResult("terminal", _terminal_payload(), "", None, 0)]
+    )
+    adapter = ProviderAdapter(["codex", "exec", "-"], transport)
+    with pytest.raises(ArsError, match="undeclared_adapter_operation"):
+        adapter.issue(_command(operation="undeclared_shell", authorized=True), "managed context")
+    assert transport.invocations == []
+
+
+def test_live_enablement_cannot_be_attached_to_a_non_fake_transport():
+    class TrapTransport:
+        def invoke(self, argv, stdin, timeout_s):  # pragma: no cover - must never run
+            raise AssertionError((argv, stdin, timeout_s))
+
+    with pytest.raises(ArsError, match="live_provider_capability_not_implemented"):
+        ProviderAdapter(
+            ["provider"],
+            TrapTransport(),
+            operation_policy=default_provider_operation_policy(
+                live_provider_enabled=True
+            ),
+        )
+
+
 def test_normalized_receipt_excludes_raw_transcripts():
     secret = "raw transcript must not persist"
     receipt = normalize_receipt(
@@ -120,3 +149,21 @@ def test_normalized_receipt_excludes_raw_transcripts():
     assert secret not in serialized
     assert "stdout" not in serialized
     assert "stderr" not in serialized
+
+
+def test_provider_outage_normalizes_to_incomplete_typed_receipt_without_output():
+    transport = FakeTransport(
+        [TransportResult("provider_unavailable", "", "synthetic outage", None, None)]
+    )
+    receipt = ProviderAdapter(
+        ["fake-provider"],
+        transport,
+        operation_policy=default_provider_operation_policy(live_provider_enabled=True),
+    ).issue(
+        _command(), "managed context"
+    )
+    assert receipt.status == "incomplete"
+    assert receipt.complete is False
+    assert receipt.failure_code == "provider_unavailable"
+    assert receipt.output_refs == ()
+    assert receipt.output_hash is None

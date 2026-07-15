@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -48,13 +49,50 @@ def test_registry_rejects_unknown_schema():
         SchemaRegistry(SCHEMAS).validate('ars://missing', {})
 
 
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("extra",), "forbidden"),
+        (("project_id",), "prj_not-a-uuid7"),
+        (("target_grant_id",), "agr_not-a-uuid7"),
+        (("target_grant_sha256",), "0" * 63),
+        (("authority_grant_sha256",), "not-a-hash"),
+        (("reason",), ""),
+    ],
+)
+def test_revoke_authority_grant_payload_schema_is_strict(path, value):
+    payload = {
+        "project_id": "prj_01978abc-1000-7000-8000-000000001000",
+        "target_grant_id": "agr_01978abc-1001-7000-8000-000000001001",
+        "target_grant_sha256": "1" * 64,
+        "authority_grant_sha256": "2" * 64,
+        "reason": "synthetic revocation",
+    }
+    invalid = deepcopy(payload)
+    invalid[path[0]] = value
+    registry = SchemaRegistry(SCHEMAS)
+    registry.validate("ars://core/command/RevokeAuthorityGrant/payload", payload)
+    with pytest.raises(SchemaError):
+        registry.validate(
+            "ars://core/command/RevokeAuthorityGrant/payload", invalid
+        )
+
+
 def test_every_core_schema_declares_closed_object_contract():
     paths = sorted((SCHEMAS / 'core').glob('*.schema.json'))
     assert {path.name for path in paths} == {
+        'authority-bootstrap-input.schema.json',
+        'authority-bootstrap-manifest.schema.json',
+        'authority-grant-activated.schema.json',
+        'authority-grant-revoked.schema.json',
         'authority-grant.schema.json',
+        'authority-root-initialized.schema.json',
         'command.schema.json',
         'event.schema.json',
         'receipt.schema.json',
+        'release-gate-decision-published.schema.json',
+        'revoke-authority-grant.schema.json',
+        'store-identity-1.1.schema.json',
         'task.schema.json',
     }
     for path in paths:
@@ -80,3 +118,33 @@ def test_task_schema_uses_w2_status_vocabulary():
     task['status'] = 'proposed'
     with pytest.raises(SchemaError, match='status'):
         registry.validate('ars://core/task', task)
+
+
+def test_authority_event_and_store_schemas_require_complete_registered_ids():
+    registry = SchemaRegistry(SCHEMAS)
+    root_payload = {
+        'bootstrap_manifest_sha256': '0' * 64,
+        'authorizing_grant_id': 'agr_not-a-uuid7',
+        'authorizing_grant_sha256': '1' * 64,
+        'activated_grant_id': 'agr_not-a-uuid7',
+        'activated_grant_sha256': '1' * 64,
+    }
+    with pytest.raises(SchemaError, match='authorizing_grant_id'):
+        registry.validate(
+            'ars://core/event/AuthorityRootInitialized/payload', root_payload
+        )
+
+    store_identity = {
+        'schema_id': 'ars://core/store-identity',
+        'schema_version': '1.1.0',
+        'store_nonce': '0' * 32,
+        'project_id': 'prj_not-a-uuid7',
+        'bootstrap_manifest_sha256': '1' * 64,
+        'store_identity': '2' * 64,
+        'control_root': 'C:/synthetic-control',
+        'code_roots': ['C:/synthetic-code'],
+        'endpoint_scheme': 'local-cli',
+        'manifest_hash': '3' * 64,
+    }
+    with pytest.raises(SchemaError, match='project_id'):
+        registry.validate('ars://core/store-identity/1.1', store_identity)

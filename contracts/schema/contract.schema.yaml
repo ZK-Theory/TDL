@@ -270,6 +270,31 @@ properties:
           gate 4 in both staged-file and --all-jsons modes; forward
           validation remains active for all other matching files.
         items: { type: string }
+      exclude_filename_patterns:
+        type: array
+        description: >
+          Optional negative filter, applied BEFORE file_dispatch. Files whose
+          name (or repo-relative path, when the pattern contains a separator)
+          matches an entry are skipped by gate 4. Use when applies_to_glob or
+          a file_dispatch pattern unavoidably over-matches a file that is a
+          DIFFERENT artifact kind rather than a defective instance of this one
+          — e.g. a cache provenance sidecar, or an audit artifact carrying its
+          own schema_version and validated by its own contract. Distinct from
+          legacy_exempt, which grandfathers files of THIS kind that predate the
+          contract. Each entry MUST state a reason: an exclusion silently
+          removes a file from enforcement, so the justification belongs in the
+          record next to the pattern.
+        items:
+          type: object
+          required: [filename_pattern, reason]
+          properties:
+            filename_pattern: { type: string }
+            reason:
+              type: string
+              minLength: 20
+              description: >
+                Why this file is a different artifact kind. Name the contract
+                that DOES validate it, or state that none does and why.
       file_dispatch:
         type: array
         description: >

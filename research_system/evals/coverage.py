@@ -33,18 +33,18 @@ P0_DEFERRED = frozenset(
     }
 )
 
-# Gate 5 capability cases, deferred with capability restrictions (05-plan §4.4).
-GATE5_DEFERRED = frozenset({"S-014", "S-015", "S-016"})
+# Gate 5 release tranche (D-G5-3); historical P0_CASES remains unchanged.
+RELEASE_TRANCHE_CASES = frozenset({"S-014", "S-015", "S-016"})
+FOUNDATION_CASES = P0_CASES | RELEASE_TRANCHE_CASES
 
 
 @dataclass(frozen=True, slots=True)
 class DeferredCapability:
-    """One capability that remains disabled until Gate 5."""
+    """One explicitly disabled capability that remains owner-deferred."""
 
-    fixture_id: str
-    capability: str
-    reason: str
+    capability_id: str
     status: str
+    obligation: str
     required_before: str
 
 
@@ -92,8 +92,8 @@ def load_p0_coverage(
     """Load the exact P0 closure and validate every selected package."""
     payload = _yaml(Path(path))
     selected = payload.get("selected_fixture_revisions")
-    if not isinstance(selected, dict) or set(selected) != P0_CASES:
-        raise FixtureDefinitionError("coverage must select exact P0_CASES")
+    if not isinstance(selected, dict) or set(selected) != FOUNDATION_CASES:
+        raise FixtureDefinitionError("coverage must select exact FOUNDATION_CASES")
     if payload.get("transport") != "fake":
         raise FixtureDefinitionError("P0 requires deterministic fake transport")
 
@@ -118,7 +118,7 @@ def load_p0_coverage(
             )
     # Enforce the exhaustive-catalogue claim: every staged fixture directory on
     # disk must be accounted for by an active, deferred, or Gate 5 catalogue set.
-    catalogue = P0_CASES | P0_DEFERRED | GATE5_DEFERRED
+    catalogue = FOUNDATION_CASES | P0_DEFERRED
     staged = {
         path.name
         for path in fixture_root.iterdir()
@@ -129,7 +129,7 @@ def load_p0_coverage(
         raise FixtureDefinitionError(
             f"fixture directories absent from the catalogue: {orphans}"
         )
-    for fixture_id in sorted(P0_CASES):
+    for fixture_id in sorted(FOUNDATION_CASES):
         validated = validate_fixture_package(
             fixture_root / fixture_id,
             schema_root=schema_root,
@@ -144,6 +144,7 @@ def load_p0_coverage(
                 grader["grader_id"],
                 grader["grader_class"],
                 grader["grader_version"],
+                "baseline",
             )
             for grader in definition["required_graders"]
         )
@@ -160,13 +161,14 @@ def load_p0_coverage(
         omitted = tuple(DeferredCapability(**row) for row in omitted_rows)
     except (TypeError, KeyError) as exc:
         raise FixtureDefinitionError("invalid omitted_gate5 row") from exc
-    if {item.fixture_id for item in omitted} != set(GATE5_DEFERRED):
-        raise FixtureDefinitionError("exact Gate 5 deferrals required")
-    if any(
-        item.status != "capability_disabled" or item.required_before != "gate5"
-        for item in omitted
-    ):
-        raise FixtureDefinitionError("Gate 5 capabilities must remain disabled")
+    expected_restriction = DeferredCapability(
+        capability_id="delete_evidence_object",
+        status="capability_disabled",
+        obligation="O15",
+        required_before="post_gate5_owner_decision",
+    )
+    if omitted != (expected_restriction,):
+        raise FixtureDefinitionError("exact D-G5-2 capability restriction required")
 
     deferred_rows = payload.get("omitted_p0")
     if not isinstance(deferred_rows, list):
@@ -192,7 +194,7 @@ def load_p0_coverage(
         required_result_keys=tuple(keys),
         accepted_grader_classes=("D", "O", "P", "R", "T"),
         unavailable_grader_classes=("H", "M"),
-        omitted_gate5=tuple(sorted(omitted, key=lambda item: item.fixture_id)),
+        omitted_gate5=omitted,
         omitted_p0=tuple(sorted(deferred, key=lambda item: item.fixture_id)),
         scenarios=("A", "B", "C", "D", "E"),
         gate5_authorized=False,

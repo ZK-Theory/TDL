@@ -44,6 +44,34 @@ If Repowise MCP tools are not exposed in the current session, continue with the 
 - `Glob` matches by pathname only — for content matching, use `Grep` with the `glob` parameter to restrict by path pattern.
 - For large multi-step searches (more than a few rounds of grep/read), spawn an `Explore` subagent rather than burning the main context.
 
+## Windows linked-worktree sandbox routing
+
+On Windows, treat every linked Git worktree as a separate sandbox root even
+when its path is lexically inside an allowed checkout such as
+`C:\Users\steph\TDL\.apm\worktrees\...`. Parent-directory containment does
+not prove edit authority.
+
+Before any worktree write:
+
+1. Compare the resolved target worktree with the runtime's declared
+   `workspace_roots` / `writable_roots`. If the exact worktree is not an
+   authorized root, do **not** call `Edit`, `Write`, `apply_patch`, or perform
+   a disposable write probe; that failure is predictable and is not useful
+   diagnostics.
+2. Route code or test remediation to a task whose workspace is that exact
+   worktree. The owning task must verify cwd, branch, and edit readiness before
+   changing files. A Manager may inspect a foreign worktree read-only, but must
+   send fixes back to its owner or start a correctly rooted task.
+3. For a bounded text-only change on an existing remote branch, when remote
+   mutation is already authorized, the Manager may use an exact-SHA GitHub
+   Contents transaction: fetch branch/file SHA, update that one path, refetch,
+   and compare. Do not use this route for changes whose validation requires
+   local code execution.
+4. Never bypass the split-root denial with shell redirection, base64 payloads,
+   `git apply`, or another write mechanism. If neither an owning task nor the
+   bounded remote-text route is available, stop once and report the routing
+   requirement instead of retrying editors.
+
 ## Version control
 
 - Use the project research prefix convention for every commit subject: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, or `[EXPLORE]`, followed by the paper identifier such as `P01-A:`. Never use a bare task-management or generic implementation subject when committing Worker output.

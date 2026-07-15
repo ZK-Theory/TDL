@@ -74,6 +74,19 @@ def load_store_manifest(control_root: Path) -> dict[str, Any]:
         int(identity, 16)
     except ValueError as exc:
         raise IntegrityError('invalid store identity') from exc
+    version = manifest.get('schema_version')
+    if version not in {'1.0.0', '1.1.0'}:
+        raise IntegrityError('unsupported store identity version')
+    if version == '1.1.0':
+        stable = {
+            'schema_id': manifest.get('schema_id'),
+            'schema_version': version,
+            'store_nonce': manifest.get('store_nonce'),
+            'project_id': manifest.get('project_id'),
+            'bootstrap_manifest_sha256': manifest.get('bootstrap_manifest_sha256'),
+        }
+        if identity != sha256_hex(canonical_bytes(stable)):
+            raise IntegrityError('derived store identity mismatch')
     return manifest
 
 
