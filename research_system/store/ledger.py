@@ -108,6 +108,11 @@ def _release_draft_protocol():
         guarded_submit.__name__ = submit_impl.__name__
         guarded_submit.__qualname__ = submit_impl.__qualname__
         guarded_submit.__doc__ = submit_impl.__doc__
+        guarded_submit.__module__ = submit_impl.__module__
+        guarded_submit.__annotations__ = {
+            key: submit_impl.__annotations__[key]
+            for key in ("envelope", "return")
+        }
         return guarded_submit
 
     def take_guard():

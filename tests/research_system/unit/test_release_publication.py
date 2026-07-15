@@ -837,6 +837,34 @@ def test_release_submit_guard_cannot_be_claimed_by_an_alternate_factory() -> Non
         _take_release_submit_guard()
 
 
+def test_command_service_submit_preserves_public_signature_and_guard_metadata(
+    tmp_path,
+) -> None:
+    public = CommandService.submit
+    signature = inspect.signature(public)
+    assert list(signature.parameters) == ["self", "envelope"]
+    assert signature.parameters["envelope"].annotation == "dict[str, Any]"
+    assert signature.return_annotation == "Receipt"
+    assert public.__module__ == "research_system.command.service"
+    assert public.__annotations__ == {
+        "envelope": "dict[str, Any]",
+        "return": "Receipt",
+    }
+    assert not hasattr(public, "__wrapped__")
+
+    implementation = next(
+        cell.cell_contents
+        for cell in public.__closure__ or ()
+        if inspect.isfunction(cell.cell_contents)
+        and cell.cell_contents.__name__ == "submit"
+    )
+    assert inspect.signature(implementation).parameters["release_append"].default is None
+    harness = control_plane(tmp_path)
+    with pytest.raises(ArsError, match="guarded release continuation"):
+        implementation(harness.service, publication_command())
+    assert tuple(harness.ledger.iter_events()) == ()
+
+
 def test_captured_release_draft_rejects_cross_ledger_and_reuse(
     tmp_path,
     monkeypatch,

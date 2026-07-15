@@ -170,9 +170,11 @@ class CommandService:
     def submit(
         self,
         envelope: dict[str, Any],
-        release_append: Callable[..., dict[str, Any]],
+        release_append: Callable[..., dict[str, Any]] | None = None,
     ) -> Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
+        if release_append is None:
+            raise ArsError("CommandService.submit requires its guarded release continuation")
         self.schemas.validate("ars://core/command", envelope)
         if envelope.get("command_type") == "RevokeAuthorityGrant":
             self.schemas.validate(
