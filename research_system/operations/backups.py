@@ -11,6 +11,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.store.ledger import EventLedger
+from research_system.schema_registry import bundled_schema_registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +167,9 @@ def verify_restore_before_writer_lease(
             failed.append("store_not_moved")
 
     try:
-        ledger_snapshot = EventLedger(target, receipt.project_id).snapshot()
+        ledger_snapshot = EventLedger(
+            target, receipt.project_id, bundled_schema_registry()
+        ).snapshot()
         replay_state = replay(ledger_snapshot.events)
         ledger_hash = sha256_hex(canonical_bytes(list(ledger_snapshot.events)))
         if (

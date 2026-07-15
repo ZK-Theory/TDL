@@ -8,7 +8,8 @@ from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.reducers import reduce_task
-from research_system.errors import IntegrityError
+from research_system.errors import IntegrityError, SchemaError
+from research_system.schema_registry import SchemaRegistry
 
 _ALLOWED_DISPOSITIONS = frozenset(
     {
@@ -97,6 +98,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'activation_event_id': event['event_id'],
             'activation_position': event['global_position'],
             'revocation_event_id': None,
+            'revocation_position': None,
         }
         updated['authority_root_id'] = stream_id
         updated['bootstrap_manifest_sha256'] = payload['bootstrap_manifest_sha256']
@@ -146,6 +148,7 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'activation_event_id': event['event_id'],
             'activation_position': event['global_position'],
             'revocation_event_id': None,
+            'revocation_position': None,
         }
     elif event_type == 'AuthorityGrantRevoked':
         payload = event['payload']
@@ -165,7 +168,12 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             raise IntegrityError('authority revocation target mismatch')
         if payload.get('authorizing_grant_id') != root_id or payload.get('authorizing_grant_sha256') != grants.get(root_id, {}).get('authority_grant_sha256'):
             raise IntegrityError('authority revocation root mismatch')
-        grants[stream_id] = {**current, 'status': 'revoked', 'revocation_event_id': event['event_id']}
+        grants[stream_id] = {
+            **current,
+            'status': 'revoked',
+            'revocation_event_id': event['event_id'],
+            'revocation_position': event['global_position'],
+        }
     elif event_type in {'TaskCreated', 'TaskSuperseded'}:
         streams[stream_id] = reduce_task(streams.get(stream_id, {}), event)
     elif event_type == 'DispatchClaimed':
@@ -234,6 +242,84 @@ def apply_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
             'r2_intake_blocked': expected_status != 'verified',
             'version': event['stream_version'],
         }
+    elif event_type == 'ReleaseGateDecisionPublished':
+        payload = event['payload']
+        expected_fields = {
+            'release_decision',
+            'source_decision_sha256',
+            'evaluation_runs_manifest_ref',
+            'evaluation_runs_manifest_sha256',
+            'control_binding_ref',
+            'control_binding_sha256',
+            'publication_authority_grant_id',
+            'publication_authority_sha256',
+            'gate5_authorized',
+            'candidate_status',
+        }
+        if set(payload) != expected_fields:
+            raise IntegrityError('release publication payload fields must be exact')
+        decision = payload.get('release_decision')
+        stream_id = event.get('stream_id')
+        publication_grant_id = payload.get('publication_authority_grant_id')
+        publication_grant = updated.get('authority_grants', {}).get(
+            publication_grant_id
+        )
+        if (
+            not isinstance(decision, dict)
+            or not isinstance(stream_id, str)
+            or not stream_id.startswith('rgd_')
+            or decision.get('release_gate_decision_id') != stream_id
+            or decision.get('canonical_event_ref') != event.get('event_id')
+            or decision.get('decision') != 'blocked'
+            or payload.get('gate5_authorized') is not False
+            or payload.get('candidate_status') != 'blocked'
+            or event.get('authority_grant_id') != publication_grant_id
+            or not isinstance(publication_grant, dict)
+            or publication_grant.get('status') != 'active'
+            or publication_grant.get('authority_grant_sha256')
+            != payload.get('publication_authority_sha256')
+        ):
+            raise IntegrityError('release publication identity or disposition mismatch')
+        source = deepcopy(decision)
+        source['canonical_event_ref'] = 'unpublished:p0'
+        if payload.get('source_decision_sha256') != sha256_hex(
+            canonical_bytes(source)
+        ):
+            raise IntegrityError('release publication source hash mismatch')
+        releases = updated.setdefault('release_decisions', {})
+        if stream_id in releases:
+            raise IntegrityError('release decision is already projected')
+        projection = {
+            'release_decision_id': stream_id,
+            'event_id': event['event_id'],
+            'event_hash': event['event_hash'],
+            'event_position': event['global_position'],
+            'project_id': event['project_id'],
+            'release_decision': decision,
+            'source_decision_sha256': payload['source_decision_sha256'],
+            'evaluation_runs_manifest_ref': payload[
+                'evaluation_runs_manifest_ref'
+            ],
+            'evaluation_runs_manifest_sha256': payload[
+                'evaluation_runs_manifest_sha256'
+            ],
+            'control_binding_ref': payload['control_binding_ref'],
+            'control_binding_sha256': payload['control_binding_sha256'],
+            'publication_authority_grant_id': payload[
+                'publication_authority_grant_id'
+            ],
+            'publication_authority_sha256': payload[
+                'publication_authority_sha256'
+            ],
+            'publication_authority_activation_position': publication_grant[
+                'activation_position'
+            ],
+            'gate5_authorized': False,
+            'candidate_status': 'blocked',
+            'version': event['stream_version'],
+        }
+        releases[stream_id] = projection
+        streams[stream_id] = projection
     else:
         raise IntegrityError(f'unsupported event type: {event_type}')
     return updated
@@ -255,6 +341,7 @@ def _verify_event_hash(event: dict[str, Any]) -> bool:
 def replay(
     events: Iterable[dict[str, Any]],
     supported_major: int = 1,
+    schema_registry: SchemaRegistry | None = None,
 ) -> dict[str, Any]:
     state: dict[str, Any] = {
         'streams': {},
@@ -269,6 +356,25 @@ def replay(
     for source in events:
         event = deepcopy(source)
         position = event.get('global_position')
+        release_event = event.get('event_type') == 'ReleaseGateDecisionPublished'
+        if release_event and schema_registry is None:
+            raise IntegrityError('release event schema validator unavailable')
+        if schema_registry is not None:
+            try:
+                schema_registry.validate('ars://core/event', event)
+                if release_event:
+                    schema_registry.validate(
+                        'ars://core/event/ReleaseGateDecisionPublished',
+                        event,
+                    )
+                else:
+                    payload_schema = f"{event.get('schema_id')}/payload"
+                    if schema_registry.contains(payload_schema):
+                        schema_registry.validate(payload_schema, event.get('payload'))
+            except SchemaError as exc:
+                raise IntegrityError(
+                    f'event schema validation failed at {position}'
+                ) from exc
         if _major(event) != supported_major:
             raise IntegrityError(f'unsupported major at {position}')
         schema_id = event.get('schema_id')
@@ -315,8 +421,9 @@ def replay(
 def rebuild_projection(
     events: Iterable[dict[str, Any]],
     output: Path,
+    schema_registry: SchemaRegistry | None = None,
 ) -> dict[str, Any]:
-    state = replay(events)
+    state = replay(events, schema_registry=schema_registry)
     data = canonical_bytes(state) + b'\n'
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f'.{output.name}.tmp')

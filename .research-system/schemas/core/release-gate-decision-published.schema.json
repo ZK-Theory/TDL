@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://core/event/ReleaseGateDecisionPublished",
+  "type": "object",
+  "required": [
+    "event_id", "event_type", "schema_id", "schema_version", "project_id",
+    "stream_id", "stream_version", "global_position", "transaction_id",
+    "transaction_index", "transaction_count", "command_id", "command_type",
+    "idempotency_key", "command_payload_hash", "correlation_id", "causation_id",
+    "actor_id", "authority_grant_id", "occurred_at", "recorded_at", "payload",
+    "previous_event_hash", "event_hash"
+  ],
+  "properties": {
+    "event_id": {"$ref": "#/$defs/eventId"},
+    "event_type": {"const": "ReleaseGateDecisionPublished"},
+    "schema_id": {"const": "ars://core/event/ReleaseGateDecisionPublished"},
+    "schema_version": {"const": "1.0.0"},
+    "project_id": {"$ref": "#/$defs/projectId"},
+    "stream_id": {"$ref": "#/$defs/releaseDecisionId"},
+    "stream_version": {"const": 1},
+    "global_position": {"type": "integer", "minimum": 1},
+    "transaction_id": {"type": "string", "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "transaction_index": {"const": 1},
+    "transaction_count": {"const": 1},
+    "command_id": {"type": "string", "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "command_type": {"const": "PublishReleaseGateDecision"},
+    "idempotency_key": {"type": "string", "pattern": "^release-publication:[A-Za-z0-9._:-]+$", "maxLength": 200},
+    "command_payload_hash": {"$ref": "#/$defs/sha256"},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": ["string", "null"]},
+    "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "authority_grant_id": {"$ref": "#/$defs/authorityGrantId"},
+    "occurred_at": {"type": "null"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "payload": {"$ref": "#/$defs/payload"},
+    "previous_event_hash": {"$ref": "#/$defs/sha256"},
+    "event_hash": {"$ref": "#/$defs/sha256"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "projectId": {"type": "string", "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "releaseDecisionId": {"type": "string", "pattern": "^rgd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "eventId": {"type": "string", "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "artefactId": {"type": "string", "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "authorityGrantId": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "resultKey": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "string"}, {"type": "string"}, {"type": "string"},
+        {"enum": ["D", "T", "R", "M", "H", "O", "P"]},
+        {"type": "string"}, {"type": "string", "minLength": 1}
+      ],
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "verdictEntry": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/resultKey"},
+        {"type": "string", "minLength": 1}
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "releaseDecision": {
+      "type": "object",
+      "required": [
+        "schema_id", "schema_version", "release_gate_decision_id",
+        "coverage_manifest_id", "baseline_identity", "candidate_identity",
+        "evidence_snapshot_hash", "required_verdicts", "critical_failures",
+        "parity_status", "operations_status", "decision", "decided_at",
+        "canonical_event_ref", "policy_parity_report_id",
+        "policy_parity_report_hash", "policy_control_applicability_id",
+        "policy_control_applicability_hash", "exception_policy_id",
+        "exception_policy_hash", "exception_scope", "exception_expiry",
+        "disabled_or_constrained_capability", "rationale", "human_authority_id",
+        "supersedes"
+      ],
+      "properties": {
+        "schema_id": {"const": "ars://evals/release-gate-decision"},
+        "schema_version": {"const": "1.0.0"},
+        "release_gate_decision_id": {"$ref": "#/$defs/releaseDecisionId"},
+        "coverage_manifest_id": {"type": "string", "minLength": 1},
+        "baseline_identity": {"type": "string", "minLength": 1},
+        "candidate_identity": {"type": "string", "minLength": 1},
+        "evidence_snapshot_hash": {"$ref": "#/$defs/sha256"},
+        "required_verdicts": {"type": "array", "items": {"$ref": "#/$defs/verdictEntry"}},
+        "critical_failures": {"type": "array", "items": {"$ref": "#/$defs/resultKey"}},
+        "parity_status": {"const": "pass"},
+        "operations_status": {"const": "pass"},
+        "decision": {"const": "blocked"},
+        "decided_at": {"type": "string", "format": "date-time"},
+        "canonical_event_ref": {"$ref": "#/$defs/eventId"},
+        "policy_parity_report_id": {"type": "string", "pattern": "^ppr_[0-9a-f]{64}$"},
+        "policy_parity_report_hash": {"$ref": "#/$defs/sha256"},
+        "policy_control_applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
+        "policy_control_applicability_hash": {"$ref": "#/$defs/sha256"},
+        "exception_policy_id": {"type": "null"},
+        "exception_policy_hash": {"type": "null"},
+        "exception_scope": {"type": "null"},
+        "exception_expiry": {"type": "null"},
+        "disabled_or_constrained_capability": {"type": "null"},
+        "rationale": {"type": ["string", "null"]},
+        "human_authority_id": {"type": "null"},
+        "supersedes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "release_decision", "source_decision_sha256",
+        "evaluation_runs_manifest_ref", "evaluation_runs_manifest_sha256",
+        "control_binding_ref", "control_binding_sha256",
+        "publication_authority_grant_id", "publication_authority_sha256",
+        "gate5_authorized", "candidate_status"
+      ],
+      "properties": {
+        "release_decision": {"$ref": "#/$defs/releaseDecision"},
+        "source_decision_sha256": {"$ref": "#/$defs/sha256"},
+        "evaluation_runs_manifest_ref": {"$ref": "#/$defs/artefactId"},
+        "evaluation_runs_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "control_binding_ref": {"$ref": "#/$defs/artefactId"},
+        "control_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "publication_authority_grant_id": {"$ref": "#/$defs/authorityGrantId"},
+        "publication_authority_sha256": {"$ref": "#/$defs/sha256"},
+        "gate5_authorized": {"const": false},
+        "candidate_status": {"const": "blocked"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

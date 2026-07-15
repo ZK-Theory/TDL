@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from research_system.schema_registry import bundled_schema_registry
+
 
 _EVIDENCE: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
     "S-014": (
@@ -109,7 +111,7 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         root.mkdir()
         service = CommandService(
             root,
-            EventLedger(root, project_id),
+            EventLedger(root, project_id, bundled_schema_registry()),
             ObjectStore(root),
             ReceiptStore(root),
             SchemaRegistry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas"),
@@ -238,7 +240,7 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory) / "control"
         root.mkdir()
-        ledger = EventLedger(root, project_id)
+        ledger = EventLedger(root, project_id, bundled_schema_registry())
         service = CommandService(
             root,
             ledger,

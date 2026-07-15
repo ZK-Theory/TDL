@@ -1,9 +1,9 @@
 # ARS WP5.3: Canonical Release-Event Publication Plan
 
-> **Status:** review-ready planning only. G5.3-A's prerequisite and G5.3-B(a)'s
-> trusted-local-operator boundary are owner-approved. Runtime implementation
-> remains blocked until the canonical authority package is implemented,
-> independently reviewed, and merged.
+> **Status:** implementation remediation complete; O12 remains pending independent
+> Manager acceptance and merge. G5.3-A was implemented,
+> independently remediated/reviewed, and merged in PR #90. WP5.2 was likewise
+> independently remediated/reviewed and merged in PR #89.
 >
 > **Outcome:** publish an already verified, blocked P0 ReleaseGateDecision as exactly one canonical W2 event. Publication records a decision; it does not authorize Gate 5.
 
@@ -115,15 +115,14 @@ The record must name:
 5. immutable content identity/hash binding the command to the grant; and
 6. expiry/revocation validation repeated under the writer lock.
 
-**Current disposition: PREREQUISITE AND G5.3-B(a) APPROVED; IMPLEMENTATION
-OPEN.** On 2026-07-12 the Owner approved the separately scoped W2 authority-
-source prerequisite and accepted the trusted-local-operator boundary recorded
-in `05e-wp5-3a-canonical-authority-grant-plan.md`. Actor IDs are attribution;
-cryptographic principal authentication and its key/credential lifecycle are
-out of scope. No WP5.3 runtime Worker may be dispatched until the prerequisite
-is implemented, independently reviewed, and merged. A test-injected resolver
-may test fail-closed interfaces but cannot satisfy G5.3-A or publish the
-production P0 decision.
+**Current disposition: G5.3-A SATISFIED; G5.3-B(a) PRESERVED; WP5.3
+IMPLEMENTED.** The approved W2 authority-source prerequisite was implemented in
+PR #87, independently remediated/reviewed in PR #90, and merged. Actor IDs
+remain attribution inside the trusted-local-operator boundary; cryptographic
+principal authentication and its key/credential lifecycle remain out of scope.
+Production publication uses the merged `LedgerAuthorityGrantResolver`. A
+test-injected resolver remains limited to fail-closed interface controls and
+does not satisfy the production authority path.
 
 After an accepted decision, implementation may add a narrow injected
 ReleasePublicationAuthorizer protocol. It verifies authority; it never creates
@@ -449,6 +448,147 @@ WP5.3 is complete only when:
 10. Diff remains under 150 files and within section 5; it does not broaden into WP5.2, WP5.6/O15, live providers, Gate 5/Gate 6, research, or paper work.
 11. O12 is closed only with immutable validation evidence; O15 remains open and Gate 5 remains unauthorized.
 
+### O12 implementation closeout evidence (2026-07-13)
+
+- Source ancestry is `080c54091efaa9120e5432e84f04efaa8f5f51db`, containing
+  the PR #89 merge `a7866c3422a51a3a3b3dc8ff812504959e215c1b` and PR #90
+  merge `080c54091efaa9120e5432e84f04efaa8f5f51db`.
+- The fake-only source re-derived `40` fixtures, `15` blocked fixtures, zero
+  uncalibrated mutations, `302` unique results, calibrated typed W7 parity,
+  `gate5_authorized=false`, and `candidate_status=blocked`.
+- The synthetic `C:/tmp` public flow appended exactly one event at position 3:
+  `evt_019f5d87-4478-791e-9f23-2fc135cf6a27`, event SHA-256
+  `9526a0a0a86bd47ad330a4d99f73378b1492f1e0ef2397a7885362b0a7318993`.
+  Recomputed event hash matched; original and exact-retry receipt SHA-256 both
+  equal `6e8d834b908aece4c4c6343844a7723ac13d13307dd1a23f49e3463acf92f019`;
+  changed payload returned `idempotency_conflict`; replay projection SHA-256 is
+  `4de38cf27abd48b687c32057d036a4f00b6b04260923d6eba72ec3e8aa57e592`;
+  and `eval release` resolved the same event while retaining false/blocked.
+- Focused publication tests include 39 strict authority, idempotency, recovery,
+  concurrency, source/chain, sentinel, unknown, foreign, self-reference, and
+  projection-tamper controls. The final research-system suite is `554 passed in
+  629.18s`; Ruff passes; four semantic materializers pass. The P0 matrix checker
+  reports only inherited `i/lf w/crlf` checkout bytes: LF-normalized worktree and
+  index SHA-256 both equal
+  `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`
+  with no Git diff.
+- This bounded WP5.3 implementation supplied initial O12 evidence. O12 remains
+  pending independent Manager acceptance/merge; O15 remains open and Gate 5
+  remains unauthorized.
+
+### PR #92 review-remediation evidence (2026-07-14)
+
+- The release verifier now rejects `unpublished:p0` and resolves only the exact
+  published `evt_` reference. It compares the full decision plus manifest,
+  control, authority, project, stream, event, source-hash, and false/blocked
+  bindings. Manifest and control documents are immutable revision-1 canonical
+  objects, and restart, byte/schema tamper, foreign-store, nested callback
+  mutation, and producer-seam tests fail closed.
+- `EventLedger` owns trusted generic and event-specific schema validation;
+  release drafts cannot supply validators. Replay binds the payload authority
+  ID/hash to the event and replayed active grant. Exact concurrent retries wait
+  beyond the former five-second cutoff, while output preflight, durable
+  same-directory temporary writes, and exclusive atomic publication cover
+  pre-existing, interrupted, and racing receipt paths.
+- The final focused command is `92 passed in 405.16s`; the full research-system
+  suite is `568 passed in 733.86s`; Ruff passes; four semantic materializers
+  pass. The inherited matrix CRLF variance remains LF-normalized byte-identical
+  at SHA-256 `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`.
+- The fake-only source again derived 40 fixtures, 15 blocked fixtures, zero
+  uncalibrated mutations, 302 results, calibrated typed parity, and blocked.
+  The real unmocked offline release path retained `gate5_authorized=false`.
+- The final `C:/tmp` flow emitted event
+  `evt_019f5e0e-dcc2-75ad-a656-629bc576a590` with event SHA-256
+  `f7b5b20da0594461c866a32571e61ab110c14bf3bb58f3223cfc36c9dc65ab2f`;
+  recomputation matched. Original/retry receipt SHA-256 is
+  `d69d6873e716deabe27741150f14246ce43538065ca04dd3e4851c40d54514c0`,
+  projection SHA-256 is
+  `4887c39bc29bdbcd1601e5f0cb6ef0095def98b56e3b26c00d7cfbf2536e369c`,
+  changed payload returned `idempotency_conflict`, and the ledger retained one
+  release event. O12 remains pending independent Manager acceptance; O15
+  remains open; Gate 5 remains unauthorized and unaccepted.
+
+### PR #92 second review-remediation evidence (2026-07-14)
+
+- Ordinary callers cannot construct or append a release draft. A module-private
+  `CommandService` capability is required, remains stable across service
+  restart, and `EventLedger` still owns allocation and mandatory schema
+  validation.
+- Historical exact retries return the original outcome after later
+  expiry/revocation, while new keys revalidate current authority under the
+  writer lock. Replay records activation/publication/revocation positions, so a
+  later valid revocation does not retroactively invalidate publication.
+- Registered strict producer/control schemas bind a complete immutable offline
+  W6/W7/W8 snapshot. Re-derivation consumes stored typed evidence rather than
+  current checkout discovery; restart, nested producer mutation, individual
+  evidence-seam tamper, schema/hash tamper, and checkout-drift controls fail
+  closed.
+- Immutable object publication uses durable same-directory temporaries and
+  exclusive atomic linking. Injected interruption/retry and concurrent
+  identical writers retain one complete content-addressed revision. Receipt
+  publication preserves the same non-clobbering discipline.
+- Final-state validation passes as `412` unit plus `172` integration tests
+  (`584` total); repository-wide Ruff passes. Four semantic materializers pass;
+  the variant-matrix checker has only inherited CRLF variance, with normalized
+  worktree/index SHA-256 both
+  `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`.
+  The fake-only source is `40/15/0/302/calibrated/false/blocked`.
+- The final `C:/tmp` flow emits exactly one release event at position 3:
+  `evt_019f5e97-a682-75b6-a93e-12edb773cbce`, event SHA-256
+  `0a282e717390f3a673dbfc0f9e1d7f96222d56ad6b5dd548330ecf365278bd0f`.
+  Recalculation matches; exact-retry receipt SHA-256 is
+  `a22d4b8edf30b385d2c0561eda2b5279101d3a9d96b0aae5d437dbbf59ac7e8d`;
+  changed source returns `idempotency_conflict`; projection SHA-256 is
+  `32a3a73b39fc99313625e46071fdb2f003deca540fa1cde9b1a99eacd364b962`.
+  Manifest/control hashes are respectively
+  `ed3eee585f7013f3a94d3783fbeebe70547962685f78fe54bbe245b1b0112b32`
+  and `af7c714f07823a493cf31264ac39f607ae3002f3e194e0abdd94dd0b94030869`.
+- This evidence supports O12 implementation closeout, but independent Manager
+  acceptance and merge remain pending. O15 remains open; Gate 5 remains
+  unauthorized and unaccepted.
+
+### PR #92 third review-remediation evidence (2026-07-14)
+
+- Release draft issuance and consumption now occur atomically inside a narrow
+  ledger-specific `CommandService` append boundary. No reusable capability is
+  retained by the ledger or draft; caller mint, raw append, cross-ledger use,
+  and reuse fail closed while ledger-owned event identity, position, timestamp,
+  transaction identity, self-reference, and hash chain remain protected.
+- `ReleaseGateDecisionPublished` requires its exact registered schema and is
+  validated before and after allocation. A missing release schema leaves no
+  durable event or projection mutation.
+- The frozen publication-evidence schema strictly types every rehydrated nested
+  boundary. Exact `GraderResult` fields round-trip without synthesized
+  identities; retained-hash policy tamper is rejected using canonical
+  source/preimage revalidation; D-G5-5 applicability/provider bindings use the
+  canonical loaders. Actual producer perturbations and the reachable stored-
+  evidence CLI restart seam are exercised rather than only post-production
+  dictionary tamper.
+- Immutable objects contend on one revision-scoped publication claim:
+  identical concurrent content is idempotent, conflicting content yields one
+  success and one conflict, and interruption/retry leaves one readable
+  canonical revision. Each public authority resolution derives identity,
+  scope, temporal, and revocation state from one verified projection.
+- Final validation passes as `439` unit plus `172` integration tests (`611`
+  total), including the `131`-test focused WP5.3 matrix. Scoped Ruff and four
+  semantic materializers pass. The variant matrix has only inherited CRLF
+  checkout variance; normalized worktree/index SHA-256 both equal
+  `e7d61c32c817ca95d21f17d6d8557656b0c99bb3a823a85ee7704d245b0de94f`.
+  The fake-only source remains `40/15/0/302/calibrated/false/blocked`.
+- The final fresh `C:/tmp` offline flow publishes exactly one event at position
+  3: `evt_019f62b8-2eda-7112-81a9-f0a50e2d323a`, event SHA-256
+  `f3436581c548e9cd194bf416f55de3bc3dabad5a561f66594e1b29b532856fa5`.
+  Recalculation matches; exact-retry receipt SHA-256 is
+  `78800047ab320873b60031a575ca49059b8169565c9349c5c6089605c140ded6`;
+  changed source returns `idempotency_conflict`; projection SHA-256 is
+  `dd7b8d30479d85fe7efea05d0083f127e46e96c307076a94bbb8e3e15aa3b57b`.
+  Manifest/control hashes are respectively
+  `b96ad92a066e1241cac469786cc98b272174191146e4411736df212a208ae3c6`
+  and `acd2187addd73f18c850fae644d86b1e0e6cf87684aaacb3d2cfb74bd220606c`.
+- This evidence completes the Worker remediation package, but O12 remains
+  pending independent Manager acceptance and merge. O15 remains open; Gate 5
+  remains unauthorized and unaccepted.
+
 ## 11. Stop conditions
 
 Stop implementation and report evidence to the Manager when:
@@ -480,4 +620,7 @@ Review immutable test/output hashes and source references directly; do not rely 
 
 ## 13. Delivery shape
 
-This document is one planning-only, reviewable PR. It may merge with G5.3-A explicitly open, but it is not an implementation dispatch until the Owner records an accepted authority source or approves the recommended prerequisite. The later implementation should likewise be one bounded PR well below 150 files, use red-to-green public-seam TDD, retain independent Manager review, and must not be merged by the implementation Worker.
+This document began as the reviewable planning contract. The implemented WP5.3
+change remains one bounded PR well below 150 files, uses red-to-green public-seam
+TDD, retains independent Manager review, and must not be merged by the
+implementation Worker.

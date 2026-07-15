@@ -90,6 +90,7 @@ def test_every_core_schema_declares_closed_object_contract():
         'command.schema.json',
         'event.schema.json',
         'receipt.schema.json',
+        'release-gate-decision-published.schema.json',
         'revoke-authority-grant.schema.json',
         'store-identity-1.1.schema.json',
         'task.schema.json',

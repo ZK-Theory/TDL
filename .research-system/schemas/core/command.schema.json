@@ -12,7 +12,7 @@
     "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "on_behalf_of_actor_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"}]},
     "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "target_stream_id": {"type": "string", "pattern": "^(?:tsk|dsp|dec|art|prj|agr)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "target_stream_id": {"type": "string", "pattern": "^(?:tsk|dsp|dec|art|prj|agr|rgd)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "expected_stream_version": {"type": "integer", "minimum": 0},
     "idempotency_key": {"type": "string", "minLength": 1},
     "correlation_id": {"type": "string", "minLength": 1},
