@@ -1,0 +1,61 @@
+id: w2-exact-diagonal-bound
+kind: invariant
+pending: true
+
+description: >
+  Every exact Wasserstein-2 distance between two persistence diagrams is bounded
+  above by the cost of projecting every point of both diagrams to the diagonal,
+  because that projection is always an admissible matching and the optimal
+  matching can never cost more than an admissible one. A reported W2 above this
+  bound is therefore mathematically impossible as a Wasserstein distance,
+  regardless of how plausible the number looks. This is the cheap, closed-form
+  screen that converts "the solver might have silently degraded" from an
+  unfalsifiable worry into a fail-closed check.
+
+spec_citation:
+  source: >
+    CLAUDE.md methodological mandate (W2 primary, ground metric l2, order=2,
+    internal_p=2); Skraba & Turner (2020) stability under l2; T1.38
+    pre-registration 2026-07-15. Mechanises the decisive tell from the WT-6 /
+    WT-1c solver audit.
+  vault_entry_date: "2026-07-15"
+
+invariant:
+  claim: >
+    For diagrams A and B under internal_p=2, W2(A, B) <= sqrt(D(A) + D(B))
+    where D(X) = 0.5 * sum_i (death_i - birth_i)^2 is the sum of squared l2
+    distances of X's points to the diagonal (the distance of (b,d) to the
+    diagonal being (d-b)/sqrt(2)). Every exact W2 value written by T1.38
+    satisfies value <= bound + tol. The screen is applied to EVERY reported
+    exact distance, not a sample, and its results are recorded in-band under
+    diagonal_bound_screen. A violation aborts the write rather than emitting a
+    flagged value.
+  preconditions:
+    - "both diagrams are finite (b, d) pairs with non-finite rows dropped"
+    - "the distance is claimed to be an exact Wasserstein-2 under internal_p=2"
+    - "the bound is computed from the same diagrams the distance was computed on"
+  counter_example_history: >
+    Frozen USoc Markov-1 H1 headline, committed 2026-05-28 and cited until
+    2026-07-14: obs-null W2 recorded as 233.68 with null-null 175.40 and
+    d_perm +22.09. The diagonal bound for those diagrams is approximately 35.8,
+    so 233.68 exceeds it by ~6.5x and is not a Wasserstein distance at all — it
+    is the greedy persistence-rank fallback, reached because POT was absent from
+    the venv. H0 was unaffected (at zero births greedy is identical to optimal
+    1-D transport), which is exactly why H0 reproduced and H1 did not. Lint,
+    unit tests, smoke runs and a value-level schema check all passed throughout;
+    the defect gated P01-B Stage-2 prose for weeks. The exact value is ~12.68
+    (d_perm +31.16) — H1 rejects MORE decisively once computed correctly.
+
+binding:
+  test_file: "tests/trajectory_tda/test_w2_gap_closure_contracts.py"
+  test_function: "test_w2_exact_diagonal_bound_invariant"
+  must_assert: >
+    Asserts that (a) the bound function reproduces sqrt(0.5*sum(pers_A^2) +
+    0.5*sum(pers_B^2)) on a hand-checkable fixture; (b) an exact gudhi W2 on
+    random diagram pairs never exceeds the bound (property check over >= 20
+    seeded pairs); (c) a known greedy-fallback value paired with its diagrams IS
+    rejected by the screen — the negative control, using the historical
+    233.68-vs-~35.8 case or a synthetic reconstruction of it, so the screen is
+    demonstrated capable of firing rather than assumed to be; (d) a payload
+    whose diagonal_bound_screen.n_violations > 0 is rejected by the validator;
+    and (e) an empty diagram pair yields bound 0.0 and W2 0.0 without raising.
