@@ -1,9 +1,11 @@
 import json
+import os
 from pathlib import Path
 import threading
 
 import pytest
 
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.store.layout import require_external_control_root
@@ -81,6 +83,38 @@ def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
         write_object(tmp_path, "task", TASK_ID, 1, {"x": 2})
 
 
+def test_object_write_rejects_matching_bytes_under_wrong_digest_name(tmp_path):
+    data = canonical_bytes({"x": 1})
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    directory.mkdir(parents=True)
+    wrong = directory / f"00000001-{'0' * 64}.json"
+    wrong.write_bytes(data)
+
+    with pytest.raises(ConflictError, match="object revision already exists"):
+        write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    canonical = directory / f"00000001-{sha256_hex(data)}.json"
+    assert not canonical.exists()
+    assert list(directory.glob(".*.publication-claim")) == []
+    with pytest.raises(IntegrityError, match="filename hash mismatch"):
+        ObjectStore(tmp_path).read("task", TASK_ID, 1)
+
+
+def test_abandoned_object_claim_is_completed_by_later_writer(tmp_path):
+    data = canonical_bytes({"x": 1})
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    directory.mkdir(parents=True)
+    claim = directory / ".00000001.publication-claim"
+    claim.write_bytes(data)
+
+    path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    assert path.name == f"00000001-{sha256_hex(data)}.json"
+    assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
+    assert not claim.exists()
+    assert list(directory.glob(".*.tmp")) == []
+
+
 def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers(tmp_path, monkeypatch):
     import research_system.store.objects as object_module
 
@@ -102,6 +136,54 @@ def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers
     path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
     assert path.is_file()
+
+
+def test_object_target_link_interruption_is_recovered_on_retry(tmp_path, monkeypatch):
+    import research_system.store.objects as object_module
+
+    real_link = os.link
+    interrupted = False
+
+    def interrupt_target_link(source, target):
+        nonlocal interrupted
+        if Path(target).suffix == ".json" and not interrupted:
+            interrupted = True
+            raise OSError("injected target link interruption")
+        return real_link(source, target)
+
+    monkeypatch.setattr(object_module.os, "link", interrupt_target_link)
+    with pytest.raises(OSError, match="target link interruption"):
+        write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    claim = directory / ".00000001.publication-claim"
+    assert claim.read_bytes() == canonical_bytes({"x": 1})
+    assert list(directory.glob("00000001-*.json")) == []
+    assert list(directory.glob(".*.tmp")) == []
+
+    monkeypatch.setattr(object_module.os, "link", real_link)
+    write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+    assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
+    assert len(list(directory.glob("00000001-*.json"))) == 1
+    assert list(directory.glob(".*.tmp")) == []
+    assert list(directory.glob(".*.publication-claim")) == []
+
+
+def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeypatch):
+    import research_system.store.objects as object_module
+
+    observations = []
+
+    def observe(directory):
+        target_exists = bool(list(directory.glob("00000001-*.json")))
+        claim_exists = bool(list(directory.glob(".*.publication-claim")))
+        observations.append((directory, target_exists, claim_exists))
+
+    monkeypatch.setattr(object_module, "_fsync_directory", observe)
+    path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    assert (path.parent, True, True) in observations
+    assert list(path.parent.glob(".*.tmp")) == []
+    assert list(path.parent.glob(".*.publication-claim")) == []
 
 
 def test_two_concurrent_identical_object_writers_publish_one_complete_revision(tmp_path, monkeypatch):
@@ -135,6 +217,9 @@ def test_two_concurrent_identical_object_writers_publish_one_complete_revision(t
     assert errors == []
     assert len(set(results)) == 1
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    assert list(directory.glob(".*.tmp")) == []
+    assert list(directory.glob(".*.publication-claim")) == []
 
 
 def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, monkeypatch):
@@ -174,6 +259,9 @@ def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, 
     revisions = list((tmp_path / "objects" / "task" / TASK_ID).glob("00000001-*.json"))
     assert len(revisions) == 1
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) in ({"x": 1}, {"x": 2})
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    assert list(directory.glob(".*.tmp")) == []
+    assert list(directory.glob(".*.publication-claim")) == []
 
 
 def test_object_read_normalizes_io_and_canonicalization_failures(tmp_path, monkeypatch):
