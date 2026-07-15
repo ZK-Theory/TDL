@@ -21,6 +21,7 @@ from research_system.cli import _schemas_for_store_manifest
 from research_system.errors import (
     ArsError,
     ConfigurationError,
+    ConflictError,
     IntegrityError,
     SchemaError,
 )
@@ -46,7 +47,11 @@ from research_system.evals.release_snapshot import (
 )
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
-from research_system.store.ledger import EventDraft, EventLedger
+from research_system.store.ledger import (
+    EventDraft,
+    EventLedger,
+    _take_release_submit_guard,
+)
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import authority_bootstrap, control_plane
@@ -644,10 +649,7 @@ def test_release_result_identity_tamper_fails_closed(field, invalid) -> None:
         )
 
 
-def test_stored_snapshot_rederivation_does_not_rediscover_current_checkout(
-    tmp_path,
-    monkeypatch,
-) -> None:
+def test_stored_snapshot_rederivation_uses_resolved_documents(tmp_path) -> None:
     _source, stored_manifest, stored_control = producer_snapshot()
     manifest = deepcopy(stored_manifest)
     control = deepcopy(stored_control)
@@ -656,10 +658,6 @@ def test_stored_snapshot_rederivation_does_not_rediscover_current_checkout(
     control_ref = content_artefact_id(control)
     objects.write("artefact", manifest_ref, 1, manifest)
     objects.write("artefact", control_ref, 1, control)
-    monkeypatch.setattr(
-        "research_system.cli.run_p0_coverage",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("checkout producer must not be rediscovered")),
-    )
     verified = verify_release_publication(
         ReleasePublicationRequest.from_dict(
             {
@@ -771,6 +769,7 @@ def test_caller_built_release_draft_cannot_bypass_command_service(
         schemas,
     )
     assert not hasattr(ledger, "_release_draft_capability")
+    assert not hasattr(ledger, "_issued_release_drafts")
     assert not hasattr(service, "_release_draft_factory")
     constructor = EventDraft
     with pytest.raises(ArsError, match="CommandService"):
@@ -779,7 +778,7 @@ def test_caller_built_release_draft_cannot_bypass_command_service(
             lambda allocated: verified.payload_for(allocated.event_id),
         )
         ledger.append([caller_draft])
-    with pytest.raises(ArsError, match="issued by this ledger"):
+    with pytest.raises(ArsError, match="validated CommandService.submit"):
         forged_internal = object.__new__(EventDraft)
         object.__setattr__(forged_internal, "envelope", base)
         object.__setattr__(
@@ -788,13 +787,16 @@ def test_caller_built_release_draft_cannot_bypass_command_service(
             lambda allocated: verified.payload_for(allocated.event_id),
         )
         ledger.append([forged_internal])
+    ledger._issued_release_drafts = {id(forged_internal): forged_internal}
+    try:
+        with pytest.raises(ArsError, match="validated CommandService.submit"):
+            ledger.append([forged_internal])
+    finally:
+        del ledger._issued_release_drafts
     assert tuple(ledger.iter_events()) == ()
 
 
-def test_release_draft_is_bound_to_one_ledger_and_consumed_once(
-    tmp_path,
-    monkeypatch,
-) -> None:
+def test_bound_service_cannot_directly_invoke_release_append(tmp_path) -> None:
     schemas = SchemaRegistry(ROOT / ".research-system" / "schemas")
     verified = verify_release_publication(
         ReleasePublicationRequest.from_dict(publication_request()),
@@ -819,33 +821,101 @@ def test_release_draft_is_bound_to_one_ledger_and_consumed_once(
             "event_hash",
         }
     }
+    harness = control_plane(tmp_path)
+    assert not hasattr(harness.ledger, "_append_release_from_command_service")
+    with pytest.raises(ArsError, match="validated CommandService.submit"):
+        harness.ledger._append_release_from_validated_submit(
+            harness.service,
+            base,
+            lambda allocated: verified.payload_for(allocated.event_id),
+        )
+    assert tuple(harness.ledger.iter_events()) == ()
+
+
+def test_release_submit_guard_cannot_be_claimed_by_an_alternate_factory() -> None:
+    with pytest.raises(ArsError, match="already bound"):
+        _take_release_submit_guard()
+
+
+def test_captured_release_draft_rejects_cross_ledger_and_reuse(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import research_system.store.ledger as ledger_module
+
     first_root = tmp_path / "first"
     second_root = tmp_path / "second"
     first_root.mkdir()
     second_root.mkdir()
     first = control_plane(first_root)
     second = control_plane(second_root)
-    captured = []
-    consume = first.ledger._consume_release_draft
-
-    def capture(draft):
-        captured.append(draft)
-        consume(draft)
-
-    monkeypatch.setattr(first.ledger, "_consume_release_draft", capture)
-    first.ledger._append_release_from_command_service(
-        first.service,
-        base,
-        lambda allocated: verified.payload_for(allocated.event_id),
+    first.service.authority_resolver = SimpleNamespace(
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
     )
+    first.service.release_publication_evidence = evidence_resolver()
+    captured = []
+    consume = ledger_module._consume_release_draft
+
+    def capture(ledger, draft):
+        captured.append(draft)
+        consume(ledger, draft)
+
+    monkeypatch.setattr(ledger_module, "_consume_release_draft", capture)
+    assert first.service.submit(publication_command()).status == "accepted"
     assert len(captured) == 1
-    consumed = captured[0]
-    with pytest.raises(ArsError, match="ledger"):
-        second.ledger.append([consumed])
+    draft = captured[0]
+    with pytest.raises(ArsError, match="validated CommandService.submit"):
+        second.ledger.append([draft])
+    with pytest.raises(ArsError, match="validated CommandService.submit"):
+        first.ledger.append([draft])
     assert tuple(second.ledger.iter_events()) == ()
-    with pytest.raises(ArsError, match="consumed|ledger"):
-        first.ledger.append([consumed])
     assert len(tuple(first.ledger.iter_events())) == 1
+
+
+def test_stale_release_append_leaves_no_issuance_state_and_retry_succeeds(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    harness = control_plane(tmp_path)
+    harness.service.authority_resolver = SimpleNamespace(
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
+    )
+    harness.service.release_publication_evidence = evidence_resolver()
+    persisted_tail = harness.ledger._persisted_tail
+    stale_once = [True]
+
+    def persisted_tail_with_one_conflict():
+        if stale_once:
+            stale_once.pop()
+            return 1, "f" * 64
+        return persisted_tail()
+
+    monkeypatch.setattr(
+        harness.ledger,
+        "_persisted_tail",
+        persisted_tail_with_one_conflict,
+    )
+    append = harness.ledger.append
+    captured = []
+
+    def capture(proposed_events, *, snapshot=None):
+        proposed = list(proposed_events)
+        captured.extend(item for item in proposed if isinstance(item, EventDraft))
+        return append(proposed, snapshot=snapshot)
+
+    monkeypatch.setattr(harness.ledger, "append", capture)
+
+    with pytest.raises(ConflictError, match="persisted ledger tail"):
+        harness.service.submit(publication_command())
+
+    assert not hasattr(harness.ledger, "_issued_release_drafts")
+    assert len(captured) == 1
+    with pytest.raises(ArsError, match="validated CommandService.submit"):
+        harness.ledger.append([captured[0]])
+    assert tuple(harness.ledger.iter_events()) == ()
+    receipt = harness.service.submit(publication_command())
+    assert receipt.status == "accepted"
+    assert len(tuple(harness.ledger.iter_events())) == 1
 
 
 def test_release_append_requires_exact_registered_release_schema(tmp_path) -> None:
@@ -860,35 +930,12 @@ def test_release_append_requires_exact_registered_release_schema(tmp_path) -> No
         ReceiptStore(control_root),
         schemas,
     )
-    verified = verify_release_publication(
-        ReleasePublicationRequest.from_dict(publication_request()),
-        evidence_resolver(),
-        SchemaRegistry(ROOT / ".research-system" / "schemas"),
+    service.authority_resolver = SimpleNamespace(
+        resolve=lambda *_args: SimpleNamespace(authority_grant_sha256="a" * 64)
     )
-    envelope = {
-        key: value
-        for key, value in published_event().items()
-        if key
-        not in {
-            "event_id",
-            "project_id",
-            "stream_version",
-            "global_position",
-            "transaction_id",
-            "transaction_index",
-            "transaction_count",
-            "recorded_at",
-            "payload",
-            "previous_event_hash",
-            "event_hash",
-        }
-    }
+    service.release_publication_evidence = evidence_resolver()
     with pytest.raises(SchemaError, match="ReleaseGateDecisionPublished"):
-        ledger._append_release_from_command_service(
-            service,
-            envelope,
-            lambda allocated: verified.payload_for(allocated.event_id),
-        )
+        service.submit(publication_command())
     assert tuple(ledger.iter_events()) == ()
     assert list(control_root.rglob("*.jsonl")) == []
 

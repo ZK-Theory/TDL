@@ -66,6 +66,110 @@ class EventDraft:
         raise ArsError("release event drafts require CommandService capability")
 
 
+def _release_draft_protocol():
+    issued: dict[int, tuple[object, object, EventDraft]] = {}
+    guard_claimed = False
+
+    class _Session:
+        __slots__ = ("ledger", "draft", "consumed")
+
+        def __init__(self, ledger: object) -> None:
+            self.ledger = ledger
+            self.draft: EventDraft | None = None
+            self.consumed = False
+
+    def guard(submit_impl):
+        def guarded_submit(self, envelope):
+            used = False
+
+            def append_release(
+                ledger,
+                event_envelope,
+                finalize_payload,
+                *,
+                snapshot=None,
+            ):
+                nonlocal used
+                if used or ledger is not self.ledger:
+                    raise ArsError(
+                        "release append continuation is one-shot and ledger-specific"
+                    )
+                used = True
+                session = _Session(ledger)
+                return ledger._append_release_from_validated_submit(
+                    session,
+                    event_envelope,
+                    finalize_payload,
+                    snapshot=snapshot,
+                )
+
+            return submit_impl(self, envelope, append_release)
+
+        guarded_submit.__name__ = submit_impl.__name__
+        guarded_submit.__qualname__ = submit_impl.__qualname__
+        guarded_submit.__doc__ = submit_impl.__doc__
+        return guarded_submit
+
+    def take_guard():
+        nonlocal guard_claimed
+        if guard_claimed:
+            raise ArsError("release submit guard is already bound")
+        guard_claimed = True
+        return guard
+
+    def register(session: object, ledger: object, draft: EventDraft) -> None:
+        if (
+            type(session) is not _Session
+            or session.ledger is not ledger
+            or session.draft is not None
+            or session.consumed
+        ):
+            raise ArsError(
+                "release publication requires the validated CommandService.submit continuation"
+            )
+        session.draft = draft
+        issued[id(draft)] = (session, ledger, draft)
+
+    def consume(ledger: object, draft: EventDraft) -> None:
+        entry = issued.pop(id(draft), None)
+        if entry is None:
+            raise ArsError(
+                "release event draft requires the validated CommandService.submit continuation"
+            )
+        session, issued_ledger, issued_draft = entry
+        if (
+            issued_ledger is not ledger
+            or issued_draft is not draft
+            or session.draft is not draft
+            or session.consumed
+        ):
+            raise ArsError("release event draft is foreign, forged, or consumed")
+        session.draft = None
+        session.consumed = True
+
+    def discard(session: object) -> None:
+        if type(session) is not _Session:
+            return
+        draft = session.draft
+        if draft is not None:
+            entry = issued.get(id(draft))
+            if entry is not None and entry[0] is session and entry[2] is draft:
+                issued.pop(id(draft), None)
+        session.draft = None
+        session.consumed = True
+
+    return take_guard, register, consume, discard
+
+
+(
+    _take_release_submit_guard,
+    _register_release_draft,
+    _consume_release_draft,
+    _discard_release_session,
+) = _release_draft_protocol()
+del _release_draft_protocol
+
+
 class EventLedger:
     def __init__(
         self,
@@ -83,31 +187,24 @@ class EventLedger:
         self.events_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._snapshot: LedgerSnapshot | None = None
-        self._issued_release_drafts: dict[int, EventDraft] = {}
 
-    def _append_release_from_command_service(
+    def _append_release_from_validated_submit(
         self,
-        owner: object,
+        session: object,
         envelope: Mapping[str, Any],
         finalize_payload: Callable[[AllocatedEvent], Mapping[str, Any]],
         *,
         snapshot: LedgerSnapshot | None = None,
     ) -> dict[str, Any]:
-        """Issue, consume, and append one CommandService-owned release draft."""
-        from research_system.command.service import CommandService
-
-        if type(owner) is not CommandService or owner.ledger is not self:
-            raise ArsError("release publication factory requires CommandService")
+        """Append one release draft from the validated submit continuation."""
         draft = object.__new__(EventDraft)
         object.__setattr__(draft, "envelope", envelope)
         object.__setattr__(draft, "finalize_payload", finalize_payload)
-        self._issued_release_drafts[id(draft)] = draft
-        return self.append([draft], snapshot=snapshot)
-
-    def _consume_release_draft(self, draft: EventDraft) -> None:
-        issued = self._issued_release_drafts.pop(id(draft), None)
-        if issued is not draft:
-            raise ArsError("release event draft was not issued by this ledger or was consumed")
+        _register_release_draft(session, self, draft)
+        try:
+            return self.append([draft], snapshot=snapshot)
+        finally:
+            _discard_release_session(session)
 
     def snapshot(self) -> LedgerSnapshot:
         """Return a verified-state input, reloading only when ledger files change."""
@@ -156,7 +253,7 @@ class EventLedger:
         for offset, proposed_event in enumerate(proposed):
             draft = proposed_event if isinstance(proposed_event, EventDraft) else None
             if draft is not None:
-                self._consume_release_draft(draft)
+                _consume_release_draft(self, draft)
             candidate = dict(draft.envelope if draft is not None else proposed_event)
             protected = _PROTECTED_FIELDS.intersection(candidate)
             if protected:

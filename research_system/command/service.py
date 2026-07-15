@@ -32,10 +32,17 @@ from research_system.operations.backups import (
 )
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
-from research_system.store.ledger import EventLedger, LedgerSnapshot
+from research_system.store.ledger import (
+    EventLedger,
+    LedgerSnapshot,
+    _take_release_submit_guard,
+)
 from research_system.store.lock import WriterLock
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
+
+
+_release_submit_guard = _take_release_submit_guard()
 
 
 @dataclass
@@ -159,7 +166,12 @@ class CommandService:
         if current != supplied:
             raise ArsError("restore preflight changed before writer lock")
 
-    def submit(self, envelope: dict[str, Any]) -> Receipt:
+    @_release_submit_guard
+    def submit(
+        self,
+        envelope: dict[str, Any],
+        release_append: Callable[..., dict[str, Any]],
+    ) -> Receipt:
         """Validate WP1 integrity controls; authorization remains downstream."""
         self.schemas.validate("ars://core/command", envelope)
         if envelope.get("command_type") == "RevokeAuthorityGrant":
@@ -281,10 +293,12 @@ class CommandService:
                     return self._write_receipt(command, rejected)
             event = self._build_event(command, prepared_payload)
             if isinstance(prepared_payload, VerifiedReleasePublication):
-                ledger_receipt = self.ledger._append_release_from_command_service(
-                    self,
+                ledger_receipt = release_append(
+                    self.ledger,
                     event,
-                    lambda allocated: prepared_payload.payload_for(allocated.event_id),
+                    lambda allocated: prepared_payload.payload_for(
+                        allocated.event_id
+                    ),
                     snapshot=snapshot,
                 )
             else:
@@ -941,3 +955,6 @@ class CommandService:
             "authorizing_grant_sha256": authorizing.authority_grant_sha256,
             "reason": payload["reason"],
         }
+
+
+del _release_submit_guard
