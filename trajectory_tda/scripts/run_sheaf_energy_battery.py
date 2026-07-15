@@ -660,7 +660,7 @@ def main() -> None:
                 else "LOCKED pre-registered design (cohort family = decades with n >= 200)."
             ),
             "input_paths": input_paths,
-            "t128_checkpoint_dir": "results/panel_methodology/fdr/subgroup_checkpoints",
+            "t128_checkpoint_dir": T128_CKPT_DIR.relative_to(PROJ_ROOT).as_posix(),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         },
     }

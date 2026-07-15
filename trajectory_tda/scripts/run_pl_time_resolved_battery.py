@@ -583,6 +583,16 @@ def main() -> None:
     n_draws = args.audit_draws if args.audit_only else args.B
     targets = list(SUBSTRATES) if args.substrate == "all" else [args.substrate]
 
+    # Refuse a partial-coverage result write up front, before spending the battery's
+    # compute: the locked rule is defined over both substrates, so a single-substrate
+    # run has no pre-registered verdict and must not produce a dated artifact.
+    if sorted(targets) != sorted(SUBSTRATES) and not (args.dry_run or args.audit_only):
+        raise SystemExit(
+            f"STOP: --substrate {args.substrate} covers {sorted(targets)}, but the locked rule is defined over both "
+            f"substrates {sorted(SUBSTRATES)}, so this run has no pre-registered verdict and must not write a dated "
+            "result. Pair it with --dry-run or --audit-only for exploratory single-substrate work."
+        )
+
     substrate_sha256: dict[str, str] = {}
     input_paths: dict[str, str] = {}
     rows: list[dict[str, Any]] = []
@@ -611,6 +621,19 @@ def main() -> None:
     for row, adj in zip(rows, p_fdr):
         row["p_fdr"] = float(adj)
         row["rejects_fdr"] = bool(adj <= ALPHA)
+
+    # Exploratory partial-coverage runs stop here: classify_verdict would (correctly)
+    # refuse them, and a placeholder verdict is deliberately not invented — it would
+    # end up serialised into an artifact the pre-registration never sanctioned. The
+    # per-substrate statistics are already logged by run_substrate above. The
+    # non-exploratory partial case was rejected before any compute ran.
+    if sorted(targets) != sorted(SUBSTRATES):
+        logger.info(
+            "exploratory single-substrate run (%s): no verdict is defined by the locked rule; per-substrate "
+            "statistics are reported above and no result file is written.",
+            sorted(targets),
+        )
+        return
 
     verdict, rationale = classify_verdict(rows)
     elapsed = time.perf_counter() - t_start
