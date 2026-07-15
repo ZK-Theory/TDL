@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -14,10 +15,42 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _proj_root() -> Path:
+    """Resolve the main checkout, which is where gitignored intermediates live.
+
+    Committed files resolve against REPO_ROOT (this checkout). Gitignored
+    intermediates do not: per the two-path rule they are written only to
+    PROJ_ROOT, so inside a linked worktree REPO_ROOT/results/... does not exist
+    and a naive path makes this test fail for a reason that has nothing to do
+    with the contract. git's common dir is the main repository's .git even from
+    inside a worktree, so its parent is PROJ_ROOT.
+    """
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+    except OSError:
+        return REPO_ROOT
+    if not common:
+        return REPO_ROOT
+    common_path = Path(common)
+    if not common_path.is_absolute():
+        common_path = (REPO_ROOT / common_path).resolve()
+    return common_path.parent
+
+
+PROJ_ROOT = _proj_root()
 CONTRACT_PATH = REPO_ROOT / "contracts/discovery-harness/mcbif-employment-result.yaml"
 RESULT_GLOB = "mcbif_employment_battery_*.json"
-EMBEDDINGS_PATH = REPO_ROOT / "results/trajectory_tda_integration/embeddings.npy"
-SEQUENCES_PATH = REPO_ROOT / "results/trajectory_tda_integration/01_trajectories_sequences.json"
+# Gitignored intermediates -> PROJ_ROOT, never the worktree checkout.
+EMBEDDINGS_PATH = PROJ_ROOT / "results/trajectory_tda_integration/embeddings.npy"
+SEQUENCES_PATH = PROJ_ROOT / "results/trajectory_tda_integration/01_trajectories_sequences.json"
 PRE_REGISTRATION = "results/trajectory_tda_mcbif/pre_registrations_2026-07-03.json"
 FORBIDDEN_KEYS = {"synthetic", "placeholder", "estimated", "refit_pca"}
 SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -133,9 +166,7 @@ def validate_mcbif_employment_result(payload: dict[str, Any]) -> None:
         raise ValueError("params.parallel_workers must be at least 4")
     if params["wall_time_hours_budget"] != 8:
         raise ValueError("params.wall_time_hours_budget must equal 8")
-    if not isinstance(params["valid_waves"], list) or not all(
-        type(wave) is int for wave in params["valid_waves"]
-    ):
+    if not isinstance(params["valid_waves"], list) or not all(type(wave) is int for wave in params["valid_waves"]):
         raise ValueError("params.valid_waves must be a list of integers")
     if len(params["valid_waves"]) != params["n_wave_positions"]:
         raise ValueError("params.n_wave_positions must equal len(valid_waves)")
@@ -240,9 +271,7 @@ def test_mcbif_employment_result_contract_rejects_invalid_payloads() -> None:
     with pytest.raises(ValueError, match="parallel_workers"):
         validate_mcbif_employment_result(_mutated(("params", "parallel_workers"), 3))
     with pytest.raises(ValueError, match="null_model_construction_verified"):
-        validate_mcbif_employment_result(
-            _mutated(("null_model_construction_verified",), False)
-        )
+        validate_mcbif_employment_result(_mutated(("null_model_construction_verified",), False))
     with pytest.raises(ValueError, match="embeddings_sha256"):
         validate_mcbif_employment_result(_mutated(("embeddings_sha256",), "0" * 64))
     with pytest.raises(ValueError, match="sequences_sha256"):
@@ -258,12 +287,8 @@ def test_mcbif_employment_contract_metadata() -> None:
     assert contract["id"] == "mcbif-employment-result"
     assert contract["kind"] == "schema"
     assert contract["pending"] is False
-    assert contract["binding"]["test_file"] == (
-        "tests/discovery/test_mcbif_employment_contract.py"
-    )
-    assert contract["binding"]["test_function"] == (
-        "test_mcbif_employment_result_contract_rejects_invalid_payloads"
-    )
+    assert contract["binding"]["test_file"] == ("tests/discovery/test_mcbif_employment_contract.py")
+    assert contract["binding"]["test_function"] == ("test_mcbif_employment_result_contract_rejects_invalid_payloads")
     required = {entry["name"] for entry in contract["schema_def"]["required_keys"]}
     assert {"embeddings_sha256", "sequences_sha256", "params", "decision"} <= required
 

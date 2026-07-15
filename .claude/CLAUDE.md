@@ -12,10 +12,23 @@ table and discipline notes.
 
 ## Hook Enforcement
 
-This repository enforces quality rules through `.claude/settings.json` and
-hook scripts. See `.claude/instructions/hook-enforcement.instructions.md` for
-PostToolUse linting/formatting and the research-context and results-vault
-hooks.
+Two independent hook systems — do not confuse them:
+
+- **Claude Code harness hooks** (`.claude/hooks/`, wired in `.claude/settings.json`):
+  PreToolUse/PostToolUse — linting/formatting, research-context, results-vault,
+  dispatch-readiness. See `.claude/instructions/hook-enforcement.instructions.md`.
+- **Git hooks** (`.githooks/`, tracked): `pre-commit` (ruff + the math-correctness
+  contract validator), `commit-msg`, `prepare-commit-msg`.
+
+**Git hooks live in `.githooks/` because the repo sets `core.hooksPath=.githooks`.
+Anything placed in `.git/hooks/` is IGNORED — it does not error, it silently never
+runs.** The contract validator was installed to `.git/hooks/pre-commit` on
+2026-05-27 and never executed once; the redirect had been in force since
+2026-04-10 (a54a2c4), so the commit-time gate did not exist for 47 days while
+every report claimed "pre-commit hooks ran clean". Never install a hook into
+`.git/hooks`. Verify liveness with
+`uv run python .claude/hooks/install-git-hooks.py`; `manager_dispatch_check`
+also asserts it (`hook-gate`) before every dispatch.
 
 ## Repository Workflow
 
