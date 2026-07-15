@@ -1,21 +1,3 @@
-<!--
-EDITORIAL STATUS (provisional — awaiting User per-section review)
-- Numbers traced to:
-    results/panel_methodology/fdr/stratified_w2_bh_per_family_2026-07-09.json  (adjusted p, method, effect sizes)
-    results/panel_methodology/fdr/stratified_w2_recompute_2026-07-09.json      (n, actual_landmarks, raw p, landscape L2 p, params)
-- TWO decisions pending before this section is locked (see hand-off):
-  (1) CORRECTION-METHOD CONFLICT. The Task Prompt specified BY (Benjamini-Yekutieli) for the
-      cohort family. The committed files report BH for all three families, and the governing
-      pre-registration AMENDMENT (2026-06-27, User-approved) explicitly superseded the base
-      2026-06-13 pre-reg's cohort=BY to cohort=BH (disjoint per-subgroup-vs-own-null tests are
-      mutually independent -> standard BH). This section is drafted to the files (BH/BH/BH).
-      User to confirm the prompt's "BY cohort" was stale.
-  (2) SECTION STRUCTURE. Drafted as a single combined 23-subgroup section (USoc + BHPS). The
-      BHPS block can instead be relocated to Section 6.2 under the BHPS Markov-1 credibility
-      caveat. Recommendation and trade-off in the hand-off; User to decide placement.
-- Table numbers provisional (final at v2 assembly). Figure callouts are placeholders.
--->
-
 ### 6.1 Stratification by Gender, Parental Class, and Birth Cohort
 
 The pooled null tests of Section 5 establish that the observed career-trajectory
