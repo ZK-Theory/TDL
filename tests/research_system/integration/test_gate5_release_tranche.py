@@ -67,7 +67,7 @@ def test_registered_deletion_topology_includes_backup_and_restore_roots(tmp_path
         replace(registry, restore_roots=(roots[5],)).checked_locations()
 
 
-def test_moved_restore_is_rechecked_before_writer_lock(tmp_path, monkeypatch):
+def test_moved_restore_is_rechecked_under_writer_lock(tmp_path, monkeypatch):
     from research_system.operations.backups import (
         RestorePreflightResult,
         seal_restore_preflight_result,
@@ -111,14 +111,24 @@ def test_moved_restore_is_rechecked_before_writer_lock(tmp_path, monkeypatch):
         rechecker=lambda: stale,
     )
 
-    class LockMustNotBeEntered:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("writer lock entered before restore recheck")
+    entered = []
 
-    monkeypatch.setattr(service_module, "WriterLock", LockMustNotBeEntered)
+    class RecordingLock:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            entered.append(True)
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     command = create_task_command(CMD_RESTORE, "restore-recheck", TASK_RESTORE, {"title": "moved"})
     with pytest.raises(ArsError, match="restore preflight"):
         harness.service.submit(command)
+    assert entered == [True]
     assert tuple(harness.ledger.iter_batches()) == ()
     assert harness.receipts.load(CMD_RESTORE) is None
     assert not list((harness.service.control_root / "objects").rglob("*.json"))
@@ -374,7 +384,7 @@ def test_real_command_service_accepts_only_current_verified_moved_restore(tmp_pa
     assert len(tuple(service.ledger.iter_batches())) == 1
 
 
-def test_real_command_service_rejects_changed_artifact_before_writer_lock(
+def test_real_command_service_rejects_changed_artifact_under_writer_lock(
     tmp_path, monkeypatch
 ):
     case = _build_restore_case(tmp_path)
@@ -387,11 +397,20 @@ def test_real_command_service_rejects_changed_artifact_before_writer_lock(
     )
     case["artefact_path"].unlink()
 
-    class LockMustNotBeEntered:
-        def __init__(self, *args, **kwargs):
-            raise AssertionError("writer lock entered after artefact drift")
+    entered = []
 
-    monkeypatch.setattr(service_module, "WriterLock", LockMustNotBeEntered)
+    class RecordingLock:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            entered.append(True)
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    monkeypatch.setattr(service_module, "WriterLock", RecordingLock)
     command = create_task_command(
         CMD_RESTORE,
         "changed-artifact",
@@ -400,6 +419,7 @@ def test_real_command_service_rejects_changed_artifact_before_writer_lock(
     )
     with pytest.raises(ArsError, match="restore preflight"):
         service.submit(command)
+    assert entered == [True]
     assert tuple(service.ledger.iter_batches()) == ()
     assert service.receipts.load(CMD_RESTORE) is None
     assert not list((case["target"] / "objects").rglob("*.json"))

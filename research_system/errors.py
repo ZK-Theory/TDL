@@ -15,5 +15,9 @@ class ConflictError(ArsError):
     """Raised when an immutable write or exclusive claim conflicts."""
 
 
+class IdempotencyConflictError(ConflictError):
+    """Raised when an existing scope is reused with changed semantics."""
+
+
 class IntegrityError(ArsError):
     """Raised when canonical history or a store binding fails verification."""

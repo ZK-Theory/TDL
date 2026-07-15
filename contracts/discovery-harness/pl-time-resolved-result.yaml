@@ -1,0 +1,80 @@
+id: pl-time-resolved-result
+kind: schema
+
+description: >
+  Schema contract for the LOCKED 2026-07-10 pre-registration
+  vault/00-Meta/Discovery/pl-time-resolved-transition-graphs-prereg-2026-07-10.md
+  (materialised from its planned_contracts block, contract id
+  pl-time-resolved-result). Pins the schema_version, substrate provenance,
+  locked stochastic parameters (B=1000, seed=42, null_model=markov-1-pooled,
+  wave_floor=500), the fixed threshold grid identity, the two-sided p_two
+  formula, and the additive/partial-signal/redundant/negative decision rule
+  for the persistent-Laplacian time-resolved employment transition-graph
+  battery. Binding test authored on run/sheaf-pl-confirmatory (2026-07-15) and
+  pending cleared; the binding is hermetic (constructed payloads only, no data
+  files), so it does not depend on gitignored intermediates being present in a
+  fresh worktree.
+
+spec_citation:
+  source: "vault/00-Meta/Discovery/pl-time-resolved-transition-graphs-prereg-2026-07-10.md"
+  anchor: "planned_contracts (id: pl-time-resolved-result)"
+  vault_entry_date: "2026-07-10"
+
+schema_def:
+  applies_to: "results/trajectory_tda_bhps/pl_time_resolved_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Must equal 'pl-time-resolved/v1'."
+    - name: substrate_sha256
+      type: dict
+      description: "bhps + integration entries."
+    - name: params
+      type: dict
+      description: >
+        Must contain B==1000, seed==42, null_model=='markov-1-pooled',
+        wave_floor==500.
+    - name: eligible_waves
+      type: dict
+      description: "Per substrate, with per-wave transition counts."
+    - name: observed
+      type: dict
+      description: >
+        IFA_t vector + Var_t per substrate. The fixed threshold grid used to
+        compute IFA_t must be identical across observed and every null draw
+        (grid sha recorded).
+    - name: null_distribution
+      type: dict
+      description: >
+        Var_t draws, p_lower, p_upper, p_two, p_fdr. p_two must equal
+        min(1, 2*min(p_lower, p_upper)), recomputable from the stored tails.
+    - name: redundancy
+      type: dict
+      description: "rho_gap_var, rho_entropy_var."
+    - name: decision
+      type: dict
+      description: >
+        verdict in {additive, partial-signal, redundant, negative},
+        consistent with the locked rule recomputed from stored values.
+
+binding:
+  test_file: "tests/discovery/test_pl_time_resolved_contract.py"
+  test_function: "test_pl_time_resolved_rejects_invalid_payloads"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where:
+    (a) required top-level evidence is missing;
+    (b) schema_version differs from 'pl-time-resolved/v1';
+    (c) params.B differs from 1000;
+    (d) params.seed differs from 42 or has the wrong type;
+    (e) params.null_model differs from 'markov-1-pooled';
+    (f) params.wave_floor differs from 500;
+    (g) the fixed threshold grid recorded for observed differs from the
+    grid recorded for a null draw;
+    (h) null_distribution.p_two does not equal
+    min(1, 2*min(p_lower, p_upper));
+    (i) decision.verdict is outside additive, partial-signal, redundant, or
+    negative;
+    (j) decision.verdict is inconsistent with the locked rule recomputed
+    from stored values;
+    (k) substrate_sha256 is missing the bhps or integration entry;
+    (l) a contract-pinned value is supplied as the wrong type.

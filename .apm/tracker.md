@@ -48,7 +48,8 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 | 2.14 | Manager-reviewed; drafted — awaiting User per-section review | academic-writing-agent | paper/p01b-methods-results |
 | 2.15 | Manager-reviewed; drafted — awaiting User per-section review | academic-writing-agent | paper/p01b-methods-results |
 | 2.16 | Manager-reviewed; drafted — H₁ W₂ artifact correction issued as **T2.16a** (below); review §4.2 after that lands | academic-writing-agent | paper/p01b-methods-results |
-| 2.16a | Active — dispatched 2026-07-14 (**Tranche 1**, Manager 13): §4.2 exact-W₂ H₁ correction (USoc T 1.332→3.479, BHPS T 1.037→2.175 + p 0.019→floor), delete the dual-metric-divergence paragraph, §4.2.4 effect sizes, vintage note, legacy-H₁ rows marked unciteable | academic-writing-agent | paper/p01b-methods-results |
+| 2.16a | Done (Success, `6c128f6`) — §4.2 exact-W₂ H₁ correction landed; §4.2 awaiting User per-section review with T2.12–2.16 | academic-writing-agent | paper/p01b-methods-results |
+| 2.17 | Active — dispatched 2026-07-14 (**Tranche 2 + de-scaffold**, Manager 13): P01-A dedup re-justification (ruling A+C) + manuscript-register cleanup of 9 sections | academic-writing-agent | paper/p01a-dedup-rewrite |
 | 2.17 | Done | academic-writing-agent | |
 | 2.18 | Done | academic-writing-agent | |
 | 2.19 | Waiting: 2.16 | academic-writing-agent | |
