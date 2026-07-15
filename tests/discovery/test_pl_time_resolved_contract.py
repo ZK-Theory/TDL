@@ -41,6 +41,24 @@ def _require_finite_number(value: object, field: str) -> None:
         raise ValueError(f"{field} must be finite")
 
 
+def _bh_adjust(p_values: list[float]) -> list[float]:
+    """Benjamini-Hochberg adjusted p-values (step-up, monotonised, capped at 1).
+
+    Re-derived independently of the battery so stored ``p_fdr`` values are checked
+    rather than trusted: the verdict is a function of p_fdr, so an unchecked p_fdr
+    would be an unenforced statistical claim.
+    """
+    m = len(p_values)
+    order = sorted(range(m), key=lambda i: p_values[i])
+    adjusted = [0.0] * m
+    running = 1.0
+    for rank in range(m - 1, -1, -1):
+        idx = order[rank]
+        running = min(running, min(1.0, p_values[idx] * m / (rank + 1)))
+        adjusted[idx] = running
+    return adjusted
+
+
 def _recompute_verdict(payload: dict[str, Any]) -> str:
     """Locked decision rule, recomputed from stored p_fdr and rho values."""
     nulls = payload["null_distribution"]
@@ -162,6 +180,24 @@ def validate_pl_time_resolved_result(payload: dict[str, Any]) -> None:
             _require_finite_number(red_block.get(key), f"redundancy[{substrate}].{key}")
             if abs(float(red_block[key])) > 1.0:
                 raise ValueError(f"redundancy[{substrate}].{key} must satisfy abs(rho) <= 1")
+
+    # Every branch of the locked rule quantifies over BOTH substrates ("on BOTH", "on
+    # exactly one"), so a partial substrate set has no defined verdict — and on a
+    # single entry `all(rejects)` would vacuously return ADDITIVE off one substrate.
+    if sorted(nulls) != sorted(SUBSTRATES):
+        raise ValueError(
+            f"null_distribution must cover exactly the locked substrates {sorted(SUBSTRATES)}, got {sorted(nulls)}"
+        )
+
+    # BH-FDR recomputed from the stored p_two values rather than trusted.
+    ordered = [s for s in SUBSTRATES if s in nulls]
+    recomputed_fdr = _bh_adjust([float(nulls[s]["p_two"]) for s in ordered])
+    for substrate, expected in zip(ordered, recomputed_fdr):
+        if not math.isclose(float(nulls[substrate]["p_fdr"]), expected, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError(
+                f"null_distribution[{substrate}].p_fdr={nulls[substrate]['p_fdr']} does not match BH-FDR "
+                f"recomputed from the stored p_two values ({expected})"
+            )
 
     # (i)(j) decision
     decision = payload["decision"]
@@ -339,9 +375,13 @@ def test_pl_time_resolved_rejects_invalid_payloads() -> None:
         validate_pl_time_resolved_result(payload)
 
     # (j) verdict inconsistent with the locked rule recomputed from stored values.
-    # No rejections -> negative, not additive.
+    # No rejections -> negative, not additive. p_two and p_fdr move together so the
+    # payload stays BH-consistent and the verdict check is what fires.
     payload = _valid_payload()
     for substrate in SUBSTRATES:
+        payload["null_distribution"][substrate]["p_lower"] = 0.3
+        payload["null_distribution"][substrate]["p_upper"] = 0.7
+        payload["null_distribution"][substrate]["p_two"] = 0.6
         payload["null_distribution"][substrate]["p_fdr"] = 0.6
     with pytest.raises(ValueError, match="inconsistent with the locked rule"):
         validate_pl_time_resolved_result(payload)
@@ -353,12 +393,29 @@ def test_pl_time_resolved_rejects_invalid_payloads() -> None:
         validate_pl_time_resolved_result(payload)
 
     # Exactly one substrate rejects with gates passing there -> partial-signal.
+    # This mirrors the real 2026-07-15 outcome (bhps rejects, integration does not).
     payload = _valid_payload()
+    payload["null_distribution"]["integration"]["p_lower"] = 0.3
+    payload["null_distribution"]["integration"]["p_upper"] = 0.7
+    payload["null_distribution"]["integration"]["p_two"] = 0.6
     payload["null_distribution"]["integration"]["p_fdr"] = 0.6
+    payload["null_distribution"]["bhps"]["p_fdr"] = 0.003996003996003996  # BH over [0.001998, 0.6]
     with pytest.raises(ValueError, match="inconsistent with the locked rule"):
         validate_pl_time_resolved_result(payload)
     payload["decision"]["verdict"] = "partial-signal"
     validate_pl_time_resolved_result(payload)
+
+    # A p_fdr that does not follow from the stored p_two values is rejected on its own.
+    payload = _valid_payload()
+    payload["null_distribution"]["bhps"]["p_fdr"] = 0.9
+    with pytest.raises(ValueError, match="does not match BH-FDR"):
+        validate_pl_time_resolved_result(payload)
+
+    # A partial substrate set has no defined verdict under the locked rule.
+    payload = _valid_payload()
+    del payload["null_distribution"]["integration"]
+    with pytest.raises(ValueError, match="must cover exactly the locked substrates"):
+        validate_pl_time_resolved_result(payload)
 
     # (k) substrate_sha256 missing an entry
     for substrate in SUBSTRATES:

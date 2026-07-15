@@ -298,7 +298,22 @@ def classify_verdict(rows: list[dict[str, Any]]) -> tuple[str, str]:
     REDUNDANT: rejections occur but a redundancy gate fails wherever rejection
     occurs (the residual rejecting case).
     NEGATIVE: no rejection after FDR.
+
+    Raises:
+        SystemExit: If the rows do not cover exactly the two locked substrates. Every
+            branch of the locked rule is defined over BOTH substrates ("on BOTH", "on
+            exactly one"), so a partial row set has no defined verdict — and on a
+            single row ``all(rejects)`` would vacuously return ADDITIVE off one
+            substrate, which the rule never permits.
     """
+    seen = [r["substrate"] for r in rows]
+    if sorted(seen) != sorted(SUBSTRATES):
+        raise SystemExit(
+            f"STOP: the locked decision rule is defined over both substrates {sorted(SUBSTRATES)}, "
+            f"but this run covers {sorted(seen)}. A single-substrate run has no pre-registered verdict; "
+            "use --dry-run or --audit-only for exploratory single-substrate work."
+        )
+
     rejects = [r["rejects_fdr"] for r in rows]
     gates = [r["redundancy_gates_pass"] for r in rows]
 
@@ -543,7 +558,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--wall-time-hours", type=float, default=4.0, help="wall-time flag (pre-reg: 4h)")
     parser.add_argument("--audit-only", action="store_true", help="benchmark + invariance audit at small B, then stop")
     parser.add_argument("--audit-draws", type=int, default=20, help="draws for --audit-only")
-    parser.add_argument("--substrate", choices=["bhps", "integration", "all"], default="all")
+    parser.add_argument(
+        "--substrate",
+        choices=["bhps", "integration", "all"],
+        default="all",
+        help=(
+            "Substrates to run (default: all). A single substrate has NO pre-registered verdict — the locked rule "
+            "is defined over both — so pair it with --dry-run/--audit-only; a single-substrate result write is refused."
+        ),
+    )
     parser.add_argument("--dry-run", action="store_true", help="run fully but do not write the dated result file")
     return parser.parse_args()
 
@@ -567,7 +590,10 @@ def main() -> None:
     for substrate in targets:
         sequences, sha, path = _load_substrate(substrate)
         substrate_sha256[substrate] = sha
-        input_paths[substrate] = str(path)
+        # Repository-relative identifier, never the machine-local absolute path: the
+        # committed artifact must not carry a local username/worktree layout, and
+        # provenance is pinned by substrate_sha256 above.
+        input_paths[substrate] = SUBSTRATES[substrate]["sequences"]
         rows.append(
             run_substrate(
                 substrate=substrate,
