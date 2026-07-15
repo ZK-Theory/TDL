@@ -63,6 +63,12 @@ def _read_yaml(path: Path | str) -> dict[str, Any]:
     return value
 
 
+def _require_nonempty_string(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{label} must be a non-empty string")
+    return value
+
+
 def load_canonical_policy_bundle(path: Path | str) -> CanonicalPolicyBundle:
     """Load the sole provider-neutral canonical bundle with content identity.
 
@@ -100,31 +106,50 @@ def canonical_policy_bundle_from_payload(
     }
     if set(payload) != required_top or payload["schema_version"] != "1.0.0":
         raise ValueError("canonical policy bundle fields are invalid")
+    bundle_id = _require_nonempty_string(
+        payload["canonical_policy_bundle_id"],
+        "canonical_policy_bundle_id",
+    )
+    bundle_revision = _require_nonempty_string(payload["revision"], "revision")
     controls_payload = payload.get("controls")
     if not isinstance(controls_payload, dict) or set(controls_payload) != set(OPERATIONS):
         raise ValueError("canonical controls must equal the accepted control set")
     controls = []
     for control_id, item in sorted(controls_payload.items()):
+        if isinstance(item, dict) and "revision" not in item:
+            raise ValueError(f"control {control_id} revision is required")
         if (
             not isinstance(item, dict)
             or set(item) != {"revision", "semantic_class", "critical", "failure_mode"}
-            or not item.get("revision")
             or item["critical"] is not True
-            or item["failure_mode"] != "block"
         ):
-            raise ValueError(f"control {control_id} revision is required")
+            raise ValueError(f"control {control_id} fields are invalid")
+        revision = _require_nonempty_string(
+            item["revision"],
+            f"control {control_id} revision",
+        )
+        semantic_class = _require_nonempty_string(
+            item["semantic_class"],
+            f"control {control_id} semantic_class",
+        )
+        failure_mode = _require_nonempty_string(
+            item["failure_mode"],
+            f"control {control_id} failure_mode",
+        )
+        if failure_mode != "block":
+            raise ValueError(f"control {control_id} failure_mode must be block")
         controls.append(
             Control(
                 control_id=control_id,
-                revision=str(item["revision"]),
-                semantic_class=str(item["semantic_class"]),
+                revision=revision,
+                semantic_class=semantic_class,
                 critical=item["critical"] is True,
-                failure_mode=str(item["failure_mode"]),
+                failure_mode=failure_mode,
             )
         )
     return CanonicalPolicyBundle(
-        canonical_policy_bundle_id=str(payload["canonical_policy_bundle_id"]),
-        revision=str(payload["revision"]),
+        canonical_policy_bundle_id=bundle_id,
+        revision=bundle_revision,
         content_hash=sha256_hex(canonical_bytes(payload)),
         controls=tuple(controls),
     )

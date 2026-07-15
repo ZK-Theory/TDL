@@ -232,7 +232,15 @@ def _release_producer():
 def synthetic_release_decision(
     canonical_event_ref: str = 'unpublished:p0',
 ) -> dict[str, Any]:
-    """Return one complete blocked typed decision for publication tests."""
+    """Return one complete blocked typed decision for publication tests.
+
+    Args:
+        canonical_event_ref: The canonical event reference inserted into the
+            synthetic decision.
+
+    Returns:
+        The complete blocked typed decision fixture.
+    """
     source = deepcopy(_release_producer()[2])
     source['canonical_event_ref'] = canonical_event_ref
     return source
