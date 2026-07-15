@@ -28,8 +28,42 @@ Additional constraints from the audit:
   without a production re-run. Their design-choice role (L=5000 selection,
   internally greedy-consistent) stands.
 - `dedup_amendment_comparison_*` "rejection direction preserved / 0 changes":
-  **do not rely** pending exact re-derivation of the 2026-05-29 arm (its arms
-  straddle the solver boundary).
+  hold **DISCHARGED 2026-07-14** — the 2026-05-29 arm was re-derived under exact
+  W₂ (WT-6 addendum, `[RESULT]` 2026-07-14). Cite
+  `dedup_amendment_comparison_corrected_2026-07-14.json` for the **H1 W₂ cell and
+  the decision_summary counts**; the committed `…_2026-06-01.json` remains the
+  record for landscape-L², `dedup_provenance` and the probes. With both arms
+  exact the flip disappears (`rejection_direction_changes` 1 → 0). **Outcome A is
+  unchanged** (it rests on the exact-era 05-30 dedup arms). **But the committed
+  `methodological_disclosure_draft` mechanism is misattributed** — the H1 W₂ flip
+  is greedy→exact, not no-dedup→dedup; the dedup amendment must **not** be
+  justified in the manuscript by the H1 W₂ flip (P01-A §S6 / §6.2 rewrite pending
+  a User ruling — see `docs/plans/strategy/W2-Solver-Paper-Impact-and-Rewrite-Plan-2026-07-14.md`).
+
+### Not covered by the WT-6 audit table — classified 2026-07-14 (Manager 13)
+
+- **`04_nulls_wasserstein_w2_20260407.json`** (2026-04-07, deep greedy era; no
+  cache exists ⇒ **SUSPECT-UNVERIFIABLE**). Feeds **P01-A Table 1**
+  (`table1_effects_2026-05-22.*`, source label `L2000_legacy_2026-04-07`) and
+  P01-B §4.2 Table 2's legacy label/cohort/order-shuffle rows. Its **H1 W₂
+  numbers are unciteable without a production re-run** (ruling item 3 applies).
+- **P01-A Table 1 H1 rows generally** — every source in
+  `table1_effects_2026-05-22.md` is greedy era (`L5000_postaudit_2026-05-02`,
+  `L2000_legacy_2026-04-07`, `L5000_markov2_postaudit_2026-05-02`,
+  `stratified_markov1_L5000_2026-05-02`), all predating the earliest null cache
+  (2026-05-24) ⇒ **SUSPECT-UNVERIFIABLE**, and all pre-frozen (also superseded on
+  axis 1). Screen: every H1 `rho_hat` ≈ 1 (the greedy compression signature) and
+  every H1 mean is 130–306 against an exact diagonal bound of ~20. Two cells
+  **invert** under exact W₂ (BHPS `markov` H1 `p=0.978` non-reject vs the
+  corrected exact headline `p=0.000999`; `stratified_markov1` H1 `p=1.0000`).
+  **Do not cite any Table 1 H1 row.**
+- **`markov2_alpha_sweep_summary_2026-06-16.json`** — dated after the 2026-05-29/30
+  boundary ⇒ **exact era, presumed IMMUNE**, but never explicitly gated. Feeds
+  P01-B §4.2 Table 2's Markov-2 rows. Confirm by gate before citing as verified.
+- **`bhps_nonoverlap_reanalysis_2026-06-09`** H1 — greedy era by 7 days, cache
+  **present**, gate deferred ⇒ **re-derivable on demand**. Feeds P01-A §6.2's
+  non-overlap claim; its W₂ H1 non-rejection is exactly the pattern greedy
+  produces. **Re-derive before that claim is re-asserted.**
 
 ## Sequence-vintage note (2026-07-14 `[DECISION]`, ruling (a))
 
