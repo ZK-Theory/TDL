@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://evals/variant-execution-evidence",
   "type": "object",
-  "required": ["schema_id", "schema_version", "matrix_row", "first_normalized_decision_hash", "second_normalized_decision_hash", "decisions_equal", "expected_evidence_hash", "first_observed_evidence_hash", "second_observed_evidence_hash", "oracle_match", "grader_result_keys", "grader_result_bindings", "observed_assertions", "execution_evidence_hash"],
+  "required": ["schema_id", "schema_version", "matrix_row", "first_normalized_decision_hash", "second_normalized_decision_hash", "decisions_equal", "expected_evidence", "first_observed_evidence", "second_observed_evidence", "expected_evidence_hash", "first_observed_evidence_hash", "second_observed_evidence_hash", "oracle_match", "grader_result_keys", "grader_result_bindings", "observed_assertions", "execution_evidence_hash"],
   "properties": {
     "schema_id": {"const": "ars://evals/variant-execution-evidence"},
     "schema_version": {"const": "1.0.0"},
@@ -10,6 +10,9 @@
     "first_normalized_decision_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "second_normalized_decision_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "decisions_equal": {"const": true},
+    "expected_evidence": {"type": "object"},
+    "first_observed_evidence": {"type": "object"},
+    "second_observed_evidence": {"type": "object"},
     "expected_evidence_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "first_observed_evidence_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "second_observed_evidence_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},

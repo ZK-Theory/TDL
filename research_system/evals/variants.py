@@ -150,6 +150,9 @@ class VariantExecutionEvidence:
     first_normalized_decision_hash: str
     second_normalized_decision_hash: str
     decisions_equal: bool
+    expected_evidence: dict
+    first_observed_evidence: dict
+    second_observed_evidence: dict
     expected_evidence_hash: str
     first_observed_evidence_hash: str
     second_observed_evidence_hash: str
@@ -168,17 +171,40 @@ class VariantExecutionEvidence:
             self.second_observed_evidence_hash,
         )
         if not isinstance(self.oracle_match, bool) or any(
-            not isinstance(value, str)
-            or len(value) != 64
-            or any(char not in "0123456789abcdef" for char in value)
-            for value in (
-                *hashes,
-            )
+            not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value)
+            for value in (*hashes,)
         ):
             raise ValueError("variant oracle evidence mismatch")
         observed_repeat = hashes[1] == hashes[2]
         if not observed_repeat or self.oracle_match != (hashes[0] == hashes[1]):
             raise ValueError("variant oracle evidence mismatch")
+        if not all(
+            isinstance(value, dict)
+            for value in (
+                self.expected_evidence,
+                self.first_observed_evidence,
+                self.second_observed_evidence,
+            )
+        ):
+            raise ValueError("variant oracle evidence binding mismatch")
+        if (
+            self.expected_evidence_hash != sha256_hex(canonical_bytes(self.expected_evidence))
+            or self.first_observed_evidence_hash != sha256_hex(canonical_bytes(self.first_observed_evidence))
+            or self.second_observed_evidence_hash != sha256_hex(canonical_bytes(self.second_observed_evidence))
+            or self.oracle_match
+            != (
+                self.expected_evidence == self.first_observed_evidence
+                and self.expected_evidence == self.second_observed_evidence
+            )
+        ):
+            raise ValueError("variant oracle evidence binding mismatch")
+        properties = {item.property for item in self.observed_assertions}
+        if len(properties) != 1 or self.observed_assertions != build_observed_assertion_evidence(
+            properties.pop(),
+            self.first_observed_evidence,
+            self.second_observed_evidence,
+        ):
+            raise ValueError("variant oracle evidence binding mismatch")
         if (
             self.grader_result_bindings != tuple(sorted(self.grader_result_bindings))
             or any(len(item) != 6 for item in self.grader_result_bindings)
@@ -190,6 +216,9 @@ class VariantExecutionEvidence:
             "matrix_tuple": list(self.matrix_row.matrix_tuple),
             "first_hash": self.first_normalized_decision_hash,
             "second_hash": self.second_normalized_decision_hash,
+            "expected_evidence": self.expected_evidence,
+            "first_observed_evidence": self.first_observed_evidence,
+            "second_observed_evidence": self.second_observed_evidence,
             "expected_evidence_hash": self.expected_evidence_hash,
             "first_observed_evidence_hash": self.first_observed_evidence_hash,
             "second_observed_evidence_hash": self.second_observed_evidence_hash,
@@ -476,6 +505,9 @@ def execute_gate5_variant_rows_twice(
             "matrix_tuple": list(row.matrix_tuple),
             "first_hash": first_hash,
             "second_hash": second_hash,
+            "expected_evidence": expected_evidence,
+            "first_observed_evidence": first_observed,
+            "second_observed_evidence": second_observed,
             "expected_evidence_hash": expected_evidence_hash,
             "first_observed_evidence_hash": first_observed_evidence_hash,
             "second_observed_evidence_hash": second_observed_evidence_hash,
@@ -501,6 +533,9 @@ def execute_gate5_variant_rows_twice(
                 first_normalized_decision_hash=first_hash,
                 second_normalized_decision_hash=second_hash,
                 decisions_equal=True,
+                expected_evidence=expected_evidence,
+                first_observed_evidence=first_observed,
+                second_observed_evidence=second_observed,
                 expected_evidence_hash=expected_evidence_hash,
                 first_observed_evidence_hash=first_observed_evidence_hash,
                 second_observed_evidence_hash=second_observed_evidence_hash,
