@@ -10,8 +10,10 @@ never by joblib/loky.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import subprocess
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,6 +51,71 @@ DATASETS = {
     "usoc": PROJ_ROOT / "results/trajectory_tda_integration",
     "bhps": PROJ_ROOT / "results/trajectory_tda_bhps",
 }
+
+
+def _available_memory_gb() -> float:
+    """Return currently available physical memory using the Windows system API."""
+    if sys.platform != "win32":
+        raise RuntimeError("This production runner records RAM preflight data on Windows only")
+
+    class MemoryStatusEx(ctypes.Structure):
+        _fields_ = [
+            ("dwLength", ctypes.c_ulong),
+            ("dwMemoryLoad", ctypes.c_ulong),
+            ("ullTotalPhys", ctypes.c_ulonglong),
+            ("ullAvailPhys", ctypes.c_ulonglong),
+            ("ullTotalPageFile", ctypes.c_ulonglong),
+            ("ullAvailPageFile", ctypes.c_ulonglong),
+            ("ullTotalVirtual", ctypes.c_ulonglong),
+            ("ullAvailVirtual", ctypes.c_ulonglong),
+            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+        ]
+
+    status = MemoryStatusEx()
+    status.dwLength = ctypes.sizeof(status)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    global_memory_status = kernel32.GlobalMemoryStatusEx
+    global_memory_status.argtypes = [ctypes.POINTER(MemoryStatusEx)]
+    global_memory_status.restype = ctypes.c_bool
+    if not global_memory_status(ctypes.byref(status)):
+        raise OSError("GlobalMemoryStatusEx failed")
+    return float(status.ullAvailPhys) / (1024.0**3)
+
+
+def _peak_working_set_gb() -> float:
+    """Return this process's peak resident working set, including the PH stage."""
+    if sys.platform != "win32":
+        raise RuntimeError("This production runner records RAM preflight data on Windows only")
+
+    class ProcessMemoryCountersEx(ctypes.Structure):
+        _fields_ = [
+            ("cb", ctypes.c_ulong),
+            ("PageFaultCount", ctypes.c_ulong),
+            ("PeakWorkingSetSize", ctypes.c_size_t),
+            ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t),
+            ("PeakPagefileUsage", ctypes.c_size_t),
+            ("PrivateUsage", ctypes.c_size_t),
+        ]
+
+    counters = ProcessMemoryCountersEx()
+    counters.cb = ctypes.sizeof(counters)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_current_process = kernel32.GetCurrentProcess
+    get_current_process.argtypes = []
+    get_current_process.restype = ctypes.c_void_p
+    psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    get_process_memory_info = psapi.GetProcessMemoryInfo
+    get_process_memory_info.argtypes = [ctypes.c_void_p, ctypes.POINTER(ProcessMemoryCountersEx), ctypes.c_ulong]
+    get_process_memory_info.restype = ctypes.c_bool
+    handle = get_current_process()
+    if not get_process_memory_info(handle, ctypes.byref(counters), counters.cb):
+        raise OSError("GetProcessMemoryInfo failed")
+    return float(counters.PeakWorkingSetSize) / (1024.0**3)
 
 
 def invalid_null_classifications() -> dict[str, dict[str, str]]:
@@ -200,6 +267,7 @@ def run_cell(date: str, dataset: str, null_type: str, n_permutations: int, check
         raise ValueError(f"Only valid nulls may be computed: {VALID_NULLS}")
     _exact_solver_metadata()
     label = f"{dataset}:{null_type}"
+    free_gb_at_launch = _available_memory_gb()
     embeddings, trajectories, embed_kwargs, frozen_models, regime_labels = _load_dataset(dataset)
     print(f"[{label}] reconstructing observed frozen-loading H1 diagram", flush=True)
     obs_h1 = _observed_h1(embeddings)
@@ -256,6 +324,8 @@ def run_cell(date: str, dataset: str, null_type: str, n_permutations: int, check
             "generation_plus_obs_w2_seconds": generation_seconds.tolist(),
             "null_null_w2_total_seconds": float(np.sum(null_null_seconds)),
             "null_null_w2_seconds_per_unit": float(np.mean(null_null_seconds)),
+            "per_process_peak_gb": _peak_working_set_gb(),
+            "free_gb_at_launch": free_gb_at_launch,
         },
         "checkpoint": str(path),
     }
@@ -265,7 +335,9 @@ def run_cell(date: str, dataset: str, null_type: str, n_permutations: int, check
     return summary
 
 
-def _cost_model(summaries: list[dict[str, Any]], n_permutations: int) -> dict[str, Any]:
+def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_count: int = 1) -> dict[str, Any]:
+    if worker_count < 1:
+        raise ValueError("worker_count must be positive")
     generation_units = np.concatenate([np.asarray(s["cost"]["generation_plus_obs_w2_seconds"]) for s in summaries])
     nn_units = np.asarray([s["cost"]["null_null_w2_seconds_per_unit"] for s in summaries])
     measured = np.concatenate([generation_units, nn_units])
@@ -273,6 +345,10 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int) -> dict[st
     p75_nn = float(np.percentile(nn_units, 75))
     full_cells = len(DATASETS) * len(VALID_NULLS)
     projected_units = full_cells * B
+    per_process_peak = max(float(s["cost"].get("per_process_peak_gb", 0.0)) for s in summaries)
+    free_at_launch = min(float(s["cost"].get("free_gb_at_launch", 0.0)) for s in summaries)
+    parallel_ram = worker_count * per_process_peak
+    headroom = free_at_launch - parallel_ram
     return {
         "n_units_benchmarked": int(len(measured)),
         "median_seconds_per_unit": float(np.median(measured)),
@@ -280,17 +356,26 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int) -> dict[st
         "max_seconds_per_unit": float(np.max(measured)),
         "p75_generation_plus_obs_w2_seconds": p75_generation,
         "p75_null_null_w2_seconds": p75_nn,
-        "projected_wall_hours": (projected_units * (p75_generation + p75_nn)) / 3600,
+        "projected_wall_hours": (projected_units * (p75_generation + p75_nn)) / (3600 * worker_count),
         "projected_units": projected_units * 2,
         "projection_basis": f"p75 production generation+exact obs-null and p75 exact null-null; B={n_permutations} measured per available cell",
-        "worker_count": 1,
+        "worker_count": worker_count,
+        "per_process_peak_gb": per_process_peak,
+        "free_gb_at_launch": free_at_launch,
+        "parallel_ram_required_gb": parallel_ram,
+        "ram_headroom_gb": headroom,
+        "ram_headroom_rule": "chosen workers require at least 25% of free RAM to remain available",
+        "ram_preflight_passed": headroom >= 0.25 * free_at_launch,
         "parallelism": "serial within each OS process; cells are safe to launch as independent processes",
     }
 
 
-def write_preflight(date: str, summaries: list[dict[str, Any]], n_permutations: int) -> Path:
-    cost_model = _cost_model(summaries, n_permutations)
-    output = OUTPUT_ROOT / f"resource_preflight_t138_phase2_{date}.json"
+def write_preflight(date: str, summaries: list[dict[str, Any]], n_permutations: int, worker_count: int = 1) -> Path:
+    cost_model = _cost_model(summaries, n_permutations, worker_count)
+    suffix = "" if worker_count == 1 else f"_parallel_n{worker_count}"
+    output = OUTPUT_ROOT / f"resource_preflight_t138_phase2{suffix}_{date}.json"
+    if output.exists():
+        raise FileExistsError(f"Refusing to overwrite existing preflight: {output}")
     payload = {
         "task": "T1.38 phase 2 re-scoped valid-null preflight",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -299,14 +384,16 @@ def write_preflight(date: str, summaries: list[dict[str, Any]], n_permutations: 
         "seed": SEED,
         "production_cells": [f"{dataset}:{null_type}" for dataset in DATASETS for null_type in VALID_NULLS],
         "cost_model": cost_model,
-        "classification": "GO" if cost_model["projected_wall_hours"] <= 12 else "STOP",
+        "classification": "GO"
+        if cost_model["projected_wall_hours"] <= 12 and cost_model["ram_preflight_passed"]
+        else "STOP",
         "reason": "Projection is based on actual frozen-loading null generation plus exact W2, not a retained cache.",
     }
     output.write_text(json.dumps(audit_lib.convert_numpy(payload), indent=2) + "\n", encoding="utf-8")
     return output
 
 
-def assemble(date: str) -> Path:
+def assemble(date: str, worker_count: int = 1) -> Path:
     summaries: list[dict[str, Any]] = []
     for dataset in DATASETS:
         for null_type in VALID_NULLS:
@@ -327,7 +414,7 @@ def assemble(date: str) -> Path:
         "cells": screen_rows,
     }
     benchmark_summaries = summaries
-    cost_model = _cost_model(benchmark_summaries, B)
+    cost_model = _cost_model(benchmark_summaries, B, worker_count)
     fresh_source = "fresh frozen-loading observed reconstruction and four valid surrogate generators"
     output = OUTPUT_ROOT / f"w2_gap_closure_table1_h1_{date}.json"
     if output.exists():
@@ -378,13 +465,14 @@ def main() -> None:
     parser.add_argument("--only", help="one disjoint cell, e.g. usoc:markov1")
     parser.add_argument("--n-permutations", type=int, default=B)
     parser.add_argument("--checkpoint-every", type=int, default=5)
+    parser.add_argument("--worker-count", type=int, default=1)
     parser.add_argument("--write-preflight", action="store_true")
     parser.add_argument("--assemble", action="store_true")
     args = parser.parse_args()
     if args.n_permutations < 2:
         raise ValueError("n-permutations must be at least 2")
     if args.assemble:
-        print(assemble(args.date), flush=True)
+        print(assemble(args.date, args.worker_count), flush=True)
         return
     cells = [(dataset, null_type) for dataset in DATASETS for null_type in VALID_NULLS]
     if args.only:
@@ -400,9 +488,9 @@ def main() -> None:
         for dataset, null_type in cells
     ]
     if args.write_preflight:
-        print(write_preflight(args.date, summaries, args.n_permutations), flush=True)
+        print(write_preflight(args.date, summaries, args.n_permutations, args.worker_count), flush=True)
     elif not args.only and args.n_permutations == B:
-        print(assemble(args.date), flush=True)
+        print(assemble(args.date, args.worker_count), flush=True)
 
 
 if __name__ == "__main__":
