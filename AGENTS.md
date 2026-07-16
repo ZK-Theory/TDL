@@ -1,4 +1,4 @@
-# AGENTS.md â€” Code Navigation Policy
+# AGENTS.md — Code Navigation Policy
 
 This repository uses the built-in `Read`, `Grep`, and `Glob` tools for baseline code navigation. It also configures a Repowise MCP server for codebase intelligence when the agent runtime exposes those tools.
 
@@ -20,28 +20,28 @@ Repowise is configured in `.mcp.json`, `.repowise/mcp.json`, and the relevant Cl
 
 Use Repowise when the current runtime exposes its MCP tools and the task benefits from repository-level context:
 
-- unfamiliar area orientation â†’ `get_overview`
-- conceptual questions â†’ `get_answer`
-- file/module/symbol context â†’ `get_context`
-- bounded symbol source â†’ `get_symbol`
-- architectural rationale â†’ `get_why`
-- risky changes or review â†’ `get_risk`
-- cleanup planning â†’ `get_dead_code`
+- unfamiliar area orientation → `get_overview`
+- conceptual questions → `get_answer`
+- file/module/symbol context → `get_context`
+- bounded symbol source → `get_symbol`
+- architectural rationale → `get_why`
+- risky changes or review → `get_risk`
+- cleanup planning → `get_dead_code`
 
 If Repowise MCP tools are not exposed in the current session, continue with the built-in navigation tools. Do not invent tool calls. Repowise output is an index, so verify against actual files before editing or making claims about precise source behavior.
 
 ## Discovery flow
 
-1. Unfamiliar repo â†’ use Repowise `get_overview` when available; otherwise start with `Glob "**/*.py"` plus `Glob "**/*.md"` for orientation.
-2. Looking for a specific symbol â†’ use Repowise `get_context` / `get_symbol` when available; otherwise `Grep` for the symbol name with context.
-3. About to edit a file â†’ `Read` it first, then `Edit`.
-4. Cross-symbol relationships (callers, implementations) â†’ `Grep` for the symbol name; the match list identifies the call sites.
+1. Unfamiliar repo → use Repowise `get_overview` when available; otherwise start with `Glob "**/*.py"` plus `Glob "**/*.md"` for orientation.
+2. Looking for a specific symbol → use Repowise `get_context` / `get_symbol` when available; otherwise `Grep` for the symbol name with context.
+3. About to edit a file → `Read` it first, then `Edit`.
+4. Cross-symbol relationships (callers, implementations) → `Grep` for the symbol name; the match list identifies the call sites.
 
 ## Discipline
 
-- `Read` is for files you already have a path for. Don't use it to "explore" â€” start with `Glob` / `Grep`.
+- `Read` is for files you already have a path for. Don't use it to "explore" — start with `Glob` / `Grep`.
 - `Grep` is the canonical content-search fallback when Repowise MCP tools are unavailable. Avoid shell search for code navigation when typed navigation tools are available.
-- `Glob` matches by pathname only â€” for content matching, use `Grep` with the `glob` parameter to restrict by path pattern.
+- `Glob` matches by pathname only — for content matching, use `Grep` with the `glob` parameter to restrict by path pattern.
 - For large multi-step searches (more than a few rounds of grep/read), spawn an `Explore` subagent rather than burning the main context.
 
 ## Windows linked-worktree sandbox routing
@@ -103,5 +103,5 @@ For every Codex worktree dispatch that will write:
 
 ## After editing
 
-If a file's structure changes substantially (function added, signature changed, class moved), no re-index step is needed â€” the next `Grep` or `Read` picks up the change directly from disk.
+If a file's structure changes substantially (function added, signature changed, class moved), no re-index step is needed — the next `Grep` or `Read` picks up the change directly from disk.
 
