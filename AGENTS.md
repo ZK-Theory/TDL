@@ -72,6 +72,30 @@ Before any worktree write:
    bounded remote-text route is available, stop once and report the routing
    requirement instead of retrying editors.
 
+### Codex app detached-start protocol
+
+Codex app-created worktrees commonly start at a detached `HEAD`, including
+when the task was created from an existing branch ref. A matching starting ref
+selects the commit; it does not guarantee symbolic branch attachment.
+
+For every Codex worktree dispatch that will write:
+
+1. The dispatcher should pre-create one unique task branch at the intended
+   commit when practical, so the Worker never needs to invent or rename a
+   branch inside the linked worktree.
+2. The startup prompt must **not** require the worktree to be already attached
+   and must **not** forbid the exact attachment operation. It must permit one
+   deterministic `git switch <pre-created-task-branch>` attempt when `HEAD` is
+   detached, after verifying that detached `HEAD` and the branch ref resolve to
+   the same required commit.
+3. After the switch, verify the symbolic branch, `HEAD`, cwd, and status before
+   any file write. Do not create a fallback branch, rename a branch, or switch
+   to a different commit.
+4. If that single attachment attempt fails because the linked-worktree Git
+   metadata is not writable, stop and report the exact Git path/error. Do not
+   mistake the normal detached start itself for a blocker, and do not retry or
+   bypass an actual metadata denial.
+
 ## Version control
 
 - Use the project research prefix convention for every commit subject: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, or `[EXPLORE]`, followed by the paper identifier such as `P01-A:`. Never use a bare task-management or generic implementation subject when committing Worker output.
