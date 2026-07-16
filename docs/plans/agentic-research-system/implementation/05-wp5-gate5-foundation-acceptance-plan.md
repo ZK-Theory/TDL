@@ -3,9 +3,9 @@
 **Date:** 2026-07-10
 **Status:** approved for Gate 5 execution by Stephen on 2026-07-10; WP5.1 may
 proceed once its task-level dispatch plan passes research-assurance preflight
-**Acceptance status (2026-07-16):** `owner_acceptance_pending`; the integrated
-production decision is canonically published and verified, but Gate 5 remains
-unaccepted until Stephen records the final acceptance.
+**Acceptance status (2026-07-17):** Gate 5 foundation `accepted` by Stephen at
+merge `f49a27fe15ae4df566c9107dc07f7451f51b924a`, with all restrictions below
+remaining in force.
 **Goal:** Close Gate 4 formally, then define the exact work standing between the current
 state (all WP4 tranches merged; aggregate P0 candidate `blocked`) and Gate 5 foundation
 acceptance, so each work package can be dispatched as its own plan (following the
@@ -276,7 +276,21 @@ passed. Frozen evidence remains exactly
 and O15 restrictions preserved. The independent report is preserved unchanged
 and its findings are dispositioned in
 `docs/plans/agentic-research-system/reviews/adversarial-gate5-foundation-review-reconciliation-2026-07-16.md`.
-Status remains `owner_acceptance_pending`; this record does not accept Gate 5.
+**Owner acceptance (2026-07-17):** Stephen accepted the Gate 5 foundation at
+merge `f49a27fe15ae4df566c9107dc07f7451f51b924a`, supported by frozen Phase 2
+evidence packet SHA-256
+`6aaad4abafad74383862e9183b3bb8686f78672af06ea37459bcbda146682ae3`.
+The canonical acceptance-decision bytes are exactly the statement recorded in
+the reconciliation from `Accept` through `Gate 6.`, encoded UTF-8 with LF
+separators and no trailing newline: 576 bytes, SHA-256
+`15869e0a50831e004ea1a352c27a772559013cc21d204d56ab8bc29c47176c7c`.
+D-G5-1(a) keeps M/H capabilities restricted; D-G5-2 keeps O15/deletion
+initiation deferred and disabled; G5.3-B(a) retains trusted-local-operator
+attribution without a cryptographic identity requirement. The candidate remains
+blocked and `gate5_authorized=false`. Acceptance covers only the Gate 5
+foundation: it does not enable restricted capabilities, resolve O15, or
+authorize the candidate. Gate 6 is now eligible for separately authorized
+planning or execution, but this decision neither authorizes nor begins it.
 
 ## 5. Dependency DAG and dispatch sequencing
 
@@ -367,4 +381,4 @@ it, and only if D-G5-1 and the full acceptance set permit.
 - [x] Integrated acceptance run: one `ReleaseGateDecision`, canonically published,
       parity evaluated, S-tranche present, capability restrictions (if any) explicit.
 - [x] Bounded independent review delivered; findings dispositioned (revision or stop).
-- [ ] Stephen's recorded acceptance.
+- [x] Stephen's recorded acceptance (2026-07-17; decision SHA-256 `15869e0a50831e004ea1a352c27a772559013cc21d204d56ab8bc29c47176c7c`).
