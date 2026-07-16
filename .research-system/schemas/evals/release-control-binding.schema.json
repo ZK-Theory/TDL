@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://evals/release-control-binding",
   "type": "object",
-  "required": ["schema_id", "schema_version", "project_id", "store_identity", "coverage_manifest_id", "transport", "gate5_authorized", "operations_scenarios", "derivation_contract_version", "canonical_policy_bundle_id", "canonical_policy_bundle_hash", "policy_control_applicability_id", "policy_control_applicability_hash"],
+  "required": ["schema_id", "schema_version", "project_id", "store_identity", "coverage_manifest_id", "transport", "gate5_authorized", "operations_scenarios", "derivation_contract_version", "canonical_policy_bundle_id", "canonical_policy_bundle_hash", "policy_control_applicability_id", "policy_control_applicability_hash", "fixture_oracle_authorities"],
   "properties": {
     "schema_id": {"const": "ars://evals/release-control-binding"},
     "schema_version": {"const": "1.0.0"},
@@ -16,7 +16,56 @@
     "canonical_policy_bundle_id": {"type": "string", "pattern": "^cpb_"},
     "canonical_policy_bundle_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "policy_control_applicability_id": {"type": "string", "pattern": "^pca_[0-9a-f]{64}$"},
-    "policy_control_applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+    "policy_control_applicability_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "fixture_oracle_authorities": {
+      "type": "array",
+      "minItems": 40,
+      "maxItems": 40,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/fixtureOracleAuthority"}
+    }
+  },
+  "$defs": {
+    "fixtureOracleAuthority": {
+      "type": "object",
+      "required": ["fixture_id", "fixture_revision", "post_control_oracle_hash", "post_control_oracle"],
+      "properties": {
+        "fixture_id": {"type": "string", "minLength": 1},
+        "fixture_revision": {"type": "string", "minLength": 1},
+        "post_control_oracle_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "post_control_oracle": {"$ref": "#/$defs/postControlOracle"}
+      },
+      "additionalProperties": false
+    },
+    "postControlOracle": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "fixture_id", "fixture_revision", "oracle_kind", "assertions"],
+      "properties": {
+        "schema_id": {"const": "ars://evals/fixture-oracle"},
+        "schema_version": {"const": "1.0.0"},
+        "fixture_id": {"type": "string", "pattern": "^[FS]-[0-9]{3}$"},
+        "fixture_revision": {"type": "string", "minLength": 1},
+        "oracle_kind": {"const": "post_control"},
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {"$ref": "#/$defs/oracleAssertion"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "oracleAssertion": {
+      "type": "object",
+      "required": ["derived_from", "expected_evidence", "property", "satisfied"],
+      "properties": {
+        "derived_from": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "expected_evidence": {"type": "object"},
+        "property": {"type": "string", "minLength": 1},
+        "satisfied": {"const": true}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

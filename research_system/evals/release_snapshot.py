@@ -4,18 +4,21 @@ from __future__ import annotations
 
 import copy
 from dataclasses import asdict
+import json
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
 from research_system.adapters.parity import PolicyParityReport
 from research_system.adapters.parity_evidence import FakeAdapterParityEvidence
-from research_system.canonical import jsonable
+from research_system.canonical import canonical_bytes, jsonable, sha256_hex
 from research_system.errors import ArsError
 from research_system.evals.coverage import (
     DeferredCapability,
     DeferredCatalogueCase,
     P0Coverage,
 )
+from research_system.evals.fixture_package import validate_fixture_package
 from research_system.evals.harness import (
     EvaluationEvidence,
     ReleaseBindings,
@@ -147,6 +150,71 @@ def _applicability_source(
     }
 
 
+def _fixture_oracle_authorities(
+    evidence: EvaluationEvidence,
+    *,
+    fixture_root: Path | str,
+    schema_root: Path | str,
+) -> list[dict[str, Any]]:
+    selected = tuple(sorted(evidence.coverage.selected_fixture_revisions))
+    if len(selected) != 40 or len(set(selected)) != 40:
+        raise ValueError("exact selected fixture oracle authority closure required")
+    bound_hashes: dict[tuple[str, str], set[str]] = {}
+    for key in evidence.bindings.required_result_keys:
+        selector = (key[0], key[1])
+        bound_hashes.setdefault(selector, set()).add(evidence.bindings.expected_oracle_hashes[key])
+    executions: dict[tuple[str, str], list[VariantExecutionEvidence]] = {}
+    for execution in evidence.variant_executions:
+        selector = (execution.matrix_row.fixture_id, execution.matrix_row.fixture_revision)
+        executions.setdefault(selector, []).append(execution)
+
+    authorities = []
+    fixture_root = Path(fixture_root)
+    for fixture_id, fixture_revision in selected:
+        package = fixture_root / fixture_id
+        validated = validate_fixture_package(package, schema_root=schema_root)
+        if validated.fixture_id != fixture_id or validated.fixture_revision != fixture_revision:
+            raise ValueError("validated fixture oracle authority identity mismatch")
+        post_path = package / "expected" / "post-control.json"
+        post_bytes = post_path.read_bytes()
+        post_control_oracle_hash = validated.content_hashes["expected/post-control.json"]
+        if sha256_hex(post_bytes) != post_control_oracle_hash:
+            raise ValueError("validated fixture oracle authority changed")
+        post = json.loads(post_bytes)
+        if post_bytes != canonical_bytes(post) + b"\n":
+            raise ValueError("fixture oracle authority must use canonical JSON")
+        assertions = post.get("assertions")
+        if not isinstance(assertions, list) or len(assertions) != 1:
+            raise ValueError("exact post-control oracle assertion required")
+        assertion = assertions[0]
+        expected_evidence = assertion.get("expected_evidence")
+        property_name = assertion.get("property")
+        if not isinstance(expected_evidence, dict) or not isinstance(property_name, str) or not property_name:
+            raise ValueError("validated fixture oracle authority mismatch")
+        expected_evidence_hash = sha256_hex(canonical_bytes(expected_evidence))
+        selector = (fixture_id, fixture_revision)
+        if bound_hashes.get(selector) != {post_control_oracle_hash}:
+            raise ValueError("release binding fixture oracle authority mismatch")
+        if any(
+            execution.expected_evidence != expected_evidence
+            or execution.expected_evidence_hash != expected_evidence_hash
+            or {item.property for item in execution.observed_assertions} != {property_name}
+            for execution in executions.get(selector, ())
+        ):
+            raise ValueError("variant fixture oracle authority mismatch")
+        authorities.append(
+            {
+                "fixture_id": fixture_id,
+                "fixture_revision": fixture_revision,
+                "post_control_oracle_hash": post_control_oracle_hash,
+                "post_control_oracle": post,
+            }
+        )
+    if set(bound_hashes) != set(selected):
+        raise ValueError("release binding fixture oracle authority closure mismatch")
+    return authorities
+
+
 def build_release_snapshot_documents(
     evidence: EvaluationEvidence,
     scenarios: tuple[Gate3ScenarioResult, ...],
@@ -174,8 +242,10 @@ def build_release_snapshot_documents(
         evidence.canonical_policy_bundle is None
         or evidence.policy_applicability is None
         or evidence.parity_report is None
+        or evidence.fixture_root is None
+        or evidence.schema_root is None
     ):
-        raise ArsError("release publication requires complete parity evidence")
+        raise ArsError("release publication requires complete parity and fixture authority evidence")
     manifest = jsonable(
         {
             "schema_id": "ars://evals/release-publication-evidence",
@@ -217,6 +287,11 @@ def build_release_snapshot_documents(
         "canonical_policy_bundle_hash": evidence.canonical_policy_bundle.content_hash,
         "policy_control_applicability_id": (evidence.policy_applicability.applicability_id),
         "policy_control_applicability_hash": (evidence.policy_applicability.applicability_hash),
+        "fixture_oracle_authorities": _fixture_oracle_authorities(
+            evidence,
+            fixture_root=evidence.fixture_root,
+            schema_root=evidence.schema_root,
+        ),
     }
     return manifest, control
 
@@ -293,11 +368,94 @@ def _variant_execution(value: dict[str, Any]) -> VariantExecutionEvidence:
         first_normalized_decision_hash=value["first_normalized_decision_hash"],
         second_normalized_decision_hash=value["second_normalized_decision_hash"],
         decisions_equal=value["decisions_equal"],
+        expected_evidence=value["expected_evidence"],
+        first_observed_evidence=value["first_observed_evidence"],
+        second_observed_evidence=value["second_observed_evidence"],
+        expected_evidence_hash=value["expected_evidence_hash"],
+        first_observed_evidence_hash=value["first_observed_evidence_hash"],
+        second_observed_evidence_hash=value["second_observed_evidence_hash"],
+        oracle_match=value["oracle_match"],
         grader_result_keys=tuple(tuple(item) for item in value["grader_result_keys"]),
         grader_result_bindings=tuple((tuple(item[0]), *item[1:]) for item in value["grader_result_bindings"]),
         observed_assertions=tuple(ObservedAssertionEvidence(**item) for item in value["observed_assertions"]),
         execution_evidence_hash=value["execution_evidence_hash"],
     )
+
+
+def _oracle_authorities(
+    values: list[dict[str, Any]],
+    coverage: P0Coverage,
+) -> dict[tuple[str, str], dict[str, Any]]:
+    expected_selectors = set(coverage.selected_fixture_revisions)
+    authorities: dict[tuple[str, str], dict[str, Any]] = {}
+    for value in values:
+        selector = (value.get("fixture_id"), value.get("fixture_revision"))
+        oracle = value.get("post_control_oracle")
+        post_control_oracle_hash = value.get("post_control_oracle_hash")
+        assertions = oracle.get("assertions") if isinstance(oracle, dict) else None
+        assertion = assertions[0] if isinstance(assertions, list) and len(assertions) == 1 else None
+        if (
+            selector in authorities
+            or selector not in expected_selectors
+            or not isinstance(oracle, dict)
+            or set(oracle)
+            != {"schema_id", "schema_version", "fixture_id", "fixture_revision", "oracle_kind", "assertions"}
+            or oracle.get("schema_id") != "ars://evals/fixture-oracle"
+            or oracle.get("schema_version") != "1.0.0"
+            or oracle.get("fixture_id") != selector[0]
+            or oracle.get("fixture_revision") != selector[1]
+            or oracle.get("oracle_kind") != "post_control"
+            or not isinstance(assertion, dict)
+            or set(assertion) != {"derived_from", "expected_evidence", "property", "satisfied"}
+            or not isinstance(assertion.get("derived_from"), list)
+            or not assertion["derived_from"]
+            or any(not isinstance(item, str) or not item for item in assertion["derived_from"])
+            or not isinstance(assertion.get("expected_evidence"), dict)
+            or not isinstance(assertion.get("property"), str)
+            or not assertion["property"]
+            or assertion.get("satisfied") is not True
+            or not isinstance(post_control_oracle_hash, str)
+            or len(post_control_oracle_hash) != 64
+            or any(character not in "0123456789abcdef" for character in post_control_oracle_hash)
+            or sha256_hex(canonical_bytes(oracle) + b"\n") != post_control_oracle_hash
+        ):
+            raise ValueError("fixture oracle authority mismatch")
+        authorities[selector] = {
+            "post_control_oracle_hash": post_control_oracle_hash,
+            "property": assertion["property"],
+            "expected_evidence": assertion["expected_evidence"],
+            "expected_evidence_hash": sha256_hex(canonical_bytes(assertion["expected_evidence"])),
+        }
+    if set(authorities) != expected_selectors or len(authorities) != 40:
+        raise ValueError("fixture oracle authority closure mismatch")
+    return authorities
+
+
+def _require_oracle_authority_bindings(
+    manifest: dict[str, Any],
+    authorities: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    for value in manifest["release_bindings"]:
+        selector = tuple(value["result_key"][:2])
+        authority = authorities.get(selector)
+        if authority is None or value["oracle_hash"] != authority["post_control_oracle_hash"]:
+            raise ValueError("fixture oracle authority mismatch")
+    for value in manifest["release_results"]:
+        selector = (value["fixture_id"], value["fixture_revision"])
+        authority = authorities.get(selector)
+        if authority is None or value["oracle_hash"] != authority["post_control_oracle_hash"]:
+            raise ValueError("fixture oracle authority mismatch")
+    for value in manifest["variant_executions"]:
+        selector = (value["matrix_row"]["fixture_id"], value["matrix_row"]["fixture_revision"])
+        authority = authorities.get(selector)
+        if (
+            authority is None
+            or value["expected_evidence"] != authority["expected_evidence"]
+            or value["expected_evidence_hash"] != authority["expected_evidence_hash"]
+            or {item["property"] for item in value["observed_assertions"]} != {authority["property"]}
+            or {item[3] for item in value["grader_result_bindings"]} != {authority["post_control_oracle_hash"]}
+        ):
+            raise ValueError("fixture oracle authority mismatch")
 
 
 def _bundle(value: dict[str, Any]) -> CanonicalPolicyBundle:
@@ -369,6 +527,8 @@ def rederive_release_from_snapshot(
             fails exact reconstruction and closure.
     """
     coverage = _coverage(manifest["coverage"])
+    authorities = _oracle_authorities(control["fixture_oracle_authorities"], coverage)
+    _require_oracle_authority_bindings(manifest, authorities)
     bindings = _bindings(manifest["release_bindings"])
     results = tuple(_result(item) for item in manifest["release_results"])
     bundle = _bundle(manifest["canonical_policy_bundle"])
