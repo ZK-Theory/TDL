@@ -234,9 +234,44 @@ def _peak_rss_mb() -> float | None:
     try:
         import psutil
     except ImportError:
-        return None
-    memory = psutil.Process(os.getpid()).memory_info()
-    return float(getattr(memory, "peak_wset", memory.rss) / (1024**2))
+        if os.name != "nt":
+            return None
+        import ctypes
+        from ctypes import wintypes
+
+        class ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(ProcessMemoryCounters),
+            wintypes.DWORD,
+        ]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+        process = kernel32.GetCurrentProcess()
+        success = psapi.GetProcessMemoryInfo(process, ctypes.byref(counters), counters.cb)
+        if not success:
+            return None
+        return float(counters.PeakWorkingSetSize / (1024**2))
+    else:
+        memory = psutil.Process(os.getpid()).memory_info()
+        return float(getattr(memory, "peak_wset", memory.rss) / (1024**2))
 
 
 def _write_checkpoint(
@@ -542,8 +577,7 @@ def run_resource_preflight(
     measured_speedup = one_worker["wall_seconds"] / target_worker["wall_seconds"]
     effective_workers = max(1.0, min(float(workers), measured_speedup))
     projected_seconds = benchmark["wall_seconds"] * len(lads) / effective_workers
-    if projected_seconds > 12 * 3600:
-        raise RuntimeError(f"STOP: projected family launch is {projected_seconds / 3600:.2f} h (>12 h)")
+    stop_required = projected_seconds > 12 * 3600
 
     try:
         import psutil
@@ -567,6 +601,7 @@ def run_resource_preflight(
             "cpu_cores": os.cpu_count(),
             "memory_gb": total_memory_gb,
             "disk_free_gb": disk_free_gb,
+            "driver_peak_rss_mb_at_preflight": _peak_rss_mb(),
         },
         "strategy": {
             "parallel_backend": "ProcessPoolExecutor",
@@ -589,16 +624,36 @@ def run_resource_preflight(
         "risk_flags": [
             "worker sweep is sub-scale and the family projection remains provisional until full launch",
             "LAD geometry sizes vary from the full-B canary",
+            "the committed full-B canary predates the Windows peak-RSS fallback and records peak_rss_mb=null",
         ],
         "estimated_wall_time_seconds": projected_seconds,
         "estimated_wall_time_hours": projected_seconds / 3600,
         "provisional": True,
+        "decision": {
+            "launch_authorized": not stop_required,
+            "status": "STOP" if stop_required else "PASS",
+            "stop_threshold_hours": 12,
+            "reason": (
+                f"projected single launch {projected_seconds / 3600:.2f} h exceeds 12 h"
+                if stop_required
+                else "projected single launch is within the locked 12 h ceiling"
+            ),
+            "staged_launch_proposal": (
+                "Split the frozen 69-LAD family into deterministic size-balanced batches, largest LADs first, "
+                "with unchanged B=999/seeds/statistic/null; assemble BH-FDR only after every batch completes. "
+                "Requires User approval before launch."
+                if stop_required
+                else None
+            ),
+        },
         "validation_commands": [
             "uv run pytest tests/poverty tests/discovery/test_deprivation_scale_coherence_contract.py -q",
             "uv run ruff check poverty_tda tests/poverty tests/discovery/test_deprivation_scale_coherence_contract.py",
         ],
     }
     _write_json_once(output_path, preflight)
+    if stop_required:
+        raise RuntimeError(f"STOP: projected family launch is {projected_seconds / 3600:.2f} h (>12 h)")
     return preflight
 
 
