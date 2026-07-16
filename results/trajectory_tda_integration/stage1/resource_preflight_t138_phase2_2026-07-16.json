@@ -1,0 +1,32 @@
+{
+  "task": "T1.38 phase 2 re-scoped valid-null preflight",
+  "generated_at": "2026-07-16T09:07:56.247287+00:00",
+  "B_benchmarked": 8,
+  "L": 5000,
+  "seed": 42,
+  "production_cells": [
+    "usoc:order_shuffle",
+    "usoc:markov1",
+    "usoc:markov2",
+    "usoc:stratified_markov1",
+    "bhps:order_shuffle",
+    "bhps:markov1",
+    "bhps:markov2",
+    "bhps:stratified_markov1"
+  ],
+  "cost_model": {
+    "n_units_benchmarked": 9,
+    "median_seconds_per_unit": 67.70944939999026,
+    "min_seconds_per_unit": 12.926727512500293,
+    "max_seconds_per_unit": 78.68316230000346,
+    "p75_generation_plus_obs_w2_seconds": 69.41601395000907,
+    "p75_null_null_w2_seconds": 12.926727512500293,
+    "projected_wall_hours": 18.29838699166875,
+    "projected_units": 1600,
+    "projection_basis": "p75 production generation+exact obs-null and p75 exact null-null; B=8 measured per available cell",
+    "worker_count": 1,
+    "parallelism": "serial within each OS process; cells are safe to launch as independent processes"
+  },
+  "classification": "STOP",
+  "reason": "Projection is based on actual frozen-loading null generation plus exact W2, not a retained cache."
+}
