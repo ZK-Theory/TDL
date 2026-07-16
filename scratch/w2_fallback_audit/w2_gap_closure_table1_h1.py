@@ -345,8 +345,23 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_cou
     p75_nn = float(np.percentile(nn_units, 75))
     full_cells = len(DATASETS) * len(VALID_NULLS)
     projected_units = full_cells * B
-    per_process_peak = max(float(s["cost"].get("per_process_peak_gb", 0.0)) for s in summaries)
-    free_at_launch = min(float(s["cost"].get("free_gb_at_launch", 0.0)) for s in summaries)
+    telemetry = [
+        s["cost"] for s in summaries if "per_process_peak_gb" in s["cost"] and "free_gb_at_launch" in s["cost"]
+    ]
+    if not telemetry:
+        raise RuntimeError("No peak-RSS telemetry is available for the chosen worker-count cost model")
+    observed_peak = max(float(cost["per_process_peak_gb"]) for cost in telemetry)
+    observed_free = min(float(cost["free_gb_at_launch"]) for cost in telemetry)
+    prelaunch_path = OUTPUT_ROOT / f"resource_preflight_t138_phase2_parallel_n{worker_count}_{DATE_DEFAULT}.json"
+    if worker_count > 1 and prelaunch_path.exists():
+        prelaunch_cost = json.loads(prelaunch_path.read_text(encoding="utf-8"))["cost_model"]
+        per_process_peak = float(prelaunch_cost["per_process_peak_gb"])
+        free_at_launch = float(prelaunch_cost["free_gb_at_launch"])
+        prelaunch_source: str | None = str(prelaunch_path)
+    else:
+        per_process_peak = observed_peak
+        free_at_launch = observed_free
+        prelaunch_source = None
     parallel_ram = worker_count * per_process_peak
     headroom = free_at_launch - parallel_ram
     return {
@@ -366,6 +381,9 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_cou
         "ram_headroom_gb": headroom,
         "ram_headroom_rule": "chosen workers require at least 25% of free RAM to remain available",
         "ram_preflight_passed": headroom >= 0.25 * free_at_launch,
+        "prelaunch_resource_preflight": prelaunch_source,
+        "post_restart_single_process_peak_gb": observed_peak,
+        "post_restart_single_process_free_gb": observed_free,
         "parallelism": "serial within each OS process; cells are safe to launch as independent processes",
     }
 
@@ -400,7 +418,13 @@ def assemble(date: str, worker_count: int = 1) -> Path:
             path = _summary_path(date, dataset, null_type, B)
             if not path.exists():
                 raise FileNotFoundError(f"Cannot assemble: required completed cell missing: {path}")
-            summaries.append(json.loads(path.read_text(encoding="utf-8")))
+            summary = json.loads(path.read_text(encoding="utf-8"))
+            checkpoint = Path(summary["checkpoint"])
+            with np.load(checkpoint, allow_pickle=True) as saved:
+                summary["statistics"] = audit_lib.headline_stats_from_distances(
+                    saved["obs_null_w2"], saved["null_null_w2"]
+                )
+            summaries.append(summary)
     screen_rows = [s["diagonal_bound_screen"] for s in summaries]
     all_screen = {
         "n_values_screened": sum(

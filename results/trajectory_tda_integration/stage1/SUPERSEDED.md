@@ -56,7 +56,16 @@ Additional constraints from the audit:
   every H1 mean is 130–306 against an exact diagonal bound of ~20. Two cells
   **invert** under exact W₂ (BHPS `markov` H1 `p=0.978` non-reject vs the
   corrected exact headline `p=0.000999`; `stratified_markov1` H1 `p=1.0000`).
-  **Do not cite any Table 1 H1 row.**
+  **Updated 2026-07-16 (T1.38 Phase 2):** this blanket prohibition is lifted
+  only for the fresh L=5000 exact-W2 H1 rows in
+  `w2_gap_closure_table1_h1_2026-07-16.json`: order-shuffle, Markov-1,
+  Markov-2, and stratified-Markov-1 for USoc and BHPS. Each has B=100,
+  frozen loadings, the fail-loud Gudhi/POT solver, and a passed diagonal-bound
+  screen; both Markov-1 directions agree with their corrected exact headlines.
+  The historical greedy-era Table 1 files remain superseded. Label-shuffle and
+  cohort-shuffle are permanently **INVALID-BY-CONSTRUCTION** because they are
+  invariant to the set-valued statistic, and the L=2000 legacy rows remain
+  unciteable.
 - **`markov2_alpha_sweep_summary_2026-06-16.json`** — dated after the 2026-05-29/30
   boundary ⇒ **exact era, presumed IMMUNE**, but never explicitly gated. Feeds
   P01-B §4.2 Table 2's Markov-2 rows. Confirm by gate before citing as verified.

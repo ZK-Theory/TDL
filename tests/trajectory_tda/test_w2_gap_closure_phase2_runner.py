@@ -1,6 +1,10 @@
 """Unit-level guards for the re-scoped T1.38 production runner."""
 
+import numpy as np
+import pytest
+
 from scratch.w2_fallback_audit import w2_gap_closure_table1_h1 as runner
+from scratch.w2_fallback_audit import audit_lib
 
 
 def test_phase2_runner_excludes_set_invariant_pseudonulls() -> None:
@@ -24,3 +28,9 @@ def test_parallel_cost_model_requires_ram_headroom() -> None:
     assert model["worker_count"] == 2
     assert model["projected_wall_hours"] > 0
     assert model["ram_preflight_passed"] is False
+
+
+def test_exact_w2_pvalue_records_its_rank_count() -> None:
+    stats = audit_lib.headline_stats_from_distances(np.asarray([4.0, 5.0]), np.asarray([1.0, 3.0, 6.0]))
+    assert stats["rank_count_upper"] == 1
+    assert stats["w2_pvalue"] == pytest.approx((1 + 1) / (3 + 1))
