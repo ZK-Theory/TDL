@@ -462,7 +462,7 @@ def assemble(date: str, worker_count: int = 1) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=DATE_DEFAULT)
-    parser.add_argument("--only", help="one disjoint cell, e.g. usoc:markov1")
+    parser.add_argument("--only", help="comma-separated disjoint cells, e.g. usoc:markov1,bhps:markov1")
     parser.add_argument("--n-permutations", type=int, default=B)
     parser.add_argument("--checkpoint-every", type=int, default=5)
     parser.add_argument("--worker-count", type=int, default=1)
@@ -476,13 +476,18 @@ def main() -> None:
         return
     cells = [(dataset, null_type) for dataset in DATASETS for null_type in VALID_NULLS]
     if args.only:
-        try:
-            dataset, null_type = args.only.split(":", 1)
-        except ValueError as exc:
-            raise ValueError("--only must be dataset:null_type") from exc
-        if (dataset, null_type) not in cells:
-            raise ValueError(f"--only must name one valid cell: {cells}")
-        cells = [(dataset, null_type)]
+        requested: list[tuple[str, str]] = []
+        for item in args.only.split(","):
+            try:
+                dataset, null_type = item.split(":", 1)
+            except ValueError as exc:
+                raise ValueError("--only entries must be dataset:null_type") from exc
+            if (dataset, null_type) not in cells:
+                raise ValueError(f"--only must name valid cells: {cells}")
+            requested.append((dataset, null_type))
+        if len(set(requested)) != len(requested):
+            raise ValueError("--only cannot contain a duplicate cell")
+        cells = requested
     summaries = [
         run_cell(args.date, dataset, null_type, args.n_permutations, args.checkpoint_every)
         for dataset, null_type in cells
