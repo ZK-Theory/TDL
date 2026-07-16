@@ -24,7 +24,10 @@ The objective is not to automate research judgment away. It is to make agent act
 | [03-decisions-and-open-questions.md](03-decisions-and-open-questions.md) | Accepted directions, assumptions requiring confirmation, and bounded design decisions |
 | [04-parallel-specification-and-foundation-pilot-plan.md](04-parallel-specification-and-foundation-pilot-plan.md) | P-026 parallel lanes, specification sequence, foundation scope, gates, and greenfield pilot boundary |
 | [05-p0-materialization-and-foundation-implementation-plan.md](05-p0-materialization-and-foundation-implementation-plan.md) | Review-pending Gate 4 master plan for the 37-case P0 closure and narrow production-intended foundation |
-| [implementation/README.md](implementation/README.md) | Ordered index for the four independently testable P0 implementation work packages |
+| [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
+| [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Draft WP6 master plan: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, consolidation sequencing; review pending |
+| [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Draft WP6.1 dispatch plan: rich Task/ScopeDefinition runtime and W8 operator surface; review pending |
+| [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Draft WP6.2 dispatch plan: live adapters, parity, threshold policy, evaluated model profiles; review pending |
 | [transition/W0-legacy-closeout-transition-manifest-2026-06-28.md](transition/W0-legacy-closeout-transition-manifest-2026-06-28.md) | Commit-anchored legacy closeout inventory, no-migration boundary, and eval-fixture shortlist |
 | [transition/W0-legacy-closeout-transition-addendum-2026-06-29.md](transition/W0-legacy-closeout-transition-addendum-2026-06-29.md) | Dated currency update for T1.6, live T1.28 state, legacy bus backport, and A-001/A-002 status |
 | [design/README.md](design/README.md) | Structure and entry criteria for the forthcoming design specifications |
