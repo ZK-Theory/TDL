@@ -59,17 +59,24 @@ class ControlBinding:
             str(value["store_identity"]),
             list(code_roots),
         )
-        if not schema_root.resolve(strict=True).is_dir():
+        try:
+            resolved_schema_root = schema_root.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ConfigurationError("configured schema root is unavailable") from exc
+        if not resolved_schema_root.is_dir():
             raise ConfigurationError("schema_root must be an existing directory")
         persisted_schema_root = manifest_schema_root(load_store_manifest(control_root))
-        if persisted_schema_root is not None and schema_root.resolve(strict=True) != persisted_schema_root.resolve(
-            strict=True
-        ):
-            raise ConfigurationError("schema_root conflicts with store manifest")
+        if persisted_schema_root is not None:
+            try:
+                resolved_persisted_schema_root = persisted_schema_root.resolve(strict=True)
+            except FileNotFoundError as exc:
+                raise ConfigurationError("store manifest schema root is missing") from exc
+            if resolved_schema_root != resolved_persisted_schema_root:
+                raise ConfigurationError("schema_root conflicts with store manifest")
         return cls(
             tuple(root.resolve(strict=True) for root in code_roots),
             control_root,
             project_id,
-            schema_root.resolve(strict=True),
+            resolved_schema_root,
             str(value["store_identity"]),
         )

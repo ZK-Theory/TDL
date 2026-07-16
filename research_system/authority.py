@@ -18,6 +18,7 @@ from research_system.schema_registry import (
     authority_schema_registry,
     bundled_schema_registry,
 )
+from research_system.store.identity import SCHEMA_BINDING_VERSION
 
 
 _GRANT_FIELDS = frozenset(
@@ -391,6 +392,7 @@ def _write_identity(
         "endpoint_scheme": "local-cli",
     }
     manifest["schema_root"] = str(schema_root)
+    manifest["schema_binding_version"] = SCHEMA_BINDING_VERSION
     manifest["manifest_hash"] = _manifest_hash(manifest)
     path = stage / "manifests" / "store-identity.json"
     with path.open("xb") as handle:

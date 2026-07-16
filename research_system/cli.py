@@ -312,7 +312,7 @@ def _schemas_for_store_manifest(
     unique = sorted(set(existing), key=str)
     if len(unique) != 1:
         raise ConfigurationError("store manifest has ambiguous schema roots")
-    return SchemaRegistry(unique[0])
+    return authority_schema_registry(unique[0])
 
 
 def _rederive_bound_decision(

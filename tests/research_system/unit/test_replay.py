@@ -115,6 +115,23 @@ def test_s012_store_identity_mismatch_and_worktree_local_store_are_rejected(
         initialize_control_store([code_root], code_root / "worktree-local-control", PROJECT_ID)
 
 
+def test_verify_store_identity_reports_missing_code_roots_as_binding_mismatch(tmp_path):
+    code_root = tmp_path / "repo"
+    code_root.mkdir()
+    control_root = tmp_path / "control"
+    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
+    manifest_path = control_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("code_roots")
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+
+    with pytest.raises(ArsError, match="code root binding mismatch"):
+        verify_store_identity(control_root, PROJECT_ID, identity, [code_root])
+
+
 def test_cli_requires_explicit_control_and_code_paths():
     with pytest.raises(SystemExit) as exc_info:
         main(["store", "init", "--project-id", PROJECT_ID])

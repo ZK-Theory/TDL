@@ -1,11 +1,12 @@
 import json
 from copy import deepcopy
 from pathlib import Path
+import shutil
 
 import pytest
 
 from research_system.errors import SchemaError
-from research_system.schema_registry import SchemaRegistry
+from research_system.schema_registry import SchemaRegistry, authority_schema_registry
 
 
 SCHEMAS = Path(".research-system/schemas")
@@ -165,3 +166,21 @@ def test_store_identity_1_1_schema_accepts_optional_physical_schema_binding():
     registry.validate("ars://core/store-identity/1.1", manifest)
     manifest["schema_root"] = "C:/synthetic-code/.research-system/schemas"
     registry.validate("ars://core/store-identity/1.1", manifest)
+    manifest["schema_binding_version"] = "1.0.0"
+    registry.validate("ars://core/store-identity/1.1", manifest)
+
+    manifest.pop("schema_root")
+    with pytest.raises(SchemaError, match="schema_root"):
+        registry.validate("ars://core/store-identity/1.1", manifest)
+
+
+def test_authority_registry_rejects_missing_revocation_payload_schema(tmp_path):
+    schema_root = tmp_path / "schemas"
+    shutil.copytree(SCHEMAS, schema_root)
+    (schema_root / "core" / "authority-grant-revoked.schema.json").unlink()
+
+    with pytest.raises(
+        SchemaError,
+        match="ars://core/event/AuthorityGrantRevoked/payload",
+    ):
+        authority_schema_registry(schema_root)

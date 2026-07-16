@@ -13,6 +13,7 @@ from research_system.store.layout import require_external_control_root
 
 _IDENTITY_NAME = "store-identity.json"
 _SCHEMA_SUFFIX = Path(".research-system") / "schemas"
+SCHEMA_BINDING_VERSION = "1.0.0"
 
 
 def _manifest_path(control_root: Path) -> Path:
@@ -25,9 +26,24 @@ def _manifest_hash(manifest: dict[str, Any]) -> str:
 
 
 def manifest_schema_root(manifest: dict[str, Any]) -> Path | None:
-    """Return a structurally verified canonical schema binding, if persisted."""
+    """Return a structurally verified canonical schema binding, if persisted.
+
+    Args:
+        manifest: Loaded store-identity manifest.
+
+    Returns:
+        The registered canonical schema path, or ``None`` for a legacy manifest.
+
+    Raises:
+        IntegrityError: If schema-binding metadata is malformed or unregistered.
+    """
+    binding_version = manifest.get("schema_binding_version")
+    if binding_version is not None and binding_version != SCHEMA_BINDING_VERSION:
+        raise IntegrityError("invalid store schema-root binding version")
     value = manifest.get("schema_root")
     if value is None:
+        if binding_version is not None:
+            raise IntegrityError("store schema-root binding missing")
         return None
     if not isinstance(value, str) or not Path(value).is_absolute():
         raise IntegrityError("invalid store schema-root binding")
@@ -125,6 +141,6 @@ def verify_store_identity(
         raise ArsError("store identity mismatch")
     if expected_code_roots is not None:
         resolved = sorted(str(root.resolve(strict=True)) for root in expected_code_roots)
-        if manifest["code_roots"] != resolved:
+        if manifest.get("code_roots") != resolved:
             raise ArsError("code root binding mismatch")
     return str(manifest["store_identity"])

@@ -405,6 +405,42 @@ def test_exact_retry_rejects_rehashed_code_root_store_swap(tmp_path) -> None:
         )
 
 
+def test_exact_retry_requires_implicit_new_writer_schema_binding_but_accepts_legacy(tmp_path) -> None:
+    control_root, bootstrap, identity = _initialized(tmp_path)
+    manifest_path = control_root / "manifests" / "store-identity.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("schema_root")
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+
+    with pytest.raises(IntegrityError, match="schema-root binding missing"):
+        initialize_authority_control_store(
+            [tmp_path / "repo"],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+
+    manifest.pop("schema_binding_version")
+    manifest["manifest_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in manifest.items() if key != "manifest_hash"})
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    assert (
+        initialize_authority_control_store(
+            [tmp_path / "repo"],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+        )
+        == identity
+    )
+
+
 def test_exact_retry_rejects_foreign_two_grant_genesis(tmp_path) -> None:
     control_root, bootstrap, _ = _initialized(tmp_path)
 
@@ -1383,6 +1419,58 @@ def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path)
     )
 
     with pytest.raises(ConfigurationError, match="conflicts with store manifest"):
+        ControlBinding.load(binding_path)
+
+
+def test_control_binding_reports_unavailable_configured_schema_root(tmp_path) -> None:
+    control_root, _, identity = _initialized(tmp_path)
+    binding_path = tmp_path / "binding.yaml"
+    binding_path.write_text(
+        json.dumps(
+            {
+                "code_roots": [str((tmp_path / "repo").resolve())],
+                "control_root": str(control_root.resolve()),
+                "project_id": PROJECT_ID,
+                "schema_root": str((tmp_path / "missing" / ".research-system" / "schemas").resolve()),
+                "store_identity": identity,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigurationError, match="configured schema root is unavailable"):
+        ControlBinding.load(binding_path)
+
+
+def test_control_binding_reports_missing_manifest_schema_root(tmp_path) -> None:
+    explicit_root = _code_root(tmp_path, "explicit")
+    linked_root = _code_root(tmp_path, "linked")
+    control_root = tmp_path / "control"
+    bootstrap = _bootstrap()
+    identity = initialize_authority_control_store(
+        [explicit_root, linked_root],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+        canonical_schema_root=explicit_root / ".research-system" / "schemas",
+    )
+    shutil.rmtree(explicit_root / ".research-system" / "schemas")
+    binding_path = tmp_path / "binding.yaml"
+    binding_path.write_text(
+        json.dumps(
+            {
+                "code_roots": [str(explicit_root.resolve()), str(linked_root.resolve())],
+                "control_root": str(control_root.resolve()),
+                "project_id": PROJECT_ID,
+                "schema_root": str((linked_root / ".research-system" / "schemas").resolve()),
+                "store_identity": identity,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigurationError, match="store manifest schema root is missing"):
         ControlBinding.load(binding_path)
 
 

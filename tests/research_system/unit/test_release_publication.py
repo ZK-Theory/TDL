@@ -343,6 +343,19 @@ def test_store_manifest_schema_root_ambiguity_fails_closed(tmp_path) -> None:
         _schemas_for_store_manifest({"code_roots": [str(root) for root in roots]})
 
 
+def test_legacy_store_manifest_rejects_incomplete_authority_schema_root(tmp_path) -> None:
+    root = tmp_path / "repo"
+    schema_root = root / ".research-system" / "schemas"
+    shutil.copytree(ROOT / ".research-system" / "schemas", schema_root)
+    (schema_root / "core" / "authority-grant-revoked.schema.json").unlink()
+
+    with pytest.raises(
+        SchemaError,
+        match="ars://core/event/AuthorityGrantRevoked/payload",
+    ):
+        _schemas_for_store_manifest({"code_roots": [str(root)]})
+
+
 def test_authority_resolver_rejects_missing_registry(tmp_path) -> None:
     with pytest.raises(TypeError):
         inspect.signature(LedgerAuthorityGrantResolver).bind(
