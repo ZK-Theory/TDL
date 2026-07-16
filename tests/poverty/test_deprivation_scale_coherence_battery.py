@@ -11,7 +11,10 @@ import pytest
 from poverty_tda.scripts.run_deprivation_scale_coherence import (
     PreparedLad,
     _peak_rss_mb,
+    build_staged_launch_plan,
     enumerate_eligible_lads,
+    load_staged_batch_rows,
+    prepare_staged_batch_artifact,
     run_resource_preflight,
     run_lad_battery,
 )
@@ -87,3 +90,68 @@ def test_resource_stop_persists_preflight_before_raising(tmp_path) -> None:
     persisted = json.loads(output.read_text(encoding="utf-8"))
     assert persisted["decision"]["status"] == "STOP"
     assert persisted["decision"]["launch_authorized"] is False
+
+
+def test_staged_plan_is_deterministic_balanced_and_exact() -> None:
+    members = [{"lad_code": f"E{index:02d}", "lad_name": f"LAD {index}", "n_lsoas": 300 - index} for index in range(69)]
+    frozen = {"eligible_count": 69, "members": members, "family_sha256": "frozen-sha"}
+    preflight = {"estimated_wall_time_hours": 16.5, "decision": {"status": "STOP"}}
+
+    first = build_staged_launch_plan(frozen, preflight, approved_at="2026-07-16T12:00:00+00:00")
+    second = build_staged_launch_plan(frozen, preflight, approved_at="2026-07-16T12:00:00+00:00")
+
+    assert first == second
+    assert [batch["member_count"] for batch in first["batches"]] == [23, 23, 23]
+    assigned = [member["lad_code"] for batch in first["batches"] for member in batch["members"]]
+    assert sorted(assigned) == sorted(member["lad_code"] for member in members)
+    assert len(set(assigned)) == 69
+    assert first["batches"][0]["members"][0]["lad_code"] == "E00"
+    costs = [batch["lsoa_count"] for batch in first["batches"]]
+    assert max(costs) - min(costs) <= 2
+    assert first["inference_deferred_until_all_batches_complete"] is True
+
+
+def test_staged_batch_artifact_omits_all_family_inference() -> None:
+    row = {
+        "lad_code": "E1",
+        "lad_name": "One",
+        "n_lsoas": 150,
+        "null_h1_total_area": [1.0] * 999,
+        "null_summary": {"mean": 1.5, "standard_deviation": 0.5, "observed_percentile": 50.0},
+        "draw_seeds": list(range(42, 1041)),
+        "p_lower": 0.5,
+        "p_upper": 1.0,
+        "p_fdr": 0.5,
+        "rejects_lower_fdr": False,
+    }
+    plan = {
+        "family_sha256": "frozen-sha",
+        "batch_count": 3,
+        "locked_compute_contract": {"B": 999, "workers": 8},
+        "batches": [
+            {
+                "batch_index": 1,
+                "members": [{"lad_code": "E1", "lad_name": "One", "n_lsoas": 150}],
+            }
+        ],
+    }
+
+    artifact = prepare_staged_batch_artifact([row], plan=plan, batch_index=1, elapsed_seconds=1.0)
+
+    staged_row = artifact["rows"][0]
+    assert artifact["contains_family_inference"] is False
+    assert "p_lower" not in staged_row
+    assert "p_upper" not in staged_row
+    assert "p_fdr" not in staged_row
+    assert "rejects_lower_fdr" not in staged_row
+    assert "observed_percentile" not in staged_row["null_summary"]
+
+
+def test_staged_assembly_refuses_an_incomplete_batch_set(tmp_path) -> None:
+    plan = {
+        "eligible_count": 69,
+        "batches": [{"batch_index": index, "members": []} for index in (1, 2, 3)],
+    }
+
+    with pytest.raises(FileNotFoundError, match="batch_1.json"):
+        load_staged_batch_rows(plan, tmp_path)

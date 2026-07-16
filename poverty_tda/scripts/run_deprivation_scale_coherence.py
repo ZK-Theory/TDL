@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import logging
@@ -144,6 +145,175 @@ def freeze_lad_family(family: list[dict[str, Any]], path: Path) -> dict[str, Any
         return existing
     _write_json_once(path, payload)
     return payload
+
+
+def build_staged_launch_plan(
+    frozen_family: dict[str, Any],
+    preflight: dict[str, Any],
+    *,
+    approved_at: str,
+) -> dict[str, Any]:
+    """Build the approved exact-three-batch plan without changing the frozen family."""
+    members = frozen_family["members"]
+    if frozen_family["eligible_count"] != 69 or len(members) != 69:
+        raise ValueError("staged launch requires the locked 69-LAD frozen family")
+    if preflight["decision"]["status"] != "STOP":
+        raise ValueError("staged launch is only valid after the preregistered full-launch stop")
+
+    batches: list[list[dict[str, Any]]] = [[], [], []]
+    batch_lsoa_counts = [0, 0, 0]
+    ordered = sorted(members, key=lambda member: (-member["n_lsoas"], member["lad_code"]))
+    for member in ordered:
+        available = [index for index, batch in enumerate(batches) if len(batch) < 23]
+        batch_index = min(available, key=lambda index: (batch_lsoa_counts[index], index))
+        batches[batch_index].append(member)
+        batch_lsoa_counts[batch_index] += member["n_lsoas"]
+
+    if any(len(batch) != 23 for batch in batches):
+        raise RuntimeError("staged partition did not produce three exact 23-LAD batches")
+    projected_hours = float(preflight["estimated_wall_time_hours"])
+    return {
+        "schema_version": "deprivation-scale-coherence-staged-plan/v1",
+        "family_sha256": frozen_family["family_sha256"],
+        "eligible_count": frozen_family["eligible_count"],
+        "batch_count": 3,
+        "assignment": (
+            "descending (-n_lsoas, lad_code) least-loaded assignment with a hard 23-LAD capacity; "
+            "ties resolve by batch index and batch 1 starts with the largest LAD"
+        ),
+        "approval": {
+            "approved_at": approved_at,
+            "approved_by": "User",
+            "instruction": "Approve staged launch",
+        },
+        "locked_compute_contract": {
+            "B": B_LOCKED,
+            "per_draw_seeds": "42+b for b=0..998",
+            "workers": 8,
+            "statistic_and_null_unchanged": True,
+            "bh_family_sha256": frozen_family["family_sha256"],
+        },
+        "inference_deferred_until_all_batches_complete": True,
+        "projected_total_hours": projected_hours,
+        "batches": [
+            {
+                "batch_index": index,
+                "member_count": len(batch),
+                "lsoa_count": sum(member["n_lsoas"] for member in batch),
+                "projected_hours": projected_hours * len(batch) / len(members),
+                "members": batch,
+            }
+            for index, batch in enumerate(batches, start=1)
+        ],
+    }
+
+
+def prepare_staged_batch_artifact(
+    rows: list[dict[str, Any]],
+    *,
+    plan: dict[str, Any],
+    batch_index: int,
+    elapsed_seconds: float,
+) -> dict[str, Any]:
+    """Remove family inference and wrap one completed staged batch."""
+    batch = next((item for item in plan["batches"] if item["batch_index"] == batch_index), None)
+    if batch is None:
+        raise ValueError(f"batch index {batch_index} is not in the staged plan")
+    expected_codes = [member["lad_code"] for member in batch["members"]]
+    if [row["lad_code"] for row in rows] != expected_codes:
+        raise ValueError("batch rows do not exactly match the staged plan order")
+    expected_draws = int(plan["locked_compute_contract"]["B"])
+    expected_seeds = list(range(SEED, SEED + expected_draws))
+    if any(len(row["null_h1_total_area"]) != expected_draws or row["draw_seeds"] != expected_seeds for row in rows):
+        raise ValueError("batch rows do not contain the complete locked null-draw sequence")
+
+    staged_rows = copy.deepcopy(rows)
+    for row in staged_rows:
+        for key in ("p_lower", "p_upper", "p_fdr", "rejects_lower_fdr"):
+            row.pop(key, None)
+        row["null_summary"].pop("observed_percentile", None)
+    return {
+        "schema_version": "deprivation-scale-coherence-staged-batch/v1",
+        "family_sha256": plan["family_sha256"],
+        "batch_index": batch_index,
+        "batch_count": plan["batch_count"],
+        "member_count": len(staged_rows),
+        "members": batch["members"],
+        "params": plan["locked_compute_contract"],
+        "contains_family_inference": False,
+        "elapsed_seconds": elapsed_seconds,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "rows": staged_rows,
+    }
+
+
+def load_staged_batch_rows(plan: dict[str, Any], batch_root: Path) -> tuple[list[dict[str, Any]], float]:
+    """Load only a complete, exact cover of the approved staged family."""
+    rows: list[dict[str, Any]] = []
+    elapsed_seconds = 0.0
+    seen_codes: set[str] = set()
+    for batch in plan["batches"]:
+        path = batch_root / f"batch_{batch['batch_index']}.json"
+        if not path.exists():
+            raise FileNotFoundError(f"staged assembly requires completed {path.name}")
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+        if artifact["family_sha256"] != plan["family_sha256"]:
+            raise ValueError(f"{path.name} belongs to a different frozen family")
+        if (
+            artifact["batch_index"] != batch["batch_index"]
+            or artifact["batch_count"] != plan["batch_count"]
+            or artifact["params"] != plan["locked_compute_contract"]
+            or artifact["contains_family_inference"] is not False
+        ):
+            raise ValueError(f"{path.name} violates the staged batch contract")
+        expected_codes = [member["lad_code"] for member in batch["members"]]
+        actual_codes = [row["lad_code"] for row in artifact["rows"]]
+        if actual_codes != expected_codes or artifact["member_count"] != len(expected_codes):
+            raise ValueError(f"{path.name} does not exactly match its planned members")
+        if seen_codes.intersection(actual_codes):
+            raise ValueError(f"{path.name} duplicates a LAD from another batch")
+        expected_draws = int(plan["locked_compute_contract"]["B"])
+        expected_seeds = list(range(SEED, SEED + expected_draws))
+        forbidden = {"p_lower", "p_upper", "p_fdr", "rejects_lower_fdr"}
+        if any(
+            forbidden.intersection(row)
+            or "observed_percentile" in row["null_summary"]
+            or len(row["null_h1_total_area"]) != expected_draws
+            or row["draw_seeds"] != expected_seeds
+            for row in artifact["rows"]
+        ):
+            raise ValueError(f"{path.name} contains inference or an incomplete null sequence")
+        seen_codes.update(actual_codes)
+        rows.extend(artifact["rows"])
+        elapsed_seconds += float(artifact["elapsed_seconds"])
+    if len(rows) != plan["eligible_count"]:
+        raise ValueError("staged batch artifacts do not cover the complete frozen family")
+    return rows, elapsed_seconds
+
+
+def ensure_staged_launch_plan(
+    frozen_family: dict[str, Any],
+    preflight: dict[str, Any],
+    path: Path,
+) -> dict[str, Any]:
+    """Persist the user's approval once and verify it on every later stage."""
+    if path.exists():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        expected = build_staged_launch_plan(
+            frozen_family,
+            preflight,
+            approved_at=existing["approval"]["approved_at"],
+        )
+        if existing != expected:
+            raise ValueError("existing staged launch plan differs from the frozen family or preflight")
+        return existing
+    plan = build_staged_launch_plan(
+        frozen_family,
+        preflight,
+        approved_at=datetime.now(timezone.utc).isoformat(),
+    )
+    _write_json_once(path, plan)
+    return plan
 
 
 def load_inputs(input_root: Path) -> tuple[pd.DataFrame, gpd.GeoDataFrame, dict[str, str]]:
@@ -669,6 +839,14 @@ def assemble_result(
     elapsed_seconds: float,
 ) -> dict[str, Any]:
     """Apply validity exclusions, BH families, sensitivity, and locked verdict."""
+    for row in rows:
+        p_lower, p_upper, percentile = empirical_tail_pvalues(
+            np.asarray(row["null_h1_total_area"], dtype=np.float64),
+            float(row["observed"]["h1_total_area"]),
+        )
+        row["p_lower"] = p_lower
+        row["p_upper"] = p_upper
+        row["null_summary"]["observed_percentile"] = percentile
     invalid = [row for row in rows if not row["null_validity"]["valid"]]
     if len(invalid) / len(rows) > 0.20:
         raise RuntimeError(f"STOP: spatialised null degenerate on {len(invalid)}/{len(rows)} LADs (>20%)")
@@ -792,7 +970,12 @@ def assemble_result(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=["gate0", "pilot", "benchmark", "full"], default="full")
+    parser.add_argument(
+        "--mode",
+        choices=["gate0", "pilot", "benchmark", "plan", "staged", "assemble", "full"],
+        default="full",
+    )
+    parser.add_argument("--batch-index", type=int, choices=[1, 2, 3], default=None)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--input-root", type=Path, default=None)
     parser.add_argument("--result-date", default=date.today().isoformat())
@@ -802,8 +985,12 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = _parse_args()
-    if args.mode in {"benchmark", "full"} and args.workers < 8:
+    if args.mode in {"benchmark", "staged", "full"} and args.workers < 8:
         raise SystemExit("STOP: locked compute contract requires workers >= 8")
+    if args.mode == "staged" and args.batch_index is None:
+        raise SystemExit("--batch-index 1, 2, or 3 is required for staged execution")
+    if args.mode != "staged" and args.batch_index is not None:
+        raise SystemExit("--batch-index is only valid with --mode staged")
     project_root = args.input_root or _project_root()
     partial_root = project_root / "results/poverty_tda_mcbif/.partial/deprivation_scale_coherence"
     imd, boundaries, input_hashes = load_inputs(project_root)
@@ -811,6 +998,21 @@ def main() -> None:
     frozen = freeze_lad_family(family, partial_root / "frozen_family.json")
     LOGGER.info("Gate 0 frozen: %d eligible LADs", len(family))
     if args.mode == "gate0":
+        return
+
+    result_dir = REPO_ROOT / "results/poverty_tda_mcbif"
+    preflight_path = result_dir / f"resource_preflight_deprivation_scale_coherence_{args.result_date}.json"
+    plan_path = result_dir / f"staged_launch_plan_deprivation_scale_coherence_{args.result_date}.json"
+    if args.mode == "plan":
+        if not preflight_path.exists():
+            raise FileNotFoundError(f"approved staged plan requires {preflight_path}")
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+        plan = ensure_staged_launch_plan(frozen, preflight, plan_path)
+        LOGGER.info(
+            "wrote approved staged plan: %s (%s)",
+            plan_path,
+            [batch["member_count"] for batch in plan["batches"]],
+        )
         return
 
     prepared = prepare_lads(imd, boundaries, family)
@@ -821,8 +1023,62 @@ def main() -> None:
     if args.mode == "pilot":
         return
 
-    result_dir = REPO_ROOT / "results/poverty_tda_mcbif"
-    preflight_path = result_dir / f"resource_preflight_deprivation_scale_coherence_{args.result_date}.json"
+    if args.mode in {"staged", "assemble"}:
+        if not preflight_path.exists():
+            raise FileNotFoundError(f"staged execution requires {preflight_path}")
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+        plan = ensure_staged_launch_plan(frozen, preflight, plan_path)
+        batch_root = partial_root / "staged_results"
+        if args.mode == "staged":
+            batch = next(item for item in plan["batches"] if item["batch_index"] == args.batch_index)
+            batch_path = batch_root / f"batch_{args.batch_index}.json"
+            if batch_path.exists():
+                existing = json.loads(batch_path.read_text(encoding="utf-8"))
+                expected_codes = [member["lad_code"] for member in batch["members"]]
+                if (
+                    existing["family_sha256"] != plan["family_sha256"]
+                    or existing["contains_family_inference"] is not False
+                    or [row["lad_code"] for row in existing["rows"]] != expected_codes
+                ):
+                    raise ValueError(f"existing {batch_path.name} violates the staged contract")
+                LOGGER.info("staged batch %d is already complete", args.batch_index)
+                return
+            prepared_by_code = {lad.lad_code: lad for lad in prepared}
+            batch_lads = [prepared_by_code[member["lad_code"]] for member in batch["members"]]
+            started = time.perf_counter()
+            rows = run_family(
+                batch_lads,
+                n_draws=B_LOCKED,
+                workers=args.workers,
+                checkpoint_dir=partial_root / "family",
+                checkpoint_interval=25,
+            )
+            artifact = prepare_staged_batch_artifact(
+                rows,
+                plan=plan,
+                batch_index=args.batch_index,
+                elapsed_seconds=time.perf_counter() - started,
+            )
+            _write_json_once(batch_path, artifact)
+            LOGGER.info("completed staged batch %d: %s", args.batch_index, batch_path)
+            return
+
+        rows, elapsed_seconds = load_staged_batch_rows(plan, batch_root)
+        payload = assemble_result(
+            rows,
+            frozen_family=frozen,
+            input_hashes=input_hashes,
+            workers=args.workers,
+            preflight=preflight,
+            pilot=pilot,
+            invariance_audit=invariance_audit,
+            elapsed_seconds=elapsed_seconds,
+        )
+        output_path = result_dir / f"deprivation_scale_coherence_{args.result_date}.json"
+        _write_json_once(output_path, payload)
+        LOGGER.info("wrote %s with verdict %s", output_path, payload["decision"]["verdict"])
+        return
+
     preflight = run_resource_preflight(
         prepared,
         workers=args.workers,
