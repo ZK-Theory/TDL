@@ -13,7 +13,11 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.ids import new_id, validate_id
-from research_system.schema_registry import SchemaRegistry, bundled_schema_registry
+from research_system.schema_registry import (
+    SchemaRegistry,
+    authority_schema_registry,
+    bundled_schema_registry,
+)
 
 
 _GRANT_FIELDS = frozenset(
@@ -362,7 +366,14 @@ def _verify_bootstrap_bindings(
         raise IntegrityError("authority bootstrap projection mismatch")
 
 
-def _write_identity(stage: Path, final_root: Path, code_roots: list[Path], project_id: str, bootstrap_hash: str) -> str:
+def _write_identity(
+    stage: Path,
+    final_root: Path,
+    code_roots: list[Path],
+    project_id: str,
+    bootstrap_hash: str,
+    schema_root: Path,
+) -> str:
     nonce = secrets.token_hex(16)
     stable = {
         "schema_id": "ars://core/store-identity",
@@ -379,6 +390,7 @@ def _write_identity(stage: Path, final_root: Path, code_roots: list[Path], proje
         "code_roots": sorted(str(root.resolve(strict=True)) for root in code_roots),
         "endpoint_scheme": "local-cli",
     }
+    manifest["schema_root"] = str(schema_root)
     manifest["manifest_hash"] = _manifest_hash(manifest)
     path = stage / "manifests" / "store-identity.json"
     with path.open("xb") as handle:
@@ -507,7 +519,9 @@ def _verify_complete_store(
     bootstrap: object,
     code_roots: list[Path],
     schemas: SchemaRegistry,
+    expected_schema_root: Path | None,
     *,
+    require_schema_binding: bool = False,
     require_genesis_only: bool = False,
 ) -> str:
     from research_system.projection.replay import replay
@@ -524,6 +538,14 @@ def _verify_complete_store(
     expected_roots = sorted(str(root.resolve(strict=True)) for root in code_roots)
     if manifest.get("code_roots") != expected_roots:
         raise ConflictError("authority store code root binding mismatch")
+    from research_system.store.identity import manifest_schema_root
+
+    persisted_schema_root = manifest_schema_root(manifest)
+    if persisted_schema_root is None:
+        if require_schema_binding:
+            raise ConflictError("authority store schema root binding missing")
+    elif expected_schema_root is None or persisted_schema_root != expected_schema_root:
+        raise ConflictError("authority store schema root binding mismatch")
     bootstrap_path = store_root / "manifests" / "authority-bootstrap.json"
     try:
         stored_bootstrap = bootstrap_path.read_bytes()
@@ -549,6 +571,9 @@ def _matching_complete_stage(
     bootstrap_hash: str,
     code_roots: list[Path],
     schemas: SchemaRegistry,
+    schema_root: Path | None,
+    *,
+    require_schema_binding: bool,
 ) -> tuple[Path, str] | None:
     prefix = f".{final_root.name}.authority-stage-"
     for stage in sorted(final_root.parent.glob(f"{prefix}*")):
@@ -567,6 +592,8 @@ def _matching_complete_stage(
                 bootstrap,
                 code_roots,
                 schemas,
+                schema_root,
+                require_schema_binding=require_schema_binding,
                 require_genesis_only=True,
             )
         except (ArsError, OSError, ValueError):
@@ -575,14 +602,33 @@ def _matching_complete_stage(
     return None
 
 
-def _authority_schema_registry(code_roots: list[Path]) -> SchemaRegistry:
-    """Resolve the one trusted registered schema root for store verification."""
-    schema_roots = {
-        root / ".research-system" / "schemas" for root in code_roots if (root / ".research-system" / "schemas").is_dir()
-    }
+def _authority_schema_registry(
+    code_roots: list[Path],
+    canonical_schema_root: Path | None = None,
+    *,
+    allow_bundled_fallback: bool = False,
+) -> tuple[SchemaRegistry, Path | None]:
+    """Resolve authority independently from the complete registered topology."""
+    registered = {root / ".research-system" / "schemas" for root in code_roots}
+    if canonical_schema_root is not None:
+        if not canonical_schema_root.is_absolute() or canonical_schema_root not in registered:
+            raise ArsError("canonical schema root must belong to a registered code root")
+        if not canonical_schema_root.is_dir():
+            raise ArsError("canonical schema root must be an existing directory")
+        try:
+            registry = authority_schema_registry(canonical_schema_root)
+        except ArsError as exc:
+            raise ArsError("canonical schema root is not a usable SchemaRegistry") from exc
+        return registry, canonical_schema_root
+    schema_roots = {root for root in registered if root.is_dir()}
     if len(schema_roots) > 1:
         raise ArsError("authority bootstrap requires one canonical schema root")
-    return SchemaRegistry(schema_roots.pop()) if schema_roots else bundled_schema_registry()
+    if not schema_roots:
+        if allow_bundled_fallback:
+            return bundled_schema_registry(), None
+        raise ArsError("new authority store requires a registered schema root")
+    schema_root = schema_roots.pop()
+    return authority_schema_registry(schema_root), schema_root
 
 
 def initialize_authority_control_store(
@@ -591,6 +637,8 @@ def initialize_authority_control_store(
     project_id: str,
     bootstrap: object,
     approved_bootstrap_sha256: str,
+    *,
+    canonical_schema_root: Path | None = None,
 ) -> str:
     """Publish one complete authority-aware control store atomically.
 
@@ -600,6 +648,7 @@ def initialize_authority_control_store(
         project_id: Project identity bound into the store and ledger.
         bootstrap: Approved authority bootstrap manifest.
         approved_bootstrap_sha256: Operator-approved canonical manifest digest.
+        canonical_schema_root: Explicit registered schema authority, when supplied.
 
     Returns:
         The published or exactly recovered store identity.
@@ -627,7 +676,13 @@ def initialize_authority_control_store(
     for code_root in resolved_codes:
         if final_root == code_root or code_root in final_root.parents or final_root in code_root.parents:
             raise ArsError("control root must be disjoint from every code root")
-    bootstrap_schemas = _authority_schema_registry(resolved_codes)
+    resolved_schema_root = Path(os.path.abspath(canonical_schema_root)) if canonical_schema_root is not None else None
+    bootstrap_schemas, selected_schema_root = _authority_schema_registry(
+        resolved_codes,
+        resolved_schema_root,
+        allow_bundled_fallback=final_root.exists(),
+    )
+    require_schema_binding = canonical_schema_root is not None
     if final_root.exists():
         return _verify_complete_store(
             final_root,
@@ -636,6 +691,8 @@ def initialize_authority_control_store(
             value,
             resolved_codes,
             bootstrap_schemas,
+            selected_schema_root,
+            require_schema_binding=require_schema_binding,
         )
     resumed = _matching_complete_stage(
         final_root,
@@ -644,8 +701,12 @@ def initialize_authority_control_store(
         bootstrap_hash,
         resolved_codes,
         bootstrap_schemas,
+        selected_schema_root,
+        require_schema_binding=require_schema_binding,
     )
     if resumed is None:
+        if selected_schema_root is None:
+            raise ArsError("new authority store requires a registered schema root")
         stage = final_root.with_name(f".{final_root.name}.authority-stage-{bootstrap_hash[:12]}-{secrets.token_hex(4)}")
         stage.mkdir()
         for name in (
@@ -659,7 +720,14 @@ def initialize_authority_control_store(
             (stage / name).mkdir()
         _write_stage_marker(stage, bootstrap_hash, "building")
         _bootstrap_failpoint("after-stage-marker")
-        identity = _write_identity(stage, final_root, resolved_codes, project_id, bootstrap_hash)
+        identity = _write_identity(
+            stage,
+            final_root,
+            resolved_codes,
+            project_id,
+            bootstrap_hash,
+            selected_schema_root,
+        )
         _bootstrap_failpoint("after-identity")
         _write_durable(
             stage / "manifests" / "authority-bootstrap.json",
@@ -730,6 +798,8 @@ def initialize_authority_control_store(
             value,
             resolved_codes,
             bootstrap_schemas,
+            selected_schema_root,
+            require_schema_binding=require_schema_binding,
             require_genesis_only=True,
         )
     else:
@@ -750,6 +820,8 @@ def initialize_authority_control_store(
                 value,
                 resolved_codes,
                 bootstrap_schemas,
+                selected_schema_root,
+                require_schema_binding=require_schema_binding,
             )
         except (ArsError, OSError) as verify_error:
             raise ConflictError("competing authority initializer published a foreign store") from verify_error
