@@ -552,8 +552,16 @@ def _load_ckpt(arm: str, kind: str, with_provenance: bool = False) -> Any:
 
 
 def _save_ckpt(arm: str, kind: str, payload: dict[str, Any]) -> None:
+    """Write a checkpoint atomically: sibling temp file, then replace.
+
+    A crash mid-write must never destroy the previous valid checkpoint —
+    ``Path.replace`` is atomic on the same filesystem.
+    """
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-    _ckpt_path(arm, kind).write_text(json.dumps({"provenance": _ckpt_provenance(arm), "payload": payload}))
+    path = _ckpt_path(arm, kind)
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path.write_text(json.dumps({"provenance": _ckpt_provenance(arm), "payload": payload}), encoding="utf-8")
+    temp_path.replace(path)
 
 
 def run_gate0(arm: str) -> dict[str, Any]:

@@ -57,8 +57,9 @@ schema_def:
         Per arm: complete adjacent bipartite fraction (must be < 0.9;
         integration measured 0.333, bhps measured 0.000 at spike/verification
         time) AND observed h1_total_area (must be > 0). A failing arm is
-        INFEASIBLE and must not be carried into a decision verdict other
-        than an escalation state.
+        INFEASIBLE — it escalates to the User; the v1 verdict vocabulary has
+        no escalation state, so an assembled payload carrying an infeasible
+        arm is invalid outright.
       derivation: >
         vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
         — "Locked parameters" — Gate 0 (per arm).
@@ -102,12 +103,18 @@ schema_def:
       description: >
         Must contain verdict in {additive, partial-signal, redundant,
         negative}, consistent with the locked decision rule recomputed from
-        the stored gate0, p_fdr, and redundancy values: additive requires
-        primary p_two (BH-FDR) <= 0.05 on BOTH substrates AND both
-        redundancy gates passing on both; partial-signal requires rejection
-        on exactly one substrate with gates passing there; redundant
-        requires a rejection with a failing redundancy gate wherever the
-        rejection occurs; negative requires no rejection after FDR.
+        the stored gate0, p_fdr, and redundancy values, stated exhaustively
+        via effective rejections (an arm's rejection is primary p_fdr <=
+        0.05; its gates pass when both |rho| < 0.95; an EFFECTIVE rejection
+        is both): additive = effective rejection on BOTH substrates;
+        negative = no rejection anywhere after FDR; redundant = rejections
+        exist but none is effective (a redundancy gate fails wherever
+        rejection occurs); partial-signal = exactly one effective rejection,
+        which includes the mixed cell where both substrates reject but the
+        gates pass on exactly one. Gate-0 infeasible arms never reach a
+        verdict (see gate0). Matches decide_verdict in
+        trajectory_tda/scripts/run_mcbif_weighted_nerve_battery.py and the
+        binding test's _recompute_verdict.
       derivation: >
         vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
         — "Decision rule (locked)".
