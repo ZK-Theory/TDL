@@ -3,6 +3,9 @@
 **Date:** 2026-07-10
 **Status:** approved for Gate 5 execution by Stephen on 2026-07-10; WP5.1 may
 proceed once its task-level dispatch plan passes research-assurance preflight
+**Acceptance status (2026-07-16):** `owner_acceptance_pending`; the integrated
+production decision is canonically published and verified, but Gate 5 remains
+unaccepted until Stephen records the final acceptance.
 **Goal:** Close Gate 4 formally, then define the exact work standing between the current
 state (all WP4 tranches merged; aggregate P0 candidate `blocked`) and Gate 5 foundation
 acceptance, so each work package can be dispatched as its own plan (following the
@@ -258,6 +261,23 @@ Prepares decision documents; produces vault `[DECISION]` entries, not merges. Se
 - **Exit:** Stephen's recorded acceptance = Gate 5 passed; Gate 6 (greenfield paper
   preflight) becomes eligible.
 
+**Production acceptance evidence (2026-07-16):** Stephen approved exact
+authority-bootstrap-manifest SHA-256
+`90d3bacb87c6ef77385556d618fa15604af09e416700fb248a0448db8249d7e3`.
+After PR #103's independently reviewed schema-authority remediation merged, the
+corrected initializer created external store identity
+`14fa1ffd0969b66b4e2e0f176c213b084a8607a807f0c39e4273ebddb1515e02`.
+The frozen decision `rgd_019f6ba3-57c9-7716-9b01-72cf068df03d` was published
+exactly once as event `evt_019f6d1e-e7bd-7d7a-ac9d-9f7290f9cb8e`; exact
+store/publication retries were idempotent, changed-bootstrap and changed-payload
+probes conflicted without extra publication, and replay plus `eval release`
+passed. Frozen evidence remains exactly
+`40/15/0/302/calibrated/parity-pass/operations-pass/blocked/false`, with M/H
+and O15 restrictions preserved. The independent report is preserved unchanged
+and its findings are dispositioned in
+`docs/plans/agentic-research-system/reviews/adversarial-gate5-foundation-review-reconciliation-2026-07-16.md`.
+Status remains `owner_acceptance_pending`; this record does not accept Gate 5.
+
 ## 5. Dependency DAG and dispatch sequencing
 
 ```text
@@ -341,10 +361,10 @@ it, and only if D-G5-1 and the full acceptance set permit.
 
 ## 10. Gate 5 exit checklist
 
-- [ ] WP5.1–WP5.4 merged via review-then-merge (CodeRabbit concluded pre-merge, every PR).
-- [ ] D-G5-1, D-G5-2, D-G5-4 recorded as vault `[DECISION]` entries.
-- [ ] All invariant re-baselines pre-registered and approved (D-G5-3 process).
-- [ ] Integrated acceptance run: one `ReleaseGateDecision`, canonically published,
+- [x] WP5.1–WP5.4 merged via review-then-merge (CodeRabbit concluded pre-merge, every PR).
+- [x] D-G5-1, D-G5-2, D-G5-4 recorded as vault `[DECISION]` entries.
+- [x] All invariant re-baselines pre-registered and approved (D-G5-3 process).
+- [x] Integrated acceptance run: one `ReleaseGateDecision`, canonically published,
       parity evaluated, S-tranche present, capability restrictions (if any) explicit.
-- [ ] Bounded independent review delivered; findings dispositioned (revision or stop).
+- [x] Bounded independent review delivered; findings dispositioned (revision or stop).
 - [ ] Stephen's recorded acceptance.
