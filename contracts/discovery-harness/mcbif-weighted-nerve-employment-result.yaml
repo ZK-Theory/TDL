@@ -1,0 +1,143 @@
+id: mcbif-weighted-nerve-employment-result
+kind: schema
+
+description: >
+  Schema contract for the LOCKED 2026-07-10 pre-registration
+  vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+  (materialised from its planned_contracts block, contract id
+  mcbif-weighted-nerve-employment-result). Pins the schema_version, the two
+  frozen substrate SHA-256 digests (integration + bhps), the tau-locked
+  weighted-nerve MCbiF parameters (tau=2, B=1000, seed=42, per-draw seeds
+  42+b, W=13, two-sided test), the per-arm Gate 0 saturation check, the
+  per-arm four-statistic observed block, the per-arm x statistic null
+  distribution (both tails plus the primary statistic's BH-FDR p_fdr across
+  the 2 substrates at alpha=0.05), the per-arm redundancy gates
+  (|Spearman rho| < 0.95 vs mean adjacent ARI and mean adjacent conditional
+  entropy), and the additive/partial-signal/redundant/negative decision
+  verdict for the employment MCbiF weighted-nerve battery. Worker authors
+  ONLY the binding test (tests/discovery/test_mcbif_weighted_nerve_contract.py
+  :: test_weighted_nerve_rejects_invalid_payloads) and clears pending; this
+  YAML is authored upstream of the Worker per contracts/README.md.
+
+spec_citation:
+  source: "vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md"
+  anchor: "planned_contracts (id: mcbif-weighted-nerve-employment-result)"
+  vault_entry_date: "2026-07-10"
+
+schema_def:
+  applies_to: "results/trajectory_tda_mcbif/mcbif_weighted_nerve_employment_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Must equal 'mcbif-weighted-nerve-employment/v1'."
+    - name: substrate_sha256
+      type: dict
+      description: >
+        Must contain both integration and bhps entries. integration must
+        equal 7a4869170bb8c0f096c407a636ec09ee1926946372b27c18762734d96059e3b8;
+        bhps must equal
+        b5328c83edfb82bfd8e5e5b14e8df18fbc3d595f1e7dec4bd4f602f581d40490.
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Locked parameters" — Substrates (both, one dispatch).
+    - name: params
+      type: dict
+      description: >
+        Must contain tau==2 (LOCKED by the spike's smallest-tau priority
+        rule), B==1000, seed==42, per-draw seeds derived as
+        default_rng(42+b).permutation(13) for b in 0..999, W==13 (first 13
+        waves, eligibility len >= 13), and test=='two-sided'.
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Locked parameters" — Object, Null (B = 1000, per arm), Test
+        (locked): TWO-SIDED.
+    - name: gate0
+      type: dict
+      description: >
+        Per arm: complete adjacent bipartite fraction (must be < 0.9;
+        integration measured 0.333, bhps measured 0.000 at spike/verification
+        time) AND observed h1_total_area (must be > 0). A failing arm is
+        INFEASIBLE and must not be carried into a decision verdict other
+        than an escalation state.
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Locked parameters" — Gate 0 (per arm).
+    - name: observed
+      type: dict
+      description: >
+        Per arm: all four H1 statistics — h1_total_area (primary, User
+        selection 2026-07-10), h1_lag2_area, h1_lag3_area, and
+        h1_lag_weighted_area (descriptive, both tails, no multiplicity
+        claim).
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Locked parameters" — Statistics.
+    - name: null_distribution
+      type: dict
+      description: >
+        Per arm x statistic: p_lower, p_upper, p_two, each in
+        [1/(B+1), 1] with B==1000 (i.e. [1/1001, 1]); p_two must equal
+        min(1, 2*min(p_lower, p_upper)) recomputed from the stored tails.
+        The primary statistic (h1_total_area) additionally carries p_fdr,
+        the Benjamini-Hochberg FDR-adjusted p_two across the 2 substrates
+        at alpha==0.05, recomputable from the stored per-substrate p_two
+        pair.
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Locked parameters" — Test (locked): TWO-SIDED, BH-FDR across the
+        2 substrates on the primary statistic, alpha = 0.05.
+    - name: redundancy
+      type: dict
+      description: >
+        Per arm: rho_ari and rho_ce — Spearman rho(h1_total_area, ·) against
+        mean adjacent ARI and mean adjacent conditional entropy across the
+        null draws respectively. Both gates require abs(rho) < 0.95, and
+        both are required wherever a rejection is claimed for that arm
+        (spike values 0.36 / -0.37 on integration, expected to pass).
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Locked parameters" — Redundancy gates (per arm).
+    - name: decision
+      type: dict
+      description: >
+        Must contain verdict in {additive, partial-signal, redundant,
+        negative}, consistent with the locked decision rule recomputed from
+        the stored gate0, p_fdr, and redundancy values: additive requires
+        primary p_two (BH-FDR) <= 0.05 on BOTH substrates AND both
+        redundancy gates passing on both; partial-signal requires rejection
+        on exactly one substrate with gates passing there; redundant
+        requires a rejection with a failing redundancy gate wherever the
+        rejection occurs; negative requires no rejection after FDR.
+      derivation: >
+        vault/00-Meta/Discovery/mcbif-weighted-nerve-employment-dispatch-prereg-2026-07-10.md
+        — "Decision rule (locked)".
+
+binding:
+  test_file: "tests/discovery/test_mcbif_weighted_nerve_contract.py"
+  test_function: "test_weighted_nerve_rejects_invalid_payloads"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where:
+    (a) required top-level evidence is missing;
+    (b) schema_version differs from 'mcbif-weighted-nerve-employment/v1';
+    (c) params.tau differs from 2;
+    (d) params.B differs from 1000;
+    (e) params.seed differs from 42 or has the wrong type;
+    (f) params.W differs from 13;
+    (g) params.test differs from 'two-sided';
+    (h) a null_distribution p_lower, p_upper, or p_two value falls outside
+    [1/(B+1), 1];
+    (i) a stored p_two is not recomputable as
+    min(1, 2*min(p_lower, p_upper)) from the stored tails;
+    (j) the primary statistic's p_fdr is not recomputable from the stored
+    per-substrate p_two pair via BH-FDR at alpha=0.05;
+    (k) decision.verdict is outside additive, partial-signal, redundant, or
+    negative;
+    (l) decision.verdict is inconsistent with the locked decision rule
+    recomputed from the stored gate0, p_fdr, and redundancy values;
+    (m) substrate_sha256 is missing the integration or bhps entry, or
+    either differs from its locked digest;
+    (n) a redundancy rho_ari or rho_ce value has abs(rho) >= 0.95 for an
+    arm whose decision.verdict claims a rejection there;
+    (o) gate0's complete adjacent bipartite fraction is >= 0.9 or observed
+    h1_total_area is <= 0 for an arm not marked infeasible;
+    (p) a contract-pinned value is supplied as the wrong type.
