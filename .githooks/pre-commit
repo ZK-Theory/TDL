@@ -14,6 +14,8 @@
 # worktree.
 #
 # Gates, in order — the first failure blocks the commit:
+#   0. Dual-tree skill sync: .agents/skills/ (authoring source) and .claude/skills/
+#      must stay mirrored, or a research-assurance skill is invisible to one runtime.
 #   1. ruff lint + format, via the pre-commit framework (.pre-commit-config.yaml).
 #   2. The math-correctness contract validator: meta-schema validation of every
 #      contract, binding test_file existence + function presence (AST-checked),
@@ -31,6 +33,37 @@ if [ -z "$REPO_ROOT" ]; then
   exit 2
 fi
 
+# Interpreter resolution, needed by gates 0 and 2 alike.
+#
+# A linked worktree has its own (often bare) venv: `uv run` there either attempts a
+# re-sync mid-commit — which can hit a Windows file lock — or, with --no-sync, runs
+# against an environment missing jsonschema and fails the gate spuriously. Either way
+# every Worker commit in a worktree would be blocked by plumbing rather than by a real
+# breach.
+#
+# So: take the interpreter from the MAIN repository (git-common-dir's parent, which is
+# the main checkout even when we are inside a linked worktree) while still validating
+# THIS working tree's files — each checker resolves its own targets from
+# `git rev-parse --show-toplevel`.
+GIT_COMMON=$(git rev-parse --git-common-dir 2>/dev/null)
+if [ -n "$GIT_COMMON" ]; then
+  MAIN_ROOT=$(cd "$(dirname "$GIT_COMMON")" 2>/dev/null && pwd)
+fi
+[ -z "$MAIN_ROOT" ] && MAIN_ROOT="$REPO_ROOT"
+
+# Gate 0 — dual-tree skill sync. Fast filecmp; the message names the fix.
+#
+# This gate is documented in CONVENTIONS.md as "pre-commit Gate 0", but until now it
+# lived only in .claude/hooks/git-pre-commit.sh — a copy staged into .git/hooks, which
+# core.hooksPath makes git ignore. It had therefore never run: three files advertised a
+# gate that did not exist. Same silent-absence shape as the contract validator itself.
+if ! UV_NO_SYNC=1 uv run --project "$MAIN_ROOT" --no-sync python "$REPO_ROOT/tools/sync_agent_skills.py" --check; then
+  echo "" >&2
+  echo "pre-commit: skill trees diverged — commit blocked." >&2
+  echo "Fix: uv run python tools/sync_agent_skills.py" >&2
+  exit 1
+fi
+
 # Gate 1 — ruff via the pre-commit framework, when it is available.
 if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.yaml" ]; then
   if ! pre-commit run --config "$REPO_ROOT/.pre-commit-config.yaml"; then
@@ -41,23 +74,6 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.
 fi
 
 # Gate 2 — math-correctness contract validator.
-#
-# Environment resolution matters here. A linked worktree has its own (often bare)
-# venv: `uv run` there either attempts a re-sync mid-commit — which can hit a
-# Windows file lock — or, with --no-sync, runs against an environment missing
-# jsonschema and fails the gate spuriously. Either way every Worker commit in a
-# worktree would be blocked by plumbing rather than by a real contract breach.
-#
-# So: take the interpreter from the MAIN repository (git-common-dir's parent,
-# which is the main checkout even when we are inside a linked worktree) while
-# still validating THIS working tree's files — the validator resolves its own
-# targets from `git rev-parse --show-toplevel`.
-GIT_COMMON=$(git rev-parse --git-common-dir 2>/dev/null)
-if [ -n "$GIT_COMMON" ]; then
-  MAIN_ROOT=$(cd "$(dirname "$GIT_COMMON")" 2>/dev/null && pwd)
-fi
-[ -z "$MAIN_ROOT" ] && MAIN_ROOT="$REPO_ROOT"
-
 if ! UV_NO_SYNC=1 uv run --project "$MAIN_ROOT" --no-sync python "$REPO_ROOT/.claude/hooks/contract_binding_check.py" "$@"; then
   echo "" >&2
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2

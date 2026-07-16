@@ -107,19 +107,12 @@ def build_fake_adapter_parity_evidence(
     variant_results = tuple(item for item in results if item.variant_id != "baseline")
     if len(variant_results) != 170:
         raise ValueError("exact 170 variant release results required")
-    row_selectors = {
-        (item.fixture_id, item.fixture_revision, item.variant_id) for item in matrix_rows
-    }
-    if any(
-        (item.fixture_id, item.fixture_revision, item.variant_id) not in row_selectors
-        for item in variant_results
-    ):
+    row_selectors = {(item.fixture_id, item.fixture_revision, item.variant_id) for item in matrix_rows}
+    if any((item.fixture_id, item.fixture_revision, item.variant_id) not in row_selectors for item in variant_results):
         raise ValueError("unrelated variant release result")
     by_selector: dict[tuple[str, str, str], list[GraderResult]] = {}
     for result in variant_results:
-        by_selector.setdefault(
-            (result.fixture_id, result.fixture_revision, result.variant_id), []
-        ).append(result)
+        by_selector.setdefault((result.fixture_id, result.fixture_revision, result.variant_id), []).append(result)
     for execution in executions:
         selector = (
             execution.matrix_row.fixture_id,
@@ -129,21 +122,18 @@ def build_fake_adapter_parity_evidence(
         bound_results = tuple(sorted(by_selector.get(selector, ()), key=lambda item: item.result_key))
         expected_keys = tuple(item.result_key for item in bound_results)
         expected_bindings = tuple(_grader_binding(item) for item in bound_results)
-        if (
-            execution.grader_result_keys != expected_keys
-            or execution.grader_result_bindings != expected_bindings
-        ):
+        if execution.grader_result_keys != expected_keys or execution.grader_result_bindings != expected_bindings:
             raise ValueError("execution grader result binding mismatch")
-        assertion_keys = tuple(
-            (item.property, item.json_pointer) for item in execution.observed_assertions
-        )
+        observed_verdicts = {item.verdict for item in bound_results}
+        if (not execution.oracle_match and observed_verdicts != {"fixture_error"}) or (
+            execution.oracle_match and "fixture_error" in observed_verdicts
+        ):
+            raise ValueError("execution oracle verdict binding mismatch")
+        assertion_keys = tuple((item.property, item.json_pointer) for item in execution.observed_assertions)
         if not assertion_keys or len(set(assertion_keys)) != len(assertion_keys):
             raise ValueError("missing or duplicate observed assertion evidence")
 
-    by_variant = {
-        (item.matrix_row.fixture_id, item.matrix_row.variant_id): item
-        for item in executions
-    }
+    by_variant = {(item.matrix_row.fixture_id, item.matrix_row.variant_id): item for item in executions}
     records = []
     for control in applicability.controls:
         for requirement in control.provider_requirements:
@@ -158,17 +148,14 @@ def build_fake_adapter_parity_evidence(
             matches = [
                 item
                 for item in execution.observed_assertions
-                if item.property == requirement.property
-                and item.json_pointer == requirement.json_pointer
+                if item.property == requirement.property and item.json_pointer == requirement.json_pointer
             ]
             if len(matches) != 1:
                 raise ValueError("missing or duplicate observed assertion evidence")
             observed = matches[0]
             if (
-                observed.first_observed_value_hash
-                != requirement.expected_observed_value_hash
-                or observed.second_observed_value_hash
-                != requirement.expected_observed_value_hash
+                observed.first_observed_value_hash != requirement.expected_observed_value_hash
+                or observed.second_observed_value_hash != requirement.expected_observed_value_hash
             ):
                 raise ValueError("observed assertion differs from owner comparator")
             operations = (

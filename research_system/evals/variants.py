@@ -150,6 +150,13 @@ class VariantExecutionEvidence:
     first_normalized_decision_hash: str
     second_normalized_decision_hash: str
     decisions_equal: bool
+    expected_evidence: dict
+    first_observed_evidence: dict
+    second_observed_evidence: dict
+    expected_evidence_hash: str
+    first_observed_evidence_hash: str
+    second_observed_evidence_hash: str
+    oracle_match: bool
     grader_result_keys: tuple[tuple[str, str, str, str, str, str], ...]
     grader_result_bindings: tuple[tuple[object, ...], ...]
     observed_assertions: tuple[ObservedAssertionEvidence, ...]
@@ -158,6 +165,46 @@ class VariantExecutionEvidence:
     def __post_init__(self) -> None:
         if not self.decisions_equal or self.first_normalized_decision_hash != self.second_normalized_decision_hash:
             raise ValueError("variant repeat mismatch")
+        hashes = (
+            self.expected_evidence_hash,
+            self.first_observed_evidence_hash,
+            self.second_observed_evidence_hash,
+        )
+        if not isinstance(self.oracle_match, bool) or any(
+            not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value)
+            for value in (*hashes,)
+        ):
+            raise ValueError("variant oracle evidence mismatch")
+        observed_repeat = hashes[1] == hashes[2]
+        if not observed_repeat or self.oracle_match != (hashes[0] == hashes[1]):
+            raise ValueError("variant oracle evidence mismatch")
+        if not all(
+            isinstance(value, dict)
+            for value in (
+                self.expected_evidence,
+                self.first_observed_evidence,
+                self.second_observed_evidence,
+            )
+        ):
+            raise ValueError("variant oracle evidence binding mismatch")
+        if (
+            self.expected_evidence_hash != sha256_hex(canonical_bytes(self.expected_evidence))
+            or self.first_observed_evidence_hash != sha256_hex(canonical_bytes(self.first_observed_evidence))
+            or self.second_observed_evidence_hash != sha256_hex(canonical_bytes(self.second_observed_evidence))
+            or self.oracle_match
+            != (
+                self.expected_evidence == self.first_observed_evidence
+                and self.expected_evidence == self.second_observed_evidence
+            )
+        ):
+            raise ValueError("variant oracle evidence binding mismatch")
+        properties = {item.property for item in self.observed_assertions}
+        if len(properties) != 1 or self.observed_assertions != build_observed_assertion_evidence(
+            properties.pop(),
+            self.first_observed_evidence,
+            self.second_observed_evidence,
+        ):
+            raise ValueError("variant oracle evidence binding mismatch")
         if (
             self.grader_result_bindings != tuple(sorted(self.grader_result_bindings))
             or any(len(item) != 6 for item in self.grader_result_bindings)
@@ -169,10 +216,15 @@ class VariantExecutionEvidence:
             "matrix_tuple": list(self.matrix_row.matrix_tuple),
             "first_hash": self.first_normalized_decision_hash,
             "second_hash": self.second_normalized_decision_hash,
+            "expected_evidence": self.expected_evidence,
+            "first_observed_evidence": self.first_observed_evidence,
+            "second_observed_evidence": self.second_observed_evidence,
+            "expected_evidence_hash": self.expected_evidence_hash,
+            "first_observed_evidence_hash": self.first_observed_evidence_hash,
+            "second_observed_evidence_hash": self.second_observed_evidence_hash,
+            "oracle_match": self.oracle_match,
             "grader_result_keys": [list(item) for item in self.grader_result_keys],
-            "grader_results": [
-                [list(item[0]), *item[1:]] for item in self.grader_result_bindings
-            ],
+            "grader_results": [[list(item[0]), *item[1:]] for item in self.grader_result_bindings],
             "observed_assertions": [
                 {
                     "property": item.property,
@@ -359,6 +411,7 @@ def execute_gate5_variant_rows_twice(
         stimulus = json.loads(stimulus_bytes)
         post = json.loads(post_bytes)
         property_name = str(post["assertions"][0]["property"])
+        expected_evidence = post["assertions"][0]["expected_evidence"]
         execute = require_executor(row.fixture_id)
         first_observed, first_receipt = _execute_through_fake_provider(
             row,
@@ -372,6 +425,12 @@ def execute_gate5_variant_rows_twice(
             execute,
             fake_transport_factory,
         )
+        if first_observed != second_observed:
+            raise ValueError("variant repeat mismatch")
+        expected_evidence_hash = sha256_hex(canonical_bytes(expected_evidence))
+        first_observed_evidence_hash = sha256_hex(canonical_bytes(first_observed))
+        second_observed_evidence_hash = sha256_hex(canonical_bytes(second_observed))
+        oracle_match = first_observed == expected_evidence and second_observed == expected_evidence
         assertions = build_observed_assertion_evidence(property_name, first_observed, second_observed)
         definition = yaml.safe_load(fixture_bytes.decode("utf-8"))
         row_results = []
@@ -383,12 +442,20 @@ def execute_gate5_variant_rows_twice(
                 grader["grader_version"],
             )
             template = templates[template_key]
+            verdict = (
+                "fixture_error"
+                if not oracle_match
+                else "unable_to_grade"
+                if grader["grader_class"] in coverage.unavailable_grader_classes
+                else "pass"
+            )
             row_results.append(
                 replace(
                     template,
                     grader_result_id=new_id("grader_result"),
                     evaluation_run_id=new_id("evaluation_run"),
                     variant_id=row.variant_id,
+                    verdict=verdict,
                     evidence_refs=(f"variant:{row.variant_id}",),
                 )
             )
@@ -438,10 +505,15 @@ def execute_gate5_variant_rows_twice(
             "matrix_tuple": list(row.matrix_tuple),
             "first_hash": first_hash,
             "second_hash": second_hash,
+            "expected_evidence": expected_evidence,
+            "first_observed_evidence": first_observed,
+            "second_observed_evidence": second_observed,
+            "expected_evidence_hash": expected_evidence_hash,
+            "first_observed_evidence_hash": first_observed_evidence_hash,
+            "second_observed_evidence_hash": second_observed_evidence_hash,
+            "oracle_match": oracle_match,
             "grader_result_keys": [list(item) for item in keys],
-            "grader_results": [
-                [list(item[0]), *item[1:]] for item in grader_bindings
-            ],
+            "grader_results": [[list(item[0]), *item[1:]] for item in grader_bindings],
             "observed_assertions": [
                 {
                     "property": item.property,
@@ -457,14 +529,21 @@ def execute_gate5_variant_rows_twice(
         evidence_hash = sha256_hex(canonical_bytes(hash_payload))
         evidences.append(
             VariantExecutionEvidence(
-                row,
-                first_hash,
-                second_hash,
-                True,
-                keys,
-                grader_bindings,
-                assertions,
-                evidence_hash,
+                matrix_row=row,
+                first_normalized_decision_hash=first_hash,
+                second_normalized_decision_hash=second_hash,
+                decisions_equal=True,
+                expected_evidence=expected_evidence,
+                first_observed_evidence=first_observed,
+                second_observed_evidence=second_observed,
+                expected_evidence_hash=expected_evidence_hash,
+                first_observed_evidence_hash=first_observed_evidence_hash,
+                second_observed_evidence_hash=second_observed_evidence_hash,
+                oracle_match=oracle_match,
+                grader_result_keys=keys,
+                grader_result_bindings=grader_bindings,
+                observed_assertions=assertions,
+                execution_evidence_hash=evidence_hash,
             )
         )
         variant_results.extend(row_results)

@@ -58,6 +58,8 @@ class EvaluationEvidence:
     coverage: P0Coverage
     bindings: ReleaseBindings
     results: tuple[GraderResult, ...]
+    fixture_root: Path | None = None
+    schema_root: Path | None = None
     variant_executions: tuple[VariantExecutionEvidence, ...] = ()
     variant_rows: tuple[Gate5VariantRow, ...] = ()
     canonical_policy_bundle: CanonicalPolicyBundle | None = None
@@ -66,6 +68,10 @@ class EvaluationEvidence:
     parity_evidence: tuple[FakeAdapterParityEvidence, ...] = ()
 
     def __post_init__(self) -> None:
+        if (self.fixture_root is None) != (self.schema_root is None) or any(
+            value is not None and not isinstance(value, Path) for value in (self.fixture_root, self.schema_root)
+        ):
+            raise TypeError("typed fixture and schema roots required together")
         if not all(isinstance(item, VariantExecutionEvidence) for item in self.variant_executions):
             raise TypeError("typed VariantExecutionEvidence required")
         if not all(isinstance(item, Gate5VariantRow) for item in self.variant_rows):
@@ -228,6 +234,7 @@ def run_p0_coverage(
         schema_root=schema_root,
     )
     root = Path(fixture_root)
+    schemas = Path(schema_root)
     threshold_policies = load_threshold_policies(root.parent / "threshold-policies.yaml")
     require_calibration_policy(root.parent / "p0-calibration-policy.yaml")
     maps = {name: {} for name in ("subject", "trace", "oracle", "policy", "threshold", "independence", "criticality")}
@@ -423,6 +430,8 @@ def run_p0_coverage(
         coverage=coverage,
         bindings=bindings,
         results=result_tuple,
+        fixture_root=root,
+        schema_root=schemas,
         variant_executions=variant_executions,
         variant_rows=rows,
         canonical_policy_bundle=bundle,

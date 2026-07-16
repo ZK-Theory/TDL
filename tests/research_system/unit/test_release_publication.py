@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError, asdict, fields
 from datetime import UTC, datetime
 from functools import lru_cache
 import inspect
+import json
 from pathlib import Path
 import shutil
 import threading
@@ -45,6 +46,7 @@ from research_system.evals.release_snapshot import (
     build_release_snapshot_documents,
     rederive_release_from_snapshot,
 )
+from research_system.evals.variants import Gate5VariantRow, build_observed_assertion_evidence
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.ledger import (
@@ -100,6 +102,42 @@ def producer_snapshot() -> tuple[dict, dict, dict]:
         store_identity="4" * 64,
     )
     return source, manifest, control
+
+
+def _forge_correlated_f007_snapshot_oracle(manifest: dict) -> None:
+    execution = next(item for item in manifest["variant_executions"] if item["matrix_row"]["fixture_id"] == "F-007")
+    forged_evidence = {"forged": "observation"}
+    forged_hash = sha256_hex(canonical_bytes(forged_evidence))
+    property_name = execution["observed_assertions"][0]["property"]
+    forged_assertions = [
+        asdict(item) for item in build_observed_assertion_evidence(property_name, forged_evidence, forged_evidence)
+    ]
+    execution.update(
+        expected_evidence=forged_evidence,
+        first_observed_evidence=forged_evidence,
+        second_observed_evidence=forged_evidence,
+        expected_evidence_hash=forged_hash,
+        first_observed_evidence_hash=forged_hash,
+        second_observed_evidence_hash=forged_hash,
+        oracle_match=True,
+        observed_assertions=forged_assertions,
+    )
+    payload = {
+        "matrix_tuple": list(Gate5VariantRow(**execution["matrix_row"]).matrix_tuple),
+        "first_hash": execution["first_normalized_decision_hash"],
+        "second_hash": execution["second_normalized_decision_hash"],
+        "expected_evidence": forged_evidence,
+        "first_observed_evidence": forged_evidence,
+        "second_observed_evidence": forged_evidence,
+        "expected_evidence_hash": forged_hash,
+        "first_observed_evidence_hash": forged_hash,
+        "second_observed_evidence_hash": forged_hash,
+        "oracle_match": True,
+        "grader_result_keys": execution["grader_result_keys"],
+        "grader_results": execution["grader_result_bindings"],
+        "observed_assertions": forged_assertions,
+    }
+    execution["execution_evidence_hash"] = sha256_hex(canonical_bytes(payload))
 
 
 def publication_request() -> dict:
@@ -351,6 +389,56 @@ def test_full_canonical_evidence_is_rederived_and_bound() -> None:
     assert payload["candidate_status"] == "blocked"
 
 
+def test_snapshot_builder_rejects_noncanonical_fixture_oracle_bytes(tmp_path) -> None:
+    eval_root = tmp_path / "evals"
+    shutil.copytree(ROOT / ".research-system" / "evals", eval_root)
+    fixture_root = eval_root / "fixtures"
+    package = fixture_root / "F-007"
+    post_path = package / "expected" / "post-control.json"
+    post = json.loads(post_path.read_bytes())
+    canonical_post = canonical_bytes(post) + b"\n"
+    noncanonical_post = json.dumps(post, indent=2, sort_keys=True).encode() + b"\n"
+    assert post_path.read_bytes() == canonical_post
+    assert noncanonical_post != canonical_post
+
+    old_post_hash = sha256_hex(canonical_post)
+    new_post_hash = sha256_hex(noncanonical_post)
+    post_path.write_bytes(noncanonical_post)
+    source_path = package / "input" / "source-manifest.json"
+    old_source_hash = sha256_hex(source_path.read_bytes())
+    source = json.loads(source_path.read_bytes())
+    source["content_hashes"]["expected/post-control.json"] = new_post_hash
+    source_path.write_bytes(canonical_bytes(source) + b"\n")
+    fixture_path = package / "fixture.yaml"
+    fixture = fixture_path.read_text(encoding="utf-8")
+    fixture = fixture.replace(old_source_hash, sha256_hex(source_path.read_bytes()))
+    fixture = fixture.replace(old_post_hash, new_post_hash)
+    fixture_path.write_bytes(fixture.encode())
+
+    coverage_path = eval_root / "p0-coverage.yaml"
+    evidence = run_p0_coverage(
+        coverage_path,
+        fixture_root=fixture_root,
+        schema_root=ROOT / ".research-system" / "schemas",
+        policy_root=ROOT / ".research-system" / "policies",
+    )
+    scenarios = run_all_scenarios()
+    record, _ = build_release_decision(
+        evidence,
+        scenarios,
+        decided_at="2026-07-13T12:00:00Z",
+        release_gate_decision_id=DECISION_ID,
+    )
+    with pytest.raises(ValueError, match="fixture oracle authority must use canonical JSON"):
+        build_release_snapshot_documents(
+            evidence,
+            scenarios,
+            decision_document(record),
+            project_id=PROJECT_ID,
+            store_identity="4" * 64,
+        )
+
+
 def test_snapshot_round_trips_every_grader_result_field_exactly() -> None:
     evidence, _scenarios = producer_inputs()
     _source, manifest, _control = producer_snapshot()
@@ -407,25 +495,19 @@ def test_release_evidence_schema_rejects_unknown_nested_fields(
     elif producer_boundary == "variant_execution":
         manifest["variant_executions"][0]["matrix_row"]["unexpected"] = True
     elif producer_boundary == "variant_binding":
-        manifest["variant_executions"][0]["grader_result_bindings"][0].append(
-            "unexpected"
-        )
+        manifest["variant_executions"][0]["grader_result_bindings"][0].append("unexpected")
     elif producer_boundary == "observed_assertion":
-        manifest["variant_executions"][0]["observed_assertions"][0][
-            "unexpected"
-        ] = True
+        manifest["variant_executions"][0]["observed_assertions"][0]["unexpected"] = True
     elif producer_boundary == "canonical_bundle":
         manifest["canonical_policy_bundle"]["unexpected"] = True
     elif producer_boundary == "applicability_requirement":
         manifest["policy_applicability"]["controls"][0]["provider_requirements"][0]["unexpected"] = True
     elif producer_boundary == "applicability_decision":
-        manifest["policy_applicability"]["source"]["decision_payload"][
-            "unexpected"
-        ] = True
+        manifest["policy_applicability"]["source"]["decision_payload"]["unexpected"] = True
     elif producer_boundary == "applicability_operation":
-        operations = manifest["policy_applicability"]["source"]["controls"][0][
-            "provider_requirements"
-        ][0]["canonical_observed_value"]["operations"]
+        operations = manifest["policy_applicability"]["source"]["controls"][0]["provider_requirements"][0][
+            "canonical_observed_value"
+        ]["operations"]
         next(iter(operations.values()))["unexpected"] = True
     elif producer_boundary == "parity_evidence":
         manifest["parity_evidence"][0]["unexpected"] = True
@@ -510,6 +592,15 @@ def test_semantic_rederivation_mismatch_fails_closed() -> None:
         )
 
 
+def test_stored_snapshot_rejects_correlated_f007_expected_and_observed_forgery() -> None:
+    _source, stored_manifest, stored_control = producer_snapshot()
+    manifest = deepcopy(stored_manifest)
+    _forge_correlated_f007_snapshot_oracle(manifest)
+
+    with pytest.raises(ValueError, match="fixture oracle authority mismatch"):
+        rederive_release_from_snapshot(manifest, deepcopy(stored_control))
+
+
 @pytest.mark.parametrize(
     "producer_seam",
     [
@@ -520,6 +611,7 @@ def test_semantic_rederivation_mismatch_fails_closed() -> None:
         "parity_report",
         "applicability",
         "scenario",
+        "fixture_oracle_authority",
         "control_version",
     ],
 )
@@ -543,6 +635,10 @@ def test_stored_snapshot_rejects_one_at_a_time_document_tamper(
         manifest["policy_applicability"]["applicability_hash"] = "0" * 64
     elif producer_seam == "scenario":
         manifest["operations_scenarios"][0]["event_types"][0] = "Tampered"
+    elif producer_seam == "fixture_oracle_authority":
+        control["fixture_oracle_authorities"][0]["post_control_oracle"]["assertions"][0]["expected_evidence"] = {
+            "tampered": True
+        }
     else:
         control["derivation_contract_version"] = "changed"
     resolver = BoundReleasePublicationEvidence(
@@ -855,8 +951,7 @@ def test_command_service_submit_preserves_public_signature_and_guard_metadata(
     implementation = next(
         cell.cell_contents
         for cell in public.__closure__ or ()
-        if inspect.isfunction(cell.cell_contents)
-        and cell.cell_contents.__name__ == "submit"
+        if inspect.isfunction(cell.cell_contents) and cell.cell_contents.__name__ == "submit"
     )
     assert inspect.signature(implementation).parameters["release_append"].default is None
     harness = control_plane(tmp_path)
