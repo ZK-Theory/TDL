@@ -25,6 +25,7 @@ B_EXPECTED = 1000
 SEED_EXPECTED = 42
 W_EXPECTED = 13
 TEST_EXPECTED = "two-sided"
+PER_DRAW_EXPECTED = "42+b for b in 0..999"
 ALPHA = 0.05
 REDUNDANCY_GATE = 0.95
 VERDICTS = {"additive", "partial-signal", "redundant", "negative"}
@@ -149,6 +150,14 @@ def validate_mcbif_weighted_nerve_result(payload: dict[str, Any]) -> None:
     _require_exact_type(params.get("test"), str, "params.test")
     if params["test"] != TEST_EXPECTED:
         raise ValueError(f"params.test must equal {TEST_EXPECTED!r}")
+    # The per-draw seed schedule declaration must match the pre-registered
+    # default_rng(42+b).permutation(13) schedule exactly. The declaration is
+    # enforced here; the schedule itself is enforced against the canonical
+    # generator by tests/discovery/test_mcbif_weighted_nerve_battery.py::
+    # test_null_orderings_are_the_preregistered_draws.
+    _require_exact_type(params.get("per_draw_seeds"), str, "params.per_draw_seeds")
+    if params["per_draw_seeds"] != PER_DRAW_EXPECTED:
+        raise ValueError(f"params.per_draw_seeds must equal the pre-registered {PER_DRAW_EXPECTED!r}")
 
     # (o) gate0 per arm
     gate0 = payload["gate0"]
@@ -164,11 +173,15 @@ def validate_mcbif_weighted_nerve_result(payload: dict[str, Any]) -> None:
         _require_exact_type(rec["infeasible"], bool, f"gate0[{arm!r}].infeasible")
         _require_finite_number(rec["complete_adjacent_fraction"], f"gate0[{arm!r}].complete_adjacent_fraction")
         _require_finite_number(rec["observed_h1_total_area"], f"gate0[{arm!r}].observed_h1_total_area")
-        if not rec["infeasible"]:
-            if float(rec["complete_adjacent_fraction"]) >= 0.9:
-                raise ValueError(f"gate0[{arm!r}] complete_adjacent_fraction >= 0.9 for an arm not marked infeasible")
-            if float(rec["observed_h1_total_area"]) <= 0:
-                raise ValueError(f"gate0[{arm!r}] observed h1_total_area <= 0 for an arm not marked infeasible")
+        if rec["infeasible"]:
+            # A Gate-0 failing arm is INFEASIBLE per the pre-reg: it escalates,
+            # and the v1 verdict vocabulary has no escalation state — so an
+            # assembled payload carrying an infeasible arm is invalid outright.
+            raise ValueError(f"gate0[{arm!r}] is Gate-0 infeasible — BLOCKED arms escalate; no assembled verdict")
+        if float(rec["complete_adjacent_fraction"]) >= 0.9:
+            raise ValueError(f"gate0[{arm!r}] complete_adjacent_fraction >= 0.9 for an arm not marked infeasible")
+        if float(rec["observed_h1_total_area"]) <= 0:
+            raise ValueError(f"gate0[{arm!r}] observed h1_total_area <= 0 for an arm not marked infeasible")
 
     # observed: all four pre-registered H1 statistics per arm
     observed = payload["observed"]
@@ -277,7 +290,14 @@ def _valid_payload() -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "substrate_sha256": dict(LOCKED_SHA),
-        "params": {"tau": 2, "B": 1000, "seed": 42, "W": 13, "test": "two-sided"},
+        "params": {
+            "tau": 2,
+            "B": 1000,
+            "seed": 42,
+            "W": 13,
+            "test": "two-sided",
+            "per_draw_seeds": PER_DRAW_EXPECTED,
+        },
         "gate0": {
             "integration": {
                 "complete_adjacent_fraction": 0.3333333333333333,
@@ -394,6 +414,20 @@ def test_weighted_nerve_rejects_invalid_payloads() -> None:
     with pytest.raises(ValueError, match="params.test must equal"):
         validate_mcbif_weighted_nerve_result(payload)
 
+    # per-draw seed schedule missing, or altered from the pre-registered one
+    payload = _valid_payload()
+    del payload["params"]["per_draw_seeds"]
+    with pytest.raises(ValueError, match="params.per_draw_seeds must have type str"):
+        validate_mcbif_weighted_nerve_result(payload)
+    payload = _valid_payload()
+    payload["params"]["per_draw_seeds"] = "43+b for b in 0..999"
+    with pytest.raises(ValueError, match="params.per_draw_seeds must equal"):
+        validate_mcbif_weighted_nerve_result(payload)
+    payload = _valid_payload()
+    payload["params"]["per_draw_seeds"] = "42+b for b in 0..98"
+    with pytest.raises(ValueError, match="params.per_draw_seeds must equal"):
+        validate_mcbif_weighted_nerve_result(payload)
+
     # (h) a p value outside [1/(B+1), 1]
     for key, bad in (("p_upper", 0.0), ("p_lower", 1.5), ("p_two", 1e-9)):
         payload = _valid_payload()
@@ -461,6 +495,13 @@ def test_weighted_nerve_rejects_invalid_payloads() -> None:
     payload = _valid_payload()
     payload["gate0"]["bhps"]["observed_h1_total_area"] = 0.0
     with pytest.raises(ValueError, match="h1_total_area <= 0"):
+        validate_mcbif_weighted_nerve_result(payload)
+
+    # ... and a Gate-0 infeasible arm invalidates the assembled payload outright:
+    # BLOCKED arms escalate per the pre-reg; no verdict vocabulary covers them.
+    payload = _valid_payload()
+    payload["gate0"]["bhps"]["infeasible"] = True
+    with pytest.raises(ValueError, match="BLOCKED arms escalate"):
         validate_mcbif_weighted_nerve_result(payload)
 
     # (p) a contract-pinned value supplied as the wrong type

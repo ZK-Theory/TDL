@@ -33,6 +33,7 @@ import argparse
 import ctypes
 import hashlib
 import json
+import os
 import statistics as pystats
 import subprocess
 import sys
@@ -53,7 +54,11 @@ from trajectory_tda.topology.f2_betti import _rank_f2_int_rows
 from trajectory_tda.topology.mcbif_nerve import hf_statistics, masks_from_partitions, nerve_cell_skeleton
 
 WORKTREE = Path(__file__).resolve().parents[2]
-PROJ_ROOT = Path(r"C:\Users\steph\TDL")
+# Two-path rule (.claude/rules/apm-outputs.md): PROJ_ROOT holds the gitignored
+# intermediates shared across tasks. Overridable via TDL_PROJ_ROOT for
+# non-default machines; the substrate sha256 pins below remain the provenance
+# guarantee wherever the root points.
+PROJ_ROOT = Path(os.environ.get("TDL_PROJ_ROOT", r"C:\Users\steph\TDL"))
 CHECKPOINT_DIR = PROJ_ROOT / "results" / "trajectory_tda_mcbif" / "checkpoints"
 RESULT_DIR = WORKTREE / "results" / "trajectory_tda_mcbif"
 
@@ -403,14 +408,26 @@ def decide_verdict(arms: dict[str, dict[str, Any]]) -> dict[str, Any]:
     both |rho| < 0.95. "Effective" rejection = rejection AND gates passing there.
     ADDITIVE: effective on both. NEGATIVE: no rejection anywhere. REDUNDANT:
     rejections exist but none survive its arm's gates ("a redundancy gate fails
-    wherever rejection occurs"). PARTIAL-SIGNAL: exactly one effective rejection.
+    wherever rejection occurs"). PARTIAL-SIGNAL: exactly one effective rejection
+    — including the mixed cell where both arms reject but gates pass on exactly
+    one (one effective rejection). A Gate-0 infeasible arm has no defined
+    verdict: per the pre-registration a failing arm ESCALATES, so this function
+    refuses to rule on it rather than improvising an outcome.
 
     Args:
-        arms: Per-arm dict with ``p_fdr``, ``rho_ari``, ``rho_ce``.
+        arms: Per-arm dict with ``p_fdr``, ``rho_ari``, ``rho_ce`` and
+            optionally ``infeasible`` (Gate-0 state).
 
     Returns:
         ``{"verdict": ..., "per_arm": {...}, "rationale": ...}``.
+
+    Raises:
+        ValueError: If any arm is Gate-0 infeasible.
     """
+    blocked = [arm for arm, rec in arms.items() if rec.get("infeasible")]
+    if blocked:
+        msg = f"arm(s) {blocked} are Gate-0 infeasible — BLOCKED arms escalate; no verdict is defined"
+        raise ValueError(msg)
     per_arm: dict[str, dict[str, Any]] = {}
     for arm, rec in arms.items():
         rejected = float(rec["p_fdr"]) <= ALPHA
@@ -472,20 +489,71 @@ def _git_commit() -> str:
         return "unknown"
 
 
+CKPT_SCHEMA = "mcbif-weighted-nerve-ckpt/v1"
+# Design fields a loaded checkpoint must match exactly before its contents may
+# be merged into the current run. git_commit is recorded but deliberately NOT
+# in this list: battery stages legitimately run before the producing script is
+# committed, so revision equality would fail every normal run — the locked
+# design parameters plus the substrate digest are the actual invariants.
+_CKPT_ENFORCED_FIELDS = ("ckpt_schema", "arm", "substrate_sha256", "tau", "B", "seed", "per_draw_seeds", "W")
+
+
+def _ckpt_provenance(arm: str) -> dict[str, Any]:
+    """Provenance envelope binding a checkpoint to this run's locked design."""
+    return {
+        "ckpt_schema": CKPT_SCHEMA,
+        "arm": arm,
+        "substrate_sha256": SUBSTRATES[arm]["sha256"],
+        "tau": TAU,
+        "B": B,
+        "seed": SEED,
+        "per_draw_seeds": "42+b for b in 0..999",
+        "W": W,
+        "git_commit": _git_commit(),
+        "written_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _ckpt_path(arm: str, kind: str) -> Path:
     return CHECKPOINT_DIR / f"{arm}_tau{TAU}_{kind}.json"
 
 
-def _load_ckpt(arm: str, kind: str) -> dict[str, Any] | None:
+def _load_ckpt(arm: str, kind: str, with_provenance: bool = False) -> Any:
+    """Load a checkpoint, failing closed unless its provenance matches this run.
+
+    Args:
+        arm: Substrate arm the checkpoint belongs to.
+        kind: Checkpoint kind (``gate0``, ``cache``, ``nulls``).
+        with_provenance: When true, return ``(payload, provenance)``.
+
+    Returns:
+        The checkpoint payload (or ``(payload, provenance)``), or ``None`` if
+        the checkpoint does not exist.
+
+    Raises:
+        SystemExit: On a missing provenance envelope or any mismatch of the
+            enforced design fields — stale or foreign checkpoints must never
+            be merged into the current run.
+    """
     path = _ckpt_path(arm, kind)
-    if path.exists():
-        return json.loads(path.read_text())
-    return None
+    if not path.exists():
+        return None
+    envelope = json.loads(path.read_text())
+    prov = envelope.get("provenance") if isinstance(envelope, dict) else None
+    if prov is None or "payload" not in envelope:
+        sys.exit(f"FATAL {arm}: checkpoint {path} lacks a provenance envelope — delete or regenerate it")
+    expected = _ckpt_provenance(arm)
+    mismatched = [k for k in _CKPT_ENFORCED_FIELDS if prov.get(k) != expected[k]]
+    if mismatched:
+        sys.exit(f"FATAL {arm}: checkpoint {path} provenance mismatch on {mismatched} — refusing stale data")
+    if with_provenance:
+        return envelope["payload"], prov
+    return envelope["payload"]
 
 
 def _save_ckpt(arm: str, kind: str, payload: dict[str, Any]) -> None:
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
-    _ckpt_path(arm, kind).write_text(json.dumps(payload))
+    _ckpt_path(arm, kind).write_text(json.dumps({"provenance": _ckpt_provenance(arm), "payload": payload}))
 
 
 def run_gate0(arm: str) -> dict[str, Any]:
@@ -738,9 +806,10 @@ def assemble(out_path: Path | None = None) -> Path:
     meta: dict[str, Any] = {}
 
     for arm in arms:
-        g = _load_ckpt(arm, "gate0")
-        if g is None:
+        loaded = _load_ckpt(arm, "gate0", with_provenance=True)
+        if loaded is None:
             sys.exit(f"FATAL: no gate0 checkpoint for {arm}")
+        g, g_prov = loaded
         gate0[arm] = {
             "complete_adjacent_fraction": g["complete_adjacent_fraction"],
             "observed_h1_total_area": g["observed_statistics"][PRIMARY],
@@ -751,9 +820,10 @@ def assemble(out_path: Path | None = None) -> Path:
             gate0[arm]["spike_reproduction"] = g["spike_reproduction"]
         observed[arm] = {k: g["observed_statistics"][k] for k in STAT_NAMES}
 
-        n = _load_ckpt(arm, "nulls")
-        if n is None:
+        loaded = _load_ckpt(arm, "nulls", with_provenance=True)
+        if loaded is None:
             sys.exit(f"FATAL: no nulls checkpoint for {arm} (a BLOCKED arm needs a User decision, not assembly)")
+        n, n_prov = loaded
         obs_row, null_rows = n["rows"][0], n["rows"][1:]
         if len(null_rows) != B:
             sys.exit(f"FATAL {arm}: {len(null_rows)} null rows != B={B}")
@@ -789,6 +859,12 @@ def assemble(out_path: Path | None = None) -> Path:
             "wall_seconds": n["wall_seconds"],
             "peak_rss_gib_parent": n["peak_rss_gib_parent"],
             "workers": n["workers"],
+            # The validated checkpoint envelopes' own provenance — the compute's
+            # revision/timestamps, not the assembling commit's.
+            "checkpoint_provenance": {
+                "gate0": {k: g_prov[k] for k in ("git_commit", "written_utc")},
+                "nulls": {k: n_prov[k] for k in ("git_commit", "written_utc")},
+            },
         }
 
     fdr = bh_adjust([null_distribution[arm][PRIMARY]["p_two"] for arm in arms])
@@ -798,6 +874,7 @@ def assemble(out_path: Path | None = None) -> Path:
             "p_fdr": p_fdr,
             "rho_ari": redundancy[arm]["rho_ari"],
             "rho_ce": redundancy[arm]["rho_ce"],
+            "infeasible": gate0[arm]["infeasible"],
         }
     decision = decide_verdict(decision_inputs)
 
@@ -852,6 +929,8 @@ def main() -> None:
     args = ap.parse_args()
     if args.stage != "assemble" and args.workers < 5:
         sys.exit("FATAL: pre-reg requires >= 5 workers")
+    if args.stage != "assemble" and args.checkpoint_every <= 0:
+        sys.exit("FATAL: --checkpoint-every must be a positive subset count")
 
     arms = ["integration", "bhps"] if args.arm == "both" else [args.arm]
     if args.stage == "gate0":

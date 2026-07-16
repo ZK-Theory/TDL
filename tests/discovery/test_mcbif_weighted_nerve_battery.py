@@ -153,6 +153,11 @@ def test_decide_verdict_locked_rule() -> None:
     assert mixed["verdict"] == "partial-signal"
     assert mixed["per_arm"]["bhps"]["rejected"] and not mixed["per_arm"]["bhps"]["gates_pass"]
 
+    # A Gate-0 infeasible arm has no defined verdict: BLOCKED arms escalate.
+    blocked = {"integration": arm(0.002), "bhps": {**arm(0.01), "infeasible": True}}
+    with pytest.raises(ValueError, match="BLOCKED arms escalate"):
+        decide_verdict(blocked)
+
 
 def test_p_floor_respected_at_full_b() -> None:
     """At B=1000 no p can fall below 1/1001 (the permutation floor)."""
