@@ -181,6 +181,8 @@ def _fixture_oracle_authorities(
         if sha256_hex(post_bytes) != post_control_oracle_hash:
             raise ValueError("validated fixture oracle authority changed")
         post = json.loads(post_bytes)
+        if post_bytes != canonical_bytes(post) + b"\n":
+            raise ValueError("fixture oracle authority must use canonical JSON")
         assertions = post.get("assertions")
         if not isinstance(assertions, list) or len(assertions) != 1:
             raise ValueError("exact post-control oracle assertion required")

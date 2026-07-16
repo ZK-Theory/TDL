@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError, asdict, fields
 from datetime import UTC, datetime
 from functools import lru_cache
 import inspect
+import json
 from pathlib import Path
 import shutil
 import threading
@@ -386,6 +387,56 @@ def test_full_canonical_evidence_is_rederived_and_bound() -> None:
     assert payload["release_decision"]["decision"] == "blocked"
     assert payload["gate5_authorized"] is False
     assert payload["candidate_status"] == "blocked"
+
+
+def test_snapshot_builder_rejects_noncanonical_fixture_oracle_bytes(tmp_path) -> None:
+    eval_root = tmp_path / "evals"
+    shutil.copytree(ROOT / ".research-system" / "evals", eval_root)
+    fixture_root = eval_root / "fixtures"
+    package = fixture_root / "F-007"
+    post_path = package / "expected" / "post-control.json"
+    post = json.loads(post_path.read_bytes())
+    canonical_post = canonical_bytes(post) + b"\n"
+    noncanonical_post = json.dumps(post, indent=2, sort_keys=True).encode() + b"\n"
+    assert post_path.read_bytes() == canonical_post
+    assert noncanonical_post != canonical_post
+
+    old_post_hash = sha256_hex(canonical_post)
+    new_post_hash = sha256_hex(noncanonical_post)
+    post_path.write_bytes(noncanonical_post)
+    source_path = package / "input" / "source-manifest.json"
+    old_source_hash = sha256_hex(source_path.read_bytes())
+    source = json.loads(source_path.read_bytes())
+    source["content_hashes"]["expected/post-control.json"] = new_post_hash
+    source_path.write_bytes(canonical_bytes(source) + b"\n")
+    fixture_path = package / "fixture.yaml"
+    fixture = fixture_path.read_text(encoding="utf-8")
+    fixture = fixture.replace(old_source_hash, sha256_hex(source_path.read_bytes()))
+    fixture = fixture.replace(old_post_hash, new_post_hash)
+    fixture_path.write_bytes(fixture.encode())
+
+    coverage_path = eval_root / "p0-coverage.yaml"
+    evidence = run_p0_coverage(
+        coverage_path,
+        fixture_root=fixture_root,
+        schema_root=ROOT / ".research-system" / "schemas",
+        policy_root=ROOT / ".research-system" / "policies",
+    )
+    scenarios = run_all_scenarios()
+    record, _ = build_release_decision(
+        evidence,
+        scenarios,
+        decided_at="2026-07-13T12:00:00Z",
+        release_gate_decision_id=DECISION_ID,
+    )
+    with pytest.raises(ValueError, match="fixture oracle authority must use canonical JSON"):
+        build_release_snapshot_documents(
+            evidence,
+            scenarios,
+            decision_document(record),
+            project_id=PROJECT_ID,
+            store_identity="4" * 64,
+        )
 
 
 def test_snapshot_round_trips_every_grader_result_field_exactly() -> None:
