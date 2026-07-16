@@ -42,11 +42,16 @@ REQUIRED_HOOKS: dict[str, str | None] = {
 }
 
 
-def active_hooks_dir() -> Path:
+def active_hooks_dir() -> tuple[str, Path]:
     """Resolve the directory git ACTUALLY reads hooks from.
 
     A relative core.hooksPath is taken relative to the top level of the working
     tree, so it resolves correctly inside linked worktrees too.
+
+    Returns:
+        The configured core.hooksPath ('' when unset) and the resolved directory.
+        Both are returned together so callers never re-shell to git for the same
+        value.
     """
     try:
         configured = subprocess.run(
@@ -61,9 +66,9 @@ def active_hooks_dir() -> Path:
         sys.exit(2)
 
     if not configured:
-        return REPO_ROOT / ".git" / "hooks"
+        return configured, REPO_ROOT / ".git" / "hooks"
     path = Path(configured)
-    return path if path.is_absolute() else REPO_ROOT / path
+    return configured, path if path.is_absolute() else REPO_ROOT / path
 
 
 def make_executable(path: Path) -> None:
@@ -105,14 +110,7 @@ def executable_problem(path: Path, name: str) -> str | None:
 
 
 def verify(install: bool = False) -> int:
-    hooks_dir = active_hooks_dir()
-    configured = subprocess.run(
-        ["git", "config", "--get", "core.hooksPath"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.strip()
+    configured, hooks_dir = active_hooks_dir()
 
     print(f"core.hooksPath : {configured or '(unset)'}")
     print(f"active hooks   : {hooks_dir}")
@@ -120,6 +118,11 @@ def verify(install: bool = False) -> int:
     problems: list[str] = []
 
     if not hooks_dir.is_dir():
+        # Deliberately NOT created here, even under --install. .githooks/ is tracked,
+        # so a missing active hook directory means a broken checkout, not something an
+        # installer should quietly conjure into existence — creating it would turn the
+        # loudest possible symptom back into the silence this script exists to end.
+        # The copy path below creates parents only when it truly has a hook to write.
         problems.append(f"active hook directory does not exist: {hooks_dir}")
 
     for name, source_name in REQUIRED_HOOKS.items():
@@ -130,6 +133,7 @@ def verify(install: bool = False) -> int:
                 if not src.exists():
                     problems.append(f"{name}: MISSING and no source at {src}")
                     continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest)
                 make_executable(dest)
                 print(f"  [installed] {name} -> {dest}")

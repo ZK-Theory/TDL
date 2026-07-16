@@ -287,8 +287,8 @@ def test_mcbif_employment_contract_metadata() -> None:
     assert contract["id"] == "mcbif-employment-result"
     assert contract["kind"] == "schema"
     assert contract["pending"] is False
-    assert contract["binding"]["test_file"] == ("tests/discovery/test_mcbif_employment_contract.py")
-    assert contract["binding"]["test_function"] == ("test_mcbif_employment_result_contract_rejects_invalid_payloads")
+    assert contract["binding"]["test_file"] == "tests/discovery/test_mcbif_employment_contract.py"
+    assert contract["binding"]["test_function"] == "test_mcbif_employment_result_contract_rejects_invalid_payloads"
     required = {entry["name"] for entry in contract["schema_def"]["required_keys"]}
     assert {"embeddings_sha256", "sequences_sha256", "params", "decision"} <= required
 
