@@ -1,6 +1,6 @@
 id: w2-exact-diagonal-bound
 kind: invariant
-pending: true
+pending: false
 
 description: >
   Every exact Wasserstein-2 distance between two persistence diagrams is bounded

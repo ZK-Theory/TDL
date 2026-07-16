@@ -1,6 +1,6 @@
 id: w2-gap-closure-convention-gate
 kind: invariant
-pending: true
+pending: false
 
 description: >
   A reproduction or convention gate only has power if at least one side of its

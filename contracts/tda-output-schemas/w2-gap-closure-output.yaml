@@ -1,6 +1,6 @@
 id: w2-gap-closure-output
 kind: schema
-pending: true
+pending: false
 
 description: >
   Schema for the T1.38 W2 gap-closure results. A distance solver with a silent
