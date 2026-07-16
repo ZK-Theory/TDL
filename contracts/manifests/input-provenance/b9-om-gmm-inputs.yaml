@@ -28,9 +28,9 @@ coherence:
 inputs:
   - path: results/trajectory_tda_integration/05_analysis.json
     role: GMM k=7 labels (gmm_labels)
-    root: worktree           # committed file -> content sha256 is the git-stable signature
+    root: worktree           # committed file -> Git blob signature is checkout-invariant
     expected:
-      sha256: "82afc3b56b9b06c64dccd9ba2195a541c716d27a7a66358b2a351c689c03e948"
+      blob_sha: "90b7f36c887991ee57fd97df2e4b0d34cdefc254"
   - path: results/trajectory_tda_integration/01_trajectories_sequences.json
     role: OM input trajectory sequences (drives DHD -> ward -> fcluster k=7)
     root: proj_root          # gitignored intermediate -> lives at PROJ_ROOT

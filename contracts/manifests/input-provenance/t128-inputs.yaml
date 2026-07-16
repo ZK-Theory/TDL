@@ -36,14 +36,14 @@ coherence:
 inputs:
   - path: results/trajectory_tda_integration/embeddings.npy
     role: USoc §6.1 substrate — locked analytical-sample PCA-20 embeddings (27,280), subgroup row-subsets
-    root: worktree            # committed file -> content sha256 is the git-stable signature
+    root: worktree            # committed file -> Git blob signature is checkout-invariant
     expected:
-      sha256: "69b2ba55902565960e8009004d2c21332d3786e2af3e83edc4ac0a2d3a5f5540"
+      blob_sha: "6e93382df54754303ad0684f11182b3834105b98"
   - path: results/trajectory_tda_integration/01_trajectories.json
     role: USoc pidp ordering + birth_cohort (join key for membership; positional alignment to embeddings)
     root: worktree
     expected:
-      sha256: "d356874922685ac7052124b8a7897f6a52e5cde2a124a1ec4816bc30e6748c39"
+      blob_sha: "5fc06e8d196df3faa3121c0f6f901c57386b69e8"
   - path: results/trajectory_tda_bhps/embeddings.npy
     role: BHPS §6.1 substrate — locked analytical-sample PCA-20 embeddings (8,509), subgroup row-subsets
     root: proj_root           # gitignored intermediate -> lives only at PROJ_ROOT
@@ -53,4 +53,4 @@ inputs:
     role: BHPS pidp ordering + birth_cohort (join key for membership; positional alignment to embeddings)
     root: worktree
     expected:
-      sha256: "a872606a435478515daa8edd91ac58172c173d61c8a8c2e2f12e305dc1b07b47"
+      blob_sha: "93f3b036d1a3a09bde319c6555cd764e28809ac1"

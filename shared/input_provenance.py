@@ -26,11 +26,11 @@ on it, but the commit gate skips it until it is flipped to ``enforced: true``.
 
 **Two-root rule (git does not preserve mtimes).** A fresh worktree resets every
 tracked file's mtime to checkout time, so mtime/``vintage_date`` is meaningless
-for committed files; their git-stable signature is the content ``sha256``.
+for committed files; their checkout-invariant signature is the Git ``blob_sha``.
 Gitignored intermediates are not in worktrees at all — they live at ``PROJ_ROOT``
 (the main checkout) where their mtime reflects real regeneration time. Each
 input therefore declares ``root: worktree`` (default; checked under the running
-checkout, signed by sha256) or ``root: proj_root`` (checked under the main
+checkout, signed by ``blob_sha``) or ``root: proj_root`` (checked under the main
 checkout, where ``vintage_date`` against mtime is meaningful). Vintage-spread
 coherence is computed only across ``proj_root`` inputs for the same reason.
 """
@@ -59,6 +59,7 @@ class InputStatus:
     exists: bool
     disk_vintage: str | None
     disk_sha256: str | None
+    disk_blob_sha: str | None
     signature_ok: bool
     violations: list[str] = field(default_factory=list)
 
@@ -95,6 +96,42 @@ def _sha256(path: Path) -> str:
 def _disk_vintage(path: Path) -> str:
     ts = path.stat().st_mtime
     return _dt.date.fromtimestamp(ts).isoformat()
+
+
+def _git_blob_sha(repo_root: Path, path: Path) -> tuple[str | None, str | None]:
+    """Return the clean worktree blob hash and require that it is HEAD-tracked.
+
+    ``git hash-object`` applies the repository's clean filters, so it gives the
+    same object ID for LF and CRLF renderings of the same tracked text. Checking
+    both the current content and ``HEAD:<path>`` keeps the pin sensitive to an
+    uncommitted edit and rejects a manifest path that is not a committed input.
+    """
+    try:
+        rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return None, f"blob_sha requires a path inside the worktree: {path}"
+
+    try:
+        current = subprocess.run(
+            ["git", "hash-object", f"--path={rel}", "--", rel],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        head = subprocess.run(
+            ["git", "rev-parse", f"HEAD:{rel}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None, f"blob_sha could not resolve committed Git content: {rel}"
+
+    if current != head:
+        return current, f"blob_sha differs from HEAD: disk {current[:16]}.. != HEAD {head[:16]}.."
+    return current, None
 
 
 def resolve_proj_root(repo_root: Path) -> Path:
@@ -148,7 +185,7 @@ def check_manifest(manifest: dict[str, Any], repo_root: Path, proj_root: Path | 
     """Check one manifest's declared inputs against the files on disk.
 
     Each input declares ``root: worktree`` (default; resolved under ``repo_root``
-    and signed by ``sha256``) or ``root: proj_root`` (resolved under the main
+    and signed by ``blob_sha``) or ``root: proj_root`` (resolved under the main
     checkout, where ``vintage_date`` against mtime is meaningful). For each
     input: confirm it exists, that its on-disk ``sha256`` matches the recorded
     ``expected.sha256`` (when pinned), and — for ``proj_root`` inputs — that its
@@ -182,6 +219,7 @@ def check_manifest(manifest: dict[str, Any], repo_root: Path, proj_root: Path | 
         viols: list[str] = []
         disk_vintage: str | None = None
         disk_sha: str | None = None
+        disk_blob_sha: str | None = None
         signature_ok = True
 
         if not exists:
@@ -195,6 +233,20 @@ def check_manifest(manifest: dict[str, Any], repo_root: Path, proj_root: Path | 
                 if disk_sha != exp_sha:
                     signature_ok = False
                     viols.append(f"sha256 mismatch: disk {disk_sha[:16]}.. != expected {str(exp_sha)[:16]}..")
+            exp_blob_sha = expected.get("blob_sha")
+            if exp_blob_sha:
+                if root != "worktree":
+                    signature_ok = False
+                    viols.append("blob_sha is only valid for a worktree-root input")
+                else:
+                    disk_blob_sha, blob_error = _git_blob_sha(repo_root, abs_path)
+                    if blob_error:
+                        signature_ok = False
+                        viols.append(blob_error)
+                    if disk_blob_sha != exp_blob_sha:
+                        signature_ok = False
+                        disk_display = "unavailable" if disk_blob_sha is None else f"{disk_blob_sha[:16]}.."
+                        viols.append(f"blob_sha mismatch: disk {disk_display} != expected {str(exp_blob_sha)[:16]}..")
             exp_vintage = expected.get("vintage_date")
             if root == "proj_root":
                 proj_root_vintages.append(_dt.date.fromisoformat(disk_vintage))
@@ -214,6 +266,7 @@ def check_manifest(manifest: dict[str, Any], repo_root: Path, proj_root: Path | 
                 exists=exists,
                 disk_vintage=disk_vintage,
                 disk_sha256=disk_sha,
+                disk_blob_sha=disk_blob_sha,
                 signature_ok=signature_ok,
                 violations=viols,
             )

@@ -14,8 +14,10 @@ passes against the working tree.
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import os
 from pathlib import Path
+import subprocess
 
 from shared.input_provenance import (
     check_manifest,
@@ -37,6 +39,27 @@ def _write_file(path: Path, content: bytes, vintage: str) -> None:
     path.write_bytes(content)
     ts = _dt.datetime.fromisoformat(f"{vintage}T12:00:00").timestamp()
     os.utime(path, (ts, ts))
+
+
+def _init_git_repo(path: Path) -> None:
+    """Create a tiny repository whose text files are checked out as CRLF."""
+    for args in (
+        ["init"],
+        ["config", "user.email", "provenance@example.test"],
+        ["config", "user.name", "Provenance Test"],
+        ["config", "core.autocrlf", "true"],
+    ):
+        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True, text=True)
+
+
+def _git_stdout(path: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 def test_active_input_provenance_manifests_match_disk(tmp_path: Path) -> None:
@@ -143,3 +166,58 @@ def test_active_input_provenance_manifests_match_disk(tmp_path: Path) -> None:
             continue
         result = check_manifest(manifest, repo_root)
         assert result.ok, f"enforced manifest {result.manifest_id} failed against disk: {result.violations}"
+
+
+def test_worktree_blob_signature_ignores_checkout_line_endings_but_detects_content_drift(
+    tmp_path: Path,
+) -> None:
+    """A git blob signature is invariant to CRLF checkout bytes, not content."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    tracked = repo / "tracked.txt"
+    tracked.write_bytes(b"same text\n")
+    _git_stdout(repo, "add", "tracked.txt")
+    _git_stdout(repo, "commit", "-m", "add tracked text")
+    blob_sha = _git_stdout(repo, "rev-parse", "HEAD:tracked.txt")
+
+    # Reproduce the old false positive: identical text written with CRLF no
+    # longer has the sha256 pin made from its LF working-tree bytes.
+    tracked.write_bytes(b"same text\r\n")
+    old_rule = check_manifest(
+        {
+            "id": "old-working-tree-sha256",
+            "inputs": [
+                {
+                    "path": "tracked.txt",
+                    "expected": {"sha256": hashlib.sha256(b"same text\n").hexdigest()},
+                }
+            ],
+        },
+        repo,
+    )
+    assert not old_rule.ok
+
+    # The new signature is the clean Git object, so the equivalent CRLF text
+    # validates identically in a fresh checkout.
+    new_rule = check_manifest(
+        {
+            "id": "new-git-blob",
+            "inputs": [{"path": "tracked.txt", "expected": {"blob_sha": blob_sha}}],
+        },
+        repo,
+    )
+    assert new_rule.ok
+    assert new_rule.inputs[0].disk_blob_sha == blob_sha
+
+    # It is not a lookup of HEAD alone: changed content must still fail.
+    tracked.write_bytes(b"different text\r\n")
+    changed = check_manifest(
+        {
+            "id": "changed-git-blob",
+            "inputs": [{"path": "tracked.txt", "expected": {"blob_sha": blob_sha}}],
+        },
+        repo,
+    )
+    assert not changed.signatures_ok
+    assert not changed.ok
