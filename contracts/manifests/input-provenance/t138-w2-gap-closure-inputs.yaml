@@ -1,0 +1,156 @@
+id: t138-w2-gap-closure-inputs
+task: T1.38
+enforced: true
+# enforced:true — every input below is present and signed from a fresh on-disk
+# check (Manager 14, 2026-07-15). The committed JSONs are pinned by sha256, NOT
+# vintage_date: git does not preserve mtimes, and a fresh worktree checkout
+# resets them (bhps_headline_frozen_corrected_2026-07-14.json shows an mtime of
+# 2026-07-15 in this very checkout — the file did not change, the checkout did).
+# The one gitignored input, the non-overlap diagram cache, lives only at
+# PROJ_ROOT and its mtime there IS meaningful, so it carries vintage_date.
+
+description: >
+  T1.38 closes the W2 solver gap left by the greedy-fallback audit. Its inputs
+  split into two provenance classes that must not be confused:
+
+  (1) CACHE-BACKED objects, where a null-diagram cache survives and the value is
+  therefore RE-DERIVABLE — the convention gate can put a freshly recomputed
+  number on one side of the comparison, so the era is decidable by artifact.
+  Only the BHPS non-overlap cache is in this class.
+
+  (2) CACHE-LESS objects (P01-A Table 1's four sources, and the legacy
+  04_nulls_wasserstein_w2_20260407.json), every one of which pre-dates the
+  earliest surviving cache (2026-05-24). For these, nothing can be re-derived
+  from a cache and the honest verdict is SUSPECT-UNVERIFIABLE. Table 1's H1
+  column is therefore a PRODUCTION RE-RUN, not a re-derivation — null diagrams
+  must be regenerated under frozen loadings before any W2 is computed. This
+  distinction is the whole reason the Task is phased.
+
+coherence:
+  max_vintage_spread_days: 999
+  rationale: >
+    Vintage spread is deliberately NOT enforced here, and the reason is a
+    finding rather than an omission. T1.38's inputs are intentionally drawn from
+    different eras: the greedy-era artifacts under audit (2026-04-07 through
+    2026-06-09) are the OBJECTS OF STUDY, and the exact-era corrected files
+    (2026-07-14) are the reference. A spread bound would fire on exactly the
+    comparison the Task exists to perform. Coherence here is established by the
+    convention gate re-deriving through the fresh code path — an artifact-level
+    check — not by an mtime-level one. An mtime mismatch is a trigger to run the
+    content check, never a verdict: re-extracted and relocated data routinely
+    carries new mtimes with identical bytes, and a prior recovery that every
+    mtime signal condemned reproduced its baseline to 10 decimal places.
+
+inputs:
+  - path: results/trajectory_tda_integration/stage1/cache/null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz
+    role: >
+      Sub-goal B. Cached obs + B=1000 null diagrams for the BHPS non-overlap
+      remainder. THE cache-backed input: its presence is what makes P01-A
+      section 6.2's non-overlap claim re-derivable rather than unverifiable.
+      Load via scratch/w2_fallback_audit/audit_lib.py::load_cache.
+    root: proj_root          # gitignored .npz -> lives only at PROJ_ROOT; mtime meaningful
+    expected:
+      sha256: "eca763a50b0a68ddae62a5045921c06af756eb8684d3129b0aab990606f8bad8"
+      vintage_date: "2026-06-09"
+
+  - path: results/trajectory_tda_bhps/stage1/bhps_headline_frozen_corrected_2026-07-14.json
+    role: >
+      Sub-goal A. Carries h1.per_pair.obs_null_exact[1000] and
+      h1.per_pair.null_null_exact[1000] — the retained exact per-pair arrays the
+      BCa interval is bootstrapped from. No EMD solve is needed; the arrays are
+      already exact. Also the reference for the phase-2 Markov-1 direction check.
+    root: worktree
+    expected:
+      sha256: "72717c6576272e1902baac0c5d852f3d4e148c44968627bbd850adfcb0612b39"
+
+  - path: results/trajectory_tda_integration/stage1/headline_vintage_materiality_corrected_2026-07-14.json
+    role: >
+      The adopted exact USoc Markov-1 headline (WT-1c). Reference for the
+      phase-2 direction-consistency rule: a rebuilt Table 1 Markov-1 H1 cell
+      disagreeing in direction with this file is a defect, not a finding.
+    root: worktree
+    expected:
+      sha256: "e3565d4e7e78b308406cd0f0a1ca6c1e1d3b7be2c2cd67983f676b45da2aa8eb"
+
+  - path: results/trajectory_tda_integration/stage1/w2_fallback_audit_2026-07-14.json
+    role: >
+      The WT-6 systemic audit table. NOTE — it does NOT classify
+      04_nulls_wasserstein_w2_20260407.json or
+      markov2_alpha_sweep_summary_2026-06-16.json: neither appears in its
+      audit_table or non_compute_classified blocks. A Task reading this file for
+      those two objects will find nothing and must read the Computational-Log
+      2026-07-14 audit-gap [RESULT] instead.
+    root: worktree
+    expected:
+      sha256: "f8b57a7f85c6e19b6dac122ecf287a05ae66dcf1b78cbb2bd90104e61af43781"
+
+  - path: results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_2026-06-09.json
+    role: >
+      Sub-goal B reference. The committed greedy-era result whose H1 W2
+      non-rejection the convention gate must reproduce through the greedy
+      replica before the exact value is trusted. This is the value the gate
+      compares against — it must NOT be copied forward into the result as the
+      reference side.
+    root: worktree
+    expected:
+      sha256: "afa2cc959c1155a7a6caf20eea91248849c06331bc080a7b202af43a7fde0435"
+
+  - path: results/trajectory_tda_integration/stage1/SUPERSEDED.md
+    role: >
+      The authoritative supersession manifest (three axes: PCA-refit, W2 solver,
+      sequence vintage). Governs which objects are citable. T1.38 updates it on
+      completion; it is an input because the Task must not contradict it.
+    root: worktree
+    expected:
+      # Presence-checked, NOT sha256-pinned — and the reason is a gate defect
+      # this manifest surfaced (Manager 14, 2026-07-15; mechanism corrected
+      # 2026-07-16 after checking `git ls-files --eol` rather than inferring from
+      # a byte comparison).
+      #
+      # The repo sets core.autocrlf=true and .gitattributes normalises only
+      # .research-system/evals/fixtures/**. EVERY text blob in this tree is LF
+      # (i/lf), so checkout rewrites it to CRLF (w/crlf). The working-tree bytes
+      # of a text file therefore depend on HOW THE FILE GOT THERE, not on its
+      # blob:
+      #   - checked out by git      -> CRLF
+      #   - written in place by a tool -> LF
+      # SUPERSEDED.md is `i/lf w/lf` at PROJ_ROOT (a tool wrote it) and `i/lf
+      # w/crlf` here (git checked it out): 9,041 bytes / 0 CRLF versus 9,179 /
+      # 138 CRLF. Same blob, clean in both, different sha256.
+      #
+      # So a sha256 over working-tree bytes is NOT a stable signature for ANY
+      # text file in this repo — it is stable only between two copies that were
+      # produced the same way. The committed JSON inputs above are pinned safely
+      # only because both their copies were checked out (both w/crlf, verified
+      # identical); their blobs are LF too (`i/lf w/crlf`), so they are one
+      # in-place rewrite away from the same false VIOLATION. The earlier claim
+      # that they were safe "because their blobs already store CRLF" was wrong.
+      #
+      # A gate that fires on a correct input trains its operator to override it,
+      # and the next override lands on a true positive. The root fix is to sign
+      # the git BLOB hash (checkout-invariant by construction), not working-tree
+      # bytes; tracked as the pre-audit exception in
+      # docs/plans/strategy/Gate-Liveness-Audit-Plan-2026-07-15.md.
+      #
+      # This file is a governing document the Task must not contradict, not a
+      # data input whose bytes feed a computation, so presence is the real
+      # requirement and content-pinning was over-specification regardless.
+      exists: true
+
+  - path: results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_summary_2026-06-16.json
+    role: >
+      Sub-goal C. Exact-era by date (post the 2026-05-29/30 boundary), never
+      explicitly gated. NO diagram cache was found for the Markov-2 alpha sweep,
+      so if no artifact-level check can decide it, the verdict is UNVERIFIABLE.
+      Do not classify it on its date, and do not classify it on the POT
+      dependency pin: a lockfile records when a package became GUARANTEED, never
+      when it became PRESENT. POT was hand-installed around 2026-05-30 while the
+      core pin landed 2026-06-16 — dating on the pin would have condemned four
+      sound files.
+    root: worktree
+    expected:
+      # Signature deliberately not pinned: this file is the OBJECT UNDER TEST for
+      # sub-goal C, not a trusted input. Pinning its sha256 would assert its
+      # integrity, which is precisely the open question. Presence is checked; the
+      # verdict comes from the gate.
+      exists: true
