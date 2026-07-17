@@ -343,7 +343,7 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_cou
     p75_generation = float(np.percentile(generation_units, 75))
     p75_nn = float(np.percentile(nn_units, 75))
     full_cells = len(DATASETS) * len(VALID_NULLS)
-    projected_units = full_cells * B
+    projected_units = full_cells * n_permutations
     telemetry = [
         s["cost"] for s in summaries if "per_process_peak_gb" in s["cost"] and "free_gb_at_launch" in s["cost"]
     ]
@@ -424,11 +424,11 @@ def write_preflight(
     return output
 
 
-def assemble(date: str, worker_count: int) -> Path:
+def assemble(date: str, worker_count: int, n_permutations: int) -> Path:
     summaries: list[dict[str, Any]] = []
     for dataset in DATASETS:
         for null_type in VALID_NULLS:
-            path = _summary_path(date, dataset, null_type, B)
+            path = _summary_path(date, dataset, null_type, n_permutations)
             if not path.exists():
                 raise FileNotFoundError(f"Cannot assemble: required completed cell missing: {path}")
             summary = json.loads(path.read_text(encoding="utf-8"))
@@ -451,7 +451,7 @@ def assemble(date: str, worker_count: int) -> Path:
         "cells": screen_rows,
     }
     benchmark_summaries = summaries
-    cost_model = _cost_model(benchmark_summaries, B, worker_count)
+    cost_model = _cost_model(benchmark_summaries, n_permutations, worker_count)
     fresh_source = "fresh frozen-loading observed reconstruction and four valid surrogate generators"
     output = OUTPUT_ROOT / f"w2_gap_closure_table1_h1_{date}.json"
     if output.exists():
@@ -524,7 +524,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     if args.assemble:
-        print(assemble(args.date, args.worker_count), flush=True)
+        print(assemble(args.date, args.worker_count, args.n_permutations), flush=True)
         return
     cells = [(dataset, null_type) for dataset in DATASETS for null_type in VALID_NULLS]
     if args.only:

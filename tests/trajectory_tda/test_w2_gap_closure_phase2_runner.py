@@ -1,6 +1,8 @@
 """Unit-level guards for the re-scoped T1.38 production runner."""
 
 import re
+from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -29,6 +31,7 @@ def test_parallel_cost_model_requires_ram_headroom() -> None:
     model = runner._cost_model([summary], n_permutations=2, worker_count=2)
     assert model["worker_count"] == 2
     assert model["projected_wall_hours"] > 0
+    assert model["projected_units"] == len(runner.DATASETS) * len(runner.VALID_NULLS) * 2 * 2
     assert model["ram_preflight_passed"] is False
 
 
@@ -41,13 +44,32 @@ def test_runner_requires_preflight_selected_worker_count_and_budget() -> None:
     assert runner._preflight_classification({"projected_wall_hours": 6.1, "ram_preflight_passed": True}, 6) == "STOP"
 
 
+@pytest.mark.integration
 def test_project_root_is_resolved_from_git_common_dir() -> None:
     assert runner.PROJ_ROOT == audit_lib.project_root(runner.WORKTREE_ROOT)
 
 
+@pytest.mark.integration
 def test_git_metadata_uses_a_resolved_executable() -> None:
     assert audit_lib.git_executable_path().is_absolute()
     assert re.fullmatch(r"[0-9a-f]{40}", audit_lib.git_head(runner.WORKTREE_ROOT))
+
+
+def test_main_passes_requested_permutation_count_to_assemble(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_assemble(date: str, worker_count: int, n_permutations: int) -> Path:
+        captured.update(date=date, worker_count=worker_count, n_permutations=n_permutations)
+        return Path("assembled.json")
+
+    monkeypatch.setattr(
+        runner,
+        "parse_args",
+        lambda: SimpleNamespace(assemble=True, date="2026-07-16", worker_count=3, n_permutations=7),
+    )
+    monkeypatch.setattr(runner, "assemble", fake_assemble)
+    runner.main()
+    assert captured == {"date": "2026-07-16", "worker_count": 3, "n_permutations": 7}
 
 
 def test_exact_w2_pvalue_records_its_rank_count() -> None:

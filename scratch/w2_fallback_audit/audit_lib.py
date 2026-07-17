@@ -21,7 +21,14 @@ from numpy.typing import NDArray
 
 
 def git_executable_path() -> Path:
-    """Resolve Git to an absolute executable path before invoking it."""
+    """Resolve Git to an absolute executable path before invoking it.
+
+    Args:
+        None.
+
+    Returns:
+        Absolute path to the Git executable selected from the trusted PATH.
+    """
     executable = shutil.which("git")
     if executable is None:
         raise RuntimeError("Git executable is required to resolve audit provenance")
@@ -44,7 +51,14 @@ def _run_git(worktree_root: Path, arguments: tuple[str, ...]) -> str:
 
 
 def project_root(worktree_root: Path) -> Path:
-    """Resolve the shared project root for a primary checkout or linked worktree."""
+    """Resolve the shared project root for a primary checkout or linked worktree.
+
+    Args:
+        worktree_root: Existing primary checkout or linked-worktree directory.
+
+    Returns:
+        The directory that owns the repository's Git common directory.
+    """
     common_dir = Path(_run_git(worktree_root, ("rev-parse", "--path-format=absolute", "--git-common-dir")))
     if common_dir.name != ".git":
         raise RuntimeError(f"Expected Git common directory to end in .git, got {common_dir}")
@@ -52,7 +66,14 @@ def project_root(worktree_root: Path) -> Path:
 
 
 def git_head(worktree_root: Path) -> str:
-    """Return the immutable Git commit ID for the trusted worktree."""
+    """Return the immutable Git commit ID for the trusted worktree.
+
+    Args:
+        worktree_root: Existing primary checkout or linked-worktree directory.
+
+    Returns:
+        Forty-character hexadecimal commit identifier at the worktree HEAD.
+    """
     return _run_git(worktree_root, ("rev-parse", "HEAD"))
 
 
