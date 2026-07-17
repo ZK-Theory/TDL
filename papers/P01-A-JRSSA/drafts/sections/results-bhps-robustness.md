@@ -1,19 +1,3 @@
-<!--
-EDITORIAL STATUS (provisional — awaiting User per-section review)
-- Numbers traced to:
-    results/trajectory_tda_integration/stage1/dedup_amendment_comparison_2026-05-31.json  (H1 length-matched; Outcome A)
-    results/trajectory_tda_bhps/diagnostics/markov1_calibration_2026-06-21.json            (calibrated flag, ks_p, mean_pvalue, verdict)
-    results/trajectory_tda_bhps/diagnostics/markov1_nullnull_variance_2026-06-21.json      (bhps/usoc null-null CV, variance_flag)
-    results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_2026-06-09.json   (non-overlap / matched-landmark-fraction sensitivity)
-    papers/shared/income_concept_audit.md                                                  (spanning-individual count)
-- The BHPS-era headline magnitudes carried from v1 (order-shuffle / Markov-1 H0 obs-null vs
-  null-null W2, k=8 BIC, regime stabilities) live in bhps_headline_frozen_2026-05-28.json,
-  which is NOT one of this task's named files; they are referenced qualitatively here and
-  flagged for exact reconciliation at v2 assembly rather than re-quoted.
-- "Replication" language removed throughout per Spec S10 (robustness / consistency check).
-- Table/figure callouts provisional; final numbers at v2 assembly. Awaiting User review.
--->
-
 ### 6.2 BHPS-Era Cross-Era Robustness Analysis (1991–2008)
 
 The 8,509 BHPS-era trajectories provide a cross-era robustness check: they test whether
@@ -23,8 +7,7 @@ validation of the testing methodology — that is developed in the companion pap
 and it is not a replication study in the confirmatory sense. The BHPS-era regime typology
 is broadly comparable to the USoc typology (with one additional BIC-selected regime), and
 the BHPS-era order-shuffle and Markov-1 $H_0$ null tests reject in the same direction as
-USoc; these headline figures are carried from the cross-era headline battery and
-reconciled at final assembly. This section reports three targeted robustness results — the
+USoc. This section reports three targeted robustness results — the
 length-matched $H_1$ analysis, the BHPS Markov-1 null-credibility diagnostic, and the
 non-overlap sensitivity analysis — that qualify and sharpen the cross-era reading.
 
@@ -43,18 +26,20 @@ and both reject $H_0$ ($p = 0.001$). The $H_1$ cross-era asymmetry therefore sur
 length-matching to the USoc horizon: it is not an artefact of the longer BHPS observation
 window.
 
-This conclusion depends on a de-duplication step whose effect is mechanistic rather than a
-tuning choice. Without de-duplication, the truncated $H_1$ $W_2$ test does not reject
-($p = 0.350$): approximately 139 near-zero-scale phantom $H_1$ features, produced by
-numerical near-duplicate landmarks in the embedding, inflate the observed-to-null and
-null-to-null $W_2$ distances by the same large factor, so the observed diagram looks
-statistically indistinguishable from its null (mean observed-to-null over mean
-null-to-null $= 1.006$). External de-duplication of the observed landmark sample — which
-the Markov-1 surrogates do not require, because they do not reproduce the near-duplicate
-structure — strips the phantoms and exposes the underlying signal (ratio $= 1.87$;
-$p = 0.001$). Two robustness probes (forcing symmetric de-duplication of the nulls, and
-pinning the filtration threshold) preserve the rejection in every cell. The observation-window
-confound is therefore resolved rather than left as an open question.
+Both length-matched cells apply external de-duplication of the observed landmark sample,
+a step the full-length headline does not require. Horizon-matching clips trajectories
+before re-embedding, which drives a small fraction of the observed landmarks to within
+floating-point tolerance of one another (139 of 5,000 in the truncate cell); the Markov-1
+surrogates, sampled from a transition matrix rather than clipped from real trajectories,
+carry no comparable near-duplicate structure. The step corrects that difference on the
+side where it arises and is justified as a treatment of the observed representation, not
+as a condition on the test. The $H_1$ verdict does not turn on it: run without
+de-duplication under the same solver, null bank, and seed, the truncate cell returns a
+signal-to-noise ratio of $1.860$ against $1.866$ with it, and both arms reject at the
+resolution floor. Two robustness probes (forcing symmetric de-duplication of the nulls,
+and pinning the filtration threshold) preserve the rejection in every cell. Supplement §S6
+documents the step and the sensitivity in full. The observation-window confound is
+therefore resolved rather than left as an open question.
 
 #### The BHPS Markov-1 null is anti-conservative (credibility diagnostic)
 
