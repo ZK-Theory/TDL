@@ -116,3 +116,17 @@ markers = [
 # omits the test tree from scanning while every Bandit check still runs on the
 # production packages.
 exclude_dirs = ["tests"]
+
+[tool.uv]
+# petls 1.0.1's sdist sets `cmake.verbose`, which scikit-build-core >= 0.10
+# rejects with a hard error at build time ("Use build.verbose instead"), and
+# petls ships no Windows wheels, so a fresh `uv sync` fails building it.
+# The installed uv 0.6.5 IGNORES this key (observed 2026-07-17: sync still
+# failed with it set) - it applies only on newer uv. The operative Windows
+# procedure (using-git-worktrees-extras skill): `uv sync --all-extras
+# --no-install-package petls`, then seed petls/, petls-1.0.1.dist-info/,
+# include/, lib/ from a surviving venv AFTER the final sync, and verify via
+# trajectory_tda.topology.persistent_laplacian (which injects the MSYS2
+# UCRT64 DLL dir; a bare `import petls` always fails on Windows).
+# Keep this constraint for forward-compatibility until petls ships a fix.
+build-constraint-dependencies = ["scikit-build-core<0.10"]

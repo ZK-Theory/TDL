@@ -514,6 +514,23 @@ Three journal-targeted papers replacing the original four technique-first papers
   requires a fresh Owner `[DECISION]`. This authorizes the bounded Gate 5
   publication continuation only, not Gate 5 acceptance or Gate 6. Locked
   2026-07-16.
+- **Gate 5 foundation accepted:** Stephen accepted the Gate 5 foundation on
+  2026-07-17 at merge
+  `f49a27fe15ae4df566c9107dc07f7451f51b924a`, supported by frozen Phase 2
+  evidence packet SHA-256
+  `6aaad4abafad74383862e9183b3bb8686f78672af06ea37459bcbda146682ae3`.
+  The canonical acceptance-decision text is recorded in the 2026-07-17 P00
+  Computational Log entry; its exact UTF-8 bytes use LF separators and no
+  trailing newline (576 bytes; SHA-256
+  `15869e0a50831e004ea1a352c27a772559013cc21d204d56ab8bc29c47176c7c`).
+  D-G5-1(a) keeps M/H capabilities restricted; D-G5-2 keeps O15/deletion
+  initiation deferred and disabled; G5.3-B(a) retains trusted-local-operator
+  attribution without a cryptographic identity requirement. The candidate
+  remains blocked and `gate5_authorized=false`. Acceptance covers only the
+  Gate 5 foundation: it does not enable restricted capabilities, resolve O15,
+  or authorize the candidate. Gate 6 is eligible for separately authorized
+  planning or execution, but this decision does not authorize or begin it.
+  Locked 2026-07-17.
 
 ---
 
