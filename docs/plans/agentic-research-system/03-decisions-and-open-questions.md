@@ -369,9 +369,21 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Remaining gate:** A separately reviewed P0 materialization and narrow-foundation implementation plan, followed by Stephen's explicit approval before implementation.<br>
 **Affected specifications:** W3, W4, W6, W7, W8, 06c; package status and implementation sequence.
 
-## Post-Gate-5 owner directions recorded 2026-07-16
+## Post-Gate-5 owner directions recorded 2026-07-16–17
 
-These entries record directions Stephen stated in the 2026-07-16 planning session that produced `implementation/06-wp6-gate6-readiness-and-integration-plan.md`, written against the evidence survey in that session (Gate A blockers A1–A8 of the vault-side TDA-scale programme v1.0.0 cross-checked against the accepted W1–W8 designs, the Gate 5 plan, and the implemented `research_system` foundation). Stephen confirmed the exact wording on 2026-07-17 (D-G6-1), the same day the Gate 5 foundation was accepted at merge `f49a27f` — so the A1 blocker these decisions were drafted against is now cleared, and the D-G5-1(a) M/H restriction and O15 deferral carry forward as recorded in the acceptance decision. Acceptance of these directions authorizes no implementation; the WP6 plan suite still requires its own review gate.
+P-031–P-034 record directions Stephen stated in the 2026-07-16 planning session that
+produced `implementation/06-wp6-gate6-readiness-and-integration-plan.md`, written
+against the evidence survey in that session (Gate A blockers A1–A8 of the vault-side
+TDA-scale programme v1.0.0 cross-checked against the accepted W1–W8 designs, the Gate
+5 plan, and the implemented `research_system` foundation). Stephen confirmed their
+exact wording on 2026-07-17 (D-G6-1), the same day the Gate 5 foundation was accepted
+at merge `f49a27f`. P-035 records Stephen's direct 2026-07-17 approval of the two
+owner choices required by the fresh WP6 remediation review. P-036 records Stephen's
+exact-revision approval after the R5 review found no Critical, Major, or Minor findings.
+The A1 blocker and the WP6 plan-suite review gate are cleared,
+and the D-G5-1(a) M/H restriction and O15 deferral carry forward as recorded in the
+acceptance decision. Acceptance of these directions authorizes no implementation; the
+remaining work-package, future-evidence, migration, and preflight gates remain binding.
 
 ### P-031 — Gate 6 pilot definition amendment
 
@@ -380,8 +392,10 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Amends:** P-026; 04-plan §4 Gate 6 and §6 pilot operating model<br>
 **Decision:** The greenfield pilot boundary becomes *the first ARS-native workflow admitted after Gate 5 acceptance*, rather than strictly the first post-APM paper. The proposed pilot workflow is SCALE-01 (full-path stage telemetry and Markov-fit hoisting), an engineering canary on closed read-only fixtures. The first ARS-initiated paper (the SPEC-01/SPEC-02 spectral-distance PH lane) remains the pilot's research continuation and inherits the original paper-pilot promotion criteria.<br>
 **Rationale:** SCALE-01 satisfies Gate 6's own preflight predicates better than any paper: it is non-critical, its inputs and authority are content-addressed and read-only, a negative outcome is a valid terminal result, and rollback cannot touch accepted research evidence. Requiring the pilot to be a paper would force the riskier workload first.<br>
+**Evidence:** Gate A blockers and the SCALE-01/SPEC lane definitions in the 2026-07-16 TDA-scale programme v1.0.0; the WP6 planning evidence survey; Stephen's direct direction on 2026-07-16 and exact-wording confirmation on 2026-07-17.<br>
 **Boundary:** Pilot preflight criteria themselves are unchanged and SCALE-01 must pass them; this amends only what kind of workflow may occupy the pilot slot.<br>
-**Affected specifications:** W9 (pilot mechanics), 04-plan, WP6.4.
+**Migration consequence:** W9/WP6.4 substitute SCALE-01 only for the pilot occupant; every existing Gate 6 preflight predicate remains, and the first ARS paper retains the inherited research-promotion criteria rather than being treated as already piloted.<br>
+**Affected specifications:** W9 (pilot mechanics), 04-plan, `00-master-transition-plan.md`, WP6 master, WP6.4.
 
 ### P-032 — Full portfolio and Discovery integration (W11)
 
@@ -389,8 +403,10 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
 **Decision:** ARS becomes the canonical end-to-end home for research-programme organisation: Candidate registration, Assay scoring, Spike verdicts, PROMOTE/PARK/KILL promotion decisions, pre-registration locks, dispatch, results, and claims as typed canonical records. A new specification `design/11-portfolio-and-discovery-lifecycle.md` (W11) is added to the planned set and passes its own adversarial review gate before implementation. The master plan §6.1 lifecycle (`Candidate → Assay → Spike → Pre-registration → Implementation → Independent verification → Decision lock → Claim promotion → Manuscript integration → Reproducibility release`) is the governing shape.<br>
 **Rationale:** Stephen's stated objective is a single integrated system replacing the vault-harness + APM hodgepodge, whose small persistent coordination issues motivated the ARS in the first place. The 2026-07-16 TDA-scale package manifest — hand-computed content addressing standing in for a missing admission interface — is direct evidence of the gap.<br>
+**Evidence:** `00-master-transition-plan.md` §6.1; the 2026-07-16 TDA-scale package manifest and Gate A survey; the living legacy Discovery backlog inspected during the planning/review cycle; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
 **Boundary:** The vault remains the human reading/annotation surface via generated projections; it ceases to be lifecycle authority for successor-owned Discovery objects. Already-active Discovery items (e.g. the registered sheaf-Laplacian dispatch, the MCbiF decision-pending battery) remain vault/APM-owned under P-004 until an explicit per-item ownership transition; no `dual_owned` state is created.<br>
-**Affected specifications:** New W11; W1 portfolio catalogue; W2 (`obj` records, ScopeDefinition); W4 (Scout/Portfolio Steward role profiles); W5 (claim promotion); W9; W10.
+**Migration consequence:** The living `_backlog.md` remains exclusively legacy-owned until an explicit whole-path cutover. Successor projections and human annotations use separate registered ARS namespaces; per-item transition events move authority one way, and no legacy-named path becomes generated until collision and cutover gates pass.<br>
+**Affected specifications:** `00-master-transition-plan.md`; WP6 master/WP6.5/WP6.6/WP6.7; new W11; W1 portfolio catalogue; W2 (`obj` records, ScopeDefinition); W4 (Scout/Portfolio Steward role profiles); W5 (claim promotion); W9; W10.
 
 ### P-033 — Full live capability before research dispatch
 
@@ -399,15 +415,149 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Amends:** Resolves the D-G5-1(b) deferral into scoped post-Gate-5 work<br>
 **Decision:** No interim operator-executed or degraded-mode research dispatch is defined. Live Claude and Codex transports, live semantic parity evidence, the separately accepted live-grader threshold/calibration policy, and instantiated evaluated model profiles (W4 §10) must all exist with direct current evidence before any R2 research task dispatches under ARS. The intent is to start doing real work and test the system in action, on its full capability path.<br>
 **Rationale:** An interim human-executed mode would be an undeclared bypass of the routing, parity, and independence machinery — precisely the class of informal side-channel the ARS exists to remove.<br>
-**Affected specifications:** W4, W6 (§7.2 threshold clause), W7; WP6.2.
+**Evidence:** Gate A A3/A6; the fake-only `live_enabled: false` adapter manifests and provider guard; the Gate 5 D-G5-1(a) release restriction; W4 §10 and W7/W8 command/receipt/grant contracts; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
+**Migration consequence (as amended by P-035):** The Gate 5 M/H restriction remains until the exact T1b evidence-bearing policy and direct live evidence are accepted; T1a protocol acceptance alone cannot unblock it. No R2 research dispatch, operator bypass, lower-grade fallback, or profile-by-name route is available during the cutover.<br>
+**Affected specifications:** W4, W6 (§7.2 threshold clause), W7, W8; WP6 master and WP6.2.
 
 ### P-034 — End-to-end consolidation objective and legacy sunset sequencing
 
 **Date:** 2026-07-16<br>
 **Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
 **Decision:** The programme target is one bespoke, integrated system carrying the valuable lessons of the 2025–2026 tooling (pre-registration, contracts, provenance, fail-closed gates, Partial semantics, the Assay-before-Spike funnel) and retiring the accumulated surfaces — APM orchestration, the vault-side Discovery Harness as authority, and ad-hoc coordination files — once their W9 migration gates pass. Consolidation proceeds by explicit per-item ownership transitions, never by indefinite dual-running.<br>
+**Evidence:** P-004/P-021/P-026 migration boundaries; `00-master-transition-plan.md` §6.1; the current T1.28/two-paper legacy boundary and active Discovery items; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
 **Boundary:** The P-026 legacy boundary is unchanged: T1.28 and the two current APM-managed papers remain `legacy_owned`; T1.28 terminal review still gates legacy deprecation claims.<br>
-**Affected specifications:** W9, W10, W11; master plan §6.1.
+**Migration consequence:** Each active item remains on its current authority and physical writer path until its W9 gate and attributed transition event pass. Retirement happens only after the final path-level cutover; no dual writer, implicit import, or bulk status upgrade is permitted.<br>
+**Affected specifications:** `00-master-transition-plan.md` §6.1; WP6 master/WP6.5/WP6.6/WP6.7; W9, W10, W11.
+
+### P-035 — WP6.2 staged calibration and composite live evidence
+
+**Date:** 2026-07-17<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-029, P-030, P-033; resolves the structural limb of D-G6-2 and the T7 composition limb of D-G6-3<br>
+**Decision:** WP6.2 uses the exact non-circular lifecycle
+`T1a → T2 → T3/T4 → T1b → T5 → T6 → T7 → T8`. T1a preregisters and receives
+independent review/Stephen acceptance for the calibration protocol without claiming
+observed calibration. T2 establishes the secret/cost boundary; T3 and T4 then produce
+independent bounded Claude/Codex canary evidence. T1b uses those protected seams to
+produce immutable calibration evidence and receives independent review/Stephen
+acceptance for the exact evidence-bearing threshold-policy hash. T1a acceptance gates
+T2–T4 only; T1b acceptance gates T5–T8 and every M/H eligibility transition.<br>
+**Evidence-composition rule:** T7 uses exactly 251 immutable references to otherwise-
+available Gate 5 `foundation_release` results plus 51 new `live_capability` results,
+for an aggregate closure of 302. Each live result has a one-to-one predecessor mapping
+from an unavailable M/H Gate 5 key and actual provider/model/adapter/command/receipt/
+grant/lease identities and hashes. Frozen fake results retain their original lifecycle
+and identities and are never relabelled as live.<br>
+**R2 remediation constraints (accepted under P-036 for exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`):** T1b is implemented as the
+non-compensable union of separately complete `T1b-M` model evidence and `T1b-H` human
+rubric/blinded-case/disagreement/adjudication evidence; only their composite accepted
+hash clears T1b. The exact 51 predecessor/successor bindings come from the
+content-addressed 06e annex, and the exact P1 11+43 obligations come from the
+content-addressed 06f annex, never from observed manifests. W6 `gate_stage` remains the
+valid value `pilot_promotion`; `live_capability` is a separate typed `evidence_stage`,
+not a new W6 gate-stage alias. The proposed command identities, P1 grader identities,
+successor construction, and stage split are authoritative requirements of the approved
+plan revision; their future materialized manifests retain their separate exact-hash
+review and owner-acceptance gates.<br>
+**R3 remediation constraints (accepted under P-036 for exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`):** WP6.1 contract materialization precedes
+runtime implementation and independently freezes every row's command/event schema
+identity, exact authority subject, the atomic Task-plus-Dispatch claim batch/write set,
+and the closed correction selector. WP6.2 uses a dedicated strict P1 schema and an
+independently produced, reviewed, accepted, content-addressed 54-row expected manifest
+containing every literal descriptor hash before descriptor build or observation.
+Runtime registries, descriptors, manifests, ledgers, and executions are observed-side
+comparison inputs only. A self-consistent coordinated replacement of descriptor bytes
+and the candidate expected manifest still rejects against the D-G6-3 accepted manifest
+identity. F-037 and F-038 summaries bind exactly 12 and 10 execution hashes,
+respectively, with disjoint union 22.<br>
+**R4 remediation constraints (accepted under P-036 for exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`):** RuleEvaluation has its own authority
+subject, ID source, owner projection, and correction-selector target; neither a Decision
+grant/projection nor coordinated expected/runtime corruption can substitute for it.
+`ClaimDispatch` loads the accepted Dispatch and requires its stored Task ID/revision,
+the payload Task ID/revision, and the active lease subject to agree before authority or
+idempotency reuse. A valid but foreign current Task, stale Dispatch relation, or wrong
+lease subject rejects atomically. The R3 provenance table distinguishes canonical
+Git-blob UTF-8/LF bytes from a Windows CRLF checkout hash.<br>
+**Rationale:** A single policy gate before T2 is empirically circular because protected
+provider seams do not yet exist. A full 302-row live-rerun claim would contradict the
+bounded 51-obligation tranche and waste accepted evidence. The staged gate preserves
+preregistration and owner authority while allowing admissible calibration evidence;
+the composite preserves immutable Gate 5 provenance while making the new live
+capability evidence exact.<br>
+**Evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md`,
+containing commit `80cc5f2b1103357fcd61bb51a1ee10f8112f5ad5`, Git blob
+`b962ed11813ff0a0164a0f8be3eef7e926757e5e`, reviewing exact commit
+`45d29dd16cc5e654eb0be086d81eda9771711f11`, findings M-1 and M-6;
+Stephen's direct approval of both recommended choices on 2026-07-17.<br>
+**R2 remediation evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md`,
+Git blob `b9b3963ccfc6ef9bceba9177497a1c83f69c3c18`, reviewing exact commit
+`79f6b1bfb28a02d6a06d5a4a350bfa7262ec6461`. Its seven Major findings and one
+Minor define the pending constraints above; the review does not itself accept them.<br>
+**R3 remediation evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md`,
+Git blob `69f140d95bbe33c39b3593833e9789ab409af9a9`, canonical UTF-8/LF SHA-256
+`b1a89411496bda995bef9b11211ed1f6078b90babd3bb46f79755e48316e4810`, reviewing exact
+commit `3cca017c936a1d2b6a6b2049bc866caf5cb79047`. Its six Major findings and one Minor
+define the additional pending constraints above; the review does not itself accept
+them.<br>
+**R4 remediation evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md`,
+Git blob `66e82fdc9a014324c9e433cab431386bc6f8471e`, canonical UTF-8/LF SHA-256
+`87f226204475d51630ceeb71608d7a6d3fca135bdd68ef5a395c445df6d78a0a`, reviewing exact
+commit `aa54fe140de8eff3dabe0472758c3514fa673b19`. Its two Major findings and one Minor
+define the R4 constraints above; the review does not itself accept them.<br>
+**R5 approval evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md`,
+Git blob `b6f047db330617f25ffd8e0826da9769facab089`, canonical UTF-8/LF SHA-256
+`15af91fa08f248f55765cbcdf9d0efce3153232c7818a66d385b80c4bdb0e065`, reviewing exact
+commit `fe5f1d40bc8f05f061317c677b5891cea0711249`. It returned `approved` with zero
+Critical, Major, or Minor findings and both required contract commands passing all 98
+contracts. Stephen approved that exact revision on 2026-07-17 under P-036.<br>
+**Boundary:** P-035 accepts sequencing and evidence composition; P-036 additionally
+accepts the R2/R3/R4 constraints, proposed identity choices, and literal D-G6-3 plan
+tables at the exact reviewed revision. Neither decision accepts a future T1a protocol
+hash, T1b empirical policy hash, WP6.1 schema-identity manifest, WP6.2 descriptor-hash
+manifest, live call/result, evaluated profile, M/H eligibility transition, WP6
+implementation, migration, Gate 6 preflight, pilot evidence, or claim.<br>
+**Migration consequence:** WP6.2 dispatch prompts and branches must reproduce the
+staged graph exactly. The implementation must add a lifecycle-aware composite schema
+with a valid W6 `gate_stage`, a separate typed `evidence_stage`, and stage-specific
+loader/CLI while preserving the existing P0 fake-only loader and
+all Gate 5 result identities byte-for-byte.<br>
+**Affected specifications:** W4 §10; W6 threshold/calibration, coverage, and
+F-037/F-038 contracts; W7 provider command/receipt evidence; W8 grant/lease evidence;
+WP6 master; WP6.2 T1a–T8; D-G6-2/D-G6-3; Gate 6 pilot and M/H eligibility gates.
+
+### P-036 — WP6 plan-suite exact-revision approval
+
+**Date:** 2026-07-17<br>
+**Status:** Accepted by Stephen<br>
+**Closes:** The WP6 plan-suite independent-review and exact-revision owner-approval gate;
+the plan-revision limb of D-G6-3<br>
+**Decision:** Stephen approves exact reviewed commit
+`fe5f1d40bc8f05f061317c677b5891cea0711249` as safe to use as the Gate 6 launch basis.
+Its R2/R3/R4 remediation constraints, proposed plan identities, lifecycle composition,
+and literal WP6.1/WP6.2 invariant tables are authoritative for dispatch planning.<br>
+**Evidence:** The R5 review identified above independently reviewed that exact clean
+commit, returned `approved` with zero findings at every severity, reproduced the
+104/182, 13, 11+43, 51, and frozen Gate 5 invariants, and passed both contract checks
+against 98 contracts. Stephen then gave explicit exact-revision approval.<br>
+**Boundary:** This decision closes the plan-suite review gate and authorizes the exact
+reviewed plan content as a launch and dispatch-planning basis. It does not itself
+authorize runtime implementation, a live provider call, an eligibility transition,
+migration, claim promotion, or Gate 6 pilot execution. Every future exact-hash evidence
+acceptance and work-package/preflight gate remains mandatory.<br>
+**Migration consequence:** WP6.1/WP6.2 task briefs must cite the approved commit and
+must preserve its normative plan content. Any substantive plan change requires a new
+exact-revision review and owner approval; bookkeeping-only approval provenance does not
+alter the reviewed requirements.<br>
+**Affected specifications:** WP6 master and WP6.1/WP6.2 child plans; P-035; D-G6-3;
+Gate 6 launch and dispatch-planning controls.
 
 ## Assumptions requiring confirmation
 
