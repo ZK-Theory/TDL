@@ -2,10 +2,8 @@
 
 ## The ladder
 
-Each level specifies a null model of increasing fidelity to the observed process; $B$ surrogate trajectory sets are drawn per level, re-embedded with the frozen PCA loadings (§3.1), and landmarked independently per surrogate (maxmin, same seed policy as the observed cloud). All five original levels plus the new Level 4b test the same formal question — does the observed persistence diagram exceed what this null process would produce? — against successively more realistic surrogates.
+Each formal level specifies a null model of increasing fidelity to the observed process; $B\geq1{,}000$ surrogate trajectory sets are drawn per inferential level, re-embedded with the frozen PCA loadings (§3.1), and landmarked independently per surrogate (maxmin, same seed policy as the observed cloud). Each formal level tests whether the observed persistence diagram exceeds what its null process would produce.
 
-- **Level 1 -- Label shuffle.** $H_0^{(1)}$: state-sequence labels are exchangeable across individuals; a negative control expected not to reject.
-- **Level 2 -- Cohort shuffle.** $H_0^{(2)}$: trajectories are exchangeable within cohort but not otherwise informative; a negative control expected not to reject.
 - **Level 3 -- Order shuffle.** $H_0^{(3)}$: the *set* of states visited matters but their temporal order does not (within-trajectory state multiset preserved, order permuted).
 - **Level 4 -- Markov order-1.** $H_0^{(4)}$: surrogate trajectories are drawn from a first-order Markov chain with transition matrix $\hat P$ estimated by maximum likelihood on the full pooled sample, conditional on each trajectory's observed starting state and length.
 
@@ -23,7 +21,7 @@ $$
 
 ```
 for each subgroup g in family a:
-    trajectories_g <- trajectories with regime_label == g
+    trajectories_g <- trajectories with grouping_key[a] == g
     if |trajectories_g| >= 30:
         P_hat_g <- MLE first-order transition matrix estimated on trajectories_g only
     else:
@@ -42,7 +40,7 @@ Note that the transition matrix is re-estimated **within** each subgroup (not th
 
 **Parameters:** $B = 1{,}000$ Markov-1 surrogates per subgroup, seed 42, landmark count $\min(5{,}000, n_g)$, frozen PCA-20 loadings, dual-metric ($W_2$ and persistence-landscape $L^2$), 95% BCa bootstrap interval on $T_g$, permutation $p = (r+1)/(B+1)$.
 
-**Multiplicity correction.** The three stratification families are each an independent false-discovery-rate family, corrected separately by Benjamini-Hochberg: gender ($G=2$), parental NS-SEC ($G=3$), and birth cohort ($G=7$ USoc / $G=6$ BHPS). All three families use BH, not the Benjamini-Yekutieli procedure used for the earlier (now superseded) pairwise adjacent-cohort design — under this per-subgroup construction, the cohort-family tests run on disjoint cohort subgroups and are therefore mutually independent, so the standard BH procedure applies (pre-registration amendment 2026-06-27).
+**Multiplicity correction.** For each metric separately, the three stratification families are corrected separately by Benjamini-Hochberg: gender ($G=2$), parental NS-SEC ($G=3$), and birth cohort ($G=7$ USoc / $G=6$ BHPS). This use of BH assumes independent or positively dependent test statistics within each metric-family combination; disjoint cohort membership alone does not establish that assumption. The families and correction procedure remain as specified in the pre-registration amendment.
 
 > **Note on stratification axis.** The per-group null is defined generically over any grouping variable. Level 4b as reported here uses the three **demographic** stratification families (gender, parental NS-SEC, birth cohort). A GMM-derived topological regime stratification addresses a different question — per-subgroup irreducibility conditional on latent regime membership — and would constitute a distinct rung rather than a variant of Level 4b; it is not reported here and should not be conflated with the demographic rung above.
 
@@ -56,4 +54,8 @@ $$
 
 ## Procedure
 
-$B$ surrogates per level (200 for label/cohort shuffle and Markov-2, 100 for order shuffle and Markov-1 at the scalar-statistic landmark count; $B=1{,}000$ at the matched-$L=5{,}000$ headline landmark count, §4.2), frozen PCA loadings for surrogate re-embedding, maxmin landmarks re-selected independently per surrogate.
+$B\geq1{,}000$ surrogates per inferential analysis, frozen PCA loadings for surrogate re-embedding, and maxmin landmarks re-selected independently per surrogate.
+
+### Invalidated historical audit
+
+The retired label-shuffle and cohort-shuffle procedures are retained only as a historical audit. Both permuted rows after embedding while the persistence construction is set-valued, leaving the statistic invariant; they are not formal nulls and their p-values have no inferential interpretation.

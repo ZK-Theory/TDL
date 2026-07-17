@@ -4,6 +4,8 @@
   "type": "manager_addendum",
   "amends": "results/governance/gate_liveness_evidence_2026-07-16.json (Worker ledger, T1.40 phase B — immutable per the no-overwrite rule, hence this separate record)",
   "author": "APM Manager 14, running in the Claude Code harness",
+  "evaluated_ref": "pipe/gate-liveness-audit",
+  "evaluated_head": "d5cbfeddc8d2127d477d35dda7aa2a4949adecab",
   "rationale": "The Worker's runtime (Codex) cannot trigger Claude PreToolUse/PostToolUse hooks, so it correctly recorded those gates UNVERIFIABLE. The Manager runs inside that harness and is the one actor positioned to watch them fail. Controlled violations were run per the phase-B standard: deliberate violation, observed denial with verbatim diagnostic, restoration, known-good pass.",
   "records": [
     {
@@ -30,9 +32,12 @@
     }
   ],
   "updated_tally_across_both_files": {
-    "LIVE": ["apm-commit-input-provenance", "claude-dispatch-readiness-guard", "claude-notation-guard", "claude-results-no-overwrite", "git-contract-framework (caveat: observed failure was an environment fault; violation-catch at the commit seam not yet separately demonstrated - carry the caveat into any summary)"],
+    "evaluated_ref": "pipe/gate-liveness-audit",
+    "evaluated_head": "d5cbfeddc8d2127d477d35dda7aa2a4949adecab",
+    "LIVE": ["apm-dispatch-readiness", "claude-notation-guard", "claude-results-no-overwrite"],
     "DEAD": ["git-gate-0-skill-sync (remediation in flight: PR #100)"],
-    "UNVERIFIABLE": ["git-commit-prefix-and-prepare-message (composed-path masking finding - see below)", "git-ruff (proposed seam: a NEW disposable staged file carrying a lint violation, not a source change)", "claude-research-context", "claude-results-vault-reminder (PostToolUse - observable but advisory; probe deferred)", "pytest-validation-and-integration-markers (needs a fixture seam)"]
+    "NOISY": ["contract-meta-and-hardening", "git-contract-framework"],
+    "UNVERIFIABLE": ["apm-commit-input-provenance (requires an invalid-manifest commit attempt)", "git-commit-prefix", "git-prepare-message", "contract-binding-and-output", "apm-predispatch-input-provenance", "git-ruff (proposed seam: a NEW disposable staged file carrying a lint violation, not a source change)", "claude-dispatch-readiness-guard", "claude-research-context", "claude-results-vault-reminder (PostToolUse - observable but advisory; probe deferred)", "pytest-validation-marker", "pytest-integration-marker"]
   },
   "standing_finding_for_phase_d": "prepare-commit-msg masks commit-msg: it injects '[EXPLORE] PXX:' into an unprefixed message BEFORE commit-msg runs, so the prefix requirement cannot fail on the composed path - the fourth 'check that cannot fail' in the project record, this time by composition of two individually reasonable hooks. It also emits '.githooks/prepare-commit-msg: line 59: [: 0 0: integer expression expected'. Remediation (fix the shell error; make injection conditional or make commit-msg validate the pre-injection message) is Phase D work, deliberately not applied during the audit."
 }

@@ -17,14 +17,13 @@ T = \frac{\overline{W}_{\mathrm{obs,null}}}{\overline{W}_{\mathrm{null,null}}},
 $$
 so that $T \approx 1$ indicates the observed diagram is indistinguishable, in $W_2$, from a typical null diagram, and $T \gg 1$ indicates the observed diagram sits further from the null ensemble than null diagrams sit from each other.
 
-**Confidence interval.** $T$ is reported with a 95% bias-corrected-and-accelerated (BCa) bootstrap interval, computed via `scipy.stats.bootstrap(method="BCa")` with $9{,}999$ bootstrap replicates (seed 42), resampling the observed-null and null-null distance arrays independently and recomputing the ratio of resampled means at each replicate; BCa corrects for both bias and skewness in the ratio statistic's sampling distribution, which a symmetric percentile interval would not.
+**Confidence interval.** $T$ is reported with a 95% bias-corrected-and-accelerated (BCa) bootstrap interval using $9{,}999$ bootstrap replicates (seed 42). The retained run resampled the observed-null and null-null distance arrays independently; it therefore does not preserve dependence induced by shared null diagrams or null-null endpoints. These intervals are reported as descriptive uncertainty for the ratio, not as clustered intervals that account for that dependence; a paired resampling implementation is required before they can support that stronger interpretation.
 
-**Permutation $p$-value.** Let $\{\overline{W}^{(j)}_{\mathrm{null,null}}\}$ be the reference distribution of null-null mean statistics. The permutation $p$-value is
+**Permutation $p$-value.** For each null draw $j$, form the ratio $T^{(j)}=\overline{W}^{(j)}_{\mathrm{null,rest}}/\overline{W}^{(j)}_{\mathrm{null,null}}$, using the same fixed pair-sampling scheme as the observed statistic and a denominator computed only from null-null pairs. The permutation $p$-value compares the reported ratio to this reference distribution,
 $$
-p = \frac{r+1}{B+1}, \qquad r = \#\Big\{j : \overline{W}^{(j)}_{\mathrm{null,null}} \geq
-\overline{W}_{\mathrm{obs,null}}\Big\},
+p = \frac{r+1}{B+1}, \qquad r = \#\{j:T^{(j)}\geq T\},
 $$
-i.e. the proportion of the null-null reference distribution that equals or exceeds the observed statistic (a lower-tail variant, testing for the observed statistic being implausibly *small* relative to the null-null spread, is also computed but not used as the primary test in this paper).
+i.e. the proportion of null-generated ratios at least as large as the observed ratio. This conditional reference assumes that fitted null trajectories, conditional observed starts, and observed lengths adequately represent the null-generating process; its type-I-error behavior is assessed through the double-null calibration analysis.
 
 **Effect size.** Alongside $T$ and $p$, we report a standardised permutation effect size
 $$

@@ -1076,16 +1076,18 @@ style T4_10 fill:#a8dadc,color:#000
 ### Task 1.39: Input-provenance signature rule — sign the git blob, not working-tree bytes - Reproducibility Agent
 
 * **Objective:** Repair the known-unsound `root: worktree` → working-tree-sha256 signature rule, which produces false VIOLATIONs on correct inputs under `core.autocrlf=true`, by signing the checkout-invariant git blob hash instead — without invalidating any existing pin.
-* **Output:** `shared/manager_predispatch_check.py` (and the R-C `input-provenance-manifest-coherence` binding test) signing/validating by blob hash with a migration path for existing sha256 pins; `.claude/rules/apm-outputs.md` § Input-provenance gate corrected; existing manifests (`b9-om-gmm-inputs`, `t128-inputs`, `t138-w2-gap-closure-inputs`) migrated; a regression test carrying the negative control.
-* **Validation:** A text input whose working copy is LF at one root and CRLF at another validates identically under the new signature (the negative control — it must be demonstrated failing under the old rule and passing under the new); every existing manifest still passes R-B; the R-C binding test passes in a **linked worktree**, not only at `PROJ_ROOT`.
+* **Output:** `shared/manager_predispatch_check.py` (and the R-C `input-provenance-manifest-coherence` binding test) signing/validating by blob hash with a migration path for existing sha256 pins; `.claude/rules/apm-outputs.md` § Input-provenance gate corrected; existing manifests (`b9-om-gmm-inputs`, `t128-inputs`) migrated; a regression test carrying the negative control.
+* **Validation:** A text input whose working copy is LF at one root and CRLF at another validates identically under the new signature (the negative control — it must be demonstrated failing under the old rule and passing under the new); the migrated manifests still pass R-B; the R-C binding test passes in a **linked worktree**, not only at `PROJ_ROOT`.
 * **Guidance:** **Do not add `* text=auto` to `.gitattributes`.** Blobs are already LF; normalising would rewrite every checked-out working copy CRLF→LF and invalidate every existing working-tree sha256 pin at once — manufacturing a simultaneous false-positive across all manifests. Sign the blob (`git rev-parse HEAD:<path>`, `git hash-object`). Measured state: `git ls-files --eol` reports `i/lf w/crlf` for `05_analysis.json`, `bhps_headline_frozen_corrected_2026-07-14.json`, `b9-om-gmm-inputs.yaml`; `i/lf w/lf` for `SUPERSEDED.md` (a tool wrote it in place). Working-tree bytes depend on how the file arrived, not on the blob. Handle the `proj_root` class separately — gitignored intermediates have no blob, so they legitimately keep content sha256 and/or `vintage_date`. Full analysis: `docs/plans/strategy/Gate-Liveness-Audit-Plan-2026-07-15.md` §1.
 * **Dependencies:** None (dispatched ahead of the audit as the approved pre-audit exception).
 
 1. Reproduce the false positive: sign a text file's working-tree sha256 at `PROJ_ROOT`, validate in a fresh worktree, watch it fail on a correct input.
 2. Implement blob-hash signing for `root: worktree`; leave `root: proj_root` on content sha256/vintage.
-3. Migrate the three existing manifests; confirm each still passes R-B.
+3. Migrate `b9-om-gmm-inputs` and `t128-inputs`; confirm each still passes R-B.
 4. Add the regression test with the negative control; confirm R-C passes in a linked worktree.
 5. Correct `.claude/rules/apm-outputs.md`.
+
+**Sequenced follow-up:** T1.38 owns migration of `t138-w2-gap-closure-inputs` because its phase-2 provenance contract is revised alongside the rebuilt inputs; its contract tests must validate the blob pins before that result is accepted.
 
 ### Task 1.40: Gate liveness — inventory, triage, and negative-control battery - Reproducibility Agent
 
