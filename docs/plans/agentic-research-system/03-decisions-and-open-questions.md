@@ -380,8 +380,10 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Amends:** P-026; 04-plan §4 Gate 6 and §6 pilot operating model<br>
 **Decision:** The greenfield pilot boundary becomes *the first ARS-native workflow admitted after Gate 5 acceptance*, rather than strictly the first post-APM paper. The proposed pilot workflow is SCALE-01 (full-path stage telemetry and Markov-fit hoisting), an engineering canary on closed read-only fixtures. The first ARS-initiated paper (the SPEC-01/SPEC-02 spectral-distance PH lane) remains the pilot's research continuation and inherits the original paper-pilot promotion criteria.<br>
 **Rationale:** SCALE-01 satisfies Gate 6's own preflight predicates better than any paper: it is non-critical, its inputs and authority are content-addressed and read-only, a negative outcome is a valid terminal result, and rollback cannot touch accepted research evidence. Requiring the pilot to be a paper would force the riskier workload first.<br>
+**Evidence:** Gate A blockers and the SCALE-01/SPEC lane definitions in the 2026-07-16 TDA-scale programme v1.0.0; the WP6 planning evidence survey; Stephen's direct direction on 2026-07-16 and exact-wording confirmation on 2026-07-17.<br>
 **Boundary:** Pilot preflight criteria themselves are unchanged and SCALE-01 must pass them; this amends only what kind of workflow may occupy the pilot slot.<br>
-**Affected specifications:** W9 (pilot mechanics), 04-plan, WP6.4.
+**Migration consequence:** W9/WP6.4 substitute SCALE-01 only for the pilot occupant; every existing Gate 6 preflight predicate remains, and the first ARS paper retains the inherited research-promotion criteria rather than being treated as already piloted.<br>
+**Affected specifications:** W9 (pilot mechanics), 04-plan, `00-master-transition-plan.md`, WP6 master, WP6.4.
 
 ### P-032 — Full portfolio and Discovery integration (W11)
 
@@ -389,8 +391,10 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
 **Decision:** ARS becomes the canonical end-to-end home for research-programme organisation: Candidate registration, Assay scoring, Spike verdicts, PROMOTE/PARK/KILL promotion decisions, pre-registration locks, dispatch, results, and claims as typed canonical records. A new specification `design/11-portfolio-and-discovery-lifecycle.md` (W11) is added to the planned set and passes its own adversarial review gate before implementation. The master plan §6.1 lifecycle (`Candidate → Assay → Spike → Pre-registration → Implementation → Independent verification → Decision lock → Claim promotion → Manuscript integration → Reproducibility release`) is the governing shape.<br>
 **Rationale:** Stephen's stated objective is a single integrated system replacing the vault-harness + APM hodgepodge, whose small persistent coordination issues motivated the ARS in the first place. The 2026-07-16 TDA-scale package manifest — hand-computed content addressing standing in for a missing admission interface — is direct evidence of the gap.<br>
+**Evidence:** `00-master-transition-plan.md` §6.1; the 2026-07-16 TDA-scale package manifest and Gate A survey; the living legacy Discovery backlog inspected during the planning/review cycle; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
 **Boundary:** The vault remains the human reading/annotation surface via generated projections; it ceases to be lifecycle authority for successor-owned Discovery objects. Already-active Discovery items (e.g. the registered sheaf-Laplacian dispatch, the MCbiF decision-pending battery) remain vault/APM-owned under P-004 until an explicit per-item ownership transition; no `dual_owned` state is created.<br>
-**Affected specifications:** New W11; W1 portfolio catalogue; W2 (`obj` records, ScopeDefinition); W4 (Scout/Portfolio Steward role profiles); W5 (claim promotion); W9; W10.
+**Migration consequence:** The living `_backlog.md` remains exclusively legacy-owned until an explicit whole-path cutover. Successor projections and human annotations use separate registered ARS namespaces; per-item transition events move authority one way, and no legacy-named path becomes generated until collision and cutover gates pass.<br>
+**Affected specifications:** `00-master-transition-plan.md`; WP6 master/WP6.5/WP6.6/WP6.7; new W11; W1 portfolio catalogue; W2 (`obj` records, ScopeDefinition); W4 (Scout/Portfolio Steward role profiles); W5 (claim promotion); W9; W10.
 
 ### P-033 — Full live capability before research dispatch
 
@@ -399,15 +403,19 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Amends:** Resolves the D-G5-1(b) deferral into scoped post-Gate-5 work<br>
 **Decision:** No interim operator-executed or degraded-mode research dispatch is defined. Live Claude and Codex transports, live semantic parity evidence, the separately accepted live-grader threshold/calibration policy, and instantiated evaluated model profiles (W4 §10) must all exist with direct current evidence before any R2 research task dispatches under ARS. The intent is to start doing real work and test the system in action, on its full capability path.<br>
 **Rationale:** An interim human-executed mode would be an undeclared bypass of the routing, parity, and independence machinery — precisely the class of informal side-channel the ARS exists to remove.<br>
-**Affected specifications:** W4, W6 (§7.2 threshold clause), W7; WP6.2.
+**Evidence:** Gate A A3/A6; the fake-only `live_enabled: false` adapter manifests and provider guard; the Gate 5 D-G5-1(a) release restriction; W4 §10 and W7/W8 command/receipt/grant contracts; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
+**Migration consequence:** The Gate 5 M/H restriction remains until the exact T1 policy and direct live evidence are accepted. No R2 research dispatch, operator bypass, lower-grade fallback, or profile-by-name route is available during the cutover.<br>
+**Affected specifications:** W4, W6 (§7.2 threshold clause), W7, W8; WP6 master and WP6.2.
 
 ### P-034 — End-to-end consolidation objective and legacy sunset sequencing
 
 **Date:** 2026-07-16<br>
 **Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
 **Decision:** The programme target is one bespoke, integrated system carrying the valuable lessons of the 2025–2026 tooling (pre-registration, contracts, provenance, fail-closed gates, Partial semantics, the Assay-before-Spike funnel) and retiring the accumulated surfaces — APM orchestration, the vault-side Discovery Harness as authority, and ad-hoc coordination files — once their W9 migration gates pass. Consolidation proceeds by explicit per-item ownership transitions, never by indefinite dual-running.<br>
+**Evidence:** P-004/P-021/P-026 migration boundaries; `00-master-transition-plan.md` §6.1; the current T1.28/two-paper legacy boundary and active Discovery items; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
 **Boundary:** The P-026 legacy boundary is unchanged: T1.28 and the two current APM-managed papers remain `legacy_owned`; T1.28 terminal review still gates legacy deprecation claims.<br>
-**Affected specifications:** W9, W10, W11; master plan §6.1.
+**Migration consequence:** Each active item remains on its current authority and physical writer path until its W9 gate and attributed transition event pass. Retirement happens only after the final path-level cutover; no dual writer, implicit import, or bulk status upgrade is permitted.<br>
+**Affected specifications:** `00-master-transition-plan.md` §6.1; WP6 master/WP6.5/WP6.6/WP6.7; W9, W10, W11.
 
 ## Assumptions requiring confirmation
 

@@ -3,6 +3,10 @@
 **Date:** 2026-07-16
 **Status:** draft, review pending — drafted at Stephen's direction (2026-07-16 session);
 authorizes no implementation.
+**Revision note (2026-07-17):** revised to action the required C-1/M-1–M-7/m-1
+adversarial findings. The suite remains non-dispatchable until a fresh independent
+review finds no open Critical/Major item and Stephen approves the exact reviewed
+revision.
 **Currency update (2026-07-17):** the Gate 5 foundation was accepted at merge
 `f49a27f` (Computational-Log `[DECISION]` entry, 2026-07-17), with D-G5-1(a) M/H
 restriction, D-G5-2/O15 deferral, and G5.3-B(a) attribution carried forward and the
@@ -29,18 +33,17 @@ ARS - v1.0.0 - 2026-07-16.md`).
 
 ## 1. Position and problem statement
 
-Gate 5 execution is in its final stage. When it closes, the accepted foundation will be
-a control plane with eval/release gating, authority grants, context compiler, routing
-engine, assurance requirements, and operations modules — exercised by deterministic
-fixtures over fake transports, with the M/H capability restriction explicit
-(D-G5-1 option (a)).
+Gate 5 closed at accepted merge `f49a27f`. The accepted foundation is a control plane
+with eval/release gating, authority grants, context compiler, routing engine, assurance
+requirements, and operations modules — exercised by deterministic fixtures over fake
+transports, with the M/H capability restriction explicit (D-G5-1 option (a)).
 
 The first intended research input, the TDA-scale programme v1.0.0, fails closed on
 eight blockers it verified itself (Gate A). Mapping them to this plan:
 
 | Gate A | Blocker | Cleared by |
 |---|---|---|
-| A1 | Gate 5 unaccepted | WP5.6 (outside this plan) |
+| A1 | Gate 5 unaccepted | **Cleared** at accepted Gate 5 merge `f49a27f` (WP5.6, outside this plan) |
 | A2 | Gate 6 preflight ineligible | WP6.4 (after A1 and WP6.1–6.3) |
 | A3 | Adapters `live_enabled: false`; fake transport only | WP6.2 |
 | A4 | Task schema is identity/revision/status/hash only; no rich Task or ScopeDefinition runtime | WP6.1 |
@@ -65,7 +68,9 @@ Recorded 2026-07-16 as proposed decisions; wording confirmed by Stephen 2026-07-
   proposed as pilot; the first ARS paper (SPEC lane) inherits the paper-pilot criteria.
 - **P-032** — full portfolio/Discovery integration via a new W11 specification;
   ARS becomes canonical for the Candidate → Assay → Spike → promotion lifecycle;
-  vault becomes a projection surface for successor-owned objects.
+  vault becomes a projection surface for successor-owned objects only through the
+  path-disjoint ARS namespace; the living legacy backlog stays legacy-owned until
+  whole-path cutover.
 - **P-033** — full live adapters and evaluated profiles before any R2 research
   dispatch; no interim operator-executed mode.
 - **P-034** — end-to-end consolidation objective; legacy surfaces retire by explicit
@@ -131,11 +136,18 @@ lifecycle.md` covering:
   hand;
 - Scout ingestion boundary (external literature surveillance producing Candidate
   records) and the W4 role-profile additions (Scout, Portfolio Steward) it requires;
-- vault projection contract: generated read surfaces in the vault for successor-owned
-  objects; the existing `_backlog.md` becomes a projection, never a write path,
-  for those objects (P-021 non-shared-path rule applied to the vault);
-- per-item ownership-transition records for migrating active Discovery items, with
-  P-004 exclusivity.
+- path-level projection contract: the living legacy
+  `00-Meta/Discovery/_backlog.md` remains exclusively legacy-written until an explicit
+  whole-path cutover after every item on that path transitions. Successor-owned
+  generated views use the registered ARS-only namespace
+  `00-Meta/ARS/Discovery/`; no legacy tool or human workflow writes it. Human
+  annotations enter through the separate registered
+  `00-Meta/ARS/Discovery-annotations/` inbox and become authority only through a typed
+  ingestion command. An optional combined read-only view uses a third path and is
+  never an input to either authority;
+- a path/writer registry, per-item ownership-transition events, annotation-ingestion
+  events, collision detection, deletion/rebuild tests, and a one-way whole-path
+  cutover test before any legacy-named path can become generated (P-004/P-021).
 
 Entry criteria per `design/README.md` apply; the spec passes its own adversarial
 review and reconciliation before any WP6.6 implementation. This lane can start
@@ -171,8 +183,9 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 
 - WP6.5 starts immediately (specification lane; no Gate 5 dependency).
 - WP6.1 and WP6.2 are the long poles and are parallelizable after Gate 5 close
-  (worktrees, concurrency cap 3–4). WP6.2's threshold-policy task (its T1) is a
-  policy/owner document and may be drafted alongside WP5.6 without touching code.
+  (worktrees, concurrency cap 3–4). Within WP6.2, the accepted, content-addressed T1
+  policy gates T2–T8; T3/T4 may then run in parallel after T2, and all later edges are
+  serial. No child prompt may reproduce the superseded T1→T5-only graph.
 - WP6.3 is small and independent; slot it into spare capacity.
 - WP6.4 last before Gate 6 preflight; it consumes WP6.1–6.3 outputs.
 - SPEC-01 (the programme's first greenfield Assay, R3) is dispatchable only after
@@ -184,9 +197,9 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 | ID | Decision | Anchor |
 |---|---|---|
 | D-G6-1 | **Closed 2026-07-17** — exact wording of P-031–P-034 confirmed by Stephen | 03-decisions §"Post-Gate-5 owner directions" |
-| D-G6-2 | Accept the live-grader threshold/calibration policy (WP6.2 T1) — the single decision that unblocks M/H grading | 05-plan §7.2; D-G5-1 |
-| D-G6-3 | Approve invariant re-baselines for WP6.1/WP6.2 (D-G5-3 process continues: exact old → new values pre-registered per dispatch plan) | 05-wp5 plan §7 |
-| D-G6-4 | Accept W11 after its adversarial review; decide the first ownership-transition batch for active Discovery items | WP6.5/WP6.6 |
+| D-G6-2 | Accept the exact content-addressed live-grader threshold/calibration policy after independent statistical/assurance review. That accepted hash gates WP6.2 T2–T8 and is the only policy source that can unblock M/H grading. | 05-plan §7.2; D-G5-1; 06b §§2–3 |
+| D-G6-3 | Approve the literal WP6.1/WP6.2 invariant tables: every changed and unchanged field has exact old/new values, reason/formula, recomputation command, and smoke assertion. Approval cites the exact dispatching revision before execution. | 05-wp5 plan §7; 06a §4; 06b §6 |
+| D-G6-4 | Accept W11 after adversarial review and approve the first ownership-transition batch. No migration begins until W11 proves path/writer exclusivity and the batch disposition is recorded. | WP6.5/WP6.6; P-004/P-021/P-032 |
 | D-G6-5 | Gate 6 preflight acceptance for SCALE-01 as pilot | WP6.4; P-031 |
 
 ## 6. Research assurance requirements
@@ -195,22 +208,48 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
   Topology/Stochastic/Statistical enter only through WP6.3 pack content and are
   human-review-only there (pack adequacy is not machine-checkable).
 - **Machine-checkable claims → enforcement artifacts (per WP dispatch plan):**
-  - "rich Task/ScopeDefinition schema is validated and replayable" → schema-invalid
-    command rejected; full replay equality test (WP6.1);
-  - "operator lifecycle is complete" → every typed command emits a receipt and a
-    replayable event; kill-and-recover scenario passes (WP6.1);
-  - "live parity fail-closed" → missing critical control blocks capability on the
-    live matrix (WP6.2);
-  - "profiles are evidence, not names" → routing rejects a model without a current
-    evaluated profile at the required grade (WP6.2);
-  - "admission validates content addresses" → tampered component hash blocks
-    admission atomically (WP6.6);
-  - "vault is projection-only for successor objects" → write-path test proves the
-    generated surface is never read back as authority (WP6.6).
+  - "rich Task/ScopeDefinition and operator lifecycle are complete" → exact-set
+    equality against the accepted W2/W8 owner-source matrix, semantic command/event/
+    reducer/projection/authority/receipt bindings, and one-field/illegal-transition/
+    conflicting-payload atomic negatives (WP6.1 §§2–3);
+  - "live issue is secret-safe and cost-bounded" → sentinel injection at every
+    context/adapter/payload/argv/canonical producer seam plus atomic missing/zero/
+    exhausted/concurrent grant negatives, all before provider invocation (WP6.2 §4);
+  - "live parity fail-closed" → each critical control is bound to the actual rendered
+    payload, provider command/receipt, grant/lease, and observed enforcement; an
+    adapter/transport-seam perturbation blocks with no issue (WP6.2 T5);
+  - "profiles are evidence, not names" → strict W4 §10.2/§10.3 exact closure and
+    one-field missing/stale/duplicate/incompatible/omitted/self-attested/unapproved
+    negatives (WP6.2 T6);
+  - "P1 pilot blockers are active" → current exact F-037/F-038 result closure is
+    consumed atomically by pilot-evidence acceptance and claim promotion; presence-
+    only packages cannot pass (WP6.2 T8);
+  - "admission validates content addresses" → exact manifest-required-set closure;
+    missing, duplicate, extra, stale-revision, incompatible, or tampered components
+    block admission atomically with zero object/ScopeDefinition publication (WP6.6);
+  - "vault is projection-only for successor objects" → path/writer registry proves
+    successor projection and legacy authority paths are disjoint; projection mutation,
+    legacy collision, deletion/rebuild, and one-way cutover tests pass (WP6.5/WP6.6).
 - Passing software tests remains insufficient; each WP dispatch plan carries its own
   research-assurance triage per APM_RULES.
 
-## 7. Out of scope for WP6
+## 7. Forward-obligation register
+
+The master retains every non-local obligation; child plans may refine but not silently
+retire these rows.
+
+| Source | Exact obligation and owner | Trigger | Disposition |
+|---|---|---|---|
+| W1 §9.6; W7 §§9/21 | No credential/`.env` content crosses context, generated adapter, payload, argv/config, event, receipt, object, or fixture; WP6.2 implementer, independently reviewed | Before any provider invocation | WP6.2 T2/T3/T4 and §4 pre-issue matrix; post-run scan is defense in depth only. |
+| W2 §§10–21; W8 §§7–21 | Exact accepted lifecycle/catalogue, not an implemented subset; WP6.1 implementer and reviewer | Before WP6.1 dispatch/merge | 06a §3 owner-source matrix plus exact-set and one-field negatives. |
+| W4 §§10.2–10.3 | Complete current evaluation evidence and eligibility; T6 producer, distinct reviewer, Stephen approval | Before any route relies on a profile | 06b T6 and master exit checklist. |
+| W6 addendum F-037/F-038 | Materialize, calibrate, activate, and consume as P1 blockers; T8 producer and distinct review | Before pilot evidence acceptance or claim promotion | 06b §§5–6; current exact closure is non-compensable. |
+| D-G5-3/D-G6-3 | Literal old/new/reason/formula/command/smoke, including unchanged fields; Stephen | Before WP6.1 or WP6.2 execution | 06a §4 and 06b §6; approval cites exact revision. |
+| P-004/P-021/P-032 | Legacy and successor writers never share a mutable path; W11 author and migration authority | Before W11 acceptance or any transition | WP6.5 registered paths, writer sets, ingestion, collision and one-way cutover tests. |
+| S-016 | Provider outage preserves requirements: wait/block/`unable_to_grade`, never a lower-grade substitute; WP6.2 | Any T7/T8 provider outage | 06b stop condition and fixture evidence. |
+| Adversarial review §11 | Fresh independent re-review with no open Critical/Major, then exact-revision owner approval | Before WP6.1/WP6.2 approval | Final two rows of §9 checklist. |
+
+## 8. Out of scope for WP6
 
 - Any research-paper computation, empirical claim, or UKHLS Wave 15 usage (programme-
   side gates; the programme's own §5 data boundary governs).
@@ -221,28 +260,40 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 - Autonomous promotion of any Discovery candidate — PROMOTE/PARK/KILL stay
   human-locked (P-005).
 
-## 8. Exit checklist
+## 9. Exit checklist
 
 Owner-touchpoint preconditions from the child plans are hoisted here explicitly —
 this checklist is the acceptance procedure, and a precondition that lives only in
 sub-plan prose is not enforced by it.
 
 - [x] P-031–P-034 confirmed by Stephen (2026-07-17) — D-G6-1 closed.
-- [ ] Live-grader threshold/calibration policy accepted by Stephen (D-G6-2;
-      06b T1) **before** any WP6.2 task after T1 dispatches and before any M/H row
-      unblocks.
-- [ ] Every WP6.1/WP6.2 invariant re-baseline pre-registered in the dispatching
-      plan revision and approved by Stephen before execution (D-G6-3; 06a T8,
-      06b T7).
+- [ ] Exact content-addressed live-grader threshold/calibration policy independently
+      reviewed and accepted by Stephen (D-G6-2; 06b T1) **before** T2–T8 dispatch and
+      before any M/H row unblocks.
+- [ ] Every WP6.1/WP6.2 changed and unchanged invariant has literal old/new values,
+      reason/formula, recomputation command, and smoke in the exact dispatching plan
+      revision; Stephen approves that revision before execution (D-G6-3; 06a §4,
+      06b §6).
 - [ ] Evaluated model profiles accepted by Stephen at their claimed capability
       grades (06b T6 human-review item) before any route relies on them.
+- [ ] Stephen records the WP6.1 operator-usability disposition after tranche review;
+      a technically complete but routinely bypassable surface does not clear A5.
 - [ ] WP6.1 and WP6.2 merged via review-then-merge; Gate A A3–A6 cleared with
-      direct current evidence.
+      direct current evidence, including the exact W2/W8 matrix, provider-specific
+      pre-issue secret/cost negatives, execution-bound live parity, complete W4
+      profiles, and active F-037/F-038 pilot/claim gates.
 - [ ] WP6.3 pack accepted with distinct-authority review; A7 cleared.
 - [ ] WP6.4 binding verified and Gate 6 preflight package accepted; A8 cleared;
       D-G6-5 recorded.
-- [ ] WP6.5 W11 specification accepted after adversarial review.
+- [ ] WP6.5 W11 specification accepted after adversarial review with the legacy
+      `_backlog.md`, ARS generated namespace, annotation inbox, writer sets, and
+      one-way cutover physically disjoint; D-G6-4 records the first transition batch
+      before any migration.
 - [ ] TDA-scale programme re-hashed (v1.0.x) against the real ScopeDefinition schema
       and admitted via WP6.6 — Gate A clears end-to-end; SCALE-01 becomes
       dispatchable as the Gate 6 pilot.
 - [ ] WP6.7 sequencing document exists with its gates explicit (no dispatch).
+- [ ] This revised WP6 suite receives a fresh independent adversarial review with no
+      open Critical/Major finding and every failed/partial binding row closed.
+- [ ] Stephen explicitly approves the exact commit reviewed in the preceding row;
+      only that commit may supply WP6.1/WP6.2 dispatch prompts.

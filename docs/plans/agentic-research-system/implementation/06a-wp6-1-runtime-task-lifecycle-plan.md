@@ -4,6 +4,9 @@
 **Status:** draft, review pending — authorizes no implementation; dispatch is gated on
 Gate 5 close (WP5.6) and Stephen's approval of this plan with its pre-registered
 invariant re-baseline (D-G6-3).
+**Revision note (2026-07-17):** revised to close the WP6 plan-suite adversarial
+review's M-2/M-6 and binding-test findings. The revision still authorizes no
+implementation and requires fresh independent review before approval.
 **Goal:** Materialize the accepted W2 runtime record set and lifecycle (rich Task,
 ScopeDefinition, dispatch/claim/lease/attempt, messages, blockers/Partial, artefact
 manifests, reviews/decisions/corrections) and the W8 typed operator command surface,
@@ -41,7 +44,10 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   revision, aliases, project, portfolio/scope references, purpose, risk request,
   governing references, readiness preconditions) and the P-012 ScopeDefinition record
   with versioned membership and typed dispositions. Commands: create/supersede/amend-
-  by-revision. **Binding tests:** schema-invalid create rejected atomically; a
+  by-revision. The schema field and transition catalogue must equal the accepted W2
+  §10/§11 owner rows recorded in §3 below; validating a smaller self-consistent schema
+  is a failure. **Binding tests:** missing, extra, wrong-type, and stale-revision fields
+  are rejected one at a time and atomically; a
   milestone-completion command naming a stale ScopeDefinition revision rejected;
   a completion command omitting a typed disposition for any required member of
   the named revision rejected atomically — an absent tracker row is not a
@@ -52,8 +58,11 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   (the `operations/leases.py` machinery becomes the runtime lease authority);
   idempotency and concurrency per W2 §13. An attempt never silently replaces another
   (P-010 epochs). **Binding tests:** double-claim contention yields exactly one
-  holder; a command replayed with the same idempotency key is a no-op with the
-  original receipt; attempt supersession preserves the prior attempt's evidence.
+  holder; two claimants using conflicting payloads yield exactly one holder and one
+  conflict; a command replayed with the same idempotency tuple and canonical payload
+  returns the original receipt; the same tuple with a different payload is rejected
+  as `idempotency_conflict` with no event publication; attempt supersession preserves
+  the prior attempt's evidence.
 - **T3 — Messages, blockers, input-required, Partial.** W2 §§14–15; P-009 immutable
   publication/delivery/acknowledgement events; Partial as both attempt outcome and
   closed Task outcome with claim restrictions and stop reason (P-010). **Binding
@@ -65,37 +74,99 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   consumers); availability/integrity/structural/scientific/authority kept as separate
   dimensions (P-011). Large files stay in existing result roots; the control plane
   stores manifests only. **Binding tests:** a manifest whose input hash does not
-  resolve is rejected; no single boolean can mark an artefact `accepted`.
+  resolve is rejected; each consumer policy is tested against availability,
+  regenerability, integrity, structural validation, scientific review, and use
+  authority independently; no single boolean, aggregate score, or producer assertion
+  can mark an artefact usable.
 - **T5 — Reviews, decisions, corrections at runtime.** W2 §§17–19 command paths on
   top of the WP5.3a authority resolver: review requests/verdicts bound to exact
   subject hashes (P-013); Decision and RuleEvaluation records; corrections as
   compensating events, never ledger edits (P-020 history rule). **Binding tests:**
   a verdict against a changed subject hash is stale and unusable for acceptance;
-  a correction leaves the original event chain intact and replayable.
-- **T6 — Typed operator command surface.** W8 issue/start/checkpoint/heartbeat/stop/
-  resume/review/accept as registered commands with receipts and replay reducers,
-  wired to the existing operations modules; stop evidence records requested,
+  a producer-related or context-ineligible verdict cannot satisfy the required review
+  set; `AcceptTask` fails unless the exact review set is satisfied; only authorized
+  `ResolveDecision` can resolve a Decision, and a `RuleEvaluation` cannot supply that
+  authority; a correction leaves the original event chain intact and replayable.
+- **T6 — Typed operator command surface.** Register the exact W8 §20 catalogue —
+  `request_resource_grant`, `claim_execution_lease`, `record_heartbeat`,
+  `request_pause`, `confirm_pause`, `request_stop`, `confirm_stop`, `request_resume`,
+  `release_resources`, `quarantine_orphan`, `adopt_late_artefact`, `create_backup`, and
+  `verify_restore` — with W2 command envelopes, semantic events, receipts, replay
+  reducers, and the operations modules. No implementation-defined alias or smaller
+  catalogue satisfies T6. Stop evidence records requested,
   signalled, process-exited, children/writers-closed, and confirmed-clean (the
   programme's §9 stop contract is the same shape). Proportional profiles per P-025:
   the `trivial` profile keeps typed request/grant/lease/terminal-receipt evidence
   with benchmark/checkpoint/heartbeat groups explicitly `not_applicable`.
-  **Binding tests:** every operator command emits exactly one receipt and replayable
-  event; a kill-and-recover scenario (Gate-3 recovery pattern) proves the canonical
-  tail and projected state; heartbeat lapse on a `long_running` profile produces the
-  W8 escalation, not silent continuation.
+  **Binding tests:** exact catalogue equality; for every command, valid execution emits
+  exactly one receipt and replayable event, while missing/wrong-type authority,
+  subject, state/version, idempotency, and evidence fields reject atomically; a
+  kill-and-recover scenario (Gate-3 recovery pattern) proves the canonical tail and
+  projected state; heartbeat lapse on a `long_running` profile produces the W8
+  escalation, not silent continuation.
 - **T7 — Human-readable projections.** W2 §11 separate lifecycle projections
   (research-governance status vs operational state, P-008): current task, attempt,
   review, decision, queue, and message views as regenerable files; these are the
-  durable local operator surfaces A5 names. **Binding test:** projections rebuild
-  byte-identically from replay; deleting every projection loses nothing.
-- **T8 — Fixture extension and invariant re-baseline.** Extend the P0/P1 fixture set
-  to the new lifecycle surfaces per the reserved rows that 06-evaluation assigns to
-  affected interfaces; pre-register the exact invariant changes (fixture_count,
-  result_count) in this plan's final revision before dispatch (D-G6-3). Existing
-  fixture results must not drift except where pre-registered — drift is a stop
-  condition.
+  durable local operator surfaces A5 names. **Binding tests:** projections rebuild
+  byte-identically from replay; deleting every projection loses nothing; arbitrary
+  projection edits are ignored as command authority, diagnosed as drift, and cannot
+  alter any accepted command outcome.
+- **T8 — Binding-suite closure and invariant preservation.** Add the exact-set and
+  one-field-at-a-time tests required by §§3–4. WP6.1 adds no W6 fixture package or
+  grader-result row: the Gate 5 evaluation corpus and published release evidence stay
+  byte-for-byte outside this tranche. The literal no-change baseline in §4 is the
+  D-G6-3 contract; any difference is a stop, not a value to normalize into the plan.
 
-## 3. Sequencing, branches, and review
+## 3. Accepted owner-source matrix
+
+Before any production implementation, T1 creates
+`.research-system/contracts/wp6-1-owner-source-matrix.yaml`. It has one row per item
+below and fields for `owner_source`, `command_or_transition`, `command_schema_id`,
+`event_type`, `event_schema_id`, `reducer`, `projections`, `authority_rule`,
+`receipt_contract`, `positive_test`, and `negative_tests`. An exact-set test compares
+the matrix with these owner rows and the registered runtime catalogue; missing, extra,
+aliased, or duplicate rows fail. Tests iterate over this accepted matrix, never over
+whatever commands happen to be implemented.
+
+| Owner source | Exact rows that must appear one-for-one | Required implementation binding |
+|---|---|---|
+| W2 §10/§11 Task and scope | `CompleteScope`; `CreateTask`, `RequestReadiness`, `ApproveReadiness`, `BlockTask`, `RequestInput`, `PauseTask`, `ResumeTask`, `SubmitForReview`, `AcceptTask`, `RejectTask`, `ClosePartial`, `CancelTask`, `SupersedeTask`, `ReopenTask`; every status edge and precondition in W2 §11.3 | Strict command/event schemas under `.research-system/schemas/core/`; semantic past-tense event; reducer; governance and operational projections; WP5.3a authority rule; W2 accepted/duplicate/rejected/conflict receipt; positive plus one-field/illegal-edge/atomic negative tests. |
+| W2 §12 dispatch | `issued → delivered → acknowledged → claimed → fulfilled`, each permitted `expired` edge, and each permitted `withdrawn` edge; `ExpireLease`; `WithdrawDispatch`, `RequestAttemptStop`, `ConfirmAttemptStopped`, `CancelTask` | One typed command/event pair per edge; expected dispatch/Task/lease versions; dispatch/lease/Task projections; exact authority and receipt; contention, stale-version, late-output, and no-side-effect negatives. |
+| W2 §12 attempt/checkpoint | `created → claimed → running → completed/failed/partial/paused/stopping/abandoned/superseded`, including `paused → running`; `CheckpointRecorded`; every retry creates a new attempt/epoch | Attempt/checkpoint schemas and semantic events; reducer and attempt/operational projections; compatibility/authority rule; receipt; illegal replacement, incompatible resume, competing payload, and preserved-prior-evidence negatives. |
+| W2 §§14–15 messages/blockers/Partial | Message types `assignment`, `acknowledgement`, `progress`, `input_request`, `escalation`, `report`, `review_request`, `review_response`, `decision_request`, `handoff`; `AcknowledgeMessage`; typed blocker/input/attempt-Partial/Task-Partial rows | Immutable message/blocker/Partial schemas and events; message and governance projections; ownership/authority rules; receipt; acknowledgement-non-mutation, missing-resume-owner, reopen-epoch, and claim-restriction negatives. |
+| W2 §§16–19 artefacts/reviews/decisions/corrections | Six independent artefact state dimensions; review states `requested`, `assigned`, `in_review`, `verdict_recorded`, `changes_requested`, `satisfied`, `withdrawn`, `superseded`; decision states `proposed`, `under_review`, `resolved`, `rejected`, `expired`, `superseded`; `ResolveDecision`; `RecordCorrection` | Typed schemas/events; reducers and artefact/review/decision projections; consumer predicate, satisfied-review-set, independence, reserved Decision authority, and correction authority; receipts; producer-attestation, stale subject, `RuleEvaluation`-as-Decision, and history-mutation negatives. |
+| W8 §20 operator catalogue | `request_resource_grant`, `claim_execution_lease`, `record_heartbeat`, `request_pause`, `confirm_pause`, `request_stop`, `confirm_stop`, `request_resume`, `release_resources`, `quarantine_orphan`, `adopt_late_artefact`, `create_backup`, `verify_restore` | One normalized operator command mapped to one W2 command/event contract, reducer, operational projection, W8 authority/precondition, W2 receipt, positive test, and missing/wrong-type/stale/conflict/atomic-rejection tests. |
+
+## 4. D-G6-3 invariant table and executable smoke
+
+WP6.1 is a no-change evaluation re-baseline. The old and approved new values are
+identical because T8 adds software contract tests, not W6 fixture packages or results.
+
+| Invariant | Exact old | Exact new | Reason and recomputation |
+|---|---:|---:|---|
+| `fixture_count` | 40 | **40** | `len(selected_fixture_revisions)` in `p0-coverage.yaml`; no package/revision change. |
+| `blocked_fixture_count` | 15 | **15** | The frozen fake-transport M/H restriction is unchanged. |
+| `fixtures_with_uncalibrated_mutations` | 0 | **0** | No fixture mutation changes. |
+| `mutation_calibration` | `calibrated` | **`calibrated`** | Existing two-repetition calibration remains current. |
+| `result_count` | 302 | **302** | No required result key is added, removed, or replaced. |
+| `candidate_status` | `blocked` | **`blocked`** | The accepted Gate 5 release decision is immutable. |
+| `gate5_authorized` | `false` | **`false`** | WP6.1 cannot authorize or republish Gate 5. |
+| O15 deletion initiation | `disabled/deferred` | **`disabled/deferred`** | D-G5-2 remains outside WP6.1. |
+
+The mandatory pre- and post-tranche smoke is:
+
+```text
+uv run --no-sync ars eval calibrate --coverage .research-system/evals/p0-coverage.yaml --transport fake
+uv run --no-sync ars eval run --coverage .research-system/evals/p0-coverage.yaml --transport fake
+uv run --no-sync pytest -q tests/research_system/integration/test_wp6_1_invariant_baseline.py
+```
+
+The baseline test asserts all eight rows, including the coverage-manifest O15 omission,
+and verifies the tracked Gate 5 coverage, decision, and fixture bytes are unchanged
+from the dispatch base. Stephen's D-G6-3 approval cites this exact plan revision before
+any tranche executes.
+
+## 5. Sequencing, branches, and review
 
 - One worktree per tranche; suggested split: T1–T3 (`pipe/ars-wp6-1-task-lifecycle`),
   T4–T5 (`pipe/ars-wp6-1-artefacts-reviews`), T6–T7 (`pipe/ars-wp6-1-operator-surface`),
@@ -108,15 +179,17 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   `reviews/adversarial-wp4-full-review-2026-07-07.md`).
 - Worktree `.env` copy per repo convention immediately after `git worktree add`.
 
-## 4. Stop conditions
+## 6. Stop conditions
 
 - Any un-pre-registered change to existing fixture invariants.
 - Any code path that lets an operational event (process exit, test pass, merge)
   produce research-governance acceptance (P-008/P-005 violation).
 - A second writer or direct ledger append from a worktree (P-020).
 - Schema/reducer divergence such that replay of the pre-WP6.1 ledger fails.
+- Any missing, extra, duplicate, or aliased owner-source matrix row, or any test that
+  derives its expected catalogue from implemented registrations.
 
-## 5. Research assurance triage
+## 7. Research assurance triage
 
 - **Lanes:** Output/Provenance primary; others N/A (no research content).
 - Machine-checkable claims are the binding tests named per task above; each is an
@@ -125,7 +198,7 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   will not be routinely bypassed (04-plan §7 stop rule) — assessed in the tranche
   review with Stephen.
 
-## 6. Out of scope
+## 8. Out of scope
 
 - Live transports, model profiles, threshold policy (WP6.2).
 - Portfolio/Discovery records and admission (WP6.5/WP6.6 — W11 first).
