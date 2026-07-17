@@ -1,9 +1,9 @@
 # 06b — WP6.2: Live Capability — Adapters, Parity, Threshold Policy, Evaluated Profiles — Dispatch Plan
 
 **Date:** 2026-07-16
-**Status:** draft, review pending — authorizes no implementation and no live provider
-call. Dispatch is gated on Gate 5 close (WP5.6) and Stephen's approval of this plan.
-T2–T4 additionally require Stephen's acceptance of the exact T1a protocol hash; T5–T8
+**Status:** exact plan content independently reviewed and owner-approved under P-036 at
+`fe5f1d40bc8f05f061317c677b5891cea0711249`; authorizes no implementation and no live
+provider call. T2–T4 additionally require Stephen's acceptance of the exact T1a protocol hash; T5–T8
 and every M/H eligibility transition additionally require Stephen's acceptance of the
 exact composite T1b-M/T1b-H evidence-bearing policy hash (D-G6-2/P-035). Implements accepted decision
 P-033 (no interim operator-executed mode; wording confirmed 2026-07-17).
@@ -11,8 +11,9 @@ P-033 (no interim operator-executed mode; wording confirmed 2026-07-17).
 non-compensable model/human evidence union, pin literal 51-row and 54-obligation
 expected-source annexes, require a strict P1 stage schema and independently accepted
 descriptor-hash manifest, and separate W6 `gate_stage` from `evidence_stage`. It still
-authorizes no implementation or provider call and requires fresh independent review
-and Stephen's approval of the exact revision.
+authorizes no implementation or provider call. R5 independently reviewed the exact
+revision above with zero findings, and Stephen approved it under P-036; only the
+plan-suite review gate is closed.
 **Goal:** Clear Gate A blockers A3 and A6 with direct current evidence: live Claude
 and Codex transports behind the accepted W7 interface, semantic fail-closed parity on
 live transports, the separately accepted live-grader threshold/calibration policy

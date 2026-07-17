@@ -1,8 +1,9 @@
 # 06d — WP6.1 literal owner-source catalogue
 
 **Date:** 2026-07-17<br>
-**Status:** normative plan annex; authorizes no implementation<br>
-**Authority:** accepted W2 §§10–19 and W8 §20; parent plan 06a §3
+**Status:** normative plan annex approved under P-036 at exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`; authorizes no implementation<br>
+**Authority:** accepted W2 §§10–19 and W8 §20; parent plan 06a §3; P-036
 
 This annex is the pre-implementation expected set for WP6.1. A test may parse these
 rows, but it must not derive, expand, repair, or filter them from runtime registrations.
@@ -18,8 +19,10 @@ or duplicate keys fail before any implementation-completeness claim can pass.
   `command_schema_sha256`), with `command_type` fixed by that schema. The same complete
   identity is bound by the authority grant, dispatcher, emitted event(s), receipt, and
   WP6 idempotency tuple. W8's snake-case owner tokens map one-to-one to the
-  paired PascalCase values shown in §4; this proposed mapping becomes authoritative
-  only with Stephen's approval of the exact D-G6-3 revision. No alias is accepted.
+  paired PascalCase values shown in §4; this mapping is authoritative for dispatch
+  planning under P-036 at the exact reviewed revision above. Its future materialized
+  schema-identity manifest still requires separate independent review and exact-hash
+  owner acceptance under D-G6-3. No alias is accepted.
 - Event schema `evt/x` means
   `.research-system/schemas/core/events/x.schema.json`. Command and event schemas are
   strict, versioned, and registered by exact content hash. A row's listed semantic

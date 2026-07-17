@@ -1,10 +1,10 @@
 # 06e — WP6.2 literal live-result replacement map
 
 **Date:** 2026-07-17<br>
-**Status:** normative proposed plan annex, pending exact-revision review and owner
-approval; authorizes no implementation or live call<br>
+**Status:** normative plan annex approved under P-036 at exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`; authorizes no implementation or live call<br>
 **Authority:** accepted Gate 5 merge `f49a27fe15ae4df566c9107dc07f7451f51b924a`;
-P-035 composition choice; parent plan 06b §6.2
+P-035 composition choice; parent plan 06b §6.2; P-036
 
 This annex is the exclusive expected-side source for the 51 live-result replacements
 used by WP6.2 T7. It was derived once from the accepted `p0-coverage.yaml`, the exact
@@ -26,8 +26,10 @@ they must not generate, filter, repair, or relabel this expected set.
 - Every row has replacement scope `live_capability_only`. The frozen predecessor
   remains immutable and addressable as `foundation_release` evidence.
 
-The successor construction and H-row binding semantics become authoritative only when
-Stephen approves the exact independently reviewed D-G6-3 revision.
+The successor construction and H-row binding semantics are authoritative for dispatch
+planning under P-036 at the exact reviewed revision above. Future materialized manifests,
+live results, and execution evidence retain their separate review and exact-hash owner
+acceptance gates under D-G6-3.
 
 ## 2. Literal 51-row map
 

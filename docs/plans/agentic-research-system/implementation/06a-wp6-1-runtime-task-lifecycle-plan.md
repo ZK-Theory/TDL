@@ -1,17 +1,18 @@
 # 06a — WP6.1: Runtime Task Lifecycle and Operator Surface — Dispatch Plan
 
 **Date:** 2026-07-16
-**Status:** draft, review pending — authorizes no implementation; dispatch is gated on
-Gate 5 close (WP5.6) and Stephen's approval of this plan with its pre-registered
-invariant re-baseline (D-G6-3).
+**Status:** exact plan content independently reviewed and owner-approved under P-036 at
+`fe5f1d40bc8f05f061317c677b5891cea0711249`; authorizes no implementation. Runtime
+implementation remains gated on the future WP6.1 materialization/manifest reviews and
+exact-hash owner acceptances required by D-G6-3.
 **Revision note (2026-07-17):** revised through the R4 remediation review so every one
 of the 104 rows binds exact command/event schema identity and authority subject data,
 Decision and RuleEvaluation remain non-compensable, the claim is an atomic relationally
 bound two-stream batch, and the correction selector is closed. Exact-
 set validation compares complete row records rather than independently creditable
-component sets. The revision still authorizes no implementation and requires fresh
-independent review before
-approval.
+component sets. R5 independently reviewed the exact revision above with zero findings,
+and Stephen approved it under P-036. This closes the plan-suite review gate only; the
+future implementation and materialization gates remain open.
 **Goal:** Materialize the accepted W2 runtime record set and lifecycle (rich Task,
 ScopeDefinition, dispatch/claim/lease/attempt, messages, blockers/Partial, artefact
 manifests, reviews/decisions/corrections) and the W8 typed operator command surface,

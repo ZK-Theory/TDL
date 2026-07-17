@@ -1,10 +1,11 @@
 # 06f — WP6.2 P1 activation expected-source contract
 
 **Date:** 2026-07-17<br>
-**Status:** normative plan annex, pending exact-revision review and owner approval;
-authorizes no implementation, activation, pilot evidence, or claim transition<br>
+**Status:** normative plan annex approved under P-036 at exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`; authorizes no implementation, activation,
+pilot evidence, or claim transition<br>
 **Authority:** accepted F-037/F-038 reservation under P-029; parent plan 06b §5;
-future D-G6-3 approval of the exact reviewed revision
+P-036 plan-revision approval; future expected-manifest acceptance under D-G6-3
 
 This annex is the exclusive expected-side producer for the P1 F-037/F-038 activation
 closure. Runtime manifests, ledger records, execution records, and result stores are
@@ -33,9 +34,11 @@ the same tuple. No class-only alias is a result key.
 | B10 | `(F-038, 1.0.0, f-038-human-authority, H, domain-pack-applicability-v1, baseline)` | `pass`; attributed human result ID/hash |
 | B11 | `(F-038, 1.0.0, f-038-privacy-security, P, domain-pack-applicability-v1, baseline)` | `pass`; result ID/hash |
 
-The exact grader IDs, versions, and fixture revisions above are proposed contract
-identities. They become authoritative only when Stephen approves the exact reviewed
-revision under D-G6-3; implementation may not substitute locally convenient aliases.
+The exact grader IDs, versions, and fixture revisions above are authoritative plan
+contract identities under P-036 at the exact reviewed revision. The future
+machine-readable expected manifest containing their literal descriptor hashes still
+requires independent review and exact-hash owner acceptance under D-G6-3 before
+observation; implementation may not substitute locally convenient aliases.
 
 ## 2. Activation obligations (43)
 

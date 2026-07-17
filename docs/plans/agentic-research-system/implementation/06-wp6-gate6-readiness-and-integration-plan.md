@@ -29,7 +29,7 @@ dispatched as its own reviewed plan (04a/05a pattern) without re-derivation.
 
 **Governing authority:** accepted W1–W8 designs and 06c interface manifest (P-027–P-030);
 04-plan §4 (Gate 6) and §6 (pilot operating model); 05-wp5 plan §2 (Gate 5 acceptance
-criteria) and §6 owner record; accepted decisions P-031–P-035
+criteria) and §6 owner record; accepted decisions P-031–P-036
 (03-decisions-and-open-questions.md, recorded/confirmed 2026-07-16–2026-07-17);
 Gate A blockers A1–A8 of the TDA-scale programme v1.0.0 (vault:
 `00-Meta/Research Direction Reports/Evidence-Led TDA Scale and Research Programme for
