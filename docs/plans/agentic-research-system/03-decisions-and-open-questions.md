@@ -369,9 +369,19 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Remaining gate:** A separately reviewed P0 materialization and narrow-foundation implementation plan, followed by Stephen's explicit approval before implementation.<br>
 **Affected specifications:** W3, W4, W6, W7, W8, 06c; package status and implementation sequence.
 
-## Post-Gate-5 owner directions recorded 2026-07-16
+## Post-Gate-5 owner directions recorded 2026-07-16–17
 
-These entries record directions Stephen stated in the 2026-07-16 planning session that produced `implementation/06-wp6-gate6-readiness-and-integration-plan.md`, written against the evidence survey in that session (Gate A blockers A1–A8 of the vault-side TDA-scale programme v1.0.0 cross-checked against the accepted W1–W8 designs, the Gate 5 plan, and the implemented `research_system` foundation). Stephen confirmed the exact wording on 2026-07-17 (D-G6-1), the same day the Gate 5 foundation was accepted at merge `f49a27f` — so the A1 blocker these decisions were drafted against is now cleared, and the D-G5-1(a) M/H restriction and O15 deferral carry forward as recorded in the acceptance decision. Acceptance of these directions authorizes no implementation; the WP6 plan suite still requires its own review gate.
+P-031–P-034 record directions Stephen stated in the 2026-07-16 planning session that
+produced `implementation/06-wp6-gate6-readiness-and-integration-plan.md`, written
+against the evidence survey in that session (Gate A blockers A1–A8 of the vault-side
+TDA-scale programme v1.0.0 cross-checked against the accepted W1–W8 designs, the Gate
+5 plan, and the implemented `research_system` foundation). Stephen confirmed their
+exact wording on 2026-07-17 (D-G6-1), the same day the Gate 5 foundation was accepted
+at merge `f49a27f`. P-035 records Stephen's direct 2026-07-17 approval of the two
+owner choices required by the fresh WP6 remediation review. The A1 blocker is cleared,
+and the D-G5-1(a) M/H restriction and O15 deferral carry forward as recorded in the
+acceptance decision. Acceptance of these directions authorizes no implementation; the
+WP6 plan suite still requires its own review gate.
 
 ### P-031 — Gate 6 pilot definition amendment
 
@@ -404,7 +414,7 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Decision:** No interim operator-executed or degraded-mode research dispatch is defined. Live Claude and Codex transports, live semantic parity evidence, the separately accepted live-grader threshold/calibration policy, and instantiated evaluated model profiles (W4 §10) must all exist with direct current evidence before any R2 research task dispatches under ARS. The intent is to start doing real work and test the system in action, on its full capability path.<br>
 **Rationale:** An interim human-executed mode would be an undeclared bypass of the routing, parity, and independence machinery — precisely the class of informal side-channel the ARS exists to remove.<br>
 **Evidence:** Gate A A3/A6; the fake-only `live_enabled: false` adapter manifests and provider guard; the Gate 5 D-G5-1(a) release restriction; W4 §10 and W7/W8 command/receipt/grant contracts; Stephen's 2026-07-16 direction and 2026-07-17 wording confirmation.<br>
-**Migration consequence:** The Gate 5 M/H restriction remains until the exact T1 policy and direct live evidence are accepted. No R2 research dispatch, operator bypass, lower-grade fallback, or profile-by-name route is available during the cutover.<br>
+**Migration consequence (as amended by P-035):** The Gate 5 M/H restriction remains until the exact T1b evidence-bearing policy and direct live evidence are accepted; T1a protocol acceptance alone cannot unblock it. No R2 research dispatch, operator bypass, lower-grade fallback, or profile-by-name route is available during the cutover.<br>
 **Affected specifications:** W4, W6 (§7.2 threshold clause), W7, W8; WP6 master and WP6.2.
 
 ### P-034 — End-to-end consolidation objective and legacy sunset sequencing
@@ -416,6 +426,48 @@ These entries record directions Stephen stated in the 2026-07-16 planning sessio
 **Boundary:** The P-026 legacy boundary is unchanged: T1.28 and the two current APM-managed papers remain `legacy_owned`; T1.28 terminal review still gates legacy deprecation claims.<br>
 **Migration consequence:** Each active item remains on its current authority and physical writer path until its W9 gate and attributed transition event pass. Retirement happens only after the final path-level cutover; no dual writer, implicit import, or bulk status upgrade is permitted.<br>
 **Affected specifications:** `00-master-transition-plan.md` §6.1; WP6 master/WP6.5/WP6.6/WP6.7; W9, W10, W11.
+
+### P-035 — WP6.2 staged calibration and composite live evidence
+
+**Date:** 2026-07-17<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-029, P-030, P-033; resolves the structural limb of D-G6-2 and the T7 composition limb of D-G6-3<br>
+**Decision:** WP6.2 uses the exact non-circular lifecycle
+`T1a → T2 → T3/T4 → T1b → T5 → T6 → T7 → T8`. T1a preregisters and receives
+independent review/Stephen acceptance for the calibration protocol without claiming
+observed calibration. T2 establishes the secret/cost boundary; T3 and T4 then produce
+independent bounded Claude/Codex canary evidence. T1b uses those protected seams to
+produce immutable calibration evidence and receives independent review/Stephen
+acceptance for the exact evidence-bearing threshold-policy hash. T1a acceptance gates
+T2–T4 only; T1b acceptance gates T5–T8 and every M/H eligibility transition.<br>
+**Evidence-composition rule:** T7 uses exactly 251 immutable references to otherwise-
+available Gate 5 `foundation_release` results plus 51 new `live_capability` results,
+for an aggregate closure of 302. Each live result has a one-to-one predecessor mapping
+from an unavailable M/H Gate 5 key and actual provider/model/adapter/command/receipt/
+grant/lease identities and hashes. Frozen fake results retain their original lifecycle
+and identities and are never relabelled as live.<br>
+**Rationale:** A single policy gate before T2 is empirically circular because protected
+provider seams do not yet exist. A full 302-row live-rerun claim would contradict the
+bounded 51-obligation tranche and waste accepted evidence. The staged gate preserves
+preregistration and owner authority while allowing admissible calibration evidence;
+the composite preserves immutable Gate 5 provenance while making the new live
+capability evidence exact.<br>
+**Evidence:** Independent remediation review supplied at
+`C:/Users/steph/.codex/worktrees/4d28/TDL/docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md`
+(source-file Git blob hash `b962ed11813ff0a0164a0f8be3eef7e926757e5e`), reviewing exact
+commit `45d29dd16cc5e654eb0be086d81eda9771711f11`, findings M-1 and M-6;
+Stephen's direct approval of both recommended choices on 2026-07-17.<br>
+**Boundary:** This accepts sequencing and evidence composition only. It does not
+accept a future T1a protocol hash, a T1b empirical policy hash, any live call/result,
+an evaluated profile, an M/H eligibility transition, the revised D-G6-3 tables as a
+whole, WP6 dispatch, pilot evidence, or a claim.<br>
+**Migration consequence:** WP6.2 dispatch prompts and branches must reproduce the
+staged graph exactly. The implementation must add a lifecycle-aware composite schema
+and stage-specific loader/CLI while preserving the existing P0 fake-only loader and
+all Gate 5 result identities byte-for-byte.<br>
+**Affected specifications:** W4 §10; W6 threshold/calibration, coverage, and
+F-037/F-038 contracts; W7 provider command/receipt evidence; W8 grant/lease evidence;
+WP6 master; WP6.2 T1a–T8; D-G6-2/D-G6-3; Gate 6 pilot and M/H eligibility gates.
 
 ## Assumptions requiring confirmation
 

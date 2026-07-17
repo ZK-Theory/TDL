@@ -4,9 +4,10 @@
 **Status:** draft, review pending — authorizes no implementation; dispatch is gated on
 Gate 5 close (WP5.6) and Stephen's approval of this plan with its pre-registered
 invariant re-baseline (D-G6-3).
-**Revision note (2026-07-17):** revised to close the WP6 plan-suite adversarial
-review's M-2/M-6 and binding-test findings. The revision still authorizes no
-implementation and requires fresh independent review before approval.
+**Revision note (2026-07-17):** revised again after the remediation review to replace
+the grouped owner-source matrix with a literal, content-addressed 104-row catalogue.
+The revision still authorizes no implementation and requires fresh independent review
+before approval.
 **Goal:** Materialize the accepted W2 runtime record set and lifecycle (rich Task,
 ScopeDefinition, dispatch/claim/lease/attempt, messages, blockers/Partial, artefact
 manifests, reviews/decisions/corrections) and the W8 typed operator command surface,
@@ -45,8 +46,9 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   governing references, readiness preconditions) and the P-012 ScopeDefinition record
   with versioned membership and typed dispositions. Commands: create/supersede/amend-
   by-revision. The schema field and transition catalogue must equal the accepted W2
-  §10/§11 owner rows recorded in §3 below; validating a smaller self-consistent schema
-  is a failure. **Binding tests:** missing, extra, wrong-type, and stale-revision fields
+  §10/§11 owner rows recorded in the literal §3 annex; validating a smaller
+  self-consistent schema is a failure. **Binding tests:** missing, extra, wrong-type,
+  and stale-revision fields
   are rejected one at a time and atomically; a
   milestone-completion command naming a stale ScopeDefinition revision rejected;
   a completion command omitting a typed disposition for any required member of
@@ -117,25 +119,30 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   byte-for-byte outside this tranche. The literal no-change baseline in §4 is the
   D-G6-3 contract; any difference is a stop, not a value to normalize into the plan.
 
-## 3. Accepted owner-source matrix
+## 3. Accepted literal owner-source catalogue
 
-Before any production implementation, T1 creates
-`.research-system/contracts/wp6-1-owner-source-matrix.yaml`. It has one row per item
-below and fields for `owner_source`, `command_or_transition`, `command_schema_id`,
-`event_type`, `event_schema_id`, `reducer`, `projections`, `authority_rule`,
-`receipt_contract`, `positive_test`, and `negative_tests`. An exact-set test compares
-the matrix with these owner rows and the registered runtime catalogue; missing, extra,
-aliased, or duplicate rows fail. Tests iterate over this accepted matrix, never over
-whatever commands happen to be implemented.
+The normative expected set is the 104-row annex
+`06d-wp6-1-owner-source-catalogue.md`, SHA-256
+`43a689c01b2041d11d67daa790e3b97b51471c7000ca28393c77d3d77df4d14c`.
+It has one normalized row per W2 §10–§19 command/edge and one row for each of the
+thirteen W8 §20 operator commands. Each row independently names the command schema,
+semantic event, event schema, reducer, projections, authority/precondition, receipt,
+positive test, and its closed negative-test profile.
 
-| Owner source | Exact rows that must appear one-for-one | Required implementation binding |
-|---|---|---|
-| W2 §10/§11 Task and scope | `CompleteScope`; `CreateTask`, `RequestReadiness`, `ApproveReadiness`, `BlockTask`, `RequestInput`, `PauseTask`, `ResumeTask`, `SubmitForReview`, `AcceptTask`, `RejectTask`, `ClosePartial`, `CancelTask`, `SupersedeTask`, `ReopenTask`; every status edge and precondition in W2 §11.3 | Strict command/event schemas under `.research-system/schemas/core/`; semantic past-tense event; reducer; governance and operational projections; WP5.3a authority rule; W2 accepted/duplicate/rejected/conflict receipt; positive plus one-field/illegal-edge/atomic negative tests. |
-| W2 §12 dispatch | `issued → delivered → acknowledged → claimed → fulfilled`, each permitted `expired` edge, and each permitted `withdrawn` edge; `ExpireLease`; `WithdrawDispatch`, `RequestAttemptStop`, `ConfirmAttemptStopped`, `CancelTask` | One typed command/event pair per edge; expected dispatch/Task/lease versions; dispatch/lease/Task projections; exact authority and receipt; contention, stale-version, late-output, and no-side-effect negatives. |
-| W2 §12 attempt/checkpoint | `created → claimed → running → completed/failed/partial/paused/stopping/abandoned/superseded`, including `paused → running`; `CheckpointRecorded`; every retry creates a new attempt/epoch | Attempt/checkpoint schemas and semantic events; reducer and attempt/operational projections; compatibility/authority rule; receipt; illegal replacement, incompatible resume, competing payload, and preserved-prior-evidence negatives. |
-| W2 §§14–15 messages/blockers/Partial | Message types `assignment`, `acknowledgement`, `progress`, `input_request`, `escalation`, `report`, `review_request`, `review_response`, `decision_request`, `handoff`; `AcknowledgeMessage`; typed blocker/input/attempt-Partial/Task-Partial rows | Immutable message/blocker/Partial schemas and events; message and governance projections; ownership/authority rules; receipt; acknowledgement-non-mutation, missing-resume-owner, reopen-epoch, and claim-restriction negatives. |
-| W2 §§16–19 artefacts/reviews/decisions/corrections | Six independent artefact state dimensions; review states `requested`, `assigned`, `in_review`, `verdict_recorded`, `changes_requested`, `satisfied`, `withdrawn`, `superseded`; decision states `proposed`, `under_review`, `resolved`, `rejected`, `expired`, `superseded`; `ResolveDecision`; `RecordCorrection` | Typed schemas/events; reducers and artefact/review/decision projections; consumer predicate, satisfied-review-set, independence, reserved Decision authority, and correction authority; receipts; producer-attestation, stale subject, `RuleEvaluation`-as-Decision, and history-mutation negatives. |
-| W8 §20 operator catalogue | `request_resource_grant`, `claim_execution_lease`, `record_heartbeat`, `request_pause`, `confirm_pause`, `request_stop`, `confirm_stop`, `request_resume`, `release_resources`, `quarantine_orphan`, `adopt_late_artefact`, `create_backup`, `verify_restore` | One normalized operator command mapped to one W2 command/event contract, reducer, operational projection, W8 authority/precondition, W2 receipt, positive test, and missing/wrong-type/stale/conflict/atomic-rejection tests. |
+Before production implementation, T1 creates
+`.research-system/contracts/wp6-1-owner-source-catalogue.yaml` as a semantic copy of
+that exact annex and records the annex path, Git blob ID, SHA-256, and row keys. The
+exact-set validator expands only the annex's literal closed state classes, then compares
+the resulting expected set independently with schemas, runtime registrations, reducers,
+projections, authority rules, receipts, and tests. It rejects a missing, extra,
+duplicate, aliased, class-incomplete, or hash-mismatched row. Runtime registrations are
+comparison input only and can never generate or repair the expected set.
+
+The annex's negative profiles include one-field missing/wrong-type, illegal transition,
+stale version or subject hash, conflicting payload, idempotency conflict, authority,
+independence, compatibility, supersession, and atomic-no-side-effect cases wherever
+applicable. Every rejection leaves the event tail and all affected projections
+unchanged.
 
 ## 4. D-G6-3 invariant table and executable smoke
 
@@ -186,7 +193,8 @@ any tranche executes.
   produce research-governance acceptance (P-008/P-005 violation).
 - A second writer or direct ledger append from a worktree (P-020).
 - Schema/reducer divergence such that replay of the pre-WP6.1 ledger fails.
-- Any missing, extra, duplicate, or aliased owner-source matrix row, or any test that
+- Any missing, extra, duplicate, aliased, class-incomplete, or hash-mismatched
+  owner-source catalogue row; any mismatch from the annex hash above; or any test that
   derives its expected catalogue from implemented registrations.
 
 ## 7. Research assurance triage
