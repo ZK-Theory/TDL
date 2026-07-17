@@ -1,18 +1,21 @@
 # WP5.6 Gate 5 acceptance reconciliation — 2026-07-16
 
-**Status:** `owner_acceptance_pending`
+**Status:** Gate 5 foundation `accepted` by Stephen on 2026-07-17
 **Acceptance branch:** `codex/ars-gate5-acceptance-continuation`
 **Execution baseline:** `9f2c4a4540e049d44bcc59cffff382496d912661`
+**Acceptance merge:** `f49a27fe15ae4df566c9107dc07f7451f51b924a`
 **Independent review:**
 [`adversarial-gate5-foundation-review-2026-07-16.md`](adversarial-gate5-foundation-review-2026-07-16.md)
 (preserved unchanged; SHA-256
 `17782861e3ff934226aa8cb64a2285e72a820c1715a995c160c8226a1d97d357`)
 
 This record reconciles the independent review with the subsequent Owner-approved
-production authority bootstrap and the corrected production initialization and
-publication run. It does not alter the review's historical `rework_required`
-verdict, claim that the reviewer performed the later work, accept Gate 5, or
-authorize Gate 6.
+production authority bootstrap, corrected production initialization and
+publication run, and Stephen's final Gate 5 foundation acceptance. It does not
+alter the review's historical `rework_required` verdict or claim that the
+reviewer performed or approved the later work. The acceptance makes Gate 6
+eligible for separately authorized planning or execution; it does not authorize
+or begin Gate 6.
 
 ## 1. Reviewed delta and authority
 
@@ -222,7 +225,38 @@ occurred.
 | G5R-3 | **Closed by final reconciliation.** PR #99 is included in the appended 2026-07-16 vault publication evidence. |
 | G5R-4 | **Accepted as non-blocking.** Optional nested schema defense-in-depth was not implemented. The reviewed code-side enforcement remains load-bearing. |
 
-## 7. Commands and environment
+## 7. Owner acceptance
+
+Stephen explicitly accepted the Gate 5 foundation on 2026-07-17 at merge
+`f49a27fe15ae4df566c9107dc07f7451f51b924a`, supported by frozen Phase 2
+evidence packet SHA-256
+`6aaad4abafad74383862e9183b3bb8686f78672af06ea37459bcbda146682ae3`.
+
+The canonical acceptance-decision bytes are exactly the text inside the
+following fence, excluding the fence itself. The text begins with `Accept`, ends
+with `Gate 6.`, is encoded UTF-8 with LF separators, and has no trailing newline.
+Independent reconstruction produced exactly 576 bytes and SHA-256
+`15869e0a50831e004ea1a352c27a772559013cc21d204d56ab8bc29c47176c7c`:
+
+```text
+Accept the Gate 5 foundation at merge `f49a27f`, supported by evidence packet SHA-256 `6aaad4abafad74383862e9183b3bb8686f78672af06ea37459bcbda146682ae3`, subject to:
+
+- D-G5-1(a): M/H capabilities remain restricted.
+- D-G5-2: O15/deletion initiation remains deferred and disabled.
+- G5.3-B(a): trusted-local-operator attribution; no cryptographic identity requirement.
+- The candidate remains blocked and `gate5_authorized=false`.
+
+Acceptance covers the Gate 5 foundation only. It does not enable restricted capabilities, resolve O15, authorize the candidate, or begin Gate 6.
+```
+
+This acceptance does not enable M/H capabilities, enable deletion initiation,
+resolve O15, authorize the blocked candidate, or change
+`gate5_authorized=false`. G5.3-B(a)'s trusted-local attribution boundary remains
+unchanged; no cryptographic identity requirement is introduced. Gate 6 is now
+eligible for a separate authorization, but this decision does not authorize or
+begin Gate 6 planning or execution.
+
+## 8. Commands and environment
 
 Every Python command used:
 
@@ -241,6 +275,8 @@ python -m research_system.cli replay verify --control-root <external-control-roo
 python -m research_system.cli eval release --config <persisted-store-identity> --evaluation-runs <published-decision>
 ```
 
-The final repository status is `owner_acceptance_pending`. Stephen's separate
-recorded acceptance remains the last Gate 5 exit-checklist item. Gate 5 is not
-marked accepted and Gate 6 remains ineligible.
+The final repository status is Gate 5 foundation `accepted` on 2026-07-17. All
+capability, O15, attribution, candidate-blocked, and
+`gate5_authorized=false` restrictions remain in force. Gate 6 is eligible for
+separately authorized planning or execution, but was neither authorized nor
+begun by this acceptance record.
