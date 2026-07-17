@@ -2,9 +2,15 @@
 
 **Date:** 2026-07-16
 **Status:** draft, review pending — drafted at Stephen's direction (2026-07-16 session);
-authorizes no implementation. Gate 5 remains open (WP5.6 bounded review and acceptance
-run outstanding; O12 pending independent Manager acceptance; O15 deferred open) and is
-unaffected by this plan.
+authorizes no implementation.
+**Currency update (2026-07-17):** the Gate 5 foundation was accepted at merge
+`f49a27f` (Computational-Log `[DECISION]` entry, 2026-07-17), with D-G5-1(a) M/H
+restriction, D-G5-2/O15 deferral, and G5.3-B(a) attribution carried forward and the
+candidate remaining `blocked`/`gate5_authorized=false`. Gate A blocker A1 is therefore
+cleared and Gate 6 planning is eligible; every "Gate 5 close" dispatch gate in this
+suite is satisfied by that event. Stephen confirmed the P-031–P-034 wording the same
+day (D-G6-1 closed). Dispatch of any WP6 work still requires this suite's own review
+gate and Stephen's approval of the dispatching plan revision.
 **Goal:** Define the exact work standing between Gate 5 foundation acceptance and (a) a
 Gate 6 preflight-eligible pilot, (b) a dispatchable first research programme (the
 vault-side "Evidence-Led TDA Scale and Research Programme for ARS" v1.0.0), and (c) the
@@ -52,7 +58,8 @@ manifest is that interface performed by hand. WP6.5/WP6.6 close these.
 
 ## 2. Owner directions this plan implements
 
-Recorded 2026-07-16 as proposed decisions (exact wording confirmation pending):
+Recorded 2026-07-16 as proposed decisions; wording confirmed by Stephen 2026-07-17
+(D-G6-1 closed):
 
 - **P-031** — Gate 6 pilot slot amended to the first ARS-native workflow; SCALE-01
   proposed as pilot; the first ARS paper (SPEC lane) inherits the paper-pilot criteria.
@@ -220,7 +227,7 @@ Owner-touchpoint preconditions from the child plans are hoisted here explicitly 
 this checklist is the acceptance procedure, and a precondition that lives only in
 sub-plan prose is not enforced by it.
 
-- [ ] P-031–P-034 confirmed (or amended) by Stephen — D-G6-1.
+- [x] P-031–P-034 confirmed by Stephen (2026-07-17) — D-G6-1 closed.
 - [ ] Live-grader threshold/calibration policy accepted by Stephen (D-G6-2;
       06b T1) **before** any WP6.2 task after T1 dispatches and before any M/H row
       unblocks.
