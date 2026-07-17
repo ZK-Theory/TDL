@@ -22,8 +22,8 @@ from scipy.stats import bootstrap
 import audit_lib
 
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
+PROJ_ROOT = audit_lib.project_root(WORKTREE_ROOT)
 CACHE_PATH = (
     PROJ_ROOT / "results/trajectory_tda_integration/stage1/cache/"
     "null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz"

@@ -1,10 +1,10 @@
 """Rebuild the valid T1.38 Table 1 H1 exact-W2 cells.
 
-Each invocation owns one disjoint ``dataset:null`` checkpoint.  It is deliberately
+Each invocation owns one disjoint ``dataset:null`` checkpoint. It is deliberately
 serial within that process: exact EMD and the 5,000-landmark PH step are both
-memory-bandwidth intensive on this Windows host.  Parallelism, when warranted,
-is therefore achieved by launching separate OS processes for separate cells,
-never by joblib/loky.
+memory-bandwidth intensive on this Windows host. The preflight selects the
+fastest safe process count from measured candidates; the selected processes then
+run separate cells, never joblib/loky within a cell.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from poverty_tda.topology.multidim_ph import compute_rips_ph
 
 
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+PROJ_ROOT = audit_lib.project_root(WORKTREE_ROOT)
 OUTPUT_ROOT = WORKTREE_ROOT / "results/trajectory_tda_integration/stage1"
 CHECKPOINT_ROOT = Path(__file__).resolve().parent / "phase2_checkpoints"
 DATE_DEFAULT = "2026-07-16"
@@ -388,7 +388,22 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_cou
     }
 
 
-def write_preflight(date: str, summaries: list[dict[str, Any]], n_permutations: int, worker_count: int = 1) -> Path:
+def _preflight_classification(cost_model: dict[str, Any], wall_time_hours: float) -> str:
+    """Classify a selected worker count against its recorded resource budget."""
+    if wall_time_hours <= 0:
+        raise ValueError("wall_time_hours must be positive")
+    return (
+        "GO" if cost_model["projected_wall_hours"] <= wall_time_hours and cost_model["ram_preflight_passed"] else "STOP"
+    )
+
+
+def write_preflight(
+    date: str,
+    summaries: list[dict[str, Any]],
+    n_permutations: int,
+    worker_count: int,
+    wall_time_hours: float,
+) -> Path:
     cost_model = _cost_model(summaries, n_permutations, worker_count)
     suffix = "" if worker_count == 1 else f"_parallel_n{worker_count}"
     output = OUTPUT_ROOT / f"resource_preflight_t138_phase2{suffix}_{date}.json"
@@ -400,18 +415,17 @@ def write_preflight(date: str, summaries: list[dict[str, Any]], n_permutations: 
         "B_benchmarked": n_permutations,
         "L": L,
         "seed": SEED,
+        "wall_time_budget_hours": wall_time_hours,
         "production_cells": [f"{dataset}:{null_type}" for dataset in DATASETS for null_type in VALID_NULLS],
         "cost_model": cost_model,
-        "classification": "GO"
-        if cost_model["projected_wall_hours"] <= 12 and cost_model["ram_preflight_passed"]
-        else "STOP",
+        "classification": _preflight_classification(cost_model, wall_time_hours),
         "reason": "Projection is based on actual frozen-loading null generation plus exact W2, not a retained cache.",
     }
     output.write_text(json.dumps(audit_lib.convert_numpy(payload), indent=2) + "\n", encoding="utf-8")
     return output
 
 
-def assemble(date: str, worker_count: int = 1) -> Path:
+def assemble(date: str, worker_count: int) -> Path:
     summaries: list[dict[str, Any]] = []
     for dataset in DATASETS:
         for null_type in VALID_NULLS:
@@ -483,18 +497,33 @@ def assemble(date: str, worker_count: int = 1) -> Path:
     return output
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=DATE_DEFAULT)
     parser.add_argument("--only", help="comma-separated disjoint cells, e.g. usoc:markov1,bhps:markov1")
     parser.add_argument("--n-permutations", type=int, default=B)
     parser.add_argument("--checkpoint-every", type=int, default=5)
-    parser.add_argument("--worker-count", type=int, default=1)
+    parser.add_argument(
+        "--worker-count",
+        type=int,
+        required=True,
+        help="process count selected and recorded by the production-entry-point preflight",
+    )
+    parser.add_argument("--wall-time-hours", type=float, default=12.0, help="preflight wall-time budget in hours")
     parser.add_argument("--write-preflight", action="store_true")
     parser.add_argument("--assemble", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.n_permutations < 2:
         raise ValueError("n-permutations must be at least 2")
+    if args.worker_count < 1:
+        raise ValueError("worker-count must be positive")
+    if args.wall_time_hours <= 0:
+        raise ValueError("wall-time-hours must be positive")
+    return args
+
+
+def main() -> None:
+    args = parse_args()
     if args.assemble:
         print(assemble(args.date, args.worker_count), flush=True)
         return
@@ -512,14 +541,20 @@ def main() -> None:
         if len(set(requested)) != len(requested):
             raise ValueError("--only cannot contain a duplicate cell")
         cells = requested
+    if not args.only:
+        raise ValueError(
+            "Production cells must be launched as disjoint --only processes at the preflight-selected worker count; "
+            "use --assemble after their checkpoints complete."
+        )
     summaries = [
         run_cell(args.date, dataset, null_type, args.n_permutations, args.checkpoint_every)
         for dataset, null_type in cells
     ]
     if args.write_preflight:
-        print(write_preflight(args.date, summaries, args.n_permutations, args.worker_count), flush=True)
-    elif not args.only and args.n_permutations == B:
-        print(assemble(args.date, args.worker_count), flush=True)
+        print(
+            write_preflight(args.date, summaries, args.n_permutations, args.worker_count, args.wall_time_hours),
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

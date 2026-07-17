@@ -11,13 +11,30 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+
+def project_root(worktree_root: Path) -> Path:
+    """Resolve the shared project root for a primary checkout or linked worktree."""
+    completed = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        cwd=worktree_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    common_dir = Path(completed.stdout.strip())
+    if common_dir.name != ".git":
+        raise RuntimeError(f"Expected Git common directory to end in .git, got {common_dir}")
+    return common_dir.parent
+
+
+PROJ_ROOT = project_root(Path(__file__).resolve().parents[2])
 STAGE1_DIR = PROJ_ROOT / "results/trajectory_tda_integration/stage1"
 CACHE_DIR = STAGE1_DIR / "cache"
 

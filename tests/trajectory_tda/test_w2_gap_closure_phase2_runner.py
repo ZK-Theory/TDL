@@ -30,6 +30,19 @@ def test_parallel_cost_model_requires_ram_headroom() -> None:
     assert model["ram_preflight_passed"] is False
 
 
+def test_runner_requires_preflight_selected_worker_count_and_budget() -> None:
+    args = runner.parse_args(["--only", "usoc:order_shuffle", "--worker-count", "3", "--wall-time-hours", "6"])
+    assert args.worker_count == 3
+    assert args.wall_time_hours == 6
+    with pytest.raises(SystemExit):
+        runner.parse_args(["--only", "usoc:order_shuffle"])
+    assert runner._preflight_classification({"projected_wall_hours": 6.1, "ram_preflight_passed": True}, 6) == "STOP"
+
+
+def test_project_root_is_resolved_from_git_common_dir() -> None:
+    assert runner.PROJ_ROOT == audit_lib.project_root(runner.WORKTREE_ROOT)
+
+
 def test_exact_w2_pvalue_records_its_rank_count() -> None:
     stats = audit_lib.headline_stats_from_distances(np.asarray([4.0, 5.0]), np.asarray([1.0, 3.0, 6.0]))
     assert stats["rank_count_upper"] == 1
