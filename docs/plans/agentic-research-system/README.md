@@ -28,6 +28,9 @@ The objective is not to automate research judgment away. It is to make agent act
 | [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Draft WP6 master plan: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, consolidation sequencing; review pending |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Draft WP6.1 dispatch plan: rich Task/ScopeDefinition runtime and W8 operator surface; review pending |
 | [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Draft WP6.2 dispatch plan: live adapters, parity, threshold policy, evaluated model profiles; review pending |
+| [implementation/06d-wp6-1-owner-source-catalogue.md](implementation/06d-wp6-1-owner-source-catalogue.md) | Normative WP6.1 104-row complete-binding catalogue with exact command types |
+| [implementation/06e-wp6-2-live-replacement-map.md](implementation/06e-wp6-2-live-replacement-map.md) | Normative WP6.2 literal 51-row frozen-predecessor/live-successor map |
+| [implementation/06f-wp6-2-p1-activation-contract.md](implementation/06f-wp6-2-p1-activation-contract.md) | Normative WP6.2 independent expected source for the 11+43 P1 closure |
 | [transition/W0-legacy-closeout-transition-manifest-2026-06-28.md](transition/W0-legacy-closeout-transition-manifest-2026-06-28.md) | Commit-anchored legacy closeout inventory, no-migration boundary, and eval-fixture shortlist |
 | [transition/W0-legacy-closeout-transition-addendum-2026-06-29.md](transition/W0-legacy-closeout-transition-addendum-2026-06-29.md) | Dated currency update for T1.6, live T1.28 state, legacy bus backport, and A-001/A-002 status |
 | [design/README.md](design/README.md) | Structure and entry criteria for the forthcoming design specifications |
@@ -52,6 +55,8 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-gate3-W6-W7-W8-review-2026-07-01.md](reviews/adversarial-gate3-W6-W7-W8-review-2026-07-01.md) | Joint Gate 3 adversarial review; `accept_with_required_changes` |
 | [reviews/adversarial-gate3-W6-W7-W8-review-reconciliation-2026-07-01.md](reviews/adversarial-gate3-W6-W7-W8-review-reconciliation-2026-07-01.md) | Stephen-approved finding dispositions and P-030 Gate 3 acceptance boundary |
 | [reviews/w3-v0.2-delta-review-2026-06-30.md](reviews/w3-v0.2-delta-review-2026-06-30.md) | Bounded integration check closing the W3 findings and preserving downstream gates |
+| [reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md) | First WP6 remediation re-review; portable evidence for P-035 sequencing/composition decisions |
+| [reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md) | R2 WP6 remediation review identifying the binding-contract work in this revision |
 
 ## Handover prompts
 

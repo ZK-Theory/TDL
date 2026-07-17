@@ -4,10 +4,11 @@
 **Status:** draft, review pending — authorizes no implementation; dispatch is gated on
 Gate 5 close (WP5.6) and Stephen's approval of this plan with its pre-registered
 invariant re-baseline (D-G6-3).
-**Revision note (2026-07-17):** revised again after the remediation review to replace
-the grouped owner-source matrix with a literal, content-addressed 104-row catalogue.
-The revision still authorizes no implementation and requires fresh independent review
-before approval.
+**Revision note (2026-07-17):** revised after the R2 remediation review so every one of
+the 104 rows binds an exact runtime `command_type`, and exact-set validation compares
+complete row records rather than independently creditable component sets. The revision
+still authorizes no implementation and requires fresh independent review before
+approval.
 **Goal:** Materialize the accepted W2 runtime record set and lifecycle (rich Task,
 ScopeDefinition, dispatch/claim/lease/attempt, messages, blockers/Partial, artefact
 manifests, reviews/decisions/corrections) and the W8 typed operator command surface,
@@ -93,14 +94,15 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   `request_resource_grant`, `claim_execution_lease`, `record_heartbeat`,
   `request_pause`, `confirm_pause`, `request_stop`, `confirm_stop`, `request_resume`,
   `release_resources`, `quarantine_orphan`, `adopt_late_artefact`, `create_backup`, and
-  `verify_restore` — with W2 command envelopes, semantic events, receipts, replay
+  `verify_restore` — with the owner-token-to-PascalCase `command_type` mapping pinned in
+  06d, W2 command envelopes, semantic events, receipts, replay
   reducers, and the operations modules. No implementation-defined alias or smaller
   catalogue satisfies T6. Stop evidence records requested,
   signalled, process-exited, children/writers-closed, and confirmed-clean (the
   programme's §9 stop contract is the same shape). Proportional profiles per P-025:
   the `trivial` profile keeps typed request/grant/lease/terminal-receipt evidence
   with benchmark/checkpoint/heartbeat groups explicitly `not_applicable`.
-  **Binding tests:** exact catalogue equality; for every command, valid execution emits
+  **Binding tests:** exact complete-record multiset equality; for every command, valid execution emits
   exactly one receipt and replayable event, while missing/wrong-type authority,
   subject, state/version, idempotency, and evidence fields reject atomically; a
   kill-and-recover scenario (Gate-3 recovery pattern) proves the canonical tail and
@@ -123,19 +125,22 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
 
 The normative expected set is the 104-row annex
 `06d-wp6-1-owner-source-catalogue.md`, SHA-256
-`43a689c01b2041d11d67daa790e3b97b51471c7000ca28393c77d3d77df4d14c`.
+`e3a26fc6b1d602fe2ce67d4369b6086774fcd1858b4153165dac97018dbd962f`.
 It has one normalized row per W2 §10–§19 command/edge and one row for each of the
-thirteen W8 §20 operator commands. Each row independently names the command schema,
-semantic event, event schema, reducer, projections, authority/precondition, receipt,
-positive test, and its closed negative-test profile.
+thirteen W8 §20 operator commands. Each row independently names the exact runtime
+`command_type`, command schema, ordered semantic-event set, event schema, discriminator
+and edge, reducer, exact projections or typed selector, authority/precondition, receipt,
+distinct positive test, and its closed negative-test profile.
 
 Before production implementation, T1 creates
 `.research-system/contracts/wp6-1-owner-source-catalogue.yaml` as a semantic copy of
 that exact annex and records the annex path, Git blob ID, SHA-256, and row keys. The
 exact-set validator expands only the annex's literal closed state classes, then compares
-the resulting expected set independently with schemas, runtime registrations, reducers,
-projections, authority rules, receipts, and tests. It rejects a missing, extra,
-duplicate, aliased, class-incomplete, or hash-mismatched row. Runtime registrations are
+a multiset of complete expected binding records one-to-one with schemas, command types,
+runtime registrations, ordered events, discriminators/edges, reducers, projections or
+selectors, authority rules, receipts, and distinct tests. Shared implementation code
+does not collapse row cardinality. It rejects a missing, extra, duplicate, aliased,
+swapped-key, class-incomplete, or hash-mismatched row. Runtime registrations are
 comparison input only and can never generate or repair the expected set.
 
 The annex's negative profiles include one-field missing/wrong-type, illegal transition,
@@ -143,6 +148,11 @@ stale version or subject hash, conflicting payload, idempotency conflict, author
 independence, compatibility, supersession, and atomic-no-side-effect cases wherever
 applicable. Every rejection leaves the event tail and all affected projections
 unchanged.
+The mutation suite also changes only `command_type`, duplicates a complete binding,
+swaps keys, aliases two tests to one callable, removes one reducer/projection, changes a
+message discriminator, and changes one ordered event. Each command-specific schema uses
+`const` for the exact type; the grant, dispatcher, event, receipt, and W2 idempotency
+tuple must carry the identical literal value.
 
 ## 4. D-G6-3 invariant table and executable smoke
 
@@ -194,8 +204,9 @@ any tranche executes.
 - A second writer or direct ledger append from a worktree (P-020).
 - Schema/reducer divergence such that replay of the pre-WP6.1 ledger fails.
 - Any missing, extra, duplicate, aliased, class-incomplete, or hash-mismatched
-  owner-source catalogue row; any mismatch from the annex hash above; or any test that
-  derives its expected catalogue from implemented registrations.
+  owner-source catalogue record; any mismatch from the annex hash above; any component-
+  set comparison that loses row cardinality/effects; or any test that derives its
+  expected catalogue from implemented registrations.
 
 ## 7. Research assurance triage
 

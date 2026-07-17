@@ -446,24 +446,43 @@ for an aggregate closure of 302. Each live result has a one-to-one predecessor m
 from an unavailable M/H Gate 5 key and actual provider/model/adapter/command/receipt/
 grant/lease identities and hashes. Frozen fake results retain their original lifecycle
 and identities and are never relabelled as live.<br>
+**R2 remediation constraints (pending fresh review and Stephen's exact-revision
+approval, not a superseding owner decision):** T1b is implemented as the
+non-compensable union of separately complete `T1b-M` model evidence and `T1b-H` human
+rubric/blinded-case/disagreement/adjudication evidence; only their composite accepted
+hash clears T1b. The exact 51 predecessor/successor bindings come from the
+content-addressed 06e annex, and the exact P1 11+43 obligations come from the
+content-addressed 06f annex, never from observed manifests. W6 `gate_stage` remains the
+valid value `pilot_promotion`; `live_capability` is a separate typed `evidence_stage`,
+not a new W6 gate-stage alias. The proposed command identities, P1 grader identities,
+successor construction, and stage split become authoritative only if the corrected
+exact revision passes independent review and Stephen approves it.<br>
 **Rationale:** A single policy gate before T2 is empirically circular because protected
 provider seams do not yet exist. A full 302-row live-rerun claim would contradict the
 bounded 51-obligation tranche and waste accepted evidence. The staged gate preserves
 preregistration and owner authority while allowing admissible calibration evidence;
 the composite preserves immutable Gate 5 provenance while making the new live
 capability evidence exact.<br>
-**Evidence:** Independent remediation review supplied at
-`C:/Users/steph/.codex/worktrees/4d28/TDL/docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md`
-(source-file Git blob hash `b962ed11813ff0a0164a0f8be3eef7e926757e5e`), reviewing exact
-commit `45d29dd16cc5e654eb0be086d81eda9771711f11`, findings M-1 and M-6;
+**Evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md`,
+containing commit `80cc5f2b1103357fcd61bb51a1ee10f8112f5ad5`, Git blob
+`b962ed11813ff0a0164a0f8be3eef7e926757e5e`, reviewing exact commit
+`45d29dd16cc5e654eb0be086d81eda9771711f11`, findings M-1 and M-6;
 Stephen's direct approval of both recommended choices on 2026-07-17.<br>
+**R2 remediation evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md`,
+Git blob `b9b3963ccfc6ef9bceba9177497a1c83f69c3c18`, reviewing exact commit
+`79f6b1bfb28a02d6a06d5a4a350bfa7262ec6461`. Its seven Major findings and one
+Minor define the pending constraints above; the review does not itself accept them.<br>
 **Boundary:** This accepts sequencing and evidence composition only. It does not
 accept a future T1a protocol hash, a T1b empirical policy hash, any live call/result,
-an evaluated profile, an M/H eligibility transition, the revised D-G6-3 tables as a
+an evaluated profile, an M/H eligibility transition, the R2 remediation constraints or
+proposed identity choices above, the revised D-G6-3 tables as a
 whole, WP6 dispatch, pilot evidence, or a claim.<br>
 **Migration consequence:** WP6.2 dispatch prompts and branches must reproduce the
 staged graph exactly. The implementation must add a lifecycle-aware composite schema
-and stage-specific loader/CLI while preserving the existing P0 fake-only loader and
+with a valid W6 `gate_stage`, a separate typed `evidence_stage`, and stage-specific
+loader/CLI while preserving the existing P0 fake-only loader and
 all Gate 5 result identities byte-for-byte.<br>
 **Affected specifications:** W4 §10; W6 threshold/calibration, coverage, and
 F-037/F-038 contracts; W7 provider command/receipt evidence; W8 grant/lease evidence;

@@ -5,12 +5,13 @@
 call. Dispatch is gated on Gate 5 close (WP5.6) and Stephen's approval of this plan.
 T2–T4 additionally require Stephen's acceptance of the exact T1a protocol hash; T5–T8
 and every M/H eligibility transition additionally require Stephen's acceptance of the
-exact T1b evidence-bearing policy hash (D-G6-2/P-035). Implements accepted decision
+exact composite T1b-M/T1b-H evidence-bearing policy hash (D-G6-2/P-035). Implements accepted decision
 P-033 (no interim operator-executed mode; wording confirmed 2026-07-17).
-**Revision note (2026-07-17):** revised again after the remediation review to split
-protocol from empirical policy acceptance, define the approved 251-frozen + 51-live
-composite, and make complete P1 calibration/activation evidence atomic. It still
-authorizes no implementation or provider call and requires fresh independent review.
+**Revision note (2026-07-17):** revised after the R2 remediation review to make T1b a
+non-compensable model/human evidence union, pin literal 51-row and 54-obligation
+expected-source annexes, and separate W6 `gate_stage` from `evidence_stage`. It still
+authorizes no implementation or provider call and requires fresh independent review
+and Stephen's approval of the exact revision.
 **Goal:** Clear Gate A blockers A3 and A6 with direct current evidence: live Claude
 and Codex transports behind the accepted W7 interface, semantic fail-closed parity on
 live transports, the separately accepted live-grader threshold/calibration policy
@@ -50,7 +51,12 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
   seed rationale, resampling/clustering unit, agreement rule, uncertainty method,
   proposed false-pass/false-block bounds and acceptance rule; family/context
   independence; required future result/evidence fields; omissions, drift, expiry,
-  suspension, and approval mechanics. The protocol schema rejects missing or extra
+  suspension, and approval mechanics. The protocol has separate exact expected sets
+  for model and human calibration. The human set freezes rubric ID/version/hash and
+  blinded positive, negative, ambiguous, and producer-correlated case IDs/hashes;
+  attribution/context requirements; disagreement capture; adjudication and rubric-
+  revision rules; and the named authority class permitted to grade. The protocol schema
+  rejects missing or extra
   fields and supplies no permissive default. It labels thresholds and bounds as
   **pre-registered acceptance criteria**, never observed calibration. **Exit:**
   independent statistical/assurance review followed by Stephen's recorded acceptance
@@ -80,15 +86,23 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
   Codex-specific adapter, payload, command, receipt, token, tool, and route evidence;
   Claude evidence, shared-helper success, or “same contract” prose supplies no Codex
   result. Two-family coverage exists only when both independent evidence sets pass.
-- **T1b — Evidence-bearing live-grader threshold policy.** Execute the accepted T1a
-  protocol through the merged T2 boundary and both independently passing T3/T4 canary
-  transports. Publish immutable per-run calibration records, exact result/evidence
-  IDs and hashes, observed uncertainty and false-pass/false-block summaries, omissions,
-  family/context independence, currentness, expiry, suspension triggers, and the final
-  threshold decisions. Protocol deviations require a new T1a revision; they are not
-  normalized into T1b. **Exit:** independent statistical/assurance review followed by
-  Stephen's recorded acceptance of the exact evidence-bearing policy hash. Only this
-  T1b hash may gate T5–T8 or make an M/H grader/profile eligible.
+- **T1b — Composite evidence-bearing live-grader policy.** T1b is the exact,
+  non-compensable union `T1b-M ∪ T1b-H`. `T1b-M` executes the accepted model protocol
+  through the merged T2 boundary and both independently passing T3/T4 transports; it
+  records provider/model/adapter, command/receipt, grant/lease, producer/grader context,
+  per-run results/evidence, uncertainty, false-pass/false-block summaries, omissions,
+  family/context independence, currentness, expiry, suspension, and threshold
+  decisions. `T1b-H` executes the separately frozen blinded human case set and records
+  rubric/version/hash, exact positive/negative/ambiguous/producer-correlated cases,
+  attributed human authority and context, per-case results/evidence, disagreements,
+  adjudication, any rubric revision, currentness, expiry, suspension, and the H
+  acceptance decision. Model runs cannot satisfy an H obligation and human judgments
+  cannot repair an M gap. Protocol deviations require a new T1a revision.
+  **Exit:** independent statistical/assurance review of T1b-M and independent human-
+  evidence review of T1b-H, followed by Stephen's recorded acceptance of one composite
+  hash that binds both complete sets. If either set is incomplete, that unsupported
+  class remains ineligible and the composite T1b gate does not clear. Only the accepted
+  composite hash may gate T5–T8 or make an M/H grader/profile eligible.
 - **T5 — Live parity evidence.** Extend the WP5.2 variant harness with live rows:
   a typed `LivePolicyParityEvidence` row per provider/control binds the canonical
   bundle/applicability IDs and hashes, adapter/model revision, rendered-payload hash,
@@ -120,7 +134,11 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
   content-addressed `live-capability-coverage.yaml` under the versioned schema and
   stage loader in §6.2; do not edit `p0-coverage.yaml`, any Gate 5 fixture/result, or
   the published Gate 5 decision. Its exact composition is 251 immutable
-  `foundation_release` result references plus 51 new `live_capability` results. Each
+  `foundation_release` result references plus 51 new `live_capability` results. The
+  exclusive expected replacement set is the literal 51-row annex
+  `06e-wp6-2-live-replacement-map.md`, canonical UTF-8/LF SHA-256
+  `a65c24624bb309558dd29a779b2db5b1c308b9fcd5caff4b5394e365b77e47b8`.
+  Each
   live row has a one-to-one predecessor mapping from the corresponding unavailable
   M/H Gate 5 key and names actual provider/model/adapter identities and hashes; no
   frozen fake result is relabelled, copied as live, or silently replaced. Re-run those
@@ -131,7 +149,10 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
   The evidence is derived from public grader/transport seams, never a config-only
   verdict replacement.
 - **T8 — Activate P1 routing/assurance fixtures F-037–F-038.** Materialize, calibrate,
-  and activate both reserved packages under the exact §5 contract. Register both the
+  and activate both reserved packages under the exact §5 contract and normative annex
+  `06f-wp6-2-p1-activation-contract.md`, canonical UTF-8/LF SHA-256
+  `5d459b6b548837425b243e0cd961569c578d258a2dbce211bd6bd3d7375edd84`.
+  Register both the
   eleven-row baseline-result set and the separate 43-referent activation closure; the
   atomic pilot/claim dependency is their 54-referent union at one expected event
   position. Missing, failed, `unable_to_grade`, stale, duplicate, incompatible,
@@ -146,10 +167,11 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
 T1a protocol — independent review — Stephen accepts exact protocol hash
   └─> T2 secret/cost pre-issue boundary
         ├─> T3 Claude canary + independent evidence ─┐
-        └─> T4 Codex canary + independent evidence ──┴─> T1b immutable calibration
+        └─> T4 Codex canary + independent evidence ──┴─> T1b-M model evidence
+                                                           + T1b-H human evidence
                                                            — independent review
                                                            — Stephen accepts exact
-                                                             evidence-policy hash
+                                                             composite evidence hash
                                                              └─> T5 live parity
                                                                   └─> T6 profiles
                                                                        └─> T7 composite M/H closure
@@ -194,19 +216,32 @@ cannot compensate for a failed pre-issue row.
 ## 5. T8 exact P1 activation contract
 
 The stage-specific manifest is
-`.research-system/evals/p1-pilot-coverage.yaml` with `gate_stage: pilot_promotion`.
+`.research-system/evals/p1-pilot-coverage.yaml` with valid W6
+`gate_stage: pilot_promotion` and typed `evidence_stage: p1_activation`.
 It selects only F-037 and F-038. Eleven baseline grader results and the complete
-activation evidence are different sets and must never be conflated.
+activation evidence are different sets and must never be conflated. The exclusive
+expected-side source for both is `06f-wp6-2-p1-activation-contract.md`, SHA-256
+`5d459b6b548837425b243e0cd961569c578d258a2dbce211bd6bd3d7375edd84`.
+The future machine-readable semantic copy records that path, Git blob, hash, and exact
+54 logical obligations. Runtime manifests and ledger/execution records are observed-side
+inputs only and cannot generate or repair expectations.
 
 ### 5.1 Exact baseline-result set (11)
 
-The literal keys are:
+The literal canonical six-field keys are:
 
 ```text
-F-037.baseline.D  F-037.baseline.T  F-037.baseline.R
-F-037.baseline.M  F-037.baseline.H
-F-038.baseline.D  F-038.baseline.T  F-038.baseline.R
-F-038.baseline.M  F-038.baseline.H  F-038.baseline.P
+(F-037, 1.0.0, f-037-outcome, D, assurance-claim-v1, baseline)
+(F-037, 1.0.0, f-037-trajectory, T, assurance-claim-v1, baseline)
+(F-037, 1.0.0, f-037-research-quality, R, assurance-claim-v1, baseline)
+(F-037, 1.0.0, f-037-independent-model, M, assurance-claim-v1, baseline)
+(F-037, 1.0.0, f-037-human-authority, H, assurance-claim-v1, baseline)
+(F-038, 1.0.0, f-038-outcome, D, domain-pack-applicability-v1, baseline)
+(F-038, 1.0.0, f-038-trajectory, T, domain-pack-applicability-v1, baseline)
+(F-038, 1.0.0, f-038-research-quality, R, domain-pack-applicability-v1, baseline)
+(F-038, 1.0.0, f-038-independent-model, M, domain-pack-applicability-v1, baseline)
+(F-038, 1.0.0, f-038-human-authority, H, domain-pack-applicability-v1, baseline)
+(F-038, 1.0.0, f-038-privacy-security, P, domain-pack-applicability-v1, baseline)
 ```
 
 Each key binds its result ID and content hash. These eleven rows prove only the
@@ -214,7 +249,8 @@ baseline grader outcomes; they do not prove calibration or activation.
 
 ### 5.2 Exact activation closure (43 referents)
 
-The manifest carries these independently hashed referents:
+The accepted 06f annex declares these independently hashed expected referents; the
+manifest carries only observed bindings to them:
 
 | Referent class | Exact identities | Count |
 |---|---|---:|
@@ -225,7 +261,7 @@ The manifest carries these independently hashed referents:
 | Safe-variation cases | `F-037-SV-01`, `F-038-SV-01` | 2 |
 | Per-case execution evidence | Exact Cartesian product of the preceding 11 case IDs (7 mutations + 2 known-good + 2 safe-variation) with literal repetition IDs `rep-01` and `rep-02`; each of the 22 entries has verdict, result ID/hash, trace ID/hash, and retained evidence ID/hash | 22 |
 | Error summaries | `F-037-error-summary-v1`, `F-038-error-summary-v1`, each binding denominator, false-pass count/rate/bound, false-block count/rate/bound, uncertainty method/result, and all 22 applicable execution hashes | 2 |
-| Threshold policy | `wp6-live-grader-evidence-policy-v1`, exact accepted T1b ID/hash | 1 |
+| Threshold policy | `wp6-live-grader-evidence-policy-v1`, exact accepted composite T1b-M/T1b-H ID/hash | 1 |
 | F-038 applicability | `F-038-applicability-qualitative-v1`, exact independently accepted evidence and authority ID/hash | 1 |
 | Calibration records | `F-037-calibration-v1`, `F-038-calibration-v1`, each supplying `calibration_record_id` and hash | 2 |
 | Activation records | `F-037-activation-v1`, `F-038-activation-v1`, each supplying activation event ID/hash and accepted event position | 2 |
@@ -246,12 +282,16 @@ own content hash, so an unchanged logical name cannot mask changed bytes.
 Both packages are current only for the exact W2/W5/W6/W10 schema, policy, pack, and
 grader revisions named in their traces; any revision change stales activation. The
 pilot-evidence and claim-promotion commands consume the exact 54-referent union
-(11 baseline + 43 activation) at one expected event position. The command declares
-the complete sorted key/hash set and expected tail; the single writer either publishes
+(11 baseline + 43 activation) at one expected event position. Each command loads the
+complete expected logical set only from the accepted 06f semantic copy and loads
+observed IDs/hashes only from canonical ledger/execution records; the command payload
+cannot declare its own expected set. The single writer either publishes
 the governing event with all referents or publishes nothing. One-at-a-time tests cover
 missing, failed, `unable_to_grade`, stale, duplicate, incompatible, omitted mutation,
 wrong repetition, changed descriptor hash, incomplete error summary, unaccepted T1b
-policy, and unapproved F-038 applicability. Every rejection leaves the event tail,
+policy, and unapproved F-038 applicability. Each omission is also injected at the
+public producer seam before observation so omission from both expected and observed
+dictionaries cannot pass. Every rejection leaves the event tail,
 accepted-result set, Decision set, activation set, and claim set unchanged.
 
 ## 6. D-G6-3 literal invariants and expected live outcomes
@@ -277,10 +317,13 @@ fixtures (31 M and 20 H) and 251 otherwise available positions. T7 builds a new
 immutable composite closure; it does not claim 302 live executions, relabel a fake
 result, or republish Gate 5.
 
+The exclusive expected replacement map is `06e-wp6-2-live-replacement-map.md`, SHA-256
+`a65c24624bb309558dd29a779b2db5b1c308b9fcd5caff4b5394e365b77e47b8`.
 The new schema is
 `.research-system/schemas/evals/live-coverage-manifest.schema.json` version `1.0.0`.
 The manifest is `.research-system/evals/live-capability-coverage.yaml`, has
-`gate_stage: live_capability`, and declares literal counts
+valid W6 `gate_stage: pilot_promotion` plus typed
+`evidence_stage: live_capability`, and declares literal counts
 `referenced_frozen: 251`, `new_live: 51`, and `aggregate_closure: 302`. Each of its 302
 entries has:
 
@@ -298,8 +341,9 @@ entries has:
 
 Schema conditionals require all live bindings for `live_result`, prohibit them from
 being asserted by a frozen row, and enforce a bijection between the 51 unavailable
-predecessor keys and 51 new result keys. The expected 251/51 key sets come from the
-frozen accepted coverage and the plan's replacement map, never from loaded rows.
+predecessor keys and 51 new result keys. The expected 251 frozen keys come from accepted
+Gate 5 coverage and the expected 51 predecessor/successor bindings come only from 06e,
+never from loaded rows or a live manifest.
 
 The existing P0 commands and fake-only loader remain byte/behavior compatible:
 
@@ -311,13 +355,15 @@ ars eval run       --coverage .research-system/evals/p0-coverage.yaml --transpor
 T7/T8 add a separate stage-aware boundary; it does not route the P0 manifest:
 
 ```text
-ars eval stage validate --stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
-ars eval stage run      --stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
-ars eval stage validate --stage pilot_promotion --manifest .research-system/evals/p1-pilot-coverage.yaml
-ars eval stage run      --stage pilot_promotion --manifest .research-system/evals/p1-pilot-coverage.yaml
+ars eval stage validate --gate-stage pilot_promotion --evidence-stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
+ars eval stage run      --gate-stage pilot_promotion --evidence-stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
+ars eval stage validate --gate-stage pilot_promotion --evidence-stage p1_activation --manifest .research-system/evals/p1-pilot-coverage.yaml
+ars eval stage run      --gate-stage pilot_promotion --evidence-stage p1_activation --manifest .research-system/evals/p1-pilot-coverage.yaml
 ```
 
-The stage loader rejects missing, duplicate, extra, stale, incompatible, relabelled,
+The stage loader validates `gate_stage` against the closed W6 enumeration and routes on
+the separate closed `evidence_stage`; neither field aliases the other. It rejects
+missing, duplicate, extra, stale, incompatible, relabelled,
 wrong-provider, wrong-model, wrong-adapter, absent-command/receipt/grant/lease, broken
 predecessor bijection, and mixed-lifecycle rows before capability or activation state
 changes. Tests also prove that passing a P0 manifest to `eval stage`, or a live/P1
@@ -366,7 +412,7 @@ re-approved before rerun.
 | activation-closure referent count | 0 | **43** | Exact §5.2 identities and hashes. |
 | atomic pilot/claim referent count | 0 | **54** | 11 baseline + 43 activation referents at one expected event position. |
 | calibration execution count | 0 | **22** | Eleven literal cases × repetitions `rep-01`, `rep-02`. |
-| blocked P1 fixture count at activation | 0 | **0** | The 54-referent union validates and all required verdicts pass; otherwise activation stops. |
+| blocked P1 fixture count at activation | 0 | **0** | The 54-referent union validates and every required verdict is `pass` or the one independently authorized F-038 scientific-D `not_applicable`; otherwise activation stops. |
 | activation state | `inactive` | **`active`** | Exact atomic union plus accepted activation events. |
 
 The exact recomputation commands, implemented by T7/T8 without changing the existing
@@ -375,22 +421,24 @@ fake P0 semantics, are:
 ```text
 uv run --no-sync ars eval calibrate --coverage .research-system/evals/p0-coverage.yaml --transport fake
 uv run --no-sync ars eval run --coverage .research-system/evals/p0-coverage.yaml --transport fake
-uv run --no-sync ars eval stage validate --stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
-uv run --no-sync ars eval stage run --stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
-uv run --no-sync ars eval stage validate --stage pilot_promotion --manifest .research-system/evals/p1-pilot-coverage.yaml
-uv run --no-sync ars eval stage run --stage pilot_promotion --manifest .research-system/evals/p1-pilot-coverage.yaml
+uv run --no-sync ars eval stage validate --gate-stage pilot_promotion --evidence-stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
+uv run --no-sync ars eval stage run --gate-stage pilot_promotion --evidence-stage live_capability --manifest .research-system/evals/live-capability-coverage.yaml
+uv run --no-sync ars eval stage validate --gate-stage pilot_promotion --evidence-stage p1_activation --manifest .research-system/evals/p1-pilot-coverage.yaml
+uv run --no-sync ars eval stage run --gate-stage pilot_promotion --evidence-stage p1_activation --manifest .research-system/evals/p1-pilot-coverage.yaml
 uv run --no-sync pytest -q tests/research_system/integration/test_wp6_2_invariant_baselines.py
 ```
 
-The baseline test asserts every field in §§6.1–6.3, the literal 251/51 composition,
-all 54 P1 referent keys/hashes, stage-routing negatives, unchanged P0 loader behavior,
+The baseline test asserts every field in §§6.1–6.3, the literal 251/51 composition and
+06e hash, all 54 P1 referent keys/hashes and 06f hash, producer-seam omissions,
+`gate_stage`/`evidence_stage` routing negatives, unchanged P0 loader behavior,
 unchanged tracked Gate 5 bytes, and O15 disabled. Stephen's D-G6-3 approval cites this
 exact plan revision before T2 begins.
 
 ## 7. Sequencing, branches, and review
 
 - Gate 5 is closed. T1a is first. Its accepted protocol hash gates T2, then T3/T4 in
-  parallel. T1b follows both provider canaries; its accepted evidence-policy hash
+  parallel. Composite T1b follows both provider canaries and completes separate T1b-M
+  and T1b-H evidence; its accepted composite evidence-policy hash
   gates the serial T5–T8 chain.
 - Branches: `pipe/ars-wp6-2-threshold-protocol` (T1a),
   `pipe/ars-wp6-2-live-adapters` (T2–T4),
@@ -410,30 +458,35 @@ exact plan revision before T2 begins.
   atomically reserved T2 cost grant; any credential sentinel reaching invocation or
   any credential material observed in a provider-facing or canonical producer surface.
 - Any T5–T8 dispatch, M/H eligibility transition, or observed-calibration claim before
-  Stephen accepts the exact T1b evidence-bearing policy hash.
+  Stephen accepts the exact composite T1b-M/T1b-H evidence-policy hash; any model-only
+  evidence used to unblock an H row or human evidence used to repair an M gap.
 - Any code path that defaults parity, a profile, or a threshold comparison to pass.
 - Any parity evidence without actual command/receipt/enforcement bindings; any profile
   missing a W4 §10.2/§10.3 field or owner approval.
 - T7 attempting to unblock a row administratively; any count-only, relabelled,
-  mixed-lifecycle, non-bijective, wrong-provider, or wrong-adapter 302-row closure.
+  mixed-lifecycle, non-bijective, wrong-provider, or wrong-adapter 302-row closure; any
+  06e hash mismatch or expected replacement derived from the observed manifest.
 - Provider outage during T7: S-016 semantics apply — wait or `unable_to_grade`;
   never a sub-threshold substitute grader.
 - Un-pre-registered invariant drift, as always.
 - Any pilot acceptance or claim-promotion path that does not consume the current exact
-  54-referent F-037/F-038 union atomically at one expected event position.
+  54-referent F-037/F-038 union atomically at one expected event position; any 06f hash
+  mismatch or expected set derived from observed results.
 
 ## 9. Research assurance triage
 
-- **Lanes:** Output/Provenance primary. Stochastic enters at T1a/T1b/T7: T1a is a
-  preregistered protocol and makes no observed claim; T1b calibration against the
+- **Lanes:** Output/Provenance primary. Stochastic enters at T1a/T1b-M/T7: T1a is a
+  preregistered protocol and makes no observed claim; T1b-M calibration against the
   mutation corpus is a statistical claim — the calibration
   estimand/denominator, frozen corpus and eligibility rule, repeat count/seed,
   resampling or dependence unit, uncertainty/agreement rule, and false-pass/
-  false-block characterization are part of the strict T1b policy and get independent
-  review there, not just software tests.
+  false-block characterization are part of the strict T1b-M policy and get independent
+  review there, not just software tests. T1b-H is a separate human-evidence lane with
+  rubric/disagreement/adjudication review rather than a statistical substitute.
 - **Machine-checkable:** the binding tests per task above.
-- **Human-review-only:** T1a protocol adequacy and T1b evidence-policy adequacy
-  (Stephen + independent review at both gates);
+- **Human-review-only:** T1a protocol adequacy; T1b-M statistical evidence adequacy;
+  T1b-H rubric, blinded-case, disagreement/adjudication, and attributed-authority
+  adequacy; and the composite T1b policy (Stephen + independent review at both gates);
   the judgment that a specific model profile's evidence set is sufficient for the
   grade claimed (W4 §21 metrics inform, Stephen accepts).
 
