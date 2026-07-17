@@ -40,6 +40,10 @@ env/
 *.rds
 *.h5
 *.hdf5
+# All research data lives outside the repo or gitignored (UKDA T&C + size).
+# Wholesale-ignore the top-level data/ tree; specific subdirs below are kept
+# for documentation but are subsumed by this rule.
+/data/
 data/guides
 data/UKDA-6614-tab
 data/raw/
@@ -189,6 +193,11 @@ repomix-output.*
 # deliverables are stratified_w2_recompute_<date>.json + stratified_w2_bh_per_family_<date>.json)
 results/panel_methodology/fdr/subgroup_checkpoints/
 
+# Regenerable per-run checkpoint dirs anywhere under results/ (npz/json null
+# diagrams, resume state; deliverable JSONs live at their own results/ paths).
+results/**/checkpoints/
+results/**/pl_checkpoints/
+
 # Local isolated implementation worktrees.
 .worktrees/
 
@@ -203,3 +212,8 @@ results/panel_methodology/fdr/subgroup_checkpoints/
 
 # Discovery-spike scratch outputs (toy/feasibility compute; never results/)
 scratch/
+
+# Cross-workstream local residue (not this project's tracked content):
+# Codex sandbox probe residue and the ARS WP5.6 acceptance-review bundle.
+/.codex-sandbox-investigation/
+/wp56-acceptance-review/
