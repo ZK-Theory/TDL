@@ -50,9 +50,25 @@ def test_project_root_is_resolved_from_git_common_dir() -> None:
 
 
 @pytest.mark.integration
-def test_git_metadata_uses_a_resolved_executable() -> None:
-    assert audit_lib.git_executable_path().is_absolute()
+def test_git_metadata_reads_worktree_files() -> None:
     assert re.fullmatch(r"[0-9a-f]{40}", audit_lib.git_head(runner.WORKTREE_ROOT))
+
+
+def test_git_metadata_reads_linked_worktree_files(tmp_path: Path) -> None:
+    common_dir = tmp_path / ".git"
+    git_dir = common_dir / "worktrees" / "audit"
+    worktree = tmp_path / "linked-worktree"
+    git_dir.mkdir(parents=True)
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
+    (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+    (git_dir / "HEAD").write_text("ref: refs/heads/audit\n", encoding="utf-8")
+    ref = common_dir / "refs" / "heads" / "audit"
+    ref.parent.mkdir(parents=True)
+    ref.write_text(f"{'a' * 40}\n", encoding="utf-8")
+
+    assert audit_lib.project_root(worktree) == tmp_path
+    assert audit_lib.git_head(worktree) == "a" * 40
 
 
 def test_main_passes_requested_permutation_count_to_assemble(monkeypatch: pytest.MonkeyPatch) -> None:
