@@ -20,7 +20,7 @@
 
 - [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
 
-## WP6 suite (draft, review pending — Gate 5 accepted 2026-07-17 at merge `f49a27f`; authorizes no dispatch until this suite's review gate and Stephen's approval)
+## WP6 suite (exact plan revision `fe5f1d40` independently approved under P-036 — Gate 5 accepted 2026-07-17 at merge `f49a27f`; remaining work-package, evidence, and preflight gates still apply)
 
 1. [WP6 master — Gate 6 readiness and end-to-end integration](06-wp6-gate6-readiness-and-integration-plan.md)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)

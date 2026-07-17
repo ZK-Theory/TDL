@@ -378,10 +378,12 @@ TDA-scale programme v1.0.0 cross-checked against the accepted W1–W8 designs, t
 5 plan, and the implemented `research_system` foundation). Stephen confirmed their
 exact wording on 2026-07-17 (D-G6-1), the same day the Gate 5 foundation was accepted
 at merge `f49a27f`. P-035 records Stephen's direct 2026-07-17 approval of the two
-owner choices required by the fresh WP6 remediation review. The A1 blocker is cleared,
+owner choices required by the fresh WP6 remediation review. P-036 records Stephen's
+exact-revision approval after the R5 review found no Critical, Major, or Minor findings.
+The A1 blocker and the WP6 plan-suite review gate are cleared,
 and the D-G5-1(a) M/H restriction and O15 deferral carry forward as recorded in the
 acceptance decision. Acceptance of these directions authorizes no implementation; the
-WP6 plan suite still requires its own review gate.
+remaining work-package, future-evidence, migration, and preflight gates remain binding.
 
 ### P-031 — Gate 6 pilot definition amendment
 
@@ -446,8 +448,8 @@ for an aggregate closure of 302. Each live result has a one-to-one predecessor m
 from an unavailable M/H Gate 5 key and actual provider/model/adapter/command/receipt/
 grant/lease identities and hashes. Frozen fake results retain their original lifecycle
 and identities and are never relabelled as live.<br>
-**R2 remediation constraints (pending fresh review and Stephen's exact-revision
-approval, not a superseding owner decision):** T1b is implemented as the
+**R2 remediation constraints (accepted under P-036 for exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`):** T1b is implemented as the
 non-compensable union of separately complete `T1b-M` model evidence and `T1b-H` human
 rubric/blinded-case/disagreement/adjudication evidence; only their composite accepted
 hash clears T1b. The exact 51 predecessor/successor bindings come from the
@@ -455,10 +457,11 @@ content-addressed 06e annex, and the exact P1 11+43 obligations come from the
 content-addressed 06f annex, never from observed manifests. W6 `gate_stage` remains the
 valid value `pilot_promotion`; `live_capability` is a separate typed `evidence_stage`,
 not a new W6 gate-stage alias. The proposed command identities, P1 grader identities,
-successor construction, and stage split become authoritative only if the corrected
-exact revision passes independent review and Stephen approves it.<br>
-**R3 remediation constraints (pending fresh review and Stephen's exact-revision
-approval, not a superseding owner decision):** WP6.1 contract materialization precedes
+successor construction, and stage split are authoritative requirements of the approved
+plan revision; their future materialized manifests retain their separate exact-hash
+review and owner-acceptance gates.<br>
+**R3 remediation constraints (accepted under P-036 for exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`):** WP6.1 contract materialization precedes
 runtime implementation and independently freezes every row's command/event schema
 identity, exact authority subject, the atomic Task-plus-Dispatch claim batch/write set,
 and the closed correction selector. WP6.2 uses a dedicated strict P1 schema and an
@@ -469,8 +472,8 @@ comparison inputs only. A self-consistent coordinated replacement of descriptor 
 and the candidate expected manifest still rejects against the D-G6-3 accepted manifest
 identity. F-037 and F-038 summaries bind exactly 12 and 10 execution hashes,
 respectively, with disjoint union 22.<br>
-**R4 remediation constraints (pending fresh review and Stephen's exact-revision
-approval, not a superseding owner decision):** RuleEvaluation has its own authority
+**R4 remediation constraints (accepted under P-036 for exact reviewed plan revision
+`fe5f1d40bc8f05f061317c677b5891cea0711249`):** RuleEvaluation has its own authority
 subject, ID source, owner projection, and correction-selector target; neither a Decision
 grant/projection nor coordinated expected/runtime corruption can substitute for it.
 `ClaimDispatch` loads the accepted Dispatch and requires its stored Task ID/revision,
@@ -508,11 +511,19 @@ Git blob `66e82fdc9a014324c9e433cab431386bc6f8471e`, canonical UTF-8/LF SHA-256
 `87f226204475d51630ceeb71608d7a6d3fca135bdd68ef5a395c445df6d78a0a`, reviewing exact
 commit `aa54fe140de8eff3dabe0472758c3514fa673b19`. Its two Major findings and one Minor
 define the R4 constraints above; the review does not itself accept them.<br>
-**Boundary:** This accepts sequencing and evidence composition only. It does not
-accept a future T1a protocol hash, a T1b empirical policy hash, any live call/result,
-an evaluated profile, an M/H eligibility transition, the R2/R3/R4 remediation constraints or
-proposed identity choices above, the revised D-G6-3 tables as a
-whole, WP6 dispatch, pilot evidence, or a claim.<br>
+**R5 approval evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md`,
+Git blob `b6f047db330617f25ffd8e0826da9769facab089`, canonical UTF-8/LF SHA-256
+`15af91fa08f248f55765cbcdf9d0efce3153232c7818a66d385b80c4bdb0e065`, reviewing exact
+commit `fe5f1d40bc8f05f061317c677b5891cea0711249`. It returned `approved` with zero
+Critical, Major, or Minor findings and both required contract commands passing all 98
+contracts. Stephen approved that exact revision on 2026-07-17 under P-036.<br>
+**Boundary:** P-035 accepts sequencing and evidence composition; P-036 additionally
+accepts the R2/R3/R4 constraints, proposed identity choices, and literal D-G6-3 plan
+tables at the exact reviewed revision. Neither decision accepts a future T1a protocol
+hash, T1b empirical policy hash, WP6.1 schema-identity manifest, WP6.2 descriptor-hash
+manifest, live call/result, evaluated profile, M/H eligibility transition, WP6
+implementation, migration, Gate 6 preflight, pilot evidence, or claim.<br>
 **Migration consequence:** WP6.2 dispatch prompts and branches must reproduce the
 staged graph exactly. The implementation must add a lifecycle-aware composite schema
 with a valid W6 `gate_stage`, a separate typed `evidence_stage`, and stage-specific
@@ -521,6 +532,32 @@ all Gate 5 result identities byte-for-byte.<br>
 **Affected specifications:** W4 §10; W6 threshold/calibration, coverage, and
 F-037/F-038 contracts; W7 provider command/receipt evidence; W8 grant/lease evidence;
 WP6 master; WP6.2 T1a–T8; D-G6-2/D-G6-3; Gate 6 pilot and M/H eligibility gates.
+
+### P-036 — WP6 plan-suite exact-revision approval
+
+**Date:** 2026-07-17<br>
+**Status:** Accepted by Stephen<br>
+**Closes:** The WP6 plan-suite independent-review and exact-revision owner-approval gate;
+the plan-revision limb of D-G6-3<br>
+**Decision:** Stephen approves exact reviewed commit
+`fe5f1d40bc8f05f061317c677b5891cea0711249` as safe to use as the Gate 6 launch basis.
+Its R2/R3/R4 remediation constraints, proposed plan identities, lifecycle composition,
+and literal WP6.1/WP6.2 invariant tables are authoritative for dispatch planning.<br>
+**Evidence:** The R5 review identified above independently reviewed that exact clean
+commit, returned `approved` with zero findings at every severity, reproduced the
+104/182, 13, 11+43, 51, and frozen Gate 5 invariants, and passed both contract checks
+against 98 contracts. Stephen then gave explicit exact-revision approval.<br>
+**Boundary:** This decision closes the plan-suite review gate and authorizes the exact
+reviewed plan content as a launch and dispatch-planning basis. It does not itself
+authorize runtime implementation, a live provider call, an eligibility transition,
+migration, claim promotion, or Gate 6 pilot execution. Every future exact-hash evidence
+acceptance and work-package/preflight gate remains mandatory.<br>
+**Migration consequence:** WP6.1/WP6.2 task briefs must cite the approved commit and
+must preserve its normative plan content. Any substantive plan change requires a new
+exact-revision review and owner approval; bookkeeping-only approval provenance does not
+alter the reviewed requirements.<br>
+**Affected specifications:** WP6 master and WP6.1/WP6.2 child plans; P-035; D-G6-3;
+Gate 6 launch and dispatch-planning controls.
 
 ## Assumptions requiring confirmation
 

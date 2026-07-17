@@ -1,15 +1,18 @@
 # 06 — WP6: Gate 6 Readiness and End-to-End Integration — Scope and Sequencing Plan
 
 **Date:** 2026-07-16
-**Status:** draft, review pending — drafted at Stephen's direction (2026-07-16 session);
-authorizes no implementation.
+**Status:** independently reviewed and owner-approved as the Gate 6 launch basis at
+exact plan revision `fe5f1d40bc8f05f061317c677b5891cea0711249`; remaining
+work-package, evidence, implementation, and preflight gates still apply.
 **Revision note (2026-07-17):** revised through the R4 remediation review to close the
 strict P1 schema/oracle, versioned schema identity, universal authority, atomic claim,
 correction-selector, and summary-cardinality findings, then separate RuleEvaluation from
 Decision and bind claims to the Task revision stored on the Dispatch. Stephen's P-035
-sequencing/composition decision and the R2/R3 closures remain preserved.
-The suite remains non-dispatchable until a fresh independent review finds no open
-Critical/Major item and Stephen approves the exact reviewed revision.
+sequencing/composition decision and the R2/R3 closures remain preserved. The independent
+R5 review found zero Critical, Major, or Minor findings at the exact revision above, and
+Stephen approved that revision under P-036. This closes the plan-suite review gate only;
+it creates no future manifest, empirical evidence, live-call, migration, or preflight
+acceptance.
 **Currency update (2026-07-17):** the Gate 5 foundation was accepted at merge
 `f49a27f` (Computational-Log `[DECISION]` entry, 2026-07-17), with D-G5-1(a) M/H
 restriction, D-G5-2/O15 deferral, and G5.3-B(a) attribution carried forward and the
@@ -82,8 +85,8 @@ review's sequencing and evidence-composition choices:
 - **P-035** — WP6.2 uses the non-circular
   `T1a → T2 → T3/T4 → T1b → T5–T8` lifecycle, and T7 uses the exact composite
   evidence model `251 immutable frozen references + 51 new live results = 302`.
-  The R2 corrections refine evidence enforcement and remain pending exact-revision
-  review/approval: T1b is the non-compensable `T1b-M ∪ T1b-H` union; 06e/06f supply
+  The R2/R3/R4 corrections refine evidence enforcement and are accepted for the exact
+  plan revision under P-036: T1b is the non-compensable `T1b-M ∪ T1b-H` union; 06e/06f supply
   independent expected sets; and W6 `gate_stage: pilot_promotion` is separate from
   `evidence_stage: live_capability`.
 
@@ -214,7 +217,7 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 |---|---|---|
 | D-G6-1 | **Closed 2026-07-17** — exact wording of P-031–P-034 confirmed by Stephen | 03-decisions §"Post-Gate-5 owner directions" |
 | D-G6-2 | **Structure closed 2026-07-17 under P-035.** Two exact-hash owner gates remain at execution time: accept T1a's independently reviewed preregistered protocol before T2–T4; after protected T3/T4 calibration and the separate human-rubric/blinded-case run, accept T1b's independently reviewed composite `T1b-M ∪ T1b-H` policy before T5–T8 or any M/H eligibility transition. T1a makes no observed-calibration claim and neither T1b branch compensates for the other. | 05-plan §7.2; W6 §§13/27; D-G5-1; P-035; 06b §§2–3 |
-| D-G6-3 | Approve the literal WP6.1/WP6.2 invariant tables and pre-execution expected manifests. Every changed and unchanged field has exact old/new values, reason/formula, recomputation command, and smoke assertion. Approval cites the exact dispatching revision plus the independently reviewed WP6.1 catalogue/schema-identity manifests and WP6.2 54-row descriptor-hash manifest by repository path, schema ID/version, Git blob, and SHA-256 before runtime implementation or observation. | 05-wp5 plan §7; 06a §§3–4; 06b §§5–6; 06d §§1/5; 06f §3 |
+| D-G6-3 | **Plan-revision limb closed 2026-07-17 under P-036.** Stephen approved the literal WP6.1/WP6.2 invariant tables at exact reviewed plan revision `fe5f1d40bc8f05f061317c677b5891cea0711249`. Before runtime implementation or observation, separately accept the independently reviewed WP6.1 catalogue/schema-identity manifests and WP6.2 54-row descriptor-hash manifest by repository path, schema ID/version, Git blob, and SHA-256. | 05-wp5 plan §7; 06a §§3–4; 06b §§5–6; 06d §§1/5; 06f §3; P-036 |
 | D-G6-4 | Accept W11 after adversarial review and approve the first ownership-transition batch. No migration begins until W11 proves path/writer exclusivity and the batch disposition is recorded. | WP6.5/WP6.6; P-004/P-021/P-032 |
 | D-G6-5 | Gate 6 preflight acceptance for SCALE-01 as pilot | WP6.4; P-031 |
 
@@ -298,10 +301,10 @@ sub-plan prose is not enforced by it.
       reviewed and accepted by Stephen after protected T3/T4 model calibration and the
       separate blinded human rubric/disagreement/adjudication evidence run
       (D-G6-2/P-035) **before** T5–T8 or any M/H row unblocks.
-- [ ] Every WP6.1/WP6.2 changed and unchanged invariant has literal old/new values,
-      reason/formula, recomputation command, and smoke in the exact dispatching plan
-      revision; Stephen approves that revision before execution (D-G6-3; 06a §4,
-      06b §6).
+- [x] Every WP6.1/WP6.2 changed and unchanged invariant has literal old/new values,
+      reason/formula, recomputation command, and smoke in exact reviewed plan revision
+      `fe5f1d40bc8f05f061317c677b5891cea0711249`; Stephen approved that revision on
+      2026-07-17 (D-G6-3/P-036; 06a §4; 06b §6).
 - [ ] Before WP6.1 runtime implementation, Stephen accepts the independently reviewed
       104-row catalogue and per-row command/event schema-identity manifests by exact
       path, schema ID/version, Git blob, and SHA-256. They bind every authority subject,
@@ -333,7 +336,8 @@ sub-plan prose is not enforced by it.
       and admitted via WP6.6 — Gate A clears end-to-end; SCALE-01 becomes
       dispatchable as the Gate 6 pilot.
 - [ ] WP6.7 sequencing document exists with its gates explicit (no dispatch).
-- [ ] This revised WP6 suite receives a fresh independent adversarial review with no
-      open Critical/Major finding and every failed/partial binding row closed.
-- [ ] Stephen explicitly approves the exact commit reviewed in the preceding row;
-      only that commit may supply WP6.1/WP6.2 dispatch prompts.
+- [x] R5 independently reviewed exact commit
+      `fe5f1d40bc8f05f061317c677b5891cea0711249`, found zero Critical/Major/Minor
+      findings, and confirmed every failed/partial binding row closed.
+- [x] Stephen explicitly approved that exact reviewed commit on 2026-07-17 under P-036;
+      only its reviewed WP6.1/WP6.2 plan content may supply dispatch prompts.

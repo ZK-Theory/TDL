@@ -25,9 +25,9 @@ The objective is not to automate research judgment away. It is to make agent act
 | [04-parallel-specification-and-foundation-pilot-plan.md](04-parallel-specification-and-foundation-pilot-plan.md) | P-026 parallel lanes, specification sequence, foundation scope, gates, and greenfield pilot boundary |
 | [05-p0-materialization-and-foundation-implementation-plan.md](05-p0-materialization-and-foundation-implementation-plan.md) | Review-pending Gate 4 master plan for the 37-case P0 closure and narrow production-intended foundation |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
-| [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Draft WP6 master plan: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, consolidation sequencing; review pending |
-| [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Draft WP6.1 dispatch plan: rich Task/ScopeDefinition runtime and W8 operator surface; review pending |
-| [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Draft WP6.2 dispatch plan: live adapters, parity, threshold policy, evaluated model profiles; review pending |
+| [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Owner-approved WP6 launch-basis plan at exact reviewed revision `fe5f1d40`: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, and consolidation sequencing |
+| [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
+| [implementation/06b-wp6-2-live-capability-plan.md](implementation/06b-wp6-2-live-capability-plan.md) | Owner-approved WP6.2 dispatch-plan content at exact reviewed revision `fe5f1d40`: live adapters, parity, threshold policy, and evaluated model profiles; future evidence gates remain |
 | [implementation/06d-wp6-1-owner-source-catalogue.md](implementation/06d-wp6-1-owner-source-catalogue.md) | Normative WP6.1 104-row complete-binding catalogue with versioned schema identities, authority subjects, atomic claim, and correction mapping |
 | [implementation/06e-wp6-2-live-replacement-map.md](implementation/06e-wp6-2-live-replacement-map.md) | Normative WP6.2 literal 51-row frozen-predecessor/live-successor map |
 | [implementation/06f-wp6-2-p1-activation-contract.md](implementation/06f-wp6-2-p1-activation-contract.md) | Normative WP6.2 independent expected-source and descriptor-hash contract for the 11+43 P1 closure |
@@ -59,6 +59,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md) | R2 WP6 remediation review identifying the binding-contract work in this revision |
 | [reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md) | R3 WP6 remediation review identifying strict-schema, independent-oracle, authority, concurrency, and selector gaps |
 | [reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md) | R4 WP6 remediation review identifying RuleEvaluation ownership and Dispatch-bound Task integrity gaps |
+| [reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md) | R5 independent approval of exact WP6 remediation commit `fe5f1d40bc8f05f061317c677b5891cea0711249`; zero findings |
 
 ## Handover prompts
 
