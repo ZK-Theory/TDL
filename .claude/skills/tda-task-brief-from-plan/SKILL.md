@@ -75,8 +75,8 @@ When the agent must stop and ask or escalate.
 - "Tests pass" alone is never an acceptance criterion for a lane-touching
   task — name the enforcement artifact or record why none applies.
 - Long stochastic compute carries the runtime constraints from
-  `tda-resource-preflight`: workers ≥ 4, checkpointing, wall-time estimate,
-  no-overwrite.
+  `tda-resource-preflight`: preflight-selected optimal worker count,
+  checkpointing, wall-time budget, no-overwrite.
 - **Dispatch safety** (mandatory in every brief): bound scope with explicit
   hard stops ("build X only; do NOT proceed to Y/Z"); restate user-decision
   gates as **blocking**, not advisory; forbid toy/synthetic/illustrative
