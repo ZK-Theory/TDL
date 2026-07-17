@@ -83,14 +83,14 @@ the runtime workspace. Do not retry from the orchestrating task.
   provenance.
 - **`manager_dispatch_check`'s contract sub-check is not worktree-venv-safe.**
   It shells `uv run python .claude/hooks/contract_binding_check.py
-  --validate-only` with `cwd=<worktree>` and no `--no-sync`; a brand-new
+--validate-only` with `cwd=<worktree>` and no `--no-sync`; a brand-new
   worktree has no synced `.venv`, so `uv run` there either fails on a missing
   optional dep or hits a Windows `Access is denied` lock re-syncing the main
   venv — producing a false FAIL that the `dispatch-readiness-guard`
   PreToolUse hook then hard-blocks a bus write on. Workaround: point the
   check at the main repo's already-synced venv with sync disabled —
   `UV_NO_SYNC=1 uv run --no-sync python -m shared.manager_dispatch_check
-  --agent <slug> --branch <b> --mode parallel --workspace "C:/Users/steph/TDL"`
+--agent <slug> --branch <b> --mode parallel --workspace "<main-repo-workspace-path>"`
   — a freshly created worktree is byte-identical to its base branch, so
   validating contracts against the main venv is authoritative when the
   worktree itself authors no contracts.

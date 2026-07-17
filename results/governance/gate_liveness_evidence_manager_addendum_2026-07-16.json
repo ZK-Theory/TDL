@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-07-16",
+  "type": "manager_addendum",
+  "amends": "results/governance/gate_liveness_evidence_2026-07-16.json (Worker ledger, T1.40 phase B — immutable per the no-overwrite rule, hence this separate record)",
+  "author": "APM Manager 14, running in the Claude Code harness",
+  "rationale": "The Worker's runtime (Codex) cannot trigger Claude PreToolUse/PostToolUse hooks, so it correctly recorded those gates UNVERIFIABLE. The Manager runs inside that harness and is the one actor positioned to watch them fail. Controlled violations were run per the phase-B standard: deliberate violation, observed denial with verbatim diagnostic, restoration, known-good pass.",
+  "records": [
+    {
+      "gate": "claude-notation-guard",
+      "verdict": "LIVE",
+      "upgrades": "UNVERIFIABLE -> LIVE",
+      "evidence_type": "Manager-observed controlled violation, 2026-07-16",
+      "observed_failure": "A deliberate Write of a papers/ file containing a literal $W_1$ token was denied before any bytes landed.",
+      "diagnostic_verbatim": "Notation violation: W_1 (Wasserstein-1) found in papers/ draft. Project convention mandates W_2. Replace W_1 with W_2 (LaTeX: W_2 or W_{2}). See papers/shared/notation.md, or run /wasserstein-audit for a full audit.",
+      "restoration": "Automatic - the write never occurred; no file was created.",
+      "clean_pass": "Routine papers/ writes without the token succeeded the same session (T2.23/T2.24 register cleanup, 10 files).",
+      "note": "Probe target was a papers/ path inside a LINKED WORKTREE and the hook fired there - coverage extends to worktrees, where this repository's gates have historically gone quiet."
+    },
+    {
+      "gate": "claude-results-no-overwrite",
+      "verdict": "LIVE",
+      "upgrades": "UNVERIFIABLE -> LIVE",
+      "evidence_type": "Manager-observed controlled violation, 2026-07-16",
+      "observed_failure": "A deliberate Write of differing content over an existing date-suffixed result JSON (a committed, git-restorable target, so the probe was safe even against a dead gate) was denied.",
+      "diagnostic_verbatim": "<path> already exists and the new content differs. Results are never overwritten - write a new <basename>_<YYYY-MM-DD>.<ext> and preserve the old file (CLAUDE.md APM_RULES, Output file management).",
+      "restoration": "Automatic - the write never occurred; target byte-identical.",
+      "clean_pass": "New date-suffixed result writes succeeded the same session (w2_gap_closure_phase1_2026-07-16.json).",
+      "unprompted_second_fire": "While filing this addendum, an in-place Edit to the Worker's evidence ledger was ALSO denied ('results are immutable, date-suffixed records... Write a new <basename>_<YYYY-MM-DD>.<ext> instead of editing in place') - the gate covers Edit as well as Write, broader than the phase-A register documented, and the denial is why this addendum exists as a separate file."
+    }
+  ],
+  "updated_tally_across_both_files": {
+    "LIVE": ["apm-commit-input-provenance", "claude-dispatch-readiness-guard", "claude-notation-guard", "claude-results-no-overwrite", "git-contract-framework (caveat: observed failure was an environment fault; violation-catch at the commit seam not yet separately demonstrated - carry the caveat into any summary)"],
+    "DEAD": ["git-gate-0-skill-sync (remediation in flight: PR #100)"],
+    "UNVERIFIABLE": ["git-commit-prefix-and-prepare-message (composed-path masking finding - see below)", "git-ruff (proposed seam: a NEW disposable staged file carrying a lint violation, not a source change)", "claude-research-context", "claude-results-vault-reminder (PostToolUse - observable but advisory; probe deferred)", "pytest-validation-and-integration-markers (needs a fixture seam)"]
+  },
+  "standing_finding_for_phase_d": "prepare-commit-msg masks commit-msg: it injects '[EXPLORE] PXX:' into an unprefixed message BEFORE commit-msg runs, so the prefix requirement cannot fail on the composed path - the fourth 'check that cannot fail' in the project record, this time by composition of two individually reasonable hooks. It also emits '.githooks/prepare-commit-msg: line 59: [: 0 0: integer expression expected'. Remediation (fix the shell error; make injection conditional or make commit-msg validate the pre-injection message) is Phase D work, deliberately not applied during the audit."
+}

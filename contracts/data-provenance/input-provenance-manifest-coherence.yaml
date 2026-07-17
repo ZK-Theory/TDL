@@ -21,8 +21,9 @@ spec_citation:
 invariant:
   claim: >
     When an input-provenance manifest is marked enforced:true, every declared
-    input exists on disk, matches its recorded sha256 (when pinned) and
-    vintage_date (when pinned), and the set of co-consumed inputs satisfies
+    input exists on disk, matches its recorded signature (``blob_sha`` for
+    worktree inputs; ``sha256`` and/or ``vintage_date`` for proj_root inputs), and
+    the set of co-consumed inputs satisfies
     coherence.max_vintage_spread_days; a manifest failing any of these blocks
     the commit. Manifests marked enforced:false are documented but not gated.
   preconditions:
@@ -40,8 +41,10 @@ binding:
   test_function: "test_active_input_provenance_manifests_match_disk"
   must_assert: >
     Asserts that (a) a manifest input absent from disk is rejected
-    (all_present is false); (b) an input whose recorded sha256 does not match
-    the on-disk file is rejected (signatures_ok is false); (c) a co-consumed
+    (all_present is false); (b) a worktree input whose recorded blob_sha does
+    not match the clean Git object is rejected, and a proj_root input whose
+    recorded sha256 does not match the on-disk file is rejected
+    (signatures_ok is false); (c) a co-consumed
     input set whose on-disk vintage spread exceeds the declared
     max_vintage_spread_days is rejected (coherent is false); and that every
     manifest currently marked enforced:true passes all three checks against the

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-07-16",
+  "gate": "git-gate-0-skill-sync",
+  "audited_head": "d5cbfeddc8d2127d477d35dda7aa2a4949adecab",
+  "base": "origin/main 2bebecb (merged into pipe/gate-liveness-audit)",
+  "implementation": ".githooks/pre-commit:54-65",
+  "worktree": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\gate-liveness-audit",
+  "verdict": "PARTIAL_ENVIRONMENT_FAULT",
+  "negative_control_attempted": false,
+  "reason_not_attempted": "The clean Gate 0 baseline failed before any controlled divergence; a divergence would not isolate the skill-tree violation.",
+  "baseline_command": "UV_PROJECT_ENVIRONMENT=C:\\Users\\steph\\TDL\\.venv uv run --no-sync python tools/sync_agent_skills.py --check",
+  "baseline_exit_code": 1,
+  "verbatim_diagnostic": "ERROR: unclassified skills in .agents/skills/ (add to SYNC_SKILLS or EXCLUDE_PATTERNS):\n  - gitnexus",
+  "restoration_confirmation": "No Gate 0 divergence was introduced. The pre-existing user-owned .agents/skills/gitnexus/ directory and .codex/config.toml modification were untouched.",
+  "clean_pass": false,
+  "required_next_step": "Classify or remove the user-owned gitnexus skill directory, then rerun the baseline, controlled one-copy divergence commit attempt, restoration, and evidence commit."
+}
