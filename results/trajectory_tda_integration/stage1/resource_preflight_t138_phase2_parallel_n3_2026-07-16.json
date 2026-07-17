@@ -1,0 +1,38 @@
+{
+  "task": "T1.38 phase 2 re-scoped valid-null preflight",
+  "generated_at": "2026-07-16T14:47:21.271999+00:00",
+  "B_benchmarked": 2,
+  "L": 5000,
+  "seed": 42,
+  "production_cells": [
+    "usoc:order_shuffle",
+    "usoc:markov1",
+    "usoc:markov2",
+    "usoc:stratified_markov1",
+    "bhps:order_shuffle",
+    "bhps:markov1",
+    "bhps:markov2",
+    "bhps:stratified_markov1"
+  ],
+  "cost_model": {
+    "n_units_benchmarked": 3,
+    "median_seconds_per_unit": 54.332421599989175,
+    "min_seconds_per_unit": 23.09743009999511,
+    "max_seconds_per_unit": 62.340316300003906,
+    "p75_generation_plus_obs_w2_seconds": 60.33834262500022,
+    "p75_null_null_w2_seconds": 23.09743009999511,
+    "projected_wall_hours": 6.180427609258913,
+    "projected_units": 1600,
+    "projection_basis": "p75 production generation+exact obs-null and p75 exact null-null; B=2 measured per available cell",
+    "worker_count": 3,
+    "per_process_peak_gb": 2.1343955993652344,
+    "free_gb_at_launch": 11.409961700439453,
+    "parallel_ram_required_gb": 6.403186798095703,
+    "ram_headroom_gb": 5.00677490234375,
+    "ram_headroom_rule": "chosen workers require at least 25% of free RAM to remain available",
+    "ram_preflight_passed": true,
+    "parallelism": "serial within each OS process; cells are safe to launch as independent processes"
+  },
+  "classification": "GO",
+  "reason": "Projection is based on actual frozen-loading null generation plus exact W2, not a retained cache."
+}

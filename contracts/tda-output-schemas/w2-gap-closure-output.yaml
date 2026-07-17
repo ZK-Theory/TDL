@@ -1,0 +1,103 @@
+id: w2-gap-closure-output
+kind: schema
+pending: false
+
+description: >
+  Schema for the T1.38 W2 gap-closure results. A distance solver with a silent
+  approximate fallback makes every downstream result unfalsifiable unless the
+  result records which backend actually ran. This schema forces the solver
+  identity and its exactness into the file, alongside the convention gate and
+  the diagonal-bound impossibility screen that together establish the values are
+  Wasserstein distances at all. Covers phase 1 (BCa, non-overlap re-derivation,
+  Markov-2 gate, legacy classification) and phase 2 (Table 1 H1 rebuild).
+
+spec_citation:
+  source: >
+    Computational-Log 2026-07-14 [DECISION] (Table 1 = A+C; adopt-exact ruling
+    (i)); SUPERSEDED.md solver-artifact axis; T1.38 pre-registration
+    results/trajectory_tda_integration/stage1/pre_registrations_w2_gap_closure_2026-07-15.json.
+    Authored after the committed frozen USoc H1 headline (obs-null 233.68,
+    d_perm +22.09) was found to be a greedy persistence-rank fallback artifact —
+    reached because POT was not importable in the 2026-05-28 venv — which
+    lint, unit tests, smoke runs and a value-level schema check all passed.
+  vault_entry_date: "2026-07-15"
+
+schema_def:
+  applies_to: "JSON files matching results/trajectory_tda_integration/stage1/w2_gap_closure_*.json"
+  required_keys:
+    - name: schema_version
+      type: str
+      description: "Schema version tag, MUST be 'stage1/w2-gap-closure/v1'."
+    - name: generated_at
+      type: str
+      description: "ISO 8601 timestamp for the result generation."
+    - name: task
+      type: str
+      description: "Task identifier, MUST start with 'T1.38'."
+    - name: phase
+      type: str
+      description: "MUST be one of {'phase1', 'phase2'}."
+    - name: pre_registration
+      type: str
+      description: "MUST reference pre_registrations_w2_gap_closure_2026-07-15.json."
+    - name: solver
+      type: "dict[str, ...]"
+      description: >
+        Solver identity, recorded in-band. MUST contain name (str, MUST contain
+        'gudhi'), exact (bool, MUST be true), pot_available (bool, MUST be true),
+        order (int, MUST be 2), and internal_p (int, MUST be 2). The producer
+        MUST assert POT is importable and ABORT rather than degrade to the
+        greedy persistence-rank fallback.
+    - name: params
+      type: "dict[str, ...]"
+      description: >
+        Locked parameters. MUST contain seed == 42, frozen_loadings == true,
+        and p_value_formula == '(r+1)/(B+1)'.
+    - name: inputs
+      type: "dict[str, ...]"
+      description: >
+        Input provenance. MUST contain git_head (str) and, for every cache
+        consumed, its absolute path and sha256. A cache-backed sub-goal MUST
+        name the cache it re-derived from.
+    - name: convention_gate
+      type: "dict[str, ...]"
+      description: >
+        MUST contain reference_freshly_recomputed (bool, MUST be true),
+        greedy_replica_reproduces_committed (bool), absdiff (float >= 0), and
+        tol (float > 0). See w2-gap-closure-convention-gate.
+    - name: diagonal_bound_screen
+      type: "dict[str, ...]"
+      description: >
+        MUST contain n_values_screened (int >= 0), n_violations (int, MUST be 0),
+        and max_ratio_to_bound (float, MUST be <= 1.0 + tol). See
+        w2-exact-diagonal-bound.
+    - name: cost_model
+      type: "dict[str, ...]"
+      description: >
+        Measured, not inherited. MUST contain n_units_benchmarked (int, MUST be
+        >= 8), median_seconds_per_unit (float > 0), min_seconds_per_unit
+        (float > 0), max_seconds_per_unit (float > 0), and projected_wall_hours
+        (float > 0) projected from the p75, not the mean.
+  forbidden_keys:
+    - name: per_call_pca
+      reason: "Embeddings must use frozen PCA loadings (post-T1.37), never per-call refit."
+    - name: greedy_fallback_used
+      reason: >
+        The producer aborts rather than degrading to greedy. A result recording
+        that it fell back is not a result — it is the defect this Task exists to
+        close.
+
+binding:
+  test_file: "tests/trajectory_tda/test_w2_gap_closure_contracts.py"
+  test_function: "test_w2_gap_closure_output_schema"
+  must_assert: >
+    The validator accepts a conforming payload and rejects payloads where
+    (a) solver.exact is not true, solver.pot_available is not true, solver.order
+    != 2, or solver.internal_p != 2; (b) params.seed != 42,
+    params.frozen_loadings != true, or params.p_value_formula is not
+    '(r+1)/(B+1)'; (c) convention_gate.reference_freshly_recomputed is not true;
+    (d) diagonal_bound_screen.n_violations != 0 or max_ratio_to_bound exceeds
+    1.0 + tol; (e) cost_model.n_units_benchmarked < 8, or median/min/max
+    seconds_per_unit are absent or non-positive; (f) phase is not in
+    {'phase1','phase2'}; (g) inputs.git_head is absent; or (h) any forbidden key
+    is present.

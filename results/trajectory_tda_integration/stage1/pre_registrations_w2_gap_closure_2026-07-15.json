@@ -1,0 +1,162 @@
+{
+  "pre_registration_date": "2026-07-15",
+  "vault_page": "04-Methods/Computational-Log.md",
+  "registered_by": "Manager 14 (T1.38 W2 gap closure; filed BEFORE the run per the outcome-contingent pre-registration mandate)",
+  "governing_decisions": [
+    "Computational-Log 2026-07-14 [DECISION] 'dedup kept but re-justified…' — Table 1 = option A+C: H1 rows re-run under the fail-loud exact solver AND rebuilt from frozen/exact-era sources; until then no Table 1 H1 row may be cited; H0 rows stand.",
+    "Computational-Log 2026-07-14 [DECISION] ruling (i) adopt-exact for both H1 headlines; ruling (a) sequence vintage immaterial.",
+    "results/trajectory_tda_integration/stage1/SUPERSEDED.md — three supersession axes (PCA-refit / W2 solver / sequence vintage)."
+  ],
+  "why_pre_registered": "Two sub-goals are outcome-contingent: the non-overlap H1 re-derivation determines whether P01-A section 6.2's non-overlap claim survives, and the Table 1 H1 rebuild determines whether the paper's negative controls actually pass. Under the greedy convention a negative control could not fail, so these have never been tested. The prose direction for each outcome is fixed here, before any number exists.",
+
+  "anti_anchoring_note": "No expected value is stated anywhere in this pre-registration, and none may be supplied in the Task Prompt. Prior figures in the record (BHPS markov H1 p=0.978; non-overlap p=0.221; stratified_markov1 H1 p=1.0000) are GREEDY-ERA ARTIFACTS under audit, not predictions — they are the objects being replaced. A result landing near any of them is a signal to re-check, not a confirmation. Precedent: a Manager 'sanity check' quoted as a lower bound (ARI 0.40) anchored a task whose true answer was 0.31.",
+
+  "entries": [
+    {
+      "name": "W2 gap closure — phase 1 (cache-backed and no-compute sub-goals)",
+      "task": "T1.38 phase 1",
+      "papers": ["P01-A", "P01-B"],
+      "outcome_contingent": true,
+      "sub_goals": {
+        "A_bhps_h1_bca": {
+          "description": "Derive the BCa 95% interval for the corrected BHPS Markov-1 H1 t_ratio from the per-pair arrays already retained in bhps_headline_frozen_corrected_2026-07-14.json (h1.per_pair.obs_null_exact[1000], h1.per_pair.null_null_exact[1000]). Pure bootstrap over stored arrays — zero EMD solves.",
+          "input_cache": "none required (arrays retained in-band)",
+          "cost_class": "minutes"
+        },
+        "B_nonoverlap_h1": {
+          "description": "Re-derive the BHPS non-overlap remainder H1 W2 statistics under the exact solver from the retained cache. Feeds P01-A section 6.2's non-overlap claim.",
+          "input_cache": "results/trajectory_tda_integration/stage1/cache/null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz (present, 22.3 MB — verified on disk 2026-07-15)",
+          "cost_class": "bounded; benchmark required before launch"
+        },
+        "C_markov2_gate": {
+          "description": "Gate markov2_alpha_sweep_summary_2026-06-16.json (exact-era by date, never explicitly gated). No diagram cache was found for the Markov-2 alpha sweep. Where no artifact survives, the honest verdict is UNVERIFIABLE — do not classify on era alone.",
+          "input_cache": "none found",
+          "cost_class": "screen only"
+        },
+        "D_legacy_04_nulls_classification": {
+          "description": "Classify 04_nulls_wasserstein_w2_20260407.json (2026-04-07, pre-dates the earliest cache 2026-05-24).",
+          "input_cache": "none exists",
+          "cost_class": "no compute"
+        }
+      },
+      "key_params": {
+        "solver": "gudhi.wasserstein.wasserstein_distance(order=2, internal_p=2) via POT/EMD — fail-loud",
+        "pot_required": true,
+        "bca_n_bootstrap": 2000,
+        "bca_alpha": 0.05,
+        "p_value_formula": "(r+1)/(B+1)",
+        "alpha_level": 0.05,
+        "seed": 42,
+        "frozen_loadings": true,
+        "dual_metric": true
+      },
+      "decision_rule": {
+        "A_bca": {
+          "interval_excludes_1": "BCa lower bound > 1.0 -> the interval is reported in P01-B section 4.2 Table 2, replacing the '—' placeholder; the existing p-floor rejection stands corroborated.",
+          "interval_includes_1": "BCa interval contains 1.0 -> CONTRADICTION with the committed p-floor rejection. STOP, do not write the cell, escalate to the Manager with both objects. A t_ratio interval spanning 1 alongside a p at the resolution floor is an internal inconsistency, not a result to report."
+        },
+        "B_nonoverlap": {
+          "still_non_rejects": "Exact H1 W2 p >= 0.05 -> P01-A section 6.2's non-overlap claim STANDS; the numerical value is updated to the exact re-derivation and the greedy value retired. The claim's substance is unchanged.",
+          "now_rejects": "Exact H1 W2 p < 0.05 -> P01-A section 6.2's non-overlap claim is FALSIFIED. The 'H1 rejection disappears once spanning individuals are excluded' sentence must be withdrawn and rewritten; the apparent disappearance was the greedy convention suppressing the H1 signal. This is a User-facing prose direction change on a claim in a section already drafted — escalate rather than rewrite.",
+          "dual_metric_note": "The landscape-L2 complement is solver-independent and already rejects on the remainder. Under 'now_rejects' both metrics agree and the disappearance claim dies outright. Under 'still_non_rejects' the two metrics disagree and section 6.2 must report the disagreement, per CONVENTIONS: no H1 conclusion rests on W2 alone."
+        },
+        "C_markov2": {
+          "reproduces_exact": "If a fresh exact re-derivation reproduces the stored Markov-2 values within tolerance -> exact-era CONFIRMED by artifact; P01-B section 4.2's Markov-2 rows become citable and lose the 'ungated' annotation.",
+          "reproduces_greedy": "If a greedy replica reproduces the stored values bit-for-bit -> the file is a greedy artifact despite its date; the Markov-2 rows join the unciteable set and the era boundary (2026-05-29/30) is wrong.",
+          "no_artifact": "If no cache or natural experiment exists to decide -> record UNVERIFIABLE. The Markov-2 rows keep their 'exact-era-but-ungated' annotation and remain non-headline. DO NOT infer the verdict from the file's date or from a dependency pin: a lockfile dates when something became guaranteed, never when it became present. POT was hand-installed ~2026-05-30 while the pin landed 2026-06-16; dating on the pin would have condemned four sound files."
+        },
+        "D_legacy": {
+          "expected_terminal": "No cache exists and none can be regenerated (the producing embedding era is gone) -> confirm SUSPECT-UNVERIFIABLE. P01-A Table 1's legacy rows and P01-B section 4.2's legacy label/cohort/order-shuffle H1 rows remain unciteable. This is a classification, not a measurement; if a cache IS found, it moves to the C rule."
+        }
+      },
+      "outputs": [
+        "results/trajectory_tda_integration/stage1/w2_gap_closure_phase1_<date>.json"
+      ]
+    },
+
+    {
+      "name": "W2 gap closure — phase 2 (P01-A Table 1 H1 production rebuild)",
+      "task": "T1.38 phase 2",
+      "papers": ["P01-A"],
+      "outcome_contingent": true,
+      "gated_on": "Phase 1 complete AND a measured cost model accepted by the Manager. Phase 2 is a PRODUCTION RE-RUN, not a cache re-derivation: every Table 1 source (L5000_postaudit_2026-05-02, L2000_legacy_2026-04-07, L5000_markov2_postaudit_2026-05-02, stratified_markov1_L5000_2026-05-02) pre-dates the earliest null cache (2026-05-24), so null diagrams must be regenerated under frozen loadings before any W2 is computed.",
+      "scope": "H1 rows only. H0 rows stand (greedy is provably identical to optimal transport at zero births) and MUST NOT be recomputed or altered.",
+      "key_params": {
+        "B": 100,
+        "L": 5000,
+        "seed": 42,
+        "frozen_loadings": true,
+        "solver": "exact, fail-loud",
+        "p_value_formula": "(r+1)/(B+1)",
+        "nulls": ["label_shuffle", "cohort_shuffle", "order_shuffle", "markov1", "markov2", "stratified_markov1"],
+        "datasets": ["USoc", "BHPS"]
+      },
+      "decision_rule": {
+        "negative_controls": {
+          "statement": "The label-shuffle, cohort-shuffle and order-shuffle rows are the paper's NEGATIVE CONTROLS. Under the greedy convention a negative control could not fail — greedy inflates obs-null and null-null together — so these have never actually been tested. This rebuild is the first real test.",
+          "control_holds": "Negative-control H1 fails to reject (p >= 0.05) -> the control PASSES and P01-A section 4.3's negative-control claim stands, now on tested rather than assumed evidence. Report as a strengthened claim.",
+          "control_fails": "Negative-control H1 REJECTS (p < 0.05) -> the negative control FAILS. This is a major adverse finding: the pipeline detects structure in data whose structure has been destroyed. STOP the phase, do not proceed to prose, escalate to the Manager and User immediately with the cell, the diagram-bound screen, and the null construction. Do not rationalise it as a landmark or size artefact without a dedicated test."
+        },
+        "markov_rows": {
+          "consistent": "Markov-1 H1 rejects on both datasets, consistent in direction with the corrected exact headlines -> Table 1 H1 column is rebuilt and citable; the 'do not cite any Table 1 H1 row' block in SUPERSEDED.md is lifted for the rebuilt rows only.",
+          "inconsistent": "Any rebuilt Markov-1 H1 cell disagrees in DIRECTION with the corrected exact headline for the same dataset -> STOP and escalate. Two independent exact computations of the same object disagreeing is a defect in one of them, not a finding."
+        },
+        "prose_direction": "Table 1's H1 column may be cited in P01-A only after this phase completes and its rows pass the diagonal-bound screen. Until then the standing instruction (SUPERSEDED.md: 'Do not cite any Table 1 H1 row') remains in force. No prose Task may consume phase-2 numbers before the Manager files the post-run [RESULT] and, where an outcome fork fires, the outcome-lock [DECISION]."
+      },
+      "stop_rules": {
+        "wall_time": "Projected wall time > 12 h at the chosen worker count -> STOP and escalate before launching. Do not launch and monitor.",
+        "cost_model_divergence": "Measured per-unit cost diverges from any inherited memo figure by > 2x -> record the measurement in the result JSON and re-project before launching."
+      },
+      "outputs": [
+        "results/trajectory_tda_integration/stage1/w2_gap_closure_table1_h1_<date>.json",
+        "regenerated null-diagram caches at PROJ_ROOT (gitignored; regeneration command recorded in the Task Log)"
+      ]
+    }
+  ],
+
+  "planned_contracts": [
+    {
+      "id": "w2-gap-closure-output",
+      "kind": "schema",
+      "path": "contracts/tda-output-schemas/w2-gap-closure-output.yaml",
+      "applies_to_glob": "results/trajectory_tda_integration/stage1/w2_gap_closure_*.json",
+      "materialised_by": "Manager 14 on branch run/w2-gap-closure at dispatch (pending: true). Worker authors ONLY the binding test and clears pending.",
+      "rationale": "A result file from a solver with a silent approximate fallback must record the solver identity and exactness in-band, or a reader cannot distinguish an exact result from a greedy one. The committed headline JSONs recorded pvalue_formula, L, B, seed and frozen_loadings but NOT the solver — which is why a greedy artifact gated P01-B prose for weeks.",
+      "required_keys": [
+        {"name": "schema_version", "type": "str"},
+        {"name": "solver", "type": "dict[str, ...]", "must_contain": ["name", "exact (bool, MUST be true)", "pot_available (bool, MUST be true)", "backend_version"]},
+        {"name": "params", "type": "dict[str, ...]"},
+        {"name": "inputs", "type": "dict[str, ...]"},
+        {"name": "convention_gate", "type": "dict[str, ...]"},
+        {"name": "diagonal_bound_screen", "type": "dict[str, ...]"}
+      ],
+      "forbidden_keys": [
+        {"name": "per_call_pca", "reason": "Embeddings use frozen loadings, never per-call refit."},
+        {"name": "greedy_fallback_used", "reason": "The producer must ABORT rather than degrade to greedy; a result recording that it fell back is not a result."}
+      ]
+    },
+    {
+      "id": "w2-exact-diagonal-bound",
+      "kind": "invariant",
+      "path": "contracts/tda-formulas/w2-exact-diagonal-bound.yaml",
+      "materialised_by": "Manager 14 at dispatch (pending: true).",
+      "rationale": "Obs 58's impossibility bound, mechanised. W2(A,B) <= sqrt(diag_norm_sq(A) + diag_norm_sq(B)) because projecting every point of both diagrams to the diagonal is always an admissible matching. A reported value above this bound is provably not a Wasserstein distance. The committed USoc H1 headline 233.68 sat ~6.5x above its ~35.8 bound and no check caught it for weeks.",
+      "claim": "Every exact W2 value written by this Task satisfies value <= diagonal_bound(dgm_a, dgm_b) + tol. A violation aborts the write.",
+      "must_exclude_degenerate": "The screen must be applied to every reported exact distance, not a sample, and its per-cell results recorded in-band under diagonal_bound_screen."
+    },
+    {
+      "id": "w2-gap-closure-convention-gate",
+      "kind": "invariant",
+      "path": "contracts/tda-formulas/w2-gap-closure-convention-gate.yaml",
+      "materialised_by": "Manager 14 at dispatch (pending: true).",
+      "rationale": "Obs 60. The 2026-07-12 run's 'sanity cross-check' compared committed_orphan_stats against the committed JSON those values had been COPIED FROM in the prior step — it compared the committed values against themselves, passed unconditionally, and its vacuous PASS carried the memo's entire wrong conclusion. A gate that can only pass is not a gate.",
+      "claim": "For every committed value this Task re-derives, the convention gate puts a FRESHLY RECOMPUTED number on at least one side of the comparison. Specifically: (a) the greedy replica, run over the cache through the fresh code path, reproduces the committed value within tol — establishing convention identity; AND (b) the exact value is computed fresh from the same cache, never read from any committed artifact. A gate whose reference side is copied from the artifact under test FAILS.",
+      "counter_example_history": "2026-07-12 WT-1: 05_assemble_result.py compared usoc_w2_data['committed_orphan_stats'] to the committed headline JSON; the field had been copied verbatim from that same JSON by 03_..._w2_headline.py. PASS was trivially true. Re-deriving through the fresh path would have produced ~12.4 exact vs the committed 233.68 and exposed the greedy gap immediately."
+    }
+  ],
+
+  "enforcement_notes": {
+    "manager_authors_contracts": "contracts/README.md forbids the implementing agent authoring its own contract — the same misreading that produces wrong code produces a wrong contract. All three YAMLs above are materialised by the Manager on the Task branch BEFORE the Task Prompt is issued, with pending: true and a binding block naming the test the Worker will write. The Worker authors ONLY the binding test and clears pending. It must never re-author or weaken a contract to make a test pass.",
+    "obs_68": "An unmaterialised planned_contracts block is a hard blocker discovered at the worst possible time — after the worktree is built and the budget window is open. That fired on the last dispatch."
+  }
+}
