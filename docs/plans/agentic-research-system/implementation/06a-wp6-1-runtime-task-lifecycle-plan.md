@@ -43,7 +43,11 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   with versioned membership and typed dispositions. Commands: create/supersede/amend-
   by-revision. **Binding tests:** schema-invalid create rejected atomically; a
   milestone-completion command naming a stale ScopeDefinition revision rejected;
-  replay equality across the new record set.
+  a completion command omitting a typed disposition for any required member of
+  the named revision rejected atomically — an absent tracker row is not a
+  disposition (the W0 scope-collapse failure mode: fourteen unlogged Stage-2
+  tasks behind a "complete" projection); replay equality across the new record
+  set.
 - **T2 — Dispatch, claim, lease, attempt.** W2 §12 lifecycle with W8 lease integration
   (the `operations/leases.py` machinery becomes the runtime lease authority);
   idempotency and concurrency per W2 §13. An attempt never silently replaces another
@@ -95,7 +99,10 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
 
 - One worktree per tranche; suggested split: T1–T3 (`pipe/ars-wp6-1-task-lifecycle`),
   T4–T5 (`pipe/ars-wp6-1-artefacts-reviews`), T6–T7 (`pipe/ars-wp6-1-operator-surface`),
-  T8 rides with each. Concurrency cap 3–4; commit prefix `[PIPELINE] P00:`.
+  T8 rides with each. Concurrency cap 3–4. Commits use the full repository
+  convention: `[PIPELINE] P00: <description>` subject, body describing the
+  change, and the `Co-Authored-By` trailer; pre-commit hooks run on every
+  commit, never skipped.
 - Review-then-merge on every PR (CodeRabbit concluded pre-merge); adversarial
   implementation review at tranche completion (pattern:
   `reviews/adversarial-wp4-full-review-2026-07-07.md`).

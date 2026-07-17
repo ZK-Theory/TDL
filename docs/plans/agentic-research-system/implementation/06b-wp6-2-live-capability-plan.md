@@ -4,8 +4,8 @@
 **Status:** draft, review pending — authorizes no implementation and no live provider
 call. Dispatch is gated on Gate 5 close (WP5.6), Stephen's approval of this plan, and
 — for every task after T1 — Stephen's acceptance of the T1 threshold/calibration
-policy (D-G6-2). Implements proposed decision P-033 (no interim operator-executed
-mode).
+policy (D-G6-2). Implements accepted decision P-033 (no interim operator-executed
+mode; wording confirmed 2026-07-17).
 **Goal:** Clear Gate A blockers A3 and A6 with direct current evidence: live Claude
 and Codex transports behind the accepted W7 interface, semantic fail-closed parity on
 live transports, the separately accepted live-grader threshold/calibration policy
@@ -93,16 +93,24 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
 ## 3. Sequencing, branches, and review
 
 ```text
-T1 (policy, owner)  ──accepted──> T5/T6/T7 eligible
+T1 (policy, owner) ──accepted──────────────────┐
+                                               v
 T2 (credentials/cost) ─> T3 (Claude live) ─┬─> T5 parity ─> T6 profiles ─> T7 unblock ─> T8
                           T4 (Codex live) ──┘
 ```
 
+T1 acceptance is an additional gate on the T5→T6→T7→T8 chain, not an
+alternative entry: T5 requires T2–T4 **and** T1; T6 requires T5; T7 requires
+T6; T8 requires T7. No task after T1 is eligible from T1 alone.
+
 - T1 may run alongside WP5.6; T2–T4 require Gate 5 closed.
 - Branches: `pipe/ars-wp6-2-threshold-policy` (T1 doc), `pipe/ars-wp6-2-live-adapters`
   (T2–T4), `pipe/ars-wp6-2-parity-profiles` (T5–T6), `pipe/ars-wp6-2-mh-unblock`
-  (T7–T8). Commit prefix `[PIPELINE] P00:`; review-then-merge with CodeRabbit
-  concluded pre-merge on every PR; adversarial implementation review at tranche end.
+  (T7–T8). Commits use the full repository convention: `[PIPELINE] P00:
+  <description>` subject, body describing the change, and the `Co-Authored-By`
+  trailer; pre-commit hooks run on every commit, never skipped. Review-then-merge
+  with CodeRabbit concluded pre-merge on every PR; adversarial implementation
+  review at tranche end.
 - Live smoke runs are bounded and budgeted (T2 grant fields); no live call before T2
   merges.
 

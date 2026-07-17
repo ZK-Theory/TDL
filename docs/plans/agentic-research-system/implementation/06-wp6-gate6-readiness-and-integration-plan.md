@@ -19,8 +19,8 @@ dispatched as its own reviewed plan (04a/05a pattern) without re-derivation.
 
 **Governing authority:** accepted W1–W8 designs and 06c interface manifest (P-027–P-030);
 04-plan §4 (Gate 6) and §6 (pilot operating model); 05-wp5 plan §2 (Gate 5 acceptance
-criteria) and §6 owner record; proposed decisions P-031–P-034
-(03-decisions-and-open-questions.md, recorded 2026-07-16, wording confirmation pending);
+criteria) and §6 owner record; accepted decisions P-031–P-034
+(03-decisions-and-open-questions.md, recorded 2026-07-16, wording confirmed 2026-07-17);
 Gate A blockers A1–A8 of the TDA-scale programme v1.0.0 (vault:
 `00-Meta/Research Direction Reports/Evidence-Led TDA Scale and Research Programme for
 ARS - v1.0.0 - 2026-07-16.md`).
@@ -183,7 +183,7 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 
 | ID | Decision | Anchor |
 |---|---|---|
-| D-G6-1 | Confirm exact wording of P-031–P-034 (currently `proposed`) | 03-decisions §"Post-Gate-5 owner directions" |
+| D-G6-1 | **Closed 2026-07-17** — exact wording of P-031–P-034 confirmed by Stephen | 03-decisions §"Post-Gate-5 owner directions" |
 | D-G6-2 | Accept the live-grader threshold/calibration policy (WP6.2 T1) — the single decision that unblocks M/H grading | 05-plan §7.2; D-G5-1 |
 | D-G6-3 | Approve invariant re-baselines for WP6.1/WP6.2 (D-G5-3 process continues: exact old → new values pre-registered per dispatch plan) | 05-wp5 plan §7 |
 | D-G6-4 | Accept W11 after its adversarial review; decide the first ownership-transition batch for active Discovery items | WP6.5/WP6.6 |

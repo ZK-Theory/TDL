@@ -20,7 +20,7 @@
 
 - [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
 
-## WP6 suite (draft, review pending — recorded 2026-07-16; authorizes nothing while Gate 5 is open)
+## WP6 suite (draft, review pending — Gate 5 accepted 2026-07-17 at merge `f49a27f`; authorizes no dispatch until this suite's review gate and Stephen's approval)
 
 1. [WP6 master — Gate 6 readiness and end-to-end integration](06-wp6-gate6-readiness-and-integration-plan.md)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
@@ -29,7 +29,8 @@
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
 in the WP6 master plan; their dispatch plans are written when their gates approach.
-Owner directions P-031–P-034 are recorded as `proposed` in
+Owner directions P-031–P-034 are recorded as `accepted` (wording confirmed
+2026-07-17) in
 [../03-decisions-and-open-questions.md](../03-decisions-and-open-questions.md).
 
 ## Execution rule
