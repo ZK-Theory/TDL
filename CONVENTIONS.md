@@ -503,6 +503,20 @@ Three journal-targeted papers replacing the original four technique-first papers
 
 ---
 
+## ARS Foundation Governance
+
+- **Gate 5 production authority bootstrap:** Store initialization for the
+  integrated WP5.6 publication must require exact equality with Owner-approved
+  canonical manifest SHA-256
+  `90d3bacb87c6ef77385556d618fa15604af09e416700fb248a0448db8249d7e3`,
+  bound to `rgd_019f6ba3-57c9-7716-9b01-72cf068df03d`. Any manifest,
+  decision, grant, scope, object-hash, actor/project, or canonical-byte change
+  requires a fresh Owner `[DECISION]`. This authorizes the bounded Gate 5
+  publication continuation only, not Gate 5 acceptance or Gate 6. Locked
+  2026-07-16.
+
+---
+
 ## Computational Environment
 
 - Python 3.13 on Windows (username: `steph`)
@@ -522,4 +536,4 @@ Set `TRAJECTORY_TDA_DATA_DIR` when running `run_wasserstein_battery.py` outside 
 
 ---
 
-*Last updated: 2026-07-14*
+*Last updated: 2026-07-16*
