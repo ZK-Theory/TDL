@@ -559,6 +559,17 @@ alter the reviewed requirements.<br>
 **Affected specifications:** WP6 master and WP6.1/WP6.2 child plans; P-035; D-G6-3;
 Gate 6 launch and dispatch-planning controls.
 
+## W11 specification status (non-decision)
+
+The WP6.5 specification-only draft now exists at
+`design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`. It
+prospectively specifies portfolio/Discovery records, the `AdmitResearchDossier`
+boundary, and physically disjoint legacy/successor/annotation writer paths. This status
+entry does not amend P-032/P-034, accept W11, authorize implementation or WP6.6, create
+any projection, ingest any item, or transition ownership. D-G6-4 remains open for (1)
+Stephen's exact-revision acceptance after fresh independent adversarial review and
+reconciliation and (2) a separately content-addressed first ownership-transition batch.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task

@@ -24,6 +24,7 @@ A specification may be written when:
 8. `08-resource-checkpoint-and-operations.md`
 9. `09-migration-compatibility-and-pilot.md`
 10. `10-project-template-and-domain-packs.md`
+11. `11-portfolio-and-discovery-lifecycle.md`
 
 The filenames define decomposition, not permission to implement. Each specification will pass its own review gate before an implementation plan is produced.
 
@@ -42,3 +43,4 @@ The filenames define decomposition, not permission to implement. Each specificat
 | [06c-gate3-foundation-critical-interface-manifest-2026-07-01.md](06c-gate3-foundation-critical-interface-manifest-2026-07-01.md) | `accepted_interface_manifest` | Revision 0.2 closes identity, two-stage ordering, stage, failure, and evidence coherence under P-030 |
 | [07-runtime-adapters-and-policy-parity.md](07-runtime-adapters-and-policy-parity.md) | `accepted` | Revision 0.2 accepted under P-030 with bound-provider/wrapper accounting and canonical identity bindings |
 | [08-resource-checkpoint-and-operations.md](08-resource-checkpoint-and-operations.md) | `accepted` | Revision 0.2 accepted under P-030 with proportional operational profiles and non-circular grant binding |
+| [11-portfolio-and-discovery-lifecycle.md](11-portfolio-and-discovery-lifecycle.md) | `review_pending` | WP6.5 specification-only draft under P-032: portfolio/Discovery records, dossier admission, and path/writer cutover contracts; no implementation, admission, projection, ingestion, or transition authority |
