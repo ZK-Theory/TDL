@@ -141,31 +141,19 @@ Headline categories:
       Sequencing: at next natural opportunity; not blocking any
       submission-critical work. Applies equally to P01-B headline cells.
 - [~] **SI methodological-disclosure paragraph for the dedup amendment —
-      REWRITTEN 2026-07-15 on data-property grounds, pending User
-      per-section review.** Section file:
+      DRAFTED 2026-06-21, pending User per-section review.** Section file:
       `papers/P01-A-JRSSA/drafts/sections/supplement-S6-length-matched-dedup.md`
       (working §S6; final number at v2 assembly). Covers (a) the rationale
-      for external-indexing dedup — near-duplicate landmarks (139 of 5,000
-      in the truncate cell) are a genuine property of the observed embedding
-      that the Markov-1 surrogates do not reproduce, a representation/
-      provenance argument with nothing inferential claimed for it; (b) the
-      two arms as a sensitivity pair — under the exact solver both reject at
-      the floor (S/N 1.860 no-dedup vs 1.866 dedup), so the conclusion does
-      not depend on the dedup choice; (c) a one-off disclosure that the step
-      was originally motivated by an apparent non-separation that was itself
-      a solver artifact; (d) the two robustness probes.
-      **The former justification is RETIRED (2026-07-14 `[DECISION]`, item 4):
-      the H1 W2 "flip" (p=0.350→0.000999; S/N 1.006→1.867) and the
-      "~139 near-zero-scale phantom H1 features" mechanism were artifacts of
-      the greedy-fallback W2 solver, not of dedup. The 2×2 attributes the
-      variation to the solver axis (÷30.7) not the dedup axis (+0.4%); the
-      no-dedup observed H1 diagram contains ZERO features with persistence
-      < 1e-6. Cite `dedup_amendment_comparison_corrected_2026-07-14.json`
-      for the H1 W2 cell. Outcome A is UNCHANGED — it rests on the two
-      exact-era 2026-05-30 dedup arms.** The pinned_thresh H0 +6.7% drift
-      (T-ratio 7.87→8.40) stands and is retained. notation-check clean.
-      Applies equally to P01-B headline cells (cross-reference from P01-B,
-      do not duplicate).
+      for external-indexing dedup, (b) the H1 W2 flip from p=0.350 to
+      p=0.000999 and why it is mechanistic (mean_obs_null 202.84→6.63 once
+      the ~139 near-zero-scale phantom H1 features are stripped; S/N
+      1.006→1.867), (c) the two robustness probes. **Drafted from the
+      CORRECTED 2026-06-01 comparison JSON, not the 2026-05-31 draft field:
+      the pinned_thresh H0 cell drifts +6.7% (T-ratio 7.87→8.40), not "<1%
+      everywhere" — rejection preserved in every cell regardless, Outcome A
+      unaffected.** notation-check: 1 borderline obs/null-superscript leakage
+      flag (kept, consistent with §S0 precedent). Applies equally to P01-B
+      headline cells (cross-reference from P01-B, do not duplicate).
 - [x] **§4.5 escape-regression + family-of-origin section — REWRITTEN
       2026-06-21; Manager-ACCEPTED 2026-06-22 (2.4-A accept-the-loss, STANDS; vault [DECISION] filed 2026-06-22).** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md`.
@@ -193,8 +181,7 @@ Headline categories:
       guardrails) — the superseded H0-vs-GMM material removed; **B10 Table 2** populated
       with headline stored-metric SE/Wilson CI from `stability_se_stored_2026-06-22.json`
       (denominator n_members); **B11 Table 3** Wilson CIs unchanged. notation-check clean.
-- [~] **§6.2 BHPS-era cross-era robustness rewrite — DRAFTED 2026-07-11; dedup
-      paragraph re-grounded and de-scaffolded 2026-07-15; pending
+- [~] **§6.2 BHPS-era cross-era robustness rewrite — DRAFTED 2026-07-11, pending
       User per-section review.** Section file:
       `papers/P01-A-JRSSA/drafts/sections/results-bhps-robustness.md` (distinct from the
       `supplement-S6-length-matched-dedup.md` supplement). Covers: (a) H1 length-matched
@@ -208,14 +195,8 @@ Headline categories:
       sensitivity — 10,992 spanning individuals (10,544 valid income both waves) excluded;
       H0 W2 robust, H1 W2 rejection disappears (arm_a p=0.221; 0/20 matched subsamples at
       landmark fraction 0.588) while landscape L2 H1 still rejects → size/landmark-fraction
-      artefact, metric-dependent. **(c) is at risk: `bhps_nonoverlap_reanalysis_2026-06-09`
-      is greedy-era by 7 days and SUPERSEDED.md requires its H1 W2 non-rejection to be
-      re-derived before the claim is re-asserted — the p=0.221 non-rejection is exactly
-      the pattern greedy produces. Cache present ⇒ re-derivable on demand.**
-      "Replication"→"robustness/consistency" throughout (Spec
-      S10). The dedup paragraph was re-grounded 2026-07-15 on data-property grounds
-      (H1 W2 flip retired as a solver artifact); numbers traced to
-      dedup_amendment_comparison_corrected_2026-07-14, markov1_calibration/
+      artefact, metric-dependent. "Replication"→"robustness/consistency" throughout (Spec
+      S10). Numbers traced to dedup_amendment_comparison_2026-05-31, markov1_calibration/
       nullnull_variance_2026-06-21, bhps_nonoverlap_reanalysis_2026-06-09, income audit.
       notation-check clean. Carried-forward v1 headline magnitudes flagged for v2-assembly
       reconciliation (live in bhps_headline_frozen, not a task-named file).
