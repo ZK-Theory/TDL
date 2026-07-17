@@ -1,6 +1,6 @@
 ---
 title: P01-A and P01-B Reviewer-Response Revision to v2
-modified: "2026-06-13 (Manager 10): Wave-2 batch-2 re-scope (User-approved). **T1.6** re-scoped from 'BHPS H4 negative-control three-hypothesis diagnostics' to 'BHPS Markov-1 rejection credibility under valid frozen-loadings nulls' — calibration double-null p-value uniformity + BHPS-vs-USoc null-null CV; the geometry KS diagnostic is dropped — after the 2026-05-25 [NEGATIVE] proved the label-shuffle premise vacuous; dependency now Task 1.37 (frozen pipeline); pre-registration AMENDMENT required before dispatch. **T1.28** re-scoped from panel-only 're-FDR' to a TDA-owned recompute of §6.1 per-subgroup Markov-1 W₂ under the locked pipeline (frozen loadings, B≥1000, mean-vs-mean T_ratio + BCa CI) for USoc AND BHPS, then per-family FDR (BH gender/NS-SEC, BY cohort); agent reassigned Panel Statistics → TDA; dependency Task 1.37; pre-registration required (the exact per-subgroup test model pinned against §B8 at authoring, not assumed). Dependency graph: T1_37 -.-> T1_6 and T1_37 -.-> T1_28 edges added; T1_28 node relabelled + recoloured to TDA. Both queued after the three in-flight heavy runs (T1.5/T1.8/T1.9b), staggered. Previous modification record retained below. Modified by the Manager.\n2026-06-04 (Manager 7): New Stage-0 workstream 'Contract-framework hardening (full teeth)' added (T0.14–T0.17) per User direction after recurring CodeRabbit-caught contract-enforcement defects. T0.14 hardens the meta-schema + contract_binding_check.py gates (expression-XOR-enforced_by, qualitative-language lint, claim↔assertion coverage, gate-4 type/bound with null-allowed grammar, pending-debt gate; warn-mode rollout) — Reproducibility Agent. T0.15 retrofits TDA-side contracts+binding tests — TDA Agent. T0.16 retrofits Panel-side contracts+binding tests and lands the E6 sample-provenance-ledger contract — Panel Statistics Agent (sequenced after PR #32 merge). T0.17 flips gates warn→enforce and bakes a pre-dispatch/pre-accept contract-quality checklist into the APM guides — Reproducibility Agent. Dependency flow T0.14 → (T0.15 ∥ T0.16) → T0.17 added to the Stage 0 subgraph. Previous modification record retained below. Modified by the Manager.\n2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
+modified: "2026-07-15 (Manager 14): Tasks **2.23** (P01-B section-file register cleanup, 7 files, `paper/p01b-methods-results`) and **2.24** (P01-A residual register cleanup, 3 files omitted from the T2.17a list, `paper/p01a-dedup-rewrite`) added to Stage 2. Both are register-only remediation of the register rule locked 2026-07-14 in `.claude/rules/papers.md`; both carry a zero-science-change constraint. Scope verified by token sweep before authoring, not inherited from the handoff list: the P01-A set is exactly three files (a fourth, `results-stratified-w2-subgroups.md`, was a false positive — 'Professional/Managerial'), and all seven P01-B files are affected. Manager authority per contained-correction scope; no Spec cascade (register is a Rules/prose-standard matter, not a design decision). Dependency graph unchanged — both are same-agent (academic-writing-agent) leaf Tasks off already-Done prose Tasks. Previous modification record retained below. Modified by the Manager.\n2026-06-13 (Manager 10): Wave-2 batch-2 re-scope (User-approved). **T1.6** re-scoped from 'BHPS H4 negative-control three-hypothesis diagnostics' to 'BHPS Markov-1 rejection credibility under valid frozen-loadings nulls' — calibration double-null p-value uniformity + BHPS-vs-USoc null-null CV; the geometry KS diagnostic is dropped — after the 2026-05-25 [NEGATIVE] proved the label-shuffle premise vacuous; dependency now Task 1.37 (frozen pipeline); pre-registration AMENDMENT required before dispatch. **T1.28** re-scoped from panel-only 're-FDR' to a TDA-owned recompute of §6.1 per-subgroup Markov-1 W₂ under the locked pipeline (frozen loadings, B≥1000, mean-vs-mean T_ratio + BCa CI) for USoc AND BHPS, then per-family FDR (BH gender/NS-SEC, BY cohort); agent reassigned Panel Statistics → TDA; dependency Task 1.37; pre-registration required (the exact per-subgroup test model pinned against §B8 at authoring, not assumed). Dependency graph: T1_37 -.-> T1_6 and T1_37 -.-> T1_28 edges added; T1_28 node relabelled + recoloured to TDA. Both queued after the three in-flight heavy runs (T1.5/T1.8/T1.9b), staggered. Previous modification record retained below. Modified by the Manager.\n2026-06-04 (Manager 7): New Stage-0 workstream 'Contract-framework hardening (full teeth)' added (T0.14–T0.17) per User direction after recurring CodeRabbit-caught contract-enforcement defects. T0.14 hardens the meta-schema + contract_binding_check.py gates (expression-XOR-enforced_by, qualitative-language lint, claim↔assertion coverage, gate-4 type/bound with null-allowed grammar, pending-debt gate; warn-mode rollout) — Reproducibility Agent. T0.15 retrofits TDA-side contracts+binding tests — TDA Agent. T0.16 retrofits Panel-side contracts+binding tests and lands the E6 sample-provenance-ledger contract — Panel Statistics Agent (sequenced after PR #32 merge). T0.17 flips gates warn→enforce and bakes a pre-dispatch/pre-accept contract-quality checklist into the APM guides — Reproducibility Agent. Dependency flow T0.14 → (T0.15 ∥ T0.16) → T0.17 added to the Stage 0 subgraph. Previous modification record retained below. Modified by the Manager.\n2026-05-25 (Manager 2): Two new Stage-1 tasks added closing the null-layer audit per 2026-05-25 [NEGATIVE] entry at the top of 04-Methods/Computational-Log.md. T1.36 (TDA Agent — add frozen_scaler/frozen_pca/frozen_umap parameters to ngram_embed(); thread through _order_shuffle/_markov_shuffle/_stratified_markov_shuffle in permutation_nulls.py; add --frozen-loadings flag to Stage-1 phase scripts; new unit tests; pipe/ branch). T1.37 (TDA Agent — re-run T1.2a/b/c/d/f USoc+BHPS headlines + LM sensitivity + length-matched truncate + T1.3 stratified Markov-1 with frozen loadings; produce pre-fix-vs-post-fix comparison table for §3.3/§3.4 methodological-disclosure prose; T1.2g first13 out of scope; run/ branch; depends on T1.36). Dependency graph extended with T1_36 (sage green = code-side fix) and T1_37 (sage green = computational rerun) nodes; T1_36→T1_37 same-agent edge; T1_37-.->T2_3/T2_8/T2_10/T2_20 cross-agent edges for methodological-disclosure prose into P01-A/P01-B headline sections and supplements. Previous 2026-05-25 modification record (T1.21 supersession + T1.33/T1.34/T1.35 addition) retained in commit history. Modified by the Manager."
 ---
 
 # APM Plan
@@ -1073,6 +1073,64 @@ style T4_10 fill:#a8dadc,color:#000
 9. Draft methodological-disclosure paragraph; commit.
 10. Write vault [RESULT] entries + final [DECISION] entry at top of Computational-Log.md via direct Write/Edit.
 
+### Task 1.39: Input-provenance signature rule — sign the git blob, not working-tree bytes - Reproducibility Agent
+
+* **Objective:** Repair the known-unsound `root: worktree` → working-tree-sha256 signature rule, which produces false VIOLATIONs on correct inputs under `core.autocrlf=true`, by signing the checkout-invariant git blob hash instead — without invalidating any existing pin.
+* **Output:** `shared/manager_predispatch_check.py` (and the R-C `input-provenance-manifest-coherence` binding test) signing/validating by blob hash with a migration path for existing sha256 pins; `.claude/rules/apm-outputs.md` § Input-provenance gate corrected; existing manifests (`b9-om-gmm-inputs`, `t128-inputs`, `t138-w2-gap-closure-inputs`) migrated; a regression test carrying the negative control.
+* **Validation:** A text input whose working copy is LF at one root and CRLF at another validates identically under the new signature (the negative control — it must be demonstrated failing under the old rule and passing under the new); every existing manifest still passes R-B; the R-C binding test passes in a **linked worktree**, not only at `PROJ_ROOT`.
+* **Guidance:** **Do not add `* text=auto` to `.gitattributes`.** Blobs are already LF; normalising would rewrite every checked-out working copy CRLF→LF and invalidate every existing working-tree sha256 pin at once — manufacturing a simultaneous false-positive across all manifests. Sign the blob (`git rev-parse HEAD:<path>`, `git hash-object`). Measured state: `git ls-files --eol` reports `i/lf w/crlf` for `05_analysis.json`, `bhps_headline_frozen_corrected_2026-07-14.json`, `b9-om-gmm-inputs.yaml`; `i/lf w/lf` for `SUPERSEDED.md` (a tool wrote it in place). Working-tree bytes depend on how the file arrived, not on the blob. Handle the `proj_root` class separately — gitignored intermediates have no blob, so they legitimately keep content sha256 and/or `vintage_date`. Full analysis: `docs/plans/strategy/Gate-Liveness-Audit-Plan-2026-07-15.md` §1.
+* **Dependencies:** None (dispatched ahead of the audit as the approved pre-audit exception).
+
+1. Reproduce the false positive: sign a text file's working-tree sha256 at `PROJ_ROOT`, validate in a fresh worktree, watch it fail on a correct input.
+2. Implement blob-hash signing for `root: worktree`; leave `root: proj_root` on content sha256/vintage.
+3. Migrate the three existing manifests; confirm each still passes R-B.
+4. Add the regression test with the negative control; confirm R-C passes in a linked worktree.
+5. Correct `.claude/rules/apm-outputs.md`.
+
+### Task 1.40: Gate liveness — inventory, triage, and negative-control battery - Reproducibility Agent
+
+* **Objective:** Establish, by observed evidence rather than documentation, which of this repository's enforcement gates are live — where live means someone has watched the gate fail on a deliberate violation and then restored it.
+* **Output:** `results/governance/gate_register_<date>.json` (phase A — every in-scope gate with path, trigger, documented claim, implementing line, and verdict) and `results/governance/gate_liveness_evidence_<date>.json` (phase B — one observed-failure record per gate: violation, command, exit code, verbatim diagnostic, restoration confirmation, clean-tree pass).
+* **Validation:** Every gate marked LIVE carries an observed non-zero exit with its diagnostic quoted verbatim; no gate is marked LIVE on phase-A evidence alone; the battery runs in a **linked worktree** (two of the three known failure modes only manifest there); the tree is clean and every violation reverted at completion; no synthetic artifact is written to `results/`.
+* **Guidance:** Governing plan `docs/plans/strategy/Gate-Liveness-Audit-Plan-2026-07-15.md` (approved 2026-07-16) — read it in full; §3 defines the standard of evidence and §4 the phases. Three failure modes: uncovered object, dead enforcement path, false-positive gate. **A documented gate is evidence of intent, not existence** — diff the documented gate list against the implementing lines, and sweep for zombie hooks outside the active `core.hooksPath` (the zombie was Gate 0's sole implementation). **CodeRabbit and Codacy are out of scope.** Phase C (coverage triage) is NOT in this Task — it is a User decision sequenced later.
+* **Dependencies:** Task 1.39 (so the battery negative-controls the repaired signature rule rather than the broken one).
+
+1. Phase A — enumerate every in-scope gate; diff documentation against implementation; sweep for zombies. No LIVE verdicts.
+2. Report at the phase boundary with the register.
+3. Phase B — per gate: violate surgically, observe the failure, restore, record the evidence verbatim.
+4. Record `UNVERIFIABLE` where a gate cannot be violated without destructive side effects; propose a testable seam rather than forcing it.
+5. Confirm clean tree; file the vault `[PIPELINE]` entry.
+
+### Task 1.41: Double-null calibration panel — the replacement negative control - TDA Agent
+
+* **Objective:** Establish the calibration of the W₂ permutation test across the ladder rungs and both datasets via double-null p-value uniformity (a fresh null draw tested against the null bank), replacing the void label/cohort negative controls per the 2026-07-16 User ruling.
+* **Output:** `results/trajectory_tda_integration/stage1/double_null_calibration_<date>.json`; a calibration panel consumable by P01-A Table 1 / §4.3 and P01-B; vault `[RESULT]` referencing its pre-registration.
+* **Validation:** Uniformity assessed by a pre-registered test with the decision rule per outcome filed BEFORE the run; the known T1.6 BHPS Markov-1 anti-conservative cell reproduced/reported as found, never smoothed; every W₂ exact with the diagonal screen; contracts conformant.
+* **Guidance:** Reuses the T1.6 calibration machinery (`run_bhps_markov1_credibility.py` lineage) and **consumes the null-diagram caches T1.38 Phase 2 regenerates** — do not regenerate banks it can reuse. Pre-registration (rungs, B, uniformity test, per-outcome prose direction) authored at dispatch. Governing record: Computational-Log 2026-07-16 `[NEGATIVE]` + `[DECISION]`; permanent note `a-null-must-perturb-the-object-the-statistic-consumes`.
+* **Dependencies:** Task 1.38 (Phase 2 caches + exact-solver conventions), **Task 1.6** (calibration machinery + the standing BHPS Markov-1 SUSPECT verdict).
+
+1. Author the pre-registration (Manager) and materialise any planned contracts at dispatch.
+2. Inventory which T1.38 Phase-2 banks are reusable; regenerate only what is missing.
+3. Per rung × dataset: fresh null draw vs bank; p-value; assemble the uniformity panel.
+4. Report calibration verdicts per cell, including known-anti-conservative cells, as found.
+5. Vault `[RESULT]`; update the supersession manifest where a verdict changes citability.
+
+### Task 1.38: W₂ gap closure — exact-solver re-derivations + P01-A Table 1 H₁ production rebuild - TDA Agent
+
+* **Objective:** Close the five objects the greedy-fallback W₂ audit left open, in two phases separated by a measured cost model: (phase 1) derive the BHPS Markov-1 H₁ BCa from retained per-pair arrays, re-derive the BHPS non-overlap H₁ under the exact solver from its cache, gate `markov2_alpha_sweep_summary_2026-06-16`, and classify `04_nulls_wasserstein_w2_20260407`; (phase 2) rebuild P01-A Table 1's H₁ rows under the fail-loud exact solver from frozen/exact-era sources.
+* **Output:** `results/trajectory_tda_integration/stage1/w2_gap_closure_phase1_<date>.json`; `..._table1_h1_<date>.json`; binding tests at `tests/trajectory_tda/test_w2_gap_closure_contracts.py` clearing `pending` on the three Manager-authored contracts; `SUPERSEDED.md` updated; regenerated caches at `PROJ_ROOT` (gitignored, regeneration command in the Task Log).
+* **Validation:** All three contracts pass the gate with `pending: false`; every reported exact W₂ passes the diagonal-bound screen (`n_violations == 0`); the convention gate records `reference_freshly_recomputed: true`; `cost_model.n_units_benchmarked >= 8` with median/min/max reported; a vault `[RESULT]` references the pre-registration, and any fired outcome fork carries a `[DECISION]`.
+* **Guidance:** Governed by the 2026-07-15 pre-registration at `results/trajectory_tda_integration/stage1/pre_registrations_w2_gap_closure_2026-07-15.json` — filed **before** the run because two sub-goals are outcome-contingent. **Phase 2 is a production re-run, not a cache re-derivation:** every Table 1 source pre-dates the earliest surviving cache (2026-05-24), so null diagrams must be regenerated under frozen loadings first. **Promote, do not re-derive:** `scratch/w2_fallback_audit/audit_lib.py` already implements the exact solver, the greedy replica, the diagonal bound, and the battery's pair-sampling replication — it is the reference implementation. **H₀ rows stand and must not be recomputed** (greedy is provably identical to optimal transport at zero births). **Parallelism:** exact W₂ is memory-bandwidth-bound and does not parallelise in-process; use N independent serial processes on disjoint checkpointed blocks, never a joblib/loky pool. **Cost model must be measured, not inherited** — the "~5 s/pair" memo figure is a prior to re-test, not a constant.
+* **Dependencies:** Task 1.37 (frozen-loadings pipeline), **WT-6 solver audit (`w2_fallback_audit_2026-07-14.json`)**, **WT-1c corrected headlines**.
+
+1. Verify the environment fails loud: POT importable, greedy fallback unreachable.
+2. Phase 1 sub-goal A — BCa from retained per-pair arrays (no EMD).
+3. Phase 1 sub-goal B — non-overlap H₁: convention gate (greedy replica reproduces committed) then exact re-derivation.
+4. Phase 1 sub-goals C/D — gate Markov-2; classify legacy `04_nulls`. Declare UNVERIFIABLE where no artifact decides.
+5. Benchmark ≥8 EMD units from the actual cache; report median + min/max; project from p75. STOP if >12 h.
+6. Phase 2 — Table 1 H₁ production rebuild, after the Manager accepts the cost model.
+7. File the `[RESULT]`; update `SUPERSEDED.md`; report outcome forks rather than resolving them.
+
 ## Stage 2: v2 drafting
 
 ### Task 2.1: P01-A §3.2 + §3.3 methods rewrite - Academic Writing Agent
@@ -1382,6 +1440,35 @@ style T4_10 fill:#a8dadc,color:#000
 6. Update `papers/P01-A-JRSSA/_project.md`.
 7. Update `papers/P01-B-JRSSB/_project.md`.
 8. **User final per-paper review.**
+
+### Task 2.23: P01-B section-file register cleanup - Academic Writing Agent
+
+* **Objective:** Strip status-report scaffolding from all seven P01-B section files so each contains only text a JRSS-B referee could read, with zero change to any scientific content, number, table cell, or conclusion.
+* **Output:** De-scaffolded `papers/P01-B-JRSSB/drafts/sections/*.md` (7 files) committed on `paper/p01b-methods-results`; every open item and gap deleted from the files preserved verbatim in the Task Log.
+* **Validation:** Zero banned tokens across all seven files on a re-run token sweep; `git diff` shows no changed numeric value, table cell, or claim; `/notation-check` clean per file; pre-delivery self-check run and reported per file.
+* **Guidance:** Governing rule is `.claude/rules/papers.md` § "Prose work — audience, register, notation, completion" (path-scoped, auto-loads). Register-only Task: content that is scientifically wrong (e.g. the uncitable H₁ rows) is out of scope and must be left untouched and reported, never fixed or fabricated. Precedent: the T2.17a P01-A pass, same shape, same agent.
+* **Dependencies:** Task 2.12, Task 2.13, Task 2.14, Task 2.15, Task 2.16, Task 2.16a.
+
+1. Re-run the token sweep to establish actual scope; report any file outside the supplied list.
+2. Per file: remove self-referential preamble, tracker IDs, repo paths and result-JSON filenames from body text, provisionality and review-status markers, and any `## Issues` section.
+3. Preserve every deleted open item / gap into the Task Log.
+4. Run `/notation-check` per file, never batched.
+5. Run the pre-delivery self-check per file.
+6. Commit; do not merge.
+
+### Task 2.24: P01-A residual register cleanup (three unlisted files) - Academic Writing Agent
+
+* **Objective:** Complete the P01-A register retro-fit by de-scaffolding the three section files omitted from the T2.17a list, to the same standard and with the same zero-science-change constraint.
+* **Output:** De-scaffolded `methods-w2-formal-definition.md`, `results-negative-control-wording.md`, `supplement-S0-null-specification.md` committed on `paper/p01a-dedup-rewrite`; deleted workflow content preserved in the Task Log.
+* **Validation:** Zero banned tokens across the three files; `git diff` shows no changed numeric value or claim; `/notation-check` clean per file; pre-delivery self-check run and reported.
+* **Guidance:** Same governing rule and constraints as Task 2.23. `supplement-S0-null-specification.md` was previously excluded as "no scaffolding found" — that exclusion was incorrect; the file carries an evidence-source header, `05_analysis.json` in body text, and pre-registration Task IDs.
+* **Dependencies:** Task 2.17a.
+
+1. Re-run the token sweep across `papers/P01-A-JRSSA/drafts/sections/` to confirm scope.
+2. De-scaffold the three files per the Task 2.23 standard.
+3. Preserve deleted workflow content into the Task Log.
+4. Run `/notation-check` per file and the pre-delivery self-check.
+5. Commit; do not merge.
 
 ## Stage 3: Reproducibility extraction
 
