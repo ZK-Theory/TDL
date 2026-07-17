@@ -187,8 +187,6 @@ def headline_stats_from_distances(
         "t_ratio": t_ratio,
         "w2_pvalue": w2_pvalue,
         "lower_tail_pvalue": lower_tail_pvalue,
-        "rank_count_upper": r_upper,
-        "rank_count_lower": r_lower,
         "n_effect_pairs": len(nn_effect),
         "n_pvalue_pairs": n_pv,
     }
