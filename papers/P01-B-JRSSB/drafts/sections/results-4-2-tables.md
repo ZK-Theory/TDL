@@ -14,13 +14,13 @@ Table 1 (scalar total-persistence statistic, $L = 5{,}000$, USoc and BHPS) is in
 | **USoc** | | | | | | | |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 14.91 [14.54, 15.25] | 51.07 | **<0.001** | **<0.001** |
 | Markov-1 (matched) | 5,000 | 1,000 | H1 | 3.479 [3.454, 3.503] | 31.16 | **<0.001** | **<0.001** |
-| Markov-2, $\alpha=1$ (incomplete; non-headline)$^{\P}$ | 5,000 | 1,000 | H0 | 20.33 | 69.24 | **<0.001** | not computed$^{\ddagger}$ |
-| Markov-2, $\alpha=1$ (incomplete; non-headline)$^{\P}$ | 5,000 | 1,000 | H1 | 1.489 | 31.09 | **<0.001** | not computed$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H0 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H1 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
 | **BHPS** | | | | | | | |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 9.251 [9.001, 9.504] | 26.53 | **<0.001** | **<0.001** |
 | Markov-1 (matched) | 5,000 | 1,000 | H1 | 2.175 [--]$^{\S}$ | 19.26 | **<0.001** | **<0.001** |
-| Markov-2, $\alpha=1$ (incomplete; non-headline)$^{\P}$ | 5,000 | 1,000 | H0 | 16.95 | 56.76 | **<0.001** | not computed$^{\ddagger}$ |
-| Markov-2, $\alpha=1$ (incomplete; non-headline)$^{\P}$ | 5,000 | 1,000 | H1 | 0.956 | -2.78 | 0.997 | not computed$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H0 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H1 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
 
 The legacy label-, cohort-, and order-shuffle rows have been removed from this inferential table. Label and cohort shuffles are invalidated because the operation leaves the set-valued statistic unchanged; the legacy order-shuffle values used retired $B=100$ runs and are retained only in the non-inferential historical audit.
 
@@ -28,13 +28,13 @@ $^{\ddagger}$ The Markov-2 $\alpha$-sweep computes $W_2$ only; no landscape $L^2
 
 $^{\S}$ BCa interval not re-derived in the exact-$W_2$ correction: the corrected BHPS file reports $T$, $d_{\mathrm{perm}}$, the $W_2$ $p$-value and the per-pair distance arrays, but no bootstrap interval. The interval is **pending** rather than absent in principle -- the retained per-pair arrays make it derivable -- and the superseded interval is deliberately not carried over, since it was computed under a different metric convention and does not describe this statistic.
 
-$^{\P}$ The Markov-2 rows postdate the 2026-05-29/30 solver-convention boundary and are therefore exact-era and presumed unaffected, but they were **not explicitly gated** by the convention audit. They are reported unchanged, pending that confirmation, rather than restated as verified.
+$^{\P}$ The Markov-2 rows were not explicitly gated by the convention audit. Their inferential quantities are consequently not reported and must not be used until that audit is complete.
 
 **Sequence-vintage note.** Re-derivation of the exact-$W_2$ statistics on the canonical sequence file moves $d_{\mathrm{perm}}$ by at most 0.11 ($H_1$) and 0.23 ($H_0$) and flips no conclusion.
 
 **Metric agreement at Markov-1.** The two metrics agree at every Markov-1 cell in Table 2: both reject decisively in both homology degrees for both datasets. The mandated pairing of $W_2$ with landscape $L^2$ earned its keep in reaching that position -- landscape $L^2$ is computed on a solver-independent path and was therefore unaffected by the superseded $W_2$ convention, so the apparent BHPS $H_1$ disagreement reported in earlier versions of this table was itself the diagnostic that the $W_2$ convention, not the topology, was at fault.
 
-The Markov-2 numbers above are computed under the Laplace-smoothed ($\alpha=1$) code path described in §3.2. The $\alpha$-sensitivity sweep (§3.2) confirms the reject/non-reject pattern reported here -- USoc rejects both dimensions, BHPS rejects H0 but not H1 -- is stable across $\alpha \in \{0, 0.5, 1, 5\}$ and is therefore not an artefact of the smoothing-strength choice.
+The Markov-2 source uses the Laplace-smoothed ($\alpha=1$) code path described in §3.2, but its convention audit remains incomplete. No reject/non-reject conclusion from that source is used in this paper pending completion of the audit.
 
 ## §4.2.3 Stratified Markov-1 rung (Level 4b; Table 3)
 
@@ -71,7 +71,7 @@ The Markov-2 numbers above are computed under the Laplace-smoothed ($\alpha=1$) 
 
 Landscape $L^2$ values in this table have not been retained with the metric-specific BH adjustment required for inferential use. Consequently, a row is called **Reject** only when both metrics have available BH-adjusted values below 0.05; rows without a valid landscape adjustment are marked incomplete and are non-headline.
 
-**What this rung tests (restated from §3.2).** Each row asks whether subgroup $g$'s topology exceeds *its own* first-order Markov baseline, estimated on that subgroup's own transition data -- a test of per-subgroup Markov-1 irreducibility, not a between-subgroup heterogeneity test. Each metric is corrected separately within the gender, NS-SEC, and cohort families using BH under its stated dependence assumption; disjoint membership does not itself establish independence.
+**What this rung tests (restated from §3.2).** Each row asks whether subgroup $g$'s topology exceeds *its own* first-order Markov baseline, estimated on that subgroup's own transition data -- a test of per-subgroup Markov-1 irreducibility, not a between-subgroup heterogeneity test. BH correction is applied separately for each metric within each gender, NS-SEC, and cohort family under its stated dependence assumption; disjoint membership does not itself establish independence.
 
 **USoc: 12/12 subgroups reject.** Every USoc subgroup across all three families rejects its own Markov-1 null under both metrics ($T$ ranging 3.20-11.63).
 

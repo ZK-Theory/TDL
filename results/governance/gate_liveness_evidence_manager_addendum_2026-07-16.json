@@ -36,7 +36,8 @@
     "evaluated_head": "d5cbfeddc8d2127d477d35dda7aa2a4949adecab",
     "LIVE": ["apm-dispatch-readiness", "claude-notation-guard", "claude-results-no-overwrite"],
     "DEAD": ["git-gate-0-skill-sync (remediation in flight: PR #100)"],
-    "UNVERIFIABLE": ["apm-commit-input-provenance (requires an invalid-manifest commit attempt)", "git-commit-prefix", "git-prepare-message", "git-ruff (proposed seam: a NEW disposable staged file carrying a lint violation, not a source change)", "claude-research-context", "claude-results-vault-reminder (PostToolUse - observable but advisory; probe deferred)", "pytest-validation-marker", "pytest-integration-marker"]
+    "NOISY": ["contract-meta-and-hardening", "git-contract-framework"],
+    "UNVERIFIABLE": ["apm-commit-input-provenance (requires an invalid-manifest commit attempt)", "git-commit-prefix", "git-prepare-message", "contract-binding-and-output", "apm-predispatch-input-provenance", "git-ruff (proposed seam: a NEW disposable staged file carrying a lint violation, not a source change)", "claude-dispatch-readiness-guard", "claude-research-context", "claude-results-vault-reminder (PostToolUse - observable but advisory; probe deferred)", "pytest-validation-marker", "pytest-integration-marker"]
   },
   "standing_finding_for_phase_d": "prepare-commit-msg masks commit-msg: it injects '[EXPLORE] PXX:' into an unprefixed message BEFORE commit-msg runs, so the prefix requirement cannot fail on the composed path - the fourth 'check that cannot fail' in the project record, this time by composition of two individually reasonable hooks. It also emits '.githooks/prepare-commit-msg: line 59: [: 0 0: integer expression expected'. Remediation (fix the shell error; make injection conditional or make commit-msg validate the pre-injection message) is Phase D work, deliberately not applied during the audit."
 }

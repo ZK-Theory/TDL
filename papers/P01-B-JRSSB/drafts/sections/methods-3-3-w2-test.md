@@ -17,7 +17,7 @@ T = \frac{\overline{W}_{\mathrm{obs,null}}}{\overline{W}_{\mathrm{null,null}}},
 $$
 so that $T \approx 1$ indicates the observed diagram is indistinguishable, in $W_2$, from a typical null diagram, and $T \gg 1$ indicates the observed diagram sits further from the null ensemble than null diagrams sit from each other.
 
-**Confidence interval.** $T$ is reported with a 95% bias-corrected-and-accelerated (BCa) bootstrap interval, computed via `scipy.stats.bootstrap(method="BCa", paired=True)` with $9{,}999$ bootstrap replicates (seed 42). Each resample uses the same draw indices for the paired observed-null and null-null distances, preserving the dependence induced by shared null diagrams and null-null endpoints before recomputing the ratio of means.
+**Confidence interval.** $T$ is reported with a 95% bias-corrected-and-accelerated (BCa) bootstrap interval using $9{,}999$ bootstrap replicates (seed 42). The retained run resampled the observed-null and null-null distance arrays independently; it therefore does not preserve dependence induced by shared null diagrams or null-null endpoints. These intervals are reported as descriptive uncertainty for the ratio, not as clustered intervals that account for that dependence; a paired resampling implementation is required before they can support that stronger interpretation.
 
 **Permutation $p$-value.** For each null draw $j$, form the ratio $T^{(j)}=\overline{W}^{(j)}_{\mathrm{null,rest}}/\overline{W}^{(j)}_{\mathrm{null,null}}$, using the same fixed pair-sampling scheme as the observed statistic and a denominator computed only from null-null pairs. The permutation $p$-value compares the reported ratio to this reference distribution,
 $$

@@ -10,7 +10,7 @@ $\varepsilon^*$ is the filtration scale at which the per-year Betti-0 descent cu
 
 ```
 Input: beta0 curve b(eps) on a grid eps_1 < ... < eps_n; decrease_threshold = 0.05
-1. If range(b) < decrease_threshold * max(b): curve does not vary meaningfully
+1. If max(b) <= 0, range(b) == 0, or range(b) < decrease_threshold * max(b): curve does not vary meaningfully
     -> DEGENERATE, return eps_1 (flat-curve fallback)
 2. Normalise both axes to [0,1]: x_n = (eps - eps_min)/(eps_max - eps_min),
                                   y_n = (b - b_min)/(b_max - b_min)

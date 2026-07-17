@@ -42,16 +42,11 @@
     {
       "gate": "claude-dispatch-readiness-guard",
       "verdict": "UNVERIFIABLE",
-      "evidence_type": "Manager-observed controlled violation, 2026-07-16",
-      "observed_failure": "A real Manager Task-Prompt bus write without a ## Dispatch Readiness block was blocked.",
-      "exit_code": "non-zero/denied by harness",
-      "diagnostic": "Diagnostic named the missing ## Dispatch Readiness section and the command required to produce it.",
-      "restoration": "A compliant prompt was subsequently accepted.",
-      "clean_pass": "Observed by Manager after restoration."
+      "reason": "This Codex runtime does not execute the Claude PreToolUse harness trigger."
     },
     {
       "gate": "apm-commit-input-provenance",
-      "verdict": "LIVE",
+      "verdict": "UNVERIFIABLE",
       "evidence_type": "Worker-controlled regression at Task 1.39",
       "observed_failure": null,
       "exit_code": null,
