@@ -56,9 +56,9 @@ schema_def:
     - name: inputs
       type: "dict[str, ...]"
       description: >
-        Input provenance. MUST contain git_head (str) and, for every cache
-        consumed, its absolute path and sha256. A cache-backed sub-goal MUST
-        name the cache it re-derived from.
+        Input provenance. MUST contain git_head (str) and, for every consumed
+        checkpoint, an absolute_path and sha256 under inputs.checkpoints. A
+        cache-backed sub-goal MUST name the cache it re-derived from.
     - name: convention_gate
       type: "dict[str, ...]"
       description: >
@@ -99,5 +99,6 @@ binding:
     (d) diagonal_bound_screen.n_violations != 0 or max_ratio_to_bound exceeds
     1.0 + tol; (e) cost_model.n_units_benchmarked < 8, or median/min/max
     seconds_per_unit are absent or non-positive; (f) phase is not in
-    {'phase1','phase2'}; (g) inputs.git_head is absent; or (h) any forbidden key
+    {'phase1','phase2'}; (g) inputs.git_head is absent or any phase-2 checkpoint
+    lacks absolute_path or sha256; or (h) any forbidden key
     is present.

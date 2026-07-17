@@ -60,7 +60,7 @@ binding:
     NEGATIVE CONTROL — a self-referential gate, where the reference is copied
     from the artifact under test, is detected and rejected rather than passing
     (the check must be demonstrated capable of failing, not assumed to work);
-    (d) an exact value equal bit-for-bit to a committed greedy value on diagrams
-    with scattered births is flagged, since exact and greedy agree only at zero
-    births; and (e) a payload declaring a gate verdict with absdiff absent, or
+    (d) equality between an exact value and a committed greedy value is not itself
+    a failure: the test uses a fixture with independently established non-optimal
+    greedy assignment to detect fallback behavior; and (e) a payload declaring a gate verdict with absdiff absent, or
     tol <= 0, is rejected.

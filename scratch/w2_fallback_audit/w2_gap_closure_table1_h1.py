@@ -39,7 +39,6 @@ from poverty_tda.topology.multidim_ph import compute_rips_ph
 
 
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
-PROJ_ROOT = Path("C:/Users/steph/TDL")
 OUTPUT_ROOT = WORKTREE_ROOT / "results/trajectory_tda_integration/stage1"
 CHECKPOINT_ROOT = Path(__file__).resolve().parent / "phase2_checkpoints"
 DATE_DEFAULT = "2026-07-16"
@@ -47,10 +46,16 @@ B = 100
 L = 5000
 SEED = 42
 VALID_NULLS = ("order_shuffle", "markov1", "markov2", "stratified_markov1")
-DATASETS = {
-    "usoc": PROJ_ROOT / "results/trajectory_tda_integration",
-    "bhps": PROJ_ROOT / "results/trajectory_tda_bhps",
-}
+
+
+def _datasets(project_root: Path) -> dict[str, Path]:
+    return {
+        "usoc": project_root / "results/trajectory_tda_integration",
+        "bhps": project_root / "results/trajectory_tda_bhps",
+    }
+
+
+DATASETS = _datasets(WORKTREE_ROOT)
 
 
 def _available_memory_gb() -> float:
@@ -157,7 +162,7 @@ def _checkpoint_path(date: str, dataset: str, null_type: str, n_permutations: in
 
 
 def _summary_path(date: str, dataset: str, null_type: str, n_permutations: int) -> Path:
-    return _checkpoint_path(date, dataset, null_type, n_permutations).with_suffix(".json")
+    return CHECKPOINT_ROOT / date / f"{dataset}_{null_type}_B{n_permutations}_L{L}_seed{SEED}_{date}.json"
 
 
 def _load_dataset(dataset: str) -> tuple[np.ndarray, list[list[str]], dict[str, Any], dict[str, Any], np.ndarray]:
@@ -330,12 +335,16 @@ def run_cell(date: str, dataset: str, null_type: str, n_permutations: int, check
         "checkpoint": str(path),
     }
     summary_path = _summary_path(date, dataset, null_type, n_permutations)
+    if summary_path.exists():
+        raise FileExistsError(f"Refusing to overwrite existing summary: {summary_path}")
     summary_path.write_text(json.dumps(audit_lib.convert_numpy(summary), indent=2) + "\n", encoding="utf-8")
     print(f"[{label}] complete: {summary_path}", flush=True)
     return summary
 
 
-def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_count: int = 1) -> dict[str, Any]:
+def _cost_model(
+    summaries: list[dict[str, Any]], n_permutations: int, date: str, worker_count: int = 1
+) -> dict[str, Any]:
     if worker_count < 1:
         raise ValueError("worker_count must be positive")
     generation_units = np.concatenate([np.asarray(s["cost"]["generation_plus_obs_w2_seconds"]) for s in summaries])
@@ -352,7 +361,7 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_cou
         raise RuntimeError("No peak-RSS telemetry is available for the chosen worker-count cost model")
     observed_peak = max(float(cost["per_process_peak_gb"]) for cost in telemetry)
     observed_free = min(float(cost["free_gb_at_launch"]) for cost in telemetry)
-    prelaunch_path = OUTPUT_ROOT / f"resource_preflight_t138_phase2_parallel_n{worker_count}_{DATE_DEFAULT}.json"
+    prelaunch_path = OUTPUT_ROOT / f"resource_preflight_t138_phase2_parallel_n{worker_count}_{date}.json"
     if worker_count > 1 and prelaunch_path.exists():
         prelaunch_cost = json.loads(prelaunch_path.read_text(encoding="utf-8"))["cost_model"]
         per_process_peak = float(prelaunch_cost["per_process_peak_gb"])
@@ -389,7 +398,7 @@ def _cost_model(summaries: list[dict[str, Any]], n_permutations: int, worker_cou
 
 
 def write_preflight(date: str, summaries: list[dict[str, Any]], n_permutations: int, worker_count: int = 1) -> Path:
-    cost_model = _cost_model(summaries, n_permutations, worker_count)
+    cost_model = _cost_model(summaries, n_permutations, date, worker_count)
     suffix = "" if worker_count == 1 else f"_parallel_n{worker_count}"
     output = OUTPUT_ROOT / f"resource_preflight_t138_phase2{suffix}_{date}.json"
     if output.exists():
@@ -420,6 +429,12 @@ def assemble(date: str, worker_count: int = 1) -> Path:
                 raise FileNotFoundError(f"Cannot assemble: required completed cell missing: {path}")
             summary = json.loads(path.read_text(encoding="utf-8"))
             checkpoint = Path(summary["checkpoint"])
+            if not checkpoint.is_file():
+                raise FileNotFoundError(f"Cannot assemble: checkpoint missing: {checkpoint}")
+            summary["checkpoint_input"] = {
+                "absolute_path": str(checkpoint.resolve()),
+                "sha256": audit_lib.sha256_file(checkpoint),
+            }
             with np.load(checkpoint, allow_pickle=True) as saved:
                 summary["statistics"] = audit_lib.headline_stats_from_distances(
                     saved["obs_null_w2"], saved["null_null_w2"]
@@ -438,7 +453,7 @@ def assemble(date: str, worker_count: int = 1) -> Path:
         "cells": screen_rows,
     }
     benchmark_summaries = summaries
-    cost_model = _cost_model(benchmark_summaries, B, worker_count)
+    cost_model = _cost_model(benchmark_summaries, B, date, worker_count)
     fresh_source = "fresh frozen-loading observed reconstruction and four valid surrogate generators"
     output = OUTPUT_ROOT / f"w2_gap_closure_table1_h1_{date}.json"
     if output.exists():
@@ -454,6 +469,7 @@ def assemble(date: str, worker_count: int = 1) -> Path:
         "params": {"seed": SEED, "frozen_loadings": True, "p_value_formula": "(r+1)/(B+1)"},
         "inputs": {
             "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=WORKTREE_ROOT, text=True).strip(),
+            "checkpoints": [summary["checkpoint_input"] for summary in summaries],
             "datasets": {
                 name: {
                     "checkpoint": str(path),
@@ -486,6 +502,7 @@ def assemble(date: str, worker_count: int = 1) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=DATE_DEFAULT)
+    parser.add_argument("--project-root", type=Path, default=WORKTREE_ROOT)
     parser.add_argument("--only", help="comma-separated disjoint cells, e.g. usoc:markov1,bhps:markov1")
     parser.add_argument("--n-permutations", type=int, default=B)
     parser.add_argument("--checkpoint-every", type=int, default=5)
@@ -493,6 +510,8 @@ def main() -> None:
     parser.add_argument("--write-preflight", action="store_true")
     parser.add_argument("--assemble", action="store_true")
     args = parser.parse_args()
+    global DATASETS
+    DATASETS = _datasets(args.project_root.resolve())
     if args.n_permutations < 2:
         raise ValueError("n-permutations must be at least 2")
     if args.assemble:

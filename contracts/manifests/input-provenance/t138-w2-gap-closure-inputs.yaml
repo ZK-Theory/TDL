@@ -61,7 +61,7 @@ inputs:
       already exact. Also the reference for the phase-2 Markov-1 direction check.
     root: worktree
     expected:
-      sha256: "72717c6576272e1902baac0c5d852f3d4e148c44968627bbd850adfcb0612b39"
+      blob_sha: "6b07f76262241caf44ec99e3581de613b9ffbc0b"
 
   - path: results/trajectory_tda_integration/stage1/headline_vintage_materiality_corrected_2026-07-14.json
     role: >
@@ -70,7 +70,7 @@ inputs:
       disagreeing in direction with this file is a defect, not a finding.
     root: worktree
     expected:
-      sha256: "e3565d4e7e78b308406cd0f0a1ca6c1e1d3b7be2c2cd67983f676b45da2aa8eb"
+      blob_sha: "4fee1902d328ccdbd69fd49796db3792c89be95e"
 
   - path: results/trajectory_tda_integration/stage1/w2_fallback_audit_2026-07-14.json
     role: >
@@ -82,7 +82,7 @@ inputs:
       2026-07-14 audit-gap [RESULT] instead.
     root: worktree
     expected:
-      sha256: "f8b57a7f85c6e19b6dac122ecf287a05ae66dcf1b78cbb2bd90104e61af43781"
+      blob_sha: "03fd467a1ffc0996a25193720e10fd56a867fa6f"
 
   - path: results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_2026-06-09.json
     role: >
@@ -93,7 +93,7 @@ inputs:
       reference side.
     root: worktree
     expected:
-      sha256: "afa2cc959c1155a7a6caf20eea91248849c06331bc080a7b202af43a7fde0435"
+      blob_sha: "6137c5237f048a9a1aaccdafab215ca08e4818e5"
 
   - path: results/trajectory_tda_integration/stage1/SUPERSEDED.md
     role: >

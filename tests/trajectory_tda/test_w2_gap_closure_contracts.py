@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +12,8 @@ import yaml
 from scratch.w2_fallback_audit import audit_lib
 
 
-CONTRACT_ROOT = Path("contracts")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CONTRACT_ROOT = REPO_ROOT / "contracts"
 
 
 def _contract(relative_path: str) -> dict[str, object]:
@@ -19,31 +21,8 @@ def _contract(relative_path: str) -> dict[str, object]:
 
 
 def _valid_payload() -> dict[str, object]:
-    return {
-        "schema_version": "stage1/w2-gap-closure/v1",
-        "generated_at": "2026-07-16T00:00:00+00:00",
-        "task": "T1.38 test",
-        "phase": "phase1",
-        "pre_registration": "pre_registrations_w2_gap_closure_2026-07-15.json",
-        "solver": {"name": "gudhi.wasserstein", "exact": True, "pot_available": True, "order": 2, "internal_p": 2},
-        "params": {"seed": 42, "frozen_loadings": True, "p_value_formula": "(r+1)/(B+1)"},
-        "inputs": {"git_head": "abc"},
-        "convention_gate": {
-            "reference_freshly_recomputed": True,
-            "reference_source": "fresh recomputation",
-            "artifact_under_test": "artifact.json",
-            "absdiff": 0.0,
-            "tol": 1e-9,
-        },
-        "diagonal_bound_screen": {"n_values_screened": 1, "n_violations": 0, "max_ratio_to_bound": 1.0, "tol": 1e-10},
-        "cost_model": {
-            "n_units_benchmarked": 8,
-            "median_seconds_per_unit": 1.0,
-            "min_seconds_per_unit": 0.5,
-            "max_seconds_per_unit": 2.0,
-            "projected_wall_hours": 1.0,
-        },
-    }
+    path = REPO_ROOT / "results/trajectory_tda_integration/stage1/w2_gap_closure_table1_h1_2026-07-16.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _validate_payload(payload: dict[str, object]) -> None:
@@ -52,11 +31,16 @@ def _validate_payload(payload: dict[str, object]) -> None:
     gate = payload["convention_gate"]
     screen = payload["diagonal_bound_screen"]
     cost = payload["cost_model"]
+    assert payload["schema_version"] == "stage1/w2-gap-closure/v1"
+    assert payload["generated_at"]
+    assert payload["task"].startswith("T1.38")
+    assert payload["pre_registration"].endswith("pre_registrations_w2_gap_closure_2026-07-15.json")
     assert payload["phase"] in {"phase1", "phase2"}
     assert payload["inputs"]["git_head"]
     assert solver["exact"] is True and solver["pot_available"] is True
     assert solver["order"] == 2 and solver["internal_p"] == 2
-    assert params == {"seed": 42, "frozen_loadings": True, "p_value_formula": "(r+1)/(B+1)"}
+    assert params["seed"] == 42 and params["frozen_loadings"] is True
+    assert params["p_value_formula"] == "(r+1)/(B+1)"
     assert gate["reference_freshly_recomputed"] is True
     assert gate["reference_source"] != gate["artifact_under_test"]
     assert gate["tol"] > 0 and gate["absdiff"] >= 0
@@ -70,6 +54,8 @@ def test_w2_gap_closure_output_schema() -> None:
     contract = _contract("tda-output-schemas/w2-gap-closure-output.yaml")
     assert contract["pending"] is False
     payload = _valid_payload()
+    required_keys = {item["name"] for item in contract["schema_def"]["required_keys"]}
+    assert required_keys <= payload.keys()
     _validate_payload(payload)
     bad_exact = _valid_payload()
     bad_exact["solver"].update(exact=False)
@@ -105,6 +91,13 @@ def test_w2_gap_closure_output_schema() -> None:
         _validate_payload(forbidden_key)
 
 
+def test_phase2_assembly_records_checkpoint_identity() -> None:
+    source = (REPO_ROOT / "scratch/w2_fallback_audit/w2_gap_closure_table1_h1.py").read_text(encoding="utf-8")
+    assert '"checkpoints": [summary["checkpoint_input"] for summary in summaries]' in source
+    assert '"absolute_path": str(checkpoint.resolve())' in source
+    assert '"sha256": audit_lib.sha256_file(checkpoint)' in source
+
+
 def test_w2_exact_diagonal_bound_invariant() -> None:
     contract = _contract("tda-formulas/w2-exact-diagonal-bound.yaml")
     assert contract["pending"] is False
@@ -135,6 +128,10 @@ def test_w2_exact_diagonal_bound_invariant() -> None:
 def test_w2_gap_closure_convention_gate_invariant() -> None:
     contract = _contract("tda-formulas/w2-gap-closure-convention-gate.yaml")
     assert contract["pending"] is False
+    required_assertions = contract["binding"]["must_assert"]
+    assert "reference_freshly_recomputed" in required_assertions
+    assert "self-referential gate" in required_assertions
+    assert "non-optimal greedy assignment" in required_assertions
     payload = _valid_payload()
     _validate_payload(payload)
     payload["convention_gate"]["reference_source"] = payload["convention_gate"]["artifact_under_test"]
@@ -152,8 +149,6 @@ def test_w2_gap_closure_convention_gate_invariant() -> None:
     false_recompute["convention_gate"]["reference_freshly_recomputed"] = False
     with pytest.raises(AssertionError):
         _validate_payload(false_recompute)
-    scattered_births_a = np.array([[0.0, 4.0]])
-    scattered_births_b = np.array([[10.0, 14.0]])
-    assert audit_lib.exact_w2(scattered_births_a, scattered_births_b) != audit_lib.greedy_w2(
-        scattered_births_a, scattered_births_b
-    )
+    nonoptimal_a = np.array([[0.0, 4.0], [3.0, 8.0]])
+    nonoptimal_b = np.array([[1.0, 7.0], [4.0, 6.0]])
+    assert audit_lib.greedy_w2(nonoptimal_a, nonoptimal_b) > audit_lib.exact_w2(nonoptimal_a, nonoptimal_b)

@@ -10,10 +10,10 @@ $\varepsilon^*$ is the filtration scale at which the per-year Betti-0 descent cu
 
 ```
 Input: beta0 curve b(eps) on a grid eps_1 < ... < eps_n; decrease_threshold = 0.05
-1. Normalise both axes to [0,1]: x_n = (eps - eps_min)/(eps_max - eps_min),
+1. If range(b) < decrease_threshold * max(b): curve does not vary meaningfully
+    -> DEGENERATE, return eps_1 (flat-curve fallback)
+2. Normalise both axes to [0,1]: x_n = (eps - eps_min)/(eps_max - eps_min),
                                   y_n = (b - b_min)/(b_max - b_min)
-2. If range(b) < decrease_threshold * max(b): curve does not vary meaningfully
-   -> DEGENERATE, return eps_1 (flat-curve fallback)
 3. First and second discrete derivatives of y_n w.r.t. x_n: dy, d2y  (np.gradient)
 4. curvature(eps) = |d2y| / (1 + dy^2)^1.5          # discrete Menger-style curvature
 5. Restrict candidates to the structural descent region:
@@ -26,7 +26,7 @@ Output: (eps*, is_degenerate)
 
 The descent-region restriction (step 5) excludes the flat large-$\varepsilon$ tail, where apparent curvature is numerical noise rather than topological structure, from candidacy.
 
-**Per-year aggregation.** The knee is computed independently for each of the 32 BHPS/USoc survey years (1991-2022, $\varepsilon$ grid $0.05$-$2.00$ in steps of $0.01$), and the canonical scale is the **median** of the 32 per-year knees: $\varepsilon^* = 0.54$ (Q25 $= 0.46$, Q75 $= 0.63$, range $[0.05, 0.83]$). Four years (2003, 2005, 2011, 2019) are flagged degenerate under step 2/7 and excluded from the median. The canonical value for all inferential statistics in this paper is $\varepsilon^* = 0.54$.
+**Per-year aggregation.** The knee is computed independently for each of the 32 BHPS/USoc survey years (1991-2022, $\varepsilon$ grid $0.05$-$2.00$ in steps of $0.01$), and the canonical scale is the **median of the 28 eligible knees**: $\varepsilon^* = 0.54$ (Q25 $= 0.46$, Q75 $= 0.63$, range $[0.05, 0.83]$). Four years (2003, 2005, 2011, 2019) are flagged degenerate and excluded without imputation. The canonical value for all inferential statistics in this paper is $\varepsilon^* = 0.54$.
 
 ## Three statistics: single-$\varepsilon$ ratio, windowed AUC ratio, matched $W_2$
 

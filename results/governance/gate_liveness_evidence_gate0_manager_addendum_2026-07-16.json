@@ -5,6 +5,7 @@
   "author": "Manager 14 (addendum to the reproducibility-agent recheck ledger gate_liveness_evidence_gate0_recheck_2026-07-16.json; separate file per the results-no-overwrite policy)",
   "worktree": "C:\\Users\\steph\\TDL\\.apm\\worktrees\\gate-liveness-audit",
   "audited_head": "d5cbfeddc8d2127d477d35dda7aa2a4949adecab (origin/main 2bebecb merged; active .githooks/pre-commit carries the Gate 0 sync check)",
+  "audited_ref": "pipe/gate-liveness-audit at d5cbfeddc8d2127d477d35dda7aa2a4949adecab; comparison baseline origin/main at 2bebecb",
   "verdict": "LIVE",
   "resolution_of_recheck_blocker": {
     "blocker": "ERROR: unclassified skills in .agents/skills/ ... gitnexus (clean baseline exit 1)",
@@ -28,7 +29,7 @@
     "fix": "Mirrored authoring -> runtime (cp .agents/skills/using-git-worktrees-extras/SKILL.md .claude/skills/using-git-worktrees-extras/SKILL.md), the same direction the sync tool applies and the same content as e9db389's result (runtime blob now 139fbaedd3232bd484f9c7781a12d07a149664bb).",
     "clean_pass": "The commit that introduces this evidence file is the clean pass: it carries the gitnexus removal, the divergence fix, and both recheck evidence files through the full .githooks/pre-commit hook including the Gate 0 check."
   },
-  "fires_only_when_it_should": "Baseline sweep after the fix reports all pairs IDENTICAL (demonstrated by the clean-pass commit succeeding); before the fix the sweep flagged exactly the one genuinely diverged pair and nothing else.",
+  "fires_only_when_it_should": "At audited_ref pipe/gate-liveness-audit@d5cbfeddc8d2127d477d35dda7aa2a4949adecab, the baseline sweep after the fix reports all pairs IDENTICAL (demonstrated by the clean-pass commit succeeding); before the fix the sweep flagged exactly the one genuinely diverged pair and nothing else. This clean-pass claim does not describe canonical origin/main.",
   "residual_risk": [
     "origin/main remains diverged until this branch (or pipe/ars-wp6-planning-suite) merges; any full-hook commit on a fresh main-based checkout will correctly fail Gate 0 until then.",
     "Worktrees created before this fix still contain tracked .claude/skills/gitnexus copies; they clear on merge of main into their branches."

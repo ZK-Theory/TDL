@@ -18,19 +18,30 @@
       "clean_pass": "Active hook path remains .githooks; no worktree violation was introduced."
     },
     {
-      "gate": "git-contract-framework",
-      "verdict": "LIVE",
+      "gate": "contract-meta-and-hardening",
+      "verdict": "NOISY",
       "evidence_type": "Manager-observed controlled execution, 2026-07-16",
       "observed_failure": "A real commit was blocked when the main environment's coverage package was corrupted and the binding-test stage crashed.",
       "exit_code": 1,
       "diagnostic": "pytest stage crashed because coverage.data was unavailable; pre-commit blocked the commit.",
       "restoration": "Manager repaired the environment.",
       "clean_pass": "Manager observed 100 contracts pass on two subsequent real commits.",
-      "caveat": "The observed failure was an environment fault rather than a contract violation; classify the environment dependency as NOISY-adjacent."
+      "caveat": "The observed failure was an environment fault rather than a malformed-contract rejection; a reversible malformed-contract attempt is still required to establish liveness."
+    },
+    {
+      "gate": "git-contract-framework",
+      "verdict": "NOISY",
+      "evidence_type": "Manager-observed controlled execution, 2026-07-16",
+      "observed_failure": "A real commit was blocked when the binding-test stage crashed in a corrupted coverage environment.",
+      "exit_code": 1,
+      "diagnostic": "pytest stage crashed because coverage.data was unavailable; the hook blocked the commit.",
+      "restoration": "Manager repaired the environment.",
+      "clean_pass": "Manager observed 100 contracts pass on two subsequent real commits.",
+      "caveat": "The result establishes an environment-sensitive hook path, not rejection of a contract violation."
     },
     {
       "gate": "claude-dispatch-readiness-guard",
-      "verdict": "LIVE",
+      "verdict": "UNVERIFIABLE",
       "evidence_type": "Manager-observed controlled violation, 2026-07-16",
       "observed_failure": "A real Manager Task-Prompt bus write without a ## Dispatch Readiness block was blocked.",
       "exit_code": "non-zero/denied by harness",
@@ -42,14 +53,14 @@
       "gate": "apm-commit-input-provenance",
       "verdict": "LIVE",
       "evidence_type": "Worker-controlled regression at Task 1.39",
-      "observed_failure": "The old working-tree sha256 rule rejected equivalent LF and CRLF renderings of the same tracked text.",
-      "exit_code": 1,
-      "diagnostic": "sha256 mismatch under the old rule; the regression asserts not old_rule.ok.",
-      "restoration": "Repaired blob_sha rule restored checkout-invariant validation.",
-      "clean_pass": "tests/provenance/test_input_provenance_manifests.py: 2 passed in this linked worktree; R-B passed both migrated manifests."
+      "observed_failure": null,
+      "exit_code": null,
+      "diagnostic": "The regression and R-B results do not demonstrate the active R-C commit seam rejecting an invalid manifest.",
+      "restoration": "Not applicable; a reversible staged invalid-manifest commit attempt is required.",
+      "clean_pass": "tests/provenance/test_input_provenance_manifests.py passed, but this is not commit-seam liveness evidence."
     },
     {
-      "gate": "git-commit-prefix-and-prepare-message",
+      "gate": "git-commit-prefix",
       "verdict": "UNVERIFIABLE",
       "evidence_type": "Worker-controlled composed-hook canary",
       "observed_failure": null,
@@ -57,6 +68,35 @@
       "restoration": "The task-created empty commit 6e33647 was removed with git reset --soft HEAD~1; HEAD restored to ad65f1e.",
       "clean_pass": "Working tree content preserved.",
       "finding": "The composed path does not demonstrate commit-msg rejection; a testable seam must invoke the commit-msg hook with a prepared invalid message."
+    },
+    {
+      "gate": "git-prepare-message",
+      "verdict": "UNVERIFIABLE",
+      "evidence_type": "Worker-controlled composed-hook canary",
+      "observed_failure": null,
+      "diagnostic": "prepare-commit-msg injected a valid prefix before commit-msg could test the originally invalid subject; the shell diagnostic remains evidence of a noisy hook.",
+      "restoration": "The disposable empty commit was removed and HEAD restored.",
+      "clean_pass": "Working tree content preserved."
+    },
+    {
+      "gate": "contract-binding-and-output",
+      "verdict": "UNVERIFIABLE",
+      "reason": "No reversible malformed binding/output attempt was executed through the active pre-commit seam."
+    },
+    {
+      "gate": "apm-dispatch-readiness",
+      "verdict": "LIVE",
+      "evidence_type": "Manager-observed controlled violation, 2026-07-16",
+      "observed_failure": "A real Manager Task-Prompt bus write without a Dispatch Readiness block was blocked.",
+      "exit_code": "non-zero/denied by harness",
+      "diagnostic": "Diagnostic named the missing Dispatch Readiness section and the command required to produce it.",
+      "restoration": "A compliant prompt was subsequently accepted.",
+      "clean_pass": "Observed by Manager after restoration."
+    },
+    {
+      "gate": "apm-predispatch-input-provenance",
+      "verdict": "UNVERIFIABLE",
+      "reason": "No reversible mismatched-manifest R-B attempt was recorded."
     },
     {
       "gate": "git-ruff",
@@ -84,7 +124,12 @@
       "reason": "This Codex runtime does not execute the Claude PostToolUse harness trigger."
     },
     {
-      "gate": "pytest-validation-and-integration-markers",
+      "gate": "pytest-validation-marker",
+      "verdict": "UNVERIFIABLE",
+      "reason": "Marker collection alone does not prove failure; a task-specific fixture seam is required and was not safely available without changing source or real results."
+    },
+    {
+      "gate": "pytest-integration-marker",
       "verdict": "UNVERIFIABLE",
       "reason": "Marker collection alone does not prove failure; a task-specific fixture seam is required and was not safely available without changing source or real results."
     }

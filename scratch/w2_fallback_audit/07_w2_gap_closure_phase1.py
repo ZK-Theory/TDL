@@ -22,16 +22,16 @@ from scipy.stats import bootstrap
 import audit_lib
 
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]
-CACHE_PATH = (
-    PROJ_ROOT / "results/trajectory_tda_integration/stage1/cache/"
-    "null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz"
-)
-CORRECTED_BHPS = PROJ_ROOT / "results/trajectory_tda_bhps/stage1/" "bhps_headline_frozen_corrected_2026-07-14.json"
-COMMITTED_NONOVERLAP = (
-    PROJ_ROOT / "results/panel_methodology/bhps_nonoverlap/" "bhps_nonoverlap_reanalysis_2026-06-09.json"
-)
+
+
+def _project_paths(project_root: Path) -> tuple[Path, Path, Path]:
+    return (
+        project_root
+        / "results/trajectory_tda_integration/stage1/cache/null_diagrams_bhps_nonoverlap_frozen_B1000_L5000_seed42_2026-06-09.npz",
+        project_root / "results/trajectory_tda_bhps/stage1/bhps_headline_frozen_corrected_2026-07-14.json",
+        project_root / "results/panel_methodology/bhps_nonoverlap/bhps_nonoverlap_reanalysis_2026-06-09.json",
+    )
 
 
 def _exact_solver_metadata() -> dict[str, object]:
@@ -63,8 +63,8 @@ def _bca_t_ratio(obs_null: np.ndarray, null_null: np.ndarray) -> dict[str, float
     result = bootstrap(
         (obs_null, null_null),
         statistic,
-        paired=False,
-        n_resamples=2000,
+        paired=True,
+        n_resamples=9999,
         confidence_level=0.95,
         method="BCa",
         rng=np.random.default_rng(42),
@@ -73,7 +73,7 @@ def _bca_t_ratio(obs_null: np.ndarray, null_null: np.ndarray) -> dict[str, float
         "t_ratio": float(statistic(obs_null, null_null)),
         "ci_95_bca_lower": float(result.confidence_interval.low),
         "ci_95_bca_upper": float(result.confidence_interval.high),
-        "n_bootstrap": 2000,
+        "n_bootstrap": 9999,
         "seed": 42,
     }
 
@@ -124,9 +124,10 @@ def _benchmark(cache: dict[str, object]) -> dict[str, object]:
     }
 
 
-def build_result() -> dict[str, object]:
+def build_result(project_root: Path) -> dict[str, object]:
+    cache_path, corrected_bhps, committed_nonoverlap = _project_paths(project_root)
     solver = _exact_solver_metadata()
-    cache = audit_lib.load_cache(CACHE_PATH)
+    cache = audit_lib.load_cache(cache_path)
     benchmark = _benchmark(cache)
     h1 = cache["h1_diagrams"]
     obs_h1 = cache["obs_h1_diagram"]
@@ -135,7 +136,7 @@ def build_result() -> dict[str, object]:
     greedy_obs_null = audit_lib.obs_null_distances(obs_h1, h1, "greedy")
     greedy_null_null = audit_lib.null_null_distances(h1, pair_indices, "greedy")
     greedy_stats = audit_lib.headline_stats_from_distances(greedy_obs_null, greedy_null_null)
-    committed = json.loads(COMMITTED_NONOVERLAP.read_text(encoding="utf-8"))
+    committed = json.loads(committed_nonoverlap.read_text(encoding="utf-8"))
     committed_d_perm = committed["arm_b"]["remainder_h1_w2_d_perm"]
     absdiff = abs(greedy_stats["d_perm"] - committed_d_perm)
     tol = 1e-9
@@ -167,7 +168,7 @@ def build_result() -> dict[str, object]:
     nn_screen = _screen_distances(nn_left, nn_right, exact_nn_array)
     exact_stats = audit_lib.headline_stats_from_distances(exact_obs_array, exact_nn_array)
 
-    corrected = json.loads(CORRECTED_BHPS.read_text(encoding="utf-8"))
+    corrected = json.loads(corrected_bhps.read_text(encoding="utf-8"))
     bca = _bca_t_ratio(
         np.array(corrected["h1"]["per_pair"]["obs_null_exact"]),
         np.array(corrected["h1"]["per_pair"]["null_null_exact"]),
@@ -183,14 +184,14 @@ def build_result() -> dict[str, object]:
         "params": {"seed": 42, "frozen_loadings": True, "p_value_formula": "(r+1)/(B+1)"},
         "inputs": {
             "git_head": git_head,
-            "cache": {"absolute_path": str(CACHE_PATH), "sha256": audit_lib.sha256_file(CACHE_PATH)},
-            "bhps_corrected_headline": str(CORRECTED_BHPS),
-            "committed_nonoverlap": str(COMMITTED_NONOVERLAP),
+            "cache": {"absolute_path": str(cache_path), "sha256": audit_lib.sha256_file(cache_path)},
+            "bhps_corrected_headline": str(corrected_bhps),
+            "committed_nonoverlap": str(committed_nonoverlap),
         },
         "convention_gate": {
             "reference_freshly_recomputed": True,
             "reference_source": "fresh greedy replica over retained cache",
-            "artifact_under_test": str(COMMITTED_NONOVERLAP),
+            "artifact_under_test": str(committed_nonoverlap),
             "greedy_replica_reproduces_committed": True,
             "absdiff": absdiff,
             "tol": tol,
@@ -224,11 +225,12 @@ def build_result() -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", required=True)
+    parser.add_argument("--project-root", type=Path, default=WORKTREE_ROOT)
     args = parser.parse_args()
     output = WORKTREE_ROOT / "results/trajectory_tda_integration/stage1" / f"w2_gap_closure_phase1_{args.date}.json"
     if output.exists():
         raise FileExistsError(f"Refusing to overwrite existing result: {output}")
-    result = build_result()
+    result = build_result(args.project_root.resolve())
     output.write_text(json.dumps(audit_lib.convert_numpy(result), indent=2) + "\n", encoding="utf-8")
     print(f"wrote {output}", flush=True)
 
