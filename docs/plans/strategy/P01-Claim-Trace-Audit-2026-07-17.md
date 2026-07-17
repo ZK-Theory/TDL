@@ -116,8 +116,12 @@ dedup re-justified, flip evidence retired), 2026-07-16 `[NEGATIVE]`/`[DECISION]`
 | B42 | Two-machine confirmation "is in progress; not claimed as completed" (:9) | — | process-status narration in manuscript text (borderline for a repro statement) | WRONG-REGISTER (minor) |
 | B43 | Legacy replay note: stored 12.6766 vs replay 11.2172; order-1 control ≈498.64 (:13) | notation.md audit | matches notation.md W₂ audit record and `table1_effects` L2000 order-shuffle H₀ mean 12.677 | VERIFIED |
 
-**P01-B counts (34 substantive claims + 2 register flags):**
-VERIFIED 22 · VERIFIED\* 6 · MISDESCRIBED 4 (B9 major, B10, B27, B40) ·
+**P01-B counts (43 rows, B1–B43; each row counted once by its primary verdict):**
+VERIFIED 27 (B1–B2, B4–B5, B7–B8, B11–B15, B17, B19–B21, B23–B26, B28–B32, B35,
+B39, B43 — B29's footnote verdict counts here, its open conflict is tracked as
+snapshot hole H6; B39 is a verified limitation) ·
+VERIFIED\* 7 (B6, B22, B33, B34, B36, B37, B41) ·
+MISDESCRIBED 4 (B9 major, B10, B27, B40) ·
 UNSUPPORTED 1 (B16) · WRONG-REGISTER 1 (B42) · NOT-AUDITED 3 (B3, B18, B38).
 The seven P01-B files carry no HTML scaffolding (de-scaffolded by T2.23 / PR #109).
 
@@ -264,14 +268,20 @@ The seven P01-B files carry no HTML scaffolding (de-scaffolded by T2.23 / PR #10
 
 (§S8 carries no scaffolding — the only P01-A file fully clean of register violations.)
 
-**P01-A counts (43 rows):**
-VERIFIED 10 · VERIFIED\* 12 · MISDESCRIBED 8 (A6, A11, A14, A17, A19, A21, A26, A28, plus consistency flag A32 ⇒ 9 counting A32) ·
-UNSUPPORTED 6 (A1, A2, A4, A5, A8, A24, A49 ⇒ 7 counting A49; A2 double-tagged) ·
-WRONG-REGISTER 11 (A3, A7, A9, A13, A18, A25, A29, A34, A38, A45, A48, A52, A54, A58 — 14 flags across 12 files) ·
-NOT-AUDITED 6.
-Net: **every P01-A section file except `supplement-S8` carries at least one
-WRONG-REGISTER flag**, and the four Table-1/negative-control/§6.2/§S6 files carry
-the major UNSUPPORTED/MISDESCRIBED findings.
+**P01-A counts (62 rows, A1–A62; each row counted once by its primary verdict):**
+VERIFIED 12 (A10, A16, A20, A23, A31, A33, A39, A43, A46, A53, A56, A59 —
+A43/A53/A56 are content-verified with their register issues carried by separate
+rows) ·
+VERIFIED\* 15 (A15, A22, A27, A30, A35–A37, A40–A42, A44, A57, A60–A62) ·
+MISDESCRIBED 9 (A6, A11, A14, A17, A19, A21, A26, A28, A32) ·
+UNSUPPORTED 7 (A1, A2, A4, A5, A8, A24, A49 — A2 is double-tagged
+UNSUPPORTED/MISDESCRIBED and counted here by its primary tag) ·
+WRONG-REGISTER 14 (A3, A7, A9, A13, A18, A25, A29, A34, A38, A45, A48, A52,
+A54, A58 — one flag in each of 14 of the 15 audited P01-A documents) ·
+NOT-AUDITED 5 (A12, A47, A50, A51, A55).
+Net: **every P01-A document except `supplement-S8` carries at least one
+WRONG-REGISTER flag** (14 of 15), and the four Table-1/negative-control/§6.2/§S6
+files carry the major UNSUPPORTED/MISDESCRIBED findings.
 
 ### Five worst findings (both papers)
 
@@ -385,13 +395,20 @@ balance/matched files under `results/panel_methodology/spanning_identification/`
 
 ### 3.4 Audit completeness statement
 
-All 21 markdown section files across both papers were read in full and every
-substantive numeric or procedural claim was classified; nothing was triaged out.
-NOT-AUDITED rows (9) are enumerated per file above — they cover v1-legacy
-descriptives whose embedding vintage predates the frozen era (A50, A55),
-code-level construction details (B3, A12), literature attributions (A47, A51),
-one uncrossed reference (B38), and interpretive passages (B18, A53) — none is
-load-bearing for a headline claim. Value-level bit-checks were performed for the
+All 22 markdown files under the two `drafts/sections/` directories were read in
+full and every substantive numeric or procedural claim was classified; nothing
+was triaged out. The count is 15 P01-A markdown documents — the 14 prose section
+files **plus the generated companion table `table1_effects_2026-05-22.md`, which
+is included in the audit** (rows A8–A9) — and 7 P01-B section files. The two
+non-markdown artifacts in the P01-A sections directory
+(`table1_effects_2026-05-22.json`, `compute_table1_effects.py`) were classified
+through rows A8/A9 (unciteable sources; tree-placement violation) but not
+line-audited as prose. NOT-AUDITED rows (8) are enumerated per file above — they
+cover v1-legacy descriptives whose embedding vintage predates the frozen era
+(A50, A55), code-level construction details (B3, A12), literature attributions
+(A47, A51), one uncrossed reference (B38), and one interpretive passage (B18);
+none is load-bearing for a headline claim. (A53/A56 are interpretive but
+content-verified, and are counted under VERIFIED.) Value-level bit-checks were performed for the
 four Markov-1 headline cells, the BHPS H₁ BCa, the α-sweep BHPS H₁ cell, and the
 intrinsic-dimension figures; VERIFIED\* rows rest on artifact presence plus
 consistency with the (independently verified) vault record.
