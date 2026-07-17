@@ -16,6 +16,23 @@
 7. [Review reconciliation](../reviews/adversarial-p0-plan-suite-review-reconciliation-2026-07-01.md)
 8. [Python compatibility baseline note](python-compatibility-baseline-2026-07-01.md)
 
+## Gate 5 suite (approved for Gate 5 execution 2026-07-10)
+
+- [WP5 — Gate 5 foundation acceptance scope and sequencing](05-wp5-gate5-foundation-acceptance-plan.md), with child plans 05a–05e.
+
+## WP6 suite (draft, review pending — Gate 5 accepted 2026-07-17 at merge `f49a27f`; authorizes no dispatch until this suite's review gate and Stephen's approval)
+
+1. [WP6 master — Gate 6 readiness and end-to-end integration](06-wp6-gate6-readiness-and-integration-plan.md)
+2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
+3. [WP6.2 — live capability: adapters, parity, threshold policy, evaluated profiles](06b-wp6-2-live-capability-plan.md) (Gate A A3/A6)
+
+WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
+portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped
+in the WP6 master plan; their dispatch plans are written when their gates approach.
+Owner directions P-031–P-034 are recorded as `accepted` (wording confirmed
+2026-07-17) in
+[../03-decisions-and-open-questions.md](../03-decisions-and-open-questions.md).
+
 ## Execution rule
 
 Work Package 1 freezes shared package/schema/storage primitives. Work Packages 2 and 3 may then proceed independently. Work Package 4 may scaffold against deterministic fakes but can issue an integrated P0 decision only after Packages 1–3 pass their review checkpoints.

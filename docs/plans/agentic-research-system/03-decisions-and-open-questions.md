@@ -369,6 +369,46 @@ These amendments implement the approved reconciliation of review commit `33ab053
 **Remaining gate:** A separately reviewed P0 materialization and narrow-foundation implementation plan, followed by Stephen's explicit approval before implementation.<br>
 **Affected specifications:** W3, W4, W6, W7, W8, 06c; package status and implementation sequence.
 
+## Post-Gate-5 owner directions recorded 2026-07-16
+
+These entries record directions Stephen stated in the 2026-07-16 planning session that produced `implementation/06-wp6-gate6-readiness-and-integration-plan.md`, written against the evidence survey in that session (Gate A blockers A1–A8 of the vault-side TDA-scale programme v1.0.0 cross-checked against the accepted W1–W8 designs, the Gate 5 plan, and the implemented `research_system` foundation). Stephen confirmed the exact wording on 2026-07-17 (D-G6-1), the same day the Gate 5 foundation was accepted at merge `f49a27f` — so the A1 blocker these decisions were drafted against is now cleared, and the D-G5-1(a) M/H restriction and O15 deferral carry forward as recorded in the acceptance decision. Acceptance of these directions authorizes no implementation; the WP6 plan suite still requires its own review gate.
+
+### P-031 — Gate 6 pilot definition amendment
+
+**Date:** 2026-07-16<br>
+**Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
+**Amends:** P-026; 04-plan §4 Gate 6 and §6 pilot operating model<br>
+**Decision:** The greenfield pilot boundary becomes *the first ARS-native workflow admitted after Gate 5 acceptance*, rather than strictly the first post-APM paper. The proposed pilot workflow is SCALE-01 (full-path stage telemetry and Markov-fit hoisting), an engineering canary on closed read-only fixtures. The first ARS-initiated paper (the SPEC-01/SPEC-02 spectral-distance PH lane) remains the pilot's research continuation and inherits the original paper-pilot promotion criteria.<br>
+**Rationale:** SCALE-01 satisfies Gate 6's own preflight predicates better than any paper: it is non-critical, its inputs and authority are content-addressed and read-only, a negative outcome is a valid terminal result, and rollback cannot touch accepted research evidence. Requiring the pilot to be a paper would force the riskier workload first.<br>
+**Boundary:** Pilot preflight criteria themselves are unchanged and SCALE-01 must pass them; this amends only what kind of workflow may occupy the pilot slot.<br>
+**Affected specifications:** W9 (pilot mechanics), 04-plan, WP6.4.
+
+### P-032 — Full portfolio and Discovery integration (W11)
+
+**Date:** 2026-07-16<br>
+**Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
+**Decision:** ARS becomes the canonical end-to-end home for research-programme organisation: Candidate registration, Assay scoring, Spike verdicts, PROMOTE/PARK/KILL promotion decisions, pre-registration locks, dispatch, results, and claims as typed canonical records. A new specification `design/11-portfolio-and-discovery-lifecycle.md` (W11) is added to the planned set and passes its own adversarial review gate before implementation. The master plan §6.1 lifecycle (`Candidate → Assay → Spike → Pre-registration → Implementation → Independent verification → Decision lock → Claim promotion → Manuscript integration → Reproducibility release`) is the governing shape.<br>
+**Rationale:** Stephen's stated objective is a single integrated system replacing the vault-harness + APM hodgepodge, whose small persistent coordination issues motivated the ARS in the first place. The 2026-07-16 TDA-scale package manifest — hand-computed content addressing standing in for a missing admission interface — is direct evidence of the gap.<br>
+**Boundary:** The vault remains the human reading/annotation surface via generated projections; it ceases to be lifecycle authority for successor-owned Discovery objects. Already-active Discovery items (e.g. the registered sheaf-Laplacian dispatch, the MCbiF decision-pending battery) remain vault/APM-owned under P-004 until an explicit per-item ownership transition; no `dual_owned` state is created.<br>
+**Affected specifications:** New W11; W1 portfolio catalogue; W2 (`obj` records, ScopeDefinition); W4 (Scout/Portfolio Steward role profiles); W5 (claim promotion); W9; W10.
+
+### P-033 — Full live capability before research dispatch
+
+**Date:** 2026-07-16<br>
+**Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
+**Amends:** Resolves the D-G5-1(b) deferral into scoped post-Gate-5 work<br>
+**Decision:** No interim operator-executed or degraded-mode research dispatch is defined. Live Claude and Codex transports, live semantic parity evidence, the separately accepted live-grader threshold/calibration policy, and instantiated evaluated model profiles (W4 §10) must all exist with direct current evidence before any R2 research task dispatches under ARS. The intent is to start doing real work and test the system in action, on its full capability path.<br>
+**Rationale:** An interim human-executed mode would be an undeclared bypass of the routing, parity, and independence machinery — precisely the class of informal side-channel the ARS exists to remove.<br>
+**Affected specifications:** W4, W6 (§7.2 threshold clause), W7; WP6.2.
+
+### P-034 — End-to-end consolidation objective and legacy sunset sequencing
+
+**Date:** 2026-07-16<br>
+**Status:** Accepted by Stephen (direction 2026-07-16; wording confirmed 2026-07-17)<br>
+**Decision:** The programme target is one bespoke, integrated system carrying the valuable lessons of the 2025–2026 tooling (pre-registration, contracts, provenance, fail-closed gates, Partial semantics, the Assay-before-Spike funnel) and retiring the accumulated surfaces — APM orchestration, the vault-side Discovery Harness as authority, and ad-hoc coordination files — once their W9 migration gates pass. Consolidation proceeds by explicit per-item ownership transitions, never by indefinite dual-running.<br>
+**Boundary:** The P-026 legacy boundary is unchanged: T1.28 and the two current APM-managed papers remain `legacy_owned`; T1.28 terminal review still gates legacy deprecation claims.<br>
+**Affected specifications:** W9, W10, W11; master plan §6.1.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task
