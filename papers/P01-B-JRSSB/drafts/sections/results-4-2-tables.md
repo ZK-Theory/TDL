@@ -12,23 +12,23 @@ Table 1 (scalar total-persistence statistic, $L = 5{,}000$, USoc and BHPS) is in
 | Null level | $L$ | $B$ | Dim | $T$ (BCa 95%) | $d_{\mathrm{perm}}$ | $W_2$ $p$ | Landscape $L^2$ $p$ |
 |---|---:|---:|---|---|---:|---|---|
 | **USoc** | | | | | | | |
-| Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | invalid | -- |
-| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | invalid | -- |
-| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | invalid | -- |
-| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | invalid | -- |
-| Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | **<0.001** | -- |
-| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | —$^{\dagger}$ | -- |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | **<0.001** | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | —$^{\dagger}$ | — |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 14.91 [14.54, 15.25] | 51.07 | **<0.001** | **<0.001** |
 | Markov-1 (matched) | 5,000 | 1,000 | H1 | 3.479 [3.454, 3.503] | 31.16 | **<0.001** | **<0.001** |
 | Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H0 | — | — | —$^{\ddagger}$ | 0.258 |
 | Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H1 | — | — | —$^{\ddagger}$ | **0.003** |
 | **BHPS** | | | | | | | |
-| Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | invalid | -- |
-| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | invalid | -- |
-| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | invalid | -- |
-| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | invalid | -- |
-| Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | -- | -- | **<0.001** | -- |
-| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | -- | -- | —$^{\dagger}$ | -- |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | **<0.001** | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | —$^{\dagger}$ | — |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 9.251 [9.001, 9.504] | 26.53 | **<0.001** | **<0.001** |
 | Markov-1 (matched) | 5,000 | 1,000 | H1 | 2.174 [2.165, 2.183] | 19.26 | **<0.001** | **<0.001** |
 | Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H0 | — | — | —$^{\ddagger}$ | **<0.001** |

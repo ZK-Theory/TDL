@@ -46,19 +46,27 @@ _NUMERIC = re.compile(r"\d")
 
 
 def _has_exact_solver_stamp(summary: dict) -> bool:
-    """True iff the summary records the solver actually used as exact."""
+    """True iff the summary records the solver actually used as exact.
+
+    An explicit greedy stamp — any string stamp value naming ``greedy`` — is
+    disqualifying, so a source declaring ``greedy_rank`` is never accepted even
+    if another stamp field is truthy.
+    """
     scopes = [summary, summary.get("params", {}), summary.get("inputs", {})]
+    exact = False
     for scope in scopes:
         if not isinstance(scope, dict):
             continue
         for key in EXACT_STAMP_KEYS:
             val = scope.get(key)
+            if isinstance(val, str) and "greedy" in val.lower():
+                return False  # explicit greedy stamp disqualifies the source
             if key == "convention":
                 if val == "exact":
-                    return True
+                    exact = True
             elif val:  # backend_versions/solver/wasserstein_backend present and truthy
-                return True
-    return False
+                exact = True
+    return exact
 
 
 def _markov2_alpha1_rows(table_text: str) -> dict[tuple[str, str], list[str]]:
@@ -87,11 +95,18 @@ def _is_presented_number(cell: str) -> bool:
 
 
 def reconcile(table_text: str, summary: dict, pinned_landscape: dict[tuple[str, str], str]) -> list[str]:
-    """Return a list of reconciliation violations for the Markov-2 alpha=1 rows.
+    """Reconcile the Markov-2 alpha=1 table rows against their certified sources.
 
-    (a) a landscape cell whose printed value disagrees with the certified value;
-    (b) any W2-derived cell (T, d_perm, W2 p) presented as a number while the
-        source carries no exact-solver stamp.
+    Args:
+        table_text: Markdown of the §4.2 Markov-ladder table.
+        summary: The committed Markov-2 alpha-sweep summary JSON.
+        pinned_landscape: Certified landscape L2 values keyed by (dataset, dim).
+
+    Returns:
+        Reconciliation violations: (a) a landscape cell whose printed value
+        disagrees with the certified value; (b) any W2-derived cell (T, d_perm,
+        W2 p) presented as a number while the source carries no exact-solver
+        stamp.
     """
     violations: list[str] = []
     stamped = _has_exact_solver_stamp(summary)
@@ -132,6 +147,7 @@ _GOOD_TABLE = """
 
 _UNSTAMPED_SUMMARY: dict = {"params": {"wasserstein_order": 2}}  # no backend/convention stamp
 _STAMPED_SUMMARY: dict = {"params": {"wasserstein_order": 2, "convention": "exact"}}
+_GREEDY_SUMMARY: dict = {"params": {"wasserstein_order": 2, "solver": "greedy_rank"}}
 
 
 def test_paper_table_source_reconciliation() -> None:
@@ -168,6 +184,11 @@ def test_paper_table_source_reconciliation() -> None:
     # (the gate opens for a certified recompute; only landscape must still match).
     v_bp = reconcile(presented_w2, _STAMPED_SUMMARY, PINNED_LANDSCAPE)
     assert not any("W2 UNCITABLE" in v for v in v_bp), v_bp
+
+    # (b'') a source explicitly stamped greedy_rank is refused exactly like an
+    # unstamped one — a greedy stamp is not evidence of the exact solver.
+    v_greedy = reconcile(presented_w2, _GREEDY_SUMMARY, PINNED_LANDSCAPE)
+    assert any("W2 UNCITABLE" in v for v in v_greedy), v_greedy
 
     # Enforce against the real committed artifacts when present.
     if TABLE.exists() and SUMMARY.exists():
