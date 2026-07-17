@@ -97,10 +97,30 @@ Headline categories:
 - [ ] Stage 1: matched-L W₂, stratified Markov-1, landscape L², Markov-2 α
       sensitivity, BHPS H4 negative-control three-hypothesis diagnostics, all
       under locked environment (shared with P01-A)
-- [ ] Stage 2: v2 §3.1–§3.4 methods rewrites (ground-metric formula correction,
-      stratified rung formal definition, W₂ test construction + landscape +
-      effect sizes, knee algorithm + spanning AUC/W₂ + identification check),
-      §4.2/§4.3 results, §5 reproducibility, abstract reframing per C2 outcome
+- [x] **Stage 2 §3.1–§3.4/§4.2 methods+results rewrites — DRAFTED 2026-07-14
+      (batch T2.12–T2.16, academic-writing-agent), awaiting batched User review
+      (per-section review deferred to end of batch by explicit User instruction).**
+      Section files: `drafts/sections/methods-3-1-vr-filtration.md` (ground-metric
+      ℓ² correction + witness-complex truncation + H2 restriction disclosed per the
+      2026-06-19 terminal lock), `methods-3-2-ladder-markov.md` (Level 4b stratified
+      Markov-1 rung inserted, demographic families gender/NS-SEC/cohort — NOT the
+      GMM-regime framing from the original ISSUE H2 text — + Markov-2 α=1 fix),
+      `methods-3-3-w2-test.md` ($T$ ratio/BCa/$d_{\mathrm{perm}}$ construction +
+      landscape $L^2$ + exchangeability statement), `methods-3-4-knee-spanning.md`
+      (names `detect_eps_star_knee`, windowed-AUC-primary construction, identification
+      check as mandatory), `results-4-2-tables.md` (matched-$L$=5,000 Table 2 +
+      full per-subgroup stratified Table 3 + abstract C2 reconciliation). §4.3/§5
+      already drafted separately (below). Abstract reframing per C2: matched-$L$
+      USoc Markov-1 $H_0$/$H_1$ both reject at $p<0.001$ — reconciled sentence
+      provided in `results-4-2-tables.md` §4.2.4 for insertion into the abstract at
+      v2 assembly (abstract text itself out of scope for this batch).
+      **Open items:** (a) no matched-$L$=5,000 recompute exists yet for
+      label/cohort/order-shuffle (Table 2 legacy rows flagged, not fabricated);
+      (b) no landscape $L^2$ companion exists for the Markov-2 α-sweep; (c) confirm
+      whether a GMM-regime-stratified rung is also wanted alongside Level 4b;
+      (d) a previously unreported 3-way BHPS dual-metric divergence pattern in the
+      stratified rung (1940s cohort: $W_2$ rejects, landscape does not) may warrant
+      updating the P01-A §6.1 cross-reference table to match.
 - [ ] Stage 3: standalone P01-B repo extraction with locked env, code subset,
       data pointer, replication script, headline-number provenance table
 - [ ] Keep zigzag exposition brief and explicitly subordinate to the testing

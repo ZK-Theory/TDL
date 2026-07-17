@@ -21,9 +21,18 @@ audit.
 | $b_i, d_i$ | Birth and death coordinates of a persistence pair | Use when referring to individual bars/points |
 | $\lambda_q$ | Persistence landscape in homology degree $q$ | Use when reporting landscape $L^2$ distances |
 | $W_p(D, D')$ | $p$-Wasserstein distance between diagrams $D$ and $D'$ | Always write the order $p$ explicitly |
+| $T$ | Mean-vs-mean test ratio $\overline{W_2}(\mathrm{obs},\mathrm{null}) / \overline{W_2}(\mathrm{null},\mathrm{null})$ | Headline and per-subgroup effect ratio (P01-A §6.1, P01-B §3.3/§4.2) |
+| $d_{\mathrm{perm}}$ | Standardised permutation effect size | Report alongside the permutation $p$-value |
+| BCa | 95% bias-corrected-and-accelerated bootstrap interval | Interval convention for $T$ and effect sizes; never a plain percentile interval |
+| $Q_{0.95}$, $\alpha_{\max}$ | 95th-percentile witness-to-nearest-landmark distance / resulting max filtration scale | Witness-complex truncation (P01-B §3.1) |
 
-Unless a paper has a strong reason to do otherwise, the ground metric for
-Wasserstein computation is Euclidean on the birth-death plane.
+**Ground metric — locked for P01 (2026-07-14).** The ground metric for
+Wasserstein computation is Euclidean, i.e. $\ell^2$, on the birth-death plane,
+matching `gudhi.wasserstein.wasserstein_distance(order=2, internal_p=2)` in
+`trajectory_tda/topology/vectorisation.py`. $\ell^\infty$ is **never** used;
+any archived P01-VR-PH-Core prose writing $\|\cdot\|_\infty$ is stale (corrected
+in P01-B §3.1, T2.12). The order $p = 2$ (Wasserstein-2) and the $\ell^2$ ground
+metric are two distinct choices — state both explicitly.
 
 ## Paper-Specific Context
 
