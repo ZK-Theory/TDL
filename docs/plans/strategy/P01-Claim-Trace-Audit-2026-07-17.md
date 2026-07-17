@@ -291,8 +291,7 @@ files carry the major UNSUPPORTED/MISDESCRIBED findings.
 2. **A24** — §6.2's non-overlap H₁-disappearance claim is falsified for the
    retained remainder object (exact p 0.000999, d_perm +7.48) and its
    twenty-subsample arm is unverifiable without a production re-run.
-3. **A4/A8** — the entire Table-1 effects family (52 table cells across two
-   documents) cites greedy-era pre-frozen sources; the rebuilt eight-row exact
+3. **A4/A8** — the entire Table-1 effects family (62 rows across two markdown documents) cites greedy-era pre-frozen sources; the rebuilt eight-row exact
    artifact on `main` is consumed by no prose file.
 4. **A21/A26** — §6.2/§S6 defend the dedup amendment by the retired
    phantom-feature/flip mechanism; the flip was the solver (ruling: rewrite from
