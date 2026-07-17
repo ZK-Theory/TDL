@@ -39,10 +39,14 @@ Accordingly, D-G6-3 cannot be approved at this revision. No WP6 implementation, 
 
 The prior reports were treated as finding catalogues, not as proof:
 
-| Artifact | Git blob | SHA-256 of canonical checked-out bytes |
+| Artifact | Git blob | Canonical Git-blob UTF-8/LF SHA-256 |
 |---|---|---|
-| `docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md` | `b962ed11813ff0a0164a0f8be3eef7e926757e5e` | `0ac3442376fc5d7ddc476b07e71cfc64003e6d4f4c992d0ccc234b7a87196973` |
+| `docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md` | `b962ed11813ff0a0164a0f8be3eef7e926757e5e` | `93a79b324a4ec2780496effb58f7b8b75c78b4ac10a9824bddc7a416a9011228` |
 | `docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md` | `b9b3963ccfc6ef9bceba9177497a1c83f69c3c18` | `6015717b097fec2d02b665e7f22a8647a486590c036b9e74f1f096bda3428f41` |
+
+For the first report, `0ac3442376fc5d7ddc476b07e71cfc64003e6d4f4c992d0ccc234b7a87196973`
+is the SHA-256 of a 33,951-byte Windows CRLF checkout, not the canonical Git-blob
+UTF-8/LF byte surface.
 
 The review read the three remediation annexes and the controlling decisions/readiness/implementation plans in full, then checked the relevant W2, W4, W6, W7, and W8 accepted design clauses and current schemas/loaders/reducers/CLI behavior. Exact-set results below were reconstructed independently rather than copied from either prior report.
 

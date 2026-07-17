@@ -3,10 +3,11 @@
 **Date:** 2026-07-16
 **Status:** draft, review pending — drafted at Stephen's direction (2026-07-16 session);
 authorizes no implementation.
-**Revision note (2026-07-17):** revised through the R3 remediation review to close the
+**Revision note (2026-07-17):** revised through the R4 remediation review to close the
 strict P1 schema/oracle, versioned schema identity, universal authority, atomic claim,
-correction-selector, and summary-cardinality findings while preserving Stephen's P-035
-sequencing/composition decision and the R2 closures.
+correction-selector, and summary-cardinality findings, then separate RuleEvaluation from
+Decision and bind claims to the Task revision stored on the Dispatch. Stephen's P-035
+sequencing/composition decision and the R2/R3 closures remain preserved.
 The suite remains non-dispatchable until a fresh independent review finds no open
 Critical/Major item and Stephen approves the exact reviewed revision.
 **Currency update (2026-07-17):** the Gate 5 foundation was accepted at merge
@@ -227,7 +228,8 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
     complete-record multiset equality against the accepted, content-addressed W2/W8
     literal catalogue, exact versioned command/event schema identities, semantic
     command/event/discriminator/reducer/projection/authority-subject/receipt bindings,
-    atomic Task-plus-Dispatch claim write set, closed correction selector, and
+    atomic Dispatch-bound-Task claim relation/write set, non-compensable Decision and
+    RuleEvaluation subjects/projections, closed correction selector, and
     one-field/illegal-transition/
     conflicting-payload atomic negatives (WP6.1 §§2–3);
   - "live issue is secret-safe and cost-bounded" → sentinel injection at every
@@ -262,7 +264,7 @@ retire these rows.
 | Source | Exact obligation and owner | Trigger | Disposition |
 |---|---|---|---|
 | W1 §9.6; W7 §§9/21 | No credential/`.env` content crosses context, generated adapter, payload, argv/config, event, receipt, object, or fixture; WP6.2 implementer, independently reviewed | Before any provider invocation | WP6.2 T2/T3/T4 and §4 pre-issue matrix; post-run scan is defense in depth only. |
-| W2 §§10–21; W8 §§7–21 | Exact accepted lifecycle/catalogue, not an implemented subset; WP6.1 implementer and reviewer | Before WP6.1 runtime implementation/merge | 06a §3 plus content-addressed 06d literal 104-row complete-binding catalogue and independently accepted schema-identity manifest; complete versioned identity propagation; exact authority subjects on all rows; atomic Task-plus-Dispatch claim; closed correction selector; row-cardinality/effect checks; one-field and race mutations. |
+| W2 §§10–21; W8 §§7–21 | Exact accepted lifecycle/catalogue, not an implemented subset; WP6.1 implementer and reviewer | Before WP6.1 runtime implementation/merge | 06a §3 plus content-addressed 06d literal 104-row complete-binding catalogue and independently accepted schema-identity manifest; complete versioned identity propagation; exact authority subjects on all rows; distinct Decision/RuleEvaluation authority and projections; atomic claim bound to the Dispatch's stored Task revision and lease; closed correction selector; row-cardinality/effect, one-field, relational, and race mutations. |
 | W4 §§10.2–10.3 | Complete current evaluation evidence and eligibility; T6 producer, distinct reviewer, Stephen approval | Before any route relies on a profile | 06b T6 and master exit checklist. |
 | W6 addendum F-037/F-038 | Independently freeze, then materialize, calibrate, activate, and consume the exact 54-referent union as P1 blockers; expected-manifest producer, distinct reviewer, runtime producer | Expected manifest before descriptor build/observation; evidence before pilot acceptance or claim promotion | Strict P1 stage schema plus content-addressed 54-row descriptor-hash expected manifest under 06f §3 and 06b §§5–6; baseline rows and activation evidence are separate non-compensable sets; producing-seam omissions and coordinated descriptor/manifest replacement reject. |
 | P-018/P-030/P-035 | T7 closure is exactly 251 immutable `foundation_release` references plus 51 new `live_capability` results with a bijective predecessor map; WP6.2 implementer and reviewer | Before any M/H capability becomes eligible | Content-addressed literal 06e map; 06b §6.2 schema with valid W6 `gate_stage`, separate `evidence_stage`, stage-aware loader/CLI, provenance negatives, and invariant smoke. |
@@ -303,7 +305,9 @@ sub-plan prose is not enforced by it.
 - [ ] Before WP6.1 runtime implementation, Stephen accepts the independently reviewed
       104-row catalogue and per-row command/event schema-identity manifests by exact
       path, schema ID/version, Git blob, and SHA-256. They bind every authority subject,
-      the atomic two-stream claim, and the closed correction selector (06a §3; 06d).
+      keep Decision/RuleEvaluation non-compensable, bind the atomic claim to the Task
+      revision and lease stored on its Dispatch, and close the correction selector
+      (06a §3; 06d).
 - [ ] Before any P1 descriptor build or observation, Stephen accepts the independently
       produced/reviewed 54-row expected manifest containing every literal descriptor
       hash; the strict P1 schema and coordinated-pair mutation pass (06b §5; 06f §3).

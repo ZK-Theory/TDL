@@ -469,6 +469,15 @@ comparison inputs only. A self-consistent coordinated replacement of descriptor 
 and the candidate expected manifest still rejects against the D-G6-3 accepted manifest
 identity. F-037 and F-038 summaries bind exactly 12 and 10 execution hashes,
 respectively, with disjoint union 22.<br>
+**R4 remediation constraints (pending fresh review and Stephen's exact-revision
+approval, not a superseding owner decision):** RuleEvaluation has its own authority
+subject, ID source, owner projection, and correction-selector target; neither a Decision
+grant/projection nor coordinated expected/runtime corruption can substitute for it.
+`ClaimDispatch` loads the accepted Dispatch and requires its stored Task ID/revision,
+the payload Task ID/revision, and the active lease subject to agree before authority or
+idempotency reuse. A valid but foreign current Task, stale Dispatch relation, or wrong
+lease subject rejects atomically. The R3 provenance table distinguishes canonical
+Git-blob UTF-8/LF bytes from a Windows CRLF checkout hash.<br>
 **Rationale:** A single policy gate before T2 is empirically circular because protected
 provider seams do not yet exist. A full 302-row live-rerun claim would contradict the
 bounded 51-obligation tranche and waste accepted evidence. The staged gate preserves
@@ -488,14 +497,20 @@ Git blob `b9b3963ccfc6ef9bceba9177497a1c83f69c3c18`, reviewing exact commit
 Minor define the pending constraints above; the review does not itself accept them.<br>
 **R3 remediation evidence:** Repository-relative review
 `docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md`,
-Git blob `64748512357161583a7a459df84afa7ef2f784ae`, canonical UTF-8/LF SHA-256
-`fa3f4b6eede006e59df61f68d8372054be159aff2b9d6858978248ba16cf25ed`, reviewing exact
+Git blob `69f140d95bbe33c39b3593833e9789ab409af9a9`, canonical UTF-8/LF SHA-256
+`b1a89411496bda995bef9b11211ed1f6078b90babd3bb46f79755e48316e4810`, reviewing exact
 commit `3cca017c936a1d2b6a6b2049bc866caf5cb79047`. Its six Major findings and one Minor
 define the additional pending constraints above; the review does not itself accept
 them.<br>
+**R4 remediation evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md`,
+Git blob `66e82fdc9a014324c9e433cab431386bc6f8471e`, canonical UTF-8/LF SHA-256
+`87f226204475d51630ceeb71608d7a6d3fca135bdd68ef5a395c445df6d78a0a`, reviewing exact
+commit `aa54fe140de8eff3dabe0472758c3514fa673b19`. Its two Major findings and one Minor
+define the R4 constraints above; the review does not itself accept them.<br>
 **Boundary:** This accepts sequencing and evidence composition only. It does not
 accept a future T1a protocol hash, a T1b empirical policy hash, any live call/result,
-an evaluated profile, an M/H eligibility transition, the R2/R3 remediation constraints or
+an evaluated profile, an M/H eligibility transition, the R2/R3/R4 remediation constraints or
 proposed identity choices above, the revised D-G6-3 tables as a
 whole, WP6 dispatch, pilot evidence, or a claim.<br>
 **Migration consequence:** WP6.2 dispatch prompts and branches must reproduce the

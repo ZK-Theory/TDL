@@ -4,9 +4,10 @@
 **Status:** draft, review pending — authorizes no implementation; dispatch is gated on
 Gate 5 close (WP5.6) and Stephen's approval of this plan with its pre-registered
 invariant re-baseline (D-G6-3).
-**Revision note (2026-07-17):** revised through the R3 remediation review so every one
+**Revision note (2026-07-17):** revised through the R4 remediation review so every one
 of the 104 rows binds exact command/event schema identity and authority subject data,
-the claim is an atomic two-stream batch, and the correction selector is closed. Exact-
+Decision and RuleEvaluation remain non-compensable, the claim is an atomic relationally
+bound two-stream batch, and the correction selector is closed. Exact-
 set validation compares complete row records rather than independently creditable
 component sets. The revision still authorizes no implementation and requires fresh
 independent review before
@@ -73,8 +74,10 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   conflict; a command replayed with the same idempotency tuple and canonical payload
   returns the original receipt; the same tuple with a different payload is rejected
   as `idempotency_conflict` with no event publication; omitting or staling only the Task
-  binding, racing the Task stream, or changing the declared write set rejects with no
-  Task/Dispatch/event/receipt-acceptance change; attempt supersession preserves
+  binding, naming a current foreign Task, staling the Dispatch-to-Task relation, binding
+  the lease to another Task/Dispatch, racing the Task stream, or changing the declared
+  write set rejects before authority/idempotency reuse with no Task/Dispatch/event/
+  receipt-acceptance change; attempt supersession preserves
   the prior attempt's evidence.
 - **T3 — Messages, blockers, input-required, Partial.** W2 §§14–15; P-009 immutable
   publication/delivery/acknowledgement events; Partial as both attempt outcome and
@@ -102,6 +105,9 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   authority; a correction leaves the original event chain intact and replayable. The
   correction tests compare the closed 06d §1.4 mapping against runtime behavior and
   reject unknown/swapped/zero-owner/multiple-owner/missing-governance-index mappings.
+  Decision and RuleEvaluation use distinct authority subjects and owner projections;
+  cross-scoped grants, cross-projection routing, and coordinated expected/runtime
+  substitutions reject without changing either projection or the governance index.
 - **T6 — Typed operator command surface.** Register the exact W8 §20 catalogue —
   `request_resource_grant`, `claim_execution_lease`, `record_heartbeat`,
   `request_pause`, `confirm_pause`, `request_stop`, `confirm_stop`, `request_resume`,
@@ -140,7 +146,7 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
 
 The normative expected set is the 104-row annex
 `06d-wp6-1-owner-source-catalogue.md`, SHA-256
-`967c753f5954bd2045e55e0db643c6bdb91d4b58f3af953e82584943158022e6`.
+`96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7`.
 It has one normalized row per W2 §10–§19 command/edge and one row for each of the
 thirteen W8 §20 operator commands. Each row independently names the exact runtime
 `command_type`, command schema, ordered semantic-event set, event schema, discriminator
@@ -184,7 +190,9 @@ Each command-specific schema uses `const` for the exact type; the grant, dispatc
 event, receipt, and WP6 idempotency tuple carry the identical complete versioned command
 identity. `ClaimDispatch` binds and atomically validates the exact Task and Dispatch IDs,
 revisions/versions, global position/tail, and complete two-stream write set fixed by 06d
-§1.3; a one-sided claim cannot publish.
+§1.3. It also proves the payload Task revision and lease subject equal the Task revision
+stored on the accepted Dispatch; a current unrelated Task is not a valid second stream.
+A one-sided or relationally mismatched claim cannot publish.
 
 ## 4. D-G6-3 invariant table and executable smoke
 

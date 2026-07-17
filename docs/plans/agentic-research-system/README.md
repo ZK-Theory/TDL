@@ -58,6 +58,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-review-2026-07-17.md) | First WP6 remediation re-review; portable evidence for P-035 sequencing/composition decisions |
 | [reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r2-review-2026-07-17.md) | R2 WP6 remediation review identifying the binding-contract work in this revision |
 | [reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md) | R3 WP6 remediation review identifying strict-schema, independent-oracle, authority, concurrency, and selector gaps |
+| [reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md) | R4 WP6 remediation review identifying RuleEvaluation ownership and Dispatch-bound Task integrity gaps |
 
 ## Handover prompts
 

@@ -111,7 +111,7 @@ create/publish/register command; the grant must already bind that exact proposed
 |---|---|---|
 | `scope.*` | `scope_definition` | existing: `envelope.target_stream_id`; `scope.create`: `payload.new_scope_definition_id` |
 | `task.*` | `task` | existing: `envelope.target_stream_id`; `task.create`: `payload.new_task_id` |
-| `dispatch.*`, including both `ClaimDispatch` rows | `dispatch` | `payload.dispatch_id` (must equal the Dispatch member of the declared write set) |
+| `dispatch.*`, including both `ClaimDispatch` rows | `dispatch` | `payload.dispatch_id` (must equal the Dispatch member of the declared write set; claim may affect only the Task revision stored on that Dispatch) |
 | `lease.*`, `operator.claim_execution_lease`, `operator.record_heartbeat` | `lease` | existing: `envelope.target_stream_id`; create/claim: `payload.new_lease_id` |
 | `attempt.*`, `operator.request_pause`, `operator.confirm_pause`, `operator.request_stop`, `operator.confirm_stop`, `operator.request_resume`, `operator.quarantine_orphan` | `attempt` | existing: `envelope.target_stream_id`; `attempt.create`/`attempt.retry`: `payload.new_attempt_id` |
 | `checkpoint.record` | `attempt` | `payload.attempt_id` |
@@ -119,7 +119,8 @@ create/publish/register command; the grant must already bind that exact proposed
 | `blocker.*` | `blocker` | existing: `envelope.target_stream_id`; `blocker.record`: `payload.new_blocker_id` |
 | `artefact.*`, `operator.adopt_late_artefact` | `artefact` | existing: `envelope.target_stream_id`; `artefact.register`: `payload.new_artefact_id` |
 | `review.*` | `review` | existing: `envelope.target_stream_id`; `review.request`: `payload.new_review_id` |
-| `decision.*`, `rule.evaluate` | `decision` | existing: `envelope.target_stream_id`; `decision.propose`/`rule.evaluate`: `payload.new_decision_id` |
+| `decision.*` | `decision` | existing: `envelope.target_stream_id`; `decision.propose`: `payload.new_decision_id` |
+| `rule.evaluate` | `rule_evaluation` | `payload.new_rule_evaluation_id` |
 | `correction.record` | `corrected_record` | `payload.erroneous_record_id`, paired with the closed kind in §1.4 |
 | `operator.request_resource_grant`, `operator.release_resources` | `resource` | `payload.resource_id` |
 | `operator.create_backup`, `operator.verify_restore` | `project_store` | `payload.project_id` |
@@ -152,12 +153,24 @@ Replay applies `acknowledged → claimed` to Dispatch and `ready → in_progress
 bound Task revision atomically. The receipt returns both event identities and both
 resulting stream versions.
 
+After validating the Dispatch-scoped grant itself, and before reusing that authority
+for the Task facet, idempotency lookup, version advancement, or position allocation,
+the service loads the accepted Dispatch revision and requires
+`(dispatch.task_id, dispatch.task_revision) == (payload.task_id,
+payload.task_revision)`. The active lease must bind that same Task revision and
+Dispatch. Dispatch-scoped authority is sufficient only for the Task revision already
+stored on the authorized Dispatch; it never authorizes the caller to nominate another
+Task. A current foreign Task ID/revision, a stale Dispatch-to-Task link, or a lease bound
+to another Task or Dispatch rejects before publication and changes neither stream,
+receipt acceptance state, nor any projection.
+
 The semantic copy gives `task.claim_start` and `dispatch.claim` the same
 `atomic_binding_group: claim_dispatch_task_dispatch_v1`, with exact group cardinality
 two. Omission of either facet, omission or staleness of only the Task binding, a
-concurrent Task mutation, a mismatched Task revision, an extra/missing write-set member,
-or a batch/receipt naming only Dispatch rejects before publication and changes neither
-projection.
+concurrent Task mutation, a mismatched Task revision, a current foreign Task with a
+valid version, a stale stored Dispatch-to-Task relation, a wrong lease subject, an
+extra/missing write-set member, or a batch/receipt naming only Dispatch rejects before
+publication and changes neither projection.
 
 ### 1.4 Closed correction-selector mapping
 
@@ -178,7 +191,7 @@ correction index; no second owner projection is permitted.
 | `artefact` | `artefact` |
 | `review` | `review` |
 | `decision` | `decision` |
-| `rule_evaluation` | `decision` |
+| `rule_evaluation` | `rule_evaluation` |
 | `resource` | `resource` |
 | `operation` | `operations` |
 | `backup` | `backup` |
@@ -187,6 +200,14 @@ The table is copied literally into the accepted semantic YAML before implementat
 the runtime selector registry is comparison input only. Unknown kinds, a swapped
 mapping, zero or multiple owner projections, and omission of the governance correction
 index reject before publication and leave all projections unchanged.
+
+Decision and RuleEvaluation are non-compensable owner records. A Decision-scoped grant
+or Decision projection cannot authorize or absorb `RecordRuleEvaluation`; a
+RuleEvaluation-scoped grant or projection cannot authorize or absorb
+`ResolveDecision`. Tests corrupt both a candidate expected manifest and runtime selector
+to make either substitution self-consistent and still require rejection against the
+accepted manifest identity, with the event tail, receipt acceptance state, Decision
+projection, RuleEvaluation projection, and governance correction index unchanged.
 
 ## 2. Task, scope, dispatch, lease, attempt, and checkpoint rows
 
@@ -203,7 +224,7 @@ index reject before publication and leave all projections unchanged.
 | `task.block` | W2 §11 `task_blockable → blocked` | `cmd/block_task` / `BlockTask`; `TaskBlocked`; `evt/task_blocked` | `reduce_task`; task, governance | typed blocker, owner, resume condition | `R`; `pos_task_block`; `NE` |
 | `task.request_input` | W2 §11 `task_input_requestable → input_required` | `cmd/request_input` / `RequestInput`; `InputRequested`; `evt/input_requested` | `reduce_task`; task, governance, message | named authority, question, resume condition | `R`; `pos_task_request_input`; `NA` |
 | `task.pause` | W2 §11 `task_pausable → paused` | `cmd/pause_task` / `PauseTask`; `TaskPaused`; `evt/task_paused` | `reduce_task`; task, governance, operations | typed reason, owner, resumable state | `R`; `pos_task_pause`; `NE` |
-| `task.claim_start` | W2 §11 `ready → in_progress`; atomic group `claim_dispatch_task_dispatch_v1` | `cmd/claim_dispatch` / `ClaimDispatch`; `[DispatchClaimed, TaskClaimStarted]`; `[evt/dispatch_claimed, evt/task_claim_started]` | `reduce_dispatch` + `reduce_task`; task, dispatch, operations | exact Task ID/revision/version and Dispatch ID/version; complete two-stream write set; authority, lease, context, roots | `R` with both events/versions; `pos_task_claim_start`; `NC` |
+| `task.claim_start` | W2 §11 `ready → in_progress`; atomic group `claim_dispatch_task_dispatch_v1` | `cmd/claim_dispatch` / `ClaimDispatch`; `[DispatchClaimed, TaskClaimStarted]`; `[evt/dispatch_claimed, evt/task_claim_started]` | `reduce_dispatch` + `reduce_task`; task, dispatch, operations | payload Task ID/revision equals the Task revision stored on Dispatch; exact Task/Dispatch versions and two-stream write set; lease binds both; authority, context, roots | `R` with both events/versions; `pos_task_claim_start`; `NC` |
 | `task.submit_review` | W2 §11 `in_progress → review_pending` | `cmd/submit_for_review` / `SubmitForReview`; `TaskSubmittedForReview`; `evt/task_submitted_for_review` | `reduce_task`; task, governance, review | attempt outcome and candidate artefacts recorded | `R`; `pos_task_submit_review`; `NA` |
 | `task.resume` | W2 §11 `task_suspended → task_prior_active` | `cmd/resume_task` / `ResumeTask`; `TaskResumed`; `evt/task_resumed` | `reduce_task`; task, governance, operations | exact prior allowed state; blocker resolved or authority supplied | `R`; `pos_task_resume`; `NE` |
 | `task.accept` | W2 §11 `review_pending → accepted` | `cmd/accept_task` / `AcceptTask`; `TaskAccepted`; `evt/task_accepted` | `reduce_task`; task, governance | exact satisfied review/acceptance set | `R`; `pos_task_accept`; `NI` |
@@ -217,7 +238,7 @@ index reject before publication and leave all projections unchanged.
 | `dispatch.issue` | W2 §12 `none → issued` | `cmd/issue_dispatch` / `IssueDispatch`; `DispatchIssued`; `evt/dispatch_issued` | `reduce_dispatch`; dispatch, queue, operations | ready Task; exact route/context/root/policy/resource bindings | `R`; `pos_dispatch_issue`; `NA` |
 | `dispatch.deliver` | W2 §12 `issued → delivered` | `cmd/record_dispatch_delivery` / `RecordDispatchDelivery`; `DispatchDelivered`; `evt/dispatch_delivered` | `reduce_dispatch`; dispatch, queue, message | exact dispatch and delivery evidence | `R`; `pos_dispatch_deliver`; `NE` |
 | `dispatch.acknowledge` | W2 §12 `delivered → acknowledged` | `cmd/acknowledge_dispatch` / `AcknowledgeDispatch`; `DispatchAcknowledged`; `evt/dispatch_acknowledged` | `reduce_dispatch`; dispatch, queue | authorized recipient and delivery identity | `R`; `pos_dispatch_acknowledge`; `NE` |
-| `dispatch.claim` | W2 §12 `acknowledged → claimed`; atomic group `claim_dispatch_task_dispatch_v1` | `cmd/claim_dispatch` / `ClaimDispatch`; `[DispatchClaimed, TaskClaimStarted]`; `[evt/dispatch_claimed, evt/task_claim_started]` | `reduce_dispatch` + `reduce_task`; task, dispatch, queue, operations | exact Task ID/revision/version and Dispatch ID/version; complete two-stream write set; valid exclusive lease | `R` with both events/versions; `pos_dispatch_claim`; `NC` |
+| `dispatch.claim` | W2 §12 `acknowledged → claimed`; atomic group `claim_dispatch_task_dispatch_v1` | `cmd/claim_dispatch` / `ClaimDispatch`; `[DispatchClaimed, TaskClaimStarted]`; `[evt/dispatch_claimed, evt/task_claim_started]` | `reduce_dispatch` + `reduce_task`; task, dispatch, queue, operations | payload Task ID/revision equals the Task revision stored on Dispatch; exact Task/Dispatch versions and two-stream write set; valid exclusive lease binds both | `R` with both events/versions; `pos_dispatch_claim`; `NC` |
 | `dispatch.fulfil` | W2 §12 `claimed → fulfilled` | `cmd/fulfil_dispatch` / `FulfilDispatch`; `DispatchFulfilled`; `evt/dispatch_fulfilled` | `reduce_dispatch`; dispatch, queue, operations | terminal producing-attempt disposition recorded | `R`; `pos_dispatch_fulfil`; `NE` |
 | `dispatch.expire_issued` | W2 §12 `issued → expired` | `cmd/expire_dispatch` / `ExpireDispatch`; `DispatchExpired`; `evt/dispatch_expired` | `reduce_dispatch`; dispatch, queue | observed deadline and scheduler authority | `R`; `pos_dispatch_expire_issued`; `NE` |
 | `dispatch.expire_delivered` | W2 §12 `delivered → expired` | `cmd/expire_dispatch` / `ExpireDispatch`; `DispatchExpired`; `evt/dispatch_expired` | `reduce_dispatch`; dispatch, queue | observed deadline and scheduler authority | `R`; `pos_dispatch_expire_delivered`; `NE` |
@@ -285,7 +306,7 @@ index reject before publication and leave all projections unchanged.
 | `decision.reject` | W2 §18 `decision_unresolved → rejected` | `cmd/reject_decision` / `RejectDecision`; `DecisionRejected`; `evt/decision_rejected` | `reduce_decision`; decision | required deciding authority and reason | `R`; `pos_decision_reject`; `NI` |
 | `decision.expire` | W2 §18 `decision_unresolved → expired` | `cmd/expire_decision` / `ExpireDecision`; `DecisionExpired`; `evt/decision_expired` | `reduce_decision`; decision | observed expiry and scheduler/decision authority | `R`; `pos_decision_expire`; `NE` |
 | `decision.supersede` | W2 §§18/19 `decision_unresolved → superseded` | `cmd/supersede_decision` / `SupersedeDecision`; `DecisionSuperseded`; `evt/decision_superseded` | `reduce_decision`; decision | replacement Decision, compatible kind/scope, lineage | `R`; `pos_decision_supersede`; `NS` |
-| `rule.evaluate` | W2 §18 state-neutral | `cmd/record_rule_evaluation` / `RecordRuleEvaluation`; `RuleEvaluationRecorded`; `evt/rule_evaluation_recorded` | `reduce_rule_evaluation`; decision, governance | pre-registered rule, exact inputs/estimand/metric/evidence | `R`; `pos_rule_evaluate`; `NA` |
+| `rule.evaluate` | W2 §18 state-neutral | `cmd/record_rule_evaluation` / `RecordRuleEvaluation`; `RuleEvaluationRecorded`; `evt/rule_evaluation_recorded` | `reduce_rule_evaluation`; rule_evaluation, governance | pre-registered rule, exact inputs/estimand/metric/evidence; no Decision authority or projection substitution | `R`; `pos_rule_evaluate`; `NA` |
 | `decision.amend` | W2 §18 `resolved → proposed(new revision)` | `cmd/amend_decision` / `AmendDecision`; `DecisionAmendmentProposed`; `evt/decision_amendment_proposed` | `reduce_decision`; decision | changed fields, post-work flag, effects, required authority | `R`; `pos_decision_amend`; `NS` |
 | `correction.record` | W2 §19 state-neutral; discriminator `corrected_record_kind` | `cmd/record_correction` / `RecordCorrection`; `RecordCorrected`; `evt/record_corrected` | `reduce_correction`; typed selector `projection_selector/corrected_record_kind/v1` resolves exactly one owner projection plus the governance correction index | erroneous record, correction evidence, consumers, authority | `R`; `pos_correction_record`; `NS` |
 
@@ -339,9 +360,11 @@ duplicated binding under two logical keys; swapped keys;
 two positive-test names resolving to one callable; a removed reducer; a removed or
 wrong projection/selector; a changed message-type discriminator; a changed exact edge;
 and a reordered/omitted event. It also mutates every row's authority rule/subject
-binding; exercises unknown/swapped/zero-owner/multiple-owner/missing-governance-index
-correction mappings; and exercises the Task-only omissions, stale versions, races, and
-write-set defects in §1.3. Both `ClaimDispatch` facets must be present and prove the
+binding, including Decision/RuleEvaluation cross-substitution; exercises unknown/
+swapped/zero-owner/multiple-owner/missing-governance-index and coordinated expected/
+runtime correction mappings; and exercises the Task-only omissions, stale versions,
+foreign-current-Task relation, wrong lease subject, races, and write-set defects in
+§1.3. Both `ClaimDispatch` facets must be present and prove the
 same ordered `[DispatchClaimed, TaskClaimStarted]` batch reduces Task (`ready →
 in_progress`) and Dispatch (`acknowledged → claimed`) atomically; global component presence cannot
 compensate for either missing facet or effect.
