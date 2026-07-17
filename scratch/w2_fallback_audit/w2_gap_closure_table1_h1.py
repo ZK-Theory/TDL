@@ -12,7 +12,6 @@ from __future__ import annotations
 import argparse
 import ctypes
 import json
-import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -467,7 +466,7 @@ def assemble(date: str, worker_count: int) -> Path:
         "solver": _exact_solver_metadata(),
         "params": {"seed": SEED, "frozen_loadings": True, "p_value_formula": "(r+1)/(B+1)"},
         "inputs": {
-            "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=WORKTREE_ROOT, text=True).strip(),
+            "git_head": audit_lib.git_head(WORKTREE_ROOT),
             "datasets": {
                 name: {
                     "checkpoint": str(path),

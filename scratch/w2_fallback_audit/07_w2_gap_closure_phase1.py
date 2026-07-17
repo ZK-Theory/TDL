@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -172,7 +171,7 @@ def build_result() -> dict[str, object]:
         np.array(corrected["h1"]["per_pair"]["obs_null_exact"]),
         np.array(corrected["h1"]["per_pair"]["null_null_exact"]),
     )
-    git_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=WORKTREE_ROOT, text=True).strip()
+    git_head = audit_lib.git_head(WORKTREE_ROOT)
     return {
         "schema_version": "stage1/w2-gap-closure/v1",
         "generated_at": datetime.now(UTC).isoformat(),

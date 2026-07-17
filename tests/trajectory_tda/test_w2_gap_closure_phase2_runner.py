@@ -1,5 +1,7 @@
 """Unit-level guards for the re-scoped T1.38 production runner."""
 
+import re
+
 import numpy as np
 import pytest
 
@@ -41,6 +43,11 @@ def test_runner_requires_preflight_selected_worker_count_and_budget() -> None:
 
 def test_project_root_is_resolved_from_git_common_dir() -> None:
     assert runner.PROJ_ROOT == audit_lib.project_root(runner.WORKTREE_ROOT)
+
+
+def test_git_metadata_uses_a_resolved_executable() -> None:
+    assert audit_lib.git_executable_path().is_absolute()
+    assert re.fullmatch(r"[0-9a-f]{40}", audit_lib.git_head(runner.WORKTREE_ROOT))
 
 
 def test_exact_w2_pvalue_records_its_rank_count() -> None:

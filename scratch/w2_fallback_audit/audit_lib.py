@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
+import shutil
+import subprocess  # nosec B404 - invoked only through _run_git with fixed arguments.
 from pathlib import Path
 from typing import Any
 
@@ -19,19 +20,40 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def project_root(worktree_root: Path) -> Path:
-    """Resolve the shared project root for a primary checkout or linked worktree."""
-    completed = subprocess.run(
-        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-        cwd=worktree_root,
+def git_executable_path() -> Path:
+    """Resolve Git to an absolute executable path before invoking it."""
+    executable = shutil.which("git")
+    if executable is None:
+        raise RuntimeError("Git executable is required to resolve audit provenance")
+    resolved = Path(executable).resolve()
+    if not resolved.is_absolute():
+        raise RuntimeError(f"Git executable did not resolve to an absolute path: {resolved}")
+    return resolved
+
+
+def _run_git(worktree_root: Path, arguments: tuple[str, ...]) -> str:
+    """Run a fixed Git metadata query from a resolved, trusted worktree path."""
+    completed = subprocess.run(  # nosec B603,B607 - executable and arguments are fixed metadata queries.
+        [str(git_executable_path()), *arguments],
+        cwd=worktree_root.resolve(),
         check=True,
         capture_output=True,
         text=True,
     )
-    common_dir = Path(completed.stdout.strip())
+    return completed.stdout.strip()
+
+
+def project_root(worktree_root: Path) -> Path:
+    """Resolve the shared project root for a primary checkout or linked worktree."""
+    common_dir = Path(_run_git(worktree_root, ("rev-parse", "--path-format=absolute", "--git-common-dir")))
     if common_dir.name != ".git":
         raise RuntimeError(f"Expected Git common directory to end in .git, got {common_dir}")
     return common_dir.parent
+
+
+def git_head(worktree_root: Path) -> str:
+    """Return the immutable Git commit ID for the trusted worktree."""
+    return _run_git(worktree_root, ("rev-parse", "HEAD"))
 
 
 PROJ_ROOT = project_root(Path(__file__).resolve().parents[2])
