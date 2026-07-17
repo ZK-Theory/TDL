@@ -68,6 +68,10 @@ docs/plans/*
 # Version the skill-suite improvement plans (executed from worktrees).
 !docs/plans/skills/
 !docs/plans/skills/**
+# Version the strategy plans (Meta-Research-Plan, audits, transition artifacts —
+# 14 files were already tracked here as overrides before this whitelist).
+!docs/plans/strategy/
+!docs/plans/strategy/**
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
