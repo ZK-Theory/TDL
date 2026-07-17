@@ -25,9 +25,9 @@
 1. [WP6 master — Gate 6 readiness and end-to-end integration](06-wp6-gate6-readiness-and-integration-plan.md)
 2. [WP6.1 — runtime Task lifecycle and operator surface](06a-wp6-1-runtime-task-lifecycle-plan.md) (Gate A A4/A5)
 3. [WP6.2 — live capability: adapters, parity, threshold policy, evaluated profiles](06b-wp6-2-live-capability-plan.md) (Gate A A3/A6)
-4. [WP6.1 literal 104-row owner-source catalogue](06d-wp6-1-owner-source-catalogue.md)
+4. [WP6.1 literal 104-row owner-source catalogue and exact schema/authority/concurrency contracts](06d-wp6-1-owner-source-catalogue.md)
 5. [WP6.2 literal 51-row live replacement map](06e-wp6-2-live-replacement-map.md)
-6. [WP6.2 P1 54-obligation expected-source contract](06f-wp6-2-p1-activation-contract.md)
+6. [WP6.2 P1 54-obligation expected-source and descriptor-hash contract](06f-wp6-2-p1-activation-contract.md)
 
 WP6.3–WP6.7 (TDA/panel assurance pack, project binding + Gate 6 preflight, W11
 portfolio/Discovery specification, dossier admission, legacy consolidation) are scoped

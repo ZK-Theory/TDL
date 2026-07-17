@@ -457,6 +457,18 @@ valid value `pilot_promotion`; `live_capability` is a separate typed `evidence_s
 not a new W6 gate-stage alias. The proposed command identities, P1 grader identities,
 successor construction, and stage split become authoritative only if the corrected
 exact revision passes independent review and Stephen approves it.<br>
+**R3 remediation constraints (pending fresh review and Stephen's exact-revision
+approval, not a superseding owner decision):** WP6.1 contract materialization precedes
+runtime implementation and independently freezes every row's command/event schema
+identity, exact authority subject, the atomic Task-plus-Dispatch claim batch/write set,
+and the closed correction selector. WP6.2 uses a dedicated strict P1 schema and an
+independently produced, reviewed, accepted, content-addressed 54-row expected manifest
+containing every literal descriptor hash before descriptor build or observation.
+Runtime registries, descriptors, manifests, ledgers, and executions are observed-side
+comparison inputs only. A self-consistent coordinated replacement of descriptor bytes
+and the candidate expected manifest still rejects against the D-G6-3 accepted manifest
+identity. F-037 and F-038 summaries bind exactly 12 and 10 execution hashes,
+respectively, with disjoint union 22.<br>
 **Rationale:** A single policy gate before T2 is empirically circular because protected
 provider seams do not yet exist. A full 302-row live-rerun claim would contradict the
 bounded 51-obligation tranche and waste accepted evidence. The staged gate preserves
@@ -474,9 +486,16 @@ Stephen's direct approval of both recommended choices on 2026-07-17.<br>
 Git blob `b9b3963ccfc6ef9bceba9177497a1c83f69c3c18`, reviewing exact commit
 `79f6b1bfb28a02d6a06d5a4a350bfa7262ec6461`. Its seven Major findings and one
 Minor define the pending constraints above; the review does not itself accept them.<br>
+**R3 remediation evidence:** Repository-relative review
+`docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md`,
+Git blob `64748512357161583a7a459df84afa7ef2f784ae`, canonical UTF-8/LF SHA-256
+`fa3f4b6eede006e59df61f68d8372054be159aff2b9d6858978248ba16cf25ed`, reviewing exact
+commit `3cca017c936a1d2b6a6b2049bc866caf5cb79047`. Its six Major findings and one Minor
+define the additional pending constraints above; the review does not itself accept
+them.<br>
 **Boundary:** This accepts sequencing and evidence composition only. It does not
 accept a future T1a protocol hash, a T1b empirical policy hash, any live call/result,
-an evaluated profile, an M/H eligibility transition, the R2 remediation constraints or
+an evaluated profile, an M/H eligibility transition, the R2/R3 remediation constraints or
 proposed identity choices above, the revised D-G6-3 tables as a
 whole, WP6 dispatch, pilot evidence, or a claim.<br>
 **Migration consequence:** WP6.2 dispatch prompts and branches must reproduce the

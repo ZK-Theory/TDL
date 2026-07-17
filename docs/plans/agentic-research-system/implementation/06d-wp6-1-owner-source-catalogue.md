@@ -14,9 +14,10 @@ or duplicate keys fail before any implementation-completeness claim can pass.
 - Each row's `cmd/x` / `CommandType` pair is exact. `cmd/x` means
   `.research-system/schemas/core/commands/x.schema.json`; that command-specific schema
   sets `command_type` to the paired PascalCase value with `const`. The versioned
-  command identity is the pair (`command_type`, command-schema `schema_version`); the
-  same literal type is used by the authority grant, dispatcher, emitted event(s),
-  receipt, and W2 idempotency tuple. W8's snake-case owner tokens map one-to-one to the
+  command identity is the triple (`command_schema_id`, `command_schema_version`,
+  `command_schema_sha256`), with `command_type` fixed by that schema. The same complete
+  identity is bound by the authority grant, dispatcher, emitted event(s), receipt, and
+  WP6 idempotency tuple. W8's snake-case owner tokens map one-to-one to the
   paired PascalCase values shown in §4; this proposed mapping becomes authoritative
   only with Stephen's approval of the exact D-G6-3 revision. No alias is accepted.
 - Event schema `evt/x` means
@@ -47,11 +48,13 @@ or duplicate keys fail before any implementation-completeness claim can pass.
   row cardinality even when implementation callables are shared. No component-wide set
   may credit one implementation or one test to two expected rows.
 - Negative profiles are closed sets:
-  - `N0`: missing field; wrong type; stale expected version; conflicting payload;
-    same idempotency tuple with different payload; atomic no-event/no-projection side
-    effect.
-  - `NE`: `N0` plus illegal from-state/to-state and invalid subject identity.
-  - `NA`: `NE` plus missing/wrong authority, expired grant, and prohibited actor.
+  - `N0`: missing field; wrong type; missing/wrong authority; expired grant;
+    prohibited actor; wrong authority scope; wrong authority subject kind or ID; stale
+    expected version; conflicting payload; same idempotency tuple with different
+    payload; atomic no-event/no-receipt-acceptance/no-projection side effect.
+  - `NE`: `N0` plus illegal from-state/to-state and invalid command subject identity.
+  - `NA`: `NE` plus an authority-rule mutation that retains the command type but changes
+    its accepted subject binding or actor class.
   - `NI`: `NA` plus stale subject hash, ineligible/self-related reviewer, insufficient
     independence grade, and incomplete governing review set.
   - `NC`: `NA` plus competing claim/reservation, incompatible lease or checkpoint,
@@ -60,6 +63,130 @@ or duplicate keys fail before any implementation-completeness claim can pass.
     continuing-consumer disposition, and attempted history mutation.
 - A row's negative-profile cell is its complete applicable set. Implementations may add
   stricter negatives but may not omit or reinterpret any named member.
+
+### 1.1 Independently accepted command/event-schema identities
+
+T1 has a contract-materialization phase before runtime implementation. It writes the
+strict manifest `.research-system/contracts/wp6-1-schema-identities.yaml`,
+validated by
+`.research-system/schemas/contracts/wp6-1-schema-identities.schema.json`
+version `1.0.0`. The manifest contains exactly 104 rows keyed one-to-one by this annex.
+Every row repeats its literal `command_type` and schema repository path and supplies the
+schema's canonical `$id` as `command_schema_id`, literal `schema_version`, and SHA-256 of
+the canonical UTF-8/LF schema bytes as `command_schema_sha256`. It also contains the
+complete ordered `event_schema_bindings`; each binding supplies the event type, schema
+path, canonical `event_schema_id`, literal `event_schema_version`, and
+`event_schema_sha256`. `additionalProperties` is `false` at every object level. Shared
+command/event schemas repeat the identical identities in each applicable row;
+repetition never collapses catalogue cardinality.
+
+The contract author produces the command schemas and manifest from this annex, a
+reviewer who did not implement the schemas independently checks every row against this
+annex and recomputes every hash, and Stephen accepts the exact manifest repository path,
+schema ID/version, Git blob ID, and SHA-256 in D-G6-3. Runtime registrations and the
+schema registry are observed comparison inputs only. They may not produce, fill, filter,
+or repair the expected manifest. No dispatcher/reducer implementation starts until that
+acceptance is recorded.
+
+For each accepted command, the W2 envelope carries the accepted schema ID and version
+and the service resolves and records the accepted content hash. Authority grants contain
+the same complete versioned identity in `allowed_command_identities`; dispatcher keys
+are the complete identity, not `command_type` alone; every emitted event and receipt
+records `command_schema_id`, `command_schema_version`, and `command_schema_sha256`; and
+the WP6 idempotency tuple is `(actor_id, authority_scope, command_type,
+command_schema_id, command_schema_version, command_schema_sha256, idempotency_key)`.
+The event-batch hash covers those fields. A retained `command_type` with any changed
+schema ID, version, or content hash rejects before authority reuse, idempotency lookup,
+position allocation, event publication, or receipt acceptance.
+
+### 1.2 Closed authority-subject bindings
+
+Every one of the 104 semantic-copy rows contains `authority_subject_kind`,
+`authority_subject_id_source`, `authority_scope_source`, and `allowed_actor_classes`.
+The following table is the complete expected mapping. `envelope.target_stream_id` means
+the typed ID of the existing governed record. `payload.new_*_id` is used only for a
+create/publish/register command; the grant must already bind that exact proposed ID.
+
+| Catalogue key family / exception | Exact subject kind | Exact subject-ID source |
+|---|---|---|
+| `scope.*` | `scope_definition` | existing: `envelope.target_stream_id`; `scope.create`: `payload.new_scope_definition_id` |
+| `task.*` | `task` | existing: `envelope.target_stream_id`; `task.create`: `payload.new_task_id` |
+| `dispatch.*`, including both `ClaimDispatch` rows | `dispatch` | `payload.dispatch_id` (must equal the Dispatch member of the declared write set) |
+| `lease.*`, `operator.claim_execution_lease`, `operator.record_heartbeat` | `lease` | existing: `envelope.target_stream_id`; create/claim: `payload.new_lease_id` |
+| `attempt.*`, `operator.request_pause`, `operator.confirm_pause`, `operator.request_stop`, `operator.confirm_stop`, `operator.request_resume`, `operator.quarantine_orphan` | `attempt` | existing: `envelope.target_stream_id`; `attempt.create`/`attempt.retry`: `payload.new_attempt_id` |
+| `checkpoint.record` | `attempt` | `payload.attempt_id` |
+| `message.*` | `message` | existing delivery/ack/failure: `envelope.target_stream_id`; publish: `payload.new_message_id` |
+| `blocker.*` | `blocker` | existing: `envelope.target_stream_id`; `blocker.record`: `payload.new_blocker_id` |
+| `artefact.*`, `operator.adopt_late_artefact` | `artefact` | existing: `envelope.target_stream_id`; `artefact.register`: `payload.new_artefact_id` |
+| `review.*` | `review` | existing: `envelope.target_stream_id`; `review.request`: `payload.new_review_id` |
+| `decision.*`, `rule.evaluate` | `decision` | existing: `envelope.target_stream_id`; `decision.propose`/`rule.evaluate`: `payload.new_decision_id` |
+| `correction.record` | `corrected_record` | `payload.erroneous_record_id`, paired with the closed kind in §1.4 |
+| `operator.request_resource_grant`, `operator.release_resources` | `resource` | `payload.resource_id` |
+| `operator.create_backup`, `operator.verify_restore` | `project_store` | `payload.project_id` |
+
+For every row, `authority_scope_source` is the canonical tuple
+`(envelope.project_id, authority_subject_kind, authority_subject_id_source)`,
+`authority_grant_id_source` is `envelope.authority_grant_id`, and the effective/expiry
+source is the immutable content-addressed grant's `effective_at`/`expires_at`, tested
+against the command acceptance time before version/state checks. The exact allowed
+actor classes for this WP6 catalogue are `{human, agent, service}`; `importer` is
+prohibited. A row's named authority rule and grant can narrow capability within those
+classes but cannot widen or replace this expected actor set. Missing/wrong/expired or
+not-yet-effective grant, prohibited actor, wrong scope, wrong subject kind, wrong
+subject ID, and an authority-rule mutation are executed for every row before
+version/state tests and leave the event tail, receipt acceptance state, and every
+projection unchanged.
+
+### 1.3 Atomic `ClaimDispatch` contract
+
+The two `ClaimDispatch` catalogue rows are mandatory facets of one atomic command, not
+two independently publishable claims. Its envelope/payload binds `dispatch_id`,
+`expected_dispatch_stream_version`, `task_id`, `task_revision`,
+`expected_task_stream_version`, `expected_global_position`, and `expected_tail_hash`.
+Its declared write set is exactly the Dispatch stream and Task stream with their two
+expected versions. The accepted ordered atomic batch is exactly
+`[DispatchClaimed, TaskClaimStarted]`: `DispatchClaimed` is on the Dispatch stream under
+`evt/dispatch_claimed`; `TaskClaimStarted` is on the Task stream under
+`evt/task_claim_started` and binds the same command, Dispatch, Task revision, and lease.
+Replay applies `acknowledged → claimed` to Dispatch and `ready → in_progress` to the
+bound Task revision atomically. The receipt returns both event identities and both
+resulting stream versions.
+
+The semantic copy gives `task.claim_start` and `dispatch.claim` the same
+`atomic_binding_group: claim_dispatch_task_dispatch_v1`, with exact group cardinality
+two. Omission of either facet, omission or staleness of only the Task binding, a
+concurrent Task mutation, a mismatched Task revision, an extra/missing write-set member,
+or a batch/receipt naming only Dispatch rejects before publication and changes neither
+projection.
+
+### 1.4 Closed correction-selector mapping
+
+`projection_selector/corrected_record_kind/v1` has this complete accepted domain. Each
+kind selects exactly the listed owner projection and, separately, the governance
+correction index; no second owner projection is permitted.
+
+| `corrected_record_kind` | Owner projection |
+|---|---|
+| `scope_definition` | `scope` |
+| `task` | `task` |
+| `dispatch` | `dispatch` |
+| `lease` | `lease` |
+| `attempt` | `attempt` |
+| `checkpoint` | `checkpoint` |
+| `message` | `message` |
+| `blocker` | `blocker` |
+| `artefact` | `artefact` |
+| `review` | `review` |
+| `decision` | `decision` |
+| `rule_evaluation` | `decision` |
+| `resource` | `resource` |
+| `operation` | `operations` |
+| `backup` | `backup` |
+
+The table is copied literally into the accepted semantic YAML before implementation;
+the runtime selector registry is comparison input only. Unknown kinds, a swapped
+mapping, zero or multiple owner projections, and omission of the governance correction
+index reject before publication and leave all projections unchanged.
 
 ## 2. Task, scope, dispatch, lease, attempt, and checkpoint rows
 
@@ -76,7 +203,7 @@ or duplicate keys fail before any implementation-completeness claim can pass.
 | `task.block` | W2 §11 `task_blockable → blocked` | `cmd/block_task` / `BlockTask`; `TaskBlocked`; `evt/task_blocked` | `reduce_task`; task, governance | typed blocker, owner, resume condition | `R`; `pos_task_block`; `NE` |
 | `task.request_input` | W2 §11 `task_input_requestable → input_required` | `cmd/request_input` / `RequestInput`; `InputRequested`; `evt/input_requested` | `reduce_task`; task, governance, message | named authority, question, resume condition | `R`; `pos_task_request_input`; `NA` |
 | `task.pause` | W2 §11 `task_pausable → paused` | `cmd/pause_task` / `PauseTask`; `TaskPaused`; `evt/task_paused` | `reduce_task`; task, governance, operations | typed reason, owner, resumable state | `R`; `pos_task_pause`; `NE` |
-| `task.claim_start` | W2 §11 `ready → in_progress` | `cmd/claim_dispatch` / `ClaimDispatch`; `DispatchClaimed`; `evt/dispatch_claimed` | `reduce_dispatch` + `reduce_task`; task, dispatch, operations | open dispatch, authority, lease, context, roots | `R`; `pos_task_claim_start`; `NC` |
+| `task.claim_start` | W2 §11 `ready → in_progress`; atomic group `claim_dispatch_task_dispatch_v1` | `cmd/claim_dispatch` / `ClaimDispatch`; `[DispatchClaimed, TaskClaimStarted]`; `[evt/dispatch_claimed, evt/task_claim_started]` | `reduce_dispatch` + `reduce_task`; task, dispatch, operations | exact Task ID/revision/version and Dispatch ID/version; complete two-stream write set; authority, lease, context, roots | `R` with both events/versions; `pos_task_claim_start`; `NC` |
 | `task.submit_review` | W2 §11 `in_progress → review_pending` | `cmd/submit_for_review` / `SubmitForReview`; `TaskSubmittedForReview`; `evt/task_submitted_for_review` | `reduce_task`; task, governance, review | attempt outcome and candidate artefacts recorded | `R`; `pos_task_submit_review`; `NA` |
 | `task.resume` | W2 §11 `task_suspended → task_prior_active` | `cmd/resume_task` / `ResumeTask`; `TaskResumed`; `evt/task_resumed` | `reduce_task`; task, governance, operations | exact prior allowed state; blocker resolved or authority supplied | `R`; `pos_task_resume`; `NE` |
 | `task.accept` | W2 §11 `review_pending → accepted` | `cmd/accept_task` / `AcceptTask`; `TaskAccepted`; `evt/task_accepted` | `reduce_task`; task, governance | exact satisfied review/acceptance set | `R`; `pos_task_accept`; `NI` |
@@ -90,7 +217,7 @@ or duplicate keys fail before any implementation-completeness claim can pass.
 | `dispatch.issue` | W2 §12 `none → issued` | `cmd/issue_dispatch` / `IssueDispatch`; `DispatchIssued`; `evt/dispatch_issued` | `reduce_dispatch`; dispatch, queue, operations | ready Task; exact route/context/root/policy/resource bindings | `R`; `pos_dispatch_issue`; `NA` |
 | `dispatch.deliver` | W2 §12 `issued → delivered` | `cmd/record_dispatch_delivery` / `RecordDispatchDelivery`; `DispatchDelivered`; `evt/dispatch_delivered` | `reduce_dispatch`; dispatch, queue, message | exact dispatch and delivery evidence | `R`; `pos_dispatch_deliver`; `NE` |
 | `dispatch.acknowledge` | W2 §12 `delivered → acknowledged` | `cmd/acknowledge_dispatch` / `AcknowledgeDispatch`; `DispatchAcknowledged`; `evt/dispatch_acknowledged` | `reduce_dispatch`; dispatch, queue | authorized recipient and delivery identity | `R`; `pos_dispatch_acknowledge`; `NE` |
-| `dispatch.claim` | W2 §12 `acknowledged → claimed` | `cmd/claim_dispatch` / `ClaimDispatch`; `DispatchClaimed`; `evt/dispatch_claimed` | `reduce_dispatch`; dispatch, queue, operations | expected Task/dispatch versions and valid exclusive lease | `R`; `pos_dispatch_claim`; `NC` |
+| `dispatch.claim` | W2 §12 `acknowledged → claimed`; atomic group `claim_dispatch_task_dispatch_v1` | `cmd/claim_dispatch` / `ClaimDispatch`; `[DispatchClaimed, TaskClaimStarted]`; `[evt/dispatch_claimed, evt/task_claim_started]` | `reduce_dispatch` + `reduce_task`; task, dispatch, queue, operations | exact Task ID/revision/version and Dispatch ID/version; complete two-stream write set; valid exclusive lease | `R` with both events/versions; `pos_dispatch_claim`; `NC` |
 | `dispatch.fulfil` | W2 §12 `claimed → fulfilled` | `cmd/fulfil_dispatch` / `FulfilDispatch`; `DispatchFulfilled`; `evt/dispatch_fulfilled` | `reduce_dispatch`; dispatch, queue, operations | terminal producing-attempt disposition recorded | `R`; `pos_dispatch_fulfil`; `NE` |
 | `dispatch.expire_issued` | W2 §12 `issued → expired` | `cmd/expire_dispatch` / `ExpireDispatch`; `DispatchExpired`; `evt/dispatch_expired` | `reduce_dispatch`; dispatch, queue | observed deadline and scheduler authority | `R`; `pos_dispatch_expire_issued`; `NE` |
 | `dispatch.expire_delivered` | W2 §12 `delivered → expired` | `cmd/expire_dispatch` / `ExpireDispatch`; `DispatchExpired`; `evt/dispatch_expired` | `reduce_dispatch`; dispatch, queue | observed deadline and scheduler authority | `R`; `pos_dispatch_expire_delivered`; `NE` |
@@ -185,18 +312,21 @@ no alias, shared row, or implementation-defined substitute satisfies the catalog
 
 ## 5. Binding and exact-set test
 
-T1 copies these rows without semantic alteration into
+T1's contract-materialization phase copies these rows without semantic alteration into
 `.research-system/contracts/wp6-1-owner-source-catalogue.yaml`. The YAML records this
 annex's repository path, Git blob ID, SHA-256, and every row/key above. The SHA-256 is
 computed over the Git blob's canonical UTF-8/LF bytes, not platform-translated
-worktree line endings. Its validator:
+worktree line endings. It also embeds the literal §1.4 selector table, references the
+accepted schema-identity manifest from §1.1 by repository path/Git blob/SHA-256, and
+requires the four exact authority fields in §1.2 for every row. Its validator:
 
 1. parses the accepted annex and validates the closed state-class and negative-profile
    definitions;
 2. expands only the literal state classes and preserves a multiset of complete binding
    records; the expanded set has 182 concrete edges while the normalized row set remains
    exactly 104;
-3. compares each complete record one-to-one with command schemas/types, event schemas
+3. compares each complete record one-to-one with independently accepted command
+   schema IDs/versions/hashes and runtime types, event schemas
    and ordered sets, discriminators/edges, reducers, projections/selectors, authority
    rules, receipts, distinct positive tests, and expanded negative-test identities;
 4. rejects missing, extra, duplicate, aliased, swapped-key, class-incomplete, or
@@ -204,12 +334,16 @@ worktree line endings. Its validator:
 5. proves every negative leaves the event tail and all affected projections unchanged.
 
 The mutation suite changes one complete-record field at a time. It includes a
-`command_type`-only alias; one duplicated binding under two logical keys; swapped keys;
+`command_type`-only alias; retained type with changed schema ID, version, or hash; one
+duplicated binding under two logical keys; swapped keys;
 two positive-test names resolving to one callable; a removed reducer; a removed or
 wrong projection/selector; a changed message-type discriminator; a changed exact edge;
-and a reordered/omitted event. `task.claim_start` must prove the one-member
-`DispatchClaimed` event is reduced into both Task (`ready → in_progress`) and Dispatch,
-whereas `dispatch.claim` proves only its own dispatch edge; global component presence
-cannot compensate for either missing row effect.
+and a reordered/omitted event. It also mutates every row's authority rule/subject
+binding; exercises unknown/swapped/zero-owner/multiple-owner/missing-governance-index
+correction mappings; and exercises the Task-only omissions, stale versions, races, and
+write-set defects in §1.3. Both `ClaimDispatch` facets must be present and prove the
+same ordered `[DispatchClaimed, TaskClaimStarted]` batch reduces Task (`ready →
+in_progress`) and Dispatch (`acknowledged → claimed`) atomically; global component presence cannot
+compensate for either missing facet or effect.
 
 The runtime registry is comparison input only. It is never an expected-set source.

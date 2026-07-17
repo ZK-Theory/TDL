@@ -15,8 +15,9 @@ below, but they must not generate, omit, filter, repair, or rename the expected 
 
 Each result key is the literal six-tuple
 `(fixture_id, fixture_revision, grader_id, grader_class, grader_version, variant_id)`.
-The observed side must supply a passing `grader_result_id` and canonical content hash
-for the same tuple. No class-only alias is a result key.
+The accepted machine-readable row also carries a literal `descriptor_sha256`; the
+observed side must supply a passing `grader_result_id` and canonical content hash for
+the same tuple. No class-only alias is a result key.
 
 | # | Canonical result key | Required observed binding |
 |---:|---|---|
@@ -38,7 +39,8 @@ revision under D-G6-3; implementation may not substitute locally convenient alia
 
 ## 2. Activation obligations (43)
 
-Every activation obligation has its own descriptor hash in the accepted semantic copy.
+Every activation obligation has its own literal descriptor hash in the accepted
+expected manifest defined in §3.
 Observed execution/evidence IDs and hashes are populated only from immutable ledger and
 execution records after the descriptor has been accepted.
 
@@ -94,8 +96,8 @@ ID/hash, producing command/receipt, and exact descriptor hash.
 
 | # | Expected logical key | Obligation |
 |---:|---|---|
-| A36 | `summary/F-037-error-summary-v1` | denominator; false-pass/false-block counts, rates, bounds; uncertainty; all applicable execution hashes |
-| A37 | `summary/F-038-error-summary-v1` | denominator; false-pass/false-block counts, rates, bounds; uncertainty; all applicable execution hashes |
+| A36 | `summary/F-037-error-summary-v1` | denominator; false-pass/false-block counts, rates, bounds; uncertainty; exactly the 12 F-037 execution hashes |
+| A37 | `summary/F-038-error-summary-v1` | denominator; false-pass/false-block counts, rates, bounds; uncertainty; exactly the 10 F-038 execution hashes; disjoint A36/A37 union exactly 22 |
 | A38 | `policy/wp6-live-grader-evidence-policy-v1` | exact accepted composite T1b ID/hash |
 | A39 | `applicability/F-038-applicability-qualitative-v1` | independent evidence, attributed authority, decision ID/hash |
 | A40 | `calibration/F-037-calibration-v1` | calibration record ID/hash and complete execution-set binding |
@@ -106,21 +108,43 @@ ID/hash, producing command/receipt, and exact descriptor hash.
 The exact activation closure is `13 + 22 + 8 = 43`; the complete atomic dependency is
 the disjoint union of B01–B11 and A01–A43, totaling 54 obligations.
 
-## 3. Expected/observed separation and atomic consumer
+## 3. Independently frozen expected manifest and atomic consumer
 
-The accepted machine-readable semantic copy records this annex's repository path, Git
-blob ID, canonical UTF-8/LF SHA-256, all 54 logical keys, descriptor hashes, and binding
-requirements. The pilot-evidence and claim-promotion commands read expected keys only
-from that accepted copy. They read observed result/evidence IDs and hashes only from
-the canonical ledger/execution stores, then compare exact sorted key/hash bindings at
-one expected event position. Neither command nor manifest may declare its own expected
-set.
+T8 is split into contract materialization and observation. Before the first descriptor
+build or execution observation, the contract author produces
+`.research-system/contracts/wp6-2-p1-activation-expected.yaml`, validated by
+`.research-system/schemas/evals/p1-activation-expected.schema.json` version `1.0.0`.
+The contract author is not the descriptor builder, executor, receipt producer, ledger
+loader, or live-evidence producer. A reviewer independent of both author and runtime
+implementation checks all rows against this annex and recomputes every descriptor hash;
+Stephen accepts the exact manifest repository path, schema ID/version, Git blob ID, and
+canonical UTF-8/LF SHA-256 in D-G6-3 before observation is enabled.
+
+The strict manifest contains exactly 54 closed rows: eleven `baseline_result` rows and
+43 `activation` rows. Every row contains `obligation_id`, its complete literal logical
+key, `obligation_kind`, `descriptor_path`, and literal `descriptor_sha256`, plus the
+complete binding requirements stated in §§1–2. It also records this annex's repository
+path, Git blob ID, and canonical UTF-8/LF SHA-256. Keys, kinds, paths, hashes, and
+requirements are required; `additionalProperties` is `false` at every object level.
+Missing, duplicate, extra, relabelled, or observed-derived rows are invalid.
+
+The accepted manifest identity is an immutable expected-side input to the P1 stage
+manifest and to pilot-evidence and claim-promotion commands. Those commands read
+observed descriptor/result/evidence IDs and hashes only from canonical descriptor,
+ledger, and execution stores, then compare the exact sorted 54-row bindings at one
+expected event position. The descriptor builder, executor, receipts, live ledger, and
+P1 stage manifest may neither produce nor amend the expected manifest. Runtime stores
+are comparison input only; neither command nor an observed manifest may declare its own
+expected set.
 
 Before observation, one-at-a-time mutations at the public producer seam must omit or
 alter each obligation class: baseline result, fixture revision, mutation, known-good,
 safe variation, repetition, summary, policy, applicability decision, calibration, and
 activation event. Additional mutations cover stale grader version, same-class grader
 substitution, duplicate result ID, changed descriptor hash, and expected-set generation
-from observed rows. Every rejection publishes no governing event and leaves the event
+from observed rows. A coordinated-source mutation replaces both descriptor bytes and a
+candidate expected manifest with a self-consistent changed hash; it still rejects
+because the candidate manifest's Git blob/SHA-256 differs from the D-G6-3 accepted
+identity. Every rejection publishes no governing event and leaves the event
 tail, accepted-result set, Decision set, activation set, capability state, and claim set
 unchanged.

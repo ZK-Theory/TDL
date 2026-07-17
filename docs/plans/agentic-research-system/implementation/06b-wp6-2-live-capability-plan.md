@@ -7,9 +7,10 @@ T2–T4 additionally require Stephen's acceptance of the exact T1a protocol hash
 and every M/H eligibility transition additionally require Stephen's acceptance of the
 exact composite T1b-M/T1b-H evidence-bearing policy hash (D-G6-2/P-035). Implements accepted decision
 P-033 (no interim operator-executed mode; wording confirmed 2026-07-17).
-**Revision note (2026-07-17):** revised after the R2 remediation review to make T1b a
+**Revision note (2026-07-17):** revised through the R3 remediation review to make T1b a
 non-compensable model/human evidence union, pin literal 51-row and 54-obligation
-expected-source annexes, and separate W6 `gate_stage` from `evidence_stage`. It still
+expected-source annexes, require a strict P1 stage schema and independently accepted
+descriptor-hash manifest, and separate W6 `gate_stage` from `evidence_stage`. It still
 authorizes no implementation or provider call and requires fresh independent review
 and Stephen's approval of the exact revision.
 **Goal:** Clear Gate A blockers A3 and A6 with direct current evidence: live Claude
@@ -148,10 +149,13 @@ Parent: `06-wp6-gate6-readiness-and-integration-plan.md` §3 WP6.2.
   duplicate, or incompatible row leaves the affected capability blocked and stops.
   The evidence is derived from public grader/transport seams, never a config-only
   verdict replacement.
-- **T8 — Activate P1 routing/assurance fixtures F-037–F-038.** Materialize, calibrate,
-  and activate both reserved packages under the exact §5 contract and normative annex
+- **T8 — Activate P1 routing/assurance fixtures F-037–F-038.** First materialize and
+  independently accept the content-addressed 54-row expected manifest required by 06f
+  §3; no descriptor build or observation may precede that boundary. Then materialize,
+  calibrate, and activate both reserved packages under the exact §5 contract and
+  normative annex
   `06f-wp6-2-p1-activation-contract.md`, canonical UTF-8/LF SHA-256
-  `5d459b6b548837425b243e0cd961569c578d258a2dbce211bd6bd3d7375edd84`.
+  `160f898837df14d3f22ba2592eb117766686b5d5d6e4004cb8669886ea8d670c`.
   Register both the
   eleven-row baseline-result set and the separate 43-referent activation closure; the
   atomic pilot/claim dependency is their 54-referent union at one expected event
@@ -218,13 +222,33 @@ cannot compensate for a failed pre-issue row.
 The stage-specific manifest is
 `.research-system/evals/p1-pilot-coverage.yaml` with valid W6
 `gate_stage: pilot_promotion` and typed `evidence_stage: p1_activation`.
+The P1 loader validates it against the dedicated strict schema
+`.research-system/schemas/evals/p1-activation-manifest.schema.json` version `1.0.0`;
+the T7 `live-coverage-manifest` schema and the frozen P0 coverage schema are not valid
+substitutes or branches.
+
+The P1 schema requires `schema_id`, `schema_version`, the two stage constants, and
+`expected_event_position`. It requires the accepted 06f repository path/Git blob/
+canonical UTF-8-LF SHA-256 and the independently accepted
+`.research-system/contracts/wp6-2-p1-activation-expected.yaml` repository path, schema
+ID/version, Git blob, and SHA-256. Its `baseline_bindings` array has exactly eleven
+ordered `prefixItems`, with obligation IDs `B01`–`B11` fixed to their complete six-field
+keys, literal descriptor hashes, verdicts, and result IDs/hashes. Its
+`activation_bindings` array has exactly 43 ordered `prefixItems`, with IDs `A01`–`A43`
+fixed to the complete 06f logical keys, descriptor hashes, and required observed
+bindings. The arrays set `minItems`/`maxItems` to `11` and `43`, respectively, and both
+set `items: false`; every schema object sets
+`additionalProperties: false`. Thus missing, duplicate, extra, reordered, relabelled,
+or incomplete obligations are structurally invalid before semantic comparison.
+
 It selects only F-037 and F-038. Eleven baseline grader results and the complete
 activation evidence are different sets and must never be conflated. The exclusive
 expected-side source for both is `06f-wp6-2-p1-activation-contract.md`, SHA-256
-`5d459b6b548837425b243e0cd961569c578d258a2dbce211bd6bd3d7375edd84`.
-The future machine-readable semantic copy records that path, Git blob, hash, and exact
-54 logical obligations. Runtime manifests and ledger/execution records are observed-side
-inputs only and cannot generate or repair expectations.
+`160f898837df14d3f22ba2592eb117766686b5d5d6e4004cb8669886ea8d670c`.
+The accepted expected manifest fixed by 06f §3 records that identity, every complete
+logical obligation, and every literal descriptor hash. Runtime manifests and
+ledger/execution records are observed-side inputs only and cannot generate or repair
+expectations.
 
 ### 5.1 Exact baseline-result set (11)
 
@@ -260,7 +284,7 @@ manifest carries only observed bindings to them:
 | Known-good cases | `F-037-KG-01`, `F-038-KG-01` | 2 |
 | Safe-variation cases | `F-037-SV-01`, `F-038-SV-01` | 2 |
 | Per-case execution evidence | Exact Cartesian product of the preceding 11 case IDs (7 mutations + 2 known-good + 2 safe-variation) with literal repetition IDs `rep-01` and `rep-02`; each of the 22 entries has verdict, result ID/hash, trace ID/hash, and retained evidence ID/hash | 22 |
-| Error summaries | `F-037-error-summary-v1`, `F-038-error-summary-v1`, each binding denominator, false-pass count/rate/bound, false-block count/rate/bound, uncertainty method/result, and all 22 applicable execution hashes | 2 |
+| Error summaries | `F-037-error-summary-v1` binds its 12 execution hashes; `F-038-error-summary-v1` binds its 10 execution hashes; each binds denominator, false-pass count/rate/bound, false-block count/rate/bound, and uncertainty method/result; their combined closure is exactly 22 | 2 |
 | Threshold policy | `wp6-live-grader-evidence-policy-v1`, exact accepted composite T1b-M/T1b-H ID/hash | 1 |
 | F-038 applicability | `F-038-applicability-qualitative-v1`, exact independently accepted evidence and authority ID/hash | 1 |
 | Calibration records | `F-037-calibration-v1`, `F-038-calibration-v1`, each supplying `calibration_record_id` and hash | 2 |
@@ -283,7 +307,7 @@ Both packages are current only for the exact W2/W5/W6/W10 schema, policy, pack, 
 grader revisions named in their traces; any revision change stales activation. The
 pilot-evidence and claim-promotion commands consume the exact 54-referent union
 (11 baseline + 43 activation) at one expected event position. Each command loads the
-complete expected logical set only from the accepted 06f semantic copy and loads
+complete expected logical set only from the accepted 06f expected manifest and loads
 observed IDs/hashes only from canonical ledger/execution records; the command payload
 cannot declare its own expected set. The single writer either publishes
 the governing event with all referents or publishes nothing. One-at-a-time tests cover
@@ -291,7 +315,11 @@ missing, failed, `unable_to_grade`, stale, duplicate, incompatible, omitted muta
 wrong repetition, changed descriptor hash, incomplete error summary, unaccepted T1b
 policy, and unapproved F-038 applicability. Each omission is also injected at the
 public producer seam before observation so omission from both expected and observed
-dictionaries cannot pass. Every rejection leaves the event tail,
+dictionaries cannot pass. The summary validator separately asserts F-037 has exactly
+12 hashes, F-038 exactly 10, and their disjoint union exactly 22. A coordinated mutation
+replaces both descriptor bytes and a candidate expected manifest with a self-consistent
+changed pair; the immutable D-G6-3 manifest blob/SHA binding rejects it. Every rejection
+leaves the event tail,
 accepted-result set, Decision set, activation set, and claim set unchanged.
 
 ## 6. D-G6-3 literal invariants and expected live outcomes
@@ -370,6 +398,13 @@ changes. Tests also prove that passing a P0 manifest to `eval stage`, or a live/
 manifest to the existing P0 command, fails without invoking a provider or weakening
 the fake-only exact-set checks.
 
+P1 schema/loader negatives separately cover a cross-stage row, a P0 manifest, wrong or
+missing `gate_stage`/`evidence_stage`, each missing/duplicate/extra baseline or activation
+obligation, incomplete six-field baseline keys, missing descriptor hashes, stale or
+substituted 06f path/blob/SHA, stale or substituted expected-manifest path/blob/SHA, and
+a stale expected event position. Every case rejects before provider invocation, event
+allocation, or activation/claim state change.
+
 | Fixture | M rows | H rows | Exact expected T7 outcome |
 |---|---:|---:|---|
 | F-005 | 0 | 1 | All 1 `pass` |
@@ -429,10 +464,13 @@ uv run --no-sync pytest -q tests/research_system/integration/test_wp6_2_invarian
 ```
 
 The baseline test asserts every field in §§6.1–6.3, the literal 251/51 composition and
-06e hash, all 54 P1 referent keys/hashes and 06f hash, producer-seam omissions,
+06e hash, all 54 P1 referent keys/hashes, accepted expected-manifest identity and 06f
+hash, producer-seam omissions and the coordinated descriptor/manifest mutation,
 `gate_stage`/`evidence_stage` routing negatives, unchanged P0 loader behavior,
 unchanged tracked Gate 5 bytes, and O15 disabled. Stephen's D-G6-3 approval cites this
-exact plan revision before T2 begins.
+exact plan revision before T2 begins. The P1 limb remains closed to descriptor build and
+observation until the later T8 contract-materialization output in 06f §3 is independently
+reviewed and accepted by its exact path/schema/blob/SHA identity.
 
 ## 7. Sequencing, branches, and review
 
@@ -471,7 +509,9 @@ exact plan revision before T2 begins.
 - Un-pre-registered invariant drift, as always.
 - Any pilot acceptance or claim-promotion path that does not consume the current exact
   54-referent F-037/F-038 union atomically at one expected event position; any 06f hash
-  mismatch or expected set derived from observed results.
+  mismatch; any expected-manifest path/blob/SHA mismatch; any descriptor build or
+  observation before independent expected-manifest acceptance; or any expected set
+  derived from observed results.
 
 ## 9. Research assurance triage
 

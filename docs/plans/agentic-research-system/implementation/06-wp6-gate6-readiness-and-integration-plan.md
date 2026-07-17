@@ -3,9 +3,10 @@
 **Date:** 2026-07-16
 **Status:** draft, review pending — drafted at Stephen's direction (2026-07-16 session);
 authorizes no implementation.
-**Revision note (2026-07-17):** revised after the R2 remediation review to close its
-seven Major binding-contract findings and portable-provenance Minor while preserving
-Stephen's P-035 sequencing/composition decision.
+**Revision note (2026-07-17):** revised through the R3 remediation review to close the
+strict P1 schema/oracle, versioned schema identity, universal authority, atomic claim,
+correction-selector, and summary-cardinality findings while preserving Stephen's P-035
+sequencing/composition decision and the R2 closures.
 The suite remains non-dispatchable until a fresh independent review finds no open
 Critical/Major item and Stephen approves the exact reviewed revision.
 **Currency update (2026-07-17):** the Gate 5 foundation was accepted at merge
@@ -212,7 +213,7 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 |---|---|---|
 | D-G6-1 | **Closed 2026-07-17** — exact wording of P-031–P-034 confirmed by Stephen | 03-decisions §"Post-Gate-5 owner directions" |
 | D-G6-2 | **Structure closed 2026-07-17 under P-035.** Two exact-hash owner gates remain at execution time: accept T1a's independently reviewed preregistered protocol before T2–T4; after protected T3/T4 calibration and the separate human-rubric/blinded-case run, accept T1b's independently reviewed composite `T1b-M ∪ T1b-H` policy before T5–T8 or any M/H eligibility transition. T1a makes no observed-calibration claim and neither T1b branch compensates for the other. | 05-plan §7.2; W6 §§13/27; D-G5-1; P-035; 06b §§2–3 |
-| D-G6-3 | Approve the literal WP6.1/WP6.2 invariant tables: every changed and unchanged field has exact old/new values, reason/formula, recomputation command, and smoke assertion. Approval cites the exact dispatching revision before execution. | 05-wp5 plan §7; 06a §4; 06b §6 |
+| D-G6-3 | Approve the literal WP6.1/WP6.2 invariant tables and pre-execution expected manifests. Every changed and unchanged field has exact old/new values, reason/formula, recomputation command, and smoke assertion. Approval cites the exact dispatching revision plus the independently reviewed WP6.1 catalogue/schema-identity manifests and WP6.2 54-row descriptor-hash manifest by repository path, schema ID/version, Git blob, and SHA-256 before runtime implementation or observation. | 05-wp5 plan §7; 06a §§3–4; 06b §§5–6; 06d §§1/5; 06f §3 |
 | D-G6-4 | Accept W11 after adversarial review and approve the first ownership-transition batch. No migration begins until W11 proves path/writer exclusivity and the batch disposition is recorded. | WP6.5/WP6.6; P-004/P-021/P-032 |
 | D-G6-5 | Gate 6 preflight acceptance for SCALE-01 as pilot | WP6.4; P-031 |
 
@@ -224,8 +225,9 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
 - **Machine-checkable claims → enforcement artifacts (per WP dispatch plan):**
   - "rich Task/ScopeDefinition and operator lifecycle are complete" → exact-set
     complete-record multiset equality against the accepted, content-addressed W2/W8
-    literal catalogue, exact `command_type`, semantic command/event/discriminator/
-    reducer/projection/authority/receipt bindings, and
+    literal catalogue, exact versioned command/event schema identities, semantic
+    command/event/discriminator/reducer/projection/authority-subject/receipt bindings,
+    atomic Task-plus-Dispatch claim write set, closed correction selector, and
     one-field/illegal-transition/
     conflicting-payload atomic negatives (WP6.1 §§2–3);
   - "live issue is secret-safe and cost-bounded" → sentinel injection at every
@@ -239,9 +241,10 @@ WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)
     negatives (WP6.2 T6);
   - "P1 pilot blockers are active" → the canonical six-tuple 11 baseline rows and separate
     43-referent calibration/activation closure are consumed as one 54-referent atomic
-    union from the independent content-addressed 06f expected source by pilot-evidence
-    acceptance and claim promotion; presence-only packages, baseline-only success, or
-    observed-side generation of expectations cannot pass (WP6.2 T8);
+    union from the independently accepted content-addressed 54-row descriptor-hash
+    manifest under the strict P1 stage schema by pilot-evidence acceptance and claim
+    promotion; presence-only packages, baseline-only success, a stale 06f/manifest
+    identity, or observed-side generation of expectations cannot pass (WP6.2 T8);
   - "admission validates content addresses" → exact manifest-required-set closure;
     missing, duplicate, extra, stale-revision, incompatible, or tampered components
     block admission atomically with zero object/ScopeDefinition publication (WP6.6);
@@ -259,9 +262,9 @@ retire these rows.
 | Source | Exact obligation and owner | Trigger | Disposition |
 |---|---|---|---|
 | W1 §9.6; W7 §§9/21 | No credential/`.env` content crosses context, generated adapter, payload, argv/config, event, receipt, object, or fixture; WP6.2 implementer, independently reviewed | Before any provider invocation | WP6.2 T2/T3/T4 and §4 pre-issue matrix; post-run scan is defense in depth only. |
-| W2 §§10–21; W8 §§7–21 | Exact accepted lifecycle/catalogue, not an implemented subset; WP6.1 implementer and reviewer | Before WP6.1 dispatch/merge | 06a §3 plus content-addressed 06d literal 104-row complete-binding catalogue, exact `command_type`, row-cardinality/effect checks, and one-field mutations. |
+| W2 §§10–21; W8 §§7–21 | Exact accepted lifecycle/catalogue, not an implemented subset; WP6.1 implementer and reviewer | Before WP6.1 runtime implementation/merge | 06a §3 plus content-addressed 06d literal 104-row complete-binding catalogue and independently accepted schema-identity manifest; complete versioned identity propagation; exact authority subjects on all rows; atomic Task-plus-Dispatch claim; closed correction selector; row-cardinality/effect checks; one-field and race mutations. |
 | W4 §§10.2–10.3 | Complete current evaluation evidence and eligibility; T6 producer, distinct reviewer, Stephen approval | Before any route relies on a profile | 06b T6 and master exit checklist. |
-| W6 addendum F-037/F-038 | Materialize, calibrate, activate, and consume the exact 54-referent union as P1 blockers; T8 producer and distinct review | Before pilot evidence acceptance or claim promotion | Content-addressed 06f expected source plus 06b §§5–6; baseline rows and activation evidence are separate non-compensable sets and producing-seam omissions reject. |
+| W6 addendum F-037/F-038 | Independently freeze, then materialize, calibrate, activate, and consume the exact 54-referent union as P1 blockers; expected-manifest producer, distinct reviewer, runtime producer | Expected manifest before descriptor build/observation; evidence before pilot acceptance or claim promotion | Strict P1 stage schema plus content-addressed 54-row descriptor-hash expected manifest under 06f §3 and 06b §§5–6; baseline rows and activation evidence are separate non-compensable sets; producing-seam omissions and coordinated descriptor/manifest replacement reject. |
 | P-018/P-030/P-035 | T7 closure is exactly 251 immutable `foundation_release` references plus 51 new `live_capability` results with a bijective predecessor map; WP6.2 implementer and reviewer | Before any M/H capability becomes eligible | Content-addressed literal 06e map; 06b §6.2 schema with valid W6 `gate_stage`, separate `evidence_stage`, stage-aware loader/CLI, provenance negatives, and invariant smoke. |
 | D-G5-3/D-G6-3 | Literal old/new/reason/formula/command/smoke, including unchanged fields; Stephen | Before WP6.1 or WP6.2 execution | 06a §4 and 06b §6; approval cites exact revision. |
 | P-004/P-021/P-032 | Legacy and successor writers never share a mutable path; W11 author and migration authority | Before W11 acceptance or any transition | WP6.5 registered paths, writer sets, ingestion, collision and one-way cutover tests. |
@@ -297,13 +300,20 @@ sub-plan prose is not enforced by it.
       reason/formula, recomputation command, and smoke in the exact dispatching plan
       revision; Stephen approves that revision before execution (D-G6-3; 06a §4,
       06b §6).
+- [ ] Before WP6.1 runtime implementation, Stephen accepts the independently reviewed
+      104-row catalogue and per-row command/event schema-identity manifests by exact
+      path, schema ID/version, Git blob, and SHA-256. They bind every authority subject,
+      the atomic two-stream claim, and the closed correction selector (06a §3; 06d).
+- [ ] Before any P1 descriptor build or observation, Stephen accepts the independently
+      produced/reviewed 54-row expected manifest containing every literal descriptor
+      hash; the strict P1 schema and coordinated-pair mutation pass (06b §5; 06f §3).
 - [ ] Evaluated model profiles accepted by Stephen at their claimed capability
       grades (06b T6 human-review item) before any route relies on them.
 - [ ] Stephen records the WP6.1 operator-usability disposition after tranche review;
       a technically complete but routinely bypassable surface does not clear A5.
 - [ ] WP6.1 and WP6.2 merged via review-then-merge; Gate A A3–A6 cleared with
       direct current evidence, including the content-addressed literal W2/W8 complete-
-      binding catalogue with exact command types,
+      binding catalogue with exact versioned command/event identities and authority,
       provider-specific
       pre-issue secret/cost negatives, execution-bound live parity, complete W4
       profiles, the exact 251+51 composite closure from 06e, and the active 54-referent

@@ -4,10 +4,12 @@
 **Status:** draft, review pending — authorizes no implementation; dispatch is gated on
 Gate 5 close (WP5.6) and Stephen's approval of this plan with its pre-registered
 invariant re-baseline (D-G6-3).
-**Revision note (2026-07-17):** revised after the R2 remediation review so every one of
-the 104 rows binds an exact runtime `command_type`, and exact-set validation compares
-complete row records rather than independently creditable component sets. The revision
-still authorizes no implementation and requires fresh independent review before
+**Revision note (2026-07-17):** revised through the R3 remediation review so every one
+of the 104 rows binds exact command/event schema identity and authority subject data,
+the claim is an atomic two-stream batch, and the correction selector is closed. Exact-
+set validation compares complete row records rather than independently creditable
+component sets. The revision still authorizes no implementation and requires fresh
+independent review before
 approval.
 **Goal:** Materialize the accepted W2 runtime record set and lifecycle (rich Task,
 ScopeDefinition, dispatch/claim/lease/attempt, messages, blockers/Partial, artefact
@@ -42,7 +44,10 @@ operator command surface with durable projections.
 Each task lands with schema files under `.research-system/`, registered ID kinds,
 reducer + projection coverage, and binding tests. Order is the dependency order.
 
-- **T1 — Rich Task record and ScopeDefinition.** W2 §10 Task definition (identity,
+- **T1 — Contract materialization, then rich Task record and ScopeDefinition.** Before
+  runtime implementation, materialize and independently review the two exact manifests
+  in §3; D-G6-3 acceptance of their content identities releases the implementation
+  phase. Then implement W2 §10 Task definition (identity,
   revision, aliases, project, portfolio/scope references, purpose, risk request,
   governing references, readiness preconditions) and the P-012 ScopeDefinition record
   with versioned membership and typed dispositions. Commands: create/supersede/amend-
@@ -60,11 +65,16 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
 - **T2 — Dispatch, claim, lease, attempt.** W2 §12 lifecycle with W8 lease integration
   (the `operations/leases.py` machinery becomes the runtime lease authority);
   idempotency and concurrency per W2 §13. An attempt never silently replaces another
-  (P-010 epochs). **Binding tests:** double-claim contention yields exactly one
+  (P-010 epochs). `ClaimDispatch` uses the exact two-stream envelope/write set and
+  ordered `[DispatchClaimed, TaskClaimStarted]` atomic batch in 06d §1.3; both expected
+  versions advance together or neither does. **Binding tests:** double-claim contention
+  yields exactly one
   holder; two claimants using conflicting payloads yield exactly one holder and one
   conflict; a command replayed with the same idempotency tuple and canonical payload
   returns the original receipt; the same tuple with a different payload is rejected
-  as `idempotency_conflict` with no event publication; attempt supersession preserves
+  as `idempotency_conflict` with no event publication; omitting or staling only the Task
+  binding, racing the Task stream, or changing the declared write set rejects with no
+  Task/Dispatch/event/receipt-acceptance change; attempt supersession preserves
   the prior attempt's evidence.
 - **T3 — Messages, blockers, input-required, Partial.** W2 §§14–15; P-009 immutable
   publication/delivery/acknowledgement events; Partial as both attempt outcome and
@@ -89,7 +99,9 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   a producer-related or context-ineligible verdict cannot satisfy the required review
   set; `AcceptTask` fails unless the exact review set is satisfied; only authorized
   `ResolveDecision` can resolve a Decision, and a `RuleEvaluation` cannot supply that
-  authority; a correction leaves the original event chain intact and replayable.
+  authority; a correction leaves the original event chain intact and replayable. The
+  correction tests compare the closed 06d §1.4 mapping against runtime behavior and
+  reject unknown/swapped/zero-owner/multiple-owner/missing-governance-index mappings.
 - **T6 — Typed operator command surface.** Register the exact W8 §20 catalogue —
   `request_resource_grant`, `claim_execution_lease`, `record_heartbeat`,
   `request_pause`, `confirm_pause`, `request_stop`, `confirm_stop`, `request_resume`,
@@ -102,11 +114,14 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
   programme's §9 stop contract is the same shape). Proportional profiles per P-025:
   the `trivial` profile keeps typed request/grant/lease/terminal-receipt evidence
   with benchmark/checkpoint/heartbeat groups explicitly `not_applicable`.
-  **Binding tests:** exact complete-record multiset equality; for every command, valid execution emits
-  exactly one receipt and replayable event, while missing/wrong-type authority,
+  **Binding tests:** exact complete-record multiset equality; for every command, valid
+  execution emits exactly one receipt and its exact replayable ordered event set, while
+  missing/wrong-type authority,
   subject, state/version, idempotency, and evidence fields reject atomically; a
   kill-and-recover scenario (Gate-3 recovery pattern) proves the canonical tail and
-  projected state; heartbeat lapse on a `long_running` profile produces the W8
+  projected state; the full authority attack set and exact subject binding are exercised
+  for all 104 catalogue rows, including every W8 row; heartbeat lapse on a
+  `long_running` profile produces the W8
   escalation, not silent continuation.
 - **T7 — Human-readable projections.** W2 §11 separate lifecycle projections
   (research-governance status vs operational state, P-008): current task, attempt,
@@ -125,17 +140,26 @@ reducer + projection coverage, and binding tests. Order is the dependency order.
 
 The normative expected set is the 104-row annex
 `06d-wp6-1-owner-source-catalogue.md`, SHA-256
-`e3a26fc6b1d602fe2ce67d4369b6086774fcd1858b4153165dac97018dbd962f`.
+`967c753f5954bd2045e55e0db643c6bdb91d4b58f3af953e82584943158022e6`.
 It has one normalized row per W2 §10–§19 command/edge and one row for each of the
 thirteen W8 §20 operator commands. Each row independently names the exact runtime
 `command_type`, command schema, ordered semantic-event set, event schema, discriminator
 and edge, reducer, exact projections or typed selector, authority/precondition, receipt,
 distinct positive test, and its closed negative-test profile.
 
-Before production implementation, T1 creates
+T1 is split into a contract-materialization phase and a runtime-implementation phase.
+In the first phase it creates
 `.research-system/contracts/wp6-1-owner-source-catalogue.yaml` as a semantic copy of
 that exact annex and records the annex path, Git blob ID, SHA-256, and row keys. The
-exact-set validator expands only the annex's literal closed state classes, then compares
+same phase creates the independently reviewed 104-row
+`.research-system/contracts/wp6-1-schema-identities.yaml` under the strict
+schema and producer/reviewer/acceptor boundary fixed by 06d §1.1. Every complete row
+also carries the exact authority subject binding from 06d §1.2; the correction selector
+copies the closed mapping in §1.4. Stephen accepts both manifests' exact repository
+paths, schema IDs/versions, Git blob IDs, and SHA-256 values in D-G6-3 before the second
+phase may implement or register a command.
+
+The exact-set validator expands only the annex's literal closed state classes, then compares
 a multiset of complete expected binding records one-to-one with schemas, command types,
 runtime registrations, ordered events, discriminators/edges, reducers, projections or
 selectors, authority rules, receipts, and distinct tests. Shared implementation code
@@ -143,16 +167,24 @@ does not collapse row cardinality. It rejects a missing, extra, duplicate, alias
 swapped-key, class-incomplete, or hash-mismatched row. Runtime registrations are
 comparison input only and can never generate or repair the expected set.
 
-The annex's negative profiles include one-field missing/wrong-type, illegal transition,
+The annex's base negative profile applies missing/wrong/expired authority, prohibited
+actor, wrong scope, and wrong authority subject kind/ID to all 104 rows before
+version/state checks. Its remaining profiles include one-field missing/wrong-type,
+illegal transition,
 stale version or subject hash, conflicting payload, idempotency conflict, authority,
 independence, compatibility, supersession, and atomic-no-side-effect cases wherever
 applicable. Every rejection leaves the event tail and all affected projections
 unchanged.
 The mutation suite also changes only `command_type`, duplicates a complete binding,
 swaps keys, aliases two tests to one callable, removes one reducer/projection, changes a
-message discriminator, and changes one ordered event. Each command-specific schema uses
-`const` for the exact type; the grant, dispatcher, event, receipt, and W2 idempotency
-tuple must carry the identical literal value.
+message discriminator, and changes one ordered event. It also retains a command type
+while changing only its schema ID/version/hash, mutates each row's authority binding,
+mutates the closed correction mapping, and races the Task side of `ClaimDispatch`.
+Each command-specific schema uses `const` for the exact type; the grant, dispatcher,
+event, receipt, and WP6 idempotency tuple carry the identical complete versioned command
+identity. `ClaimDispatch` binds and atomically validates the exact Task and Dispatch IDs,
+revisions/versions, global position/tail, and complete two-stream write set fixed by 06d
+§1.3; a one-sided claim cannot publish.
 
 ## 4. D-G6-3 invariant table and executable smoke
 
