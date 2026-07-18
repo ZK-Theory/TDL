@@ -15,8 +15,11 @@ Two tests:
        demographically-stratified trajectory subgroups, replacing the
        current bootstrap-p approach.
 
-Uses hera (via gudhi Python bindings) for exact Wasserstein distances.
-Falls back to scipy-based approximation if hera is unavailable.
+Primary backend is gudhi.hera.wasserstein_distance (Kerber-Morozov-Nigmetov
+geometric matching; no POT dependency), called with delta=1e-8 so the
+(1+delta) relative-error bound is exact to well below numerical precision.
+Falls back to a scipy linear_sum_assignment solve if hera is unavailable.
+The backend that actually ran is stamped in WassersteinNullResult.method.
 
 References:
     Robinson, A., & Turner, K. (2017). Hypothesis testing for topological
@@ -37,6 +40,24 @@ from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
+# Relative-error tolerance passed to hera: the returned value is within a
+# (1 + _HERA_DELTA) factor of the true distance, i.e. exact to ~1e-8.
+_HERA_DELTA = 1e-8
+
+
+def _resolve_backend() -> str:
+    """Return the Wasserstein backend that _compute_wasserstein_distance will use.
+
+    Returns:
+        'hera' if gudhi's hera bindings import cleanly, else 'scipy'.
+    """
+    try:
+        import gudhi.hera  # noqa: F401
+
+        return "hera"
+    except ImportError:
+        return "scipy"
+
 
 def _compute_wasserstein_distance(
     diagram_a: NDArray[np.float64],
@@ -45,8 +66,11 @@ def _compute_wasserstein_distance(
 ) -> float:
     """Compute Wasserstein distance between two persistence diagrams.
 
-    Attempts to use gudhi's hera bindings (exact, fast C++). Falls back
-    to a scipy-based approximation using the linear_sum_assignment solver.
+    Primary path is gudhi.hera.wasserstein_distance (exact up to a 1e-8
+    relative delta; no POT dependency — the POT-backed gudhi.wasserstein
+    module is deliberately not used, see APM Failure Inventory Class 1).
+    Falls back to a scipy linear_sum_assignment solve if hera is
+    unavailable.
 
     Args:
         diagram_a: Persistence diagram, shape (n_pairs, 2) with (birth, death).
@@ -62,15 +86,15 @@ def _compute_wasserstein_distance(
     finite_b = diagram_b[np.isfinite(diagram_b).all(axis=1)]
 
     try:
-        import gudhi.wasserstein
+        import gudhi.hera
 
-        dist = gudhi.wasserstein.wasserstein_distance(finite_a, finite_b, order=order, internal_p=2)
+        dist = gudhi.hera.wasserstein_distance(finite_a, finite_b, order=order, internal_p=2, delta=_HERA_DELTA)
         return float(dist)
 
     except ImportError:
         warnings.warn(
-            "gudhi.wasserstein not available; falling back to scipy approximation. "
-            "Install gudhi with hera support for exact distances: pip install gudhi",
+            "gudhi.hera not available; falling back to the scipy linear_sum_assignment solve. "
+            "Install gudhi with hera support for fast exact distances: pip install gudhi",
             stacklevel=2,
         )
         return _scipy_wasserstein_approx(finite_a, finite_b, order)
@@ -133,7 +157,8 @@ class WassersteinNullResult:
         z_score: Standardised effect size vs. null distribution.
         wasserstein_order: The Wasserstein order used.
         n_null_simulations: Number of null diagrams tested.
-        method: 'gudhi' (exact) or 'scipy' (approximate).
+        method: 'hera' (exact up to 1e-8 relative delta) or 'scipy'
+            (linear_sum_assignment fallback).
     """
 
     observed_distance: float
@@ -170,12 +195,7 @@ def diagram_wasserstein_pvalue(
     Returns:
         WassersteinNullResult with p-value and z-score.
     """
-    try:
-        import gudhi.wasserstein  # noqa: F401
-
-        method = "gudhi"
-    except ImportError:
-        method = "scipy"
+    method = _resolve_backend()
 
     # Observed test statistic: mean Wasserstein distance from the observed
     # diagram to each null diagram.
@@ -204,7 +224,7 @@ def diagram_wasserstein_pvalue(
     p_value = float((null_test_stats >= observed_distance).mean())
 
     logger.info(
-        "Wasserstein null test: observed distance=%.4f, null mean=%.4f, " "z=%.3f, p=%.4f (%s)",
+        "Wasserstein null test: observed distance=%.4f, null mean=%.4f, z=%.3f, p=%.4f (%s)",
         observed_distance,
         null_mean,
         z_score,
@@ -302,9 +322,7 @@ def stratified_wasserstein_test(
             "ripser not available; stratified Wasserstein test cannot compute null "
             "diagrams. Install ripser to run this test."
         )
-        raise ImportError(
-            "ripser is required to compute null diagrams for the stratified " "Wasserstein test."
-        ) from exc
+        raise ImportError("ripser is required to compute null diagrams for the stratified Wasserstein test.") from exc
 
     for perm_idx in range(n_permutations):
         shuffled = rng.permutation(group_memberships)
