@@ -142797,6 +142797,32 @@
   "provenance": {
     "generated_at": "2026-07-18T09:20:02.186698+00:00",
     "git_commit": "69ef7dbfcad48d9e2834a8c90a834b73db7db278",
+    "execution_fingerprint": {
+      "schema_version": "deprivation-scale-coherence-execution/v1",
+      "input_sha256": {
+        "imd2025_file7": "b1b716aa2e476449f987b9de3e08255b4794eabfd270626de5de18b2f5eff3ef",
+        "lsoa_boundaries": "34d637634532b16824c576f0a297ee6ce07962b88d23aa0fd8e564c97a3d0f38"
+      },
+      "statistic_schema_version": "deprivation-scale-coherence/v1",
+      "family_sha256": "b8fee887a54871bbccd8d30d35d37d94c147a8b5e8f47cc9be7f212179262192",
+      "B": 999,
+      "seed": 42,
+      "per_draw_seeds": "42+b for b=0..998",
+      "ks": [
+        3,
+        5,
+        7,
+        10,
+        15
+      ],
+      "workers": 8,
+      "execution_commit": "4ceb68c955f29f805df32aceb76f6470ca63d096",
+      "fingerprint_sha256": "d47d502fc7a0b501cc8b26910e394e69e16773660b01bbd5a172d88ac5bef77b"
+    },
+    "execution_fingerprint_evidence": {
+      "status": "retrospective-binding-of-immutable-batch-hashes",
+      "basis": "All three preserved batch artifacts were generated after execution commit 4ceb68c955f29f805df32aceb76f6470ca63d096 and before the next branch commit; their original SHA-256 digests remain unchanged. Future artifacts require this fingerprint in-band."
+    },
     "inputs": {
       "imd2025_file7": {
         "path": "data/imd2025_file7.csv",
@@ -142816,6 +142842,7 @@
         "path": "results/poverty_tda_mcbif/staged_launch_plan_deprivation_scale_coherence_2026-07-16.json",
         "sha256": "96615eca9eee9546547bd761066b320ff3750ca114f120e8dae4a239577adaa3",
         "family_sha256": "b8fee887a54871bbccd8d30d35d37d94c147a8b5e8f47cc9be7f212179262192",
+        "execution_fingerprint_sha256": "d47d502fc7a0b501cc8b26910e394e69e16773660b01bbd5a172d88ac5bef77b",
         "approval": {
           "approved_at": "2026-07-16T11:21:29.760700+00:00",
           "approved_by": "User",
@@ -142828,6 +142855,7 @@
           "path": "results/poverty_tda_mcbif/.partial/deprivation_scale_coherence/staged_results/batch_1.json",
           "sha256": "9afeb7806fc73a485262ca3d104cf74231f50bf2344b96cc217cc664c6983e18",
           "member_count": 23,
+          "execution_fingerprint_sha256": "d47d502fc7a0b501cc8b26910e394e69e16773660b01bbd5a172d88ac5bef77b",
           "elapsed_seconds": 17002.2544166
         },
         {
@@ -142835,6 +142863,7 @@
           "path": "results/poverty_tda_mcbif/.partial/deprivation_scale_coherence/staged_results/batch_2.json",
           "sha256": "d9d438b017d1116885a478f88880fa335720c73ecae004691b0cf0d654d46834",
           "member_count": 23,
+          "execution_fingerprint_sha256": "d47d502fc7a0b501cc8b26910e394e69e16773660b01bbd5a172d88ac5bef77b",
           "elapsed_seconds": 14468.524817600002
         },
         {
@@ -142842,6 +142871,7 @@
           "path": "results/poverty_tda_mcbif/.partial/deprivation_scale_coherence/staged_results/batch_3.json",
           "sha256": "43656e2e850874cf8771ce37221615b69bacd5c7ab37f51319b24d2cc7e21324",
           "member_count": 23,
+          "execution_fingerprint_sha256": "d47d502fc7a0b501cc8b26910e394e69e16773660b01bbd5a172d88ac5bef77b",
           "elapsed_seconds": 14017.6860231
         }
       ],

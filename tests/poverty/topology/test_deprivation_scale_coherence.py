@@ -58,6 +58,17 @@ def test_null_validity_requires_partition_perturbation_and_positive_variance() -
     assert "zero_null_variance" in degenerate["reasons"]
 
 
+def test_null_validity_treats_renamed_cluster_labels_as_the_same_partition() -> None:
+    observed = [np.array([0, 0, 1, 1], dtype=np.int64)]
+    relabelled = [np.array([7, 7, 3, 3], dtype=np.int64)]
+
+    record = coherence.null_validity_record(observed, relabelled, np.array([1.0, 2.0]))
+
+    assert record["first_draw_partitions_perturbed"] is False
+    assert record["valid"] is False
+    assert "partition_invariant" in record["reasons"]
+
+
 def test_redundancy_requires_both_locked_correlations_to_fail() -> None:
     h1 = np.array([1.0, 2.0, 3.0, 4.0])
 

@@ -79,10 +79,10 @@ not prove edit authority.
 
 Before any worktree write:
 
-An explicit user instruction to create and operate in a named worktree is
-authority for that requested provisioning. The checks below prevent accidental
-or unrelated cross-worktree writes; they do not veto the specifically requested
-`git worktree add`, environment bootstrap, or task execution.
+An explicit user instruction to create a named worktree is authority for that
+requested `git worktree add` and environment bootstrap only. Code, test, and
+result writes inside the new worktree remain subject to the exact-root
+authorization checks below.
 
 1. Compare the resolved target worktree with the runtime's declared
    `workspace_roots` / `writable_roots`. If the exact worktree is not an

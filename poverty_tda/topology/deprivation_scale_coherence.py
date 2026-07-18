@@ -7,6 +7,8 @@ nodes before any standardisation, neighbourhood averaging, or clustering.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -26,12 +28,106 @@ B_LOCKED = 999
 LAD_FLOOR = 150
 IMD_SHA256 = "b1b716aa2e476449f987b9de3e08255b4794eabfd270626de5de18b2f5eff3ef"
 LSOA_SHA256 = "34d637634532b16824c576f0a297ee6ce07962b88d23aa0fd8e564c97a3d0f38"
+FAMILY_SCHEMA_VERSION = "deprivation-scale-coherence-family/v1"
+EXECUTION_FINGERPRINT_SCHEMA_VERSION = "deprivation-scale-coherence-execution/v1"
+SPIKE_LAD_CODES = (
+    "E08000025",  # Birmingham
+    "E08000035",  # Leeds
+    "E06000065",  # North Yorkshire
+    "E08000019",  # Sheffield
+    "E06000066",  # Somerset
+    "E06000052",  # Cornwall
+)
+
+
+def canonical_family_sha256(members: list[dict[str, Any]]) -> str:
+    """Return the locked digest of the ordered frozen LAD enumeration."""
+    canonical = json.dumps(members, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _canonical_partition(labels: NDArray[np.int64]) -> NDArray[np.int64]:
+    """Canonicalize labels by order of first appearance."""
+    values = np.asarray(labels)
+    if values.ndim != 1:
+        raise ValueError("partition labels must be one-dimensional")
+    canonical = np.empty(len(values), dtype=np.int64)
+    label_ids: dict[object, int] = {}
+    for index, label in enumerate(values.tolist()):
+        if label not in label_ids:
+            label_ids[label] = len(label_ids)
+        canonical[index] = label_ids[label]
+    return canonical
+
+
+def partitions_equivalent(left: NDArray[np.int64], right: NDArray[np.int64]) -> bool:
+    """Return whether two partitions encode the same memberships modulo labels."""
+    left_values = np.asarray(left)
+    right_values = np.asarray(right)
+    return left_values.shape == right_values.shape and np.array_equal(
+        _canonical_partition(left_values),
+        _canonical_partition(right_values),
+    )
+
+
+def execution_fingerprint_sha256(fingerprint: dict[str, Any]) -> str:
+    """Hash an execution fingerprint without its self-digest field."""
+    core = {key: value for key, value in fingerprint.items() if key != "fingerprint_sha256"}
+    canonical = json.dumps(core, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def validate_execution_fingerprint(fingerprint: dict[str, Any]) -> None:
+    """Validate the complete execution identity used by caches and staged rows."""
+    if not isinstance(fingerprint, dict):
+        raise ValueError("execution fingerprint must be a dict")
+    required = {
+        "schema_version",
+        "input_sha256",
+        "statistic_schema_version",
+        "family_sha256",
+        "B",
+        "seed",
+        "per_draw_seeds",
+        "ks",
+        "workers",
+        "execution_commit",
+        "fingerprint_sha256",
+    }
+    if set(fingerprint) != required:
+        raise ValueError("execution fingerprint fields do not match the locked schema")
+    expected_literals = {
+        "schema_version": EXECUTION_FINGERPRINT_SCHEMA_VERSION,
+        "statistic_schema_version": SCHEMA_VERSION,
+        "B": B_LOCKED,
+        "seed": SEED,
+        "per_draw_seeds": "42+b for b=0..998",
+        "ks": list(KS),
+        "workers": 8,
+    }
+    if any(fingerprint.get(key) != value for key, value in expected_literals.items()):
+        raise ValueError("execution fingerprint differs from the locked statistic, seeds, KS, B, or workers")
+    inputs = fingerprint.get("input_sha256")
+    if not isinstance(inputs, dict) or set(inputs) != {"imd2025_file7", "lsoa_boundaries"}:
+        raise ValueError("execution fingerprint input hashes are incomplete")
+    hex_fields = [*inputs.values(), fingerprint.get("family_sha256"), fingerprint.get("fingerprint_sha256")]
+    if any(
+        not isinstance(value, str) or len(value) != 64 or any(char not in "0123456789abcdef" for char in value)
+        for value in hex_fields
+    ):
+        raise ValueError("execution fingerprint contains an invalid SHA-256")
+    commit = fingerprint.get("execution_commit")
+    if not isinstance(commit, str) or len(commit) != 40 or any(char not in "0123456789abcdef" for char in commit):
+        raise ValueError("execution fingerprint commit must be a full lowercase Git SHA")
+    if fingerprint["fingerprint_sha256"] != execution_fingerprint_sha256(fingerprint):
+        raise ValueError("execution fingerprint self-digest is invalid")
 
 
 def _validate_inputs(
     raw: NDArray[np.float64],
     closed_neighbours: Sequence[NDArray[np.intp]],
 ) -> None:
+    """Validate the shared statistic's raw values and fixed neighbourhoods."""
     if raw.ndim != 2 or raw.shape[1] != N_DOMAINS:
         raise ValueError(f"raw must have shape (n, {N_DOMAINS}); got {raw.shape}")
     if not np.isfinite(raw).all():
@@ -136,7 +232,7 @@ def null_validity_record(
         for observed, probe in zip(observed_partitions, probe_partitions, strict=True)
     )
     partitions_perturbed = shapes_match and any(
-        not np.array_equal(observed, probe)
+        not partitions_equivalent(observed, probe)
         for observed, probe in zip(observed_partitions, probe_partitions, strict=True)
     )
     values = np.asarray(null_values, dtype=np.float64)
@@ -192,6 +288,7 @@ def redundancy_record(
 
 
 def _require_close(actual: object, expected: float, field: str) -> None:
+    """Require a finite numeric field to equal its recomputed value."""
     if isinstance(actual, bool) or not isinstance(actual, (int, float)):
         raise ValueError(f"{field} must be numeric")
     if not np.isfinite(actual) or not np.isclose(float(actual), expected, rtol=0.0, atol=1e-12):
@@ -199,6 +296,7 @@ def _require_close(actual: object, expected: float, field: str) -> None:
 
 
 def _direction_vs_base_rate(fraction: float) -> str:
+    """Classify a rejection fraction relative to the locked alpha base rate."""
     if fraction > ALPHA:
         return "above"
     if fraction < ALPHA:
@@ -280,16 +378,26 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
     for key, expected in expected_params.items():
         if type(params.get(key)) is not type(expected) or params.get(key) != expected:
             raise ValueError(f"params.{key} must equal {expected!r} with exact type")
-    if type(params.get("workers")) is not int or params["workers"] < 8:
-        raise ValueError("params.workers must be an int >= 8")
+    if type(params.get("workers")) is not int or params["workers"] != 8:
+        raise ValueError("params.workers must equal the locked value 8")
 
     family = payload["lad_family"]
     rows = payload["lad_results"]
     if not isinstance(family, dict) or not isinstance(rows, list) or not rows:
         raise ValueError("lad_family and non-empty lad_results are required")
     members = family.get("members")
-    if type(family.get("eligible_count")) is not int or not isinstance(members, list):
+    enumerated_members = family.get("enumerated_members")
+    if (
+        type(family.get("eligible_count")) is not int
+        or not isinstance(members, list)
+        or type(family.get("enumerated_count")) is not int
+        or not isinstance(enumerated_members, list)
+    ):
         raise ValueError("lad_family count and members have invalid types")
+    if family["enumerated_count"] != len(enumerated_members):
+        raise ValueError("lad_family enumerated count does not match its members")
+    if family.get("family_sha256") != canonical_family_sha256(enumerated_members):
+        raise ValueError("lad_family family_sha256 does not match the canonical frozen enumeration")
     if family["eligible_count"] != len(members) or len(members) != len(rows):
         raise ValueError("BH family size must equal the recorded LAD list and results length")
     member_identity = [(m.get("lad_code"), m.get("lad_name"), m.get("n_lsoas")) for m in members]
@@ -301,6 +409,15 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
     if not isinstance(execution, dict) or execution.get("all_batches_complete") is not True:
         raise ValueError("provenance.staged_execution must record complete execution")
     if execution.get("mode") == "staged":
+        fingerprint = provenance.get("execution_fingerprint")
+        validate_execution_fingerprint(fingerprint)
+        if (
+            fingerprint["input_sha256"] != payload["input_sha256"]
+            or fingerprint["family_sha256"] != family["family_sha256"]
+            or fingerprint["workers"] != params["workers"]
+        ):
+            raise ValueError("execution fingerprint does not match the locked result inputs, family, or workers")
+        fingerprint_sha256 = fingerprint["fingerprint_sha256"]
         plan = execution.get("plan")
         artifacts = execution.get("batch_artifacts")
         if (
@@ -312,6 +429,7 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
             or any(char not in "0123456789abcdef" for char in plan["sha256"])
             or plan.get("approval", {}).get("approved_by") != "User"
             or plan.get("approval", {}).get("instruction") != "Approve staged launch"
+            or plan.get("execution_fingerprint_sha256") != fingerprint_sha256
         ):
             raise ValueError("staged execution plan provenance is invalid")
         if not isinstance(artifacts, list) or [item.get("batch_index") for item in artifacts] != [1, 2, 3]:
@@ -323,6 +441,7 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
             or not isinstance(item.get("sha256"), str)
             or len(item["sha256"]) != 64
             or any(char not in "0123456789abcdef" for char in item["sha256"])
+            or item.get("execution_fingerprint_sha256") != fingerprint_sha256
             for item in artifacts
         ):
             raise ValueError("staged batch paths and hashes are invalid")
@@ -360,12 +479,42 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
             f"lad_results[{index}].null_summary.observed_percentile",
         )
         validity = row.get("null_validity")
-        if not isinstance(validity, dict) or validity.get("valid") is not True:
+        if not isinstance(validity, dict):
+            raise ValueError(f"lad_results[{index}].null_validity must be a dict")
+        shapes_match = validity.get("partition_shapes_match")
+        partitions_perturbed = validity.get("first_draw_partitions_perturbed")
+        if type(shapes_match) is not bool or type(partitions_perturbed) is not bool:
+            raise ValueError(f"lad_results[{index}] null-validity partition fields must be bool")
+        expected_reasons: list[str] = []
+        if not shapes_match:
+            expected_reasons.append("partition_shape_mismatch")
+        elif not partitions_perturbed:
+            expected_reasons.append("partition_invariant")
+        null_standard_deviation = float(null_values.std())
+        if null_standard_deviation == 0.0:
+            expected_reasons.append("zero_null_variance")
+        _require_close(
+            validity.get("null_standard_deviation"),
+            null_standard_deviation,
+            f"lad_results[{index}].null_validity.null_standard_deviation",
+        )
+        if (
+            validity.get("criterion") != "first draw perturbs >=1 full partition and null h1_total_area std > 0"
+            or validity.get("null_unique_values") != int(len(np.unique(null_values)))
+            or validity.get("reasons") != expected_reasons
+            or validity.get("valid") is not (not expected_reasons)
+            or validity.get("exclusion_is_independent_of_observed_statistic") is not True
+        ):
+            raise ValueError(f"lad_results[{index}] null-validity fields are not recomputable")
+        if validity.get("valid") is not True:
             raise ValueError(f"lad_results[{index}] lacks a passing null-validity record")
         rho_ari = row.get("rho_h1_mean_ari_across_k")
         rho_moran = row.get("rho_h1_moran_i_pc1")
-        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (rho_ari, rho_moran)):
-            raise ValueError(f"lad_results[{index}] redundancy correlations must be numeric")
+        if not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool) and np.isfinite(value)
+            for value in (rho_ari, rho_moran)
+        ):
+            raise ValueError(f"lad_results[{index}] redundancy correlations must be finite numeric values")
         redundant = abs(float(rho_ari)) >= 0.95 and abs(float(rho_moran)) >= 0.95
         if row.get("redundant") is not redundant:
             raise ValueError(f"lad_results[{index}].redundant conflicts with the locked two-gate rule")
@@ -386,6 +535,8 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
     excluded_codes = sensitivity.get("excluded_lad_codes")
     if not isinstance(excluded_codes, list) or len(excluded_codes) != len(set(excluded_codes)):
         raise ValueError("sensitivity excluded_lad_codes must be a unique list")
+    if set(excluded_codes) != set(SPIKE_LAD_CODES) or len(excluded_codes) != len(SPIKE_LAD_CODES):
+        raise ValueError("sensitivity exclusions must equal the six registered spike LAD codes")
     reduced_rows = [row for row in rows if row["lad_code"] not in set(excluded_codes)]
     if not reduced_rows:
         raise ValueError("sensitivity reduced family must be non-empty")

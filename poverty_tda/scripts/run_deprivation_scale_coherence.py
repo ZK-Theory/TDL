@@ -9,7 +9,9 @@ import json
 import logging
 import os
 import shutil
-import subprocess
+
+# Used only for a fixed trusted Git metadata command without a shell.
+import subprocess  # nosec B404
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -28,17 +30,23 @@ from sklearn.metrics import adjusted_rand_score
 from poverty_tda.topology.deprivation_scale_coherence import (
     ALPHA,
     B_LOCKED,
+    FAMILY_SCHEMA_VERSION,
     IMD_SHA256,
     KS,
     LSOA_SHA256,
     SCHEMA_VERSION,
     SEED,
+    SPIKE_LAD_CODES,
     benjamini_hochberg,
+    canonical_family_sha256,
     empirical_tail_pvalues,
+    execution_fingerprint_sha256,
     null_validity_record,
+    partitions_equivalent,
     redundancy_record,
     scale_coherence_statistic,
     spatialised_null_draw,
+    validate_execution_fingerprint,
     validate_result_payload,
 )
 
@@ -55,14 +63,6 @@ DOMAINS = [
     "Living Environment Score",
 ]
 LSOA_COL = "LSOA code (2021)"
-SPIKE_LAD_CODES = [
-    "E08000025",  # Birmingham
-    "E08000035",  # Leeds
-    "E06000065",  # North Yorkshire
-    "E08000019",  # Sheffield
-    "E06000066",  # Somerset
-    "E06000052",  # Cornwall
-]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOGGER = logging.getLogger(__name__)
 
@@ -93,20 +93,67 @@ def enumerate_eligible_lads(frame: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def _project_root() -> Path:
-    completed = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+    """Return the active checkout, which is the only writable project root."""
+    return REPO_ROOT
+
+
+def _git_head() -> str:
+    """Return HEAD using a fully resolved trusted Git executable."""
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        raise RuntimeError("Git executable is unavailable")
+    # The executable is resolved to an absolute path and every argument is fixed.
+    completed = subprocess.run(  # nosec B603
+        [git_executable, "rev-parse", "HEAD"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=True,
     )
-    common = Path(completed.stdout.strip())
-    if not common.is_absolute():
-        common = (REPO_ROOT / common).resolve()
-    return common.parent
+    commit = completed.stdout.strip()
+    if len(commit) != 40 or any(char not in "0123456789abcdef" for char in commit):
+        raise RuntimeError("Git returned an invalid HEAD commit")
+    return commit
+
+
+def validate_runtime_workers(workers: int, *, plan: dict[str, Any] | None = None) -> int:
+    """Require the exact approved eight-worker execution contract."""
+    locked = 8 if plan is None else plan.get("locked_compute_contract", {}).get("workers")
+    if locked != 8:
+        raise ValueError("staged plan does not carry the locked eight-worker contract")
+    if type(workers) is not int or workers != locked:
+        raise ValueError("runtime workers must equal exactly 8")
+    return workers
+
+
+def build_execution_fingerprint(
+    *,
+    input_hashes: dict[str, str],
+    family_sha256: str,
+    execution_commit: str,
+    workers: int,
+) -> dict[str, Any]:
+    """Build the single identity shared by checkpoints, batches, and results."""
+    validate_runtime_workers(workers)
+    fingerprint = {
+        "schema_version": "deprivation-scale-coherence-execution/v1",
+        "input_sha256": dict(input_hashes),
+        "statistic_schema_version": SCHEMA_VERSION,
+        "family_sha256": family_sha256,
+        "B": B_LOCKED,
+        "seed": SEED,
+        "per_draw_seeds": "42+b for b=0..998",
+        "ks": list(KS),
+        "workers": workers,
+        "execution_commit": execution_commit,
+    }
+    fingerprint["fingerprint_sha256"] = execution_fingerprint_sha256(fingerprint)
+    validate_execution_fingerprint(fingerprint)
+    return fingerprint
 
 
 def _sha256(path: Path) -> str:
+    """Return the SHA-256 digest of a file without loading it into memory."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -115,6 +162,7 @@ def _sha256(path: Path) -> str:
 
 
 def _write_json_once(path: Path, payload: dict[str, Any]) -> None:
+    """Atomically write a new JSON artifact or verify an identical existing one."""
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(payload, indent=2, sort_keys=False) + "\n"
     if path.exists():
@@ -128,19 +176,33 @@ def _write_json_once(path: Path, payload: dict[str, Any]) -> None:
 
 def freeze_lad_family(family: list[dict[str, Any]], path: Path) -> dict[str, Any]:
     """Persist Gate 0 before any statistic or p-value is evaluated."""
-    canonical = json.dumps(family, sort_keys=True, separators=(",", ":")).encode()
     payload = {
-        "schema_version": "deprivation-scale-coherence-family/v1",
+        "schema_version": FAMILY_SCHEMA_VERSION,
         "frozen_at": datetime.now(timezone.utc).isoformat(),
         "lad_floor": LAD_FLOOR,
         "eligible_count": len(family),
         "members": family,
-        "family_sha256": hashlib.sha256(canonical).hexdigest(),
+        "family_sha256": canonical_family_sha256(family),
         "contains_p_values": False,
     }
     if path.exists():
         existing = json.loads(path.read_text(encoding="utf-8"))
-        if existing.get("members") != family or existing.get("lad_floor") != LAD_FLOOR:
+        deterministic_fields = {
+            key: payload[key]
+            for key in (
+                "schema_version",
+                "lad_floor",
+                "eligible_count",
+                "members",
+                "family_sha256",
+                "contains_p_values",
+            )
+        }
+        if (
+            {key: existing.get(key) for key in deterministic_fields} != deterministic_fields
+            or not isinstance(existing.get("frozen_at"), str)
+            or not existing["frozen_at"]
+        ):
             raise ValueError("existing frozen LAD family differs from deterministic Gate 0")
         return existing
     _write_json_once(path, payload)
@@ -214,8 +276,14 @@ def prepare_staged_batch_artifact(
     plan: dict[str, Any],
     batch_index: int,
     elapsed_seconds: float,
+    execution_fingerprint: dict[str, Any],
+    workers: int,
 ) -> dict[str, Any]:
     """Remove family inference and wrap one completed staged batch."""
+    validate_execution_fingerprint(execution_fingerprint)
+    validate_runtime_workers(workers, plan=plan)
+    if execution_fingerprint["family_sha256"] != plan["family_sha256"]:
+        raise ValueError("execution fingerprint belongs to a different frozen family")
     batch = next((item for item in plan["batches"] if item["batch_index"] == batch_index), None)
     if batch is None:
         raise ValueError(f"batch index {batch_index} is not in the staged plan")
@@ -239,7 +307,9 @@ def prepare_staged_batch_artifact(
         "batch_count": plan["batch_count"],
         "member_count": len(staged_rows),
         "members": batch["members"],
-        "params": plan["locked_compute_contract"],
+        "params": {**plan["locked_compute_contract"], "workers": workers},
+        "runtime_workers": workers,
+        "execution_fingerprint": execution_fingerprint,
         "contains_family_inference": False,
         "elapsed_seconds": elapsed_seconds,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -247,8 +317,17 @@ def prepare_staged_batch_artifact(
     }
 
 
-def load_staged_batch_rows(plan: dict[str, Any], batch_root: Path) -> tuple[list[dict[str, Any]], float]:
+def load_staged_batch_rows(
+    plan: dict[str, Any],
+    batch_root: Path,
+    *,
+    execution_fingerprint: dict[str, Any],
+) -> tuple[list[dict[str, Any]], float]:
     """Load only a complete, exact cover of the approved staged family."""
+    validate_execution_fingerprint(execution_fingerprint)
+    validate_runtime_workers(execution_fingerprint["workers"], plan=plan)
+    if execution_fingerprint["family_sha256"] != plan["family_sha256"]:
+        raise ValueError("execution fingerprint belongs to a different frozen family")
     rows: list[dict[str, Any]] = []
     elapsed_seconds = 0.0
     seen_codes: set[str] = set()
@@ -263,8 +342,12 @@ def load_staged_batch_rows(plan: dict[str, Any], batch_root: Path) -> tuple[list
             artifact["batch_index"] != batch["batch_index"]
             or artifact["batch_count"] != plan["batch_count"]
             or artifact["params"] != plan["locked_compute_contract"]
+            or artifact.get("runtime_workers") != execution_fingerprint["workers"]
+            or artifact.get("execution_fingerprint") != execution_fingerprint
             or artifact["contains_family_inference"] is not False
         ):
+            if artifact.get("execution_fingerprint") != execution_fingerprint:
+                raise ValueError(f"{path.name} execution fingerprint does not match")
             raise ValueError(f"{path.name} violates the staged batch contract")
         expected_codes = [member["lad_code"] for member in batch["members"]]
         actual_codes = [row["lad_code"] for row in artifact["rows"]]
@@ -321,20 +404,24 @@ def build_staged_execution_provenance(
     *,
     plan_path: Path,
     batch_root: Path,
-    project_root: Path,
+    execution_fingerprint: dict[str, Any],
 ) -> dict[str, Any]:
     """Bind the approved plan and ignored batch artifacts into the final result."""
+    validate_execution_fingerprint(execution_fingerprint)
     batch_artifacts: list[dict[str, Any]] = []
     for batch in plan["batches"]:
         path = batch_root / f"batch_{batch['batch_index']}.json"
         artifact = json.loads(path.read_text(encoding="utf-8"))
+        if artifact.get("execution_fingerprint") != execution_fingerprint:
+            raise ValueError(f"{path.name} execution fingerprint does not match final assembly")
         batch_artifacts.append(
             {
                 "batch_index": batch["batch_index"],
-                "path": path.relative_to(project_root).as_posix(),
+                "path": path.relative_to(REPO_ROOT).as_posix(),
                 "sha256": _sha256(path),
                 "member_count": artifact["member_count"],
                 "elapsed_seconds": artifact["elapsed_seconds"],
+                "execution_fingerprint_sha256": execution_fingerprint["fingerprint_sha256"],
             }
         )
     return {
@@ -344,6 +431,7 @@ def build_staged_execution_provenance(
             "sha256": _sha256(plan_path),
             "family_sha256": plan["family_sha256"],
             "approval": plan["approval"],
+            "execution_fingerprint_sha256": execution_fingerprint["fingerprint_sha256"],
         },
         "batch_artifacts": batch_artifacts,
         "all_batches_complete": True,
@@ -352,6 +440,7 @@ def build_staged_execution_provenance(
 
 
 def load_inputs(input_root: Path) -> tuple[pd.DataFrame, gpd.GeoDataFrame, dict[str, str]]:
+    """Load and hash-check the locked IMD and LSOA boundary inputs."""
     imd_path = input_root / "data/imd2025_file7.csv"
     boundary_path = input_root / "data/lsoa_dec_2021_bgc_v5.geojson"
     if not imd_path.exists() or not boundary_path.exists():
@@ -408,10 +497,12 @@ def prepare_lads(
 
 
 def _mean_ari(partitions: list[NDArray[np.int64]]) -> float:
+    """Return mean pairwise adjusted Rand index across scale partitions."""
     return float(np.mean([adjusted_rand_score(left, right) for left, right in combinations(partitions, 2)]))
 
 
 def _morans_i(values: NDArray[np.float64], neighbours: list[NDArray[np.intp]]) -> float:
+    """Compute binary-adjacency Moran's I for one LAD vector."""
     centered = values - values.mean()
     denominator = float(np.sum(centered**2))
     if denominator == 0.0:
@@ -428,6 +519,7 @@ def _morans_i(values: NDArray[np.float64], neighbours: list[NDArray[np.intp]]) -
 
 
 def _pc1_scores(raw: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Return deterministic first-component scores from standardised domains."""
     means = raw.mean(axis=0)
     standard_deviations = raw.std(axis=0)
     standard_deviations[standard_deviations == 0.0] = 1.0
@@ -436,6 +528,7 @@ def _pc1_scores(raw: NDArray[np.float64]) -> NDArray[np.float64]:
 
 
 def _peak_rss_mb() -> float | None:
+    """Return process peak resident memory where the platform exposes it."""
     try:
         import psutil
     except ImportError:
@@ -486,7 +579,9 @@ def _write_checkpoint(
     moran: NDArray[np.float64],
     completed: int,
     n_draws: int,
+    execution_contract: dict[str, Any],
 ) -> None:
+    """Atomically persist completed null vectors and their execution identity."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     with temporary.open("wb") as handle:
@@ -497,6 +592,7 @@ def _write_checkpoint(
             moran=moran[:completed],
             completed=completed,
             n_draws=n_draws,
+            execution_contract_json=json.dumps(execution_contract, sort_keys=True, separators=(",", ":")),
         )
     temporary.replace(path)
 
@@ -506,6 +602,7 @@ def run_lad_battery(
     *,
     n_draws: int,
     checkpoint_dir: Path,
+    execution_fingerprint: dict[str, Any],
     checkpoint_interval: int = 25,
 ) -> dict[str, Any]:
     """Run one LAD with deterministic resume checkpoints in draw-index order."""
@@ -513,6 +610,13 @@ def run_lad_battery(
         raise ValueError("n_draws must be a positive int")
     if type(checkpoint_interval) is not int or checkpoint_interval <= 0:
         raise ValueError("checkpoint_interval must be a positive int")
+    validate_execution_fingerprint(execution_fingerprint)
+    execution_contract = {
+        "execution_fingerprint": execution_fingerprint,
+        "lad_code": lad.lad_code,
+        "n_draws": n_draws,
+        "draw_seeds": list(range(SEED, SEED + n_draws)),
+    }
     started = time.perf_counter()
     raw = np.asarray(lad.raw, dtype=np.float64)
     observed = scale_coherence_statistic(raw, lad.closed_neighbours)
@@ -528,9 +632,18 @@ def run_lad_battery(
     completed = 0
     if checkpoint_path.exists():
         with np.load(checkpoint_path) as checkpoint:
+            if "execution_contract_json" not in checkpoint:
+                raise ValueError(f"checkpoint execution fingerprint is missing for {lad.lad_code}")
+            stored_contract = json.loads(str(checkpoint["execution_contract_json"].item()))
+            if stored_contract != execution_contract:
+                raise ValueError(f"checkpoint execution fingerprint differs for {lad.lad_code}")
             if int(checkpoint["n_draws"]) != n_draws:
                 raise ValueError(f"checkpoint draw count differs for {lad.lad_code}")
             completed = int(checkpoint["completed"])
+            if completed < 0 or completed > n_draws:
+                raise ValueError(f"checkpoint completed count is invalid for {lad.lad_code}")
+            if any(len(checkpoint[field]) != completed for field in ("h1", "ari", "moran")):
+                raise ValueError(f"checkpoint vector lengths are invalid for {lad.lad_code}")
             h1[:completed] = checkpoint["h1"]
             ari[:completed] = checkpoint["ari"]
             moran[:completed] = checkpoint["moran"]
@@ -552,7 +665,15 @@ def run_lad_battery(
         moran[draw_index] = _morans_i(pc1[permutation], lad.closed_neighbours)
         next_completed = draw_index + 1
         if next_completed % checkpoint_interval == 0 or next_completed == n_draws:
-            _write_checkpoint(checkpoint_path, h1, ari, moran, next_completed, n_draws)
+            _write_checkpoint(
+                checkpoint_path,
+                h1,
+                ari,
+                moran,
+                next_completed,
+                n_draws,
+                execution_contract,
+            )
 
     p_lower, p_upper, percentile = empirical_tail_pvalues(h1, observed=float(observed["h1_total_area"]))
     validity = null_validity_record(observed_partitions, probe["partitions"], h1)
@@ -587,6 +708,7 @@ def run_lad_battery(
         "redundant": redundancy["redundant"],
         "null_validity": validity,
         "draw_seeds": list(range(SEED, SEED + n_draws)),
+        "execution_fingerprint_sha256": execution_fingerprint["fingerprint_sha256"],
         "runtime": {
             "wall_seconds": elapsed,
             "peak_rss_mb": _peak_rss_mb(),
@@ -604,6 +726,7 @@ def run_family(
     n_draws: int,
     workers: int,
     checkpoint_dir: Path,
+    execution_fingerprint: dict[str, Any],
     checkpoint_interval: int = 25,
 ) -> list[dict[str, Any]]:
     """Run independent LAD batteries in deterministic family order."""
@@ -615,6 +738,7 @@ def run_family(
                 lad,
                 n_draws=n_draws,
                 checkpoint_dir=checkpoint_dir,
+                execution_fingerprint=execution_fingerprint,
                 checkpoint_interval=checkpoint_interval,
             )
             for lad in lads
@@ -627,6 +751,7 @@ def run_family(
                 lad,
                 n_draws=n_draws,
                 checkpoint_dir=checkpoint_dir,
+                execution_fingerprint=execution_fingerprint,
                 checkpoint_interval=checkpoint_interval,
             ): lad.lad_code
             for lad in lads
@@ -638,13 +763,19 @@ def run_family(
     return [by_code[lad.lad_code] for lad in lads]
 
 
-def reproduce_spike_pilot(lads: list[PreparedLad], checkpoint_dir: Path) -> dict[str, Any]:
+def reproduce_spike_pilot(
+    lads: list[PreparedLad],
+    checkpoint_dir: Path,
+    *,
+    execution_fingerprint: dict[str, Any],
+) -> dict[str, Any]:
     """Reproduce Birmingham's Spike-3 observed statistic and lower tail."""
     birmingham = next(lad for lad in lads if lad.lad_code == "E08000025")
     result = run_lad_battery(
         birmingham,
         n_draws=99,
         checkpoint_dir=checkpoint_dir,
+        execution_fingerprint=execution_fingerprint,
         checkpoint_interval=25,
     )
     if result["observed"]["h1_total_area"] != 27.0 or not np.isclose(result["p_lower"], 0.01):
@@ -672,7 +803,7 @@ def audit_lad_size_strata(lads: list[PreparedLad]) -> dict[str, Any]:
             left.shape == right.shape for left, right in zip(observed["partitions"], probe["partitions"], strict=True)
         )
         perturbed = shapes_match and any(
-            not np.array_equal(left, right)
+            not partitions_equivalent(left, right)
             for left, right in zip(observed["partitions"], probe["partitions"], strict=True)
         )
         if not shapes_match or not perturbed:
@@ -708,8 +839,10 @@ def _worker_sweep(
     *,
     maximum_workers: int,
     checkpoint_root: Path,
+    execution_fingerprint: dict[str, Any],
     n_draws: int = 25,
 ) -> list[dict[str, Any]]:
+    """Benchmark the production family seam across bounded worker counts."""
     worker_counts = sorted({count for count in (1, 2, 4, 8, maximum_workers) if count <= maximum_workers})
     sample = sorted(lads, key=lambda lad: len(lad.raw), reverse=True)[: min(8, len(lads))]
     records: list[dict[str, Any]] = []
@@ -720,6 +853,7 @@ def _worker_sweep(
             n_draws=n_draws,
             workers=workers,
             checkpoint_dir=checkpoint_root / f"workers_{workers}",
+            execution_fingerprint=execution_fingerprint,
             checkpoint_interval=25,
         )
         records.append(
@@ -740,6 +874,7 @@ def run_resource_preflight(
     workers: int,
     partial_root: Path,
     output_path: Path,
+    execution_fingerprint: dict[str, Any],
 ) -> dict[str, Any]:
     """Run the full-B canary and process-count sweep, then record projection."""
     benchmark_dir = partial_root / "benchmark"
@@ -747,11 +882,14 @@ def run_resource_preflight(
     mid_sized = sorted(lads, key=lambda lad: len(lad.raw))[len(lads) // 2]
     if benchmark_record_path.exists():
         benchmark = json.loads(benchmark_record_path.read_text(encoding="utf-8"))
+        if benchmark.get("execution_fingerprint") != execution_fingerprint:
+            raise ValueError("benchmark execution fingerprint differs")
     else:
         result = run_lad_battery(
             mid_sized,
             n_draws=B_LOCKED,
             checkpoint_dir=benchmark_dir,
+            execution_fingerprint=execution_fingerprint,
             checkpoint_interval=25,
         )
         benchmark = {
@@ -762,20 +900,28 @@ def run_resource_preflight(
             "wall_seconds": result["runtime"]["wall_seconds"],
             "peak_rss_mb": result["runtime"]["peak_rss_mb"],
             "production_entry_point": "run_lad_battery",
+            "execution_fingerprint": execution_fingerprint,
         }
         _write_json_once(benchmark_record_path, benchmark)
 
     sweep_record_path = partial_root / "worker_sweep.json"
     if sweep_record_path.exists():
-        sweep = json.loads(sweep_record_path.read_text(encoding="utf-8"))["records"]
+        sweep_payload = json.loads(sweep_record_path.read_text(encoding="utf-8"))
+        if sweep_payload.get("execution_fingerprint") != execution_fingerprint:
+            raise ValueError("worker sweep execution fingerprint differs")
+        sweep = sweep_payload["records"]
     else:
         run_slug = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         sweep = _worker_sweep(
             lads,
             maximum_workers=workers,
             checkpoint_root=partial_root / f"worker_sweep_{run_slug}",
+            execution_fingerprint=execution_fingerprint,
         )
-        _write_json_once(sweep_record_path, {"records": sweep})
+        _write_json_once(
+            sweep_record_path,
+            {"execution_fingerprint": execution_fingerprint, "records": sweep},
+        )
 
     one_worker = next(record for record in sweep if record["workers"] == 1)
     target_worker = next(record for record in sweep if record["workers"] == workers)
@@ -868,6 +1014,7 @@ def assemble_result(
     frozen_family: dict[str, Any],
     input_hashes: dict[str, str],
     workers: int,
+    execution_fingerprint: dict[str, Any],
     preflight: dict[str, Any],
     pilot: dict[str, Any],
     invariance_audit: dict[str, Any],
@@ -875,6 +1022,14 @@ def assemble_result(
     elapsed_seconds: float,
 ) -> dict[str, Any]:
     """Apply validity exclusions, BH families, sensitivity, and locked verdict."""
+    validate_runtime_workers(workers)
+    validate_execution_fingerprint(execution_fingerprint)
+    if (
+        execution_fingerprint["input_sha256"] != input_hashes
+        or execution_fingerprint["family_sha256"] != frozen_family["family_sha256"]
+        or execution_fingerprint["workers"] != workers
+    ):
+        raise ValueError("execution fingerprint does not match assembly inputs, family, or workers")
     for row in rows:
         p_lower, p_upper, percentile = empirical_tail_pvalues(
             np.asarray(row["null_h1_total_area"], dtype=np.float64),
@@ -930,13 +1085,7 @@ def assemble_result(
     family_members = [
         {"lad_code": row["lad_code"], "lad_name": row["lad_name"], "n_lsoas": row["n_lsoas"]} for row in valid_rows
     ]
-    git_commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    git_commit = _git_head()
     payload = {
         "schema_version": SCHEMA_VERSION,
         "input_sha256": input_hashes,
@@ -971,7 +1120,7 @@ def assemble_result(
         },
         "lad_results": valid_rows,
         "sensitivity_excluding_spike_lads": {
-            "excluded_lad_codes": SPIKE_LAD_CODES,
+            "excluded_lad_codes": list(SPIKE_LAD_CODES),
             "bh_recomputed_on_reduced_family": True,
             "family_size": len(reduced_rows),
             "reject_count": reduced_rejects,
@@ -1005,6 +1154,7 @@ def assemble_result(
         "provenance": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "git_commit": git_commit,
+            "execution_fingerprint": execution_fingerprint,
             "inputs": {
                 "imd2025_file7": {
                     "path": "data/imd2025_file7.csv",
@@ -1041,6 +1191,7 @@ def assemble_result(
 
 
 def _parse_args() -> argparse.Namespace:
+    """Parse the locked battery command-line interface."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
@@ -1055,19 +1206,30 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Execute the requested gate, staged batch, assembly, or full battery mode."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = _parse_args()
-    if args.mode in {"benchmark", "staged", "full"} and args.workers < 8:
-        raise SystemExit("STOP: locked compute contract requires workers >= 8")
+    if args.mode in {"benchmark", "staged", "assemble", "full"}:
+        try:
+            validate_runtime_workers(args.workers)
+        except ValueError as error:
+            raise SystemExit(f"STOP: {error}") from error
     if args.mode == "staged" and args.batch_index is None:
         raise SystemExit("--batch-index 1, 2, or 3 is required for staged execution")
     if args.mode != "staged" and args.batch_index is not None:
         raise SystemExit("--batch-index is only valid with --mode staged")
-    project_root = args.input_root or _project_root()
+    project_root = _project_root()
+    input_root = (args.input_root or project_root).resolve()
     partial_root = project_root / "results/poverty_tda_mcbif/.partial/deprivation_scale_coherence"
-    imd, boundaries, input_hashes = load_inputs(project_root)
+    imd, boundaries, input_hashes = load_inputs(input_root)
     family = enumerate_eligible_lads(imd)
     frozen = freeze_lad_family(family, partial_root / "frozen_family.json")
+    execution_fingerprint = build_execution_fingerprint(
+        input_hashes=input_hashes,
+        family_sha256=frozen["family_sha256"],
+        execution_commit=_git_head(),
+        workers=8,
+    )
     LOGGER.info("Gate 0 frozen: %d eligible LADs", len(family))
     if args.mode == "gate0":
         return
@@ -1087,17 +1249,40 @@ def main() -> None:
         )
         return
 
+    if args.mode in {"staged", "assemble"}:
+        if not preflight_path.exists():
+            raise FileNotFoundError(f"staged execution requires {preflight_path}")
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+        plan = ensure_staged_launch_plan(frozen, preflight, plan_path)
+        batch_root = partial_root / "staged_results"
+        validate_runtime_workers(args.workers, plan=plan)
+        if args.mode == "assemble":
+            first_batch_path = batch_root / "batch_1.json"
+            if not first_batch_path.exists():
+                raise FileNotFoundError("staged assembly requires completed batch_1.json")
+            first_batch = json.loads(first_batch_path.read_text(encoding="utf-8"))
+            execution_fingerprint = first_batch.get("execution_fingerprint")
+            validate_execution_fingerprint(execution_fingerprint)
+            if (
+                execution_fingerprint["input_sha256"] != input_hashes
+                or execution_fingerprint["family_sha256"] != frozen["family_sha256"]
+                or execution_fingerprint["workers"] != args.workers
+            ):
+                raise ValueError("staged execution fingerprint differs from current locked inputs or family")
+
     prepared = prepare_lads(imd, boundaries, family)
     invariance_audit = audit_lad_size_strata(prepared)
     LOGGER.info("null invariance audit passed for small/medium/large LAD strata")
-    pilot = reproduce_spike_pilot(prepared, partial_root / "pilot")
+    pilot = reproduce_spike_pilot(
+        prepared,
+        partial_root / "pilot",
+        execution_fingerprint=execution_fingerprint,
+    )
     LOGGER.info("Birmingham pilot reproduced: observed=27, p_lower=0.01")
     if args.mode == "pilot":
         return
 
     if args.mode in {"staged", "assemble"}:
-        if not preflight_path.exists():
-            raise FileNotFoundError(f"staged execution requires {preflight_path}")
         preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
         plan = ensure_staged_launch_plan(frozen, preflight, plan_path)
         batch_root = partial_root / "staged_results"
@@ -1110,6 +1295,8 @@ def main() -> None:
                 if (
                     existing["family_sha256"] != plan["family_sha256"]
                     or existing["contains_family_inference"] is not False
+                    or existing.get("execution_fingerprint") != execution_fingerprint
+                    or existing.get("runtime_workers") != args.workers
                     or [row["lad_code"] for row in existing["rows"]] != expected_codes
                 ):
                     raise ValueError(f"existing {batch_path.name} violates the staged contract")
@@ -1123,6 +1310,7 @@ def main() -> None:
                 n_draws=B_LOCKED,
                 workers=args.workers,
                 checkpoint_dir=partial_root / "family",
+                execution_fingerprint=execution_fingerprint,
                 checkpoint_interval=25,
             )
             artifact = prepare_staged_batch_artifact(
@@ -1130,17 +1318,24 @@ def main() -> None:
                 plan=plan,
                 batch_index=args.batch_index,
                 elapsed_seconds=time.perf_counter() - started,
+                execution_fingerprint=execution_fingerprint,
+                workers=args.workers,
             )
             _write_json_once(batch_path, artifact)
             LOGGER.info("completed staged batch %d: %s", args.batch_index, batch_path)
             return
 
-        rows, elapsed_seconds = load_staged_batch_rows(plan, batch_root)
+        rows, elapsed_seconds = load_staged_batch_rows(
+            plan,
+            batch_root,
+            execution_fingerprint=execution_fingerprint,
+        )
         payload = assemble_result(
             rows,
             frozen_family=frozen,
             input_hashes=input_hashes,
             workers=args.workers,
+            execution_fingerprint=execution_fingerprint,
             preflight=preflight,
             pilot=pilot,
             invariance_audit=invariance_audit,
@@ -1148,7 +1343,7 @@ def main() -> None:
                 plan,
                 plan_path=plan_path,
                 batch_root=batch_root,
-                project_root=project_root,
+                execution_fingerprint=execution_fingerprint,
             ),
             elapsed_seconds=elapsed_seconds,
         )
@@ -1162,6 +1357,7 @@ def main() -> None:
         workers=args.workers,
         partial_root=partial_root,
         output_path=preflight_path,
+        execution_fingerprint=execution_fingerprint,
     )
     LOGGER.info("projected full family wall time: %.2f h", preflight["estimated_wall_time_hours"])
     if args.mode == "benchmark":
@@ -1173,6 +1369,7 @@ def main() -> None:
         n_draws=B_LOCKED,
         workers=args.workers,
         checkpoint_dir=partial_root / "family",
+        execution_fingerprint=execution_fingerprint,
         checkpoint_interval=25,
     )
     payload = assemble_result(
@@ -1180,6 +1377,7 @@ def main() -> None:
         frozen_family=frozen,
         input_hashes=input_hashes,
         workers=args.workers,
+        execution_fingerprint=execution_fingerprint,
         preflight=preflight,
         pilot=pilot,
         invariance_audit=invariance_audit,
