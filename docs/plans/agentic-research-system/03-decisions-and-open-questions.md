@@ -573,12 +573,18 @@ policies: pre-runtime catalogue authority may be an external exact Git/blob acce
 envelope imported later through verified one-time genesis, and legacy annotation
 cutover may bind an accepted inbox epoch that is atomically fenced while post-fence
 annotations route to a successor epoch. Those approvals do not accept W11 itself.
-Revision 0.4 records author reconciliation of every R1/R2/R3 finding and the complete
+R4 review of exact revision `4b941326e290582db7be07113d5d7bb78d8b97a3`
+returned `rework_required` (0 Critical, 1 Major, 1 Minor): recorded negative or
+unverifiable Discovery review verdicts could still clear the outcome gate, and three
+verdict rows omitted the Review projection. Revision 0.5 records author reconciliation
+of every R1/R2/R3/R4 finding and the complete
 entry/invariant/test/decision/assurance/cross-spec matrices; it defines an acyclic hash
 DAG and bootstrap, reconciles 81 owner rows with W4/projections/test identities, adds
 separate cancellation review and overlay cleanup, and closes the annotation cutover
-race with the accepted epoch/fence protocol. The dated addendum remains in the tracked
-root evidence register. A fresh independent R4 review of the new exact commit is
+race with the accepted epoch/fence protocol. It also separates W2 verdict recording
+from W11 gate satisfaction through a closed six-subject verdict/effect and review-
+supersession policy. The dated addendum remains in the tracked
+root evidence register. A fresh independent R5 review of the new exact commit is
 mandatory and author reconciliation is not acceptance. This status entry does not
 amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
 schema/projection, ingest/admit any item, transition ownership, cut over a path, or

@@ -1,9 +1,9 @@
 # W11 — Portfolio and Discovery Lifecycle Specification
 
 **Date:** 2026-07-18
-**Status:** `review_pending`; revision 0.4 reconciles the binding R3
-`rework_required` review and requires fresh independent R4 review; specification only
-**Specification version:** 0.4
+**Status:** `review_pending`; revision 0.5 reconciles the binding R4
+`rework_required` review and requires fresh independent R5 review; specification only
+**Specification version:** 0.5
 **Design authority:** accepted W1/W2/W4/W5 specifications; P-004, P-005,
 P-021, P-022, P-026, P-032, P-034, and P-036; WP6 master revision
 `fe5f1d40bc8f05f061317c677b5891cea0711249` approved under P-036
@@ -27,7 +27,11 @@ dispositions every R1/R2 finding but does not accept itself.
 independent report commit `1175c28f9e09f9bc94dff4a7a82913b985c6c0ef`;
 verdict `rework_required` (0 Critical, 6 Major, 0 Minor). Stephen approved the bounded
 R3-M2 external Git/blob bootstrap and R3-M6 annotation-epoch decisions on 2026-07-18;
-revision 0.4 dispositions every R3 finding but requires a fresh independent R4 review.
+revision 0.4 dispositions every R3 finding but does not accept itself.
+**R4 review:** exact subject `4b941326e290582db7be07113d5d7bb78d8b97a3`;
+independent report commit `e68d60f4e9d41fd86495c4259cbc5bc84b77d018`;
+verdict `rework_required` (0 Critical, 1 Major, 1 Minor). Revision 0.5 dispositions
+both R4 findings but requires a fresh independent R5 review.
 
 ---
 
@@ -144,12 +148,12 @@ admission decision, and WP6.6 must use a deliberately re-versioned package.
 
 ### 2.4 Design-entry-criteria disposition
 
-| README criterion | Revision 0.4 disposition |
+| README criterion | Revision 0.5 disposition |
 |---|---|
 | 1. Decisions accepted or assumptions explicit | **Satisfied for authorship.** P-004/P-005/P-021/P-022/P-026/P-032/P-034/P-036 are accepted and preserved in §2.1; Stephen approved the bounded external-catalogue bootstrap and annotation-epoch policies; W11-A1 and both D-G6-4 acceptance limbs remain explicitly open. |
 | 2. Evidence inputs in the evidence register | **Satisfied.** §2.2 resolves the base audit and the exact dated W11 live evidence to tracked root register §8, including paths, byte hashes, mutability and limitations. |
 | 3. Boundaries and consumers identified | **Satisfied.** §2.3 identifies W1/W2/W4/W5/W9/W10, Vault and external-service boundaries and consumers. |
-| 4. Independent review owner | **Satisfied for assignment, not acceptance.** The primary author, fresh I1 reviewer, Manager reconciler and Stephen acceptance authority are distinct. R1, R2 and R3 returned `rework_required`; revision 0.4 requires a fresh exact-commit R4 review. |
+| 4. Independent review owner | **Satisfied for assignment, not acceptance.** The primary author, fresh I1 reviewer, Manager reconciler and Stephen acceptance authority are distinct. R1 through R4 returned `rework_required`; revision 0.5 requires a fresh exact-commit R5 review. |
 | 5. Acceptance tests before implementation | **Satisfied for specification.** §11 maps 22 invariants to enforcement and §12 freezes 20 test families with complete expected authorities and stored relations; no test or schema is materialized here. |
 
 ## 3. Canonical terminology and record family
@@ -422,23 +426,26 @@ advances the Candidate past a promotion gate without the Decision batch below.
 |---|---|---|---|
 | Assay `requested` or `evidence_collecting` / `assay_pending` | `CancelDiscoveryEvaluation / assay`; `assay_cancellation = assay_id + stored relation hash + reason/evidence hash` | `AssayCancelled` on old `asy_`; `CandidateEvaluationCancelled / assay` on Candidate | Old Assay and Candidate become `cancelled`/`assay_cancelled`; no promotion proposal; OR-038/OR-039 review the exact cancellation before revisit. |
 | Assay `cancelled` / `assay_cancelled` | `RequestDiscoveryOutcomeReview / assay_cancelled`; exact cancellation event, reason/evidence, aggregate relation and proposed reviewer | `ReviewRequested`; `AssayCancellationReviewRequested` on review/`asy_` streams | Cancellation remains terminal with one unresolved review overlay; only OR-039 may satisfy it. |
-| Assay `cancelled` / `assay_cancelled` with unresolved review | `ReviewDiscoveryOutcome / assay_cancelled`; exact OR-038 subject and evidence-derived reviewer relationship | `ReviewVerdictRecorded`; `AssayCancellationReviewed`; `CandidateAssayCancellationReviewed` | Both become `cancelled_reviewed`/`assay_cancelled_reviewed`; the verdict cannot relabel cancellation complete or promote. |
+| Assay `cancelled` / `assay_cancelled` with unresolved review | `ReviewDiscoveryOutcome / assay_cancelled`; exact OR-038 subject and evidence-derived reviewer relationship | Always `ReviewVerdictRecorded`; only a §4.2.3 policy-satisfying verdict emits `AssayCancellationReviewed`; `CandidateAssayCancellationReviewed` | Satisfying branch becomes `cancelled_reviewed`/`assay_cancelled_reviewed`; every other verdict leaves both outcomes unchanged and the gate closed. |
 | Assay `partial` / `assay_partial` | `RequestDiscoveryOutcomeReview / assay_partial`; exact aggregate/Partial/proposed reviewer | `ReviewRequested`; `AssayPartialReviewRequested` on review/`asy_` streams | Aggregate/Candidate remain Partial with an unresolved review overlay; only exact OR-007 may satisfy it. |
-| Assay `partial` / `assay_partial` with unresolved review | `ReviewDiscoveryOutcome / assay_partial`; `assay_outcome_review = request + assay_id + relation + Partial artefact + review subject` | `ReviewVerdictRecorded`; `AssayPartialReviewed` on `asy_`; `CandidateAssayPartialReviewed` on Candidate | Aggregate becomes `partial_reviewed`, Candidate likewise; the review cannot relabel it `reviewed` or PROMOTE. |
+| Assay `partial` / `assay_partial` with unresolved review | `ReviewDiscoveryOutcome / assay_partial`; `assay_outcome_review = request + assay_id + relation + Partial artefact + review subject` | Always `ReviewVerdictRecorded`; only a §4.2.3 policy-satisfying verdict emits `AssayPartialReviewed` on `asy_`; `CandidateAssayPartialReviewed` on Candidate | Satisfying branch becomes `partial_reviewed`; every other verdict leaves Partial unchanged and the gate closed; no branch relabels it complete or PROMOTE. |
 | Assay `reviewed`, `partial_reviewed` or `cancelled_reviewed` / Candidate `parked`, `assay_partial_reviewed` or `assay_cancelled_reviewed` | `ProposeRevisitDecision / assay`; `discovery_revisit_proposal = Candidate + old assay + exact resolved outcome review + satisfied revisit predicate + proposed dec_id` | `DecisionProposed`; `AssayRevisitRequested` on old `asy_`; `CandidateRevisitRequested / assay` | Both projections become `revisit_pending`; no evidence collection opens. |
 | Assay `revisit_pending` / `assay_revisit_pending` | `ResolveDecision / discovery_revisit`; exact prior relation/review/Decision; Stephen | `DecisionResolved`; `AssayRevisitResolved`; `CandidateRevisitResolved / assay` | `RETRY` -> both `retry_authorized`; PARK/KILL -> Candidate terminal and old Assay records option. |
 | Assay `retry_authorized` / `assay_retry_authorized` | `RequestAssay` with old `asy_` predecessor plus new `asy_`, newly current accepted Assay bar | On new `asy_`: `AssayRequested`, `AssayEvidenceCollectionOpened`; on old `asy_`: `AssaySuperseded`; Candidate: `CandidateAssayRetryStarted` | One atomic transaction; new aggregate is collecting, old is superseded, Candidate is `assay_pending`. No window has a superseded old Assay without its replacement. |
 | Spike `planned`, `approval_pending`, `authorized` or `running` / matching active Candidate state | `CancelDiscoveryEvaluation / spike`; `spike_cancellation = spike_id + plan relation + attempt/lease if any + reason/evidence hash + unresolved execution-proposal ref or null` | `SpikeCancelled`; `SpikeAttemptClosed / cancelled` and lease release when an attempt exists; `SpikeExecutionProposalSupersededByCancellation` when OR-015 is unresolved; `CandidateEvaluationCancelled / spike` | Old Spike/Candidate become `cancelled`/`spike_cancelled`; every attempt, lease and pending execution proposal is retired atomically; OR-040/OR-041 review the exact cancellation before revisit. |
 | Spike `cancelled` / `spike_cancelled` | `RequestDiscoveryOutcomeReview / spike_cancelled`; exact cancellation, plan/attempt/lease/proposal-cleanup relation and proposed reviewer | `ReviewRequested`; `SpikeCancellationReviewRequested` on review/`spk_` streams | Cancellation remains terminal with one unresolved review overlay; only OR-041 may satisfy it. |
-| Spike `cancelled` / `spike_cancelled` with unresolved review | `ReviewDiscoveryOutcome / spike_cancelled`; exact OR-040 subject and evidence-derived reviewer relationship | `ReviewVerdictRecorded`; `SpikeCancellationReviewed`; `CandidateSpikeCancellationReviewed` | Both become `cancelled_reviewed`/`spike_cancelled_reviewed`; no stale attempt, lease or execution proposal may remain. |
+| Spike `cancelled` / `spike_cancelled` with unresolved review | `ReviewDiscoveryOutcome / spike_cancelled`; exact OR-040 subject and evidence-derived reviewer relationship | Always `ReviewVerdictRecorded`; only a §4.2.3 policy-satisfying verdict emits `SpikeCancellationReviewed`; `CandidateSpikeCancellationReviewed` | Satisfying branch becomes `cancelled_reviewed`/`spike_cancelled_reviewed`; every other verdict leaves cancellation unchanged and the gate closed; no stale attempt, lease or proposal may remain. |
 | Spike `partial` / `spike_partial` | `RequestDiscoveryOutcomeReview / spike_partial`; exact aggregate/Partial/proposed reviewer | `ReviewRequested`; `SpikePartialReviewRequested` on review/`spk_` streams | Aggregate/Candidate remain Partial with an unresolved review overlay; only exact OR-021 may satisfy it. |
-| Spike `partial` / `spike_partial` with unresolved review | `ReviewDiscoveryOutcome / spike_partial`; exact request/Spike relation/verdict/review subject | `ReviewVerdictRecorded`; `SpikePartialReviewed`; `CandidateSpikePartialReviewed` | Aggregate/Candidate become `partial_reviewed`; never PASS or reviewed-complete; OR-019 already closed the attempt and lease. |
+| Spike `partial` / `spike_partial` with unresolved review | `ReviewDiscoveryOutcome / spike_partial`; exact request/Spike relation/verdict/review subject | Always `ReviewVerdictRecorded`; only a §4.2.3 policy-satisfying verdict emits `SpikePartialReviewed`; `CandidateSpikePartialReviewed` | Satisfying branch becomes `partial_reviewed`; every other verdict leaves Partial unchanged and the gate closed; never PASS/complete; OR-019 already closed attempt/lease. |
 | Spike `reviewed`, `partial_reviewed` or `cancelled_reviewed` / Candidate `parked`, `spike_partial_reviewed` or `spike_cancelled_reviewed` | `ProposeRevisitDecision / spike`; exact old Spike, resolved outcome review and satisfied revisit predicate | `DecisionProposed`; `SpikeRevisitRequested`; `CandidateRevisitRequested / spike` | Both become `revisit_pending`; no attempt/lease opens and no superseded execution proposal remains. |
 | Spike `revisit_pending` / `spike_revisit_pending` | `ResolveDecision / discovery_revisit`; exact prior relation/review/Decision; Stephen | `DecisionResolved`; `SpikeRevisitResolved`; `CandidateRevisitResolved / spike` | `RETRY` -> both `retry_authorized`; PARK/KILL -> Candidate terminal and old Spike records option. |
 | Spike `retry_authorized` / `spike_retry_authorized` | `RegisterSpikePlan` with old `spk_` predecessor plus new `spk_`, new immutable plan and current execution-subject proposal | On new `spk_`: `SpikePlanned`, `SpikeApprovalRequested`; old `spk_`: `SpikeSuperseded`; Candidate: `CandidateSpikeRetryStarted` | One atomic transaction; new aggregate is approval-pending, old is superseded, Candidate is `spike_approval_pending`. |
 
 Cancellation never deletes evidence, resolves promotion, or silently resumes. A failed
 replacement transaction leaves the old aggregate `retry_authorized`, not superseded.
+A non-satisfying or withdrawn complete, Partial or cancellation review follows only
+§4.2.3's explicit replacement/supersession route; recording that verdict never enables
+promotion or revisit.
 A conflicting retry cannot create a second replacement because the command binds the
 old stream version, Candidate stream version, new aggregate ID, complete write set and
 idempotency key. Any new attempt against a superseded, parked or killed aggregate is
@@ -485,8 +492,8 @@ literal strings; there is no runtime-generated, family-wide or aliased test iden
 | OR-003 | `RequestAssay/initial` (`C:request-assay`); Portfolio Steward; `assay_request = Candidate + new asy_id + AssayBarAcceptance + actual producer relation` | Candidate exactly `registered`; accepted current bar predates request | `E:assay-requested`, `E:assay-evidence-collection-opened` on new `asy_`; `E:candidate-assay-requested` on Candidate | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:request-assay-initial`; T04 |
 | OR-004 | `RecordAssayScore` (`C:record-assay-score`); Assay producer; `assay_evidence = asy_id + stored relation + scorecard art/hash` | Exact axis closure; producer still equals frozen bar relation | `E:assay-scored` on `asy_`; `E:candidate-assay-linked` on Candidate; artefact-use relation | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:record-assay-score`; T05 |
 | OR-005 | `RecordAssayPartial` (`C:record-assay-partial`); Assay producer; `assay_evidence = asy_id + stored relation + Partial art/hash` | Completed/unmet scope explicit; no PROMOTE; frozen relation equal | `E:assay-partial-recorded`; `E:candidate-assay-partial-linked`; artefact-use relation | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:record-assay-partial`; T04 |
-| OR-006 | `ReviewDiscoveryOutcome/assay_scored` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-034 request + asy_id + relation + scorecard + review subject` | Exact unresolved OR-034 request; scorecard exact; independence grade met | W2 `ReviewVerdictRecorded`, `E:assay-reviewed`; review then `asy_` | `U:review`, `U:assay` → `P:assay`; `R:review-discovery-outcome-assay-scored`; T04 |
-| OR-007 | `ReviewDiscoveryOutcome/assay_partial` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-035 request + asy_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met | W2 `ReviewVerdictRecorded`, `E:assay-partial-reviewed`, `E:candidate-assay-partial-reviewed`; review, `asy_`, Candidate | `U:review`, `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:review-discovery-outcome-assay-partial`; T04 |
+| OR-006 | `ReviewDiscoveryOutcome/assay_scored` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-034 request + asy_id + relation + scorecard + review subject` | Exact unresolved OR-034 request; scorecard exact; independence grade met; verdict evaluated by §4.2.3 | Always W2 `ReviewVerdictRecorded`; only if policy-satisfying, `E:assay-reviewed`; review then `asy_` | Always `U:review` → `P:review`; satisfying branch also `U:assay` → `P:assay`; `R:review-discovery-outcome-assay-scored`; T04 |
+| OR-007 | `ReviewDiscoveryOutcome/assay_partial` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-035 request + asy_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met; verdict evaluated by §4.2.3 | Always W2 `ReviewVerdictRecorded`; only if policy-satisfying, `E:assay-partial-reviewed`, `E:candidate-assay-partial-reviewed`; review, then `asy_`/Candidate | Always `U:review` → `P:review`; satisfying branch also `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:review-discovery-outcome-assay-partial`; T04 |
 | OR-008 | `CancelDiscoveryEvaluation/assay` (`C:cancel-discovery-evaluation`); Portfolio Steward; `assay_cancellation = asy_id + relation + reason/evidence hash` | Assay requested/collecting; not already terminal | `E:assay-cancelled`; `E:candidate-evaluation-cancelled` discriminant `assay`; `asy_`, Candidate | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:cancel-discovery-evaluation-assay`; T04 |
 | OR-009 | `ProposeRevisitDecision/assay` (`C:propose-revisit-decision`); Portfolio Steward; `discovery_revisit_proposal = Candidate + old asy_id + exact resolved outcome review + satisfied revisit predicate + proposed dec_id` | Exact partial-reviewed/cancelled-reviewed outcome or parked Candidate; no unresolved proposal | W2 `DecisionProposed`; `E:assay-revisit-requested`; `E:candidate-revisit-requested/assay`; Decision, `asy_`, Candidate | `U:decision`, `U:assay`, `U:candidate` → `P:decision`, `P:assay`, `P:candidate`; `R:propose-revisit-decision-assay`; T04 |
 | OR-010 | `ResolveDecision/discovery_revisit_assay` (`C:resolve-decision`); Stephen; `discovery_revisit = dec_id + Candidate + old asy_id + relation + review` | Exact proposal; `RETRY`, `PARK` or `KILL` predicates | W2 `DecisionResolved`; `E:assay-revisit-resolved`; `E:candidate-revisit-resolved/assay`; Decision, `asy_`, Candidate | `U:decision`, `U:assay`, `U:candidate` → `P:decision`, `P:assay`, `P:candidate`; `R:resolve-decision-discovery-revisit-assay`; T08 |
@@ -499,8 +506,8 @@ literal strings; there is no runtime-generated, family-wide or aliased test iden
 | OR-017 | `StartSpike` (`C:start-spike`); Operator/auditor; `spike_execution = spk_id + plan + authorization + lease/attempt/resource identities` | Authorized plan; live lease; attempt unused | `E:spike-started`; `E:candidate-spike-started`; `spk_`, attempt relation, Candidate | `U:spike`, `U:spike-attempt`, `U:candidate` → `P:spike`, `P:attempt-lease`, `P:candidate`; `R:start-spike`; T05 |
 | OR-018 | `RecordSpikeVerdict/complete` (`C:record-spike-verdict`); Spike producer; `spike_evidence = spk_id + plan + attempt + verdict art/hash` | Exact evidence closure; PASS/FAIL truth table | `E:spike-verdict-recorded`; `E:candidate-spike-verdict-linked`; `spk_`, Candidate, artefact-use | `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:record-spike-verdict-complete`; T07 |
 | OR-019 | `RecordSpikeVerdict/partial` (`C:record-spike-verdict`); Spike producer; `spike_evidence = spk_id + plan + attempt/lease + PARTIAL verdict art/hash` | Required unable/unmet scope explicit; verdict PARTIAL; attempt/lease live and exact | `E:spike-partial-recorded`; `E:spike-attempt-closed/partial`; lease released; `E:candidate-spike-partial-linked`; `spk_`, attempt/lease, Candidate, artefact-use | `U:spike`, `U:spike-attempt`, `U:candidate` → `P:spike`, `P:attempt-lease`, `P:candidate`; `R:record-spike-verdict-partial`; T07 |
-| OR-020 | `ReviewDiscoveryOutcome/spike_verdict` (`C:review-discovery-outcome`); independent verifier; exact OR-036 request/verdict subject | Exact unresolved request; verdict exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:spike-reviewed`; review, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:review-discovery-outcome-spike-verdict`; T07 |
-| OR-021 | `ReviewDiscoveryOutcome/spike_partial` (`C:review-discovery-outcome`); independent verifier; `spike_outcome_review = OR-037 request + spk_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:spike-partial-reviewed`; `E:candidate-spike-partial-reviewed`; review, `spk_`, Candidate | `U:review`, `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:review-discovery-outcome-spike-partial`; T07 |
+| OR-020 | `ReviewDiscoveryOutcome/spike_verdict` (`C:review-discovery-outcome`); independent verifier; exact OR-036 request/verdict subject | Exact unresolved request; verdict exact; independence grade met; verdict evaluated by §4.2.3 | Always W2 `ReviewVerdictRecorded`; only if policy-satisfying, `E:spike-reviewed`; review then `spk_` | Always `U:review` → `P:review`; satisfying branch also `U:spike` → `P:spike`; `R:review-discovery-outcome-spike-verdict`; T07 |
+| OR-021 | `ReviewDiscoveryOutcome/spike_partial` (`C:review-discovery-outcome`); independent verifier; `spike_outcome_review = OR-037 request + spk_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met; verdict evaluated by §4.2.3 | Always W2 `ReviewVerdictRecorded`; only if policy-satisfying, `E:spike-partial-reviewed`, `E:candidate-spike-partial-reviewed`; review, then `spk_`/Candidate | Always `U:review` → `P:review`; satisfying branch also `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:review-discovery-outcome-spike-partial`; T07 |
 | OR-022 | `CancelDiscoveryEvaluation/spike` (`C:cancel-discovery-evaluation`); Operator/auditor; `spike_cancellation = spk_id + plan relation + attempt/lease if any + reason/evidence + unresolved OR-015 proposal or null` | Planned/approval/authorized/running; stop evidence current | `E:spike-cancelled`; conditional `E:spike-attempt-closed/cancelled`; lease released; conditional `E:spike-execution-proposal-superseded-by-cancellation`; `E:candidate-evaluation-cancelled/spike`; Decision when present, `spk_`, attempt/lease, Candidate | `U:decision`, `U:spike`, `U:spike-attempt`, `U:candidate` → `P:decision`, `P:spike`, `P:attempt-lease`, `P:candidate`; `R:cancel-discovery-evaluation-spike`; T04 |
 | OR-023 | `ProposeRevisitDecision/spike` (`C:propose-revisit-decision`); Portfolio Steward; exact Candidate/old spk/resolved outcome review/satisfied revisit predicate/proposed dec | Partial-reviewed/cancelled-reviewed outcome or parked Candidate; no unresolved or cancellation-superseded proposal | W2 `DecisionProposed`; `E:spike-revisit-requested`; `E:candidate-revisit-requested/spike`; Decision, `spk_`, Candidate | `U:decision`, `U:spike`, `U:candidate` → `P:decision`, `P:spike`, `P:candidate`; `R:propose-revisit-decision-spike`; T04 |
 | OR-024 | `ResolveDecision/discovery_revisit_spike` (`C:resolve-decision`); Stephen; exact proposal/Candidate/old spk/relation/review | `RETRY`, `PARK` or `KILL` predicates | W2 `DecisionResolved`; `E:spike-revisit-resolved`; `E:candidate-revisit-resolved/spike`; Decision, `spk_`, Candidate | `U:decision`, `U:spike`, `U:candidate` → `P:decision`, `P:spike`, `P:candidate`; `R:resolve-decision-discovery-revisit-spike`; T08 |
@@ -513,14 +520,14 @@ literal strings; there is no runtime-generated, family-wide or aliased test iden
 | OR-031 | `RecordLegacyPortfolioObservation` (`C:record-legacy-portfolio-observation`); independent verifier/importer; path registration + physical file identity + bytes + parser | §7.3 handle-bound read; no adoption | `E:legacy-portfolio-path-observed`; observation artefact stream | `U:legacy-observation` → `P:legacy-observation-audit`; `R:record-legacy-portfolio-observation`; T14 |
 | OR-032 | `TransitionPortfolioOwnership` (`C:transition-portfolio-ownership`); Operator/auditor; accepted mapping content/acceptance + observation + source row + targets + migration Decision | Exact stored relation; one current owner; versions/tail current | `E:portfolio-item-ownership-transitioned`; item ownership, exact targets, project index; never legacy path | `U:item-ownership`, `U:portfolio-object`, `U:project-index` → `P:successor-discovery`, `P:project-ownership`; `R:transition-portfolio-ownership`; T15/T16 |
 | OR-033 | `CutOverDiscoveryPath` (`C:cut-over-discovery-path`); Operator/auditor; accepted cutover closure + cutover Decision + exact annotation epoch/fence | Closure current; §7.3 lock; writer revocation/final observation and pre-fence annotation epoch unchanged | `E:annotation-inbox-epoch-fenced`; `E:successor-annotation-epoch-activated`; `E:legacy-discovery-path-cutover-completed`; `E:path-registration-revised`; annotation/path/project registries | `U:annotation-epoch`, `U:path-registration`, `U:path-cutover` → `P:annotation-audit`, `P:path-registry`, `P:successor-discovery`; `R:cut-over-discovery-path`; T13/T18 |
-| OR-034 | `RequestDiscoveryOutcomeReview/assay_scored` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_review_request = asy_id + relation + scorecard + proposed review ID/reviewer relation` | Assay scored; no unresolved review request; proposed reviewer independence plausible | W2 `ReviewRequested`; `E:assay-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-scored`; T04 |
-| OR-035 | `RequestDiscoveryOutcomeReview/assay_partial` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_review_request = asy_id + relation + Partial art/hash + proposed review ID/reviewer relation` | Assay partial; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:assay-partial-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-partial`; T04 |
-| OR-036 | `RequestDiscoveryOutcomeReview/spike_verdict` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_review_request = spk_id + relation + verdict art/hash + proposed review ID/reviewer relation` | Verdict recorded; no unresolved request; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-verdict`; T07 |
-| OR-037 | `RequestDiscoveryOutcomeReview/spike_partial` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_review_request = spk_id + relation + Partial art/hash + proposed review ID/reviewer relation` | Spike partial; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-partial-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-partial`; T07 |
-| OR-038 | `RequestDiscoveryOutcomeReview/assay_cancelled` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_cancellation_review_request = asy_id + relation + cancellation event/reason/evidence + proposed review ID/reviewer relation` | Assay cancelled; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:assay-cancellation-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-cancelled`; T04 |
-| OR-039 | `ReviewDiscoveryOutcome/assay_cancelled` (`C:review-discovery-outcome`); independent verifier; exact OR-038 cancellation subject | Exact unresolved request; cancellation evidence exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:assay-cancellation-reviewed`; `E:candidate-assay-cancellation-reviewed`; review, `asy_`, Candidate | `U:review`, `U:assay`, `U:candidate` → `P:review`, `P:assay`, `P:candidate`; `R:review-discovery-outcome-assay-cancelled`; T04 |
-| OR-040 | `RequestDiscoveryOutcomeReview/spike_cancelled` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_cancellation_review_request = spk_id + plan/attempt/lease/proposal-cleanup relation + cancellation event/reason/evidence + proposed review ID/reviewer relation` | Spike cancelled; attempts/leases/proposals retired; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-cancellation-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-cancelled`; T07 |
-| OR-041 | `ReviewDiscoveryOutcome/spike_cancelled` (`C:review-discovery-outcome`); independent verifier; exact OR-040 cancellation subject | Exact unresolved request; cancellation and cleanup evidence exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:spike-cancellation-reviewed`; `E:candidate-spike-cancellation-reviewed`; review, `spk_`, Candidate | `U:review`, `U:spike`, `U:candidate` → `P:review`, `P:spike`, `P:candidate`; `R:review-discovery-outcome-spike-cancelled`; T07 |
+| OR-034 | `RequestDiscoveryOutcomeReview/assay_scored` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_review_request = asy_id + relation + scorecard + proposed review ID/reviewer relation + prior-review supersession or null` | Assay scored; no unresolved review request; exact §4.2.3 supersession when a prior review exists; proposed reviewer independence plausible | W2 `ReviewRequested`; `E:assay-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-scored`; T04 |
+| OR-035 | `RequestDiscoveryOutcomeReview/assay_partial` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_review_request = asy_id + relation + Partial art/hash + proposed review ID/reviewer relation + prior-review supersession or null` | Assay partial; no unresolved review request; exact §4.2.3 supersession when a prior review exists; reviewer independence plausible | W2 `ReviewRequested`; `E:assay-partial-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-partial`; T04 |
+| OR-036 | `RequestDiscoveryOutcomeReview/spike_verdict` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_review_request = spk_id + relation + verdict art/hash + proposed review ID/reviewer relation + prior-review supersession or null` | Verdict recorded; no unresolved request; exact §4.2.3 supersession when a prior review exists; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-verdict`; T07 |
+| OR-037 | `RequestDiscoveryOutcomeReview/spike_partial` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_review_request = spk_id + relation + Partial art/hash + proposed review ID/reviewer relation + prior-review supersession or null` | Spike partial; no unresolved review request; exact §4.2.3 supersession when a prior review exists; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-partial-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-partial`; T07 |
+| OR-038 | `RequestDiscoveryOutcomeReview/assay_cancelled` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_cancellation_review_request = asy_id + relation + cancellation event/reason/evidence + proposed review ID/reviewer relation + prior-review supersession or null` | Assay cancelled; no unresolved review request; exact §4.2.3 supersession when a prior review exists; reviewer independence plausible | W2 `ReviewRequested`; `E:assay-cancellation-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-cancelled`; T04 |
+| OR-039 | `ReviewDiscoveryOutcome/assay_cancelled` (`C:review-discovery-outcome`); independent verifier; exact OR-038 cancellation subject | Exact unresolved request; cancellation evidence exact; independence grade met; verdict evaluated by §4.2.3 | Always W2 `ReviewVerdictRecorded`; only if policy-satisfying, `E:assay-cancellation-reviewed`, `E:candidate-assay-cancellation-reviewed`; review, then `asy_`/Candidate | Always `U:review` → `P:review`; satisfying branch also `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:review-discovery-outcome-assay-cancelled`; T04 |
+| OR-040 | `RequestDiscoveryOutcomeReview/spike_cancelled` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_cancellation_review_request = spk_id + plan/attempt/lease/proposal-cleanup relation + cancellation event/reason/evidence + proposed review ID/reviewer relation + prior-review supersession or null` | Spike cancelled; attempts/leases/proposals retired; no unresolved review request; exact §4.2.3 supersession when a prior review exists; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-cancellation-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-cancelled`; T07 |
+| OR-041 | `ReviewDiscoveryOutcome/spike_cancelled` (`C:review-discovery-outcome`); independent verifier; exact OR-040 cancellation subject | Exact unresolved request; cancellation and cleanup evidence exact; independence grade met; verdict evaluated by §4.2.3 | Always W2 `ReviewVerdictRecorded`; only if policy-satisfying, `E:spike-cancellation-reviewed`, `E:candidate-spike-cancellation-reviewed`; review, then `spk_`/Candidate | Always `U:review` → `P:review`; satisfying branch also `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:review-discovery-outcome-spike-cancelled`; T07 |
 
 #### 4.2.2 External authority-lifecycle owner rows
 
@@ -582,10 +589,12 @@ envelope; it cannot propose, review, resolve or accept catalogue authority.
 The reducer effect in each lifecycle row is the exact from-state/event/to-state edge in
 §4.1/§4.1.1; the owner row and that matrix are one indivisible contract. OR-034–OR-038
 and OR-040 add an unresolved review overlay without changing the outcome phase, while
-OR-006, OR-007, OR-020, OR-021, OR-039 and OR-041 satisfy that exact overlay and perform
-the displayed review transition. In each ordinary authority row, content registration creates only `candidate`, file
+OR-006, OR-007, OR-020, OR-021, OR-039 and OR-041 always close that request into its
+exact W2 verdict state and update `P:review`; only §4.2.3's `satisfied` branch performs
+the displayed outcome transition. Every other branch leaves the aggregate/Candidate
+phase unchanged and permits only the policy's exact replacement route. In each ordinary authority row, content registration creates only `candidate`, file
 observation adds only `observed`, review request/verdict adds `review_pending` then
-`review_satisfied|review_rejected`, proposal adds `decision_pending`, resolution adds
+the exact W2 policy state, proposal adds `decision_pending`, resolution adds
 `accepted|rejected`, and OR-109 alone adds `stale`. OR-140 is different by design: it
 imports an already externally accepted immutable envelope once and cannot create any
 acceptance state. These are closed reducer states; no
@@ -603,6 +612,35 @@ review and Stephen acceptance live only in the external envelope; OR-140 produce
 single genesis-import event. Every other W11-specific event has one
 literal owner row. A future catalogue serializes these rows and materialized schema
 hashes; it cannot add an implicit producer, reducer, projection or authority subject.
+
+#### 4.2.3 Discovery outcome review-verdict effect policy
+
+The closed policy `ars://portfolio/policy/discovery-outcome-review@1.0.0` applies to
+exactly `assay_scored | assay_partial | assay_cancelled | spike_verdict |
+spike_partial | spike_cancelled`. Recording a W2 verdict and satisfying the W11
+lifecycle gate are separate effects. Every OR-006/007/020/021/039/041 execution records
+the exact W2 verdict and updates `P:review`; only the policy's `satisfied` branch emits
+an Assay/Spike/Candidate `*Reviewed` event or changes an outcome projection.
+
+| W2 verdict | W2 Review projection under this policy | Assay/Spike/Candidate effect | Only next review route |
+|---|---|---|---|
+| `approve` | `satisfied` | Emit the row's exact `*Reviewed` events; the displayed `reviewed`, `partial_reviewed` or `cancelled_reviewed` transition occurs. | No further review request for the unchanged subject. |
+| `approve_with_conditions` with every condition explicitly `non_blocking`, a named condition owner, due/review date and evidence ref, and no condition that changes the reviewed subject or cleanup proof | `satisfied`; conditions remain separately queryable audit obligations | Same satisfying events as `approve`; a condition cannot itself authorize promotion/revisit or amend evidence. | A later condition record is evidence only unless another command consumes it. |
+| `approve_with_conditions` with any blocking, unknown, unowned, undated or subject-changing condition | `changes_requested` | No aggregate/Candidate `*Reviewed` event; underlying scored/verdict/Partial/cancelled outcome remains unchanged. | Exact superseding-subject or bounded-delta request below. |
+| `changes_requested` | `changes_requested` | No aggregate/Candidate `*Reviewed` event; lifecycle gate remains closed. | Exact superseding-subject or bounded-delta request below. |
+| `reject` | `verdict_recorded` and unsatisfied | No aggregate/Candidate `*Reviewed` event; lifecycle gate remains closed. | New request requires a superseding subject hash; same-subject retry is forbidden. |
+| `unable_to_verify` | `verdict_recorded` and unsatisfied | No aggregate/Candidate `*Reviewed` event; lifecycle gate remains closed. | New request requires added verification evidence/capability in a superseding subject or explicit bounded delta. |
+| `withdrawn` | `withdrawn` | No aggregate/Candidate `*Reviewed` event; lifecycle gate remains closed. | A same-subject replacement is allowed only with the withdrawn request/verdict refs, withdrawal reason and a different eligible reviewer relation. |
+
+For a prior non-satisfying review, OR-034–038/040 requires a
+`review_subject_supersession` containing the prior request/verdict IDs and hashes,
+prior subject hash, new subject hash, exact changed evidence/condition-resolution refs,
+reason, proposed reviewer relation and either `superseding_subject` or
+`bounded_delta` mode. `bounded_delta` additionally binds the unchanged-base hash and
+the exact accepted delta scope. It is invalid after `reject` without a new subject.
+Except for the explicit `withdrawn` replacement above, equal old/new subject hashes
+are rejected. A new request supersedes the closed prior review record; it never edits
+or relabels that verdict. An unresolved request still forbids another request.
 
 ### 4.3 `AssayScorecard`
 
@@ -715,17 +753,20 @@ different Assay during revisit or supersession.
 Assay outcome review is two-stage. OR-034/OR-035 fixes an exact scorecard or Partial
 artefact, aggregate relation, proposed reviewer and evidence-derived independence
 subject in W2 `ReviewRequested`. OR-006/OR-007 can record a verdict only against that
-unresolved request. A complete scorecard becomes `reviewed`; a Partial uses the
-distinct `partial_reviewed` projection and cannot be relabelled complete.
+unresolved request. Only a §4.2.3 policy-satisfying verdict makes a complete scorecard
+`reviewed` or a Partial `partial_reviewed`; every other verdict changes only the Review
+projection and follows the explicit supersession route.
 
 Cancellation review is equally subject-specific. OR-038 freezes the exact
 `AssayCancelled` event, reason/evidence hash, aggregate relation and proposed reviewer;
-OR-039 alone may satisfy it and projects `cancelled_reviewed`. OR-040 freezes the exact
+OR-039 alone may satisfy it, and only on a §4.2.3 policy-satisfying verdict does it
+project `cancelled_reviewed`. OR-040 freezes the exact
 `SpikeCancelled` event together with the plan, attempt/lease closure and any
-execution-proposal supersession; OR-041 alone may satisfy it and projects
-`cancelled_reviewed`. A Partial review, complete-outcome review or cancellation record
+execution-proposal supersession; OR-041 alone may satisfy it and likewise projects
+`cancelled_reviewed` only on the satisfying branch. A Partial review, complete-outcome review or cancellation record
 from another aggregate is not substitutable. `ProposeRevisitDecision` accepts only the
-resolved exact review appropriate to the terminal outcome.
+resolved exact review appropriate to the terminal outcome whose W2 projection is
+`satisfied` under the named policy.
 
 The current TDL legacy rubric maps explicitly to one future accepted rubric revision:
 Axis 1 is the `topology_earns_its_keep` Boolean gate; Axes 2 and 3 are integers in
@@ -1596,6 +1637,7 @@ expected side.
 | Assay bar is abstract, unaccepted, stale, accepted late, producer-mismatched, swapped after request, or scorecard belongs to another `assay_id` | Reject before evidence linkage; no Assay/Candidate event. |
 | Assay axis missing/extra/duplicate/wrong type or rubric stale | Reject `AssayScored` or record explicit Assay Partial; no promotion proposal inferred. |
 | Partial/cancelled aggregate has no exact review/revisit path, leaves an attempt/lease/proposal overlay, retry reuses an aggregate, or supersession commits without its replacement | `recovery_overlay_open`/`transition_dead_end`; reject the offending transaction; retain the old recoverable state/evidence. |
+| A Discovery outcome review is non-satisfying/withdrawn, has blocking or unowned conditions, or attempts same-subject retry outside the withdrawal exception | `review_gate_unsatisfied`; record only the valid W2 review effect, emit no aggregate/Candidate `*Reviewed` event, and require the exact §4.2.3 replacement/supersession route. |
 | Spike plan, attempt, Candidate, or verdict relationship mismatch | Reject verdict; preserve artefacts as unaccepted candidates. |
 | Kill condition triggered but verdict PASS/PARTIAL | Reject verdict schema/relational validation. |
 | Required Spike condition unable to evaluate | PARTIAL; no PASS or promotion. |
@@ -1644,15 +1686,15 @@ Their absence does not weaken the prospective requirements above.
 | W11-I01 | Object definitions are immutable and state-free. | Closed object schemas and reducers. | Reject lifecycle/status/path fields and in-place revision mutation. |
 | W11-I02 | Every reference/lifecycle artefact binds exact ID/revision/hash plus canonical `asy_`/`spk_` aggregate/stored relation; every derived-hash preimage is explicitly enumerated and every content/file/review/acceptance dependency is topologically constructible. | Schema, §3.6 DAG validator, aggregate reducers and relation resolver. | Substitute a valid foreign member; add self/back edge or SCC; include a relation/enclosing/later hash in its own preimage; assert rejection with state unchanged. |
 | W11-I03 | Required dependency/block subgraph is acyclic. | Edge-registration/admission validator. | Add direct and multi-hop cycles; reject atomically. |
-| W11-I04 | Exact closed rubric/scope contents, file observations, independent review, external Assay-bar acceptance and prospective=actual producer relation are frozen before collection; Partial/cancellation has a subject-specific non-dead-end reviewed revisit route. | OR-034–OR-041, OR-101–OR-109, `RequestAssay`, Assay/Candidate reducers. | Abstract/missing/late/stale bar, producer change, post-request swap, foreign scorecard, axis mutations, every cancellation/Partial/request/review/RETRY/PARK/KILL edge and same-ID retry. |
+| W11-I04 | Exact closed rubric/scope contents, file observations, independent review, external Assay-bar acceptance and prospective=actual producer relation are frozen before collection; Partial/cancellation has a subject-specific non-dead-end reviewed revisit route, and only a §4.2.3 policy-satisfying verdict clears it. | OR-034–OR-041, §4.2.3, OR-101–OR-109, `RequestAssay`, Assay/Candidate reducers. | Abstract/missing/late/stale bar, producer change, post-request swap, foreign scorecard, axis mutations, all six W2 verdicts for every outcome discriminant, supersession/replacement, every RETRY/PARK/KILL edge and same-ID retry. |
 | W11-I05 | Assay/Spike evidence cannot resolve promotion. | Decision authority resolver. | Feed PROMOTE recommendation/PASS without Stephen Decision; no state change. |
-| W11-I06 | Spike verdict obeys success/failure/kill/Partial logic, and Partial/cancellation atomically closes attempts/leases and supersedes any pending execution proposal before the subject-specific reviewed revisit/new-aggregate path. | Spike-verdict schema, rule evaluation and OR-019–OR-025/OR-040–OR-041 reducers. | Trigger each kill/unknown condition and both cancellation/proposal race orders; traverse every Partial/cancel/review/revisit option; reject false PASS, open lease/proposal, dead end and same-ID retry. |
-| W11-I07 | Promotion is exact-subject, exact-gate, human-locked. | `ResolveDecision` and authority grant. | Wrong actor, Candidate, revision, gate, evidence, option, next state, and stale grant. |
+| W11-I06 | Spike verdict obeys success/failure/kill/Partial logic, and Partial/cancellation atomically closes attempts/leases and supersedes any pending execution proposal before the subject-specific policy-satisfied reviewed revisit/new-aggregate path. | Spike-verdict schema, rule evaluation, §4.2.3 and OR-019–OR-025/OR-040–OR-041 reducers. | Trigger each kill/unknown condition, all review verdicts and both cancellation/proposal race orders; traverse satisfying and non-satisfying replacement/revisit options; reject false PASS, open lease/proposal, negative-review progression, dead end and same-ID retry. |
+| W11-I07 | Promotion is exact-subject, exact-gate, policy-satisfied-review and human-locked. | §4.2.3, `ResolveDecision` and authority grant. | Wrong actor, Candidate, revision, gate, evidence, non-satisfying/withdrawn review, option, next state, and stale grant. |
 | W11-I08 | PROMOTE authorizes only one named next design step. | `CandidatePromotionApplied` reducer/write set. | Add Dispatch/pre-registration/result/claim event to batch; reject all. |
 | W11-I09 | Complete literal six-family `DossierExpectedSetContent` precedes independent file observation/review/external acceptance, has no self/back edge, and is frozen before candidate observation. | OR-110–OR-115, §3.6 DAG and admission resolver. | Embed own file/acceptance, create SCC, late/related/unaccepted tuple or coordinated candidate-side omission; unchanged external tuple rejects. |
 | W11-I10 | Dossier closure is exact, including independently resolved/rehashed component and source bytes, not “all supplied passed.” | `AdmitResearchDossier`. | Per-family missing/extra/duplicate/stale/incompatible/tampered/valid-foreign/path-escape/count-only and source-resolution mutations. |
 | W11-I11 | Dossier admission is atomic. | W2 transaction/write set. | Fail each validation step and inject concurrent tail/version changes; assert zero events/final objects/scopes/projections. |
-| W11-I12 | Scout observations are not judgments/authority, and all 81 owner rows bind complete command/discriminant, membership in the exact W4 allowlist, event producer, streams/write set, reducer/effect-equivalent projection targets, receipt and three literal per-row test identities. | Scout schema, §4.2 owner annex and externally accepted §8 catalogue. | Add judgment/direct write; omit/blank/swap any owner-row field; remove an allowlist member/projection/test identity; wildcard subject, alternate producer, coordinated catalogue/runtime change or abstract later command; reject. |
+| W11-I12 | Scout observations are not judgments/authority, and all 81 owner rows bind complete command/discriminant, membership in the exact W4 allowlist, conditional event producer, streams/write set, reducer/effect-equivalent projection targets including `P:review`, receipt and three literal per-row test identities. | Scout schema, §4.2 owner annex/policy and externally accepted §8 catalogue. | Add judgment/direct write; omit/blank/swap any owner-row field; remove an allowlist member/projection/test identity or verdict branch; wildcard subject, alternate producer, coordinated catalogue/runtime change or abstract later command; reject. |
 | W11-I13 | Generated views never authorize their source. | Command source allowlists. | Use successor/combined projection as dossier, annotation, transition, or Decision input; reject. |
 | W11-I14 | Legacy, successor, annotation, and combined writer sets remain physically disjoint from registration through the operation commit point. | PathRegistration plus §7.3 handle/file-identity resolver. | Registered-root junction positive; exact/casefold/Unicode/8.3/symlink/reparse/prefix/hardlink/parent-swap race matrix. |
 | W11-I15 | An annotation is evidence until a separate command acts. | `IngestDiscoveryAnnotation`. | Ingest proposed PROMOTE/object edit; only annotation event appears. |
@@ -1671,7 +1713,7 @@ following minimum set before any runtime code is written:
 
 1. strict positive/negative schema and §3.6 topological tests for every literal §8
    content/authority, aggregate/relation, artefact, Decision subtype and all 81 owner
-   rows, including every event producer, stream/write set, reducer/projection, receipt,
+   rows, including every unconditional/conditional event producer, stream/write set, reducer/projection, receipt,
    self/back edge, SCC, enumerated relation-hash preimage, external catalogue envelope,
    genesis import and forbidden candidate acceptance field;
 2. one-field-at-a-time type/value/enum/pattern/required/additional-property mutations;
@@ -1683,17 +1725,20 @@ following minimum set before any runtime code is written:
 4. closed Candidate/Assay/Spike matrices covering every §4.1.1 state/command/event/
    stream/reducer edge, unique `asy_`/`spk_`, exact accepted Assay-bar and prospective=
    actual producer freeze, late/stale/swap cases, Partial review, subject-specific
-   cancellation request/review, attempt/lease and pending-proposal closure, both
-   cancellation/proposal race orders, RETRY/PARK/KILL, retry-new-aggregate and atomic
-   replacement/supersession;
+   cancellation request/review, all six W2 verdicts for every complete/Partial/cancelled
+   subject, non-blocking/blocking condition branches, exact review supersession,
+   attempt/lease and pending-proposal closure, both cancellation/proposal race orders,
+   RETRY/PARK/KILL, retry-new-aggregate and atomic replacement/supersession;
 5. exact Candidate–Assay–Spike–artefact–review–RuleEvaluation–Decision–acceptance
    relation substitutions using foreign but individually valid current records,
    including old/new retry predecessors and acceptance tuples;
 6. TDL legacy assay-rubric compatibility fixture proving the numeric rule while
    proving legacy `decision` is recommendation-only;
 7. Spike PASS/FAIL/PARTIAL truth table with every kill/unknown condition perturbed at
-   the producing seam plus Partial review, cancellation review, attempt/lease closure,
-   pending execution-proposal supersession and no-dead-end reachability;
+   the producing seam plus every W2 verdict for complete/Partial/cancellation review,
+   proof that only policy `satisfied` emits `*Reviewed`, negative/withdrawn replacement
+   routes, attempt/lease closure, pending execution-proposal supersession and no-dead-end
+   reachability;
 8. PROMOTE/PARK/KILL option-specific requirements and non-Stephen authority negatives;
 9. exact dossier positive fixture from a topologically constructed pre-observation
    `DossierExpectedSetContent` + file observation + review + external acceptance, plus
@@ -1707,7 +1752,7 @@ following minimum set before any runtime code is written:
     owner rows, with exact W4 subject, ordered event producer, streams, complete write
     set, reducer, projection, receipt and exact per-row positive, negative/mutation and
     retry identities; independently join every row to its W4 allowlist and effect-
-    equivalent projection targets;
+    equivalent projection targets, including `P:review` and every §4.2.3 verdict branch;
 12. Scout source/dedup/collision tests and direct-judgment/direct-write permission
     negatives;
 13. annotation valid/stale/duplicate/foreign-writer/manual-projection-edit tests plus
@@ -1753,7 +1798,7 @@ review or D-G6-4.
 | P-034 | Keep. Accepted source-only inventory and per-item source–item–target relations precede transitions; a later accepted closure binds final observation/bijection and an accepted annotation epoch before atomic fence/cutover. No indefinite dual-running, implicit batch or parser omission. |
 | P-036 | Keep. WP6 launch-basis constraints are unchanged; W11 receives a new exact-revision gate. |
 | D-G6-4 bounded policy choices | **Accepted 2026-07-18:** catalogue authority is an external exact Git/blob envelope imported later through verified genesis; cutover uses an accepted annotation epoch, atomic fence and successor-epoch routing. This accepts the policies, not the W11 revision or any implementation/migration. |
-| D-G6-4 limb 1 | **Open:** revision 0.4 reconciles R3 but is not self-accepted; Stephen may accept its new exact commit only after fresh independent R4 review reports no open Critical/Major. |
+| D-G6-4 limb 1 | **Open:** revision 0.5 reconciles R4 but is not self-accepted; Stephen may accept its new exact commit only after fresh independent R5 review reports no open Critical/Major. |
 | D-G6-4 limb 2 | **Open:** Stephen must approve a content-addressed first ownership-transition batch using the accepted §7.5 relation; no item/path migration is inferred by accepting the spec. |
 | W11-A1 | **Open/optional:** accept the proposed combined-view path, substitute another disjoint third path, or omit the view. |
 
@@ -1767,8 +1812,8 @@ precompute the later cutover closure. An empty or descriptive list is not approv
 
 The report at
 `../reviews/adversarial-wp6-5-w11-spec-review-2026-07-18.md` remains immutable. The R1
-author reconciliation below is retained for provenance; R2 and R3 subsequently
-identified further Major defects, so revision 0.4 refines rather than erases those
+author reconciliation below is retained for provenance; R2, R3 and R4 subsequently
+identified further defects, so revision 0.5 refines rather than erases those
 historical rows:
 
 | Finding | Revision 0.2 disposition | Invariants/tests re-opened for fresh review |
@@ -1811,7 +1856,17 @@ finding/matrix audit without claiming acceptance:
 | R3-M5 — Spike Partial/cancel leaves overlays live | OR-019 closes its attempt/lease on PARTIAL; OR-022 atomically closes attempt/lease and mechanically supersedes any unresolved OR-015 proposal before cancellation review/revisit. | I06; tests 4, 7, 11 |
 | R3-M6 — late annotation can stale cutover closure | Stephen approved the accepted annotation-epoch policy; §§7.4/7.6 bind the exact legacy epoch, re-observe it under lock, atomically fence it and activate successor routing at cutover. | I18; tests 13, 18 |
 
-The three reviews' complete audits are dispositioned, not narrowed: all five design
+The immutable R4 report at
+`../reviews/adversarial-wp6-5-w11-spec-remediation-r4-review-2026-07-18.md` reviewed exact
+subject `4b941326e290582db7be07113d5d7bb78d8b97a3`. Revision 0.5 dispositions both
+findings without claiming acceptance:
+
+| R4 finding | Revision 0.5 disposition | Invariants/tests re-opened for R5 |
+|---|---|---|
+| R4-M1 — negative/unverifiable outcome review clears the gate | §4.2.3 defines one closed six-discriminant verdict/effect policy. Every verdict updates W2 Review; only `approve` or policy-valid non-blocking `approve_with_conditions` reaches `satisfied` and emits `*Reviewed`. All other verdicts leave the outcome unchanged and require an exact replacement/superseding review relation. | I04, I06, I07, I12; tests 4, 7, 11 |
+| R4-m1 — inconsistent Review projections | OR-006/007/021 now join `U:review` to `P:review`, matching OR-020/039/041; every verdict branch updates the Review projection while aggregate/Candidate effects remain conditional. | I12; tests 1, 3, 11 |
+
+The four reviews' complete audits are dispositioned, not narrowed: all five design
 entry criteria are now stated as satisfied for authorship; every P-004/P-005/P-021/
 P-022/P-026/P-032/P-034/P-036 and D-G6-4/W11-A1 row remains explicit above; all 22
 invariants remain in §11; all 20 pre-implementation tests remain in §12; §8 resolves
@@ -1822,7 +1877,7 @@ checks are reconciliation evidence only.
 
 ### 13.2 Cross-spec consistency reconciliation
 
-| Invariant / identity | Owning source | Revision 0.4 binding and disposition |
+| Invariant / identity | Owning source | Revision 0.5 binding and disposition |
 |---|---|---|
 | First-class ID, immutable record and canonical stream/reference semantics | W2 §§5–9 | Portfolio/content records remain immutable `obj_`; Assay/Spike use canonical `asy_`/`spk_`; review/acceptance state is external and every reference is topologically constructible. |
 | Decision is not `RuleEvaluation` | W2 §18; P-005/P-022 | Scorecards/verdicts remain evidence; every PROMOTE/PARK/KILL resolution is an exact-subject Stephen Decision and cannot be compensated. |
@@ -1849,7 +1904,9 @@ Before W11 can be accepted or WP6.6 planned:
    relational substitutions, every §3.6 self/back edge and SCC, the complete 81-row
    owner multiset and all three literal per-row test identities, the external catalogue
    envelope/one-time-genesis boundary, Assay-bar producer/staleness, every cancellation/
-   Partial review and recovery edge, attempt/lease/proposal cleanup in both race orders,
+   Partial review and recovery edge, all six W2 verdicts across all six outcome subjects,
+   non-blocking/blocking condition ownership, negative/withdrawn review replacement and
+   same-subject attacks, attempt/lease/proposal cleanup in both race orders,
    source-inventory/mapping/closure ordering, shared physical writers, partial cutover,
    legacy-named generation, accepted annotation-epoch staleness/fencing/successor routing,
    combined-view feedback, annotation round-tripping, and atomic dossier publication.
@@ -1879,6 +1936,10 @@ Fresh review and later implementation review must retain these residual risks:
   stored graph, reconstruct both sides separately and run coordinated-pair mutations;
 - future lifecycle reducers could omit an owner row or leave a Partial/cancelled state
   unreachable; review must enumerate all 81 rows and perform full state reachability;
+- future review reducers could confuse `verdict_recorded` with policy `satisfied`;
+  review must enumerate all six W2 verdicts, condition branches and replacement modes
+  for every complete/Partial/cancelled Assay/Spike subject and assert zero outcome event
+  on every non-satisfying branch;
 - Windows filesystem features vary by volume and privilege. Tests must record which
   junction/reparse/hardlink/file-ID races executed; any unavailable required test is
   Partial, not pass;
@@ -1918,10 +1979,10 @@ must receive its own D-G6-4 decision.
       specified.
 - [x] All six assurance lanes are dispositioned; Output/Provenance is primary.
 - [x] Invariants map to enforcement points and pre-implementation attacks.
-- [x] R1, R2, and R3 independent adversarial reviews completed with `rework_required`;
+- [x] R1, R2, R3, and R4 independent adversarial reviews completed with `rework_required`;
       immutable reports incorporated unchanged.
-- [x] Primary author reconciliation dispositions every R1/R2/R3 finding and full matrix.
-- [ ] Fresh independent R4 review of the new exact commit reports no open Critical/Major.
+- [x] Primary author reconciliation dispositions every R1/R2/R3/R4 finding and full matrix.
+- [ ] Fresh independent R5 review of the new exact commit reports no open Critical/Major.
 - [ ] Stephen accepts the exact W11 revision under D-G6-4.
 - [ ] Stephen approves the first exact ownership-transition batch under D-G6-4.
 - [ ] Future strict schemas and independent expected catalogue are materialized,
