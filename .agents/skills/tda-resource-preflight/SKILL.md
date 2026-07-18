@@ -5,9 +5,11 @@ description: Use before launching compute that may exceed ~30 minutes — bootst
 
 # TDA Resource Preflight
 
-Locked convention: long-running stochastic compute runs on **at least 4
-workers**, with chunked checkpointing, progress reporting, and an up-front
-wall-time estimate. **Serial long stochastic compute is a reviewable defect.**
+Locked convention: long-running stochastic compute establishes and records its
+**optimal safe worker count** before launch, with chunked checkpointing, progress
+reporting, and an up-front wall-time budget. The count is selected from a measured
+production-entry-point sweep; it is not a fixed minimum or the largest count that
+fits in memory.
 This skill produces the resource plan that makes a launch defensible. Skip it
 for small deterministic unit tests and trivial calculations.
 
@@ -46,10 +48,14 @@ for small deterministic unit tests and trivial calculations.
      throughput ceiling regardless of worker count. Do not assume a stage is
      I/O-bound from intuition alone — check it, especially against any
      existing memory recording the opposite for that exact library call.
-4. Select the strategy: serial (written justification required) / joblib-loky /
-   multiprocessing / R future·parallel / Dask / out-of-core.
-5. Require, non-negotiably: workers ≥ 4 (or the written justification),
-   chunked checkpointing with resume, progress reporting, date-suffixed
+4. Select the strategy: serial / joblib-loky / multiprocessing / R
+   future·parallel / Dask / out-of-core. Record the p75-projected wall time,
+   observed process parallelism, and memory headroom for every feasible candidate
+   count; select the feasible count with the lowest projected wall time. If a
+   lower count wins because extra processes contend for RAM, CPU, I/O, or the
+   backend, record that evidence rather than forcing a larger count.
+5. Require, non-negotiably: the preflight-selected worker count and wall-time
+   budget, chunked checkpointing with resume, progress reporting, date-suffixed
    outputs that never overwrite, recorded seeds, and a stated wall-time
    estimate BEFORE launch. When the run is a multi-condition grid/battery
    (multiple rungs, nulls, or parameters) under a budget that may truncate it,
@@ -74,10 +80,13 @@ Write `resource_preflight_<task>_<YYYY-MM-DD>.json` alongside the run plan:
   "data_scale": {"n_rows": null, "n_trajectories": null,
                   "landmark_count": null, "null_draws": null},
   "resources": {"cpu_cores": null, "memory_gb": null, "disk_free_gb": null},
-  "strategy": {"parallel_backend": "loky", "workers": 4,
+  "strategy": {"parallel_backend": "loky", "worker_candidates": [],
+                "selected_workers": null,
+                "selection_criterion": "lowest safe p75-projected wall time",
                 "checkpointing": true, "resume_supported": true,
                 "progress_reporting": true},
   "benchmark": {"harness_is_production_entry_point": null,
+                 "candidate_results": [],
                  "sweep_call_count": null,
                  "target_call_count": null,
                  "scale_pct": null},
@@ -125,7 +134,8 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
       component kernel), worker count swept.
 - [ ] Benchmark scale vs. target run recorded; PROVISIONAL flagged if the
       sweep is below full target scale.
-- [ ] Worker count ≥ 4 specified, or serial explicitly justified in writing.
+- [ ] Candidate worker counts, measured outcomes, and the optimal safe selected
+      count are recorded; no fixed worker floor was assumed.
 - [ ] Checkpoint/resume strategy and progress reporting specified.
 - [ ] Output overwrite protection and seeds specified.
 - [ ] Wall-time estimate recorded before launch.
@@ -136,8 +146,8 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 
 - The benchmark says the wall time is infeasible — surface it; never silently
   shrink B or L, they are pre-registered parameters.
-- Memory per worker × workers exceeds the machine — reduce workers with a
-  written note, or move to out-of-core.
+- Memory per worker × workers exceeds the machine — reject that candidate and
+  select a safe lower count, or move to out-of-core.
 
 ## Related Skills
 

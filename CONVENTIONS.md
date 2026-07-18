@@ -145,18 +145,20 @@ Three journal-targeted papers replacing the original four technique-first papers
   Locked 2026-06-03c (same PR #31 CodeRabbit batch). See
   [[Enforcement-must-assert-value-not-key-presence]].
 
-- **ALWAYS parallelize long-running stochastic compute to at least 4 workers,
-  with checkpoint/progress reporting and an up-front wall-time estimate.**
-  Bootstraps, permutation nulls, MICE-pooled refits, and per-individual / per-
-  cluster batteries must be written to run on ≥ 4 parallel workers by default
-  (joblib `n_jobs`, R `future` / `parallel` / `foreach`, or an explicit worker
-  pool), exposed via a worker-count parameter (default ≥ 4) and a chunked
-  checkpoint so a halted job resumes rather than restarts. Workers flag any job
-  expected to exceed ~30 min as long-running **before** launch and state the
-  expected wall time. The machine handles ≥ 4 concurrent worker jobs. Locked
-  2026-06-03 after repeated overnight-scale serial runs (e.g. the T1.34 full-
-  sample FOO bootstrap) were cut to a fraction by appropriate parallelization;
-  serial-only long stochastic compute is a defect to be flagged in review.
+- **ALWAYS preflight long-running stochastic compute to establish and record
+  the optimal safe worker count, with checkpoint/progress reporting and an
+  up-front wall-time estimate.** Bootstraps, permutation nulls, MICE-pooled
+  refits, and per-individual / per-cluster batteries must benchmark the real
+  production entry point across feasible candidate process counts, verify the
+  backend's actual parallelism, and record p75 wall-time projection, per-process
+  memory, and headroom for every candidate. Select the feasible count with the
+  lowest projected wall time; do not treat the largest count or a fixed floor as
+  optimal. A lower count, including one, is valid only when that preflight
+  records why additional concurrency is slower or unsafe. Expose the selected
+  count and wall-time budget explicitly, and use chunked checkpoints so a halted
+  job resumes rather than restarts. Workers flag any job expected to exceed
+  ~30 min as long-running **before** launch. Locked 2026-07-17 after T1.38's
+  measured N=3 configuration was safer and faster than a forced N=4 launch.
 
 - **ALWAYS persist a sample-provenance ledger and cite sample counts by
   reference, never free-typed.** Every model-fitting Task writes a

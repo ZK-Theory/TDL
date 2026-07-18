@@ -49,7 +49,7 @@ The Markov-2 rows use the Laplace-smoothed ($\alpha=1$) code path described in �
 **Table 3. Per-subgroup Markov-1 irreducibility, three BH families**
 *(all subgroups tested against their own Markov-1 null, $B=1{,}000$, seed 42, frozen loadings; $L=\min(5{,}000, n_g)$; BH-adjusted within family)*
 
-| Family | Subgroup | $n$ | $L$ | $T$ | 95% BCa | $W_2$ $p_{\mathrm{adj}}$ | Landscape $L^2$ $p$ | Reject |
+| Family | Subgroup | $n$ | $L$ | $T$ | 95% BCa | $W_2$ $p_{\mathrm{adj}}$ | Landscape $L^2$ $p_{\mathrm{adj}}$ | Reject |
 |---|---|---:|---:|---:|---|---|---|:---:|
 | **USoc** | | | | | | | | |
 | Gender | Female | 14,362 | 5,000 | 11.63 | [11.35, 11.92] | 0.001 | 0.001 | Y |
@@ -68,19 +68,19 @@ The Markov-2 rows use the Laplace-smoothed ($\alpha=1$) code path described in �
 | Gender | Female | 3,016 | 3,016 | 5.68 | [5.52, 5.85] | 0.001 | 0.001 | Y |
 | Gender | Male | 2,524 | 2,524 | 3.90 | [3.77, 4.03] | 0.001 | 0.001 | Y |
 | NS-SEC | Intermediate | 1,790 | 1,790 | 3.77 | [3.65, 3.88] | 0.001 | 0.001 | Y |
-| NS-SEC | Professional/Managerial | 335 | 335 | 1.60 | [1.54, 1.66] | 0.086 | 0.003 | **N** |
+| NS-SEC | Professional/Managerial | 335 | 335 | 1.60 | [1.54, 1.66] | 0.086 | not available | incomplete |
 | NS-SEC | Routine/Manual | 2,620 | 2,620 | 4.15 | [4.03, 4.28] | 0.001 | 0.001 | Y |
 | Cohort | 1930s | 986 | 986 | 2.35 | [2.27, 2.43] | 0.010 | 0.001 | Y |
-| Cohort | 1940s | 1,360 | 1,360 | 2.18 | [2.11, 2.25] | 0.016 | 0.148 | Y$^{*}$ |
+| Cohort | 1940s | 1,360 | 1,360 | 2.18 | [2.11, 2.25] | 0.016 | not available | incomplete |
 | Cohort | 1950s | 1,373 | 1,373 | 2.86 | [2.77, 2.96] | 0.002 | 0.013 | Y |
 | Cohort | 1960s | 1,722 | 1,722 | 3.20 | [3.09, 3.30] | 0.002 | 0.001 | Y |
 | Cohort | 1970s | 1,064 | 1,064 | 2.67 | [2.58, 2.76] | 0.002 | 0.001 | Y |
 | Cohort | 1980s | 223 | 223 | 1.53 | [1.48, 1.58] | 0.097 | 0.180 | **N** |
 
-$^{*}$ BHPS 1940s cohort: $W_2$ rejects (BH-adjusted $p=0.016$) but landscape $L^2$ does not ($p=0.148$) -- a dual-metric divergence in the opposite direction from Professional/Managerial (where $W_2$ fails to reject but landscape rejects). Both are reported per the dual-metric mandate rather than resolved by deferring to one metric.
+Landscape $L^2$ values in this table have not been retained with the metric-specific BH adjustment required for inferential use. Consequently, a row is called **Reject** only when both metrics have available BH-adjusted values below 0.05; rows without a valid landscape adjustment are marked incomplete and are non-headline.
 
-**What this rung tests (restated from §3.2).** Each row asks whether subgroup $g$'s topology exceeds *its own* first-order Markov baseline, estimated on that subgroup's own transition data -- a test of per-subgroup Markov-1 irreducibility, not a between-subgroup heterogeneity test. All three families (gender, NS-SEC, cohort) are BH-corrected for both datasets (not BY; the per-subgroup construction runs on disjoint subgroups and the tests are mutually independent, unlike the earlier pairwise adjacent-cohort design).
+**What this rung tests (restated from §3.2).** Each row asks whether subgroup $g$'s topology exceeds *its own* first-order Markov baseline, estimated on that subgroup's own transition data -- a test of per-subgroup Markov-1 irreducibility, not a between-subgroup heterogeneity test. BH correction is applied separately for each metric within each gender, NS-SEC, and cohort family under its stated dependence assumption; disjoint membership does not itself establish independence.
 
 **USoc: 12/12 subgroups reject.** Every USoc subgroup across all three families rejects its own Markov-1 null under both metrics ($T$ ranging 3.20-11.63).
 
-**BHPS: 9/11 reject under $W_2$, with three distinct dual-metric patterns.** Two subgroups do not reject under $W_2$ after BH adjustment -- Professional/Managerial ($n=335$, $T=1.60$, $p_{\mathrm{adj}}=0.086$) and 1980s cohort ($n=223$, $T=1.53$, $p_{\mathrm{adj}}=0.097$) -- both the two smallest BHPS cells and both **pre-registered as underpowered**, not evidence of equivalence to the Markov-1 null. Three qualitatively different metric patterns appear across the eleven BHPS subgroups: (i) agreement on non-rejection (1980s cohort: neither metric rejects), (ii) $W_2$ rejects but landscape does not (1940s cohort), and (iii) landscape rejects but $W_2$ does not (Professional/Managerial). All three are disclosed in Table 3 rather than summarised as a single "two non-rejections" statement, since the metrics disagree on *which* cells reject. Any interpretation of BHPS stratified rejections should be read together with the BHPS-specific Markov-1 null-credibility caveat reported elsewhere in this paper (the calibration diagnostic finding the BHPS Markov-1 null anti-conservative; P01-A §6.2) -- the BHPS rejections in this table carry that caveat.
+**BHPS: W₂ evidence is incomplete as dual-metric evidence.** Professional/Managerial ($n=335$, $T=1.60$, $W_2$ $p_{\mathrm{adj}}=0.086$) and the 1980s cohort ($n=223$, $T=1.53$, $W_2$ $p_{\mathrm{adj}}=0.097$) do not reject under $W_2$ after BH adjustment and were pre-registered as underpowered. Rows lacking a retained BH-adjusted landscape value are not used for a complete dual-metric conclusion. Any interpretation of the remaining BHPS results carries the Markov-1 null-credibility caveat reported elsewhere in this paper.

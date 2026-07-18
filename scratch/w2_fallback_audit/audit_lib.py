@@ -11,13 +11,95 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-PROJ_ROOT = Path("C:/Users/steph/TDL")
+
+_GITDIR_PREFIX = "gitdir: "
+_COMMIT_ID = re.compile(r"[0-9a-f]{40}")
+
+
+def _git_dir(worktree_root: Path) -> Path:
+    """Return a worktree's Git directory without executing a process."""
+    git_pointer = worktree_root.resolve() / ".git"
+    if git_pointer.is_dir():
+        return git_pointer
+    if not git_pointer.is_file():
+        raise RuntimeError(f"Git metadata is missing from worktree: {worktree_root}")
+    pointer = git_pointer.read_text(encoding="utf-8").strip()
+    if not pointer.startswith(_GITDIR_PREFIX):
+        raise RuntimeError(f"Git metadata has an invalid gitdir pointer: {git_pointer}")
+    git_dir = Path(pointer.removeprefix(_GITDIR_PREFIX))
+    if not git_dir.is_absolute():
+        git_dir = git_pointer.parent / git_dir
+    return git_dir.resolve()
+
+
+def _common_git_dir(git_dir: Path) -> Path:
+    """Return the common Git directory for a primary checkout or linked worktree."""
+    common_dir_file = git_dir / "commondir"
+    if not common_dir_file.exists():
+        return git_dir
+    common_dir = Path(common_dir_file.read_text(encoding="utf-8").strip())
+    if not common_dir.is_absolute():
+        common_dir = git_dir / common_dir
+    return common_dir.resolve()
+
+
+def _read_ref(git_dir: Path, common_dir: Path, ref: str) -> str:
+    """Read a commit ID from loose or packed Git reference storage."""
+    for ref_root in (git_dir, common_dir):
+        ref_path = ref_root / ref
+        if ref_path.exists():
+            return ref_path.read_text(encoding="utf-8").strip()
+    packed_refs = common_dir / "packed-refs"
+    if packed_refs.exists():
+        for line in packed_refs.read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith(("#", "^")):
+                commit_id, packed_ref = line.split(" ", maxsplit=1)
+                if packed_ref == ref:
+                    return commit_id
+    raise RuntimeError(f"Git reference is missing: {ref}")
+
+
+def project_root(worktree_root: Path) -> Path:
+    """Resolve the shared project root for a primary checkout or linked worktree.
+
+    Args:
+        worktree_root: Existing primary checkout or linked-worktree directory.
+
+    Returns:
+        The directory that owns the repository's Git common directory.
+    """
+    common_dir = _common_git_dir(_git_dir(worktree_root))
+    if common_dir.name != ".git":
+        raise RuntimeError(f"Expected Git common directory to end in .git, got {common_dir}")
+    return common_dir.parent
+
+
+def git_head(worktree_root: Path) -> str:
+    """Return the immutable Git commit ID for the trusted worktree.
+
+    Args:
+        worktree_root: Existing primary checkout or linked-worktree directory.
+
+    Returns:
+        Forty-character hexadecimal commit identifier at the worktree HEAD.
+    """
+    git_dir = _git_dir(worktree_root)
+    common_dir = _common_git_dir(git_dir)
+    head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    commit_id = _read_ref(git_dir, common_dir, head.removeprefix("ref: ")) if head.startswith("ref: ") else head
+    if not _COMMIT_ID.fullmatch(commit_id):
+        raise RuntimeError(f"Git HEAD is not a full commit identifier: {commit_id}")
+    return commit_id
+
+
+PROJ_ROOT = project_root(Path(__file__).resolve().parents[2])
 STAGE1_DIR = PROJ_ROOT / "results/trajectory_tda_integration/stage1"
 CACHE_DIR = STAGE1_DIR / "cache"
 
@@ -187,6 +269,8 @@ def headline_stats_from_distances(
         "t_ratio": t_ratio,
         "w2_pvalue": w2_pvalue,
         "lower_tail_pvalue": lower_tail_pvalue,
+        "rank_count_upper": r_upper,
+        "rank_count_lower": r_lower,
         "n_effect_pairs": len(nn_effect),
         "n_pvalue_pairs": n_pv,
     }

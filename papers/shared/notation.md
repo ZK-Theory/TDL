@@ -29,9 +29,9 @@ audit.
 **Ground metric — locked for P01 (2026-07-14).** The ground metric for
 Wasserstein computation is Euclidean, i.e. $\ell^2$, on the birth-death plane,
 matching `gudhi.wasserstein.wasserstein_distance(order=2, internal_p=2)` in
-`trajectory_tda/topology/vectorisation.py`. $\ell^\infty$ is **never** used;
-any archived P01-VR-PH-Core prose writing $\|\cdot\|_\infty$ is stale (corrected
-in P01-B §3.1, T2.12). The order $p = 2$ (Wasserstein-2) and the $\ell^2$ ground
+`trajectory_tda/topology/vectorisation.py`. $\ell^2$ is used for the primary
+reported results. The separately recorded `internal_p=inf` run is a sensitivity
+check, not the primary ground metric. The order $p = 2$ (Wasserstein-2) and the $\ell^2$ ground
 metric are two distinct choices — state both explicitly.
 
 ## Paper-Specific Context

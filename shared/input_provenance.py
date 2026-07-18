@@ -255,7 +255,7 @@ def check_manifest(manifest: dict[str, Any], repo_root: Path, proj_root: Path | 
                     viols.append(f"vintage mismatch: disk {disk_vintage} != expected {exp_vintage}")
             elif exp_vintage:
                 viols.append(
-                    "vintage_date is ignored for a worktree-root input (mtime is reset on checkout); pin sha256 instead"
+                    "vintage_date is ignored for a worktree-root input (mtime is reset on checkout); pin blob_sha instead"
                 )
 
         statuses.append(
