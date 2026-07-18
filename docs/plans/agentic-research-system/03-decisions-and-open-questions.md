@@ -564,10 +564,15 @@ Gate 6 launch and dispatch-planning controls.
 The WP6.5 specification-only draft exists at
 `design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`.
 Independent review of exact revision `70074d42eade8460808e4d1d29348b7806eff2d0`
-returned `rework_required` (2 Critical, 6 Major, 2 Minor); revision 0.2 records author
-reconciliation of every finding, complete invariant/test/decision dispositions, and a
-dated addendum to the tracked plan-suite evidence register. A fresh independent review of the new exact commit is
-mandatory and author reconciliation is not acceptance. This status entry does not
+returned `rework_required` (2 Critical, 6 Major, 2 Minor). R2 review of exact revision
+`d24df9d26f0d906d177eafa1eaeabb65a5515004` also returned `rework_required`
+(0 Critical, 5 Major). Revision 0.3 records author reconciliation of every R1/R2
+finding and the complete entry/invariant/test/decision/assurance/cross-spec matrices;
+it replaces self/cross-address cycles with a topological external-authority DAG,
+instantiates the Assay bar, freezes 82 owner rows, and closes Partial/cancellation
+recovery. The dated addendum remains in the tracked root evidence register. A fresh
+independent R3 review of the new exact commit is mandatory and author reconciliation is
+not acceptance. This status entry does not
 amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
 schema/projection, ingest/admit any item, transition ownership, cut over a path, or
 perform any result/eligibility/claim action. D-G6-4 remains open for (1) Stephen's
