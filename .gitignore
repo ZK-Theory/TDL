@@ -184,9 +184,16 @@ results/**/.partial/
 results/trajectory_tda_integration/stage1/bhps_nonoverlap_reanalysis/
 
 # - markov2 alpha-sweep per-cell checkpoints + status files (T1.8 intermediates;
-#   the committed summary JSON embeds every per-cell result inline)
+#   the committed summary JSON embeds every per-cell W2 result inline — but NOT
+#   the landscape L2 blocks, which exist only in the per-cell files)
 results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_*.json
 results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_*.status.json
+# H6 ruling (2026-07-18 [DECISION]): the two alpha=1 cell JSONs are the sole source
+# of P01-B Table 2's certified Markov-2 landscape L2 values — whitelist them so the
+# citation-grade artifact is committed (their W2 fields remain do-not-cite; see
+# results/trajectory_tda_integration/stage1/SUPERSEDED.md)
+!results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json
+!results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json
 
 # repomix dump (regenerable; 108MB blob was rejected by GitHub LFS limit
 # in commit 52af787 and removed from history via filter-repo 2026-05-22)
