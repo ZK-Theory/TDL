@@ -1,0 +1,1655 @@
+schema_id: ars://contracts/wp6-2-live-grader-calibration-protocol
+schema_version: 1.0.0
+protocol_id: wp6-2-live-grader-calibration-protocol
+protocol_version: 1.0.0
+protocol_status: preregistered_pending_independent_review_and_stephen_acceptance
+authored_on: '2026-07-18'
+normative_plan_revision: fe5f1d40bc8f05f061317c677b5891cea0711249
+base_revision: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+claim_status: no_observed_calibration_claim
+dependency_graph: T1a -> T2 -> T3/T4 -> T1b -> T5 -> T6 -> T7 -> T8
+authority_sources:
+- authority_id: wp6_master
+  repository_path: docs/plans/agentic-research-system/implementation/06-wp6-gate6-readiness-and-integration-plan.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: 91d943b3c45381b10b11c86d4836c79d0a862cdb
+  canonical_sha256: 016942bb654d5714f7f591e84f873ea243c891e0053e97c6498798c32425a257
+- authority_id: wp6_2_live_capability
+  repository_path: docs/plans/agentic-research-system/implementation/06b-wp6-2-live-capability-plan.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: 6afed1964a773cdccb3304fd2aea9920528400a7
+  canonical_sha256: 018902cb2e40fd641cc3d209d6119d0f632952aafd1eb1ad20881a4eb44537b9
+- authority_id: wp6_2_live_replacement_map
+  repository_path: docs/plans/agentic-research-system/implementation/06e-wp6-2-live-replacement-map.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: a187ff6435f0a170bbb894bbb2a94ce97586fa30
+  canonical_sha256: a65c24624bb309558dd29a779b2db5b1c308b9fcd5caff4b5394e365b77e47b8
+- authority_id: wp6_2_p1_activation_contract
+  repository_path: docs/plans/agentic-research-system/implementation/06f-wp6-2-p1-activation-contract.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: 8e3e625e2cba41a5bd0c66a6763cb4d3c47d036b
+  canonical_sha256: 160f898837df14d3f22ba2592eb117766686b5d5d6e4004cb8669886ea8d670c
+- authority_id: w5_assurance
+  repository_path: docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: 51e7bfcbd0e5626caa45c828abda0b484d3a5739
+  canonical_sha256: fd52fb1cede920fe6d97b8cd40d580c40fede6729bad2bbdb4433fcf36831075
+- authority_id: w6_evaluation
+  repository_path: docs/plans/agentic-research-system/design/06-evaluation-observability-and-audit.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: 48c8116bcd719038f741ebe1ee73dfe89f533abf
+  canonical_sha256: 367d57251172e68ada4826d940f7313b9e3f2afff6ccdf98dcd3476e9baee29a
+- authority_id: w4_w5_fixture_addendum
+  repository_path: docs/plans/agentic-research-system/design/06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md
+  commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+  git_blob_sha1: 1a169d415731d1073ed06dc7b163be848c4d6b0f
+  canonical_sha256: ae5612a018aa4f9383123497e629cc65239f2a15ce0581cb908f24e945b5d9d4
+- authority_id: decision_register_p029_p030_p033_p035_p036
+  repository_path: docs/plans/agentic-research-system/03-decisions-and-open-questions.md
+  commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+  git_blob_sha1: f4aa13d4e6537762d7b9692538ca1187088d5239
+  canonical_sha256: 1531f826043478edf7ab0bd12244595b6b265a6fb072e4643b095a3f2cb2c8fc
+- authority_id: wp6_r5_approval_review
+  repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md
+  commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+  git_blob_sha1: b6f047db330617f25ffd8e0826da9769facab089
+  canonical_sha256: 15af91fa08f248f55765cbcdf9d0efce3153232c7818a66d385b80c4bdb0e065
+scope:
+  grader_classes:
+  - M
+  - H
+  model_capability_risk_scope:
+  - R2_scientific_property_and_assurance_review
+  - R3_cross_family_review_and_claim_or_governance_guarding
+  - provider_parity_context_routing_and_proof_obligation_review
+  human_capability_risk_scope:
+  - R2_assurance_and_governance_authority
+  - R3_or_P005_method_claim_or_eligibility_authority
+  - outage_scope_completion_independence_and_non_compensation_decisions
+  target_population: the_exact_31_M_and_20_H_unavailable_Gate_5_obligations_in_approved_06e_for_the_15_named_fixture_revisions
+  exclusions:
+  - D_T_R_O_P_graders
+  - F037_F038_P1_activation_observations
+  - providers_or_models_outside_future_T3_Claude_and_T4_Codex_evidence
+  - research_results_claims_and_any_M_or_H_eligibility_transition
+corpus:
+  corpus_id: wp6-2-gate5-authored-mh-calibration-corpus
+  corpus_version: 1.0.0
+  vintage:
+    accepted_gate5_merge: f49a27fe15ae4df566c9107dc07f7451f51b924a
+    accepted_gate5_fixture_tree_git_sha1: 84acfbdbb72da2e91986142ae6cd1d8806622e36
+    verified_unchanged_at_base: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+    p0_coverage_git_blob_sha1: c1563b725702d8738597e6b25cc3f3061c51226c
+    p0_variant_matrix_git_blob_sha1: 6f2a63c59fcd5a33b0d0f915b1514ba1187fc55d
+  inclusion_rule: include_every_accepted_fixture_revision_with_a_required_M_or_H_obligation_in_approved_06e_and_all_its_known_bad_known_good_safe_variation_and_declared_producer_correlation_views
+  exclusion_rule: exclude_unmaterialized_or_unaccepted_fixture_revisions_live_outputs_observed_results_and_any_case_not_derived_from_the_accepted_fixture_tree
+  fixture_packages:
+  - fixture_id: F-005
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-005
+    package_tree_git_sha1: b9fc919c5dbcc23667309354839a85691d19b180
+    fixture_yaml_git_blob_sha1: a6e248f06b901f4c99e77413730e8d17bd6f80c3
+    source_manifest_sha256: 8e80ec59c7492cc404fc47abc3db1395e93d77eca6c7dcba2ad841fb38d4f2a7
+    stimulus_sha256: 68f6ca6ef4997e7a173fbb84b476e9089a45ec86a6fa5c93961cdd099eefda19
+    known_bad_reference_sha256: 6ab22846dd026910fa4fea3a3dea6cdb97271f278d56912e28f4df8dff2f18cb
+    known_good_reference_sha256: 310a009949da387385fb04baaeff14460024afc1342c911e8fc67c5842a99e27
+    mutation_ids:
+    - exact_scope_revision_closure-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-009
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-009
+    package_tree_git_sha1: e0573cf0ca0249a5fde7213ab74e4fded852756c
+    fixture_yaml_git_blob_sha1: 93c312a02cd8fa9b1e5ce8c6d8a51763acc2a38f
+    source_manifest_sha256: f9b696c339af1131c535706e4a6e93f61ebeb9063138d9af1006d0082a4b0352
+    stimulus_sha256: 599b5c1908a1ec775401d89e93664dec4f440ca413566382d3e91c3727b86530
+    known_bad_reference_sha256: 972e65dfe48e773b6790af51f758f9a585724ff0113558bc0e3dff6e09187a38
+    known_good_reference_sha256: c9b2eadee7ba1f2effd1be08cf6c2b05793faa720400fd7cd2355b586a08a425
+    mutation_ids:
+    - hard_runtime_guardrail-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-012
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-012
+    package_tree_git_sha1: 32d8c3d448c09276c94bc7364a5dccb373d976d3
+    fixture_yaml_git_blob_sha1: 8c26e91abed070efb057292fcde5b4356f2ddd09
+    source_manifest_sha256: 9ecb21edb67ecf825a0d4dabd13bba04dc955dddbd6c00c0f9c47fddef5f4d26
+    stimulus_sha256: a514148e4be67d1221e2343547d6d4e5cdfb794ba351f97e559857327798fd06
+    known_bad_reference_sha256: 6bb2c1f6694b28fecef4784520f4f009cb607a82fc0320dd5696306188f2d168
+    known_good_reference_sha256: 3103ad14cc0c458ccce6bc7e88fc2f0839123fdd2e58e1149e47c5eaa2abfbd0
+    mutation_ids:
+    - null_operation_changes_tested_object-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-014
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-014
+    package_tree_git_sha1: 948bd7109778733ea712da2eb6e4c747747a4eab
+    fixture_yaml_git_blob_sha1: 54d2a200dc21642ae59e42fa81fa7c257d7caaaa
+    source_manifest_sha256: 8702189a9e5dced114debac33f69e855ed135d9e31a893a085a527e30614476d
+    stimulus_sha256: 234e442dcc417ff362fc4b6e88058a2271caf3cf5f8a8e7ca323884d701ddd36
+    known_bad_reference_sha256: 6fec3277a5c6b55b7a74608f79270501b682f86db4830618a72a283ca17e2bc1
+    known_good_reference_sha256: c7cbed766745dc76587e41b1ee385f39f2cbcfc69617512f590da6c14d83d4c3
+    mutation_ids:
+    - independent_contract_authority-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-020
+    fixture_revision: r2
+    package_path: .research-system/evals/fixtures/F-020
+    package_tree_git_sha1: 406c8e845fbb5a331c62c51a23eac53679c511fa
+    fixture_yaml_git_blob_sha1: 7c70963bb6b79ef09e20ca18ef75a3422c8cd5c0
+    source_manifest_sha256: 978bc27b3c0dde644d6cace3a4aea0da422c14b2566805df069539df3e26af45
+    stimulus_sha256: 36418b8b988b9a564c89792d049ea9f08239bfcfc551b3ac31406d4fa6855d32
+    known_bad_reference_sha256: feb928d9be824d581eabf1184f367c4e256e58e523570854f1db51812d26cefa
+    known_good_reference_sha256: 89e0086fb35d2fce4840c0d7a739927dbcbe3993bda34a3d6906729cb8cd44ed
+    mutation_ids:
+    - adapter_policy_parity-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-021
+    fixture_revision: r2
+    package_path: .research-system/evals/fixtures/F-021
+    package_tree_git_sha1: 2087ec4d64050581d5ab6b166dfe53f0a86e9c36
+    fixture_yaml_git_blob_sha1: 5347cea2bef5838ed6121ae2439cf68633c0acca
+    source_manifest_sha256: 34a6e1d72ca761c684a46953fa1bad21bf4408fb799d222e0ecc3f52db63d08d
+    stimulus_sha256: 6b53866d172c9789b471be010713b0bee7b64b0c1c19762fa0ea66eb0b582824
+    known_bad_reference_sha256: 1ce7d2842442fe1512c0cda4d6c34e55200bebd9846dbb62692463e9ed7bddb2
+    known_good_reference_sha256: bda96c734ace95cfa39b1d52b6283725b96549ae0216967d33ae2fc6bfe82d1d
+    mutation_ids:
+    - governing_amendment_recall-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-022
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-022
+    package_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+    fixture_yaml_git_blob_sha1: ac7807c34ac4953a24457c5f1a41577d6b0092ef
+    source_manifest_sha256: 4972d4bb6e6a0f6ac705d04a02dc6e0fe9fd05f172f47e9639858ea6e918db43
+    stimulus_sha256: 368bb2c2d9220eec8bd81d80c3bb728dc7147110aa9dcc5064123655fbb7905e
+    known_bad_reference_sha256: 72ca35d29f56f0d097a3dbdde8e18ea4df1947ab41fc364fbd795c8151369b96
+    known_good_reference_sha256: b06c78743ac4022a406a0030e7c6c397bb4b2bea5e9481799d9445327aa5b38b
+    mutation_ids:
+    - reviewer_independence_evidence-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-025
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-025
+    package_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+    fixture_yaml_git_blob_sha1: 63570665f60f614ab12b7d0b6b97a947d861ddea
+    source_manifest_sha256: 98d9c3acfaa72b3ab47f75014e389567fbdaa59fbc8caa853c7ced8431f6325f
+    stimulus_sha256: 8da6433b3f28996a9c90ef3e33f4b8a4561ff436685e4a5c49e1d947b6fdd0bb
+    known_bad_reference_sha256: ef824a19e1233b670e160a092e98763338f5e6707310e616c3e2002489ea4e23
+    known_good_reference_sha256: 404a30707e6b97baa7b1d79093963dabc86595486f7e9a480aee1a4d51a27bfa
+    mutation_ids:
+    - mandatory_scope_closure-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-026
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-026
+    package_tree_git_sha1: a50855e08897be6d60e593bd2d2b47266766e0c3
+    fixture_yaml_git_blob_sha1: c364c745c791f2557e0c9ef7d780557b576a98d6
+    source_manifest_sha256: d2c61151f468be6558712f1697f4aa4c377ece630bccf3d42ec56485bb13d9b9
+    stimulus_sha256: 8531843c0dab36ec21bb264f3b2351ce00f433558ef5b9316ded3d0015839589
+    known_bad_reference_sha256: ee52d7ebcfc7bd1e4c12686afda0832e8c0a54785630cfb2ac63442b9399987c
+    known_good_reference_sha256: 163fb0daa673656fdf026e01c774933ab41c8267be954e3e205454875f0293e0
+    mutation_ids:
+    - implementer_scientific_closure-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-031
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-031
+    package_tree_git_sha1: 0330cdf635531ba4c59f56a445b36f7981427a84
+    fixture_yaml_git_blob_sha1: a14f3c9b924a554a505064f5a94b5b5aca1ca24e
+    source_manifest_sha256: 1a8935b0e2af15452d00f86851307200b10ef86222e2d62ad8b444ff9a76ad45
+    stimulus_sha256: ce32d84bc6966f5b303d4bf72ab36dd74b49cb6f3aedbd7045571313c9ce8a69
+    known_bad_reference_sha256: 51aa4543b8cbfb69ccfa443cab5e0b73d7c88e8fb1e193177edf916d63b690ff
+    known_good_reference_sha256: c97521d87e14a254929d6175043f864c8cd75fdfbfcdb8a34616623c0195b473
+    mutation_ids:
+    - deterministic_eligibility_routing-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-032
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-032
+    package_tree_git_sha1: 9025615a91d02cc05b1eac1e4f289b911561ebbc
+    fixture_yaml_git_blob_sha1: 32f1be3efe250d001f625d0178dce88017c85afb
+    source_manifest_sha256: 6ccc9bf0aff6daa84b9eee6dd163003d77c27690530d908fc057e308ec71b76a
+    stimulus_sha256: 1350472b3b3594af7393c13fc616b8deeec471601b58b0762f644bbe77169496
+    known_bad_reference_sha256: 3a6a08495ae80cd55242115588c09866425d6fb8b08b1a5e9b10b7cc70232b31
+    known_good_reference_sha256: 1d64d6a2c3066ebaafb42f838f704feb01dd128dc32319ddf416027b2b544318
+    mutation_ids:
+    - outage_fallback_requirement_preservation-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-033
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-033
+    package_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+    fixture_yaml_git_blob_sha1: c9dd3970d73cf3fb434ab9eeda84f3d653a1c717
+    source_manifest_sha256: 0d43bf4ca7836d5bd57a7223ebf9e8fb22083cf832a59c2c09a765161f3bd2e7
+    stimulus_sha256: 669f8eaf9daa96381b9d77d41f7fcb251035d2ee05dbd689b201b2c32518cf1e
+    known_bad_reference_sha256: 4ae90da6021f2cc0531ec3ab29bd3d02943be74a4d960545fe223e9f9212bb5a
+    known_good_reference_sha256: 174a8f2a6d022ea19104817b046c519efc4f7105a6578b9e63380b9fc5a576f7
+    mutation_ids:
+    - predispatch_verifier_feasibility-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-035
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/F-035
+    package_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+    fixture_yaml_git_blob_sha1: 410de30409ead7a82f7ce50502d816ee3f82bbd4
+    source_manifest_sha256: e589559602e3458a61cfb14e9f9acfbf788d90a6f21377173237f3215a759aeb
+    stimulus_sha256: e958269cade1e6e2f80d4e78454ce1c378b600c80fd734029020dc064edbd2de
+    known_bad_reference_sha256: 290d388dbac66f1a7294e48a8cfa22a414ca2da2e7f33db0f5c185cec1328413
+    known_good_reference_sha256: a5e6e6b22f4da3b2744565d858f7ccd4bb54d99361d6a48bcb253a5e4fa2d555
+    mutation_ids:
+    - two_key_assurance_non_compensation-violation
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: F-036
+    fixture_revision: r2
+    package_path: .research-system/evals/fixtures/F-036
+    package_tree_git_sha1: 293163812a78bfaea4a4a335f48d7f9ffac85de7
+    fixture_yaml_git_blob_sha1: 528fcd94dfcc6e16d49722e6752682d708e2a747
+    source_manifest_sha256: 6f0292eef6d5960e7eb448504e352b2e94042d9bee0b1ab2e4beeec99107176c
+    stimulus_sha256: 99530820bb386b5cb0af6cd541dccdc8c60b39bfba4c1dda168c2c4c7a90ce99
+    known_bad_reference_sha256: 879b80437096f017df0385741ab909fed21e61cdf266de5cf4d0f499d264e4c3
+    known_good_reference_sha256: 41244773cca09880c1f9ceb3c8d51d690b5405787593c569403503ea8d75e0b3
+    mutation_ids:
+    - expected_value_anchoring
+    - degenerate_constant_fallback
+    - null_operation_invariance
+    safe_variation_ids:
+    - identifier-renaming
+  - fixture_id: S-016
+    fixture_revision: r1
+    package_path: .research-system/evals/fixtures/S-016
+    package_tree_git_sha1: af1c8691928be3de3ba96ee75877509c1c8d19af
+    fixture_yaml_git_blob_sha1: 4898d9c2123984792926fd133f2440ea18a9c4ad
+    source_manifest_sha256: e150b0beb1490a7d6b70355dac76b1f6069729130b1b890c923958097fd49c7c
+    stimulus_sha256: 94ddebdec8973f65c7275e69058e02a6ba1d65420efd7e77b4497ae113ef1616
+    known_bad_reference_sha256: d7942e626c77d9a07cbf8ba165f25c6497814b3371adebec7437a0b9bc076147
+    known_good_reference_sha256: b9776199864ad27b63e31d52c8e79bb2f9afd75a64e5923acd845d8fa690a1e0
+    mutation_ids:
+    - allow_subthreshold_outage_fallback
+    safe_variation_ids:
+    - identifier-renaming
+  fixture_package_count: 15
+  corpus_manifest_sha256: 7fbe69d83ff23429508f420d717c39c676294910aceae243293410dada28c849
+target_expected_sets:
+  model:
+    grader_class: M
+    obligation_count: 31
+    bindings:
+    - fixture_id: F-012
+      fixture_revision: r1
+      grader_id: f-012-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 8b8b615bc5bf48edb0794e22d1be36360fa843bff9c986bcda4954ba68e3732e
+      obligation_id: M-005
+    - fixture_id: F-012
+      fixture_revision: r1
+      grader_id: f-012-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-claude-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-claude-adapter-v1-windows-fake-transport
+      binding_sha256: d70809544b61a7daa6f092884e227693e3152b1a35a21610b4047c12f5e3f05a
+      obligation_id: M-006
+    - fixture_id: F-012
+      fixture_revision: r1
+      grader_id: f-012-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-codex-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-codex-adapter-v1-windows-fake-transport
+      binding_sha256: d41f42a8a64d24767bf48ec2c34992aed86dddddb2cb1e09978c3e3c4379b582
+      obligation_id: M-007
+    - fixture_id: F-020
+      fixture_revision: r2
+      grader_id: f-020-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 0c5be0e2f04d023f57dd0317334999151735ce9919ac878853732c50368eb30c
+      obligation_id: M-011
+    - fixture_id: F-020
+      fixture_revision: r2
+      grader_id: f-020-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-claude-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-claude-adapter-v1-windows-fake-transport
+      binding_sha256: 11f21ed310a2ce4a7b81cfa22b46a56c4c71b767198d36e2d0358e922b160c09
+      obligation_id: M-012
+    - fixture_id: F-020
+      fixture_revision: r2
+      grader_id: f-020-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-codex-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-codex-adapter-v1-windows-fake-transport
+      binding_sha256: 730747e3aff845b9c2df05ed4df7bc04245ee25903188d552763b15238eb6e2b
+      obligation_id: M-013
+    - fixture_id: F-021
+      fixture_revision: r2
+      grader_id: f-021-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: da4aebee96cb6015e74443f3281e792e2c36fc787699f4a1c298231282b14cca
+      obligation_id: M-014
+    - fixture_id: F-022
+      fixture_revision: r1
+      grader_id: f-022-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 2834d8556a9f4867ec2a16c8e5e42b9ff6f99abd9235e84d4f332ad8da99b5b1
+      obligation_id: M-018
+    - fixture_id: F-022
+      fixture_revision: r1
+      grader_id: f-022-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: 422f2581ed8217f232df232e232d3ce416587d88a0670613e035d141ef961476
+      obligation_id: M-019
+    - fixture_id: F-022
+      fixture_revision: r1
+      grader_id: f-022-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: a46fea5f2f327caa56ad9fdb113c679ecb93bacdee097838a5dc463fbe89164e
+      obligation_id: M-020
+    - fixture_id: F-025
+      fixture_revision: r1
+      grader_id: f-025-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 732d3269bbaa921f56edb62dfbc709f19d5af91a2302728427555c190bbccb00
+      obligation_id: M-024
+    - fixture_id: F-025
+      fixture_revision: r1
+      grader_id: f-025-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: f987e260527238c21c388838384f82e190581c0e6c0c15c97627d5c547e060b0
+      obligation_id: M-025
+    - fixture_id: F-025
+      fixture_revision: r1
+      grader_id: f-025-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 0116707cab5eac79c8341b6f7681cf40af2e59bf13aeee81342166f0b86fa38d
+      obligation_id: M-026
+    - fixture_id: F-026
+      fixture_revision: r1
+      grader_id: f-026-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 54b77dbbd27987b2b4f309dc3fcbe2793d6d8f88c9b8c94bab1bf04cdee17660
+      obligation_id: M-027
+    - fixture_id: F-026
+      fixture_revision: r1
+      grader_id: f-026-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: 05c4e3af740acd6f087cfad1b07ede2d4a70f02f64db2080e93a5d576b1db2c0
+      obligation_id: M-028
+    - fixture_id: F-026
+      fixture_revision: r1
+      grader_id: f-026-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 92423f5e7dba416aa8e635519be278233b5081eb61780c9a50f3069e95d9a1c2
+      obligation_id: M-029
+    - fixture_id: F-031
+      fixture_revision: r1
+      grader_id: f-031-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: eb05214b9181e0c9aa6bb445acac14ba25a4122f66fa8805efbb7ea3ccdb8f6e
+      obligation_id: M-030
+    - fixture_id: F-031
+      fixture_revision: r1
+      grader_id: f-031-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: 47bb1ac353a398e7f90fd2a7ea085be38da90df0ecd27c20acd38f72591281f2
+      obligation_id: M-031
+    - fixture_id: F-031
+      fixture_revision: r1
+      grader_id: f-031-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 52085635c4763b153d132209a88185511276f016a83f1cb3883e59112968fc1b
+      obligation_id: M-032
+    - fixture_id: F-032
+      fixture_revision: r1
+      grader_id: f-032-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 9599b0d9c502609c4b7d35c9615091c918792a4cdc075602ef531e4a8f3789f2
+      obligation_id: M-033
+    - fixture_id: F-032
+      fixture_revision: r1
+      grader_id: f-032-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-claude-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-claude-adapter-v1-windows-fake-transport
+      binding_sha256: 130f1de8de287ed05f71563121564174a8b8caa5267912856b45793470960575
+      obligation_id: M-034
+    - fixture_id: F-032
+      fixture_revision: r1
+      grader_id: f-032-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-codex-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-codex-adapter-v1-windows-fake-transport
+      binding_sha256: 9d4b7ddaa31092de5697e1d16a49fdbfe3bb064be7389a44352efc7d079b8137
+      obligation_id: M-035
+    - fixture_id: F-033
+      fixture_revision: r1
+      grader_id: f-033-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 33fabcd22935da988a9a05caf3e9a698a4ca9099f2b1e14a3a23294736c034a4
+      obligation_id: M-039
+    - fixture_id: F-033
+      fixture_revision: r1
+      grader_id: f-033-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: fb42c7b094ac2c4f57aadfa13c2c7d9d919a410968582b8e756038a3eb823489
+      obligation_id: M-040
+    - fixture_id: F-033
+      fixture_revision: r1
+      grader_id: f-033-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 238d521ef4088802bbb78ede427d23d177096875019ed82fe42d6fde9f123dd8
+      obligation_id: M-041
+    - fixture_id: F-035
+      fixture_revision: r1
+      grader_id: f-035-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 5a3e328d681d9b3e238886ffc7bb7bf8657f553851d83d4d89d43c65baa7c862
+      obligation_id: M-045
+    - fixture_id: F-035
+      fixture_revision: r1
+      grader_id: f-035-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: 79465f74e14592bbf70481f22d706d481d53f5df6f6e7e782e0cab1fd29033c7
+      obligation_id: M-046
+    - fixture_id: F-035
+      fixture_revision: r1
+      grader_id: f-035-independent-model
+      grader_class: M
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 99462ee6bf72b840cbf4cdeb59a6f863f87943a4d7fcfde6104307f87c0dcdb5
+      obligation_id: M-047
+    - fixture_id: F-036
+      fixture_revision: r2
+      grader_id: f-036-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 454c4e8e0f6017deeed0affc36a14c39c54c471ef86d43320c92b083575609f6
+      obligation_id: M-048
+    - fixture_id: F-036
+      fixture_revision: r2
+      grader_id: f-036-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-claude-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-claude-adapter-v1-windows-fake-transport
+      binding_sha256: 4c24ddb4f6dd363696929b14924611e174082f4fd0c394558094804916f744fc
+      obligation_id: M-049
+    - fixture_id: F-036
+      fixture_revision: r2
+      grader_id: f-036-independent-model
+      grader_class: M
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-codex-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-codex-adapter-v1-windows-fake-transport
+      binding_sha256: 348d4d7097cfc551cfde08c580cfde5776ffebef3d11142b8f0c231e5d7eeeff
+      obligation_id: M-050
+    expected_set_sha256: 8c55d78b31650449a0abd1346a7b04751addd600d35c99e5fdb850aa210b1231
+  human:
+    grader_class: H
+    obligation_count: 20
+    bindings:
+    - fixture_id: F-005
+      fixture_revision: r1
+      grader_id: f-005-human-authority
+      grader_class: H
+      grader_version: control-store-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: ebcc35de49d09ee679cb29b6b90f0a6134ccbe102e1550879b60ba31cbe2e69e
+      obligation_id: H-001
+    - fixture_id: F-009
+      fixture_revision: r1
+      grader_id: f-009-human-authority
+      grader_class: H
+      grader_version: adapter-scientific-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: b8789216565d32a6db8bad0ff94023ceac4c440f0b3f49e787d3161e923c2528
+      obligation_id: H-002
+    - fixture_id: F-009
+      fixture_revision: r1
+      grader_id: f-009-human-authority
+      grader_class: H
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-claude-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-claude-adapter-v1-windows-fake-transport
+      binding_sha256: 1ff0ce5a76343466ecfee7db394663c775c7213b4ae4f352156d763fd151da68
+      obligation_id: H-003
+    - fixture_id: F-009
+      fixture_revision: r1
+      grader_id: f-009-human-authority
+      grader_class: H
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-codex-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-codex-adapter-v1-windows-fake-transport
+      binding_sha256: 7eb90e54f49528753debd7a5585c6a2511fdd206f53b5aad0bf4f914244c17a5
+      obligation_id: H-004
+    - fixture_id: F-014
+      fixture_revision: r1
+      grader_id: f-014-human-authority
+      grader_class: H
+      grader_version: adapter-scientific-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 67f2eae073f63c9b19f357e457dc200dda7ea3bb84d045e865f06f87be034e5a
+      obligation_id: H-008
+    - fixture_id: F-014
+      fixture_revision: r1
+      grader_id: f-014-human-authority
+      grader_class: H
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-claude-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-claude-adapter-v1-windows-fake-transport
+      binding_sha256: 5aa5479e269cc9e100ba5be844f2dbe01c5afa0b43770f35d8e3824c23105a26
+      obligation_id: H-009
+    - fixture_id: F-014
+      fixture_revision: r1
+      grader_id: f-014-human-authority
+      grader_class: H
+      grader_version: adapter-scientific-v1
+      source_variant_id: fake-codex-adapter-v1-windows-fake-transport
+      prospective_live_variant_id: live-capability--fake-codex-adapter-v1-windows-fake-transport
+      binding_sha256: 3f7e60b13301ed7f13e875370364554d3a591bda0394a82f6c4b9c36044bbcea
+      obligation_id: H-010
+    - fixture_id: F-022
+      fixture_revision: r1
+      grader_id: f-022-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: c7dd517ecf38f9d485c0e0b58db1c230e678195cfcfd29d1fd2d1cde678d72a3
+      obligation_id: H-015
+    - fixture_id: F-022
+      fixture_revision: r1
+      grader_id: f-022-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: a1fd765ab4d0252711708e090332dbd9ebf367f78efa8873f8891cce6ef5ec6a
+      obligation_id: H-016
+    - fixture_id: F-022
+      fixture_revision: r1
+      grader_id: f-022-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: c9bdaa3897e2abccfa14b82d1ca16a3b7dce0d2b81fbaeff77292d4f0f14be79
+      obligation_id: H-017
+    - fixture_id: F-025
+      fixture_revision: r1
+      grader_id: f-025-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: 2c9442ee728e49af38331932cef5efb46818a4c2978111166d1bb7616dce07a8
+      obligation_id: H-021
+    - fixture_id: F-025
+      fixture_revision: r1
+      grader_id: f-025-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: ff8b9de3ae28e1385982f0791321a452d3dd09c39d7484c58206a0f5bc051c13
+      obligation_id: H-022
+    - fixture_id: F-025
+      fixture_revision: r1
+      grader_id: f-025-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: ad4b78eec6c70f176fe2b34d668259d761870b32023351ccb9e32609f202fade
+      obligation_id: H-023
+    - fixture_id: F-033
+      fixture_revision: r1
+      grader_id: f-033-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: d418cb2dfae6093df790cceab90b220082215280604e7ae315460849484a1a19
+      obligation_id: H-036
+    - fixture_id: F-033
+      fixture_revision: r1
+      grader_id: f-033-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: 45dc42b27b1717b60cc2732f4d059a83132664debbf2fd859dd5ee2881a6fd91
+      obligation_id: H-037
+    - fixture_id: F-033
+      fixture_revision: r1
+      grader_id: f-033-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 755ea8cdfa93b41db125ae00f58b73d84b44a242d5e71392106a9a53a607d359
+      obligation_id: H-038
+    - fixture_id: F-035
+      fixture_revision: r1
+      grader_id: f-035-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: fa7e420fa414351d8f12e5e82a3a15b8b4a3da3da8c00ad4b58c1f419ed406a6
+      obligation_id: H-042
+    - fixture_id: F-035
+      fixture_revision: r1
+      grader_id: f-035-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-claude-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-claude-count-v1
+      binding_sha256: 52c100bd9782d4fba3df7590a2b9f2a2118cd052a25cf0df592487da6a4167c5
+      obligation_id: H-043
+    - fixture_id: F-035
+      fixture_revision: r1
+      grader_id: f-035-human-authority
+      grader_class: H
+      grader_version: context-routing-v1
+      source_variant_id: mandatory_closure_sizing-fake-codex-count-v1
+      prospective_live_variant_id: live-capability--mandatory_closure_sizing-fake-codex-count-v1
+      binding_sha256: 63c7df208a5bddcc9adbf8f175609ed28565cdb06e707ff46bf144467599e2f3
+      obligation_id: H-044
+    - fixture_id: S-016
+      fixture_revision: r1
+      grader_id: s-016-human-authority
+      grader_class: H
+      grader_version: gate5-release-tranche-v1
+      source_variant_id: baseline
+      prospective_live_variant_id: live-capability--baseline
+      binding_sha256: b0699e713d2c375902de257fc7be964ccb9570cda3a5a9500392af7d43c29010
+      obligation_id: H-051
+    expected_set_sha256: 70f7485478f0b2db597b6fd63599cd4030bb7803806c5ee5f4a8ff5ec254f57d
+  non_compensation_rule: model_and_human_expected_sets_are_disjoint_and_neither_class_may_supply_repair_or_replace_the_other
+calibration_expected_sets:
+  model:
+    case_count: 39
+    cases:
+    - case_id: M-NEG-F-012-NULL-OPERATION-CHANGES-TESTED-OBJECT-VIOLATION
+      case_kind: negative
+      fixture_id: F-012
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 32d8c3d448c09276c94bc7364a5dccb373d976d3
+      source_reference_sha256: 6bb2c1f6694b28fecef4784520f4f009cb607a82fc0320dd5696306188f2d168
+      transformation_id: null_operation_changes_tested_object-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: abbae33b65b1e42b90799dbad637c3adda74627215963ae3ca0826e8e0792830
+    - case_id: M-NEG-F-020-ADAPTER-POLICY-PARITY-VIOLATION
+      case_kind: negative
+      fixture_id: F-020
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 406c8e845fbb5a331c62c51a23eac53679c511fa
+      source_reference_sha256: feb928d9be824d581eabf1184f367c4e256e58e523570854f1db51812d26cefa
+      transformation_id: adapter_policy_parity-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 5097993bd6d5a565357be1e1e83b8906dadb72ec28dfdc7d7e16a8e043060ecd
+    - case_id: M-NEG-F-021-GOVERNING-AMENDMENT-RECALL-VIOLATION
+      case_kind: negative
+      fixture_id: F-021
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 2087ec4d64050581d5ab6b166dfe53f0a86e9c36
+      source_reference_sha256: 1ce7d2842442fe1512c0cda4d6c34e55200bebd9846dbb62692463e9ed7bddb2
+      transformation_id: governing_amendment_recall-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 0d5824f53a0e0667448e9a72f205ca471ee432e4b790f9b3c204b68e160d37b9
+    - case_id: M-NEG-F-022-REVIEWER-INDEPENDENCE-EVIDENCE-VIOLATION
+      case_kind: negative
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: 72ca35d29f56f0d097a3dbdde8e18ea4df1947ab41fc364fbd795c8151369b96
+      transformation_id: reviewer_independence_evidence-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 7a7839af66d704a03ecf11ebce0d06424623912da76113828cd770122fc73e82
+    - case_id: M-NEG-F-025-MANDATORY-SCOPE-CLOSURE-VIOLATION
+      case_kind: negative
+      fixture_id: F-025
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+      source_reference_sha256: ef824a19e1233b670e160a092e98763338f5e6707310e616c3e2002489ea4e23
+      transformation_id: mandatory_scope_closure-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 686cbfbf085170dc6e5e0e052dfb3f8d3d814fcd94a965d47202840abc52fb97
+    - case_id: M-NEG-F-026-IMPLEMENTER-SCIENTIFIC-CLOSURE-VIOLATION
+      case_kind: negative
+      fixture_id: F-026
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: a50855e08897be6d60e593bd2d2b47266766e0c3
+      source_reference_sha256: ee52d7ebcfc7bd1e4c12686afda0832e8c0a54785630cfb2ac63442b9399987c
+      transformation_id: implementer_scientific_closure-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 10ff4126eac7655f4056cafadbc5ecc20bbcde1561fd255d5553a54f63a39f92
+    - case_id: M-NEG-F-031-DETERMINISTIC-ELIGIBILITY-ROUTING-VIOLATION
+      case_kind: negative
+      fixture_id: F-031
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 0330cdf635531ba4c59f56a445b36f7981427a84
+      source_reference_sha256: 51aa4543b8cbfb69ccfa443cab5e0b73d7c88e8fb1e193177edf916d63b690ff
+      transformation_id: deterministic_eligibility_routing-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: c94445095aacae16adffe2bbb3ebd96a81f8cb353f6f212092f88551176354d4
+    - case_id: M-NEG-F-032-OUTAGE-FALLBACK-REQUIREMENT-PRESERVATION-VIOLATION
+      case_kind: negative
+      fixture_id: F-032
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 9025615a91d02cc05b1eac1e4f289b911561ebbc
+      source_reference_sha256: 3a6a08495ae80cd55242115588c09866425d6fb8b08b1a5e9b10b7cc70232b31
+      transformation_id: outage_fallback_requirement_preservation-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 88787a2f1859c18b3684c754ae8546106a5ce2c9158352e2b34c53a4c675eff1
+    - case_id: M-NEG-F-033-PREDISPATCH-VERIFIER-FEASIBILITY-VIOLATION
+      case_kind: negative
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 4ae90da6021f2cc0531ec3ab29bd3d02943be74a4d960545fe223e9f9212bb5a
+      transformation_id: predispatch_verifier_feasibility-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: b5e69f80f74bb76aab33ca1ec37d037b580fe3b154b182d15c232e2f7b01b304
+    - case_id: M-NEG-F-035-TWO-KEY-ASSURANCE-NON-COMPENSATION-VIOLATION
+      case_kind: negative
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: 290d388dbac66f1a7294e48a8cfa22a414ca2da2e7f33db0f5c185cec1328413
+      transformation_id: two_key_assurance_non_compensation-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 693ae38751974f8dcd2f3771ed4ecda6886bb79f1d8c07190983b76fc764c1ec
+    - case_id: M-NEG-F-036-EXPECTED-VALUE-ANCHORING
+      case_kind: negative
+      fixture_id: F-036
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 293163812a78bfaea4a4a335f48d7f9ffac85de7
+      source_reference_sha256: 879b80437096f017df0385741ab909fed21e61cdf266de5cf4d0f499d264e4c3
+      transformation_id: expected_value_anchoring
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 3b19c6e36de2352058a5d31e3d1e127c56236fb2b961a51d8d743cc51d97c1b1
+    - case_id: M-NEG-F-036-DEGENERATE-CONSTANT-FALLBACK
+      case_kind: negative
+      fixture_id: F-036
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 293163812a78bfaea4a4a335f48d7f9ffac85de7
+      source_reference_sha256: 879b80437096f017df0385741ab909fed21e61cdf266de5cf4d0f499d264e4c3
+      transformation_id: degenerate_constant_fallback
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 12947c733a0ff315a4fae1739f6b064b2794ada7ddb674bd6aad39c052c1c551
+    - case_id: M-NEG-F-036-NULL-OPERATION-INVARIANCE
+      case_kind: negative
+      fixture_id: F-036
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 293163812a78bfaea4a4a335f48d7f9ffac85de7
+      source_reference_sha256: 879b80437096f017df0385741ab909fed21e61cdf266de5cf4d0f499d264e4c3
+      transformation_id: null_operation_invariance
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 5b1cbb365672b8ceb9034abea030fad215dd4026f4ead3f4e7267cfd0949cef3
+    - case_id: M-POS-F-012-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-012
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 32d8c3d448c09276c94bc7364a5dccb373d976d3
+      source_reference_sha256: 3103ad14cc0c458ccce6bc7e88fc2f0839123fdd2e58e1149e47c5eaa2abfbd0
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 375ade2d17c0bf3083fe2f739c709f02d75c85a01ef2ffa79c3ca159d342965e
+    - case_id: M-POS-F-020-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-020
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 406c8e845fbb5a331c62c51a23eac53679c511fa
+      source_reference_sha256: 89e0086fb35d2fce4840c0d7a739927dbcbe3993bda34a3d6906729cb8cd44ed
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 45e2ab145018f9c70d3b0b36678ea21e8b2926f4af3cccf4df0a1da85e6dbc94
+    - case_id: M-POS-F-021-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-021
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 2087ec4d64050581d5ab6b166dfe53f0a86e9c36
+      source_reference_sha256: bda96c734ace95cfa39b1d52b6283725b96549ae0216967d33ae2fc6bfe82d1d
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: cc33922ec4806639a72d461a6d710b0571f8e2ec02ea23bf6bce99ca531824e4
+    - case_id: M-POS-F-022-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: b06c78743ac4022a406a0030e7c6c397bb4b2bea5e9481799d9445327aa5b38b
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 59d5425027ae7c6cf2122631be8d6602ce11f2c97cc81824687920b262a4a092
+    - case_id: M-POS-F-025-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-025
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+      source_reference_sha256: 404a30707e6b97baa7b1d79093963dabc86595486f7e9a480aee1a4d51a27bfa
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 1921a30af9191b31388c874e9affca01c55c56328780aca6078f0962f42dc725
+    - case_id: M-POS-F-026-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-026
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: a50855e08897be6d60e593bd2d2b47266766e0c3
+      source_reference_sha256: 163fb0daa673656fdf026e01c774933ab41c8267be954e3e205454875f0293e0
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 1cdaf7414ed852a7ac1c85277d38f4d78d1e585d7ac5dbae44319041a4de9dcd
+    - case_id: M-POS-F-031-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-031
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 0330cdf635531ba4c59f56a445b36f7981427a84
+      source_reference_sha256: c97521d87e14a254929d6175043f864c8cd75fdfbfcdb8a34616623c0195b473
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 280122db37a92c662035671a6e8a9537478342dccf229814a54f930cf29f6623
+    - case_id: M-POS-F-032-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-032
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 9025615a91d02cc05b1eac1e4f289b911561ebbc
+      source_reference_sha256: 1d64d6a2c3066ebaafb42f838f704feb01dd128dc32319ddf416027b2b544318
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: b231ec4219bf59a3de337936bb8f50317d16b6429cc40af5b1ff1917c4515abc
+    - case_id: M-POS-F-033-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 174a8f2a6d022ea19104817b046c519efc4f7105a6578b9e63380b9fc5a576f7
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: bedbf1540c16677702bc5c1e9dff2273e69c8055d014a701b3dac2d9034b988c
+    - case_id: M-POS-F-035-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: a5e6e6b22f4da3b2744565d858f7ccd4bb54d99361d6a48bcb253a5e4fa2d555
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 2a547ba9f0d64fab76f1657022069d965f9521ba5ab81d786d64c6ef644c3cef
+    - case_id: M-POS-F-036-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-036
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 293163812a78bfaea4a4a335f48d7f9ffac85de7
+      source_reference_sha256: 41244773cca09880c1f9ceb3c8d51d690b5405787593c569403503ea8d75e0b3
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: a22a454f0e779b57248704e20c7bf9739d5b1a2e8b2d0a5ca4366ddbaf8f8286
+    - case_id: M-SAF-F-012-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-012
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 32d8c3d448c09276c94bc7364a5dccb373d976d3
+      source_reference_sha256: 3103ad14cc0c458ccce6bc7e88fc2f0839123fdd2e58e1149e47c5eaa2abfbd0
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 2f688c22b11b05dad0d16d6d3a2ae620a5888e1c9d40311e3d0533f50a40d9f8
+    - case_id: M-SAF-F-020-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-020
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 406c8e845fbb5a331c62c51a23eac53679c511fa
+      source_reference_sha256: 89e0086fb35d2fce4840c0d7a739927dbcbe3993bda34a3d6906729cb8cd44ed
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 7a7d45ba7aa665c7ce1808b667d2af5d54d45e0e4c2e5eaf61afa60a1e0569e8
+    - case_id: M-SAF-F-021-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-021
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 2087ec4d64050581d5ab6b166dfe53f0a86e9c36
+      source_reference_sha256: bda96c734ace95cfa39b1d52b6283725b96549ae0216967d33ae2fc6bfe82d1d
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 36a2fd088bb3001639b30d8974f33e502c53767b3ba40d0685854016ba62fd73
+    - case_id: M-SAF-F-022-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: b06c78743ac4022a406a0030e7c6c397bb4b2bea5e9481799d9445327aa5b38b
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 4d14b91b671eef920e19498a1489a59fa3b1452f166fda678a90c854fa090438
+    - case_id: M-SAF-F-025-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-025
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+      source_reference_sha256: 404a30707e6b97baa7b1d79093963dabc86595486f7e9a480aee1a4d51a27bfa
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 6c3c140f96e5b7e235174d169c3b1029f7368c459b802b3552bd091646cc92bb
+    - case_id: M-SAF-F-026-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-026
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: a50855e08897be6d60e593bd2d2b47266766e0c3
+      source_reference_sha256: 163fb0daa673656fdf026e01c774933ab41c8267be954e3e205454875f0293e0
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 3546a7da083140ad8b6b1e6a28edab2b8e9a17669908714e17a1b894f8d180e9
+    - case_id: M-SAF-F-031-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-031
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 0330cdf635531ba4c59f56a445b36f7981427a84
+      source_reference_sha256: c97521d87e14a254929d6175043f864c8cd75fdfbfcdb8a34616623c0195b473
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 48bc79b01eeb42ea5e8c5ef83e6b68b31a6eb37225e99e03e4ac4a3301de8cb4
+    - case_id: M-SAF-F-032-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-032
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 9025615a91d02cc05b1eac1e4f289b911561ebbc
+      source_reference_sha256: 1d64d6a2c3066ebaafb42f838f704feb01dd128dc32319ddf416027b2b544318
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: de8db748fa8dd57363109b681befce4ac784daf44c975e0f6fab8e01768deccb
+    - case_id: M-SAF-F-033-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 174a8f2a6d022ea19104817b046c519efc4f7105a6578b9e63380b9fc5a576f7
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: e940298d6dced4f67cb7f8bef44dfb69240efa5dc9d1dfe91d2cbd10df30bfe8
+    - case_id: M-SAF-F-035-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: a5e6e6b22f4da3b2744565d858f7ccd4bb54d99361d6a48bcb253a5e4fa2d555
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 395bcda0448a5eae62ce47e8f59e23940454f5b597b13341fd4d72b74a3152e3
+    - case_id: M-SAF-F-036-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-036
+      fixture_revision: r2
+      source_fixture_tree_git_sha1: 293163812a78bfaea4a4a335f48d7f9ffac85de7
+      source_reference_sha256: 41244773cca09880c1f9ceb3c8d51d690b5405787593c569403503ea8d75e0b3
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: a88163596ada7bb144dad554da7e5c5dd25f610e8832d7faef643089bbc21408
+    - case_id: M-AMB-F-022-WITHHOLD-REVIEWER-RELATIONSHIP-AND-AUTHORITY-ATTRIBUTION
+      case_kind: ambiguous
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: 368bb2c2d9220eec8bd81d80c3bb728dc7147110aa9dcc5064123655fbb7905e
+      transformation_id: withhold-reviewer-relationship-and-authority-attribution
+      expected_decision: adjudication_required
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 275922dc961774b89d3383b995c2a2022753dc559d846de5fa38130ac7a8febe
+    - case_id: M-PRO-F-022-SUBSTITUTE-SAME-FAMILY-OR-SAME-CONTEXT-NOMINAL-REVIEWER
+      case_kind: producer_correlated
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: 72ca35d29f56f0d097a3dbdde8e18ea4df1947ab41fc364fbd795c8151369b96
+      transformation_id: substitute-same-family-or-same-context-nominal-reviewer
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 2150f6e1a9f71dee5d010924a3d7a29cd4049989eb3b463c9b1c237e435fe542
+    - case_id: M-PRO-F-033-SUBSTITUTE-SAME-FAMILY-OR-SAME-CONTEXT-NOMINAL-REVIEWER
+      case_kind: producer_correlated
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 4ae90da6021f2cc0531ec3ab29bd3d02943be74a4d960545fe223e9f9212bb5a
+      transformation_id: substitute-same-family-or-same-context-nominal-reviewer
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 8ab4d7b81af0d1182f9545a65a2fe91d78267f1b9b4c04038176ba4e99dda10a
+    - case_id: M-PRO-F-035-SUBSTITUTE-SAME-FAMILY-OR-SAME-CONTEXT-NOMINAL-REVIEWER
+      case_kind: producer_correlated
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: 290d388dbac66f1a7294e48a8cfa22a414ca2da2e7f33db0f5c185cec1328413
+      transformation_id: substitute-same-family-or-same-context-nominal-reviewer
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: c22312b7f2d9304d7727eeef93a8b7799dab4a34683889cb8c622593591ca2f2
+    expected_set_sha256: 3d999d740b55a85fc338ba3542e4f7b4d25d4b878b6d82f6d6e666225e8e50c5
+  human:
+    case_count: 28
+    cases:
+    - case_id: H-NEG-F-005-EXACT-SCOPE-REVISION-CLOSURE-VIOLATION
+      case_kind: negative
+      fixture_id: F-005
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: b9fc919c5dbcc23667309354839a85691d19b180
+      source_reference_sha256: 6ab22846dd026910fa4fea3a3dea6cdb97271f278d56912e28f4df8dff2f18cb
+      transformation_id: exact_scope_revision_closure-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 9c6015aacd3dc5ee46e03f49a6a465914dd6409d47f1939dfd27fa22a8fc857b
+    - case_id: H-NEG-F-009-HARD-RUNTIME-GUARDRAIL-VIOLATION
+      case_kind: negative
+      fixture_id: F-009
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e0573cf0ca0249a5fde7213ab74e4fded852756c
+      source_reference_sha256: 972e65dfe48e773b6790af51f758f9a585724ff0113558bc0e3dff6e09187a38
+      transformation_id: hard_runtime_guardrail-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: ccdd9ed3edc317a4e23a1436988182a769805728a8c60931a92a5cb54400e1e9
+    - case_id: H-NEG-F-014-INDEPENDENT-CONTRACT-AUTHORITY-VIOLATION
+      case_kind: negative
+      fixture_id: F-014
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 948bd7109778733ea712da2eb6e4c747747a4eab
+      source_reference_sha256: 6fec3277a5c6b55b7a74608f79270501b682f86db4830618a72a283ca17e2bc1
+      transformation_id: independent_contract_authority-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 292713583a0b0aa390a8f60b0e2eb6136d1b69a93203e50e5991562855679b7f
+    - case_id: H-NEG-F-022-REVIEWER-INDEPENDENCE-EVIDENCE-VIOLATION
+      case_kind: negative
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: 72ca35d29f56f0d097a3dbdde8e18ea4df1947ab41fc364fbd795c8151369b96
+      transformation_id: reviewer_independence_evidence-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: b265bbbaa126d179ef14f73e4011173b6d139bb289252436a9a4ead5a3c534ee
+    - case_id: H-NEG-F-025-MANDATORY-SCOPE-CLOSURE-VIOLATION
+      case_kind: negative
+      fixture_id: F-025
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+      source_reference_sha256: ef824a19e1233b670e160a092e98763338f5e6707310e616c3e2002489ea4e23
+      transformation_id: mandatory_scope_closure-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 5a5c4e61036bbf1f3aadf346529bfd2e144fdb4670c4702dbf0d17b5622df709
+    - case_id: H-NEG-F-033-PREDISPATCH-VERIFIER-FEASIBILITY-VIOLATION
+      case_kind: negative
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 4ae90da6021f2cc0531ec3ab29bd3d02943be74a4d960545fe223e9f9212bb5a
+      transformation_id: predispatch_verifier_feasibility-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 201a4faa6186faf53c389727bc68f6acc4ebf2c790d21008bbcc534b7fe3c101
+    - case_id: H-NEG-F-035-TWO-KEY-ASSURANCE-NON-COMPENSATION-VIOLATION
+      case_kind: negative
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: 290d388dbac66f1a7294e48a8cfa22a414ca2da2e7f33db0f5c185cec1328413
+      transformation_id: two_key_assurance_non_compensation-violation
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: a02b2f3849a09932d11858d851ff9abd5802b8627f85431f262ce391c038c951
+    - case_id: H-NEG-S-016-ALLOW-SUBTHRESHOLD-OUTAGE-FALLBACK
+      case_kind: negative
+      fixture_id: S-016
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: af1c8691928be3de3ba96ee75877509c1c8d19af
+      source_reference_sha256: d7942e626c77d9a07cbf8ba165f25c6497814b3371adebec7437a0b9bc076147
+      transformation_id: allow_subthreshold_outage_fallback
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 468ac60bc272e99634d644ce00d58a4e4398bf87201e415ac7edc5d0636a46f6
+    - case_id: H-POS-F-005-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-005
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: b9fc919c5dbcc23667309354839a85691d19b180
+      source_reference_sha256: 310a009949da387385fb04baaeff14460024afc1342c911e8fc67c5842a99e27
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 1e83d38ec2aa8406132ad276dd8153b62892c7008de7f2753152d1362ca62e99
+    - case_id: H-POS-F-009-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-009
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e0573cf0ca0249a5fde7213ab74e4fded852756c
+      source_reference_sha256: c9b2eadee7ba1f2effd1be08cf6c2b05793faa720400fd7cd2355b586a08a425
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: cfdbe76e29f1bfec0f7e119426ea66ddfe31691181fc589230e6d082403f6c99
+    - case_id: H-POS-F-014-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-014
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 948bd7109778733ea712da2eb6e4c747747a4eab
+      source_reference_sha256: c7cbed766745dc76587e41b1ee385f39f2cbcfc69617512f590da6c14d83d4c3
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 168644e6e6f6ef2d58d18013384190b20ec5d83ddfd5898800a76b94cf14d380
+    - case_id: H-POS-F-022-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: b06c78743ac4022a406a0030e7c6c397bb4b2bea5e9481799d9445327aa5b38b
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 32e46e336ad947af11989ae6e84454bb71ff41c9fee5042d0317d0b46e320b68
+    - case_id: H-POS-F-025-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-025
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+      source_reference_sha256: 404a30707e6b97baa7b1d79093963dabc86595486f7e9a480aee1a4d51a27bfa
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 681165433d92fb39ad4de4167b1fc55703542ca6d3e1e1038fb80e17a515fa9a
+    - case_id: H-POS-F-033-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 174a8f2a6d022ea19104817b046c519efc4f7105a6578b9e63380b9fc5a576f7
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 433ddb2a9a0001fe102f4a8b703728f9647aca24f082dfef6759dcfcb0a08d1f
+    - case_id: H-POS-F-035-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: a5e6e6b22f4da3b2744565d858f7ccd4bb54d99361d6a48bcb253a5e4fa2d555
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 5b0bd0e9f349dd43871e11ffdc62f0c276b112f091208e3e04a224ad7992f75e
+    - case_id: H-POS-S-016-KNOWN-GOOD-POST-CONTROL
+      case_kind: positive
+      fixture_id: S-016
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: af1c8691928be3de3ba96ee75877509c1c8d19af
+      source_reference_sha256: b9776199864ad27b63e31d52c8e79bb2f9afd75a64e5923acd845d8fa690a1e0
+      transformation_id: known-good-post-control
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 529a6f695058ae0ea1dd3f80771f6ae4af4459ce3ef603a7aa4a933104faac78
+    - case_id: H-SAF-F-005-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-005
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: b9fc919c5dbcc23667309354839a85691d19b180
+      source_reference_sha256: 310a009949da387385fb04baaeff14460024afc1342c911e8fc67c5842a99e27
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: d26864d61b8329c4dd8efd42ba0495901a8176bc6ab050bac8e3c3cc3bd6efe9
+    - case_id: H-SAF-F-009-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-009
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e0573cf0ca0249a5fde7213ab74e4fded852756c
+      source_reference_sha256: c9b2eadee7ba1f2effd1be08cf6c2b05793faa720400fd7cd2355b586a08a425
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 5670e01e35058490b93e38f67e04a9e0a0902b314cd42c5042f5f12f062094ca
+    - case_id: H-SAF-F-014-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-014
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 948bd7109778733ea712da2eb6e4c747747a4eab
+      source_reference_sha256: c7cbed766745dc76587e41b1ee385f39f2cbcfc69617512f590da6c14d83d4c3
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 90446047fb2efa00c52cb24bbaa63ebc212866fcfe4dac8bc1fcab1c13e4c263
+    - case_id: H-SAF-F-022-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: b06c78743ac4022a406a0030e7c6c397bb4b2bea5e9481799d9445327aa5b38b
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 00355831805bfc5b0ee83d7418f889795b890397edd41f14c0e584d9a6cfa839
+    - case_id: H-SAF-F-025-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-025
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 8d1ea4035cdf4c7fd91c29d8a42ae377393cb86b
+      source_reference_sha256: 404a30707e6b97baa7b1d79093963dabc86595486f7e9a480aee1a4d51a27bfa
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 6de1672be48985b249caa1a8dcbada46a3379446e13a91c18c31c5af13e60a4b
+    - case_id: H-SAF-F-033-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 174a8f2a6d022ea19104817b046c519efc4f7105a6578b9e63380b9fc5a576f7
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 4a49b04f8d97679f2286eb39c655839ec2a052acb1216c4a22a4a48be6583036
+    - case_id: H-SAF-F-035-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: a5e6e6b22f4da3b2744565d858f7ccd4bb54d99361d6a48bcb253a5e4fa2d555
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: d2acf646164b6e8abe7ac536fc8c33a69c9703ccd406c15739331b1ed1a52bc8
+    - case_id: H-SAF-S-016-IDENTIFIER-RENAMING
+      case_kind: safe_variation
+      fixture_id: S-016
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: af1c8691928be3de3ba96ee75877509c1c8d19af
+      source_reference_sha256: b9776199864ad27b63e31d52c8e79bb2f9afd75a64e5923acd845d8fa690a1e0
+      transformation_id: identifier-renaming
+      expected_decision: accept
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 817d894d65d933d62c6f23904678e97258f5ff32d7f57c17f836d316195f01dd
+    - case_id: H-AMB-F-022-WITHHOLD-REVIEWER-RELATIONSHIP-AND-AUTHORITY-ATTRIBUTION
+      case_kind: ambiguous
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: 368bb2c2d9220eec8bd81d80c3bb728dc7147110aa9dcc5064123655fbb7905e
+      transformation_id: withhold-reviewer-relationship-and-authority-attribution
+      expected_decision: adjudication_required
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: d4aaef5ee79225bed0d0fe62268212da8374e6a5ce1ef9e00814a73edbff0dff
+    - case_id: H-PRO-F-022-SUBSTITUTE-SAME-FAMILY-OR-SAME-CONTEXT-NOMINAL-REVIEWER
+      case_kind: producer_correlated
+      fixture_id: F-022
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: 98ee0dd433d9a5ccd1c3256f6eba24a6fbf23860
+      source_reference_sha256: 72ca35d29f56f0d097a3dbdde8e18ea4df1947ab41fc364fbd795c8151369b96
+      transformation_id: substitute-same-family-or-same-context-nominal-reviewer
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 059d53479f3098177c3a3cf85e53dd3214ad941620faa1ed90a0613396443292
+    - case_id: H-PRO-F-033-SUBSTITUTE-SAME-FAMILY-OR-SAME-CONTEXT-NOMINAL-REVIEWER
+      case_kind: producer_correlated
+      fixture_id: F-033
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: f80aadb7173cc0e01f232a704aaa5286f0fbe53f
+      source_reference_sha256: 4ae90da6021f2cc0531ec3ab29bd3d02943be74a4d960545fe223e9f9212bb5a
+      transformation_id: substitute-same-family-or-same-context-nominal-reviewer
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: 2c7826e13678f35e9de657b15af54775f4e6e32b9c1e4834f6abdae7d930b317
+    - case_id: H-PRO-F-035-SUBSTITUTE-SAME-FAMILY-OR-SAME-CONTEXT-NOMINAL-REVIEWER
+      case_kind: producer_correlated
+      fixture_id: F-035
+      fixture_revision: r1
+      source_fixture_tree_git_sha1: e55ee5eddcb86b7c17396206e5e52638c00d7cc1
+      source_reference_sha256: 290d388dbac66f1a7294e48a8cfa22a414ca2da2e7f33db0f5c185cec1328413
+      transformation_id: substitute-same-family-or-same-context-nominal-reviewer
+      expected_decision: reject
+      blinding_rule: withhold_case_kind_expected_decision_oracle_and_producer_identity
+      case_sha256: a77fa548d4dfdc368174d409f3a971d9a712ab6fc3cf0cd518212cdcf0c7e954
+    expected_set_sha256: 83e5b6e73665e7ca60c89512e7a74d4c1c49d57a20492cf7c772ed2d36354fbb
+human_rubric:
+  rubric_id: wp6-2-human-live-grader-rubric
+  rubric_version: 1.0.0
+  permitted_human_authority_class: stephen_attributed_or_explicitly_delegated_i2_human_assurance_authority
+  minimum_blinded_graders: 2
+  criteria:
+  - apply the accepted governing rule to the exact immutable subject and evidence
+  - reject producer self-attestation, missing attribution, and cross-class substitution
+  - preserve Partial, negative, unable_to_grade, superseded, and blocked outcomes without positive-result bias
+  - record limitations and distinguish result acceptance from claim or eligibility authority
+  blinding:
+    withheld_from_initial_graders:
+    - case_kind
+    - expected_decision
+    - oracle
+    - producer_identity
+    - other_grader_decisions
+    revealed_only_to_adjudicator:
+    - case_descriptor
+    - governing_oracle
+    - initial_grader_attribution
+    - initial_disagreement_record
+  disagreement_rule: record_each_initial_decision_and_rationale_separately_before_adjudication
+  adjudication_rule: a_distinct_permitted_authority_resolves_against_the_frozen_rubric_and_case_hash
+  revision_rule: any_rubric_change_requires_new_version_hash_full_case_rerun_independent_review_and_stephen_acceptance
+  rubric_sha256: 75c147d7822b5c25391a0482bcac340c6d544ef43bf802b47449d30fe722e1a5
+repetition_and_randomness:
+  repeat_count: 2
+  repetition_ids:
+  - rep-01
+  - rep-02
+  seed_derivation_material: ars://contracts/wp6-2-live-grader-calibration-protocol@1.0.0
+  deterministic_seed: 217570842
+  seed_rationale: first_31_bits_of_SHA256_seed_derivation_material_freezes_order_and_diagnostic_resampling_without_using_observed_results
+  case_order_rule: seeded_permutation_of_complete_case_set_independently_for_each_repetition_with_no_case_omission
+  repeat_dependence_rule: repetitions_within_one_fixture_revision_are_dependent_and_never_increase_the_acceptance_denominator
+estimands_and_uncertainty:
+  estimand: class_specific_fixture_revision_cluster_probability_of_false_pass_or_false_block_over_the_frozen_target_scope
+  model_fixture_cluster_denominator: 11
+  human_fixture_cluster_denominator: 8
+  cluster_unit: fixture_id_and_fixture_revision
+  case_unit: case_id_and_case_sha256
+  repeat_unit: repetition_id_nested_within_case_and_fixture_cluster
+  cluster_error_rule: a_fixture_cluster_is_an_error_if_any_required_case_or_repetition_in_that_cluster_has_the_adverse_decision
+  acceptance_uncertainty_method: one_sided_95_percent_clopper_pearson_exact_upper_bound_on_fixture_cluster_error_probability
+  diagnostic_resampling_method: cluster_bootstrap_percentile_interval_resampling_fixture_revisions_only
+  diagnostic_resampling_replicates: 10000
+  diagnostic_resampling_seed: 217570842
+  multiplicity_rule: false_pass_and_false_block_are_separate_non_compensable_estimands_for_each_grader_class_no_weighted_or_family_aggregate
+agreement_disagreement_and_adjudication:
+  model_agreement_rule: both_repetitions_must_return_the_same_normalized_decision_for_every_case_otherwise_unable_to_grade_and_class_gate_blocked
+  human_initial_review_rule: two_blinded_permitted_human_graders_review_each_case_independently_before_seeing_any_other_decision
+  human_disagreement_capture: store_each_attributed_decision_rationale_case_hash_rubric_hash_context_and_timestamp_before_adjudication
+  human_adjudication_rule: a_distinct_permitted_human_authority_adjudicates_only_after_the_complete_disagreement_record_is_immutable
+  ambiguous_case_rule: ambiguous_cases_may_not_auto_pass_or_auto_fail_and_require_an_attributed_adjudication_record
+  rubric_revision_rule: revision_never_repairs_current_results_in_place_and_stales_all_prior_H_calibration_evidence
+prospective_acceptance_criteria:
+  criterion_label: prospective_preregistered_acceptance_criteria_not_observed_calibration
+  confidence_level: 0.95
+  model:
+    false_pass_count_max: 0
+    false_pass_upper_bound_max: 0.25
+    false_block_count_max: 0
+    false_block_upper_bound_max: 0.25
+    bound_label: prospective_preregistered_bound
+  human:
+    false_pass_count_max: 0
+    false_pass_upper_bound_max: 0.32
+    false_block_count_max: 0
+    false_block_upper_bound_max: 0.32
+    bound_label: prospective_preregistered_bound
+  exact_acceptance_rule: accept_a_class_only_if_exact_expected_set_case_and_repeat_closure_passes_with_zero_missing_extra_duplicate_stale_or_incompatible_items_zero_false_passes_zero_false_blocks_each_exact_upper_bound_at_or_below_its_preregistered_bound_and_all_independence_agreement_adjudication_currentness_and_evidence_authority_rules_pass
+  composite_rule: T1a_acceptance_freezes_protocol_only_T1b_requires_both_complete_non_compensable_class_results_and_separate_independent_reviews
+independence:
+  model:
+    producer_grader_family_relation: different_family
+    producer_grader_context_relation: different_independently_compiled_context
+    same_family_or_shared_context_result: reject_correlated_evidence
+    expected_set_author_may_not_grade_or_produce_observed_evidence: true
+  human:
+    producer_may_not_be_initial_grader_or_adjudicator: true
+    initial_graders_must_be_distinct: true
+    adjudicator_must_be_distinct_from_initial_graders_and_producer: true
+    permitted_authority_class: stephen_attributed_or_explicitly_delegated_i2_human_assurance_authority
+  self_attested_evidence_permitted: false
+  observed_side_may_define_or_amend_expected_sets: false
+future_result_and_evidence_fields:
+  common_required:
+  - protocol_id
+  - protocol_version
+  - protocol_sha256
+  - corpus_id
+  - corpus_version
+  - corpus_manifest_sha256
+  - case_id
+  - case_sha256
+  - repetition_id
+  - deterministic_seed
+  - fixture_id
+  - fixture_revision
+  - target_obligation_id
+  - subject_id
+  - subject_sha256
+  - producer_actor_id
+  - producer_family
+  - producer_context_id
+  - producer_context_sha256
+  - grader_actor_id
+  - grader_family
+  - grader_context_id
+  - grader_context_sha256
+  - normalized_decision
+  - verdict
+  - limitations
+  - omissions
+  - evaluated_at
+  - expires_at
+  - evidence_id
+  - evidence_sha256
+  - trace_id
+  - trace_sha256
+  - independent_review_id
+  - independent_review_sha256
+  - currentness_status
+  - suspension_status
+  model_required:
+  - provider_id
+  - provider_revision
+  - model_id
+  - model_revision
+  - adapter_id
+  - adapter_revision
+  - provider_command_id
+  - provider_command_sha256
+  - provider_receipt_id
+  - provider_receipt_sha256
+  - cost_grant_id
+  - cost_grant_sha256
+  - execution_lease_id
+  - execution_lease_sha256
+  - family_independence_grade
+  - context_independence_grade
+  - false_pass_summary
+  - false_block_summary
+  - uncertainty_result
+  human_required:
+  - rubric_id
+  - rubric_version
+  - rubric_sha256
+  - human_authority_class
+  - authority_decision_id
+  - authority_decision_sha256
+  - blinding_record_id
+  - blinding_record_sha256
+  - initial_human_decisions
+  - disagreement_record_id
+  - disagreement_record_sha256
+  - adjudication_record_id
+  - adjudication_record_sha256
+  - rubric_revision_status
+  - attribution_context
+currentness_expiry_suspension_and_revision:
+  evidence_expiry_days_after_last_complete_run: 90
+  expiry_label: prospective_preregistered_currentness_limit
+  stale_if_any_identity_changes:
+  - protocol_sha256
+  - corpus_manifest_sha256
+  - fixture_package_tree_git_sha1
+  - rubric_sha256
+  - provider_revision
+  - model_revision
+  - adapter_revision
+  - policy_revision
+  - schema_revision
+  - producer_family
+  - grader_family
+  - producer_context_sha256
+  - grader_context_sha256
+  suspension_triggers:
+  - missing_or_extra_case_or_repeat
+  - independence_failure
+  - false_pass_or_false_block
+  - upper_bound_exceeds_preregistered_bound
+  - rubric_or_corpus_drift
+  - expired_evidence
+  - provider_or_adapter_revision_drift
+  - self_attested_or_observed_derived_expected_evidence
+  omission_rule: any_required_omission_is_recorded_and_blocks_the_affected_class_and_the_composite_T1b_gate
+  amendment_rule: any_parameter_estimand_denominator_case_repeat_bound_rubric_corpus_independence_or_acceptance_change_requires_a_new_protocol_version_hash_independent_review_and_stephen_acceptance_before_provider_call_or_observation
+  grandfathering_rule: superseded_evidence_remains_audit_only_and_cannot_clear_current_calibration_or_eligibility
+outcome_permissions:
+  accepted: after_independent_review_and_stephen_exact_hash_acceptance_permits_only_T2_then_T3_and_T4_under_the_sole_graph
+  partial: report_Partial_preserve_valid_protocol_components_and_block_T2_until_the_missing_authority_or_immutable_identity_is_resolved
+  rejected: block_T2_and_require_a_new_protocol_revision_no_observed_result_can_repair_the_rejected_protocol
+  prohibited_in_all_outcomes: no_M_or_H_eligibility_T5_to_T8_dispatch_live_result_or_research_claim
+research_assurance_requirements:
+  assurance_lanes_touched:
+    stochastic_null: required
+    statistical_panel: required
+    output_provenance: required_primary
+    topology: not_applicable_no_topological_object_or_claim
+    representation: not_applicable_no_representation_fit_transform_or_claim
+    paper_claim: not_applicable_no_research_claim
+  governing_decision_rule_pre_registration_or_manifest: P029_P030_P033_P035_P036_W5_W6_and_exact_approved_WP6_plan_revision_fe5f1d40
+  parameters_and_seeds_that_must_be_recorded: two_literal_repetitions_rep_01_rep_02_seed_217570842_fixture_cluster_denominators_11_and_8_and_10000_diagnostic_cluster_bootstrap_replicates
+  contracts_or_schemas_in_scope: this_protocol_schema_and_wp6_2_T1a_scoped_content_addressed_identity_manifest_only
+  machine_checkable_claims: closed_schema_exact_M31_H20_targets_exact_case_and_repeat_counts_hashes_non_compensation_currentness_bounds_and_self_attestation_rejection
+  human_review_only_claims: protocol_adequacy_human_rubric_adequacy_case_ambiguity_adjudication_authority_and_final_exact_hash_acceptance
+  output_and_cache_provenance_requirements: future_evidence_only_no_results_or_cache_output_in_T1a_all_future_evidence_binds_exact_protocol_corpus_case_rubric_subject_and_execution_hashes
+  vault_or_conventions_obligations: no_vault_result_or_claim_entry_T1a_acceptance_must_be_an_attributed_future_decision
+  partial_criteria: report_Partial_instead_of_weakening_or_bypassing_any_missing_immutable_authority_expected_set_case_rubric_review_or_hash_requirement
+hard_stops:
+- no_provider_call_or_credential_resolution
+- no_observed_calibration_or_result_claim
+- no_T2_through_T8_implementation_or_dispatch
+- no_M_or_H_eligibility_transition
+- no_p0_coverage_gate5_fixture_or_result_mutation
+- no_results_output_cache_migration_or_research_claim
+- independent_review_must_be_later_and_by_a_distinct_authority
+- stephen_exact_hash_acceptance_is_required_before_T2_T3_or_T4

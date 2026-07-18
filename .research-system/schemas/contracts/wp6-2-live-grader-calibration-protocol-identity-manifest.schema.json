@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-live-grader-calibration-protocol-identity-manifest",
+  "title": "WP6.2 T1a live-grader calibration protocol identity manifest",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "manifest_id",
+    "manifest_version",
+    "scope",
+    "protocol_identity"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-2-live-grader-calibration-protocol-identity-manifest"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "manifest_id": {
+      "const": "wp6-2-live-grader-calibration-protocol-identity-manifest"
+    },
+    "manifest_version": {
+      "const": "1.0.0"
+    },
+    "scope": {
+      "const": "wp6-2-t1a-live-grader-calibration-protocol-only"
+    },
+    "protocol_identity": {
+      "type": "object",
+      "required": [
+        "contract_id",
+        "contract_version",
+        "contract_path",
+        "canonical_sha256",
+        "git_blob_sha1",
+        "schema_id",
+        "schema_version",
+        "schema_path",
+        "schema_canonical_sha256",
+        "schema_git_blob_sha1",
+        "status"
+      ],
+      "properties": {
+        "contract_id": {
+          "const": "wp6-2-live-grader-calibration-protocol"
+        },
+        "contract_version": {
+          "const": "1.0.0"
+        },
+        "contract_path": {
+          "const": ".research-system/contracts/wp6-2-live-grader-calibration-protocol.yaml"
+        },
+        "canonical_sha256": {
+          "const": "655b2a94d4cb798f11fea3757747a42410d8a98d70e859edd306873ed1ed7bef"
+        },
+        "git_blob_sha1": {
+          "const": "3800358b52f87bf2b50b0e98070c2bb2154e7187"
+        },
+        "schema_id": {
+          "const": "ars://contracts/wp6-2-live-grader-calibration-protocol"
+        },
+        "schema_version": {
+          "const": "1.0.0"
+        },
+        "schema_path": {
+          "const": ".research-system/schemas/contracts/wp6-2-live-grader-calibration-protocol.schema.json"
+        },
+        "schema_canonical_sha256": {
+          "const": "4ba371b2f26f623a9a2d79e4c9bdbb1465c095af3bccf36cfdb91b18c8a5ff3e"
+        },
+        "schema_git_blob_sha1": {
+          "const": "66f363d9a2c36cc7b0ad88cfc462468e4f4911ab"
+        },
+        "status": {
+          "const": "preregistered_pending_independent_review_and_stephen_acceptance"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

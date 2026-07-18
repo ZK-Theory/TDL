@@ -1,0 +1,1270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-live-grader-calibration-protocol",
+  "title": "WP6.2 T1a live-grader calibration protocol",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "protocol_id",
+    "protocol_version",
+    "protocol_status",
+    "authored_on",
+    "normative_plan_revision",
+    "base_revision",
+    "claim_status",
+    "dependency_graph",
+    "authority_sources",
+    "scope",
+    "corpus",
+    "target_expected_sets",
+    "calibration_expected_sets",
+    "human_rubric",
+    "repetition_and_randomness",
+    "estimands_and_uncertainty",
+    "agreement_disagreement_and_adjudication",
+    "prospective_acceptance_criteria",
+    "independence",
+    "future_result_and_evidence_fields",
+    "currentness_expiry_suspension_and_revision",
+    "outcome_permissions",
+    "research_assurance_requirements",
+    "hard_stops"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-2-live-grader-calibration-protocol"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "protocol_id": {
+      "const": "wp6-2-live-grader-calibration-protocol"
+    },
+    "protocol_version": {
+      "const": "1.0.0"
+    },
+    "protocol_status": {
+      "const": "preregistered_pending_independent_review_and_stephen_acceptance"
+    },
+    "authored_on": {
+      "const": "2026-07-18"
+    },
+    "normative_plan_revision": {
+      "const": "fe5f1d40bc8f05f061317c677b5891cea0711249"
+    },
+    "base_revision": {
+      "const": "4e6fd0cb26c04ff9707c3183f663461d752b53b9"
+    },
+    "claim_status": {
+      "const": "no_observed_calibration_claim"
+    },
+    "dependency_graph": {
+      "const": "T1a -> T2 -> T3/T4 -> T1b -> T5 -> T6 -> T7 -> T8"
+    },
+    "authority_sources": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "prefixItems": [
+        {
+          "const": {
+            "authority_id": "wp6_master",
+            "repository_path": "docs/plans/agentic-research-system/implementation/06-wp6-gate6-readiness-and-integration-plan.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "91d943b3c45381b10b11c86d4836c79d0a862cdb",
+            "canonical_sha256": "016942bb654d5714f7f591e84f873ea243c891e0053e97c6498798c32425a257"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "wp6_2_live_capability",
+            "repository_path": "docs/plans/agentic-research-system/implementation/06b-wp6-2-live-capability-plan.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "6afed1964a773cdccb3304fd2aea9920528400a7",
+            "canonical_sha256": "018902cb2e40fd641cc3d209d6119d0f632952aafd1eb1ad20881a4eb44537b9"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "wp6_2_live_replacement_map",
+            "repository_path": "docs/plans/agentic-research-system/implementation/06e-wp6-2-live-replacement-map.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "a187ff6435f0a170bbb894bbb2a94ce97586fa30",
+            "canonical_sha256": "a65c24624bb309558dd29a779b2db5b1c308b9fcd5caff4b5394e365b77e47b8"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "wp6_2_p1_activation_contract",
+            "repository_path": "docs/plans/agentic-research-system/implementation/06f-wp6-2-p1-activation-contract.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "8e3e625e2cba41a5bd0c66a6763cb4d3c47d036b",
+            "canonical_sha256": "160f898837df14d3f22ba2592eb117766686b5d5d6e4004cb8669886ea8d670c"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "w5_assurance",
+            "repository_path": "docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "51e7bfcbd0e5626caa45c828abda0b484d3a5739",
+            "canonical_sha256": "fd52fb1cede920fe6d97b8cd40d580c40fede6729bad2bbdb4433fcf36831075"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "w6_evaluation",
+            "repository_path": "docs/plans/agentic-research-system/design/06-evaluation-observability-and-audit.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "48c8116bcd719038f741ebe1ee73dfe89f533abf",
+            "canonical_sha256": "367d57251172e68ada4826d940f7313b9e3f2afff6ccdf98dcd3476e9baee29a"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "w4_w5_fixture_addendum",
+            "repository_path": "docs/plans/agentic-research-system/design/06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md",
+            "commit": "fe5f1d40bc8f05f061317c677b5891cea0711249",
+            "git_blob_sha1": "1a169d415731d1073ed06dc7b163be848c4d6b0f",
+            "canonical_sha256": "ae5612a018aa4f9383123497e629cc65239f2a15ce0581cb908f24e945b5d9d4"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "decision_register_p029_p030_p033_p035_p036",
+            "repository_path": "docs/plans/agentic-research-system/03-decisions-and-open-questions.md",
+            "commit": "4e6fd0cb26c04ff9707c3183f663461d752b53b9",
+            "git_blob_sha1": "f4aa13d4e6537762d7b9692538ca1187088d5239",
+            "canonical_sha256": "1531f826043478edf7ab0bd12244595b6b265a6fb072e4643b095a3f2cb2c8fc"
+          }
+        },
+        {
+          "const": {
+            "authority_id": "wp6_r5_approval_review",
+            "repository_path": "docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md",
+            "commit": "4e6fd0cb26c04ff9707c3183f663461d752b53b9",
+            "git_blob_sha1": "b6f047db330617f25ffd8e0826da9769facab089",
+            "canonical_sha256": "15af91fa08f248f55765cbcdf9d0efce3153232c7818a66d385b80c4bdb0e065"
+          }
+        }
+      ],
+      "items": false
+    },
+    "scope": {
+      "const": {
+        "grader_classes": [
+          "M",
+          "H"
+        ],
+        "model_capability_risk_scope": [
+          "R2_scientific_property_and_assurance_review",
+          "R3_cross_family_review_and_claim_or_governance_guarding",
+          "provider_parity_context_routing_and_proof_obligation_review"
+        ],
+        "human_capability_risk_scope": [
+          "R2_assurance_and_governance_authority",
+          "R3_or_P005_method_claim_or_eligibility_authority",
+          "outage_scope_completion_independence_and_non_compensation_decisions"
+        ],
+        "target_population": "the_exact_31_M_and_20_H_unavailable_Gate_5_obligations_in_approved_06e_for_the_15_named_fixture_revisions",
+        "exclusions": [
+          "D_T_R_O_P_graders",
+          "F037_F038_P1_activation_observations",
+          "providers_or_models_outside_future_T3_Claude_and_T4_Codex_evidence",
+          "research_results_claims_and_any_M_or_H_eligibility_transition"
+        ]
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "required": [
+        "corpus_id",
+        "corpus_version",
+        "vintage",
+        "inclusion_rule",
+        "exclusion_rule",
+        "fixture_packages",
+        "fixture_package_count",
+        "corpus_manifest_sha256"
+      ],
+      "properties": {
+        "corpus_id": {
+          "const": "wp6-2-gate5-authored-mh-calibration-corpus"
+        },
+        "corpus_version": {
+          "const": "1.0.0"
+        },
+        "vintage": {
+          "const": {
+            "accepted_gate5_merge": "f49a27fe15ae4df566c9107dc07f7451f51b924a",
+            "accepted_gate5_fixture_tree_git_sha1": "84acfbdbb72da2e91986142ae6cd1d8806622e36",
+            "verified_unchanged_at_base": "4e6fd0cb26c04ff9707c3183f663461d752b53b9",
+            "p0_coverage_git_blob_sha1": "c1563b725702d8738597e6b25cc3f3061c51226c",
+            "p0_variant_matrix_git_blob_sha1": "6f2a63c59fcd5a33b0d0f915b1514ba1187fc55d"
+          }
+        },
+        "inclusion_rule": {
+          "const": "include_every_accepted_fixture_revision_with_a_required_M_or_H_obligation_in_approved_06e_and_all_its_known_bad_known_good_safe_variation_and_declared_producer_correlation_views"
+        },
+        "exclusion_rule": {
+          "const": "exclude_unmaterialized_or_unaccepted_fixture_revisions_live_outputs_observed_results_and_any_case_not_derived_from_the_accepted_fixture_tree"
+        },
+        "fixture_packages": {
+          "type": "array",
+          "minItems": 15,
+          "maxItems": 15,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "fixture_id",
+              "fixture_revision",
+              "package_path",
+              "package_tree_git_sha1",
+              "fixture_yaml_git_blob_sha1",
+              "source_manifest_sha256",
+              "stimulus_sha256",
+              "known_bad_reference_sha256",
+              "known_good_reference_sha256",
+              "mutation_ids",
+              "safe_variation_ids"
+            ],
+            "properties": {
+              "fixture_id": {
+                "type": "string",
+                "pattern": "^[FS]-[0-9]{3}$"
+              },
+              "fixture_revision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "package_path": {
+                "type": "string",
+                "pattern": "^\\.research-system/evals/fixtures/[FS]-[0-9]{3}$"
+              },
+              "package_tree_git_sha1": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "fixture_yaml_git_blob_sha1": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "source_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "stimulus_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "known_bad_reference_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "known_good_reference_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "mutation_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "safe_variation_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "fixture_package_count": {
+          "const": 15
+        },
+        "corpus_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "target_expected_sets": {
+      "type": "object",
+      "required": [
+        "model",
+        "human",
+        "non_compensation_rule"
+      ],
+      "properties": {
+        "model": {
+          "type": "object",
+          "required": [
+            "grader_class",
+            "obligation_count",
+            "bindings",
+            "expected_set_sha256"
+          ],
+          "properties": {
+            "grader_class": {
+              "const": "M"
+            },
+            "obligation_count": {
+              "const": 31
+            },
+            "bindings": {
+              "type": "array",
+              "minItems": 31,
+              "maxItems": 31,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "required": [
+                  "fixture_id",
+                  "fixture_revision",
+                  "grader_id",
+                  "grader_class",
+                  "grader_version",
+                  "source_variant_id",
+                  "prospective_live_variant_id",
+                  "binding_sha256",
+                  "obligation_id"
+                ],
+                "properties": {
+                  "fixture_id": {
+                    "type": "string",
+                    "pattern": "^[FS]-[0-9]{3}$"
+                  },
+                  "fixture_revision": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "grader_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "grader_class": {
+                    "const": "M"
+                  },
+                  "grader_version": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source_variant_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "prospective_live_variant_id": {
+                    "type": "string",
+                    "pattern": "^live-capability--.+"
+                  },
+                  "binding_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "obligation_id": {
+                    "type": "string",
+                    "pattern": "^M-[0-9]{3}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "expected_set_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human": {
+          "type": "object",
+          "required": [
+            "grader_class",
+            "obligation_count",
+            "bindings",
+            "expected_set_sha256"
+          ],
+          "properties": {
+            "grader_class": {
+              "const": "H"
+            },
+            "obligation_count": {
+              "const": 20
+            },
+            "bindings": {
+              "type": "array",
+              "minItems": 20,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "required": [
+                  "fixture_id",
+                  "fixture_revision",
+                  "grader_id",
+                  "grader_class",
+                  "grader_version",
+                  "source_variant_id",
+                  "prospective_live_variant_id",
+                  "binding_sha256",
+                  "obligation_id"
+                ],
+                "properties": {
+                  "fixture_id": {
+                    "type": "string",
+                    "pattern": "^[FS]-[0-9]{3}$"
+                  },
+                  "fixture_revision": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "grader_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "grader_class": {
+                    "const": "H"
+                  },
+                  "grader_version": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source_variant_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "prospective_live_variant_id": {
+                    "type": "string",
+                    "pattern": "^live-capability--.+"
+                  },
+                  "binding_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "obligation_id": {
+                    "type": "string",
+                    "pattern": "^H-[0-9]{3}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "expected_set_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "non_compensation_rule": {
+          "const": "model_and_human_expected_sets_are_disjoint_and_neither_class_may_supply_repair_or_replace_the_other"
+        }
+      },
+      "additionalProperties": false
+    },
+    "calibration_expected_sets": {
+      "type": "object",
+      "required": [
+        "model",
+        "human"
+      ],
+      "properties": {
+        "model": {
+          "type": "object",
+          "required": [
+            "case_count",
+            "cases",
+            "expected_set_sha256"
+          ],
+          "properties": {
+            "case_count": {
+              "const": 39
+            },
+            "cases": {
+              "type": "array",
+              "minItems": 39,
+              "maxItems": 39,
+              "uniqueItems": true,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/calibrationCase"
+                  },
+                  {
+                    "properties": {
+                      "case_id": {
+                        "pattern": "^M-"
+                      }
+                    }
+                  }
+                ]
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "negative"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 13,
+                  "maxContains": 13
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "positive"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 11,
+                  "maxContains": 11
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "safe_variation"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 11,
+                  "maxContains": 11
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "ambiguous"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 1,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "producer_correlated"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 3,
+                  "maxContains": 3
+                }
+              ]
+            },
+            "expected_set_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human": {
+          "type": "object",
+          "required": [
+            "case_count",
+            "cases",
+            "expected_set_sha256"
+          ],
+          "properties": {
+            "case_count": {
+              "const": 28
+            },
+            "cases": {
+              "type": "array",
+              "minItems": 28,
+              "maxItems": 28,
+              "uniqueItems": true,
+              "items": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/calibrationCase"
+                  },
+                  {
+                    "properties": {
+                      "case_id": {
+                        "pattern": "^H-"
+                      }
+                    }
+                  }
+                ]
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "negative"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 8,
+                  "maxContains": 8
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "positive"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 8,
+                  "maxContains": 8
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "safe_variation"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 8,
+                  "maxContains": 8
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "ambiguous"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 1,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "allOf": [
+                      {
+                        "$ref": "#/$defs/calibrationCase"
+                      },
+                      {
+                        "properties": {
+                          "case_kind": {
+                            "const": "producer_correlated"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "minContains": 3,
+                  "maxContains": 3
+                }
+              ]
+            },
+            "expected_set_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "human_rubric": {
+      "const": {
+        "rubric_id": "wp6-2-human-live-grader-rubric",
+        "rubric_version": "1.0.0",
+        "permitted_human_authority_class": "stephen_attributed_or_explicitly_delegated_i2_human_assurance_authority",
+        "minimum_blinded_graders": 2,
+        "criteria": [
+          "apply the accepted governing rule to the exact immutable subject and evidence",
+          "reject producer self-attestation, missing attribution, and cross-class substitution",
+          "preserve Partial, negative, unable_to_grade, superseded, and blocked outcomes without positive-result bias",
+          "record limitations and distinguish result acceptance from claim or eligibility authority"
+        ],
+        "blinding": {
+          "withheld_from_initial_graders": [
+            "case_kind",
+            "expected_decision",
+            "oracle",
+            "producer_identity",
+            "other_grader_decisions"
+          ],
+          "revealed_only_to_adjudicator": [
+            "case_descriptor",
+            "governing_oracle",
+            "initial_grader_attribution",
+            "initial_disagreement_record"
+          ]
+        },
+        "disagreement_rule": "record_each_initial_decision_and_rationale_separately_before_adjudication",
+        "adjudication_rule": "a_distinct_permitted_authority_resolves_against_the_frozen_rubric_and_case_hash",
+        "revision_rule": "any_rubric_change_requires_new_version_hash_full_case_rerun_independent_review_and_stephen_acceptance",
+        "rubric_sha256": "75c147d7822b5c25391a0482bcac340c6d544ef43bf802b47449d30fe722e1a5"
+      }
+    },
+    "repetition_and_randomness": {
+      "type": "object",
+      "required": [
+        "repeat_count",
+        "repetition_ids",
+        "seed_derivation_material",
+        "deterministic_seed",
+        "seed_rationale",
+        "case_order_rule",
+        "repeat_dependence_rule"
+      ],
+      "properties": {
+        "repeat_count": {
+          "const": 2
+        },
+        "repetition_ids": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "const": "rep-01"
+            },
+            {
+              "const": "rep-02"
+            }
+          ],
+          "items": false
+        },
+        "seed_derivation_material": {
+          "const": "ars://contracts/wp6-2-live-grader-calibration-protocol@1.0.0"
+        },
+        "deterministic_seed": {
+          "const": 217570842
+        },
+        "seed_rationale": {
+          "const": "first_31_bits_of_SHA256_seed_derivation_material_freezes_order_and_diagnostic_resampling_without_using_observed_results"
+        },
+        "case_order_rule": {
+          "const": "seeded_permutation_of_complete_case_set_independently_for_each_repetition_with_no_case_omission"
+        },
+        "repeat_dependence_rule": {
+          "const": "repetitions_within_one_fixture_revision_are_dependent_and_never_increase_the_acceptance_denominator"
+        }
+      },
+      "additionalProperties": false
+    },
+    "estimands_and_uncertainty": {
+      "type": "object",
+      "required": [
+        "estimand",
+        "model_fixture_cluster_denominator",
+        "human_fixture_cluster_denominator",
+        "cluster_unit",
+        "case_unit",
+        "repeat_unit",
+        "cluster_error_rule",
+        "acceptance_uncertainty_method",
+        "diagnostic_resampling_method",
+        "diagnostic_resampling_replicates",
+        "diagnostic_resampling_seed",
+        "multiplicity_rule"
+      ],
+      "properties": {
+        "estimand": {
+          "const": "class_specific_fixture_revision_cluster_probability_of_false_pass_or_false_block_over_the_frozen_target_scope"
+        },
+        "model_fixture_cluster_denominator": {
+          "const": 11
+        },
+        "human_fixture_cluster_denominator": {
+          "const": 8
+        },
+        "cluster_unit": {
+          "const": "fixture_id_and_fixture_revision"
+        },
+        "case_unit": {
+          "const": "case_id_and_case_sha256"
+        },
+        "repeat_unit": {
+          "const": "repetition_id_nested_within_case_and_fixture_cluster"
+        },
+        "cluster_error_rule": {
+          "const": "a_fixture_cluster_is_an_error_if_any_required_case_or_repetition_in_that_cluster_has_the_adverse_decision"
+        },
+        "acceptance_uncertainty_method": {
+          "const": "one_sided_95_percent_clopper_pearson_exact_upper_bound_on_fixture_cluster_error_probability"
+        },
+        "diagnostic_resampling_method": {
+          "const": "cluster_bootstrap_percentile_interval_resampling_fixture_revisions_only"
+        },
+        "diagnostic_resampling_replicates": {
+          "const": 10000
+        },
+        "diagnostic_resampling_seed": {
+          "const": 217570842
+        },
+        "multiplicity_rule": {
+          "const": "false_pass_and_false_block_are_separate_non_compensable_estimands_for_each_grader_class_no_weighted_or_family_aggregate"
+        }
+      },
+      "additionalProperties": false
+    },
+    "agreement_disagreement_and_adjudication": {
+      "const": {
+        "model_agreement_rule": "both_repetitions_must_return_the_same_normalized_decision_for_every_case_otherwise_unable_to_grade_and_class_gate_blocked",
+        "human_initial_review_rule": "two_blinded_permitted_human_graders_review_each_case_independently_before_seeing_any_other_decision",
+        "human_disagreement_capture": "store_each_attributed_decision_rationale_case_hash_rubric_hash_context_and_timestamp_before_adjudication",
+        "human_adjudication_rule": "a_distinct_permitted_human_authority_adjudicates_only_after_the_complete_disagreement_record_is_immutable",
+        "ambiguous_case_rule": "ambiguous_cases_may_not_auto_pass_or_auto_fail_and_require_an_attributed_adjudication_record",
+        "rubric_revision_rule": "revision_never_repairs_current_results_in_place_and_stales_all_prior_H_calibration_evidence"
+      }
+    },
+    "prospective_acceptance_criteria": {
+      "type": "object",
+      "required": [
+        "criterion_label",
+        "confidence_level",
+        "model",
+        "human",
+        "exact_acceptance_rule",
+        "composite_rule"
+      ],
+      "properties": {
+        "criterion_label": {
+          "const": "prospective_preregistered_acceptance_criteria_not_observed_calibration"
+        },
+        "confidence_level": {
+          "const": 0.95
+        },
+        "model": {
+          "type": "object",
+          "required": [
+            "false_pass_count_max",
+            "false_pass_upper_bound_max",
+            "false_block_count_max",
+            "false_block_upper_bound_max",
+            "bound_label"
+          ],
+          "properties": {
+            "false_pass_count_max": {
+              "const": 0
+            },
+            "false_pass_upper_bound_max": {
+              "const": 0.25
+            },
+            "false_block_count_max": {
+              "const": 0
+            },
+            "false_block_upper_bound_max": {
+              "const": 0.25
+            },
+            "bound_label": {
+              "const": "prospective_preregistered_bound"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human": {
+          "type": "object",
+          "required": [
+            "false_pass_count_max",
+            "false_pass_upper_bound_max",
+            "false_block_count_max",
+            "false_block_upper_bound_max",
+            "bound_label"
+          ],
+          "properties": {
+            "false_pass_count_max": {
+              "const": 0
+            },
+            "false_pass_upper_bound_max": {
+              "const": 0.32
+            },
+            "false_block_count_max": {
+              "const": 0
+            },
+            "false_block_upper_bound_max": {
+              "const": 0.32
+            },
+            "bound_label": {
+              "const": "prospective_preregistered_bound"
+            }
+          },
+          "additionalProperties": false
+        },
+        "exact_acceptance_rule": {
+          "const": "accept_a_class_only_if_exact_expected_set_case_and_repeat_closure_passes_with_zero_missing_extra_duplicate_stale_or_incompatible_items_zero_false_passes_zero_false_blocks_each_exact_upper_bound_at_or_below_its_preregistered_bound_and_all_independence_agreement_adjudication_currentness_and_evidence_authority_rules_pass"
+        },
+        "composite_rule": {
+          "const": "T1a_acceptance_freezes_protocol_only_T1b_requires_both_complete_non_compensable_class_results_and_separate_independent_reviews"
+        }
+      },
+      "additionalProperties": false
+    },
+    "independence": {
+      "type": "object",
+      "required": [
+        "model",
+        "human",
+        "self_attested_evidence_permitted",
+        "observed_side_may_define_or_amend_expected_sets"
+      ],
+      "properties": {
+        "model": {
+          "const": {
+            "producer_grader_family_relation": "different_family",
+            "producer_grader_context_relation": "different_independently_compiled_context",
+            "same_family_or_shared_context_result": "reject_correlated_evidence",
+            "expected_set_author_may_not_grade_or_produce_observed_evidence": true
+          }
+        },
+        "human": {
+          "const": {
+            "producer_may_not_be_initial_grader_or_adjudicator": true,
+            "initial_graders_must_be_distinct": true,
+            "adjudicator_must_be_distinct_from_initial_graders_and_producer": true,
+            "permitted_authority_class": "stephen_attributed_or_explicitly_delegated_i2_human_assurance_authority"
+          }
+        },
+        "self_attested_evidence_permitted": {
+          "const": false
+        },
+        "observed_side_may_define_or_amend_expected_sets": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "future_result_and_evidence_fields": {
+      "type": "object",
+      "required": [
+        "common_required",
+        "model_required",
+        "human_required"
+      ],
+      "properties": {
+        "common_required": {
+          "const": [
+            "protocol_id",
+            "protocol_version",
+            "protocol_sha256",
+            "corpus_id",
+            "corpus_version",
+            "corpus_manifest_sha256",
+            "case_id",
+            "case_sha256",
+            "repetition_id",
+            "deterministic_seed",
+            "fixture_id",
+            "fixture_revision",
+            "target_obligation_id",
+            "subject_id",
+            "subject_sha256",
+            "producer_actor_id",
+            "producer_family",
+            "producer_context_id",
+            "producer_context_sha256",
+            "grader_actor_id",
+            "grader_family",
+            "grader_context_id",
+            "grader_context_sha256",
+            "normalized_decision",
+            "verdict",
+            "limitations",
+            "omissions",
+            "evaluated_at",
+            "expires_at",
+            "evidence_id",
+            "evidence_sha256",
+            "trace_id",
+            "trace_sha256",
+            "independent_review_id",
+            "independent_review_sha256",
+            "currentness_status",
+            "suspension_status"
+          ]
+        },
+        "model_required": {
+          "const": [
+            "provider_id",
+            "provider_revision",
+            "model_id",
+            "model_revision",
+            "adapter_id",
+            "adapter_revision",
+            "provider_command_id",
+            "provider_command_sha256",
+            "provider_receipt_id",
+            "provider_receipt_sha256",
+            "cost_grant_id",
+            "cost_grant_sha256",
+            "execution_lease_id",
+            "execution_lease_sha256",
+            "family_independence_grade",
+            "context_independence_grade",
+            "false_pass_summary",
+            "false_block_summary",
+            "uncertainty_result"
+          ]
+        },
+        "human_required": {
+          "const": [
+            "rubric_id",
+            "rubric_version",
+            "rubric_sha256",
+            "human_authority_class",
+            "authority_decision_id",
+            "authority_decision_sha256",
+            "blinding_record_id",
+            "blinding_record_sha256",
+            "initial_human_decisions",
+            "disagreement_record_id",
+            "disagreement_record_sha256",
+            "adjudication_record_id",
+            "adjudication_record_sha256",
+            "rubric_revision_status",
+            "attribution_context"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "currentness_expiry_suspension_and_revision": {
+      "type": "object",
+      "required": [
+        "evidence_expiry_days_after_last_complete_run",
+        "expiry_label",
+        "stale_if_any_identity_changes",
+        "suspension_triggers",
+        "omission_rule",
+        "amendment_rule",
+        "grandfathering_rule"
+      ],
+      "properties": {
+        "evidence_expiry_days_after_last_complete_run": {
+          "const": 90
+        },
+        "expiry_label": {
+          "const": "prospective_preregistered_currentness_limit"
+        },
+        "stale_if_any_identity_changes": {
+          "const": [
+            "protocol_sha256",
+            "corpus_manifest_sha256",
+            "fixture_package_tree_git_sha1",
+            "rubric_sha256",
+            "provider_revision",
+            "model_revision",
+            "adapter_revision",
+            "policy_revision",
+            "schema_revision",
+            "producer_family",
+            "grader_family",
+            "producer_context_sha256",
+            "grader_context_sha256"
+          ]
+        },
+        "suspension_triggers": {
+          "const": [
+            "missing_or_extra_case_or_repeat",
+            "independence_failure",
+            "false_pass_or_false_block",
+            "upper_bound_exceeds_preregistered_bound",
+            "rubric_or_corpus_drift",
+            "expired_evidence",
+            "provider_or_adapter_revision_drift",
+            "self_attested_or_observed_derived_expected_evidence"
+          ]
+        },
+        "omission_rule": {
+          "const": "any_required_omission_is_recorded_and_blocks_the_affected_class_and_the_composite_T1b_gate"
+        },
+        "amendment_rule": {
+          "const": "any_parameter_estimand_denominator_case_repeat_bound_rubric_corpus_independence_or_acceptance_change_requires_a_new_protocol_version_hash_independent_review_and_stephen_acceptance_before_provider_call_or_observation"
+        },
+        "grandfathering_rule": {
+          "const": "superseded_evidence_remains_audit_only_and_cannot_clear_current_calibration_or_eligibility"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome_permissions": {
+      "const": {
+        "accepted": "after_independent_review_and_stephen_exact_hash_acceptance_permits_only_T2_then_T3_and_T4_under_the_sole_graph",
+        "partial": "report_Partial_preserve_valid_protocol_components_and_block_T2_until_the_missing_authority_or_immutable_identity_is_resolved",
+        "rejected": "block_T2_and_require_a_new_protocol_revision_no_observed_result_can_repair_the_rejected_protocol",
+        "prohibited_in_all_outcomes": "no_M_or_H_eligibility_T5_to_T8_dispatch_live_result_or_research_claim"
+      }
+    },
+    "research_assurance_requirements": {
+      "const": {
+        "assurance_lanes_touched": {
+          "stochastic_null": "required",
+          "statistical_panel": "required",
+          "output_provenance": "required_primary",
+          "topology": "not_applicable_no_topological_object_or_claim",
+          "representation": "not_applicable_no_representation_fit_transform_or_claim",
+          "paper_claim": "not_applicable_no_research_claim"
+        },
+        "governing_decision_rule_pre_registration_or_manifest": "P029_P030_P033_P035_P036_W5_W6_and_exact_approved_WP6_plan_revision_fe5f1d40",
+        "parameters_and_seeds_that_must_be_recorded": "two_literal_repetitions_rep_01_rep_02_seed_217570842_fixture_cluster_denominators_11_and_8_and_10000_diagnostic_cluster_bootstrap_replicates",
+        "contracts_or_schemas_in_scope": "this_protocol_schema_and_wp6_2_T1a_scoped_content_addressed_identity_manifest_only",
+        "machine_checkable_claims": "closed_schema_exact_M31_H20_targets_exact_case_and_repeat_counts_hashes_non_compensation_currentness_bounds_and_self_attestation_rejection",
+        "human_review_only_claims": "protocol_adequacy_human_rubric_adequacy_case_ambiguity_adjudication_authority_and_final_exact_hash_acceptance",
+        "output_and_cache_provenance_requirements": "future_evidence_only_no_results_or_cache_output_in_T1a_all_future_evidence_binds_exact_protocol_corpus_case_rubric_subject_and_execution_hashes",
+        "vault_or_conventions_obligations": "no_vault_result_or_claim_entry_T1a_acceptance_must_be_an_attributed_future_decision",
+        "partial_criteria": "report_Partial_instead_of_weakening_or_bypassing_any_missing_immutable_authority_expected_set_case_rubric_review_or_hash_requirement"
+      }
+    },
+    "hard_stops": {
+      "const": [
+        "no_provider_call_or_credential_resolution",
+        "no_observed_calibration_or_result_claim",
+        "no_T2_through_T8_implementation_or_dispatch",
+        "no_M_or_H_eligibility_transition",
+        "no_p0_coverage_gate5_fixture_or_result_mutation",
+        "no_results_output_cache_migration_or_research_claim",
+        "independent_review_must_be_later_and_by_a_distinct_authority",
+        "stephen_exact_hash_acceptance_is_required_before_T2_T3_or_T4"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "calibrationCase": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "case_kind",
+        "fixture_id",
+        "fixture_revision",
+        "source_fixture_tree_git_sha1",
+        "source_reference_sha256",
+        "transformation_id",
+        "expected_decision",
+        "blinding_rule",
+        "case_sha256"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^[MH]-(NEG|POS|SAF|AMB|PRO)-[FS]-[0-9]{3}-.+$"
+        },
+        "case_kind": {
+          "enum": [
+            "negative",
+            "positive",
+            "safe_variation",
+            "ambiguous",
+            "producer_correlated"
+          ]
+        },
+        "fixture_id": {
+          "type": "string",
+          "pattern": "^[FS]-[0-9]{3}$"
+        },
+        "fixture_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_fixture_tree_git_sha1": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "source_reference_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "transformation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_decision": {
+          "enum": [
+            "accept",
+            "reject",
+            "adjudication_required"
+          ]
+        },
+        "blinding_rule": {
+          "const": "withhold_case_kind_expected_decision_oracle_and_producer_identity"
+        },
+        "case_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
