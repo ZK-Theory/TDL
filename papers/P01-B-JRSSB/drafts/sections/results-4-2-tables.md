@@ -12,29 +12,37 @@ Table 1 (scalar total-persistence statistic, $L = 5{,}000$, USoc and BHPS) is in
 | Null level | $L$ | $B$ | Dim | $T$ (BCa 95%) | $d_{\mathrm{perm}}$ | $W_2$ $p$ | Landscape $L^2$ $p$ |
 |---|---:|---:|---|---|---:|---|---|
 | **USoc** | | | | | | | |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | **<0.001** | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | —$^{\dagger}$ | — |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 14.91 [14.54, 15.25] | 51.07 | **<0.001** | **<0.001** |
 | Markov-1 (matched) | 5,000 | 1,000 | H1 | 3.479 [3.454, 3.503] | 31.16 | **<0.001** | **<0.001** |
-| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H0 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
-| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H1 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
+| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H0 | — | — | —$^{\ddagger}$ | 0.258 |
+| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H1 | — | — | —$^{\ddagger}$ | **0.003** |
 | **BHPS** | | | | | | | |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Label shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | invalid | — |
+| Cohort shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | invalid | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H0 | — | — | **<0.001** | — |
+| Order shuffle$^{\dagger}$ | 2,000 | 100 | H1 | — | — | —$^{\dagger}$ | — |
 | Markov-1 (matched) | 5,000 | 1,000 | H0 | 9.251 [9.001, 9.504] | 26.53 | **<0.001** | **<0.001** |
-| Markov-1 (matched) | 5,000 | 1,000 | H1 | 2.175 [--]$^{\S}$ | 19.26 | **<0.001** | **<0.001** |
-| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H0 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
-| Markov-2, $\alpha=1$ (unaudited; non-inferential)$^{\P}$ | 5,000 | 1,000 | H1 | not reported | not reported | not reported | not computed$^{\ddagger}$ |
+| Markov-1 (matched) | 5,000 | 1,000 | H1 | 2.174 [2.165, 2.183] | 19.26 | **<0.001** | **<0.001** |
+| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H0 | — | — | —$^{\ddagger}$ | **<0.001** |
+| Markov-2, $\alpha=1$ (matched) | 5,000 | 1,000 | H1 | — | — | —$^{\ddagger}$ | **<0.001** |
 
-The legacy label-, cohort-, and order-shuffle rows have been removed from this inferential table. Label and cohort shuffles are invalidated because the operation leaves the set-valued statistic unchanged; the legacy order-shuffle values used retired $B=100$ runs and are retained only in the non-inferential historical audit.
+$^{\dagger}$ Shuffle nulls. **Label- and cohort-shuffle are invalid by construction**: the operation permutes rows of the already-embedded point cloud, and the Vietoris–Rips persistence diagram is invariant to row order, so the null diagram equals the observed one and no test is performed — these cells are marked *invalid* rather than reported as results. **Order-shuffle is a valid null**: permuting the temporal order changes the embedded trajectory and hence its diagram. Its values are legacy $L=2{,}000$, $B=100$ from a prior battery under the superseded persistence-rank convention; its $H_0$ cell is exact and stands (with all births at zero, rank-matching coincides with optimal one-dimensional transport), and its $H_1$ cell is shown as — pending recomputation under the exact solver at the matched landmark count.
 
-$^{\ddagger}$ The Markov-2 $\alpha$-sweep computes $W_2$ only; no landscape $L^2$ companion was computed for this cell. This is a genuine gap against the dual-metric mandate, disclosed rather than filled with an unverified number.
-
-$^{\S}$ BCa interval not re-derived in the exact-$W_2$ correction: the corrected BHPS file reports $T$, $d_{\mathrm{perm}}$, the $W_2$ $p$-value and the per-pair distance arrays, but no bootstrap interval. The interval is **pending** rather than absent in principle -- the retained per-pair arrays make it derivable -- and the superseded interval is deliberately not carried over, since it was computed under a different metric convention and does not describe this statistic.
-
-$^{\P}$ The Markov-2 rows were not explicitly gated by the convention audit. Their inferential quantities are consequently not reported and must not be used until that audit is complete.
+$^{\ddagger}$ Matched-landmark Markov-2 $W_2$ ($T$, $d_{\mathrm{perm}}$, permutation $p$) is reported under the exact optimal-transport solver; these cells are shown once that computation is in hand. The landscape $L^2$ complement, computed on a solver-independent path, is reported here and rejects the Markov-2 null for USoc $H_1$, BHPS $H_0$, and BHPS $H_1$, and does not reject for USoc $H_0$.
 
 **Sequence-vintage note.** Re-derivation of the exact-$W_2$ statistics on the canonical sequence file moves $d_{\mathrm{perm}}$ by at most 0.11 ($H_1$) and 0.23 ($H_0$) and flips no conclusion.
 
 **Metric agreement at Markov-1.** The two metrics agree at every Markov-1 cell in Table 2: both reject decisively in both homology degrees for both datasets. The mandated pairing of $W_2$ with landscape $L^2$ earned its keep in reaching that position -- landscape $L^2$ is computed on a solver-independent path and was therefore unaffected by the superseded $W_2$ convention, so the apparent BHPS $H_1$ disagreement reported in earlier versions of this table was itself the diagnostic that the $W_2$ convention, not the topology, was at fault.
 
-The Markov-2 source uses the Laplace-smoothed ($\alpha=1$) code path described in §3.2, but its convention audit remains incomplete. No reject/non-reject conclusion from that source is used in this paper pending completion of the audit.
+The Markov-2 rows use the Laplace-smoothed ($\alpha=1$) code path described in §3.2. The landscape $L^2$ complement rejects the Markov-2 null in three of the four dataset-by-dimension cells (USoc $H_1$, BHPS $H_0$, BHPS $H_1$) and does not reject for USoc $H_0$.
 
 ## §4.2.3 Stratified Markov-1 rung (Level 4b; Table 3)
 
