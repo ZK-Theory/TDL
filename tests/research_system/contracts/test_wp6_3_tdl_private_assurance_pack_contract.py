@@ -59,20 +59,13 @@ EXPECTED_EXTERNAL_SCHEMA_IDS = {
     "registered_pack_object": "ars://assurance/records/registered-pack-object/1.0",
 }
 
-EXTERNAL_CONTRACT_REFERENCE = {
-    "schema_id": CONTRACT_SCHEMA_ID,
-    "schema_version": "1.0.0",
-    "repository_path": ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml",
-    "git_blob": "1" * 40,
-    "canonical_sha256": "2" * 64,
-}
-EXTERNAL_SCHEMA_REFERENCE = {
-    "schema_id": PACK_SCHEMA_ID,
-    "schema_version": "1.0.0",
-    "repository_path": ".research-system/schemas/assurance/assurance-pack.schema.json",
-    "git_blob": "3" * 40,
-    "canonical_sha256": "4" * 64,
-}
+# R3-M2 remediation: the upstream contract and pack-schema content addresses are never
+# hardcoded placeholders. They are resolved from the Git object store on demand by
+# `_resolve_external_contract_reference()` / `_resolve_external_schema_reference()`
+# (defined below, alongside the other Git-object oracle helpers), so the accepted
+# identity is always the actual committed artifact and drifts automatically if the
+# contract or pack schema is ever edited. Never freeze a self-hash of the contract
+# into the contract's own bytes (R3-M2 self-cycle prohibition).
 
 EXPECTED_REFERENCE_IDS = frozenset(
     """
@@ -232,6 +225,90 @@ def _git_blob_id_without_filters(data: bytes) -> str:
     return subprocess.check_output(["git", "hash-object", "--no-filters", "--stdin"], input=data).decode().strip()
 
 
+def _repo_relative_path(path: Path) -> str:
+    return path.relative_to(ROOT).as_posix()
+
+
+def _git_head_blob_id(repo_relative_path: str) -> str:
+    """Resolve the frozen HEAD blob OID for a committed repo-relative path."""
+    return subprocess.check_output(["git", "rev-parse", f"HEAD:{repo_relative_path}"], cwd=ROOT).decode().strip()
+
+
+def _git_blob_bytes(blob_oid: str) -> bytes:
+    return subprocess.check_output(["git", "cat-file", "blob", blob_oid], cwd=ROOT)
+
+
+def _resolve_committed_bytes(path: Path, *, working_tree_bytes: bytes | None = None) -> tuple[bytes, str]:
+    """Resolve a committed file's exact frozen bytes through the Git-object oracle.
+
+    R3-M1: identity is established from ``git rev-parse HEAD:<path>`` plus
+    ``git cat-file blob <oid>`` — the frozen LF Git-object bytes — never from
+    ``Path.read_bytes()``, which returns whatever the current checkout's clean/smudge
+    filters produced (CRLF under ``core.autocrlf=true``) and is therefore not portable
+    across checkouts even though ``git status`` reports clean.
+
+    Separately (and this is a distinct check, not folded into content-identity
+    resolution): the working-tree copy must still match HEAD once Git's own clean
+    filter is applied to it (``git hash-object --path``, which reproduces exactly what
+    a commit would hash for this path). A real CRLF *checkout* of an LF blob resolves
+    identically to HEAD here (the filter renormalizes it), so it is not flagged; a
+    genuinely dirty/uncommitted edit is not equal to HEAD under the filter either and
+    is rejected with its own diagnostic, independent of the frozen bytes returned.
+
+    ``working_tree_bytes`` lets callers (tests) supply an alternate working-tree
+    representation without touching the real file on disk, to exercise the CRLF vs.
+    dirty distinction deterministically.
+    """
+    repo_relative_path = _repo_relative_path(path)
+    head_blob = _git_head_blob_id(repo_relative_path)
+    raw_working_tree_bytes = path.read_bytes() if working_tree_bytes is None else working_tree_bytes
+    working_tree_blob = (
+        subprocess.check_output(
+            ["git", "hash-object", "--path", repo_relative_path, "--stdin"],
+            input=raw_working_tree_bytes,
+            cwd=ROOT,
+        )
+        .decode()
+        .strip()
+    )
+    if working_tree_blob != head_blob:
+        raise CandidatePackError(f"dirty or uncommitted working-tree bytes: {repo_relative_path}")
+    return _git_blob_bytes(head_blob), head_blob
+
+
+@lru_cache(maxsize=1)
+def _resolve_external_contract_reference() -> dict:
+    """Independently resolve the upstream contract's exact committed content address.
+
+    R3-M2: this is never read from the candidate or from the contract's own embedded
+    fields (which would be a self-hash cycle) — it is derived fresh from the Git object
+    store for ``CONTRACT_PATH`` each time the cache is populated, so it always names
+    the actual committed artifact.
+    """
+    contract_bytes, contract_blob = _resolve_committed_bytes(CONTRACT_PATH)
+    return {
+        "schema_id": CONTRACT_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "repository_path": _repo_relative_path(CONTRACT_PATH),
+        "git_blob": contract_blob,
+        "canonical_sha256": hashlib.sha256(contract_bytes).hexdigest(),
+    }
+
+
+@lru_cache(maxsize=1)
+def _resolve_external_schema_reference() -> dict:
+    """Independently resolve the TDL-private pack schema's exact committed content address."""
+    pack_schema_path = SCHEMAS / "assurance" / "assurance-pack.schema.json"
+    schema_bytes, schema_blob = _resolve_committed_bytes(pack_schema_path)
+    return {
+        "schema_id": PACK_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "repository_path": _repo_relative_path(pack_schema_path),
+        "git_blob": schema_blob,
+        "canonical_sha256": hashlib.sha256(schema_bytes).hexdigest(),
+    }
+
+
 def _raw_pack_bytes(pack: dict, *, leading_comment: str | None = None, reverse_top_level: bool = False) -> bytes:
     value = dict(reversed(list(pack.items()))) if reverse_top_level else pack
     rendered = yaml.safe_dump(value, sort_keys=False, allow_unicode=True, width=4096)
@@ -281,10 +358,16 @@ def _assert_all_object_schemas_are_closed(schema: dict) -> None:
 
 @lru_cache(maxsize=1)
 def _external_schema_artifact() -> tuple[dict, str, str]:
-    schema_document = _load_json(CONTRACT_SCHEMA_PATH)
-    schema_bytes = CONTRACT_SCHEMA_PATH.read_bytes()
+    """Resolve and parse the contract's external record schema from its frozen Git blob.
+
+    R3-M1: uses the Git-object oracle (``_resolve_committed_bytes``), not
+    ``Path.read_bytes()`` — portable across CRLF and LF checkouts because it never
+    depends on the current checkout's line-ending representation.
+    """
+    schema_bytes, schema_blob = _resolve_committed_bytes(CONTRACT_SCHEMA_PATH)
+    schema_document = json.loads(schema_bytes.decode("utf-8"))
     Draft202012Validator.check_schema(schema_document)
-    return schema_document, _git_blob_id(schema_bytes), hashlib.sha256(schema_bytes).hexdigest()
+    return schema_document, schema_blob, hashlib.sha256(schema_bytes).hexdigest()
 
 
 @lru_cache(maxsize=1)
@@ -419,12 +502,11 @@ def _proposed_pack(contract: dict | None = None) -> dict:
         "distribution_scope": "TDL_private",
         "candidate_state": "proposed",
         "producer_actor_id": ACT_PRODUCER,
-        "upstream_contract_reference": deepcopy(EXTERNAL_CONTRACT_REFERENCE),
-        "schema_reference": deepcopy(EXTERNAL_SCHEMA_REFERENCE),
+        "upstream_contract_reference": deepcopy(_resolve_external_contract_reference()),
+        "schema_reference": deepcopy(_resolve_external_schema_reference()),
         "assurance_requirement_reference": {
             "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
             "revision": 1,
-            "canonical_sha256": "5" * 64,
             "acceptance_record_id": REQUIREMENT_RECORD_ID,
             "acceptance_record_sha256": "6" * 64,
             "prospective_producer_actor_id": ACT_PRODUCER,
@@ -533,9 +615,9 @@ def _validate_proposed_pack(
     _external_schema_catalogue(contract)
     if _canonical_sha256(contract) != accepted_contract_oracle_sha256:
         raise CandidatePackError("upstream contract oracle identity mismatch")
-    if pack["upstream_contract_reference"] != EXTERNAL_CONTRACT_REFERENCE:
+    if pack["upstream_contract_reference"] != _resolve_external_contract_reference():
         raise CandidatePackError("stale upstream contract subject")
-    if pack["schema_reference"] != EXTERNAL_SCHEMA_REFERENCE:
+    if pack["schema_reference"] != _resolve_external_schema_reference():
         raise CandidatePackError("stale pack schema subject")
     if pack["assurance_pack_id"] not in registered_pack_ids:
         raise CandidatePackError("assurance_pack_id is not registered by W1 authority")
@@ -649,7 +731,7 @@ def _external_records(pack: dict) -> tuple[dict, bytes, dict[str, dict], dict[st
         "acceptance_record_id": REQUIREMENT_RECORD_ID,
         "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
         "revision": 1,
-        "subject_contract": deepcopy(EXTERNAL_CONTRACT_REFERENCE),
+        "subject_contract": deepcopy(_resolve_external_contract_reference()),
         "requirement_author_actor_id": ACT_REQUIREMENT_AUTHOR,
         "scope_reviewer_actor_id": ACT_SCOPE_REVIEWER,
         "acceptor_actor_id": ACT_OWNER,
@@ -834,7 +916,7 @@ def _validate_external_acceptance(
     )
     if hash_manifest[requirement_id] != pack["assurance_requirement_reference"]["acceptance_record_sha256"]:
         raise CandidatePackError("candidate requirement reference does not match external record")
-    if requirement["subject_contract"] != EXTERNAL_CONTRACT_REFERENCE:
+    if requirement["subject_contract"] != _resolve_external_contract_reference():
         raise CandidatePackError("assurance requirement binds a different upstream contract")
     if (
         requirement["assurance_requirement_id"] != pack["assurance_requirement_reference"]["assurance_requirement_id"]
@@ -1552,4 +1634,214 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
             accepted_contract_oracle_sha256=_canonical_sha256(eligible_contract),
             record_store=tampered_review,
             hash_manifest=frozen_external_manifest,
+        )
+
+
+def test_external_schema_identity_resolves_via_git_object_oracle_across_crlf_and_lf_checkouts():
+    """R3-M1 regression: schema content identity must come from the frozen Git blob,
+    not from whatever bytes the current checkout's line-ending filters produced."""
+    _external_schema_artifact.cache_clear()
+    schema_document, schema_blob, schema_sha256 = _external_schema_artifact()
+    repo_relative_path = _repo_relative_path(CONTRACT_SCHEMA_PATH)
+    head_blob = _git_head_blob_id(repo_relative_path)
+    assert schema_blob == head_blob
+    committed_bytes = _git_blob_bytes(head_blob)
+    assert schema_sha256 == hashlib.sha256(committed_bytes).hexdigest()
+    assert schema_document["$defs"]["canonicalActorRecord"]["$id"] == ("ars://assurance/records/canonical-actor/1.0")
+
+    # A CRLF working-tree variant of this exact LF blob: under `core.autocrlf=true` (the
+    # repository's normal Windows checkout) Git's own clean filter (`git hash-object
+    # --path`) renormalizes it back to the committed blob, so it must resolve
+    # identically to HEAD there — this is exactly the R3-M1 defect this test guards.
+    # Under `core.autocrlf=false` (this test's own possibly-different checkout, e.g. a
+    # fresh LF verification clone) the same filter does not renormalize it, so the CRLF
+    # bytes are a genuine content difference and must be rejected as dirty instead.
+    # Rather than hardcoding one behavior, this asks Git itself which regime is active
+    # (per Observation 71: measure with the tool that reports the state, don't assume
+    # from a proxy) and asserts the resolver agrees with Git's own live filter verdict.
+    crlf_working_tree_bytes = committed_bytes.replace(b"\n", b"\r\n")
+    assert crlf_working_tree_bytes != committed_bytes
+    crlf_filtered_blob = (
+        subprocess.check_output(
+            ["git", "hash-object", "--path", repo_relative_path, "--stdin"],
+            input=crlf_working_tree_bytes,
+            cwd=ROOT,
+        )
+        .decode()
+        .strip()
+    )
+    if crlf_filtered_blob == head_blob:
+        crlf_bytes, crlf_blob = _resolve_committed_bytes(
+            CONTRACT_SCHEMA_PATH, working_tree_bytes=crlf_working_tree_bytes
+        )
+        assert crlf_blob == head_blob
+        assert crlf_bytes == committed_bytes
+    else:
+        with pytest.raises(CandidatePackError, match="dirty or uncommitted"):
+            _resolve_committed_bytes(CONTRACT_SCHEMA_PATH, working_tree_bytes=crlf_working_tree_bytes)
+
+    # An LF checkout (working-tree bytes identical to the committed blob) resolves the
+    # same way — the oracle is checkout-representation-invariant in both directions.
+    lf_bytes, lf_blob = _resolve_committed_bytes(CONTRACT_SCHEMA_PATH, working_tree_bytes=committed_bytes)
+    assert lf_blob == head_blob
+    assert lf_bytes == committed_bytes
+    _external_schema_artifact.cache_clear()
+
+
+def test_dirty_or_uncommitted_schema_bytes_are_rejected_by_a_distinct_check():
+    """R3-M1: dirty/uncommitted candidate bytes must be a separate, explicit rejection
+    path from content-identity resolution — a real edit (not a line-ending checkout
+    variant) never resolves to the frozen HEAD blob under Git's own clean filter."""
+    repo_relative_path = _repo_relative_path(CONTRACT_SCHEMA_PATH)
+    head_blob = _git_head_blob_id(repo_relative_path)
+    committed_bytes = _git_blob_bytes(head_blob)
+    dirty_bytes = committed_bytes + b"\n// locally edited, uncommitted\n"
+    with pytest.raises(CandidatePackError, match="dirty or uncommitted"):
+        _resolve_committed_bytes(CONTRACT_SCHEMA_PATH, working_tree_bytes=dirty_bytes)
+
+    truncated_bytes = committed_bytes[:-1]
+    with pytest.raises(CandidatePackError, match="dirty or uncommitted"):
+        _resolve_committed_bytes(CONTRACT_SCHEMA_PATH, working_tree_bytes=truncated_bytes)
+
+
+def test_upstream_contract_and_schema_subjects_resist_stale_foreign_and_coordinated_replacement():
+    """R3-M2 regression: the accepted contract/schema content addresses are resolved
+    from the Git object store, so they are never the fixed placeholders a candidate
+    could freely match; stale, foreign-but-real, swapped, and coordinated-replacement
+    attempts must all fail against the independently resolved identity."""
+    real_contract_reference = _resolve_external_contract_reference()
+    real_schema_reference = _resolve_external_schema_reference()
+
+    # Sanity: the resolved references are the actual committed objects, not the R2
+    # placeholders (all-`1`/`2`/`3`/`4` digit strings) the R3 review found accepted.
+    assert real_contract_reference["git_blob"] != "1" * 40
+    assert real_contract_reference["canonical_sha256"] != "2" * 64
+    assert real_schema_reference["git_blob"] != "3" * 40
+    assert real_schema_reference["canonical_sha256"] != "4" * 64
+    # The resolved identity is never a literal pinned in this test file either — it is
+    # cross-checked here against a fully independent, freshly invoked `git` call, so an
+    # edit to either committed file (this remediation edits both) changes what both
+    # sides compute together rather than leaving a stale hardcoded expectation behind.
+    independent_contract_blob = (
+        subprocess.check_output(["git", "rev-parse", f"HEAD:{_repo_relative_path(CONTRACT_PATH)}"], cwd=ROOT)
+        .decode()
+        .strip()
+    )
+    independent_contract_bytes = subprocess.check_output(
+        ["git", "cat-file", "blob", independent_contract_blob], cwd=ROOT
+    )
+    assert real_contract_reference["git_blob"] == independent_contract_blob
+    assert real_contract_reference["canonical_sha256"] == hashlib.sha256(independent_contract_bytes).hexdigest()
+
+    independent_schema_path = _repo_relative_path(SCHEMAS / "assurance" / "assurance-pack.schema.json")
+    independent_schema_blob = (
+        subprocess.check_output(["git", "rev-parse", f"HEAD:{independent_schema_path}"], cwd=ROOT).decode().strip()
+    )
+    independent_schema_bytes = subprocess.check_output(["git", "cat-file", "blob", independent_schema_blob], cwd=ROOT)
+    assert real_schema_reference["git_blob"] == independent_schema_blob
+    assert real_schema_reference["canonical_sha256"] == hashlib.sha256(independent_schema_bytes).hexdigest()
+
+    baseline = _proposed_pack()
+    _validate_proposed_pack(baseline)
+
+    # stale: a plausible-looking but non-current identity.
+    stale = _proposed_pack()
+    stale["upstream_contract_reference"]["git_blob"] = "0" * 40
+    stale["upstream_contract_reference"]["canonical_sha256"] = "0" * 64
+    with pytest.raises(CandidatePackError, match="stale upstream contract subject"):
+        _validate_proposed_pack(stale)
+
+    # foreign-valid: a real, currently-committed content address for a *different*
+    # artifact substituted onto the contract subject field.
+    foreign_valid = _proposed_pack()
+    foreign_valid["upstream_contract_reference"]["git_blob"] = real_schema_reference["git_blob"]
+    foreign_valid["upstream_contract_reference"]["canonical_sha256"] = real_schema_reference["canonical_sha256"]
+    with pytest.raises(CandidatePackError, match="stale upstream contract subject"):
+        _validate_proposed_pack(foreign_valid)
+
+    # swapped: contract and schema subjects exchange each other's real identities.
+    swapped = _proposed_pack()
+    swapped["upstream_contract_reference"]["git_blob"] = real_schema_reference["git_blob"]
+    swapped["upstream_contract_reference"]["canonical_sha256"] = real_schema_reference["canonical_sha256"]
+    swapped["schema_reference"]["git_blob"] = real_contract_reference["git_blob"]
+    swapped["schema_reference"]["canonical_sha256"] = real_contract_reference["canonical_sha256"]
+    with pytest.raises(CandidatePackError, match="stale upstream contract subject"):
+        _validate_proposed_pack(swapped)
+
+    # coordinated replacement of both subjects to a shared, internally-consistent but
+    # wrong pair of real identities must still fail.
+    coordinated = _proposed_pack()
+    coordinated["upstream_contract_reference"]["git_blob"] = real_schema_reference["git_blob"]
+    coordinated["upstream_contract_reference"]["canonical_sha256"] = real_schema_reference["canonical_sha256"]
+    coordinated["schema_reference"]["git_blob"] = real_schema_reference["git_blob"]
+    coordinated["schema_reference"]["canonical_sha256"] = real_schema_reference["canonical_sha256"]
+    with pytest.raises(CandidatePackError, match="stale upstream contract subject"):
+        _validate_proposed_pack(coordinated)
+
+
+def test_requirement_reference_binds_single_authoritative_content_hash():
+    """R3-M3 design choice: the seven-record design already resolves and hash-checks
+    the full accepted-requirement record body through `acceptance_record_sha256`
+    (`_resolved_record` / `_validate_external_acceptance`), so `acceptance_record_sha256`
+    is kept as the single authoritative content identity for the requirement subject.
+    The previously-present `canonical_sha256` field on `assurance_requirement_reference`
+    was redundant with it, was never joined to the resolved requirement, and has been
+    removed from the schema rather than independently bound — removing a duplicate
+    unenforced authority is preferred over adding a second one to reconcile."""
+    contract, oracle_sha, pack, raw_candidate_pack_bytes, record_store, hash_manifest = _eligible_acceptance_fixture()
+    assert "canonical_sha256" not in pack["assurance_requirement_reference"]
+    _validate_external_acceptance(
+        pack,
+        raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+        contract=contract,
+        accepted_contract_oracle_sha256=oracle_sha,
+        record_store=record_store,
+        hash_manifest=hash_manifest,
+    )
+
+    # Reintroducing the removed field is now a structural rejection (unknown property),
+    # not a silently-ignored one — this is the R3-M3 reproduction fixture
+    # (`"5" * 64` -> `"a" * 64`) made impossible rather than merely unwatched.
+    reintroduced = deepcopy(pack)
+    reintroduced["assurance_requirement_reference"]["canonical_sha256"] = "a" * 64
+    with pytest.raises(SchemaError, match="canonical_sha256"):
+        _validate_proposed_pack(reintroduced, contract=contract, accepted_contract_oracle_sha256=oracle_sha)
+
+    # one-field substitution: candidate claims an acceptance_record_sha256 that does
+    # not match the resolved external requirement record's actual content hash.
+    one_field = deepcopy(pack)
+    one_field["assurance_requirement_reference"]["acceptance_record_sha256"] = "f" * 64
+    one_field_raw = _raw_pack_bytes(one_field)
+    with pytest.raises(CandidatePackError, match="does not match external record"):
+        _validate_external_acceptance(
+            one_field,
+            raw_candidate_pack_bytes=one_field_raw,
+            contract=contract,
+            accepted_contract_oracle_sha256=oracle_sha,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+
+    # coordinated rehash: the accepted requirement's bound upstream-contract subject is
+    # replaced, the requirement record and every downstream (review/owner) subject are
+    # recomputed and rehashed together, and the candidate's acceptance_record_sha256 is
+    # kept internally consistent throughout. The independently-resolved subject_contract
+    # check still catches it, because the oracle is external to the candidate/record
+    # chain rather than reproduced from within it.
+    coordinated_store = deepcopy(record_store)
+    coordinated_store[REQUIREMENT_RECORD_ID]["subject_contract"] = {
+        **deepcopy(coordinated_store[REQUIREMENT_RECORD_ID]["subject_contract"]),
+        "git_blob": "f" * 40,
+        "canonical_sha256": "f" * 64,
+    }
+    coordinated_pack = deepcopy(pack)
+    coordinated_raw, coordinated_hashes = _coordinate_all_external_hashes(coordinated_pack, coordinated_store)
+    with pytest.raises(CandidatePackError, match="different upstream contract"):
+        _validate_external_acceptance(
+            coordinated_pack,
+            raw_candidate_pack_bytes=coordinated_raw,
+            contract=contract,
+            accepted_contract_oracle_sha256=oracle_sha,
+            record_store=coordinated_store,
+            hash_manifest=coordinated_hashes,
         )

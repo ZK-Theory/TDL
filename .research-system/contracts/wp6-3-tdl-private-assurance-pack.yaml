@@ -510,6 +510,10 @@ validation_bindings:
     - test_complete_w5_obligation_rows_reject_missing_duplicate_swap_and_free_text
     - test_distribution_currency_and_identity_mutations_fail_closed
     - test_coordinated_candidate_and_oracle_replacement_does_not_change_external_authority
+    - test_external_schema_identity_resolves_via_git_object_oracle_across_crlf_and_lf_checkouts
+    - test_dirty_or_uncommitted_schema_bytes_are_rejected_by_a_distinct_check
+    - test_upstream_contract_and_schema_subjects_resist_stale_foreign_and_coordinated_replacement
+    - test_requirement_reference_binds_single_authoritative_content_hash
   task_local_unbound_test_functions:
     - test_scope_stop_future_pack_is_absent_in_remediation_task
 

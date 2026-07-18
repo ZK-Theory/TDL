@@ -133,7 +133,6 @@
       "required": [
         "assurance_requirement_id",
         "revision",
-        "canonical_sha256",
         "acceptance_record_id",
         "acceptance_record_sha256",
         "prospective_producer_actor_id"
@@ -141,7 +140,6 @@
       "properties": {
         "assurance_requirement_id": {"$ref": "#/$defs/assuranceRequirementId"},
         "revision": {"type": "integer", "minimum": 1},
-        "canonical_sha256": {"$ref": "#/$defs/sha256"},
         "acceptance_record_id": {"$ref": "#/$defs/recordId"},
         "acceptance_record_sha256": {"$ref": "#/$defs/sha256"},
         "prospective_producer_actor_id": {"$ref": "#/$defs/actorId"}
