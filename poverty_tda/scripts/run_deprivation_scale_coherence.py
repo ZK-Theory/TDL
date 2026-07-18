@@ -316,6 +316,41 @@ def ensure_staged_launch_plan(
     return plan
 
 
+def build_staged_execution_provenance(
+    plan: dict[str, Any],
+    *,
+    plan_path: Path,
+    batch_root: Path,
+    project_root: Path,
+) -> dict[str, Any]:
+    """Bind the approved plan and ignored batch artifacts into the final result."""
+    batch_artifacts: list[dict[str, Any]] = []
+    for batch in plan["batches"]:
+        path = batch_root / f"batch_{batch['batch_index']}.json"
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+        batch_artifacts.append(
+            {
+                "batch_index": batch["batch_index"],
+                "path": path.relative_to(project_root).as_posix(),
+                "sha256": _sha256(path),
+                "member_count": artifact["member_count"],
+                "elapsed_seconds": artifact["elapsed_seconds"],
+            }
+        )
+    return {
+        "mode": "staged",
+        "plan": {
+            "path": plan_path.relative_to(REPO_ROOT).as_posix(),
+            "sha256": _sha256(plan_path),
+            "family_sha256": plan["family_sha256"],
+            "approval": plan["approval"],
+        },
+        "batch_artifacts": batch_artifacts,
+        "all_batches_complete": True,
+        "inference_deferred_until_all_batches_complete": True,
+    }
+
+
 def load_inputs(input_root: Path) -> tuple[pd.DataFrame, gpd.GeoDataFrame, dict[str, str]]:
     imd_path = input_root / "data/imd2025_file7.csv"
     boundary_path = input_root / "data/lsoa_dec_2021_bgc_v5.geojson"
@@ -836,6 +871,7 @@ def assemble_result(
     preflight: dict[str, Any],
     pilot: dict[str, Any],
     invariance_audit: dict[str, Any],
+    staged_execution: dict[str, Any] | None,
     elapsed_seconds: float,
 ) -> dict[str, Any]:
     """Apply validity exclusions, BH families, sensitivity, and locked verdict."""
@@ -969,6 +1005,25 @@ def assemble_result(
         "provenance": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "git_commit": git_commit,
+            "inputs": {
+                "imd2025_file7": {
+                    "path": "data/imd2025_file7.csv",
+                    "sha256": input_hashes.get("imd2025_file7"),
+                },
+                "lsoa_boundaries": {
+                    "path": "data/lsoa_dec_2021_bgc_v5.geojson",
+                    "sha256": input_hashes.get("lsoa_boundaries"),
+                    "source": "ONS Open Geography Portal item 68515293204e43ca8ab56fa13ae8a547",
+                    "downloaded_at": "2026-07-10",
+                    "license": "OGL v3.0",
+                },
+            },
+            "staged_execution": staged_execution
+            or {
+                "mode": "single-launch",
+                "all_batches_complete": True,
+                "inference_deferred_until_all_batches_complete": False,
+            },
             "pre_registration": "vault/00-Meta/Discovery/deprivation-scale-coherence-dispatch-prereg-2026-07-10.md",
             "pre_registration_sha256": "4038ceb802d5a5185da1fde858d29e1147ac502e8c1178c1b4b366848c5f6bac",
             "pre_registration_json_sha256": "fa1af694c4e740acd63ef591ec2b53e03e93b6bfc35ec1a79d9ce9ed45398a66",
@@ -1089,6 +1144,12 @@ def main() -> None:
             preflight=preflight,
             pilot=pilot,
             invariance_audit=invariance_audit,
+            staged_execution=build_staged_execution_provenance(
+                plan,
+                plan_path=plan_path,
+                batch_root=batch_root,
+                project_root=project_root,
+            ),
             elapsed_seconds=elapsed_seconds,
         )
         output_path = result_dir / f"deprivation_scale_coherence_{args.result_date}.json"
@@ -1122,6 +1183,7 @@ def main() -> None:
         preflight=preflight,
         pilot=pilot,
         invariance_audit=invariance_audit,
+        staged_execution=None,
         elapsed_seconds=time.perf_counter() - started,
     )
     output_path = result_dir / f"deprivation_scale_coherence_{args.result_date}.json"

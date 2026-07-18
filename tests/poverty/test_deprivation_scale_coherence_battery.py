@@ -180,11 +180,18 @@ def test_assemble_result_reconstructs_deferred_tail_inference(monkeypatch) -> No
             "family_sha256": "family-sha",
             "frozen_at": "2026-07-16T00:00:00+00:00",
         },
-        input_hashes={"input": "sha"},
+        input_hashes={"imd2025_file7": "imd-sha", "lsoa_boundaries": "lsoa-sha"},
         workers=8,
         preflight={"estimated_wall_time_hours": 1.0},
         pilot={"lad_code": "E08000025", "observed": {"h1_total_area": 27.0}, "p_lower": 0.01},
         invariance_audit={"verdict": "VALID NULL"},
+        staged_execution={
+            "mode": "staged",
+            "plan": {"family_sha256": "family-sha"},
+            "batch_artifacts": [],
+            "all_batches_complete": True,
+            "inference_deferred_until_all_batches_complete": True,
+        },
         elapsed_seconds=1.0,
     )
 
@@ -207,3 +214,17 @@ def test_assemble_result_reconstructs_deferred_tail_inference(monkeypatch) -> No
         "rejects_lower_fdr": False,
         "redundant": False,
     }
+    assert payload["provenance"]["inputs"] == {
+        "imd2025_file7": {
+            "path": "data/imd2025_file7.csv",
+            "sha256": "imd-sha",
+        },
+        "lsoa_boundaries": {
+            "path": "data/lsoa_dec_2021_bgc_v5.geojson",
+            "sha256": "lsoa-sha",
+            "source": "ONS Open Geography Portal item 68515293204e43ca8ab56fa13ae8a547",
+            "downloaded_at": "2026-07-10",
+            "license": "OGL v3.0",
+        },
+    }
+    assert payload["provenance"]["staged_execution"]["plan"]["family_sha256"] == "family-sha"

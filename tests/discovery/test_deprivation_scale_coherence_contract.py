@@ -108,6 +108,7 @@ def _valid_payload() -> dict[str, Any]:
         },
         "lad_family": {
             "eligible_count": len(rows),
+            "family_sha256": "f" * 64,
             "members": [
                 {"lad_code": row["lad_code"], "lad_name": row["lad_name"], "n_lsoas": row["n_lsoas"]} for row in rows
             ],
@@ -130,6 +131,44 @@ def _valid_payload() -> dict[str, Any]:
             "reject_count": 2,
             "eligible_count": 5,
             "reject_fraction": 0.4,
+        },
+        "provenance": {
+            "git_commit": "a" * 40,
+            "pre_registration_sha256": "4038ceb802d5a5185da1fde858d29e1147ac502e8c1178c1b4b366848c5f6bac",
+            "pre_registration_json_sha256": "fa1af694c4e740acd63ef591ec2b53e03e93b6bfc35ec1a79d9ce9ed45398a66",
+            "inputs": {
+                "imd2025_file7": {
+                    "path": "data/imd2025_file7.csv",
+                    "sha256": "b1b716aa2e476449f987b9de3e08255b4794eabfd270626de5de18b2f5eff3ef",
+                },
+                "lsoa_boundaries": {
+                    "path": "data/lsoa_dec_2021_bgc_v5.geojson",
+                    "sha256": "34d637634532b16824c576f0a297ee6ce07962b88d23aa0fd8e564c97a3d0f38",
+                    "source": "ONS Open Geography Portal item 68515293204e43ca8ab56fa13ae8a547",
+                    "downloaded_at": "2026-07-10",
+                    "license": "OGL v3.0",
+                },
+            },
+            "staged_execution": {
+                "mode": "staged",
+                "plan": {
+                    "path": "results/poverty_tda_mcbif/staged_launch_plan_deprivation_scale_coherence_2026-07-16.json",
+                    "sha256": "b" * 64,
+                    "family_sha256": "f" * 64,
+                    "approval": {"approved_by": "User", "instruction": "Approve staged launch"},
+                },
+                "batch_artifacts": [
+                    {
+                        "batch_index": index,
+                        "path": f"results/poverty_tda_mcbif/.partial/deprivation_scale_coherence/staged_results/batch_{index}.json",
+                        "sha256": hex_digit * 64,
+                        "member_count": count,
+                    }
+                    for index, hex_digit, count in ((1, "c", 2), (2, "d", 2), (3, "e", 1))
+                ],
+                "all_batches_complete": True,
+                "inference_deferred_until_all_batches_complete": True,
+            },
         },
     }
 
@@ -163,6 +202,12 @@ def test_scale_coherence_rejects_invalid_payloads() -> None:
     wrong_sensitivity_fdr = copy.deepcopy(payload)
     wrong_sensitivity_fdr["sensitivity_excluding_spike_lads"]["lad_results"][0]["p_fdr"] = 0.9
     mutations.append(wrong_sensitivity_fdr)
+    wrong_staged_family = copy.deepcopy(payload)
+    wrong_staged_family["provenance"]["staged_execution"]["plan"]["family_sha256"] = "0" * 64
+    mutations.append(wrong_staged_family)
+    missing_input_path = copy.deepcopy(payload)
+    missing_input_path["provenance"]["inputs"]["imd2025_file7"].pop("path")
+    mutations.append(missing_input_path)
 
     for invalid in mutations:
         with pytest.raises(ValueError):

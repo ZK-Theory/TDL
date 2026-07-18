@@ -216,6 +216,7 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
         "lad_results",
         "sensitivity_excluding_spike_lads",
         "decision",
+        "provenance",
     }
     if not isinstance(payload, dict):
         raise ValueError("result payload must be a dict")
@@ -229,6 +230,39 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
         "lsoa_boundaries": LSOA_SHA256,
     }:
         raise ValueError("input_sha256 does not match the locked inputs")
+
+    provenance = payload["provenance"]
+    if not isinstance(provenance, dict):
+        raise ValueError("provenance must be a dict")
+    git_commit = provenance.get("git_commit")
+    if (
+        not isinstance(git_commit, str)
+        or len(git_commit) != 40
+        or any(char not in "0123456789abcdef" for char in git_commit)
+    ):
+        raise ValueError("provenance.git_commit must be a full lowercase Git SHA")
+    if (
+        provenance.get("pre_registration_sha256") != "4038ceb802d5a5185da1fde858d29e1147ac502e8c1178c1b4b366848c5f6bac"
+        or provenance.get("pre_registration_json_sha256")
+        != "fa1af694c4e740acd63ef591ec2b53e03e93b6bfc35ec1a79d9ce9ed45398a66"
+    ):
+        raise ValueError("provenance pre-registration hashes do not match the locked design")
+    inputs = provenance.get("inputs")
+    expected_inputs = {
+        "imd2025_file7": {
+            "path": "data/imd2025_file7.csv",
+            "sha256": IMD_SHA256,
+        },
+        "lsoa_boundaries": {
+            "path": "data/lsoa_dec_2021_bgc_v5.geojson",
+            "sha256": LSOA_SHA256,
+            "source": "ONS Open Geography Portal item 68515293204e43ca8ab56fa13ae8a547",
+            "downloaded_at": "2026-07-10",
+            "license": "OGL v3.0",
+        },
+    }
+    if inputs != expected_inputs:
+        raise ValueError("provenance.inputs must record the locked paths, hashes, and boundary source")
 
     params = payload["params"]
     expected_params = {
@@ -262,6 +296,40 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
     row_identity = [(r.get("lad_code"), r.get("lad_name"), r.get("n_lsoas")) for r in rows]
     if member_identity != row_identity or len({identity[0] for identity in member_identity}) != len(rows):
         raise ValueError("lad_results must match the frozen LAD family exactly and uniquely")
+
+    execution = provenance.get("staged_execution")
+    if not isinstance(execution, dict) or execution.get("all_batches_complete") is not True:
+        raise ValueError("provenance.staged_execution must record complete execution")
+    if execution.get("mode") == "staged":
+        plan = execution.get("plan")
+        artifacts = execution.get("batch_artifacts")
+        if (
+            not isinstance(plan, dict)
+            or plan.get("family_sha256") != family.get("family_sha256")
+            or not isinstance(plan.get("path"), str)
+            or not isinstance(plan.get("sha256"), str)
+            or len(plan["sha256"]) != 64
+            or any(char not in "0123456789abcdef" for char in plan["sha256"])
+            or plan.get("approval", {}).get("approved_by") != "User"
+            or plan.get("approval", {}).get("instruction") != "Approve staged launch"
+        ):
+            raise ValueError("staged execution plan provenance is invalid")
+        if not isinstance(artifacts, list) or [item.get("batch_index") for item in artifacts] != [1, 2, 3]:
+            raise ValueError("staged execution must bind exactly batches 1, 2, and 3")
+        if sum(item.get("member_count", -1) for item in artifacts) != len(rows):
+            raise ValueError("staged batch member counts do not cover the result family")
+        if any(
+            not isinstance(item.get("path"), str)
+            or not isinstance(item.get("sha256"), str)
+            or len(item["sha256"]) != 64
+            or any(char not in "0123456789abcdef" for char in item["sha256"])
+            for item in artifacts
+        ):
+            raise ValueError("staged batch paths and hashes are invalid")
+        if execution.get("inference_deferred_until_all_batches_complete") is not True:
+            raise ValueError("staged inference deferral must be recorded")
+    elif execution.get("mode") != "single-launch":
+        raise ValueError("provenance.staged_execution.mode is invalid")
 
     p_lower_values: list[float] = []
     for index, row in enumerate(rows):
