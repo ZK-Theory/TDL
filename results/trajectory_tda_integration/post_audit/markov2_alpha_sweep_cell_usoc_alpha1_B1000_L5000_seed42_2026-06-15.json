@@ -1,0 +1,82 @@
+{
+  "schema_version": "stage1/markov2-alpha-sweep-cell/v1",
+  "generated_at": "2026-06-15T12:10:54+00:00",
+  "task": "T1.8 Markov-2 alpha sensitivity sweep",
+  "dataset": "usoc",
+  "alpha": 1,
+  "inputs": {
+    "checkpoint_dir": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration",
+    "canonical_embedding_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\embeddings.npy",
+    "baseline_gmm_labels_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\05_analysis.json[gmm_labels]",
+    "trajectory_source": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\01_trajectories_sequences.json",
+    "n_trajectories": 27280,
+    "embedding_dim": 20,
+    "gmm_label_counts": {
+      "3": 3333,
+      "4": 3510,
+      "1": 7358,
+      "5": 1813,
+      "2": 5415,
+      "6": 2064,
+      "0": 3787
+    },
+    "git_head": "6b71cb2e4f9c9e40edb930a8ba6f6a85389b2fc1"
+  },
+  "params": {
+    "L": 5000,
+    "B": 1000,
+    "seed": 42,
+    "markov_order": 2,
+    "alpha": 1,
+    "frozen_loadings": true,
+    "p_value_formula": "(r+1)/(B+1)",
+    "wasserstein_order": 2,
+    "wasserstein_internal_p": 2,
+    "cell_worker_count": 1,
+    "permutation_jobs": 4,
+    "n_null_pairs": 500,
+    "summary_dimension": "h1"
+  },
+  "observed_total_persistence": {
+    "h0": 20482.18425154686,
+    "h1": 2258.335467815399
+  },
+  "result": {
+    "h0": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.25774225774225773,
+      "t_ratio": 20.325935649364478,
+      "bca_ci_lower": 19.826479599617564,
+      "bca_ci_upper": 20.811440104761836,
+      "d_perm": 69.24112479152599,
+      "mean_obs_null": 112.43796734803679,
+      "mean_null_null": 5.531748662775696,
+      "landscape_t_ratio": 1.31610848033213,
+      "landscape_bca_ci_lower": 1.2567629510108256,
+      "landscape_bca_ci_upper": 1.3823508268173952,
+      "landscape_d_perm": 0.6480522342947107,
+      "lower_tail_pvalue": 1.0
+    },
+    "h1": {
+      "w2_pvalue": 0.000999000999000999,
+      "pvalue_null_draws": 1000,
+      "effect_null_pairs": 500,
+      "landscape_l2_pvalue": 0.002997002997002997,
+      "t_ratio": 1.4894904333087566,
+      "bca_ci_lower": 1.4872230665592903,
+      "bca_ci_upper": 1.4916721474328085,
+      "d_perm": 31.087919029386644,
+      "mean_obs_null": 290.3656855166012,
+      "mean_null_null": 194.94296775816304,
+      "landscape_t_ratio": 1.9328356788281318,
+      "landscape_bca_ci_lower": 1.8929139744511858,
+      "landscape_bca_ci_upper": 1.973692406040921,
+      "landscape_d_perm": 3.9865245342073177
+    }
+  },
+  "runtime_seconds": 31390.39056777954,
+  "checkpoint_path": "C:\\Users\\steph\\TDL\\results\\trajectory_tda_integration\\post_audit\\markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json",
+  "regeneration_command": "uv run --env-file .env python trajectory_tda/scripts/run_stage1_aux_diagnostics.py markov2-alpha-sweep --B 1000 --L 5000 --seed 42 --n-jobs 1 --run-date 2026-06-15 --summary-dim h1"
+}
