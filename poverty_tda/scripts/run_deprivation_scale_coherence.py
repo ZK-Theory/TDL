@@ -861,6 +861,22 @@ def assemble_result(
     reduced_rows = [row for row in valid_rows if row["lad_code"] not in set(SPIKE_LAD_CODES)]
     reduced_q = benjamini_hochberg(np.asarray([row["p_lower"] for row in reduced_rows], dtype=np.float64))
     reduced_rejects = int(np.count_nonzero(reduced_q <= ALPHA))
+    sensitivity_rows = [
+        {
+            "lad_code": row["lad_code"],
+            "lad_name": row["lad_name"],
+            "n_lsoas": row["n_lsoas"],
+            "observed_h1_total_area": row["observed"]["h1_total_area"],
+            "p_lower": row["p_lower"],
+            "p_upper": row["p_upper"],
+            "primary_p_fdr": row["p_fdr"],
+            "primary_rejects_lower_fdr": row["rejects_lower_fdr"],
+            "p_fdr": float(q_value),
+            "rejects_lower_fdr": bool(q_value <= ALPHA),
+            "redundant": row["redundant"],
+        }
+        for row, q_value in zip(reduced_rows, reduced_q, strict=True)
+    ]
     primary_rejects = sum(row["rejects_lower_fdr"] for row in valid_rows)
     primary_fraction = primary_rejects / len(valid_rows)
     reduced_fraction = reduced_rejects / len(reduced_rows)
@@ -927,6 +943,7 @@ def assemble_result(
             "direction_vs_null_base_rate": reduced_direction,
             "primary_direction_vs_null_base_rate": primary_direction,
             "direction_agrees": sensitivity_agrees,
+            "lad_results": sensitivity_rows,
         },
         "decision": {
             "verdict": verdict,

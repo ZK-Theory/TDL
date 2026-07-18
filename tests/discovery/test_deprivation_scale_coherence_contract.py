@@ -71,6 +71,24 @@ def _valid_payload() -> dict[str, Any]:
     for row, value in zip(rows, adjusted, strict=True):
         row["p_fdr"] = float(value)
         row["rejects_lower_fdr"] = bool(value <= 0.05)
+    reduced_rows = rows[1:]
+    reduced_adjusted = benjamini_hochberg(np.array([row["p_lower"] for row in reduced_rows]))
+    sensitivity_rows = [
+        {
+            "lad_code": row["lad_code"],
+            "lad_name": row["lad_name"],
+            "n_lsoas": row["n_lsoas"],
+            "observed_h1_total_area": row["observed"]["h1_total_area"],
+            "p_lower": row["p_lower"],
+            "p_upper": row["p_upper"],
+            "primary_p_fdr": row["p_fdr"],
+            "primary_rejects_lower_fdr": row["rejects_lower_fdr"],
+            "p_fdr": float(q_value),
+            "rejects_lower_fdr": bool(q_value <= 0.05),
+            "redundant": row["redundant"],
+        }
+        for row, q_value in zip(reduced_rows, reduced_adjusted, strict=True)
+    ]
     return {
         "schema_version": "deprivation-scale-coherence/v1",
         "input_sha256": {
@@ -105,6 +123,7 @@ def _valid_payload() -> dict[str, Any]:
             "direction_vs_null_base_rate": "above",
             "primary_direction_vs_null_base_rate": "above",
             "direction_agrees": True,
+            "lad_results": sensitivity_rows,
         },
         "decision": {
             "verdict": "coherence-confirmed",
@@ -138,6 +157,12 @@ def test_scale_coherence_rejects_invalid_payloads() -> None:
     missing_family_member = copy.deepcopy(payload)
     missing_family_member["lad_family"]["members"].pop()
     mutations.append(missing_family_member)
+    missing_sensitivity_table = copy.deepcopy(payload)
+    missing_sensitivity_table["sensitivity_excluding_spike_lads"].pop("lad_results")
+    mutations.append(missing_sensitivity_table)
+    wrong_sensitivity_fdr = copy.deepcopy(payload)
+    wrong_sensitivity_fdr["sensitivity_excluding_spike_lads"]["lad_results"][0]["p_fdr"] = 0.9
+    mutations.append(wrong_sensitivity_fdr)
 
     for invalid in mutations:
         with pytest.raises(ValueError):

@@ -193,3 +193,17 @@ def test_assemble_result_reconstructs_deferred_tail_inference(monkeypatch) -> No
     assert assembled["p_upper"] == 1.0
     assert assembled["null_summary"]["observed_percentile"] == pytest.approx(100.0 / 3.0)
     assert assembled["p_fdr"] == 0.5
+    sensitivity_row = payload["sensitivity_excluding_spike_lads"]["lad_results"][0]
+    assert sensitivity_row == {
+        "lad_code": "E1",
+        "lad_name": "One",
+        "n_lsoas": 150,
+        "observed_h1_total_area": 1.0,
+        "p_lower": 0.5,
+        "p_upper": 1.0,
+        "primary_p_fdr": 0.5,
+        "primary_rejects_lower_fdr": False,
+        "p_fdr": 0.5,
+        "rejects_lower_fdr": False,
+        "redundant": False,
+    }

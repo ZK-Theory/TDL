@@ -332,6 +332,50 @@ def validate_result_payload(payload: dict[str, Any]) -> None:
     if sensitivity.get("family_size") != len(reduced_rows) or sensitivity.get("reject_count") != reduced_reject_count:
         raise ValueError("sensitivity counts are not recomputable")
     _require_close(sensitivity.get("coherent_fraction"), reduced_fraction, "sensitivity.coherent_fraction")
+    sensitivity_rows = sensitivity.get("lad_results")
+    if not isinstance(sensitivity_rows, list) or len(sensitivity_rows) != len(reduced_rows):
+        raise ValueError("sensitivity.lad_results must cover the complete reduced family")
+    for index, (sensitivity_row, primary_row, expected_q) in enumerate(
+        zip(sensitivity_rows, reduced_rows, reduced_q, strict=True)
+    ):
+        if not isinstance(sensitivity_row, dict):
+            raise ValueError(f"sensitivity.lad_results[{index}] must be a dict")
+        expected_identity = (primary_row["lad_code"], primary_row["lad_name"], primary_row["n_lsoas"])
+        actual_identity = (
+            sensitivity_row.get("lad_code"),
+            sensitivity_row.get("lad_name"),
+            sensitivity_row.get("n_lsoas"),
+        )
+        if actual_identity != expected_identity:
+            raise ValueError(f"sensitivity.lad_results[{index}] does not match the reduced family")
+        _require_close(
+            sensitivity_row.get("observed_h1_total_area"),
+            float(primary_row["observed"]["h1_total_area"]),
+            f"sensitivity.lad_results[{index}].observed_h1_total_area",
+        )
+        for field in ("p_lower", "p_upper"):
+            _require_close(
+                sensitivity_row.get(field),
+                float(primary_row[field]),
+                f"sensitivity.lad_results[{index}].{field}",
+            )
+        _require_close(
+            sensitivity_row.get("primary_p_fdr"),
+            float(primary_row["p_fdr"]),
+            f"sensitivity.lad_results[{index}].primary_p_fdr",
+        )
+        _require_close(
+            sensitivity_row.get("p_fdr"),
+            float(expected_q),
+            f"sensitivity.lad_results[{index}].p_fdr",
+        )
+        expected_reject = bool(expected_q <= ALPHA)
+        if (
+            sensitivity_row.get("primary_rejects_lower_fdr") is not primary_row["rejects_lower_fdr"]
+            or sensitivity_row.get("rejects_lower_fdr") is not expected_reject
+            or sensitivity_row.get("redundant") is not primary_row["redundant"]
+        ):
+            raise ValueError(f"sensitivity.lad_results[{index}] decision fields are inconsistent")
     if (
         sensitivity.get("direction_vs_null_base_rate") != reduced_direction
         or sensitivity.get("primary_direction_vs_null_base_rate") != primary_direction
