@@ -228,9 +228,8 @@ def _git_blob_id(data: bytes) -> str:
     return subprocess.check_output(["git", "hash-object", "--stdin"], input=data).decode().strip()
 
 
-def _manual_git_blob_id(data: bytes) -> str:
-    payload = b"blob " + str(len(data)).encode("ascii") + b"\0" + data
-    return hashlib.sha1(payload, usedforsecurity=False).hexdigest()  # nosec B324
+def _git_blob_id_without_filters(data: bytes) -> str:
+    return subprocess.check_output(["git", "hash-object", "--no-filters", "--stdin"], input=data).decode().strip()
 
 
 def _raw_pack_bytes(pack: dict, *, leading_comment: str | None = None, reverse_top_level: bool = False) -> bytes:
@@ -1234,7 +1233,7 @@ def test_hash_valid_external_record_semantic_mutations_are_rejected():
 def test_raw_candidate_bytes_define_portable_review_subject():
     contract, oracle_sha, pack, raw_candidate_pack_bytes, record_store, hash_manifest = _eligible_acceptance_fixture()
     baseline_subject = _pack_subject(raw_candidate_pack_bytes, expected_pack=pack)
-    assert baseline_subject["pack_git_blob"] == _manual_git_blob_id(raw_candidate_pack_bytes)
+    assert baseline_subject["pack_git_blob"] == _git_blob_id_without_filters(raw_candidate_pack_bytes)
     assert baseline_subject["pack_raw_sha256"] == hashlib.sha256(raw_candidate_pack_bytes).hexdigest()
 
     equivalent_bytes = [
@@ -1246,7 +1245,7 @@ def test_raw_candidate_bytes_define_portable_review_subject():
         assert _parse_candidate_pack_bytes(candidate_bytes) == pack
         subject = _pack_subject(candidate_bytes, expected_pack=pack)
         assert subject != baseline_subject
-        assert subject["pack_git_blob"] == _manual_git_blob_id(candidate_bytes)
+        assert subject["pack_git_blob"] == _git_blob_id_without_filters(candidate_bytes)
         with pytest.raises(CandidatePackError, match="review subject"):
             _validate_external_acceptance(
                 pack,
