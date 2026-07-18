@@ -205,8 +205,7 @@ def _canonical_sha256(value: object) -> str:
 
 
 def _git_blob_id(data: bytes) -> str:
-    header = f"blob {len(data)}\0".encode()
-    return hashlib.sha1(header + data, usedforsecurity=False).hexdigest()
+    return subprocess.check_output(["git", "hash-object", "--stdin"], input=data).decode().strip()
 
 
 def _parse_datetime(value: str) -> datetime:
