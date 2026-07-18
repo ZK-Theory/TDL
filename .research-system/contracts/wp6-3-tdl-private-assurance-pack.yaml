@@ -1,7 +1,7 @@
 schema_id: ars://contracts/wp6-3-tdl-private-assurance-pack
 schema_version: '1.0.0'
 contract_id: wp6-3-tdl-private-assurance-pack
-contract_revision: 2
+contract_revision: 3
 status: pending_independent_re_review
 
 contract_content_addressing:
@@ -19,13 +19,13 @@ task_assurance_posture:
   claim_review_performed: false
 
 remediation_review:
-  subject_commit: 2ae607803b4cdaef677c2699439e1e1b876856e8
-  review_commit: fe0b8bae0a85b032fb60dc3895578ba6c638e0b8
-  report_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-review-2026-07-18.md
-  report_git_blob: fcd02142d2775a4dae5aaea0a258bec05fbd6ae0
-  report_canonical_sha256: 8553e70ef68e772555ccab20b518c185e38d940840235e73bc8b2de67814a8e1
+  subject_commit: d722664f54a55c59466a9923ac5706c7db010081
+  review_commit: 29ff7cac9a26a63beaa6ab6a4ea0f8fff74ee614
+  report_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-remediation-r2-review-2026-07-18.md
+  report_git_blob: 9347c80afeb375d68e6c7e161d65c8ec3afea8fb
+  report_canonical_sha256: 30122ec3a87e74041a136938ff5e40613c1b2eb9e8af3fca7540d191e0b40ad4
   verdict: rework_required
-  finding_ids: [C-1, M-1, M-2, M-3, M-4]
+  finding_ids: [C-1, M-1, M-2, M-3]
   report_is_immutable_evidence_not_acceptance: true
 
 source_authority:
@@ -87,6 +87,13 @@ source_authority:
       git_commit: fe0b8bae0a85b032fb60dc3895578ba6c638e0b8
       git_blob: fcd02142d2775a4dae5aaea0a258bec05fbd6ae0
       canonical_sha256: 8553e70ef68e772555ccab20b518c185e38d940840235e73bc8b2de67814a8e1
+    - source_id: source.wp6_3_r2_review
+      repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-remediation-r2-review-2026-07-18.md
+      sections: ['complete file']
+      authority_state: review_evidence
+      git_commit: 29ff7cac9a26a63beaa6ab6a4ea0f8fff74ee614
+      git_blob: 9347c80afeb375d68e6c7e161d65c8ec3afea8fb
+      canonical_sha256: 30122ec3a87e74041a136938ff5e40613c1b2eb9e8af3fca7540d191e0b40ad4
   missing_authority_diagnosis:
     canonical_pack_schema_missing_at_base: true
     accepted_pack_schema_version_missing_at_base: true
@@ -117,7 +124,7 @@ identity_separation:
   pack_family_name_field: pack_id
   canonical_object_identity_fields: [assurance_pack_id, assurance_pack_revision, canonical_repository_path]
   schema_identity_fields: [schema_id, schema_version, schema_repository_path, schema_git_blob, schema_canonical_sha256]
-  pack_content_identity_fields: [assurance_pack_id, assurance_pack_revision, canonical_repository_path, pack_git_blob, pack_canonical_sha256]
+  pack_content_identity_fields: [assurance_pack_id, assurance_pack_revision, canonical_repository_path, pack_git_blob, pack_raw_sha256]
   contract_content_identity_fields: [contract_id, contract_revision, repository_path, contract_git_blob, contract_canonical_sha256]
   candidate_embedded_pack_content_hash: prohibited_as_self_referential
   exact_hash_authority: external_content_addressed_subject_and_lifecycle_records
@@ -133,7 +140,7 @@ required_pack_contract:
   content_addressing:
     candidate_bytes_surface: git_blob_utf8_lf
     pack_git_blob_computed_by_loader: true
-    pack_canonical_sha256_computed_by_loader: true
+    pack_raw_sha256_computed_by_loader: true
     schema_and_contract_git_blob_sha256_from_external_acceptance: true
     candidate_supplied_expected_identity: prohibited
   public_semantic_interface:
@@ -172,26 +179,45 @@ required_pack_contract:
     stale_identity_behavior: block_and_require_superseding_revision
   external_acceptance_evidence:
     required_record_types:
+      - canonical_actor
       - accepted_assurance_requirement
       - producer_relationship_evidence
       - independent_pack_review
       - stephen_owner_acceptance
-      - active_authority_grants
+      - active_authority_grant
       - registered_pack_object
     candidate_may_supply_record_bodies: false
     record_resolution: canonical_store_by_id_and_exact_hash
-    every_record_subject: exact_loader_computed_pack_subject
+    canonical_actor_resolution: every_actor_id_resolves_to_active_canonical_actor_record
+    pack_review_and_owner_subject: exact_loader_computed_raw_byte_pack_subject
     review_and_owner_decision_subject_must_match: true
     minimum_independence_grade: I2
     required_distinct_pairs:
       - [contract_author, future_pack_producer]
       - [requirement_author, future_pack_producer]
       - [requirement_scope_reviewer, future_pack_producer]
+      - [requirement_acceptor, future_pack_producer]
       - [pack_scientific_reviewer, future_pack_producer]
       - [owner_acceptor, future_pack_producer]
       - [pack_scientific_reviewer, owner_acceptor]
+    required_temporal_order: [requirement_accepted, candidate_authored, independent_reviewed, owner_accepted]
     owner_authority_resolution: active_canonical_authority_grant_for_stephen_reserved_decision
     role_labels_or_candidate_attestations_are_evidence: false
+    hash_validity_alone_is_sufficient: false
+  external_record_schema_catalogue:
+    schema_document_repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json
+    schema_document_byte_surface: git_blob_utf8_lf
+    exact_schema_rows:
+      - {record_class: canonical_actor, record_type: canonical_actor, schema_id: 'ars://assurance/records/canonical-actor/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/canonicalActorRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+      - {record_class: producer_relationship_evidence, record_type: producer_relationship_evidence, schema_id: 'ars://assurance/records/producer-relationship-evidence/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/producerRelationshipEvidenceRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+      - {record_class: accepted_assurance_requirement, record_type: accepted_assurance_requirement, schema_id: 'ars://assurance/records/accepted-assurance-requirement/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/acceptedAssuranceRequirementRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+      - {record_class: independent_pack_review, record_type: independent_pack_review, schema_id: 'ars://assurance/records/independent-pack-review/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/independentPackReviewRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+      - {record_class: stephen_owner_acceptance, record_type: stephen_owner_acceptance, schema_id: 'ars://assurance/records/stephen-owner-acceptance/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/stephenOwnerAcceptanceRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+      - {record_class: active_authority_grant, record_type: active_authority_grant, schema_id: 'ars://assurance/records/active-authority-grant/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/activeAuthorityGrantRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+      - {record_class: registered_pack_object, record_type: registered_pack_object, schema_id: 'ars://assurance/records/registered-pack-object/1.0', schema_version: '1.0.0', repository_path: .research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json, schema_json_pointer: '#/$defs/registeredPackObjectRecord', schema_git_blob: 'edf56687b28e6c14150e4119590928903526278a', schema_canonical_sha256: '005e3c6e7128d89cb0a1a5d039d9da1111abea412053f1de2cc03c1ca86c966f'}
+    exact_schema_count: 7
+    every_resolved_record_schema_validated: true
+    hash_validity_alone_is_sufficient: false
   source_authority_binding:
     required_source_set: exact_governing_sources_from_contract_source_authority
     exact_git_commit_blob_sha256_required: true
@@ -218,6 +244,7 @@ required_pack_contract:
         - contract/topology-invariants/null-operation-changes-ph-input
         - skill/validate-topology
         - skill/research-assurance-triage
+        - skill/paper-claim-trace
       required_obligations:
         - {obligation_id: topology.persistence_construction_and_object, source_sections: ['14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.persistence_construction_and_object, evidence_output_id: evidence.topology.persistence_construction_and_object}
         - {obligation_id: topology.w2_convention, source_sections: ['14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/tda-formulas/w2-exact-diagonal-bound, skill/validate-topology], review_question_id: review.topology.w2_convention, evidence_output_id: evidence.topology.w2_convention}
@@ -266,6 +293,7 @@ required_pack_contract:
         - contract/stage1-output-schemas/stage1-output-json-validation
         - skill/statistical-design-audit
         - skill/research-assurance-triage
+        - skill/paper-claim-trace
       required_obligations:
         - {obligation_id: statistical_panel.estimand, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.estimand, evidence_output_id: evidence.statistical_panel.estimand}
         - {obligation_id: statistical_panel.target_population, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.target_population, evidence_output_id: evidence.statistical_panel.target_population}
@@ -310,6 +338,7 @@ required_pack_contract:
         - contract/stage1-output-schemas/stage1-output-json-validation
         - skill/result-provenance-review
         - skill/research-assurance-triage
+        - skill/paper-claim-trace
       required_obligations:
         - {obligation_id: output_provenance.immutable_object_and_input_ids_hashes, source_sections: ['6', '14.5'], assertion_classes: [D], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.immutable_ids_hashes, evidence_output_id: evidence.output_provenance.immutable_ids_hashes}
         - {obligation_id: output_provenance.code_and_environment, source_sections: ['14.5'], assertion_classes: [D, O], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.code_and_environment, evidence_output_id: evidence.output_provenance.code_and_environment}
@@ -373,6 +402,9 @@ required_pack_contract:
     alias_or_kind_swap: prohibited
     foreign_valid_reference: prohibited
     pending_reference_behavior: block_owner_acceptance_and_require_superseding_upstream_contract_revision
+    acceptance_active_states: [active, repository_version_pinned]
+    current_pending_reference_relation: exact_ids_where_activation_state_is_not_acceptance_active_or_pack_acceptance_eligible_is_false
+    superseding_eligible_revision_may_have_empty_pending_set: true
     current_pending_reference_ids:
       - contract/topology-invariants/null-operation-changes-ph-input
       - contract/stochastic-tests/markov-order-provenance
@@ -433,6 +465,12 @@ required_pack_contract:
     exact_set_required: true
     duplicate_alias_swap_foreign_valid_resistance: required
     every_expected_outcome: blocked
+  fixture_execution_boundary:
+    upstream_executable_fixture_ids: [apf_tested_object_no_op, apf_degenerate_fallback, apf_claim_escalation]
+    upstream_enforcement: exact_catalogue_rows_required_obligations_and_candidate_policy_negatives
+    downstream_scientific_execution_fixture_ids: [apf_tested_object_no_op, apf_degenerate_fallback, apf_claim_escalation]
+    downstream_enforcement_status: hard_stop_requires_distinct_future_producer_and_loader_implementation_before_pack_acceptance
+    upstream_may_claim_downstream_execution: false
   distribution:
     distribution_scope: TDL_private
     exact_permitted_consumers:
@@ -460,11 +498,15 @@ validation_bindings:
   test_file: tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py
   durable_test_functions:
     - test_upstream_contract_is_strict_pending_and_identity_separated
+    - test_external_record_schema_catalogue_rejects_missing_alias_swap_and_stale_content
     - test_candidate_schema_is_proposed_only_and_has_no_acceptance_surface
     - test_external_acceptance_requires_independent_exact_subject_records
+    - test_hash_valid_external_record_semantic_mutations_are_rejected
+    - test_raw_candidate_bytes_define_portable_review_subject
     - test_exact_reference_set_rejects_missing_extra_duplicate_alias_swap_and_foreign_rows
     - test_lane_reference_relations_reject_dangling_swapped_and_pending_rows
     - test_exact_fixture_set_rejects_missing_extra_duplicate_and_attack_swaps
+    - test_no_op_degenerate_and_claim_escalation_rows_have_upstream_negatives_and_downstream_stop
     - test_complete_w5_obligation_rows_reject_missing_duplicate_swap_and_free_text
     - test_distribution_currency_and_identity_mutations_fail_closed
     - test_coordinated_candidate_and_oracle_replacement_does_not_change_external_authority

@@ -24,7 +24,7 @@
     "schema_id": {"const": "ars://contracts/wp6-3-tdl-private-assurance-pack"},
     "schema_version": {"const": "1.0.0"},
     "contract_id": {"const": "wp6-3-tdl-private-assurance-pack"},
-    "contract_revision": {"const": 2},
+    "contract_revision": {"const": 3},
     "status": {"const": "pending_independent_re_review"},
     "contract_content_addressing": {"$ref": "#/$defs/contractContentAddressing"},
     "task_assurance_posture": {"$ref": "#/$defs/taskAssurancePosture"},
@@ -81,17 +81,17 @@
       "type": "object",
       "required": ["subject_commit", "review_commit", "report_path", "report_git_blob", "report_canonical_sha256", "verdict", "finding_ids", "report_is_immutable_evidence_not_acceptance"],
       "properties": {
-        "subject_commit": {"const": "2ae607803b4cdaef677c2699439e1e1b876856e8"},
-        "review_commit": {"const": "fe0b8bae0a85b032fb60dc3895578ba6c638e0b8"},
-        "report_path": {"const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-review-2026-07-18.md"},
-        "report_git_blob": {"const": "fcd02142d2775a4dae5aaea0a258bec05fbd6ae0"},
-        "report_canonical_sha256": {"const": "8553e70ef68e772555ccab20b518c185e38d940840235e73bc8b2de67814a8e1"},
+        "subject_commit": {"const": "d722664f54a55c59466a9923ac5706c7db010081"},
+        "review_commit": {"const": "29ff7cac9a26a63beaa6ab6a4ea0f8fff74ee614"},
+        "report_path": {"const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-remediation-r2-review-2026-07-18.md"},
+        "report_git_blob": {"const": "9347c80afeb375d68e6c7e161d65c8ec3afea8fb"},
+        "report_canonical_sha256": {"const": "30122ec3a87e74041a136938ff5e40613c1b2eb9e8af3fca7540d191e0b40ad4"},
         "verdict": {"const": "rework_required"},
         "finding_ids": {
           "type": "array",
-          "prefixItems": [{"const": "C-1"}, {"const": "M-1"}, {"const": "M-2"}, {"const": "M-3"}, {"const": "M-4"}],
-          "minItems": 5,
-          "maxItems": 5
+          "prefixItems": [{"const": "C-1"}, {"const": "M-1"}, {"const": "M-2"}, {"const": "M-3"}],
+          "minItems": 4,
+          "maxItems": 4
         },
         "report_is_immutable_evidence_not_acceptance": {"const": true}
       },
@@ -130,8 +130,8 @@
         "accepted_plan_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
         "governing_sources": {
           "type": "array",
-          "minItems": 8,
-          "maxItems": 8,
+          "minItems": 9,
+          "maxItems": 9,
           "uniqueItems": true,
           "items": {"$ref": "#/$defs/sourceReference"}
         },
@@ -206,11 +206,11 @@
     },
     "contentAddressing": {
       "type": "object",
-      "required": ["candidate_bytes_surface", "pack_git_blob_computed_by_loader", "pack_canonical_sha256_computed_by_loader", "schema_and_contract_git_blob_sha256_from_external_acceptance", "candidate_supplied_expected_identity"],
+      "required": ["candidate_bytes_surface", "pack_git_blob_computed_by_loader", "pack_raw_sha256_computed_by_loader", "schema_and_contract_git_blob_sha256_from_external_acceptance", "candidate_supplied_expected_identity"],
       "properties": {
         "candidate_bytes_surface": {"const": "git_blob_utf8_lf"},
         "pack_git_blob_computed_by_loader": {"const": true},
-        "pack_canonical_sha256_computed_by_loader": {"const": true},
+        "pack_raw_sha256_computed_by_loader": {"const": true},
         "schema_and_contract_git_blob_sha256_from_external_acceptance": {"const": true},
         "candidate_supplied_expected_identity": {"const": "prohibited"}
       },
@@ -245,17 +245,18 @@
     },
     "externalAcceptanceEvidence": {
       "type": "object",
-      "required": ["required_record_types", "candidate_may_supply_record_bodies", "record_resolution", "every_record_subject", "review_and_owner_decision_subject_must_match", "minimum_independence_grade", "required_distinct_pairs", "owner_authority_resolution", "role_labels_or_candidate_attestations_are_evidence"],
+      "required": ["required_record_types", "candidate_may_supply_record_bodies", "record_resolution", "canonical_actor_resolution", "pack_review_and_owner_subject", "review_and_owner_decision_subject_must_match", "minimum_independence_grade", "required_distinct_pairs", "required_temporal_order", "owner_authority_resolution", "role_labels_or_candidate_attestations_are_evidence", "hash_validity_alone_is_sufficient"],
       "properties": {
         "required_record_types": {"$ref": "#/$defs/nonEmptyStrings"},
         "candidate_may_supply_record_bodies": {"const": false},
         "record_resolution": {"const": "canonical_store_by_id_and_exact_hash"},
-        "every_record_subject": {"const": "exact_loader_computed_pack_subject"},
+        "canonical_actor_resolution": {"const": "every_actor_id_resolves_to_active_canonical_actor_record"},
+        "pack_review_and_owner_subject": {"const": "exact_loader_computed_raw_byte_pack_subject"},
         "review_and_owner_decision_subject_must_match": {"const": true},
         "minimum_independence_grade": {"const": "I2"},
         "required_distinct_pairs": {
           "type": "array",
-          "minItems": 6,
+          "minItems": 7,
           "uniqueItems": true,
           "items": {
             "type": "array",
@@ -264,8 +265,211 @@
             "items": {"type": "string", "minLength": 1}
           }
         },
+        "required_temporal_order": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "requirement_accepted"},
+            {"const": "candidate_authored"},
+            {"const": "independent_reviewed"},
+            {"const": "owner_accepted"}
+          ],
+          "minItems": 4,
+          "maxItems": 4
+        },
         "owner_authority_resolution": {"const": "active_canonical_authority_grant_for_stephen_reserved_decision"},
-        "role_labels_or_candidate_attestations_are_evidence": {"const": false}
+        "role_labels_or_candidate_attestations_are_evidence": {"const": false},
+        "hash_validity_alone_is_sufficient": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "externalRecordSchemaRow": {
+      "type": "object",
+      "required": ["record_class", "record_type", "schema_id", "schema_version", "repository_path", "schema_json_pointer", "schema_git_blob", "schema_canonical_sha256"],
+      "properties": {
+        "record_class": {"enum": ["canonical_actor", "producer_relationship_evidence", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
+        "record_type": {"enum": ["canonical_actor", "producer_relationship_evidence", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
+        "schema_id": {"type": "string", "pattern": "^ars://assurance/records/[a-z0-9-]+/1\\.0$"},
+        "schema_version": {"const": "1.0.0"},
+        "repository_path": {"const": ".research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json"},
+        "schema_json_pointer": {"type": "string", "pattern": "^#/\\$defs/[A-Za-z][A-Za-z0-9]+Record$"},
+        "schema_git_blob": {"$ref": "#/$defs/gitBlob"},
+        "schema_canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "externalRecordSchemaCatalogue": {
+      "type": "object",
+      "required": ["schema_document_repository_path", "schema_document_byte_surface", "exact_schema_rows", "exact_schema_count", "every_resolved_record_schema_validated", "hash_validity_alone_is_sufficient"],
+      "properties": {
+        "schema_document_repository_path": {"const": ".research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json"},
+        "schema_document_byte_surface": {"const": "git_blob_utf8_lf"},
+        "exact_schema_rows": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/externalRecordSchemaRow"}
+        },
+        "exact_schema_count": {"const": 7},
+        "every_resolved_record_schema_validated": {"const": true},
+        "hash_validity_alone_is_sufficient": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "contractSubject": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "repository_path", "git_blob", "canonical_sha256"],
+      "properties": {
+        "schema_id": {"const": "ars://contracts/wp6-3-tdl-private-assurance-pack"},
+        "schema_version": {"const": "1.0.0"},
+        "repository_path": {"const": ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml"},
+        "git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "packSubject": {
+      "type": "object",
+      "required": ["pack_id", "assurance_pack_id", "assurance_pack_revision", "canonical_repository_path", "pack_git_blob", "pack_raw_sha256", "schema_id", "schema_version", "schema_repository_path", "schema_git_blob", "schema_canonical_sha256"],
+      "properties": {
+        "pack_id": {"const": "TDL_private"},
+        "assurance_pack_id": {"type": "string", "pattern": "^asp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "assurance_pack_revision": {"const": 1},
+        "canonical_repository_path": {"const": ".research-system/packs/tdl-private-assurance.yaml"},
+        "pack_git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "pack_raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "schema_id": {"const": "ars://assurance/packs/tdl-private/1.0"},
+        "schema_version": {"const": "1.0.0"},
+        "schema_repository_path": {"const": ".research-system/schemas/assurance/assurance-pack.schema.json"},
+        "schema_git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "schema_canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "canonicalActorRecord": {
+      "$id": "ars://assurance/records/canonical-actor/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "actor_id", "actor_kind", "canonical_name", "status"],
+      "properties": {
+        "record_type": {"const": "canonical_actor"},
+        "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "actor_kind": {"enum": ["human", "agent"]},
+        "canonical_name": {"type": "string", "minLength": 1},
+        "status": {"const": "active"}
+      },
+      "additionalProperties": false
+    },
+    "producerRelationshipEvidenceRecord": {
+      "$id": "ars://assurance/records/producer-relationship-evidence/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "relationship_record_id", "relationship_context", "subject_actor_id", "object_actor_id", "grade", "status", "effective_at", "expires_at"],
+      "properties": {
+        "record_type": {"const": "producer_relationship_evidence"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "relationship_context": {"enum": ["requirement_scope_review", "pack_scientific_review"]},
+        "subject_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "object_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "grade": {"enum": ["I2", "I3"]},
+        "status": {"const": "active"},
+        "effective_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "acceptedAssuranceRequirementRecord": {
+      "$id": "ars://assurance/records/accepted-assurance-requirement/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "acceptance_record_id", "assurance_requirement_id", "revision", "subject_contract", "requirement_author_actor_id", "scope_reviewer_actor_id", "acceptor_actor_id", "prospective_producer_actor_id", "minimum_independence_grade", "scope_relationship_record_id", "outcome", "acceptance_state", "accepted_at"],
+      "properties": {
+        "record_type": {"const": "accepted_assurance_requirement"},
+        "acceptance_record_id": {"type": "string", "pattern": "^ard_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "assurance_requirement_id": {"type": "string", "pattern": "^asr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "revision": {"type": "integer", "minimum": 1},
+        "subject_contract": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "requirement_author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "scope_reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "acceptor_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "prospective_producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "scope_relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "outcome": {"const": "accepted"},
+        "acceptance_state": {"const": "active"},
+        "accepted_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "independentPackReviewRecord": {
+      "$id": "ars://assurance/records/independent-pack-review/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "review_record_id", "subject", "reviewer_actor_id", "producer_actor_id", "relationship_record_id", "minimum_independence_grade", "verdict", "review_state", "reviewed_at"],
+      "properties": {
+        "record_type": {"const": "independent_pack_review"},
+        "review_record_id": {"type": "string", "pattern": "^arv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSubject"},
+        "reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "verdict": {"const": "pass"},
+        "review_state": {"const": "completed"},
+        "reviewed_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "stephenOwnerAcceptanceRecord": {
+      "$id": "ars://assurance/records/stephen-owner-acceptance/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "owner_decision_id", "subject", "review_record_id", "review_record_sha256", "acceptor_actor_id", "authority_grant_id", "outcome", "decision_state", "decided_at"],
+      "properties": {
+        "record_type": {"const": "stephen_owner_acceptance"},
+        "owner_decision_id": {"type": "string", "pattern": "^apr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSubject"},
+        "review_record_id": {"type": "string", "pattern": "^arv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "review_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "acceptor_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "outcome": {"const": "accepted"},
+        "decision_state": {"const": "active"},
+        "decided_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "activeAuthorityGrantRecord": {
+      "$id": "ars://assurance/records/active-authority-grant/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "authority_grant_id", "actor_id", "authority_class", "subject_assurance_pack_id", "grant_state", "effective_at", "expires_at", "revoked"],
+      "properties": {
+        "record_type": {"const": "active_authority_grant"},
+        "authority_grant_id": {"type": "string", "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "authority_class": {"const": "stephen_reserved_owner_acceptance"},
+        "subject_assurance_pack_id": {"type": "string", "pattern": "^asp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "grant_state": {"const": "active"},
+        "effective_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "revoked": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "registeredPackObjectRecord": {
+      "$id": "ars://assurance/records/registered-pack-object/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "assurance_pack_id", "id_kind", "revision", "canonical_repository_path", "registration_state", "registered_at"],
+      "properties": {
+        "record_type": {"const": "registered_pack_object"},
+        "assurance_pack_id": {"type": "string", "pattern": "^asp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "id_kind": {"const": "assurance_pack"},
+        "revision": {"const": 1},
+        "canonical_repository_path": {"const": ".research-system/packs/tdl-private-assurance.yaml"},
+        "registration_state": {"const": "active"},
+        "registered_at": {"type": "string", "format": "date-time"}
       },
       "additionalProperties": false
     },
@@ -436,7 +640,7 @@
     },
     "referenceRequirements": {
       "type": "object",
-      "required": ["reference_mode", "inline_copy", "exact_reference_rows", "required_contract_reference_count", "required_skill_reference_count", "duplicate_id_different_body", "alias_or_kind_swap", "foreign_valid_reference", "pending_reference_behavior", "current_pending_reference_ids"],
+      "required": ["reference_mode", "inline_copy", "exact_reference_rows", "required_contract_reference_count", "required_skill_reference_count", "duplicate_id_different_body", "alias_or_kind_swap", "foreign_valid_reference", "pending_reference_behavior", "acceptance_active_states", "current_pending_reference_relation", "superseding_eligible_revision_may_have_empty_pending_set", "current_pending_reference_ids"],
       "properties": {
         "reference_mode": {"const": "exact_versioned_reference_only"},
         "inline_copy": {"const": "prohibited"},
@@ -453,12 +657,25 @@
         "alias_or_kind_swap": {"const": "prohibited"},
         "foreign_valid_reference": {"const": "prohibited"},
         "pending_reference_behavior": {"const": "block_owner_acceptance_and_require_superseding_upstream_contract_revision"},
+        "acceptance_active_states": {
+          "type": "array",
+          "prefixItems": [{"const": "active"}, {"const": "repository_version_pinned"}],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "current_pending_reference_relation": {"const": "exact_ids_where_activation_state_is_not_acceptance_active_or_pack_acceptance_eligible_is_false"},
+        "superseding_eligible_revision_may_have_empty_pending_set": {"const": true},
         "current_pending_reference_ids": {
           "type": "array",
-          "minItems": 2,
+          "minItems": 0,
           "maxItems": 2,
           "uniqueItems": true,
-          "items": {"type": "string", "pattern": "^contract/"}
+          "items": {
+            "enum": [
+              "contract/topology-invariants/null-operation-changes-ph-input",
+              "contract/stochastic-tests/markov-order-provenance"
+            ]
+          }
         }
       },
       "additionalProperties": false
@@ -484,6 +701,36 @@
         "exact_set_required": {"const": true},
         "duplicate_alias_swap_foreign_valid_resistance": {"const": "required"},
         "every_expected_outcome": {"const": "blocked"}
+      },
+      "additionalProperties": false
+    },
+    "fixtureExecutionBoundary": {
+      "type": "object",
+      "required": ["upstream_executable_fixture_ids", "upstream_enforcement", "downstream_scientific_execution_fixture_ids", "downstream_enforcement_status", "upstream_may_claim_downstream_execution"],
+      "properties": {
+        "upstream_executable_fixture_ids": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "apf_tested_object_no_op"},
+            {"const": "apf_degenerate_fallback"},
+            {"const": "apf_claim_escalation"}
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "upstream_enforcement": {"const": "exact_catalogue_rows_required_obligations_and_candidate_policy_negatives"},
+        "downstream_scientific_execution_fixture_ids": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "apf_tested_object_no_op"},
+            {"const": "apf_degenerate_fallback"},
+            {"const": "apf_claim_escalation"}
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "downstream_enforcement_status": {"const": "hard_stop_requires_distinct_future_producer_and_loader_implementation_before_pack_acceptance"},
+        "upstream_may_claim_downstream_execution": {"const": false}
       },
       "additionalProperties": false
     },
@@ -518,13 +765,14 @@
     },
     "requiredPackContract": {
       "type": "object",
-      "required": ["schema_contract", "content_addressing", "public_semantic_interface", "external_lifecycle", "external_acceptance_evidence", "source_authority_binding", "obligation_row_profile", "six_lane_closure", "lanes", "references", "fixtures", "distribution", "core_boundary"],
+      "required": ["schema_contract", "content_addressing", "public_semantic_interface", "external_lifecycle", "external_acceptance_evidence", "external_record_schema_catalogue", "source_authority_binding", "obligation_row_profile", "six_lane_closure", "lanes", "references", "fixtures", "fixture_execution_boundary", "distribution", "core_boundary"],
       "properties": {
         "schema_contract": {"$ref": "#/$defs/schemaContract"},
         "content_addressing": {"$ref": "#/$defs/contentAddressing"},
         "public_semantic_interface": {"$ref": "#/$defs/publicSemanticInterface"},
         "external_lifecycle": {"$ref": "#/$defs/externalLifecycle"},
         "external_acceptance_evidence": {"$ref": "#/$defs/externalAcceptanceEvidence"},
+        "external_record_schema_catalogue": {"$ref": "#/$defs/externalRecordSchemaCatalogue"},
         "source_authority_binding": {"$ref": "#/$defs/sourceAuthorityBinding"},
         "obligation_row_profile": {"$ref": "#/$defs/obligationRowProfile"},
         "six_lane_closure": {
@@ -555,6 +803,7 @@
         },
         "references": {"$ref": "#/$defs/referenceRequirements"},
         "fixtures": {"$ref": "#/$defs/fixtureRequirements"},
+        "fixture_execution_boundary": {"$ref": "#/$defs/fixtureExecutionBoundary"},
         "distribution": {"$ref": "#/$defs/distributionRequirements"},
         "core_boundary": {"$ref": "#/$defs/coreBoundary"}
       },
