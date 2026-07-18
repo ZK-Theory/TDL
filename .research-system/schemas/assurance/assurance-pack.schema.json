@@ -1,0 +1,510 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://assurance/packs/tdl-private/1.0",
+  "title": "ARS TDL-private assurance-pack candidate profile",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "pack_id",
+    "assurance_pack_id",
+    "assurance_pack_revision",
+    "canonical_repository_path",
+    "distribution_scope",
+    "candidate_state",
+    "producer_actor_id",
+    "upstream_contract_reference",
+    "schema_reference",
+    "assurance_requirement_reference",
+    "source_authority",
+    "references",
+    "task_applicability_policy",
+    "distribution_controls",
+    "currency",
+    "lanes",
+    "required_fixtures",
+    "limitations",
+    "core_boundary"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://assurance/packs/tdl-private/1.0"},
+    "schema_version": {"const": "1.0.0"},
+    "pack_id": {"const": "TDL_private"},
+    "assurance_pack_id": {"$ref": "#/$defs/assurancePackId"},
+    "assurance_pack_revision": {"type": "integer", "const": 1},
+    "canonical_repository_path": {"const": ".research-system/packs/tdl-private-assurance.yaml"},
+    "distribution_scope": {"const": "TDL_private"},
+    "candidate_state": {"const": "proposed"},
+    "producer_actor_id": {"$ref": "#/$defs/actorId"},
+    "upstream_contract_reference": {"$ref": "#/$defs/upstreamContractReference"},
+    "schema_reference": {"$ref": "#/$defs/schemaReference"},
+    "assurance_requirement_reference": {"$ref": "#/$defs/assuranceRequirementReference"},
+    "source_authority": {"$ref": "#/$defs/sourceAuthority"},
+    "references": {"$ref": "#/$defs/references"},
+    "task_applicability_policy": {"$ref": "#/$defs/taskApplicabilityPolicy"},
+    "distribution_controls": {"$ref": "#/$defs/distributionControls"},
+    "currency": {"$ref": "#/$defs/currency"},
+    "lanes": {
+      "type": "object",
+      "required": [
+        "topology",
+        "stochastic_null",
+        "statistical_panel",
+        "representation",
+        "output_provenance",
+        "paper_claim"
+      ],
+      "properties": {
+        "topology": {"$ref": "#/$defs/topologyLane"},
+        "stochastic_null": {"$ref": "#/$defs/stochasticNullLane"},
+        "statistical_panel": {"$ref": "#/$defs/statisticalPanelLane"},
+        "representation": {"$ref": "#/$defs/representationLane"},
+        "output_provenance": {"$ref": "#/$defs/outputProvenanceLane"},
+        "paper_claim": {"$ref": "#/$defs/paperClaimLane"}
+      },
+      "additionalProperties": false
+    },
+    "required_fixtures": {
+      "type": "array",
+      "minItems": 40,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/fixtureRequirement"}
+    },
+    "limitations": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "prospective_pack_no_result_or_claim_review"},
+        {"const": "schema_shape_does_not_establish_scientific_validity"},
+        {"const": "candidate_cannot_assert_review_or_owner_acceptance"},
+        {"const": "pending_reference_blocks_owner_acceptance"}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "core_boundary": {"$ref": "#/$defs/coreBoundary"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitBlob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "uuid7": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "actorId": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "assurancePackId": {"type": "string", "pattern": "^asp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "assuranceRequirementId": {"type": "string", "pattern": "^asr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "recordId": {"type": "string", "pattern": "^(?:arv|ard|apr)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "nonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "laneIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["topology", "stochastic_null", "statistical_panel", "representation", "output_provenance", "paper_claim"]}
+    },
+    "upstreamContractReference": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "repository_path", "git_blob", "canonical_sha256"],
+      "properties": {
+        "schema_id": {"const": "ars://contracts/wp6-3-tdl-private-assurance-pack"},
+        "schema_version": {"const": "1.0.0"},
+        "repository_path": {"const": ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "schemaReference": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "repository_path", "git_blob", "canonical_sha256"],
+      "properties": {
+        "schema_id": {"const": "ars://assurance/packs/tdl-private/1.0"},
+        "schema_version": {"const": "1.0.0"},
+        "repository_path": {"const": ".research-system/schemas/assurance/assurance-pack.schema.json"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "assuranceRequirementReference": {
+      "type": "object",
+      "required": [
+        "assurance_requirement_id",
+        "revision",
+        "acceptance_record_id",
+        "acceptance_record_sha256",
+        "prospective_producer_actor_id"
+      ],
+      "properties": {
+        "assurance_requirement_id": {"$ref": "#/$defs/assuranceRequirementId"},
+        "revision": {"type": "integer", "minimum": 1},
+        "acceptance_record_id": {"$ref": "#/$defs/recordId"},
+        "acceptance_record_sha256": {"$ref": "#/$defs/sha256"},
+        "prospective_producer_actor_id": {"$ref": "#/$defs/actorId"}
+      },
+      "additionalProperties": false
+    },
+    "sourceReference": {
+      "type": "object",
+      "required": ["source_id", "repository_path", "sections", "authority_state", "git_commit", "git_blob", "canonical_sha256"],
+      "properties": {
+        "source_id": {"type": "string", "pattern": "^source\\.[a-z0-9_.-]+$"},
+        "repository_path": {"type": "string", "minLength": 1},
+        "sections": {"$ref": "#/$defs/nonEmptyStrings"},
+        "authority_state": {"enum": ["accepted", "approved_exact_revision", "review_evidence", "observed_current_baseline"]},
+        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "sourceAuthority": {
+      "type": "object",
+      "required": ["accepted_plan_revision", "governing_sources"],
+      "properties": {
+        "accepted_plan_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
+        "governing_sources": {
+          "type": "array",
+          "minItems": 8,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sourceReference"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "contractReference": {
+      "type": "object",
+      "required": [
+        "reference_kind",
+        "reference_id",
+        "repository_path",
+        "git_blob",
+        "canonical_sha256",
+        "activation_state",
+        "pack_acceptance_eligible",
+        "allowed_lane_ids",
+        "reference_mode",
+        "inline_body"
+      ],
+      "properties": {
+        "reference_kind": {"const": "contract"},
+        "reference_id": {"type": "string", "pattern": "^contract/[a-z0-9_./-]+$"},
+        "repository_path": {"type": "string", "pattern": "^contracts/[a-z0-9_./-]+\\.yaml$"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "activation_state": {"enum": ["active", "pending"]},
+        "pack_acceptance_eligible": {"type": "boolean"},
+        "allowed_lane_ids": {"$ref": "#/$defs/laneIds"},
+        "reference_mode": {"const": "exact_versioned_reference"},
+        "inline_body": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "skillReference": {
+      "type": "object",
+      "required": [
+        "reference_kind",
+        "reference_id",
+        "repository_path",
+        "git_blob",
+        "canonical_sha256",
+        "activation_state",
+        "pack_acceptance_eligible",
+        "allowed_lane_ids",
+        "reference_mode",
+        "inline_body"
+      ],
+      "properties": {
+        "reference_kind": {"const": "skill"},
+        "reference_id": {"type": "string", "pattern": "^skill/[a-z0-9_-]+$"},
+        "repository_path": {"type": "string", "pattern": "^\\.agents/skills/[a-z0-9_-]+/SKILL\\.md$"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"},
+        "activation_state": {"const": "repository_version_pinned"},
+        "pack_acceptance_eligible": {"const": true},
+        "allowed_lane_ids": {"$ref": "#/$defs/laneIds"},
+        "reference_mode": {"const": "exact_versioned_reference"},
+        "inline_body": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "references": {
+      "type": "object",
+      "required": ["contract_references", "skill_references"],
+      "properties": {
+        "contract_references": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/contractReference"}
+        },
+        "skill_references": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/skillReference"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "taskApplicabilityPolicy": {
+      "type": "object",
+      "required": [
+        "pack_obligations",
+        "task_not_applicable_location",
+        "producer_only_confirmation",
+        "minimum_independence_grade",
+        "unable_to_grade_may_pass",
+        "partial_may_pass",
+        "failed_proof_may_pass"
+      ],
+      "properties": {
+        "pack_obligations": {"const": "all_required"},
+        "task_not_applicable_location": {"const": "external_accepted_assurance_requirement"},
+        "producer_only_confirmation": {"const": "prohibited"},
+        "minimum_independence_grade": {"const": "I2"},
+        "unable_to_grade_may_pass": {"const": false},
+        "partial_may_pass": {"const": false},
+        "failed_proof_may_pass": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "publicationBoundary": {
+      "type": "object",
+      "required": ["public_template_use", "manuscript_use", "public_excerpt", "claim_promotion"],
+      "properties": {
+        "public_template_use": {"const": "prohibited"},
+        "manuscript_use": {"const": "requires_separately_accepted_result_and_claim_decision"},
+        "public_excerpt": {"const": "prohibited_without_template_safe_derivative_review"},
+        "claim_promotion": {"const": "requires_stephen_attributed_p005_decision"}
+      },
+      "additionalProperties": false
+    },
+    "pathRestrictions": {
+      "type": "object",
+      "required": ["repository_namespace", "public_repository_paths", "public_template_paths", "private_path_disclosure"],
+      "properties": {
+        "repository_namespace": {"const": "tdl_private_only"},
+        "public_repository_paths": {"const": "prohibited"},
+        "public_template_paths": {"const": "prohibited"},
+        "private_path_disclosure": {"const": "opaque_content_addressed_references_only"}
+      },
+      "additionalProperties": false
+    },
+    "dataRestrictions": {
+      "type": "object",
+      "required": ["raw_restricted_data", "minimized_excerpts", "restricted_references", "secrets_env_transcripts_hidden_reasoning"],
+      "properties": {
+        "raw_restricted_data": {"const": "prohibited"},
+        "minimized_excerpts": {"const": "separately_authorized_only"},
+        "restricted_references": {"const": "opaque_content_addressed_only"},
+        "secrets_env_transcripts_hidden_reasoning": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "distributionControls": {
+      "type": "object",
+      "required": [
+        "permitted_consumers",
+        "public_template_export",
+        "publication_boundary",
+        "path_restrictions",
+        "data_restrictions"
+      ],
+      "properties": {
+        "permitted_consumers": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "tdl_private_assurance_requirement_builder"},
+            {"const": "tdl_private_research_execution"},
+            {"const": "tdl_private_scientific_review"},
+            {"const": "tdl_private_result_acceptance"},
+            {"const": "tdl_private_claim_review"}
+          ],
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "public_template_export": {"const": "prohibited"},
+        "publication_boundary": {"$ref": "#/$defs/publicationBoundary"},
+        "path_restrictions": {"$ref": "#/$defs/pathRestrictions"},
+        "data_restrictions": {"$ref": "#/$defs/dataRestrictions"}
+      },
+      "additionalProperties": false
+    },
+    "currency": {
+      "type": "object",
+      "required": ["authored_at", "effective_at", "expires_at", "currency_triggers", "retention_class", "stale_identity_behavior"],
+      "properties": {
+        "authored_at": {"type": "string", "format": "date-time"},
+        "effective_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "currency_triggers": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "upstream_contract_identity_changed"},
+            {"const": "schema_identity_changed"},
+            {"const": "reference_identity_or_activation_changed"},
+            {"const": "assurance_requirement_or_producer_relationship_changed"},
+            {"const": "distribution_or_consumer_policy_changed"}
+          ],
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "retention_class": {"const": "durable_governance_record"},
+        "stale_identity_behavior": {"const": "block_consumption_and_require_superseding_revision"}
+      },
+      "additionalProperties": false
+    },
+    "obligationRow": {
+      "type": "object",
+      "required": [
+        "obligation_id",
+        "row_profile_id",
+        "source_authority_id",
+        "source_sections",
+        "assertion_classes",
+        "enforcing_reference_ids",
+        "review_question_id",
+        "evidence_output_id"
+      ],
+      "properties": {
+        "obligation_id": {"type": "string", "pattern": "^(?:topology|stochastic_null|statistical_panel|representation|output_provenance|paper_claim)\\.[a-z0-9_]+$"},
+        "row_profile_id": {"const": "wp6_3_required_noncompensable_v1"},
+        "source_authority_id": {"const": "source.w5_v0_2"},
+        "source_sections": {"$ref": "#/$defs/nonEmptyStrings"},
+        "assertion_classes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["D", "T", "R", "M", "H", "O", "P"]}
+        },
+        "enforcing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "review_question_id": {"type": "string", "pattern": "^review\\.[a-z0-9_.]+$"},
+        "evidence_output_id": {"type": "string", "pattern": "^evidence\\.[a-z0-9_.]+$"}
+      },
+      "additionalProperties": false
+    },
+    "topologyLane": {
+      "type": "object",
+      "required": ["lane_id", "governing_reference_ids", "obligation_rows", "fixture_ids", "prospective_schema_only", "scientific_review_status", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"const": "topology"},
+        "governing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "obligation_rows": {"type": "array", "minItems": 11, "uniqueItems": true, "items": {"$ref": "#/$defs/obligationRow"}},
+        "fixture_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "scientific_review_status": {"const": "not_performed_by_pack_schema"},
+        "failure_consequence": {"const": "blocked_no_cross_lane_compensation"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "stochasticNullLane": {
+      "type": "object",
+      "required": ["lane_id", "governing_reference_ids", "obligation_rows", "fixture_ids", "prospective_schema_only", "scientific_review_status", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"const": "stochastic_null"},
+        "governing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "obligation_rows": {"type": "array", "minItems": 11, "uniqueItems": true, "items": {"$ref": "#/$defs/obligationRow"}},
+        "fixture_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "scientific_review_status": {"const": "not_performed_by_pack_schema"},
+        "failure_consequence": {"const": "blocked_no_cross_lane_compensation"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "statisticalPanelLane": {
+      "type": "object",
+      "required": ["lane_id", "governing_reference_ids", "obligation_rows", "fixture_ids", "prospective_schema_only", "scientific_review_status", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"const": "statistical_panel"},
+        "governing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "obligation_rows": {"type": "array", "minItems": 11, "uniqueItems": true, "items": {"$ref": "#/$defs/obligationRow"}},
+        "fixture_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "scientific_review_status": {"const": "not_performed_by_pack_schema"},
+        "failure_consequence": {"const": "blocked_no_cross_lane_compensation"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "representationLane": {
+      "type": "object",
+      "required": ["lane_id", "governing_reference_ids", "obligation_rows", "fixture_ids", "prospective_schema_only", "scientific_review_status", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"const": "representation"},
+        "governing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "obligation_rows": {"type": "array", "minItems": 9, "uniqueItems": true, "items": {"$ref": "#/$defs/obligationRow"}},
+        "fixture_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "scientific_review_status": {"const": "not_performed_by_pack_schema"},
+        "failure_consequence": {"const": "blocked_no_cross_lane_compensation"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "outputProvenanceLane": {
+      "type": "object",
+      "required": ["lane_id", "governing_reference_ids", "obligation_rows", "fixture_ids", "prospective_schema_only", "scientific_review_status", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"const": "output_provenance"},
+        "governing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "obligation_rows": {"type": "array", "minItems": 10, "uniqueItems": true, "items": {"$ref": "#/$defs/obligationRow"}},
+        "fixture_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "scientific_review_status": {"const": "not_performed_by_pack_schema"},
+        "failure_consequence": {"const": "blocked_no_cross_lane_compensation"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "paperClaimLane": {
+      "type": "object",
+      "required": ["lane_id", "governing_reference_ids", "obligation_rows", "fixture_ids", "prospective_schema_only", "scientific_review_status", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"const": "paper_claim"},
+        "governing_reference_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "obligation_rows": {"type": "array", "minItems": 12, "uniqueItems": true, "items": {"$ref": "#/$defs/obligationRow"}},
+        "fixture_ids": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "scientific_review_status": {"const": "not_performed_by_pack_schema"},
+        "failure_consequence": {"const": "blocked_no_cross_lane_compensation"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "fixtureRequirement": {
+      "type": "object",
+      "required": ["fixture_id", "lane_id", "attack_class", "target_invariant", "expected_outcome", "cross_lane_compensation"],
+      "properties": {
+        "fixture_id": {"type": "string", "pattern": "^apf_[a-z0-9_]+$"},
+        "lane_id": {"enum": ["topology", "stochastic_null", "statistical_panel", "representation", "output_provenance", "paper_claim", "cross_lane"]},
+        "attack_class": {"enum": ["missing", "extra", "authority", "identity", "currency", "distribution", "reference", "fixture", "obligation", "no_op", "degenerate", "cross_lane_compensation", "claim_escalation", "lifecycle"]},
+        "target_invariant": {"type": "string", "pattern": "^invariant\\.[a-z0-9_.]+$"},
+        "expected_outcome": {"const": "blocked"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "coreBoundary": {
+      "type": "object",
+      "required": ["may_modify_w1_w2_lifecycle", "may_modify_canonical_authority", "may_override_p005_p022", "may_lower_w3_w4_controls", "may_assert_observed_results", "may_accept_results", "may_promote_claims", "may_authorize_migration"],
+      "properties": {
+        "may_modify_w1_w2_lifecycle": {"const": false},
+        "may_modify_canonical_authority": {"const": false},
+        "may_override_p005_p022": {"const": false},
+        "may_lower_w3_w4_controls": {"const": false},
+        "may_assert_observed_results": {"const": false},
+        "may_accept_results": {"const": false},
+        "may_promote_claims": {"const": false},
+        "may_authorize_migration": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  }
+}
