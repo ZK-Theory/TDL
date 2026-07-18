@@ -10,21 +10,25 @@
     "manifest_version",
     "scope",
     "protocol_identity",
+    "required_slot_set_identity",
     "future_result_schema_identity",
-    "review_identity"
+    "semantic_validator_identity",
+    "review_identity",
+    "r2_review_identity",
+    "acceptance_status"
   ],
   "properties": {
     "schema_id": {
       "const": "ars://contracts/wp6-2-live-grader-calibration-protocol-identity-manifest"
     },
     "schema_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "manifest_id": {
       "const": "wp6-2-live-grader-calibration-protocol-identity-manifest"
     },
     "manifest_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "scope": {
       "const": "wp6-2-t1a-live-grader-calibration-protocol-only"
@@ -49,34 +53,74 @@
           "const": "wp6-2-live-grader-calibration-protocol"
         },
         "contract_version": {
-          "const": "1.1.0"
+          "const": "1.2.0"
         },
         "contract_path": {
           "const": ".research-system/contracts/wp6-2-live-grader-calibration-protocol.yaml"
         },
         "canonical_sha256": {
-          "const": "f2d73fa3b42bf518a3bd04744835742c559ef63b56365bd83959e8e22d4bce7d"
+          "const": "e9512bef147d0de9bc9103b20eb1ede8b927979bfe43dd85e61fb6c27f05efda"
         },
         "git_blob_sha1": {
-          "const": "de8acbd93c3e2ffefd0f214298171d1f48082da3"
+          "const": "4c9721a047c9b66912b9786a3b983c6f84e5ab00"
         },
         "schema_id": {
           "const": "ars://contracts/wp6-2-live-grader-calibration-protocol"
         },
         "schema_version": {
-          "const": "1.1.0"
+          "const": "1.2.0"
         },
         "schema_path": {
           "const": ".research-system/schemas/contracts/wp6-2-live-grader-calibration-protocol.schema.json"
         },
         "schema_canonical_sha256": {
-          "const": "e1cad81ee3c7d2362eba75634682091d4c284c79d4469415dc1f13d7bfa633b7"
+          "const": "3de300f42be5f0f26a966220c8d6e7c4e7372ef54fbafbc4571dec79abd675ec"
         },
         "schema_git_blob_sha1": {
-          "const": "73524a0c46e5d79eb9fb82583f138f1e45c52b12"
+          "const": "a61f583cd25701fe0814c14ab91f95d4ba6d0a27"
         },
         "status": {
-          "const": "preregistered_remediated_pending_fresh_independent_review_and_stephen_acceptance"
+          "const": "author_candidate_r2_remediated_no_observation_pending_fresh_independent_r3_review_and_stephen_exact_hash_acceptance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "required_slot_set_identity": {
+      "type": "object",
+      "required": [
+        "required_slot_set_id",
+        "required_slot_set_version",
+        "canonical_sha256",
+        "execution_freeze_sha256",
+        "model_initial_slot_count",
+        "human_initial_slot_count",
+        "human_adjudication_slot_count",
+        "status"
+      ],
+      "properties": {
+        "required_slot_set_id": {
+          "const": "wp6-2-live-grader-calibration-required-execution-slots"
+        },
+        "required_slot_set_version": {
+          "const": "1.2.0"
+        },
+        "canonical_sha256": {
+          "const": "e8acc4ff5e068b1318c0de84e3b7329b211eb9c35f46a5d0c5cba040f59a513f"
+        },
+        "execution_freeze_sha256": {
+          "const": "5daa95e625b6df51cf7779c053adc8b945a6bd8db6e0aae5100e2587454e489b"
+        },
+        "model_initial_slot_count": {
+          "const": 78
+        },
+        "human_initial_slot_count": {
+          "const": 112
+        },
+        "human_adjudication_slot_count": {
+          "const": 28
+        },
+        "status": {
+          "const": "prospective_required_set_pending_fresh_independent_R3_review"
         }
       },
       "additionalProperties": false
@@ -96,16 +140,16 @@
           "const": "ars://contracts/wp6-2-live-grader-calibration-future-result"
         },
         "schema_version": {
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "schema_path": {
           "const": ".research-system/schemas/contracts/wp6-2-live-grader-calibration-future-result.schema.json"
         },
         "schema_canonical_sha256": {
-          "const": "66003e736bb1e1d75087bb6f28d15e7ba7d75d6aedc0eacf39c5469347c5f64b"
+          "const": "39b5cf9fd38c4ed4b95d5c3ba77a7bf2239863e6d1c6b59c25f59b5fbf64b985"
         },
         "schema_git_blob_sha1": {
-          "const": "1762a5c18bcc69ec0c89d27c0e42a3c7c61bde5d"
+          "const": "67e2bcd725f42b0e57cc970330f214b2086e610b"
         },
         "status": {
           "const": "prospective_schema_only_no_result_or_observation_exists"
@@ -113,19 +157,55 @@
       },
       "additionalProperties": false
     },
+    "semantic_validator_identity": {
+      "type": "object",
+      "required": [
+        "semantic_validator_id",
+        "semantic_validator_version",
+        "semantic_validator_path",
+        "public_api",
+        "canonical_sha256",
+        "git_blob_sha1",
+        "status"
+      ],
+      "properties": {
+        "semantic_validator_id": {
+          "const": "wp6-2-live-grader-calibration-future-result-semantics"
+        },
+        "semantic_validator_version": {
+          "const": "1.0.0"
+        },
+        "semantic_validator_path": {
+          "const": ".research-system/contracts/wp6_2_live_grader_calibration_future_result_semantics.py"
+        },
+        "public_api": {
+          "const": "validate_future_result_semantics"
+        },
+        "canonical_sha256": {
+          "const": "11c94043236d1f11ea26fc9c0afcf2c8f9a6fc56f9f8cd5f967e4b27be158538"
+        },
+        "git_blob_sha1": {
+          "const": "3fea6974f022681a86ae13996cd26b61813edbbd"
+        },
+        "status": {
+          "const": "pure_prospective_semantic_validator_no_io_or_acceptance_authority"
+        }
+      },
+      "additionalProperties": false
+    },
     "review_identity": {
       "type": "object",
       "required": [
-        "exact_reviewed_subject",
+        "review_round",
         "review_commit",
         "review_report_path",
         "review_report_git_blob_sha1",
-        "review_verdict",
-        "fresh_independent_rereview_required"
+        "review_report_canonical_sha256",
+        "review_verdict"
       ],
       "properties": {
-        "exact_reviewed_subject": {
-          "const": "fe2962fa9e10eb290dec0b9e53c3b81bd3ac6491"
+        "review_round": {
+          "const": "R1"
         },
         "review_commit": {
           "const": "e7c30ef75750ddbddbe7761e858f1cda68d9247f"
@@ -136,14 +216,49 @@
         "review_report_git_blob_sha1": {
           "const": "67a7df66dffd50f6929ec76c428e56a369af815b"
         },
+        "review_report_canonical_sha256": {
+          "const": "e07963495032a061f2079b32c4fee44a483ce7d80c9a7d63f7291128409c4af0"
+        },
         "review_verdict": {
           "const": "rework_required"
-        },
-        "fresh_independent_rereview_required": {
-          "const": true
         }
       },
       "additionalProperties": false
+    },
+    "r2_review_identity": {
+      "type": "object",
+      "required": [
+        "review_round",
+        "review_commit",
+        "review_report_path",
+        "review_report_git_blob_sha1",
+        "review_report_canonical_sha256",
+        "review_verdict"
+      ],
+      "properties": {
+        "review_round": {
+          "const": "R2"
+        },
+        "review_commit": {
+          "const": "4d8ada73d2d43b4d30b05d44377773461b3a0fe9"
+        },
+        "review_report_path": {
+          "const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-remediation-r2-review-2026-07-18.md"
+        },
+        "review_report_git_blob_sha1": {
+          "const": "13329ea42ccac8ce62bca0b54c02514f03d68e84"
+        },
+        "review_report_canonical_sha256": {
+          "const": "e4905ec745d95b9ed54e9cbfdab049b14c7caaf8e671b036b4695cd9dd5b407d"
+        },
+        "review_verdict": {
+          "const": "rework_required"
+        }
+      },
+      "additionalProperties": false
+    },
+    "acceptance_status": {
+      "const": "author_candidate_only_fresh_independent_R3_review_then_Stephen_exact_hash_acceptance_required"
     }
   },
   "additionalProperties": false

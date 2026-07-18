@@ -21,6 +21,7 @@
     "target_expected_sets",
     "calibration_expected_sets",
     "execution_case_manifests",
+    "required_execution_slot_projection",
     "human_rubric",
     "repetition_and_randomness",
     "estimands_and_uncertainty",
@@ -39,16 +40,16 @@
       "const": "ars://contracts/wp6-2-live-grader-calibration-protocol"
     },
     "schema_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "protocol_id": {
       "const": "wp6-2-live-grader-calibration-protocol"
     },
     "protocol_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "protocol_status": {
-      "const": "preregistered_remediated_pending_fresh_independent_review_and_stephen_acceptance"
+      "const": "author_candidate_r2_remediated_no_observation_pending_fresh_independent_r3_review_and_stephen_exact_hash_acceptance"
     },
     "authored_on": {
       "const": "2026-07-18"
@@ -68,48 +69,101 @@
     "review_remediation": {
       "type": "object",
       "required": [
-        "exact_reviewed_subject",
-        "independent_review_commit",
-        "review_report_path",
-        "review_report_git_blob_sha1",
-        "review_report_canonical_sha256",
-        "review_verdict",
-        "finding_ids",
+        "r1",
+        "r2",
         "remediation_status",
+        "fresh_required_review_round",
         "independent_rereview_required",
         "self_acceptance_permitted",
         "stephen_exact_hash_acceptance_required_after_rereview"
       ],
       "properties": {
-        "exact_reviewed_subject": {
-          "const": "fe2962fa9e10eb290dec0b9e53c3b81bd3ac6491"
+        "r1": {
+          "type": "object",
+          "required": [
+            "exact_reviewed_subject",
+            "independent_review_commit",
+            "review_report_path",
+            "review_report_git_blob_sha1",
+            "review_report_canonical_sha256",
+            "review_verdict",
+            "finding_ids"
+          ],
+          "properties": {
+            "exact_reviewed_subject": {
+              "const": "fe2962fa9e10eb290dec0b9e53c3b81bd3ac6491"
+            },
+            "independent_review_commit": {
+              "const": "e7c30ef75750ddbddbe7761e858f1cda68d9247f"
+            },
+            "review_report_path": {
+              "const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-review-2026-07-18.md"
+            },
+            "review_report_git_blob_sha1": {
+              "const": "67a7df66dffd50f6929ec76c428e56a369af815b"
+            },
+            "review_report_canonical_sha256": {
+              "const": "e07963495032a061f2079b32c4fee44a483ce7d80c9a7d63f7291128409c4af0"
+            },
+            "review_verdict": {
+              "const": "rework_required"
+            },
+            "finding_ids": {
+              "const": [
+                "R1-M1",
+                "R1-M2",
+                "R1-M3",
+                "R1-M4",
+                "R1-m1"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
-        "independent_review_commit": {
-          "const": "e7c30ef75750ddbddbe7761e858f1cda68d9247f"
-        },
-        "review_report_path": {
-          "const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-review-2026-07-18.md"
-        },
-        "review_report_git_blob_sha1": {
-          "const": "67a7df66dffd50f6929ec76c428e56a369af815b"
-        },
-        "review_report_canonical_sha256": {
-          "const": "e07963495032a061f2079b32c4fee44a483ce7d80c9a7d63f7291128409c4af0"
-        },
-        "review_verdict": {
-          "const": "rework_required"
-        },
-        "finding_ids": {
-          "const": [
-            "R1-M1",
-            "R1-M2",
-            "R1-M3",
-            "R1-M4",
-            "R1-m1"
-          ]
+        "r2": {
+          "type": "object",
+          "required": [
+            "exact_reviewed_subject",
+            "independent_review_commit",
+            "review_report_path",
+            "review_report_git_blob_sha1",
+            "review_report_canonical_sha256",
+            "review_verdict",
+            "finding_ids"
+          ],
+          "properties": {
+            "exact_reviewed_subject": {
+              "const": "87a44dd888817a5629343520038cf2ec5ac932ec"
+            },
+            "independent_review_commit": {
+              "const": "4d8ada73d2d43b4d30b05d44377773461b3a0fe9"
+            },
+            "review_report_path": {
+              "const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-remediation-r2-review-2026-07-18.md"
+            },
+            "review_report_git_blob_sha1": {
+              "const": "13329ea42ccac8ce62bca0b54c02514f03d68e84"
+            },
+            "review_report_canonical_sha256": {
+              "const": "e4905ec745d95b9ed54e9cbfdab049b14c7caaf8e671b036b4695cd9dd5b407d"
+            },
+            "review_verdict": {
+              "const": "rework_required"
+            },
+            "finding_ids": {
+              "const": [
+                "R2-M1",
+                "R2-M2"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "remediation_status": {
-          "const": "all_findings_remediated_pending_fresh_distinct_authority_rereview"
+          "const": "r1_and_r2_findings_remediated_pending_fresh_distinct_authority_r3_review"
+        },
+        "fresh_required_review_round": {
+          "const": "R3"
         },
         "independent_rereview_required": {
           "const": true
@@ -453,8 +507,8 @@
                   "grader_version",
                   "source_variant_id",
                   "prospective_live_variant_id",
-                  "binding_sha256",
-                  "obligation_id"
+                  "obligation_id",
+                  "binding_sha256"
                 ],
                 "properties": {
                   "fixture_id": {
@@ -478,12 +532,12 @@
                   "prospective_live_variant_id": {
                     "type": "string"
                   },
+                  "obligation_id": {
+                    "type": "string"
+                  },
                   "binding_sha256": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$"
-                  },
-                  "obligation_id": {
-                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -525,8 +579,8 @@
                   "grader_version",
                   "source_variant_id",
                   "prospective_live_variant_id",
-                  "binding_sha256",
-                  "obligation_id"
+                  "obligation_id",
+                  "binding_sha256"
                 ],
                 "properties": {
                   "fixture_id": {
@@ -550,12 +604,12 @@
                   "prospective_live_variant_id": {
                     "type": "string"
                   },
+                  "obligation_id": {
+                    "type": "string"
+                  },
                   "binding_sha256": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$"
-                  },
-                  "obligation_id": {
-                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -611,7 +665,6 @@
                   "transformation_id",
                   "expected_decision",
                   "blinding_rule",
-                  "case_sha256",
                   "grader_class",
                   "source_reference_role",
                   "source_reference_path",
@@ -622,7 +675,8 @@
                   "target_binding_sha256",
                   "initial_blinded_view_sha256",
                   "adjudication_input_manifest_sha256",
-                  "execution_record_sha256"
+                  "execution_record_sha256",
+                  "case_sha256"
                 ],
                 "properties": {
                   "case_id": {
@@ -653,10 +707,6 @@
                   },
                   "blinding_rule": {
                     "type": "string"
-                  },
-                  "case_sha256": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
                   },
                   "grader_class": {
                     "type": "string"
@@ -697,22 +747,26 @@
                   "execution_record_sha256": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "case_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
                   }
                 },
                 "additionalProperties": false
               }
             },
             "expected_set_sha256": {
-              "const": "8fa1e809beaf39602136a57516d357e41e298f171c99ccb1cf3af49dc8e3eccc"
+              "const": "255baacfe1e9861d0fd67009635651558f03d0377934e667e10aa0ef606cb62a"
             },
             "manifest_id": {
               "const": "wp6-2-live-grader-model-execution-cases"
             },
             "manifest_version": {
-              "const": "1.1.0"
+              "const": "1.2.0"
             },
             "manifest_sha256": {
-              "const": "a8a82ebfa3fe27c0fb65f2b3b29f528d29e3ddb4e1ce8f47b23b9f77a7fc9af1"
+              "const": "ed6eb4547c5c8ff777841334a8d9f8ec00f93df0ab4c3c1d4008fb4b9380cc1a"
             }
           },
           "additionalProperties": false
@@ -748,7 +802,6 @@
                   "transformation_id",
                   "expected_decision",
                   "blinding_rule",
-                  "case_sha256",
                   "grader_class",
                   "source_reference_role",
                   "source_reference_path",
@@ -759,7 +812,8 @@
                   "target_binding_sha256",
                   "initial_blinded_view_sha256",
                   "adjudication_input_manifest_sha256",
-                  "execution_record_sha256"
+                  "execution_record_sha256",
+                  "case_sha256"
                 ],
                 "properties": {
                   "case_id": {
@@ -790,10 +844,6 @@
                   },
                   "blinding_rule": {
                     "type": "string"
-                  },
-                  "case_sha256": {
-                    "type": "string",
-                    "pattern": "^[0-9a-f]{64}$"
                   },
                   "grader_class": {
                     "type": "string"
@@ -834,22 +884,26 @@
                   "execution_record_sha256": {
                     "type": "string",
                     "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "case_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
                   }
                 },
                 "additionalProperties": false
               }
             },
             "expected_set_sha256": {
-              "const": "6401198ec07be78eb10ff91278dcc5537045b06a89e6926ffe4925f6c74c48d5"
+              "const": "43da2382976dd74293018ec57d16220ea64da5f89e6ff18db718787721016793"
             },
             "manifest_id": {
               "const": "wp6-2-live-grader-human-execution-cases"
             },
             "manifest_version": {
-              "const": "1.1.0"
+              "const": "1.2.0"
             },
             "manifest_sha256": {
-              "const": "943e3bd6d48243e6773fcbb9f4316fd64f1149c45c0638f76d63163ba2ffeadf"
+              "const": "8e7c93016408641c59d44923ee0af039454b930b13ba81e12294cf8d81cfd860"
             }
           },
           "additionalProperties": false
@@ -880,7 +934,7 @@
           "const": "wp6-2-live-grader-calibration-execution-freeze"
         },
         "execution_freeze_version": {
-          "const": "1.1.0"
+          "const": "1.2.0"
         },
         "subject_packet_schema_id": {
           "const": "ars://contracts/wp6-2-live-grader-calibration-subject"
@@ -938,6 +992,294 @@
                         "type": "array",
                         "minItems": 3,
                         "maxItems": 3,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "implementation_rule": {
+                    "type": "string"
+                  },
+                  "transformation_spec_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "transformation_id",
+                  "transformation_version",
+                  "algorithm_id",
+                  "parameters",
+                  "implementation_rule",
+                  "transformation_spec_sha256"
+                ],
+                "properties": {
+                  "transformation_id": {
+                    "type": "string"
+                  },
+                  "transformation_version": {
+                    "type": "string"
+                  },
+                  "algorithm_id": {
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "source_byte_bindings",
+                      "target_adverse_evidence_fields",
+                      "controlled_state_rule",
+                      "target_state_rule",
+                      "ordered_steps"
+                    ],
+                    "properties": {
+                      "source_byte_bindings": {
+                        "type": "object",
+                        "required": [
+                          "immutable_stimulus",
+                          "pre_control_oracle",
+                          "post_control_oracle"
+                        ],
+                        "properties": {
+                          "immutable_stimulus": {
+                            "type": "object",
+                            "required": [
+                              "path",
+                              "git_blob_sha1",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "git_blob_sha1": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{40}$"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "pre_control_oracle": {
+                            "type": "object",
+                            "required": [
+                              "path",
+                              "git_blob_sha1",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "git_blob_sha1": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{40}$"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "post_control_oracle": {
+                            "type": "object",
+                            "required": [
+                              "path",
+                              "git_blob_sha1",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "git_blob_sha1": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{40}$"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "target_adverse_evidence_fields": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "controlled_state_rule": {
+                        "type": "string"
+                      },
+                      "target_state_rule": {
+                        "type": "string"
+                      },
+                      "ordered_steps": {
+                        "type": "array",
+                        "minItems": 6,
+                        "maxItems": 6,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "implementation_rule": {
+                    "type": "string"
+                  },
+                  "transformation_spec_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "transformation_id",
+                  "transformation_version",
+                  "algorithm_id",
+                  "parameters",
+                  "implementation_rule",
+                  "transformation_spec_sha256"
+                ],
+                "properties": {
+                  "transformation_id": {
+                    "type": "string"
+                  },
+                  "transformation_version": {
+                    "type": "string"
+                  },
+                  "algorithm_id": {
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "required": [
+                      "source_byte_bindings",
+                      "target_adverse_evidence_fields",
+                      "controlled_state_rule",
+                      "target_state_rule",
+                      "ordered_steps"
+                    ],
+                    "properties": {
+                      "source_byte_bindings": {
+                        "type": "object",
+                        "required": [
+                          "immutable_stimulus",
+                          "pre_control_oracle",
+                          "post_control_oracle"
+                        ],
+                        "properties": {
+                          "immutable_stimulus": {
+                            "type": "object",
+                            "required": [
+                              "path",
+                              "git_blob_sha1",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "git_blob_sha1": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{40}$"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "pre_control_oracle": {
+                            "type": "object",
+                            "required": [
+                              "path",
+                              "git_blob_sha1",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "git_blob_sha1": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{40}$"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "post_control_oracle": {
+                            "type": "object",
+                            "required": [
+                              "path",
+                              "git_blob_sha1",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "git_blob_sha1": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{40}$"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "target_adverse_evidence_fields": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "controlled_state_rule": {
+                        "type": "string"
+                      },
+                      "target_state_rule": {
+                        "type": "string"
+                      },
+                      "ordered_steps": {
+                        "type": "array",
+                        "minItems": 6,
+                        "maxItems": 6,
                         "uniqueItems": true,
                         "items": {
                           "type": "string"
@@ -1130,7 +1472,7 @@
           }
         },
         "transformation_specs_sha256": {
-          "const": "838c234d873f97a3a5f5a6bb303972ceb70cb5ef112591758223b6e3db8cf52c"
+          "const": "eb012505c395e89dbfc4d2af8b25e38b1c9f8195a1bfd1b5c6bfbe7e4dc00bae"
         },
         "fixture_oracles": {
           "type": "array",
@@ -1279,7 +1621,7 @@
               "const": "wp6-2-live-grader-model-execution-case-manifest"
             },
             "manifest_version": {
-              "const": "1.1.0"
+              "const": "1.2.0"
             },
             "case_count": {
               "const": 39
@@ -1581,7 +1923,7 @@
               }
             },
             "manifest_sha256": {
-              "const": "9971d2fa75bd9cc5862013a68daa9d1858a6f2899cfd3dfa53ac0460da61df25"
+              "const": "a70014ccd74d73f3be05ffa132366ff422b6bda488d36a351aaebc50b9be2049"
             }
           },
           "additionalProperties": false
@@ -1600,7 +1942,7 @@
               "const": "wp6-2-live-grader-human-execution-case-manifest"
             },
             "manifest_version": {
-              "const": "1.1.0"
+              "const": "1.2.0"
             },
             "case_count": {
               "const": 28
@@ -1907,7 +2249,7 @@
               }
             },
             "manifest_sha256": {
-              "const": "fb90f796c81b368497e316b18fd2cc710fc46dc2c3d65a4ad39954b25a3a6ed2"
+              "const": "1c6827b5174ba54b9ba52100fdab0a40057165e460da22838e7b24964c993d91"
             }
           },
           "additionalProperties": false
@@ -1916,7 +2258,162 @@
           "const": "initial_subject_bytes_are_exact_and_exclude_case_id_case_kind_expected_decision_oracle_and_concrete_producer_allocation_observed_decisions_must_come_from_grader_outputs"
         },
         "execution_freeze_sha256": {
-          "const": "9615bf58c3d76b3b024192c651c5676043784de31bcfed8f816faa57526d5b4b"
+          "const": "5daa95e625b6df51cf7779c053adc8b945a6bd8db6e0aae5100e2587454e489b"
+        }
+      },
+      "additionalProperties": false
+    },
+    "required_execution_slot_projection": {
+      "type": "object",
+      "required": [
+        "required_slot_set_id",
+        "required_slot_set_version",
+        "ordered_projection_rule",
+        "model_initial_slot_count",
+        "human_initial_slot_count",
+        "human_adjudication_slot_count",
+        "model_initial_slots",
+        "human_initial_slots",
+        "human_adjudication_slots",
+        "bijection_rule",
+        "required_slot_set_sha256"
+      ],
+      "properties": {
+        "required_slot_set_id": {
+          "const": "wp6-2-live-grader-calibration-required-execution-slots"
+        },
+        "required_slot_set_version": {
+          "const": "1.2.0"
+        },
+        "ordered_projection_rule": {
+          "const": "model_then_human_case_manifest_order_within_case_repetition_order_then_initial_role_order_and_one_human_adjudication_disposition_per_case"
+        },
+        "model_initial_slot_count": {
+          "const": 78
+        },
+        "human_initial_slot_count": {
+          "const": 112
+        },
+        "human_adjudication_slot_count": {
+          "const": 28
+        },
+        "model_initial_slots": {
+          "type": "array",
+          "minItems": 78,
+          "maxItems": 78,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "execution_slot_id",
+              "case_id",
+              "execution_record_sha256",
+              "repetition_id",
+              "initial_grader_role_id"
+            ],
+            "properties": {
+              "execution_slot_id": {
+                "type": "string"
+              },
+              "case_id": {
+                "type": "string"
+              },
+              "execution_record_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "repetition_id": {
+                "type": "string"
+              },
+              "initial_grader_role_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "human_initial_slots": {
+          "type": "array",
+          "minItems": 112,
+          "maxItems": 112,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "execution_slot_id",
+              "case_id",
+              "execution_record_sha256",
+              "repetition_id",
+              "initial_grader_role_id"
+            ],
+            "properties": {
+              "execution_slot_id": {
+                "type": "string"
+              },
+              "case_id": {
+                "type": "string"
+              },
+              "execution_record_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "repetition_id": {
+                "type": "string"
+              },
+              "initial_grader_role_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "human_adjudication_slots": {
+          "type": "array",
+          "minItems": 28,
+          "maxItems": 28,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "adjudication_slot_id",
+              "case_id",
+              "execution_record_sha256",
+              "adjudication_input_manifest_sha256",
+              "initial_execution_slot_ids"
+            ],
+            "properties": {
+              "adjudication_slot_id": {
+                "type": "string"
+              },
+              "case_id": {
+                "type": "string"
+              },
+              "execution_record_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "adjudication_input_manifest_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "initial_execution_slot_ids": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "bijection_rule": {
+          "const": "future_records_must_equal_this_complete_ordered_projection_exactly_with_no_missing_extra_duplicate_relabelled_or_reordered_slot"
+        },
+        "required_slot_set_sha256": {
+          "const": "e8acc4ff5e068b1318c0de84e3b7329b211eb9c35f46a5d0c5cba040f59a513f"
         }
       },
       "additionalProperties": false
@@ -1946,7 +2443,7 @@
           "const": "wp6-2-human-live-grader-rubric"
         },
         "rubric_version": {
-          "const": "1.1.0"
+          "const": "1.2.0"
         },
         "permitted_human_authority_class": {
           "const": "stephen_attributed_or_explicitly_delegated_i2_human_assurance_authority"
@@ -1999,13 +2496,13 @@
           "const": "any_rubric_change_requires_new_version_hash_full_case_rerun_independent_review_and_stephen_acceptance"
         },
         "rubric_sha256": {
-          "const": "4269b2279839eac7699e14eebe3c8c36628d28964637dc3e9cc57844355d512d"
+          "const": "c43e05a232bfa97a8c60dfe063c7d345f70c39c2fb1f3e5056af7003cf8b028a"
         },
         "rubric_manifest_id": {
           "const": "wp6-2-live-grader-human-rubric"
         },
         "rubric_manifest_version": {
-          "const": "1.1.0"
+          "const": "1.2.0"
         },
         "initial_blinded_view_id": {
           "const": "wp6-2-human-initial-blinded-view-v1"
@@ -2064,7 +2561,7 @@
           "const": "repetitions_within_one_fixture_revision_are_dependent_and_never_increase_the_acceptance_denominator"
         },
         "seed_derivation_anchor_rule": {
-          "const": "the_accepted_1_0_0_seed_material_is_intentionally_preserved_across_1_1_0_remediation_so_case_order_changes_only_by_a_future_preregistered_seed_amendment"
+          "const": "the_accepted_1_0_0_seed_material_is_intentionally_preserved_across_1_1_0_and_1_2_0_remediation_so_case_order_changes_only_by_a_future_preregistered_seed_amendment"
         },
         "seed_derivation_sha256": {
           "const": "0cf7de1a64e8f19bd027189ba18186a0b85d6dd539d37861c22e3bdad67bdf8a"
@@ -2145,7 +2642,9 @@
         "human_disagreement_capture",
         "human_adjudication_rule",
         "ambiguous_case_rule",
-        "rubric_revision_rule"
+        "rubric_revision_rule",
+        "future_relational_rule",
+        "adjudication_requiredness_rule"
       ],
       "properties": {
         "model_agreement_rule": {
@@ -2165,6 +2664,12 @@
         },
         "rubric_revision_rule": {
           "const": "revision_never_repairs_current_results_in_place_and_stales_all_prior_H_calibration_evidence"
+        },
+        "future_relational_rule": {
+          "const": "semantic_validation_derives_model_repeat_agreement_and_exactly_one_human_adjudication_disposition_from_the_complete_frozen_initial_slot_records"
+        },
+        "adjudication_requiredness_rule": {
+          "const": "adjudication_requested_when_any_initial_decision_requests_it_else_decision_disagreement_when_initial_decisions_differ_else_none_and_not_required"
         }
       },
       "additionalProperties": false
@@ -2177,7 +2682,8 @@
         "model",
         "human",
         "exact_acceptance_rule",
-        "composite_rule"
+        "composite_rule",
+        "summary_derivation_rule"
       ],
       "properties": {
         "criterion_label": {
@@ -2251,10 +2757,13 @@
           "additionalProperties": false
         },
         "exact_acceptance_rule": {
-          "const": "accept_a_class_only_if_exact_obligation_case_execution_slot_and_repeat_closure_passes_with_zero_missing_extra_duplicate_reordered_relabelled_stale_aliased_cross_fixture_correlated_or_incompatible_items_zero_false_passes_zero_false_blocks_both_finite_census_proportions_equal_zero_and_all_independence_blinding_agreement_adjudication_currentness_and_evidence_authority_rules_pass"
+          "const": "accept_a_class_only_if_exact_ordered_slot_bijection_and_all_record_case_obligation_subject_oracle_producer_grader_repeat_human_role_adjudication_external_authority_and_currentness_relations_pass_and_derived_false_pass_false_block_and_decision_error_counts_are_all_zero"
         },
         "composite_rule": {
           "const": "T1a_acceptance_freezes_protocol_only_T1b_requires_both_complete_non_compensable_class_results_and_separate_fresh_independent_reviews"
+        },
+        "summary_derivation_rule": {
+          "const": "public_semantic_validator_derives_separate_M11_and_H8_fixture_cluster_counts_proportions_and_accepted_state_from_validated_records_no_submitted_summary_or_weighted_combination_is_authority"
         }
       },
       "additionalProperties": false
@@ -2335,6 +2844,12 @@
         "required_model_execution_slots",
         "required_human_initial_execution_slots",
         "required_human_adjudication_slots",
+        "semantic_validator_path",
+        "semantic_validator_api",
+        "semantic_validator_version",
+        "two_layer_validation_rule",
+        "required_external_authority_order",
+        "external_authority_source_rule",
         "relational_rule",
         "self_attestation_rule"
       ],
@@ -2343,13 +2858,13 @@
           "const": "ars://contracts/wp6-2-live-grader-calibration-future-result"
         },
         "schema_version": {
-          "const": "1.0.0"
+          "const": "1.1.0"
         },
         "schema_path": {
           "const": ".research-system/schemas/contracts/wp6-2-live-grader-calibration-future-result.schema.json"
         },
         "status": {
-          "const": "prospective_schema_only_no_result_or_observation_exists"
+          "const": "prospective_schema_and_semantic_surface_only_no_result_or_observation_exists"
         },
         "required_model_execution_slots": {
           "const": 78
@@ -2360,11 +2875,34 @@
         "required_human_adjudication_slots": {
           "const": 28
         },
+        "semantic_validator_path": {
+          "const": ".research-system/contracts/wp6_2_live_grader_calibration_future_result_semantics.py"
+        },
+        "semantic_validator_api": {
+          "const": "validate_future_result_semantics"
+        },
+        "semantic_validator_version": {
+          "const": "1.0.0"
+        },
+        "two_layer_validation_rule": {
+          "const": "closed_schema_validation_must_pass_first_then_the_pure_semantic_validator_must_resolve_exact_relations_and_external_authority_neither_layer_substitutes_for_the_other"
+        },
+        "required_external_authority_order": {
+          "const": [
+            "accepted_protocol_identity",
+            "accepted_required_slot_set_identity",
+            "fresh_distinct_independent_T1a_review_with_accept_outcome",
+            "attributed_Stephen_exact_hash_acceptance"
+          ]
+        },
+        "external_authority_source_rule": {
+          "const": "caller_supplies_records_from_an_independent_trusted_store_never_from_candidate_fields_or_candidate_embedded_manifests"
+        },
         "relational_rule": {
-          "const": "every_future_record_must_match_one_exact_execution_record_case_obligation_subject_oracle_producer_grader_repeat_and_human_role_projection_and_expected_decision_is_forbidden_from_initial_records"
+          "const": "exact_ordered_slot_bijection_case_class_repeat_human_role_adjudication_and_derived_summary_equality_are_mandatory"
         },
         "self_attestation_rule": {
-          "const": "producer_supplied_or_grader_supplied_identity_manifests_cannot_replace_the_accepted_protocol_identity_or_fresh_independent_review"
+          "const": "candidate_64_hex_values_never_establish_protocol_slot_review_owner_or_result_authority_without_exact_external_record_resolution"
         }
       },
       "additionalProperties": false
@@ -2372,103 +2910,96 @@
     "future_result_and_evidence_fields": {
       "type": "object",
       "required": [
-        "common_required",
-        "model_required",
-        "human_required"
+        "top_level_required",
+        "initial_record_required",
+        "human_adjudication_required",
+        "class_summary_required"
       ],
       "properties": {
-        "common_required": {
+        "top_level_required": {
           "const": [
+            "schema_id",
+            "schema_version",
+            "result_status",
+            "protocol_id",
+            "protocol_version",
+            "protocol_canonical_sha256",
+            "protocol_git_blob_sha1",
+            "execution_freeze_sha256",
+            "corpus_manifest_sha256",
+            "required_slot_set_id",
+            "required_slot_set_version",
+            "required_slot_set_sha256",
+            "protocol_identity_record_id",
+            "protocol_identity_record_sha256",
+            "required_slot_set_identity_record_id",
+            "required_slot_set_identity_record_sha256",
+            "t1a_independent_review_record_id",
+            "t1a_independent_review_record_sha256",
+            "t1a_stephen_acceptance_record_id",
+            "t1a_stephen_acceptance_record_sha256",
+            "model_records",
+            "human_initial_records",
+            "human_adjudication_records",
+            "class_summaries"
+          ]
+        },
+        "initial_record_required": {
+          "const": [
+            "execution_slot_id",
             "case_id",
             "case_sha256",
-            "corpus_id",
-            "corpus_manifest_sha256",
-            "corpus_version",
-            "currentness_status",
-            "deterministic_seed",
-            "evaluated_at",
-            "evidence_id",
-            "evidence_sha256",
-            "execution_freeze_sha256",
             "execution_record_sha256",
-            "expected_decision_available_to_initial_grader",
-            "expected_subject_sha256",
-            "expires_at",
-            "fixture_id",
-            "fixture_revision",
-            "grader_actor_id",
-            "grader_context_id",
-            "grader_context_sha256",
-            "grader_family",
-            "independent_oracle_sha256",
-            "independent_review_id",
-            "independent_review_sha256",
-            "initial_blinded_view_sha256",
-            "limitations",
-            "normalized_decision",
-            "observed_decision_source",
-            "omissions",
-            "producer_actor_id",
-            "producer_context_id",
-            "producer_context_sha256",
-            "producer_family",
-            "protocol_id",
-            "protocol_sha256",
-            "protocol_version",
-            "repetition_id",
-            "subject_id",
-            "subject_sha256",
-            "suspension_status",
-            "target_binding_sha256",
+            "grader_class",
             "target_obligation_id",
-            "trace_id",
-            "trace_sha256",
-            "verdict"
-          ]
-        },
-        "model_required": {
-          "const": [
-            "adapter_id",
-            "adapter_revision",
-            "context_independence_grade",
-            "cost_grant_id",
-            "cost_grant_sha256",
-            "execution_lease_id",
-            "execution_lease_sha256",
-            "false_block_summary",
-            "false_pass_summary",
-            "family_independence_grade",
-            "finite_census_false_pass_and_false_block_summary",
-            "model_id",
-            "model_revision",
-            "provider_command_id",
-            "provider_command_sha256",
-            "provider_id",
-            "provider_receipt_id",
-            "provider_receipt_sha256",
-            "provider_revision"
-          ]
-        },
-        "human_required": {
-          "const": [
-            "adjudication_input_manifest_sha256",
-            "adjudication_record_id",
-            "adjudication_record_sha256",
-            "attribution_context",
-            "authority_decision_id",
-            "authority_decision_sha256",
-            "blinding_record_id",
-            "blinding_record_sha256",
-            "disagreement_record_id",
-            "disagreement_record_sha256",
-            "human_authority_class",
+            "target_binding_sha256",
+            "expected_subject_sha256",
+            "independent_oracle_sha256",
+            "producer_actor_role_id",
+            "producer_family",
+            "producer_context_id",
+            "grader_actor_role_id",
+            "grader_family",
+            "grader_context_id",
+            "repetition_id",
             "initial_grader_role_id",
-            "initial_human_decisions",
             "initial_subject_receipt_sha256",
-            "rubric_id",
-            "rubric_revision_status",
-            "rubric_sha256",
-            "rubric_version"
+            "observed_decision",
+            "observed_decision_source",
+            "expected_decision_available_to_initial_grader",
+            "grader_output_sha256",
+            "producer_receipt_sha256",
+            "grader_receipt_sha256",
+            "evidence_authority_class"
+          ]
+        },
+        "human_adjudication_required": {
+          "const": [
+            "adjudication_slot_id",
+            "case_id",
+            "execution_record_sha256",
+            "adjudication_input_manifest_sha256",
+            "initial_decisions",
+            "disagreement_code",
+            "adjudication_required",
+            "adjudicated_decision",
+            "adjudicator_role_id",
+            "adjudicator_actor_authority_and_independence_sha256",
+            "expected_decision_available_to_adjudicator"
+          ]
+        },
+        "class_summary_required": {
+          "const": [
+            "grader_class",
+            "fixture_cluster_denominator",
+            "false_pass_count",
+            "false_pass_proportion",
+            "false_block_count",
+            "false_block_proportion",
+            "decision_error_count",
+            "sampling_uncertainty_interpretation",
+            "zero_error_rule",
+            "accepted"
           ]
         }
       },
@@ -2610,16 +3141,16 @@
           "const": "two_literal_repetitions_rep_01_rep_02_seed_217570842_exact_seed_digest_extraction_test_vector_finite_census_denominators_11_and_8_and_no_acceptance_resampling"
         },
         "contracts_or_schemas_in_scope": {
-          "const": "this_protocol_its_strict_schema_its_T1a_scoped_content_addressed_identity_manifest_and_the_prospective_future_result_schema_only"
+          "const": "this_protocol_its_strict_schema_its_T1a_scoped_identity_manifest_the_closed_prospective_future_result_schema_and_the_pure_WP6_2_semantic_validator_only"
         },
         "machine_checkable_claims": {
-          "const": "independent_exact_obligation_oracle_including_ids_exact_M31_H20_and_M39_H28_execution_manifests_exact_subject_bytes_oracles_allocations_slots_repeats_hashes_non_compensation_finite_census_zero_bounds_currentness_and_self_attestation_rejection"
+          "const": "independent_exact_M31_H20_obligations_M39_H28_cases_three_distinct_F036_single_mutation_subjects_exact_slots_adjudications_relations_external_authority_and_derived_non_compensable_finite_census_zero_error_summaries"
         },
         "human_review_only_claims": {
           "const": "protocol_adequacy_human_rubric_adequacy_case_ambiguity_adjudication_authority_and_final_exact_hash_acceptance"
         },
         "output_and_cache_provenance_requirements": {
-          "const": "future_evidence_only_no_results_or_cache_output_in_T1a_all_future_evidence_binds_exact_protocol_execution_record_subject_oracle_corpus_case_rubric_obligation_actor_context_and_execution_hashes"
+          "const": "future_evidence_only_no_results_or_cache_output_in_T1a_candidate_references_never_self_attest_and_every_T1a_protocol_slot_review_and_owner_identity_resolves_from_external_content_addressed_authority"
         },
         "vault_or_conventions_obligations": {
           "const": "no_vault_result_or_claim_entry_T1a_acceptance_must_be_an_attributed_future_decision"
