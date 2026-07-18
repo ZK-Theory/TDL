@@ -1,17 +1,31 @@
 schema_id: ars://contracts/wp6-2-live-grader-calibration-protocol-identity-manifest
-schema_version: 1.0.0
+schema_version: 1.1.0
 manifest_id: wp6-2-live-grader-calibration-protocol-identity-manifest
-manifest_version: 1.0.0
+manifest_version: 1.1.0
 scope: wp6-2-t1a-live-grader-calibration-protocol-only
 protocol_identity:
   contract_id: wp6-2-live-grader-calibration-protocol
-  contract_version: 1.0.0
+  contract_version: 1.1.0
   contract_path: .research-system/contracts/wp6-2-live-grader-calibration-protocol.yaml
-  canonical_sha256: 655b2a94d4cb798f11fea3757747a42410d8a98d70e859edd306873ed1ed7bef
-  git_blob_sha1: 3800358b52f87bf2b50b0e98070c2bb2154e7187
+  canonical_sha256: f2d73fa3b42bf518a3bd04744835742c559ef63b56365bd83959e8e22d4bce7d
+  git_blob_sha1: de8acbd93c3e2ffefd0f214298171d1f48082da3
   schema_id: ars://contracts/wp6-2-live-grader-calibration-protocol
-  schema_version: 1.0.0
+  schema_version: 1.1.0
   schema_path: .research-system/schemas/contracts/wp6-2-live-grader-calibration-protocol.schema.json
-  schema_canonical_sha256: 4ba371b2f26f623a9a2d79e4c9bdbb1465c095af3bccf36cfdb91b18c8a5ff3e
-  schema_git_blob_sha1: 66f363d9a2c36cc7b0ad88cfc462468e4f4911ab
-  status: preregistered_pending_independent_review_and_stephen_acceptance
+  schema_canonical_sha256: e1cad81ee3c7d2362eba75634682091d4c284c79d4469415dc1f13d7bfa633b7
+  schema_git_blob_sha1: 73524a0c46e5d79eb9fb82583f138f1e45c52b12
+  status: preregistered_remediated_pending_fresh_independent_review_and_stephen_acceptance
+future_result_schema_identity:
+  schema_id: ars://contracts/wp6-2-live-grader-calibration-future-result
+  schema_version: 1.0.0
+  schema_path: .research-system/schemas/contracts/wp6-2-live-grader-calibration-future-result.schema.json
+  schema_canonical_sha256: 66003e736bb1e1d75087bb6f28d15e7ba7d75d6aedc0eacf39c5469347c5f64b
+  schema_git_blob_sha1: 1762a5c18bcc69ec0c89d27c0e42a3c7c61bde5d
+  status: prospective_schema_only_no_result_or_observation_exists
+review_identity:
+  exact_reviewed_subject: fe2962fa9e10eb290dec0b9e53c3b81bd3ac6491
+  review_commit: e7c30ef75750ddbddbe7761e858f1cda68d9247f
+  review_report_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-review-2026-07-18.md
+  review_report_git_blob_sha1: 67a7df66dffd50f6929ec76c428e56a369af815b
+  review_verdict: rework_required
+  fresh_independent_rereview_required: true
