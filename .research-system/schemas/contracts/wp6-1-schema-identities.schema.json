@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-1-schema-identities",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "manifest_id",
+    "source_annex",
+    "governance",
+    "normalized_row_count",
+    "row_identity_multiset_sha256",
+    "rows"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-1-schema-identities"},
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"const": "wp6-1-schema-identities"},
+    "source_annex": {"$ref": "#/$defs/sourceAnnex"},
+    "governance": {"$ref": "#/$defs/governance"},
+    "normalized_row_count": {"const": 104},
+    "row_identity_multiset_sha256": {"$ref": "#/$defs/sha256"},
+    "rows": {
+      "type": "array",
+      "minItems": 104,
+      "maxItems": 104,
+      "items": {"$ref": "#/$defs/identityRow"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceAnnex": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "reviewed_revision",
+        "git_blob_id",
+        "canonical_utf8_lf_sha256",
+        "normalized_row_count",
+        "expanded_edge_count"
+      ],
+      "properties": {
+        "repository_path": {
+          "const": "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "reviewed_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
+        "git_blob_id": {"const": "5e2eb60ca4419d1529506de6859fb027cff518af"},
+        "canonical_utf8_lf_sha256": {
+          "const": "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"
+        },
+        "normalized_row_count": {"const": 104},
+        "expanded_edge_count": {"const": 182}
+      },
+      "additionalProperties": false
+    },
+    "governance": {
+      "type": "object",
+      "required": [
+        "producer",
+        "intended_independent_reviewer",
+        "intended_acceptor",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "producer": {"const": "pipe/ars-wp6-1-task-lifecycle owning Worker"},
+        "intended_independent_reviewer": {"const": "independent reviewer who did not implement the schemas"},
+        "intended_acceptor": {"const": "Stephen under D-G6-3"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "commandSchemaIdentity": {
+      "type": "object",
+      "required": [
+        "schema_token",
+        "command_schema_path",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "command_identity_contract_sha256",
+        "materialization_status",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "schema_token": {"type": "string", "pattern": "^cmd/[a-z0-9_]+$"},
+        "command_schema_path": {
+          "type": "string",
+          "pattern": "^\\.research-system/schemas/core/commands/[a-z0-9_]+\\.schema\\.json$"
+        },
+        "command_schema_id": {"type": "string", "pattern": "^ars://core/command/[A-Za-z][A-Za-z0-9]+$"},
+        "command_schema_version": {"const": "1.0.0"},
+        "command_schema_sha256": {"type": "null"},
+        "command_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "materialization_status": {"const": "planned_unmaterialized"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "eventSchemaIdentity": {
+      "type": "object",
+      "required": [
+        "event_type",
+        "schema_token",
+        "event_schema_path",
+        "event_schema_id",
+        "event_schema_version",
+        "event_schema_sha256",
+        "event_identity_contract_sha256",
+        "materialization_status",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "event_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
+        "schema_token": {"type": "string", "pattern": "^evt/[a-z0-9_]+$"},
+        "event_schema_path": {
+          "type": "string",
+          "pattern": "^\\.research-system/schemas/core/events/[a-z0-9_]+\\.schema\\.json$"
+        },
+        "event_schema_id": {"type": "string", "pattern": "^ars://core/event/[A-Za-z][A-Za-z0-9]+$"},
+        "event_schema_version": {"const": "1.0.0"},
+        "event_schema_sha256": {"type": "null"},
+        "event_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "materialization_status": {"const": "planned_unmaterialized"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "identityRow": {
+      "type": "object",
+      "required": [
+        "key",
+        "command_type",
+        "command_schema_identity",
+        "event_schema_bindings",
+        "row_identity_contract_sha256"
+      ],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"},
+        "command_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
+        "command_schema_identity": {"$ref": "#/$defs/commandSchemaIdentity"},
+        "event_schema_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/eventSchemaIdentity"}
+        },
+        "row_identity_contract_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
