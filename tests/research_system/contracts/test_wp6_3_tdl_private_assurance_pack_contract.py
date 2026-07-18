@@ -229,7 +229,8 @@ def _git_blob_id(data: bytes) -> str:
 
 
 def _manual_git_blob_id(data: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()  # noqa: S324
+    payload = b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+    return hashlib.sha1(payload, usedforsecurity=False).hexdigest()  # nosec B324
 
 
 def _raw_pack_bytes(pack: dict, *, leading_comment: str | None = None, reverse_top_level: bool = False) -> bytes:
