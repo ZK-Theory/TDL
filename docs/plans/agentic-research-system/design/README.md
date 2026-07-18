@@ -7,7 +7,9 @@ This directory contains the bounded design specifications derived from the maste
 A specification may be written when:
 
 1. its governing decisions are accepted or explicitly marked as assumptions;
-2. its evidence inputs are listed in the evidence register;
+2. its evidence inputs are listed in the repository
+   [evidence register](../01-current-system-evidence.md), including a dated addendum
+   where live evidence postdates the base audit;
 3. its boundaries and consumers are identified;
 4. it has a review owner independent of its primary author for R2/R3 research logic;
 5. its acceptance tests can be stated before implementation.
@@ -43,4 +45,4 @@ The filenames define decomposition, not permission to implement. Each specificat
 | [06c-gate3-foundation-critical-interface-manifest-2026-07-01.md](06c-gate3-foundation-critical-interface-manifest-2026-07-01.md) | `accepted_interface_manifest` | Revision 0.2 closes identity, two-stage ordering, stage, failure, and evidence coherence under P-030 |
 | [07-runtime-adapters-and-policy-parity.md](07-runtime-adapters-and-policy-parity.md) | `accepted` | Revision 0.2 accepted under P-030 with bound-provider/wrapper accounting and canonical identity bindings |
 | [08-resource-checkpoint-and-operations.md](08-resource-checkpoint-and-operations.md) | `accepted` | Revision 0.2 accepted under P-030 with proportional operational profiles and non-circular grant binding |
-| [11-portfolio-and-discovery-lifecycle.md](11-portfolio-and-discovery-lifecycle.md) | `review_pending` | WP6.5 specification-only draft under P-032: portfolio/Discovery records, dossier admission, and path/writer cutover contracts; no implementation, admission, projection, ingestion, or transition authority |
+| [11-portfolio-and-discovery-lifecycle.md](11-portfolio-and-discovery-lifecycle.md) | `review_pending` | Revision 0.2 reconciles the immutable 2026-07-18 `rework_required` review (2 Critical, 6 Major, 2 Minor), including the dated evidence addendum; fresh independent review of the new exact commit and D-G6-4 acceptance remain required, with no implementation, admission, projection, ingestion, transition, cutover, or claim authority |

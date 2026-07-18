@@ -561,14 +561,19 @@ Gate 6 launch and dispatch-planning controls.
 
 ## W11 specification status (non-decision)
 
-The WP6.5 specification-only draft now exists at
-`design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`. It
-prospectively specifies portfolio/Discovery records, the `AdmitResearchDossier`
-boundary, and physically disjoint legacy/successor/annotation writer paths. This status
-entry does not amend P-032/P-034, accept W11, authorize implementation or WP6.6, create
-any projection, ingest any item, or transition ownership. D-G6-4 remains open for (1)
-Stephen's exact-revision acceptance after fresh independent adversarial review and
-reconciliation and (2) a separately content-addressed first ownership-transition batch.
+The WP6.5 specification-only draft exists at
+`design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`.
+Independent review of exact revision `70074d42eade8460808e4d1d29348b7806eff2d0`
+returned `rework_required` (2 Critical, 6 Major, 2 Minor); revision 0.2 records author
+reconciliation of every finding, complete invariant/test/decision dispositions, and a
+dated addendum to the tracked plan-suite evidence register. A fresh independent review of the new exact commit is
+mandatory and author reconciliation is not acceptance. This status entry does not
+amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
+schema/projection, ingest/admit any item, transition ownership, cut over a path, or
+perform any result/eligibility/claim action. D-G6-4 remains open for (1) Stephen's
+exact-revision acceptance after the fresh review and reconciliation and (2) a
+separately content-addressed first ownership-transition batch using the accepted W11
+relation.
 
 ## Assumptions requiring confirmation
 

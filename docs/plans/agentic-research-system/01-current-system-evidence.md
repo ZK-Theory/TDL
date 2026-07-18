@@ -336,3 +336,34 @@ Relevant external conclusions:
 - Tracker summaries contain stale and superseded material; exact claims require checking their referenced artefacts.
 - The assumption that T1.28 closes Phase 1 requires live Manager confirmation.
 - External agent frameworks evolve quickly; protocol details must be reverified when implementation specifications are written.
+
+## 8. W11 dated live-evidence addendum (2026-07-18)
+
+**Scope:** WP6.5 W11 specification evidence only
+**Authority:** dated read-only observations; not admission, implementation, migration,
+ownership-transition, result, eligibility, Decision, or claim authority
+
+This addendum records the new live sources used by W11 so design README entry
+criterion 2 is literal. The sources are mutable vault evidence; their hashes identify
+the bytes observed on the stated date, not a permanently frozen expected side.
+
+### 8.1 Dated live evidence
+
+| Evidence and authority class | Exact observed path / physical context | Bytes and SHA-256 observed 2026-07-18 | Mutability and limitations |
+|---|---|---|---|
+| Living Discovery backlog; current legacy lifecycle authority under P-004/P-032 | `C:\Users\steph\TDL\vault\00-Meta\Discovery\_backlog.md` | 26,392 bytes; `37eec1ba6bb7929d95d5349ada2f75d93636c8356aad5dffc6a59981fc0269e7` | Mutable and legacy-written. Contains active, superseded and decision-pending prose plus legacy PROMOTE/PARK/KILL labels. The hash is a dated observation only; no row is imported, adopted, transitioned or frozen by W11. A later transition/cutover must make a fresh handle-bound observation and use the accepted inventory/mapping contracts. |
+| TDA-scale v1.0.0 package manifest; human-authored planning evidence for the missing admission interface | `C:\Users\steph\TDL\vault\00-Meta\Research Direction Reports\Evidence-Led TDA Scale and Research Programme for ARS - package manifest - v1.0.0 - 2026-07-16.md` | 5,843 bytes; `e20d173b1787c7adf141d08eadecb320ee534a075ad764e542b9fd495df61cbf` | Mutable vault planning document, not an accepted `DossierExpectedSet` or admissible dossier. It declares 17 immutable components and three separately hashed sources; the independent review resolved and rehashed all 20 linked files. WP6.6 must use a deliberately re-versioned package with accepted literal expected rows and fresh hashes. |
+| TDA-scale v1.0.0 master programme component; human-authored planning evidence | `C:\Users\steph\TDL\vault\00-Meta\Research Direction Reports\Evidence-Led TDA Scale and Research Programme for ARS - v1.0.0 - 2026-07-16.md` | 28,244 bytes; `277f57f938af78f9dd0f270e97bc94919dc55e15b468246844a778a560d241ea` | Mutable planning-only source and Gate A evidence. Its current content does not satisfy W2 object/ScopeDefinition schemas, admission authority, pre-registration, dispatch, result, eligibility or claim gates. |
+| Registered vault-root physical-path observation; operational evidence for the W11 path protocol | Registered path `C:\Users\steph\TDL\vault`; observed as `Directory, ReparsePoint`, link type `Junction`, target `C:\Users\steph\Documents\TDA-Research` | No content hash is asserted for a directory link. The accepted path contract must bind the reparse tag/target and target volume/file identities at operation time. | Current filesystem configuration, not a permanent path identity. A string-resolved path or this dated target is insufficient against reparse, hardlink or parent-swap races. The three proposed `00-Meta/ARS/...` namespaces did not exist when independently reviewed. |
+
+### 8.2 Provenance and permitted use
+
+The independent report at
+[`reviews/adversarial-wp6-5-w11-spec-review-2026-07-18.md`](reviews/adversarial-wp6-5-w11-spec-review-2026-07-18.md)
+re-observed the backlog, manifest and master bytes and reported exact hash agreement.
+That review is evidence fidelity, not approval of W11 or any live object.
+
+Permitted use is limited to specification requirements and future synthetic fixture
+design. Tests must not depend on these mutable files. No process may use this addendum's
+hashes as a dossier expected oracle, final cutover inventory, migration Decision,
+ownership mapping, accepted result, eligibility input or paper-claim authority.
