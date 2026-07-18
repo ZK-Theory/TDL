@@ -56,6 +56,7 @@ SCHEMA_REVIEW_RECORD_ID = "srv_00000000-0000-7000-8000-000000000013"
 CONTRACT_SCHEMA_ACCEPTANCE_ID = "csa_00000000-0000-7000-8000-000000000014"
 CONTRACT_REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-000000000015"
 SCHEMA_REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-000000000016"
+APPLICABILITY_CONFIRMATION_ID = "apc_00000000-0000-7000-8000-000000000017"
 
 EXPECTED_EXTERNAL_SCHEMA_IDS = {
     "canonical_actor": "ars://assurance/records/canonical-actor/1.0",
@@ -65,6 +66,7 @@ EXPECTED_EXTERNAL_SCHEMA_IDS = {
     "independent_schema_review": "ars://assurance/records/independent-schema-review/1.0",
     "stephen_contract_schema_acceptance": "ars://assurance/records/stephen-contract-schema-acceptance/1.0",
     "accepted_assurance_requirement": "ars://assurance/records/accepted-assurance-requirement/1.0",
+    "obligation_applicability_confirmation": ("ars://assurance/records/obligation-applicability-confirmation/1.0"),
     "independent_pack_review": "ars://assurance/records/independent-pack-review/1.0",
     "stephen_owner_acceptance": "ars://assurance/records/stephen-owner-acceptance/1.0",
     "active_authority_grant": "ars://assurance/records/active-authority-grant/1.0",
@@ -789,6 +791,54 @@ def _requirement_content_preimage(requirement: dict) -> dict:
     }
 
 
+def _applicability_decision_preimage(requirement: dict, row: dict) -> dict:
+    """Return the acyclic decision surface bound by an external N/A confirmation."""
+    return {
+        "assurance_requirement_id": requirement["assurance_requirement_id"],
+        "revision": requirement["revision"],
+        "subject_contract": requirement["subject_contract"],
+        **{
+            key: row[key]
+            for key in (
+                "lane_id",
+                "obligation_id",
+                "applicability",
+                "rationale",
+                "decision_author_actor_id",
+                "confirming_actor_id",
+                "prospective_producer_actor_id",
+                "relationship_record_id",
+                "minimum_independence_grade",
+                "decided_at",
+            )
+        },
+    }
+
+
+def _install_applicability_confirmation(
+    record_store: dict[str, dict],
+    *,
+    confirmation_id: str = APPLICABILITY_CONFIRMATION_ID,
+    confirmed_at: str = "2026-07-18T08:25:00Z",
+) -> dict:
+    """Install a separately content-addressed independent confirmation for row zero."""
+    requirement = record_store[REQUIREMENT_RECORD_ID]
+    row = requirement["obligation_applicability_rows"][0]
+    decision_preimage = _applicability_decision_preimage(requirement, row)
+    confirmation = {
+        "record_type": "obligation_applicability_confirmation",
+        "confirmation_record_id": confirmation_id,
+        **deepcopy(decision_preimage),
+        "applicability_decision_sha256": _canonical_sha256(decision_preimage),
+        "confirmation_state": "active",
+        "confirmed_at": confirmed_at,
+    }
+    record_store[confirmation_id] = confirmation
+    row["confirmation_record_id"] = confirmation_id
+    row["confirmation_record_sha256"] = _canonical_sha256(confirmation)
+    return confirmation
+
+
 def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str, dict], dict[str, str]]:
     contract_subject = deepcopy(pack["upstream_contract_reference"])
     pack_schema_subject = deepcopy(pack["schema_reference"])
@@ -1048,6 +1098,7 @@ def _resolved_record(
         "independent_schema_review": "review_record_id",
         "stephen_contract_schema_acceptance": "owner_decision_id",
         "accepted_assurance_requirement": "acceptance_record_id",
+        "obligation_applicability_confirmation": "confirmation_record_id",
         "independent_pack_review": "review_record_id",
         "stephen_owner_acceptance": "owner_decision_id",
         "active_authority_grant": "authority_grant_id",
@@ -1177,6 +1228,16 @@ def _validate_external_acceptance(
     observed_applicability = {(row["lane_id"], row["obligation_id"]) for row in applicability_rows}
     if len(observed_applicability) != len(applicability_rows) or observed_applicability != expected_applicability:
         raise CandidatePackError("accepted requirement applicability closure differs")
+    scope_relationship = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        requirement["scope_relationship_record_id"],
+        "producer_relationship_evidence",
+    )
+    requirement_accepted_at = _parse_datetime(requirement["accepted_at"])
+    relationship_effective_at = _parse_datetime(scope_relationship["effective_at"])
+    relationship_expires_at = _parse_datetime(scope_relationship["expires_at"])
     for row in applicability_rows:
         if (
             row["prospective_producer_actor_id"] != pack["producer_actor_id"]
@@ -1186,18 +1247,32 @@ def _validate_external_acceptance(
             or row["minimum_independence_grade"] != requirement["minimum_independence_grade"]
         ):
             raise CandidatePackError("accepted requirement applicability authority is unbound")
-        if (
-            pack["task_applicability_policy"]["pack_obligations"] == "all_required"
-            and row["applicability"] != "required"
+        row_decided_at = _parse_datetime(row["decided_at"])
+        if not (
+            relationship_effective_at <= row_decided_at <= requirement_accepted_at <= as_of < relationship_expires_at
         ):
-            raise CandidatePackError("pack obligation cannot be marked not_applicable")
-    scope_relationship = _resolved_record(
-        contract,
-        record_store,
-        hash_manifest,
-        requirement["scope_relationship_record_id"],
-        "producer_relationship_evidence",
-    )
+            raise CandidatePackError("applicability decision time is outside relationship or acceptance bounds")
+        if row["applicability"] == "not_applicable":
+            confirmation_id = row["confirmation_record_id"]
+            confirmation = _resolved_record(
+                contract,
+                record_store,
+                hash_manifest,
+                confirmation_id,
+                "obligation_applicability_confirmation",
+            )
+            if row["confirmation_record_sha256"] != hash_manifest[confirmation_id]:
+                raise CandidatePackError("applicability confirmation hash does not bind the external record")
+            decision_preimage = _applicability_decision_preimage(requirement, row)
+            if confirmation["applicability_decision_sha256"] != _canonical_sha256(decision_preimage) or any(
+                confirmation[key] != value for key, value in decision_preimage.items()
+            ):
+                raise CandidatePackError("applicability confirmation does not bind the exact decision")
+            confirmed_at = _parse_datetime(confirmation["confirmed_at"])
+            if not row_decided_at <= confirmed_at <= requirement_accepted_at:
+                raise CandidatePackError("applicability confirmation time is outside decision or acceptance bounds")
+            if confirmation["confirming_actor_id"] == pack["producer_actor_id"]:
+                raise CandidatePackError("applicability confirmation is not producer-independent")
     review = _resolved_record(contract, record_store, hash_manifest, review_record_id, "independent_pack_review")
     review_relationship = _resolved_record(
         contract,
@@ -1305,7 +1380,6 @@ def _validate_external_acceptance(
         or registered_object["canonical_repository_path"] != pack["canonical_repository_path"]
     ):
         raise CandidatePackError("assurance pack object registration mismatch")
-    requirement_accepted_at = _parse_datetime(requirement["accepted_at"])
     contract_authored_at = _parse_datetime(authorship["authored_at"])
     contract_reviewed_at = _parse_datetime(contract_review["reviewed_at"])
     schema_reviewed_at = _parse_datetime(schema_review["reviewed_at"])
@@ -2290,6 +2364,7 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
     producer_only_row["applicability"] = "not_applicable"
     producer_only_row["rationale"] = "producer_claimed_not_applicable"
     producer_only_row["confirming_actor_id"] = ACT_PRODUCER
+    _install_applicability_confirmation(producer_only_records)
     producer_only_raw, producer_only_hashes = _coordinate_all_external_hashes(producer_only_pack, producer_only_records)
     with pytest.raises(CandidatePackError, match="applicability authority is unbound"):
         _validate_external_acceptance(
@@ -2305,7 +2380,7 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
     coordinated_records = deepcopy(record_store)
     coordinated_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]["applicability"] = "not_applicable"
     coordinated_raw, coordinated_hashes = _coordinate_all_external_hashes(coordinated_pack, coordinated_records)
-    with pytest.raises(CandidatePackError, match="cannot be marked not_applicable"):
+    with pytest.raises(CandidatePackError, match="obligation_applicability_rows"):
         _validate_external_acceptance(
             coordinated_pack,
             raw_candidate_pack_bytes=coordinated_raw,
@@ -2313,4 +2388,87 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
             raw_contract_bytes=raw_contract_bytes,
             record_store=coordinated_records,
             hash_manifest=coordinated_hashes,
+        )
+
+
+def test_applicability_decision_times_are_bounded_by_relationship_and_acceptance():
+    contract, raw_contract_bytes, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    invalid_decision_times = (
+        "2026-07-18T08:14:59Z",  # before relationship effective time
+        "2026-07-18T08:30:01Z",  # after requirement acceptance
+        "2026-07-18T12:00:01Z",  # after the validation as-of time
+        "2027-07-18T08:15:00Z",  # at relationship expiry
+    )
+    for invalid_decision_time in invalid_decision_times:
+        invalid_records = deepcopy(record_store)
+        invalid_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]["decided_at"] = invalid_decision_time
+        invalid_pack = deepcopy(pack)
+        invalid_raw, invalid_hashes = _coordinate_all_external_hashes(invalid_pack, invalid_records)
+        with pytest.raises(CandidatePackError, match="applicability decision time"):
+            _validate_external_acceptance(
+                invalid_pack,
+                raw_candidate_pack_bytes=invalid_raw,
+                contract=contract,
+                raw_contract_bytes=raw_contract_bytes,
+                record_store=invalid_records,
+                hash_manifest=invalid_hashes,
+            )
+
+
+def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
+    contract, raw_contract_bytes, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    confirmed_records = deepcopy(record_store)
+    confirmed_row = confirmed_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]
+    confirmed_row["applicability"] = "not_applicable"
+    confirmed_row["rationale"] = "not_applicable_for_the_governed_task_scope"
+    _install_applicability_confirmation(confirmed_records)
+    confirmed_pack = deepcopy(pack)
+    confirmed_raw, confirmed_hashes = _coordinate_all_external_hashes(confirmed_pack, confirmed_records)
+    _validate_external_acceptance(
+        confirmed_pack,
+        raw_candidate_pack_bytes=confirmed_raw,
+        contract=contract,
+        raw_contract_bytes=raw_contract_bytes,
+        record_store=confirmed_records,
+        hash_manifest=confirmed_hashes,
+    )
+
+    missing_records = deepcopy(confirmed_records)
+    missing_records.pop(APPLICABILITY_CONFIRMATION_ID)
+    missing_pack = deepcopy(confirmed_pack)
+    missing_raw, missing_hashes = _coordinate_all_external_hashes(missing_pack, missing_records)
+    with pytest.raises(CandidatePackError, match="missing external record"):
+        _validate_external_acceptance(
+            missing_pack,
+            raw_candidate_pack_bytes=missing_raw,
+            contract=contract,
+            raw_contract_bytes=raw_contract_bytes,
+            record_store=missing_records,
+            hash_manifest=missing_hashes,
+        )
+
+    foreign_records = deepcopy(confirmed_records)
+    foreign_confirmation = foreign_records[APPLICABILITY_CONFIRMATION_ID]
+    foreign_confirmation["relationship_record_id"] = REVIEW_RELATIONSHIP_ID
+    foreign_confirmation["applicability_decision_sha256"] = _canonical_sha256(
+        {
+            **_applicability_decision_preimage(
+                foreign_records[REQUIREMENT_RECORD_ID],
+                foreign_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0],
+            ),
+            "relationship_record_id": REVIEW_RELATIONSHIP_ID,
+        }
+    )
+    foreign_row = foreign_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]
+    foreign_row["confirmation_record_sha256"] = _canonical_sha256(foreign_confirmation)
+    foreign_pack = deepcopy(confirmed_pack)
+    foreign_raw, foreign_hashes = _coordinate_all_external_hashes(foreign_pack, foreign_records)
+    with pytest.raises(CandidatePackError, match="does not bind the exact decision"):
+        _validate_external_acceptance(
+            foreign_pack,
+            raw_candidate_pack_bytes=foreign_raw,
+            contract=contract,
+            raw_contract_bytes=raw_contract_bytes,
+            record_store=foreign_records,
+            hash_manifest=foreign_hashes,
         )

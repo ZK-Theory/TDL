@@ -245,9 +245,15 @@
     },
     "externalAcceptanceEvidence": {
       "type": "object",
-      "required": ["required_record_types", "candidate_may_supply_record_bodies", "record_resolution", "canonical_actor_resolution", "pack_review_and_owner_subject", "review_and_owner_decision_subject_must_match", "minimum_independence_grade", "required_distinct_pairs", "required_temporal_order", "owner_authority_resolution", "role_labels_or_candidate_attestations_are_evidence", "hash_validity_alone_is_sufficient"],
+      "required": ["required_record_types", "conditionally_required_record_types", "candidate_may_supply_record_bodies", "record_resolution", "canonical_actor_resolution", "pack_review_and_owner_subject", "review_and_owner_decision_subject_must_match", "minimum_independence_grade", "required_distinct_pairs", "required_temporal_order", "owner_authority_resolution", "role_labels_or_candidate_attestations_are_evidence", "hash_validity_alone_is_sufficient"],
       "properties": {
         "required_record_types": {"$ref": "#/$defs/nonEmptyStrings"},
+        "conditionally_required_record_types": {
+          "type": "array",
+          "prefixItems": [{"const": "obligation_applicability_confirmation"}],
+          "minItems": 1,
+          "maxItems": 1
+        },
         "candidate_may_supply_record_bodies": {"const": false},
         "record_resolution": {"const": "canonical_store_by_id_and_exact_hash"},
         "canonical_actor_resolution": {"const": "every_actor_id_resolves_to_active_canonical_actor_record"},
@@ -286,8 +292,8 @@
       "type": "object",
       "required": ["record_class", "record_type", "schema_id", "schema_version", "repository_path", "schema_json_pointer", "schema_git_blob", "schema_canonical_sha256"],
       "properties": {
-        "record_class": {"enum": ["canonical_actor", "producer_relationship_evidence", "contract_schema_authorship", "independent_contract_review", "independent_schema_review", "stephen_contract_schema_acceptance", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
-        "record_type": {"enum": ["canonical_actor", "producer_relationship_evidence", "contract_schema_authorship", "independent_contract_review", "independent_schema_review", "stephen_contract_schema_acceptance", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
+        "record_class": {"enum": ["canonical_actor", "producer_relationship_evidence", "contract_schema_authorship", "independent_contract_review", "independent_schema_review", "stephen_contract_schema_acceptance", "accepted_assurance_requirement", "obligation_applicability_confirmation", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
+        "record_type": {"enum": ["canonical_actor", "producer_relationship_evidence", "contract_schema_authorship", "independent_contract_review", "independent_schema_review", "stephen_contract_schema_acceptance", "accepted_assurance_requirement", "obligation_applicability_confirmation", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
         "schema_id": {"type": "string", "pattern": "^ars://assurance/records/[a-z0-9-]+/1\\.0$"},
         "schema_version": {"const": "1.0.0"},
         "repository_path": {"const": ".research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json"},
@@ -305,12 +311,12 @@
         "schema_document_byte_surface": {"const": "git_blob_utf8_lf"},
         "exact_schema_rows": {
           "type": "array",
-          "minItems": 11,
-          "maxItems": 11,
+          "minItems": 12,
+          "maxItems": 12,
           "uniqueItems": true,
           "items": {"$ref": "#/$defs/externalRecordSchemaRow"}
         },
-        "exact_schema_count": {"const": 11},
+        "exact_schema_count": {"const": 12},
         "every_resolved_record_schema_validated": {"const": true},
         "hash_validity_alone_is_sufficient": {"const": false}
       },
@@ -366,8 +372,24 @@
         "prospective_producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "minimum_independence_grade": {"enum": ["I2", "I3"]},
-        "decided_at": {"type": "string", "format": "date-time"}
+        "decided_at": {"type": "string", "format": "date-time"},
+        "confirmation_record_id": {"type": "string", "pattern": "^apc_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "confirmation_record_sha256": {"$ref": "#/$defs/sha256"}
       },
+      "allOf": [
+        {
+          "if": {"properties": {"applicability": {"const": "not_applicable"}}, "required": ["applicability"]},
+          "then": {"required": ["confirmation_record_id", "confirmation_record_sha256"]},
+          "else": {
+            "not": {
+              "anyOf": [
+                {"required": ["confirmation_record_id"]},
+                {"required": ["confirmation_record_sha256"]}
+              ]
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "packSubject": {
@@ -500,6 +522,33 @@
         "outcome": {"const": "accepted"},
         "decision_state": {"const": "active"},
         "decided_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "obligationApplicabilityConfirmationRecord": {
+      "$id": "ars://assurance/records/obligation-applicability-confirmation/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "confirmation_record_id", "assurance_requirement_id", "revision", "subject_contract", "lane_id", "obligation_id", "applicability", "rationale", "applicability_decision_sha256", "decision_author_actor_id", "confirming_actor_id", "prospective_producer_actor_id", "relationship_record_id", "minimum_independence_grade", "decided_at", "confirmation_state", "confirmed_at"],
+      "properties": {
+        "record_type": {"const": "obligation_applicability_confirmation"},
+        "confirmation_record_id": {"type": "string", "pattern": "^apc_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "assurance_requirement_id": {"type": "string", "pattern": "^asr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "revision": {"type": "integer", "minimum": 1},
+        "subject_contract": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "lane_id": {"enum": ["topology", "stochastic_null", "statistical_panel", "representation", "output_provenance", "paper_claim"]},
+        "obligation_id": {"type": "string", "pattern": "^[a-z_]+\\.[a-z0-9_]+$"},
+        "applicability": {"const": "not_applicable"},
+        "rationale": {"type": "string", "minLength": 1},
+        "applicability_decision_sha256": {"$ref": "#/$defs/sha256"},
+        "decision_author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "confirming_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "prospective_producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "decided_at": {"type": "string", "format": "date-time"},
+        "confirmation_state": {"const": "active"},
+        "confirmed_at": {"type": "string", "format": "date-time"}
       },
       "additionalProperties": false
     },
