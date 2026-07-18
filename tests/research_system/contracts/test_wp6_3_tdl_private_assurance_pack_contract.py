@@ -2181,12 +2181,13 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
             hash_manifest=hash_manifest,
         )
     with pytest.raises(TypeError, match="unexpected keyword argument"):
+        caller_controlled_authority = {"trusted_contract_resolver": eligible_contract_resolver}
         _validate_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             record_store=record_store,
             hash_manifest=hash_manifest,
-            trusted_contract_resolver=eligible_contract_resolver,
+            **caller_controlled_authority,
         )
     tampered_pack = deepcopy(pack)
     tampered_pack["currency"]["expires_at"] = "2028-07-18T09:00:00Z"
