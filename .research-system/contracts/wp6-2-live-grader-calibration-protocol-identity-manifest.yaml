@@ -36,8 +36,8 @@ semantic_validator_identity:
   semantic_validator_version: 1.0.0
   semantic_validator_path: .research-system/contracts/wp6_2_live_grader_calibration_future_result_semantics.py
   public_api: validate_future_result_semantics
-  canonical_sha256: ba05254213310efae954be2e17160ee5abfdedc4736c83b6c0a1dc26596f31ff
-  git_blob_sha1: 6b913f0a3a0184b3808bd35ccbc2ccbfccdf66e3
+  canonical_sha256: f5e383e95303c09ca3010e60de93d38e2f6e31fd9f491337c2f49f628d3d9a8f
+  git_blob_sha1: 037933cc4f7329df459ae8d0af010d8f9e8238aa
   status: pure_prospective_semantic_validator_no_io_or_acceptance_authority
 review_identity:
   review_round: R1

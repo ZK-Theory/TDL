@@ -44,11 +44,6 @@ def canonical_record_sha256(record: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _git_blob_sha1(payload: bytes) -> str:
-    header = f"blob {len(payload)}\0".encode("ascii")
-    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
-
-
 def _fail(message: str) -> None:
     raise FutureResultSemanticError(message)
 
@@ -88,11 +83,6 @@ def _authenticate_protocol(
         hashlib.sha256(protocol_canonical_bytes).hexdigest(),
         protocol_identity["canonical_sha256"],
         "protocol canonical byte SHA-256",
-    )
-    _require_exact_value(
-        _git_blob_sha1(protocol_canonical_bytes),
-        protocol_identity["git_blob_sha1"],
-        "protocol canonical byte Git blob SHA-1",
     )
     _require_exact_value(protocol, parsed, "protocol mapping differs from authenticated canonical bytes")
     _require_exact_value(parsed["protocol_id"], protocol_identity["contract_id"], "protocol contract_id")
@@ -601,7 +591,7 @@ def validate_future_result_semantics(
         protocol: Parsed protocol mapping. It must equal the mapping parsed from
             ``protocol_canonical_bytes`` exactly.
         protocol_canonical_bytes: Authenticated UTF-8/LF protocol bytes whose SHA-256
-            and Git blob SHA-1 match the scoped identity manifest.
+            matches the scoped identity manifest.
         identity_manifest: Closed, schema-validated T1a identity manifest.
         accepted_authority_records: Trusted caller-supplied records resolved from an
             independent store, never from the candidate.
