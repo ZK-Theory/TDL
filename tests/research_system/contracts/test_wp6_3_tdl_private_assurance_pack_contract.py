@@ -1,6 +1,7 @@
 import hashlib
 import json
 import subprocess
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -330,16 +331,39 @@ def _raw_contract_bytes(contract: dict) -> bytes:
     return raw
 
 
-def _contract_subject(raw_contract_bytes: bytes) -> dict:
+ContractAuthorityResolver = Callable[[], tuple[bytes, str]]
+
+
+def _fixture_contract_authority(contract: dict) -> ContractAuthorityResolver:
+    """Freeze a hypothetical contract behind an explicit test-only trust seam."""
+    raw_contract_bytes = _raw_contract_bytes(contract)
+    contract_blob = _git_blob_id_without_filters(raw_contract_bytes)
+
+    def resolve() -> tuple[bytes, str]:
+        return raw_contract_bytes, contract_blob
+
+    return resolve
+
+
+def _resolve_contract_authority(
+    trusted_contract_resolver: ContractAuthorityResolver | None = None,
+) -> tuple[bytes, dict, dict]:
+    """Resolve contract bytes from Git, or an explicit trusted hypothetical-fixture seam."""
+    resolver = trusted_contract_resolver or (lambda: _resolve_committed_bytes(CONTRACT_PATH))
+    raw_contract_bytes, trusted_contract_blob = resolver()
+    computed_contract_blob = _git_blob_id_without_filters(raw_contract_bytes)
+    if computed_contract_blob != trusted_contract_blob:
+        raise CandidatePackError("trusted contract resolver returned bytes outside its Git-blob authority")
     parsed = yaml.safe_load(raw_contract_bytes.decode("utf-8"))
     _schema_registry().validate(CONTRACT_SCHEMA_ID, parsed)
-    return {
+    subject = {
         "schema_id": CONTRACT_SCHEMA_ID,
         "schema_version": "1.0.0",
         "repository_path": _repo_relative_path(CONTRACT_PATH),
-        "git_blob": _git_blob_id_without_filters(raw_contract_bytes),
+        "git_blob": trusted_contract_blob,
         "canonical_sha256": hashlib.sha256(raw_contract_bytes).hexdigest(),
     }
+    return raw_contract_bytes, parsed, subject
 
 
 def _raw_pack_bytes(pack: dict, *, leading_comment: str | None = None, reverse_top_level: bool = False) -> bytes:
@@ -636,18 +660,15 @@ def _validate_proposed_pack(
     pack: dict,
     *,
     contract: dict | None = None,
-    raw_contract_bytes: bytes | None = None,
+    trusted_contract_resolver: ContractAuthorityResolver | None = None,
     require_active_references: bool = False,
     registered_pack_ids: frozenset[str] = frozenset({ASSURANCE_PACK_ID}),
     as_of: datetime = AS_OF,
 ) -> None:
-    if raw_contract_bytes is None:
-        raw_contract_bytes, _ = _resolve_committed_bytes(CONTRACT_PATH)
-    parsed_contract = yaml.safe_load(raw_contract_bytes.decode("utf-8"))
+    _, parsed_contract, accepted_contract_subject = _resolve_contract_authority(trusted_contract_resolver)
     contract = contract or parsed_contract
     if contract != parsed_contract:
-        raise CandidatePackError("upstream contract bytes do not parse to the supplied contract")
-    accepted_contract_subject = _contract_subject(raw_contract_bytes)
+        raise CandidatePackError("supplied contract differs from trusted Git contract authority")
     _schema_registry().validate(CONTRACT_SCHEMA_ID, contract)
     _schema_registry().validate(PACK_SCHEMA_ID, pack)
     _validate_pending_reference_relation(contract)
@@ -1067,14 +1088,17 @@ def _coordinate_all_external_hashes(pack: dict, record_store: dict[str, dict]) -
     return raw_candidate_pack_bytes, hash_manifest
 
 
-def _eligible_acceptance_fixture() -> tuple[dict, bytes, dict, bytes, dict[str, dict], dict[str, str]]:
+def _eligible_acceptance_fixture() -> (
+    tuple[dict, ContractAuthorityResolver, dict, bytes, dict[str, dict], dict[str, str]]
+):
     contract = _eligible_contract()
     _schema_registry().validate(CONTRACT_SCHEMA_ID, contract)
     _validate_pending_reference_relation(contract)
-    raw_contract_bytes = _raw_contract_bytes(contract)
-    pack = _proposed_pack(contract, contract_subject=_contract_subject(raw_contract_bytes))
+    contract_resolver = _fixture_contract_authority(contract)
+    _, _, contract_subject = _resolve_contract_authority(contract_resolver)
+    pack = _proposed_pack(contract, contract_subject=contract_subject)
     pack, raw_candidate_pack_bytes, record_store, hash_manifest = _external_records(pack, contract)
-    return contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest
+    return contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest
 
 
 def _resolved_record(
@@ -1114,7 +1138,7 @@ def _validate_external_acceptance(
     *,
     raw_candidate_pack_bytes: bytes,
     contract: dict,
-    raw_contract_bytes: bytes,
+    trusted_contract_resolver: ContractAuthorityResolver,
     record_store: dict[str, dict],
     hash_manifest: dict[str, str],
     review_record_id: str = REVIEW_RECORD_ID,
@@ -1127,11 +1151,13 @@ def _validate_external_acceptance(
     _validate_proposed_pack(
         parsed_pack,
         contract=contract,
-        raw_contract_bytes=raw_contract_bytes,
+        trusted_contract_resolver=trusted_contract_resolver,
         require_active_references=True,
         as_of=as_of,
     )
-    accepted_contract_subject = _contract_subject(raw_contract_bytes)
+    _, trusted_contract, accepted_contract_subject = _resolve_contract_authority(trusted_contract_resolver)
+    if trusted_contract != contract:
+        raise CandidatePackError("supplied contract differs from trusted Git contract authority")
     accepted_pack_schema_subject = _resolve_external_schema_reference()
     authorship = _resolved_record(
         contract,
@@ -1572,14 +1598,14 @@ def test_candidate_schema_is_proposed_only_and_has_no_acceptance_surface():
 
 
 def test_external_acceptance_requires_independent_exact_subject_records():
-    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
     _validate_external_acceptance(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
-        raw_contract_bytes=raw_contract_bytes,
+        trusted_contract_resolver=contract_resolver,
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
@@ -1595,7 +1621,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             same_author_pack,
             raw_candidate_pack_bytes=same_author_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=same_author,
             hash_manifest=same_author_hashes,
         )
@@ -1611,7 +1637,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=wrong_review_subject,
             hash_manifest=wrong_review_hashes,
         )
@@ -1625,7 +1651,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=wrong_owner_subject,
             hash_manifest=wrong_owner_hashes,
         )
@@ -1637,7 +1663,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=no_owner_grant,
             hash_manifest=hash_manifest,
         )
@@ -1650,7 +1676,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             actor_alias,
             raw_candidate_pack_bytes=_raw_pack_bytes(actor_alias),
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=record_store,
             hash_manifest=hash_manifest,
         )
@@ -1687,7 +1713,7 @@ def test_hash_valid_external_record_semantic_mutations_are_rejected():
         "review before candidate": lambda records: records[REVIEW_RECORD_ID].update(reviewed_at="2026-07-18T08:50:00Z"),
     }
     for _label, mutate in mutations.items():
-        contract, raw_contract_bytes, pack, _, record_store, _ = _eligible_acceptance_fixture()
+        contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
         mutate(record_store)
         raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
         with pytest.raises(CandidatePackError):
@@ -1695,14 +1721,14 @@ def test_hash_valid_external_record_semantic_mutations_are_rejected():
                 pack,
                 raw_candidate_pack_bytes=raw_candidate_pack_bytes,
                 contract=contract,
-                raw_contract_bytes=raw_contract_bytes,
+                trusted_contract_resolver=contract_resolver,
                 record_store=record_store,
                 hash_manifest=hash_manifest,
             )
 
 
 def test_raw_candidate_bytes_define_portable_review_subject():
-    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
     baseline_subject = _pack_subject(raw_candidate_pack_bytes, expected_pack=pack)
@@ -1724,7 +1750,7 @@ def test_raw_candidate_bytes_define_portable_review_subject():
                 pack,
                 raw_candidate_pack_bytes=candidate_bytes,
                 contract=contract,
-                raw_contract_bytes=raw_contract_bytes,
+                trusted_contract_resolver=contract_resolver,
                 record_store=record_store,
                 hash_manifest=hash_manifest,
             )
@@ -1800,23 +1826,25 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     _schema_registry().validate(CONTRACT_SCHEMA_ID, eligible_contract)
     assert eligible_contract["required_pack_contract"]["references"]["current_pending_reference_ids"] == []
     _validate_pending_reference_relation(eligible_contract)
-    eligible_contract_bytes = _raw_contract_bytes(eligible_contract)
-    eligible = _proposed_pack(eligible_contract, contract_subject=_contract_subject(eligible_contract_bytes))
+    eligible_contract_resolver = _fixture_contract_authority(eligible_contract)
+    _, _, eligible_contract_subject = _resolve_contract_authority(eligible_contract_resolver)
+    eligible = _proposed_pack(eligible_contract, contract_subject=eligible_contract_subject)
     _validate_proposed_pack(
         eligible,
         contract=eligible_contract,
-        raw_contract_bytes=eligible_contract_bytes,
+        trusted_contract_resolver=eligible_contract_resolver,
         require_active_references=True,
     )
 
     missing_pending = _load_yaml(CONTRACT_PATH)
     missing_pending["required_pack_contract"]["references"]["current_pending_reference_ids"].pop()
-    missing_pending_bytes = _raw_contract_bytes(missing_pending)
+    missing_pending_resolver = _fixture_contract_authority(missing_pending)
+    _, _, missing_pending_subject = _resolve_contract_authority(missing_pending_resolver)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
         _validate_proposed_pack(
-            _proposed_pack(missing_pending, contract_subject=_contract_subject(missing_pending_bytes)),
+            _proposed_pack(missing_pending, contract_subject=missing_pending_subject),
             contract=missing_pending,
-            raw_contract_bytes=missing_pending_bytes,
+            trusted_contract_resolver=missing_pending_resolver,
         )
 
     stale_pending = _eligible_contract()
@@ -1824,25 +1852,27 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
         "contract/topology-invariants/null-operation-changes-ph-input"
     )
     _schema_registry().validate(CONTRACT_SCHEMA_ID, stale_pending)
-    stale_pending_bytes = _raw_contract_bytes(stale_pending)
+    stale_pending_resolver = _fixture_contract_authority(stale_pending)
+    _, _, stale_pending_subject = _resolve_contract_authority(stale_pending_resolver)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
         _validate_proposed_pack(
-            _proposed_pack(stale_pending, contract_subject=_contract_subject(stale_pending_bytes)),
+            _proposed_pack(stale_pending, contract_subject=stale_pending_subject),
             contract=stale_pending,
-            raw_contract_bytes=stale_pending_bytes,
+            trusted_contract_resolver=stale_pending_resolver,
         )
 
     omitted_contract = _load_yaml(CONTRACT_PATH)
     omitted_contract["required_pack_contract"]["lanes"]["topology"]["exact_governing_reference_ids"].remove(
         "skill/paper-claim-trace"
     )
-    omitted_contract_bytes = _raw_contract_bytes(omitted_contract)
-    omitted_pack = _proposed_pack(omitted_contract, contract_subject=_contract_subject(omitted_contract_bytes))
+    omitted_contract_resolver = _fixture_contract_authority(omitted_contract)
+    _, _, omitted_contract_subject = _resolve_contract_authority(omitted_contract_resolver)
+    omitted_pack = _proposed_pack(omitted_contract, contract_subject=omitted_contract_subject)
     with pytest.raises(CandidatePackError, match="enforcer is omitted"):
         _validate_proposed_pack(
             omitted_pack,
             contract=omitted_contract,
-            raw_contract_bytes=omitted_contract_bytes,
+            trusted_contract_resolver=omitted_contract_resolver,
         )
 
     foreign_valid = _proposed_pack()
@@ -2000,25 +2030,38 @@ def test_distribution_currency_and_identity_mutations_fail_closed():
 
 
 def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_authority():
+    coordinated_contract = _eligible_contract()
+    coordinated_resolver = _fixture_contract_authority(coordinated_contract)
+    _, _, coordinated_subject = _resolve_contract_authority(coordinated_resolver)
+    coordinated_candidate = _proposed_pack(
+        coordinated_contract,
+        contract_subject=coordinated_subject,
+    )
+    with pytest.raises(CandidatePackError, match="trusted Git contract authority"):
+        _validate_proposed_pack(
+            coordinated_candidate,
+            contract=coordinated_contract,
+            require_active_references=True,
+        )
+
     accepted_contract = _load_yaml(CONTRACT_PATH)
-    frozen_contract_bytes = _raw_contract_bytes(accepted_contract)
     candidate = _proposed_pack(accepted_contract)
     expected_row = accepted_contract["required_pack_contract"]["references"]["exact_reference_rows"][0]
     expected_row["canonical_sha256"] = "f" * 64
     candidate_row = candidate["references"]["contract_references"][0]
     candidate_row["canonical_sha256"] = "f" * 64
-    with pytest.raises(CandidatePackError, match="bytes do not parse"):
+    with pytest.raises(CandidatePackError, match="trusted Git contract authority"):
         _validate_proposed_pack(
             candidate,
             contract=accepted_contract,
-            raw_contract_bytes=frozen_contract_bytes,
         )
 
     eligible_contract = _eligible_contract()
-    eligible_contract_bytes = _raw_contract_bytes(eligible_contract)
+    eligible_contract_resolver = _fixture_contract_authority(eligible_contract)
+    _, _, eligible_contract_subject = _resolve_contract_authority(eligible_contract_resolver)
     eligible_pack = _proposed_pack(
         eligible_contract,
-        contract_subject=_contract_subject(eligible_contract_bytes),
+        contract_subject=eligible_contract_subject,
     )
     pack, _, record_store, hash_manifest = _external_records(eligible_pack, eligible_contract)
     tampered_pack = deepcopy(pack)
@@ -2031,7 +2074,7 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
             tampered_pack,
             raw_candidate_pack_bytes=tampered_raw,
             contract=eligible_contract,
-            raw_contract_bytes=eligible_contract_bytes,
+            trusted_contract_resolver=eligible_contract_resolver,
             record_store=tampered_review,
             hash_manifest=frozen_external_manifest,
         )
@@ -2188,7 +2231,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     was redundant with it, was never joined to the resolved requirement, and has been
     removed from the schema rather than independently bound — removing a duplicate
     unenforced authority is preferred over adding a second one to reconcile."""
-    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
     assert "canonical_sha256" not in pack["assurance_requirement_reference"]
@@ -2196,7 +2239,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
-        raw_contract_bytes=raw_contract_bytes,
+        trusted_contract_resolver=contract_resolver,
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
@@ -2207,7 +2250,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     reintroduced = deepcopy(pack)
     reintroduced["assurance_requirement_reference"]["canonical_sha256"] = "a" * 64
     with pytest.raises(SchemaError, match="canonical_sha256"):
-        _validate_proposed_pack(reintroduced, contract=contract, raw_contract_bytes=raw_contract_bytes)
+        _validate_proposed_pack(reintroduced, contract=contract, trusted_contract_resolver=contract_resolver)
 
     # one-field substitution: candidate claims an acceptance_record_sha256 that does
     # not match the resolved external requirement record's actual content hash.
@@ -2219,7 +2262,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
             one_field,
             raw_candidate_pack_bytes=one_field_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=record_store,
             hash_manifest=hash_manifest,
         )
@@ -2243,7 +2286,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
             coordinated_pack,
             raw_candidate_pack_bytes=coordinated_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=coordinated_store,
             hash_manifest=coordinated_hashes,
         )
@@ -2268,7 +2311,7 @@ def test_contract_schema_lifecycle_requires_content_addressed_external_authority
     assert lifecycle_record_types <= required_record_types
     assert lifecycle_record_types <= schema_rows
 
-    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
     for missing_record_id in (
@@ -2284,7 +2327,7 @@ def test_contract_schema_lifecycle_requires_content_addressed_external_authority
                 pack,
                 raw_candidate_pack_bytes=raw_candidate_pack_bytes,
                 contract=contract,
-                raw_contract_bytes=raw_contract_bytes,
+                trusted_contract_resolver=contract_resolver,
                 record_store=missing_records,
                 hash_manifest=hash_manifest,
             )
@@ -2318,7 +2361,7 @@ def test_contract_schema_lifecycle_requires_content_addressed_external_authority
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=coordinated_records,
             hash_manifest=coordinated_hashes,
         )
@@ -2326,7 +2369,7 @@ def test_contract_schema_lifecycle_requires_content_addressed_external_authority
 
 def test_accepted_requirement_binds_content_subject_and_exact_obligation_applicability_rows():
     """The accepted requirement must bind immutable content and every pack obligation."""
-    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+    contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
     requirement = record_store[REQUIREMENT_RECORD_ID]
@@ -2353,7 +2396,7 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
             missing_pack,
             raw_candidate_pack_bytes=missing_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=missing_records,
             hash_manifest=missing_hashes,
         )
@@ -2371,7 +2414,7 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
             producer_only_pack,
             raw_candidate_pack_bytes=producer_only_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=producer_only_records,
             hash_manifest=producer_only_hashes,
         )
@@ -2385,14 +2428,14 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
             coordinated_pack,
             raw_candidate_pack_bytes=coordinated_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=coordinated_records,
             hash_manifest=coordinated_hashes,
         )
 
 
 def test_applicability_decision_times_are_bounded_by_relationship_and_acceptance():
-    contract, raw_contract_bytes, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
     invalid_decision_times = (
         "2026-07-18T08:14:59Z",  # before relationship effective time
         "2026-07-18T08:30:01Z",  # after requirement acceptance
@@ -2409,14 +2452,14 @@ def test_applicability_decision_times_are_bounded_by_relationship_and_acceptance
                 invalid_pack,
                 raw_candidate_pack_bytes=invalid_raw,
                 contract=contract,
-                raw_contract_bytes=raw_contract_bytes,
+                trusted_contract_resolver=contract_resolver,
                 record_store=invalid_records,
                 hash_manifest=invalid_hashes,
             )
 
 
 def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
-    contract, raw_contract_bytes, pack, _, record_store, _ = _eligible_acceptance_fixture()
+    contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
     confirmed_records = deepcopy(record_store)
     confirmed_row = confirmed_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]
     confirmed_row["applicability"] = "not_applicable"
@@ -2428,7 +2471,7 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
         confirmed_pack,
         raw_candidate_pack_bytes=confirmed_raw,
         contract=contract,
-        raw_contract_bytes=raw_contract_bytes,
+        trusted_contract_resolver=contract_resolver,
         record_store=confirmed_records,
         hash_manifest=confirmed_hashes,
     )
@@ -2442,7 +2485,7 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
             missing_pack,
             raw_candidate_pack_bytes=missing_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=missing_records,
             hash_manifest=missing_hashes,
         )
@@ -2468,7 +2511,7 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
             foreign_pack,
             raw_candidate_pack_bytes=foreign_raw,
             contract=contract,
-            raw_contract_bytes=raw_contract_bytes,
+            trusted_contract_resolver=contract_resolver,
             record_store=foreign_records,
             hash_manifest=foreign_hashes,
         )
