@@ -1,0 +1,49 @@
+id: paper-table-source-reconciliation
+kind: invariant
+
+description: >
+  Every numeric cell presented as an inferential result in the P01-B §4.2
+  Markov-ladder table (Table 2) must reconcile to a certified source value, and
+  any Wasserstein-2 cell presented as inferential must be backed by a source JSON
+  recording the solver actually used as exact. An unstamped or greedy_rank source
+  is refused: gudhi.wasserstein degrades silently to greedy persistence-rank
+  matching when POT is unavailable — exact for H0 (births at zero, so rank
+  matching is optimal one-dimensional transport) but ~18x inflated for H1 — so an
+  unstamped W2 may be that artifact. This mechanises the code-review finding that
+  the Markov-2 rows presented uncertified W2 statistics under a false
+  "landscape L2 not computed" footnote that concealed the certified landscape
+  values.
+
+spec_citation:
+  source: "P01-B §4.2 results table (papers/P01-B-JRSSB/drafts/sections/results-4-2-tables.md); CodeRabbit finding on Markov-2 unaudited T/effect/p presented as inferential; WT-1c greedy-fallback investigation (2026-07-14)"
+  vault_entry_date: "2026-07-17"
+
+invariant:
+  claim: >
+    For the P01-B §4.2 Markov-ladder table, each Markov-2 alpha=1 landscape L2
+    cell equals its certified source value, and no Markov-2 W2-derived cell
+    (T, d_perm, or permutation p) is presented as a number unless its source JSON
+    records the solver actually used as exact (a backend_versions record or
+    convention == 'exact'). A held cell — a dash marker with no digit — presents
+    no result and is permitted.
+  preconditions:
+    - "The table is the governed §4.2 section file with a Markov-2 alpha=1 row per dataset and homology dimension."
+    - "Landscape L2 is computed on a solver-independent path and is therefore certifiable independent of the W2 solver."
+  counter_example_history: >
+    2026-07-17: the Markov-2 rows presented T, d_perm and W2 p as inferential
+    results computed by an alpha-sweep that ran before POT was a hard dependency
+    (commit 6b71cb2, 2026-06-08; runner hardened 2026-06-16), with no solver stamp
+    in the result JSON, while a footnote falsely stated landscape L2 "was not
+    computed" — concealing certified landscape values (USoc H0 0.258, H1 0.003,
+    BHPS H0/H1 <0.001) and two dual-metric divergences.
+
+binding:
+  test_file: "tests/contracts/test_paper_table_reconciliation.py"
+  test_function: "test_paper_table_source_reconciliation"
+  must_assert: >
+    The reconciler REJECTS (a) a Markov-2 landscape cell whose printed value
+    disagrees with the certified value (the 'n/a / not computed' falsehood); and
+    (b) a Markov-2 W2-derived cell (T, d_perm, or permutation p) presented as a
+    number while the source JSON carries no exact-solver stamp. It ACCEPTS the
+    fixed committed table (W2 held, landscape values correct) and accepts a
+    numeric W2 once the source records convention == 'exact'.

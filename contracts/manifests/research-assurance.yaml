@@ -13,6 +13,7 @@ contracts:
   - stochastic-tests/markov-order-provenance
   - stochastic-tests/sample-provenance-ledger-block
   - stochastic-tests/sample-provenance-ledger
+  - data-provenance/paper-table-source-reconciliation
 
 notes: >
   The null-operation and Markov-order contracts are pending:true — their binding tests
@@ -26,3 +27,7 @@ notes: >
   the schema is exercised against real battery outputs. Already-covered checks
   (p-value denominator, frozen-loadings comparability, JSON schema completeness)
   are NOT duplicated here — see the T1.36 manifest and the foo-topology schemas.
+  The paper-table-source-reconciliation invariant is active (not pending): its
+  binding test (tests/contracts/test_paper_table_reconciliation.py) is authored
+  on the same branch and gates the P01-B §4.2 table against its certified sources
+  and the exact-solver stamp requirement.
