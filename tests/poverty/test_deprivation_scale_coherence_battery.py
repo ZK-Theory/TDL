@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from poverty_tda.scripts import run_deprivation_scale_coherence as driver
 from poverty_tda.scripts.run_deprivation_scale_coherence import (
     PreparedLad,
     _peak_rss_mb,
@@ -155,3 +156,40 @@ def test_staged_assembly_refuses_an_incomplete_batch_set(tmp_path) -> None:
 
     with pytest.raises(FileNotFoundError, match="batch_1.json"):
         load_staged_batch_rows(plan, tmp_path)
+
+
+def test_assemble_result_reconstructs_deferred_tail_inference(monkeypatch) -> None:
+    monkeypatch.setattr(driver, "validate_result_payload", lambda payload: None)
+    row = {
+        "lad_code": "E1",
+        "lad_name": "One",
+        "n_lsoas": 150,
+        "observed": {"h1_total_area": 1.0},
+        "null_h1_total_area": [1.0, 2.0, 3.0],
+        "null_summary": {"mean": 2.0, "standard_deviation": 1.0},
+        "null_validity": {"valid": True, "reasons": []},
+        "redundant": False,
+        "runtime": {"peak_rss_mb": 10.0},
+    }
+
+    payload = driver.assemble_result(
+        [row],
+        frozen_family={
+            "eligible_count": 1,
+            "members": [{"lad_code": "E1", "lad_name": "One", "n_lsoas": 150}],
+            "family_sha256": "family-sha",
+            "frozen_at": "2026-07-16T00:00:00+00:00",
+        },
+        input_hashes={"input": "sha"},
+        workers=8,
+        preflight={"estimated_wall_time_hours": 1.0},
+        pilot={"lad_code": "E08000025", "observed": {"h1_total_area": 27.0}, "p_lower": 0.01},
+        invariance_audit={"verdict": "VALID NULL"},
+        elapsed_seconds=1.0,
+    )
+
+    assembled = payload["lad_results"][0]
+    assert assembled["p_lower"] == 0.5
+    assert assembled["p_upper"] == 1.0
+    assert assembled["null_summary"]["observed_percentile"] == pytest.approx(100.0 / 3.0)
+    assert assembled["p_fdr"] == 0.5

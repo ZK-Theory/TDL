@@ -842,7 +842,7 @@ def assemble_result(
     for row in rows:
         p_lower, p_upper, percentile = empirical_tail_pvalues(
             np.asarray(row["null_h1_total_area"], dtype=np.float64),
-            float(row["observed"]["h1_total_area"]),
+            observed=float(row["observed"]["h1_total_area"]),
         )
         row["p_lower"] = p_lower
         row["p_upper"] = p_upper
