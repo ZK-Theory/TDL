@@ -1,9 +1,9 @@
 # W11 — Portfolio and Discovery Lifecycle Specification
 
 **Date:** 2026-07-18
-**Status:** `review_pending`; revision 0.3 reconciles both binding
-`rework_required` reviews and requires fresh independent R3 review; specification only
-**Specification version:** 0.3
+**Status:** `review_pending`; revision 0.4 reconciles the binding R3
+`rework_required` review and requires fresh independent R4 review; specification only
+**Specification version:** 0.4
 **Design authority:** accepted W1/W2/W4/W5 specifications; P-004, P-005,
 P-021, P-022, P-026, P-032, P-034, and P-036; WP6 master revision
 `fe5f1d40bc8f05f061317c677b5891cea0711249` approved under P-036
@@ -22,8 +22,12 @@ verdict `rework_required` (2 Critical, 6 Major, 2 Minor).
 **R2 review:** exact subject `d24df9d26f0d906d177eafa1eaeabb65a5515004`;
 independent report commit `ecbad093182110b8a7474304f20e10f64981d7bd`;
 verdict `rework_required` (0 Critical, 5 Major, 0 Minor). Revision 0.3
-dispositions every R1/R2 finding but does not accept itself; a fresh independent R3
-reviewer must inspect the new exact commit.
+dispositions every R1/R2 finding but does not accept itself.
+**R3 review:** exact subject `3e068c1ee5100e5a6e0bc57d0d047d993b406b2b`;
+independent report commit `1175c28f9e09f9bc94dff4a7a82913b985c6c0ef`;
+verdict `rework_required` (0 Critical, 6 Major, 0 Minor). Stephen approved the bounded
+R3-M2 external Git/blob bootstrap and R3-M6 annotation-epoch decisions on 2026-07-18;
+revision 0.4 dispositions every R3 finding but requires a fresh independent R4 review.
 
 ---
 
@@ -60,6 +64,14 @@ The binding choices are:
 6. Legacy-to-successor change is explicit per item and one way. The living legacy
    backlog remains legacy-written until a separate whole-path cutover after every
    item using that path has left `legacy_owned`.
+7. Future W11 schemas and their complete owner catalogue are reviewed and accepted as
+   exact Git paths/blobs/SHA-256 identities before any W11 runtime exists. A separately
+   accepted minimal bootstrap contract may later import that immutable envelope through
+   one independently verified genesis transaction; W11 runtime cannot produce or accept
+   its own prerequisite.
+8. Whole-path cutover freezes a registered annotation-inbox epoch. The cutover command
+   fences and re-observes that exact epoch before commit, while annotations arriving
+   after the fence are routed to a new successor epoch and are not silently stranded.
 
 This is WP6.5 only. It does **not** implement W11, perform WP6.6 admission, create
 `.research-system/` state, write `00-Meta/ARS/Discovery/`, ingest an annotation or
@@ -132,12 +144,12 @@ admission decision, and WP6.6 must use a deliberately re-versioned package.
 
 ### 2.4 Design-entry-criteria disposition
 
-| README criterion | Revision 0.3 disposition |
+| README criterion | Revision 0.4 disposition |
 |---|---|
-| 1. Decisions accepted or assumptions explicit | **Satisfied for authorship.** P-004/P-005/P-021/P-022/P-026/P-032/P-034/P-036 are accepted and preserved in §2.1; W11-A1 and both D-G6-4 limbs remain explicitly open. |
+| 1. Decisions accepted or assumptions explicit | **Satisfied for authorship.** P-004/P-005/P-021/P-022/P-026/P-032/P-034/P-036 are accepted and preserved in §2.1; Stephen approved the bounded external-catalogue bootstrap and annotation-epoch policies; W11-A1 and both D-G6-4 acceptance limbs remain explicitly open. |
 | 2. Evidence inputs in the evidence register | **Satisfied.** §2.2 resolves the base audit and the exact dated W11 live evidence to tracked root register §8, including paths, byte hashes, mutability and limitations. |
 | 3. Boundaries and consumers identified | **Satisfied.** §2.3 identifies W1/W2/W4/W5/W9/W10, Vault and external-service boundaries and consumers. |
-| 4. Independent review owner | **Satisfied for assignment, not acceptance.** The primary author, fresh I1 reviewer, Manager reconciler and Stephen acceptance authority are distinct. Both prior independent verdicts were `rework_required`; revision 0.3 requires a fresh exact-commit R3 review. |
+| 4. Independent review owner | **Satisfied for assignment, not acceptance.** The primary author, fresh I1 reviewer, Manager reconciler and Stephen acceptance authority are distinct. R1, R2 and R3 returned `rework_required`; revision 0.4 requires a fresh exact-commit R4 review. |
 | 5. Acceptance tests before implementation | **Satisfied for specification.** §11 maps 22 invariants to enforcement and §12 freezes 20 test families with complete expected authorities and stored relations; no test or schema is materialized here. |
 
 ## 3. Canonical terminology and record family
@@ -301,6 +313,15 @@ they are not serialized into the content they accept. An acceptance transaction 
 emit ordered `DecisionResolved` and typed `*Accepted` events, but neither event embeds
 the other's event hash; both bind the prior Decision ID, command ID and transaction ID.
 
+Every serialized `*_relation_hash` is computed before the enclosing `content_hash`
+over one separately enumerated relation object. Its preimage excludes the relation-hash
+field itself, the enclosing `content_hash`, and every file-observation, review,
+Decision, acceptance, transaction, record and event hash. The enclosing content may
+then carry the derived relation hash as an ordinary field. “Complete row” always means
+the named relation fields, never the serialized container or either derived hash. A
+materializer must expose the preimage field list and a topological-sort fixture; an
+implicit whole-record hash is invalid.
+
 The authority resolver constructs the graph in the displayed order and rejects a
 self-edge, backward edge, strongly connected component, missing stage, foreign-valid
 substitution, or field that moves review/acceptance state into content. It independently
@@ -308,15 +329,25 @@ recomputes every B/C hash and requires the accepted row relation to equal stored
 data. A candidate may be superseded only by a new content candidate that repeats this
 sequence; no in-place acceptance flag is mutable.
 
-The same ordering removes a second catalogue cycle. This W11 owner annex fixes logical
-schema IDs, subjects, events, reducers, projections and tests at Stage A. A later
-materialization task creates schema files at Stage B, independently observes their
-file identities at C, creates `W11SchemaCatalogueContent` from those already-existing
-schema identities at a later B node, and obtains external review/acceptance at D/E
-before any runtime registry or handler is produced at F. The catalogue serializes and
-checks the owner annex; it neither predates the schema files it hashes nor invents their
-semantics. No catalogue, schema registry, candidate manifest, parser, or runtime
-enumerator may generate both sides of its own completeness check.
+The catalogue uses a bounded pre-runtime variant of this ordering. This W11 owner annex
+fixes logical schema IDs, subjects, events, reducers, projections and tests at Stage A.
+A later materialization task creates schema files and `W11SchemaCatalogueContent` at B.
+An independent process that executes no W11 command opens the committed bytes and
+records their exact Git commit/path/blob, length and SHA-256 at C; a distinct reviewer
+reconstructs the complete owner/schema multiset and records a report at D. Stephen then
+accepts one external `W11CatalogueAcceptanceEnvelope` at E containing those exact
+identities, the review identity, the specification revision, owner-multiset hash and
+the separately reviewed bootstrap-contract identities. Only that external acceptance
+may authorize runtime implementation at F.
+
+After implementation, the first mutation is one `ImportAcceptedW11CatalogueGenesis`
+transaction executed by the independently verified bootstrap mechanism named in the
+envelope. It reopens every accepted byte subject, rejects any identity or multiset
+delta, writes only the imported catalogue authority and genesis provenance, and cannot
+review, accept, amend or regenerate the envelope. Its expected side is the external
+envelope, never a W11 runtime registry. No catalogue, schema registry, candidate
+manifest, parser, bootstrap importer or runtime enumerator may generate both sides of
+its own completeness check.
 
 ## 4. Discovery lifecycles, commands, and events
 
@@ -328,7 +359,7 @@ registered
        -> parked | killed | spike_planning_authorized
   -> assay_pending -> assay_partial -> assay_partial_reviewed
        -> assay_revisit_pending -> assay_retry_authorized | parked | killed
-  -> assay_pending -> assay_cancelled
+  -> assay_pending -> assay_cancelled -> assay_cancelled_reviewed
        -> assay_revisit_pending -> assay_retry_authorized | parked | killed
   -> spike_planning_authorized -> spike_approval_pending -> spike_authorized
        -> spike_running -> spike_verdict_recorded -> spike_decision_pending
@@ -336,6 +367,7 @@ registered
   -> spike_running -> spike_partial -> spike_partial_reviewed
        -> spike_revisit_pending -> spike_retry_authorized | parked | killed
   -> spike_approval_pending | spike_authorized | spike_running -> spike_cancelled
+       -> spike_cancelled_reviewed
        -> spike_revisit_pending -> spike_retry_authorized | parked | killed
   -> superseded
 ```
@@ -362,9 +394,10 @@ Assay instances project independently as:
 requested -> evidence_collecting -> scored -> reviewed
 requested/evidence_collecting -> partial | cancelled
 partial -> partial_reviewed
-partial_reviewed/cancelled -> revisit_pending -> retry_authorized
+cancelled -> cancelled_reviewed
+partial_reviewed/cancelled_reviewed -> revisit_pending -> retry_authorized
 revisit_pending --PARK/KILL--> prior terminal outcome + Decision overlay
-reviewed/partial_reviewed/cancelled/retry_authorized -> superseded
+reviewed/partial_reviewed/cancelled_reviewed/retry_authorized -> superseded
 ```
 
 Spike instances project independently as:
@@ -373,9 +406,10 @@ Spike instances project independently as:
 planned -> approval_pending -> authorized -> running -> verdict_recorded
 planned/approval_pending/authorized/running -> cancelled
 running -> partial; verdict_recorded -> reviewed; partial -> partial_reviewed
-partial_reviewed/cancelled -> revisit_pending -> retry_authorized
+cancelled -> cancelled_reviewed
+partial_reviewed/cancelled_reviewed -> revisit_pending -> retry_authorized
 revisit_pending --PARK/KILL--> prior terminal outcome + Decision overlay
-reviewed/partial_reviewed/cancelled/retry_authorized -> superseded
+reviewed/partial_reviewed/cancelled_reviewed/retry_authorized -> superseded
 ```
 
 A Candidate state never stands in for the Assay or Spike state. Paired operational
@@ -386,16 +420,20 @@ advances the Candidate past a promotion gate without the Decision batch below.
 
 | From aggregate / Candidate state | Command and exact authority subject | Ordered events and streams | Effect and only recovery |
 |---|---|---|---|
-| Assay `requested` or `evidence_collecting` / `assay_pending` | `CancelDiscoveryEvaluation / assay`; `assay_cancellation = assay_id + stored relation hash + reason/evidence hash` | `AssayCancelled` on old `asy_`; `CandidateEvaluationCancelled / assay` on Candidate | Old Assay and Candidate become `cancelled`/`assay_cancelled`; no promotion proposal; only reviewed `discovery_revisit` follows. |
+| Assay `requested` or `evidence_collecting` / `assay_pending` | `CancelDiscoveryEvaluation / assay`; `assay_cancellation = assay_id + stored relation hash + reason/evidence hash` | `AssayCancelled` on old `asy_`; `CandidateEvaluationCancelled / assay` on Candidate | Old Assay and Candidate become `cancelled`/`assay_cancelled`; no promotion proposal; OR-038/OR-039 review the exact cancellation before revisit. |
+| Assay `cancelled` / `assay_cancelled` | `RequestDiscoveryOutcomeReview / assay_cancelled`; exact cancellation event, reason/evidence, aggregate relation and proposed reviewer | `ReviewRequested`; `AssayCancellationReviewRequested` on review/`asy_` streams | Cancellation remains terminal with one unresolved review overlay; only OR-039 may satisfy it. |
+| Assay `cancelled` / `assay_cancelled` with unresolved review | `ReviewDiscoveryOutcome / assay_cancelled`; exact OR-038 subject and evidence-derived reviewer relationship | `ReviewVerdictRecorded`; `AssayCancellationReviewed`; `CandidateAssayCancellationReviewed` | Both become `cancelled_reviewed`/`assay_cancelled_reviewed`; the verdict cannot relabel cancellation complete or promote. |
 | Assay `partial` / `assay_partial` | `RequestDiscoveryOutcomeReview / assay_partial`; exact aggregate/Partial/proposed reviewer | `ReviewRequested`; `AssayPartialReviewRequested` on review/`asy_` streams | Aggregate/Candidate remain Partial with an unresolved review overlay; only exact OR-007 may satisfy it. |
 | Assay `partial` / `assay_partial` with unresolved review | `ReviewDiscoveryOutcome / assay_partial`; `assay_outcome_review = request + assay_id + relation + Partial artefact + review subject` | `ReviewVerdictRecorded`; `AssayPartialReviewed` on `asy_`; `CandidateAssayPartialReviewed` on Candidate | Aggregate becomes `partial_reviewed`, Candidate likewise; the review cannot relabel it `reviewed` or PROMOTE. |
-| Assay `reviewed`, `partial_reviewed` or `cancelled` / Candidate `parked`, `assay_partial_reviewed` or `assay_cancelled` | `ProposeRevisitDecision / assay`; `discovery_revisit_proposal = Candidate + old assay + reviewed outcome + satisfied revisit predicate + proposed dec_id` | `DecisionProposed`; `AssayRevisitRequested` on old `asy_`; `CandidateRevisitRequested / assay` | Both projections become `revisit_pending`; no evidence collection opens. |
+| Assay `reviewed`, `partial_reviewed` or `cancelled_reviewed` / Candidate `parked`, `assay_partial_reviewed` or `assay_cancelled_reviewed` | `ProposeRevisitDecision / assay`; `discovery_revisit_proposal = Candidate + old assay + exact resolved outcome review + satisfied revisit predicate + proposed dec_id` | `DecisionProposed`; `AssayRevisitRequested` on old `asy_`; `CandidateRevisitRequested / assay` | Both projections become `revisit_pending`; no evidence collection opens. |
 | Assay `revisit_pending` / `assay_revisit_pending` | `ResolveDecision / discovery_revisit`; exact prior relation/review/Decision; Stephen | `DecisionResolved`; `AssayRevisitResolved`; `CandidateRevisitResolved / assay` | `RETRY` -> both `retry_authorized`; PARK/KILL -> Candidate terminal and old Assay records option. |
 | Assay `retry_authorized` / `assay_retry_authorized` | `RequestAssay` with old `asy_` predecessor plus new `asy_`, newly current accepted Assay bar | On new `asy_`: `AssayRequested`, `AssayEvidenceCollectionOpened`; on old `asy_`: `AssaySuperseded`; Candidate: `CandidateAssayRetryStarted` | One atomic transaction; new aggregate is collecting, old is superseded, Candidate is `assay_pending`. No window has a superseded old Assay without its replacement. |
-| Spike `planned`, `approval_pending`, `authorized` or `running` / matching active Candidate state | `CancelDiscoveryEvaluation / spike`; `spike_cancellation = spike_id + plan relation + attempt/lease if any + reason/evidence hash` | `SpikeCancelled`; `SpikeAttemptClosed / cancelled` when an attempt exists; `CandidateEvaluationCancelled / spike` | Old Spike/Candidate become `cancelled`/`spike_cancelled`; lease/attempt is closed in the same batch; only reviewed revisit follows. |
+| Spike `planned`, `approval_pending`, `authorized` or `running` / matching active Candidate state | `CancelDiscoveryEvaluation / spike`; `spike_cancellation = spike_id + plan relation + attempt/lease if any + reason/evidence hash + unresolved execution-proposal ref or null` | `SpikeCancelled`; `SpikeAttemptClosed / cancelled` and lease release when an attempt exists; `SpikeExecutionProposalSupersededByCancellation` when OR-015 is unresolved; `CandidateEvaluationCancelled / spike` | Old Spike/Candidate become `cancelled`/`spike_cancelled`; every attempt, lease and pending execution proposal is retired atomically; OR-040/OR-041 review the exact cancellation before revisit. |
+| Spike `cancelled` / `spike_cancelled` | `RequestDiscoveryOutcomeReview / spike_cancelled`; exact cancellation, plan/attempt/lease/proposal-cleanup relation and proposed reviewer | `ReviewRequested`; `SpikeCancellationReviewRequested` on review/`spk_` streams | Cancellation remains terminal with one unresolved review overlay; only OR-041 may satisfy it. |
+| Spike `cancelled` / `spike_cancelled` with unresolved review | `ReviewDiscoveryOutcome / spike_cancelled`; exact OR-040 subject and evidence-derived reviewer relationship | `ReviewVerdictRecorded`; `SpikeCancellationReviewed`; `CandidateSpikeCancellationReviewed` | Both become `cancelled_reviewed`/`spike_cancelled_reviewed`; no stale attempt, lease or execution proposal may remain. |
 | Spike `partial` / `spike_partial` | `RequestDiscoveryOutcomeReview / spike_partial`; exact aggregate/Partial/proposed reviewer | `ReviewRequested`; `SpikePartialReviewRequested` on review/`spk_` streams | Aggregate/Candidate remain Partial with an unresolved review overlay; only exact OR-021 may satisfy it. |
-| Spike `partial` / `spike_partial` with unresolved review | `ReviewDiscoveryOutcome / spike_partial`; exact request/Spike relation/verdict/review subject | `ReviewVerdictRecorded`; `SpikePartialReviewed`; `CandidateSpikePartialReviewed` | Aggregate/Candidate become `partial_reviewed`; never PASS or reviewed-complete. |
-| Spike `reviewed`, `partial_reviewed` or `cancelled` / Candidate `parked`, `spike_partial_reviewed` or `spike_cancelled` | `ProposeRevisitDecision / spike`; exact old Spike, reviewed outcome and satisfied revisit predicate | `DecisionProposed`; `SpikeRevisitRequested`; `CandidateRevisitRequested / spike` | Both become `revisit_pending`; no attempt/lease opens. |
+| Spike `partial` / `spike_partial` with unresolved review | `ReviewDiscoveryOutcome / spike_partial`; exact request/Spike relation/verdict/review subject | `ReviewVerdictRecorded`; `SpikePartialReviewed`; `CandidateSpikePartialReviewed` | Aggregate/Candidate become `partial_reviewed`; never PASS or reviewed-complete; OR-019 already closed the attempt and lease. |
+| Spike `reviewed`, `partial_reviewed` or `cancelled_reviewed` / Candidate `parked`, `spike_partial_reviewed` or `spike_cancelled_reviewed` | `ProposeRevisitDecision / spike`; exact old Spike, resolved outcome review and satisfied revisit predicate | `DecisionProposed`; `SpikeRevisitRequested`; `CandidateRevisitRequested / spike` | Both become `revisit_pending`; no attempt/lease opens and no superseded execution proposal remains. |
 | Spike `revisit_pending` / `spike_revisit_pending` | `ResolveDecision / discovery_revisit`; exact prior relation/review/Decision; Stephen | `DecisionResolved`; `SpikeRevisitResolved`; `CandidateRevisitResolved / spike` | `RETRY` -> both `retry_authorized`; PARK/KILL -> Candidate terminal and old Spike records option. |
 | Spike `retry_authorized` / `spike_retry_authorized` | `RegisterSpikePlan` with old `spk_` predecessor plus new `spk_`, new immutable plan and current execution-subject proposal | On new `spk_`: `SpikePlanned`, `SpikeApprovalRequested`; old `spk_`: `SpikeSuperseded`; Candidate: `CandidateSpikeRetryStarted` | One atomic transaction; new aggregate is approval-pending, old is superseded, Candidate is `spike_approval_pending`. |
 
@@ -430,12 +468,13 @@ and `P:x` expand to `ars://portfolio/command/x@1.0.0`,
 schema `ars://portfolio/relation/<kind>@1.0.0`. `Review:*` similarly means the accepted
 W2 review event plus the named W11 subject-relation schema. Stream names are exact IDs,
 not aliases. In every row `OR-nnn`, the literal test fields are exactly
-`positive_test_id: W11-T01-OR-nnn` and `retry_producer_test_id: W11-T11-OR-nnn`, plus
-the named relation-test family in the last cell. Thus OR-001 binds
-`W11-T01-OR-001`/`W11-T11-OR-001`, OR-145 binds
-`W11-T01-OR-145`/`W11-T11-OR-145`, and the same textual equality applies to every
-intervening listed row. A materialized catalogue contains the expanded literal strings;
-there is no runtime-generated or aliased test identity.
+`positive_test_id: W11-T01-OR-nnn`,
+`negative_mutation_test_id: W11-T03-OR-nnn-owner-row-mutation`, and
+`retry_producer_test_id: W11-T11-OR-nnn`, plus the named relation-test family in the
+last cell. Thus OR-001 binds all three `...OR-001...` literals and OR-140 binds all
+three `...OR-140...` literals; the same textual equality applies to every listed row
+in OR-001–OR-041 and OR-101–OR-140. A materialized catalogue contains the expanded
+literal strings; there is no runtime-generated, family-wide or aliased test identity.
 
 #### 4.2.1 Lifecycle and operational owner rows
 
@@ -444,12 +483,12 @@ there is no runtime-generated or aliased test identity.
 | OR-001 | `RegisterCandidate` (`C:register-candidate`); Scout or Portfolio Steward; `candidate_registration = Candidate ID/revision/hash + source-observation multiset hash` | Observations registered; identity/alias collision-free | `E:candidate-registered`; Candidate stream/object + project portfolio index | `U:candidate` → `P:candidate`; `R:register-candidate`; T12 |
 | OR-002 | `SupersedeDiscoveryRecord/candidate` (`C:supersede-discovery-record`); Portfolio Steward; `candidate_supersession = predecessor + registered replacement + lineage/reason hash` | Replacement current; predecessor not terminally superseded | `E:candidate-superseded`; predecessor Candidate + project index | `U:candidate` → `P:candidate`; `R:supersede-discovery-record-candidate`; T04 |
 | OR-003 | `RequestAssay/initial` (`C:request-assay`); Portfolio Steward; `assay_request = Candidate + new asy_id + AssayBarAcceptance + actual producer relation` | Candidate exactly `registered`; accepted current bar predates request | `E:assay-requested`, `E:assay-evidence-collection-opened` on new `asy_`; `E:candidate-assay-requested` on Candidate | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:request-assay-initial`; T04 |
-| OR-004 | `RecordAssayScore` (`C:record-assay-score`); Assay producer; `assay_evidence = asy_id + stored relation + scorecard art/hash` | Exact axis closure; producer still equals frozen bar relation | `E:assay-scored` on `asy_`; `E:candidate-assay-linked` on Candidate; artefact-use relation | `U:assay`, `U:candidate` → `P:assay`; `R:record-assay-score`; T05 |
-| OR-005 | `RecordAssayPartial` (`C:record-assay-partial`); Assay producer; `assay_evidence = asy_id + stored relation + Partial art/hash` | Completed/unmet scope explicit; no PROMOTE; frozen relation equal | `E:assay-partial-recorded`; `E:candidate-assay-partial-linked`; artefact-use relation | `U:assay`, `U:candidate` → `P:assay`; `R:record-assay-partial`; T04 |
+| OR-004 | `RecordAssayScore` (`C:record-assay-score`); Assay producer; `assay_evidence = asy_id + stored relation + scorecard art/hash` | Exact axis closure; producer still equals frozen bar relation | `E:assay-scored` on `asy_`; `E:candidate-assay-linked` on Candidate; artefact-use relation | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:record-assay-score`; T05 |
+| OR-005 | `RecordAssayPartial` (`C:record-assay-partial`); Assay producer; `assay_evidence = asy_id + stored relation + Partial art/hash` | Completed/unmet scope explicit; no PROMOTE; frozen relation equal | `E:assay-partial-recorded`; `E:candidate-assay-partial-linked`; artefact-use relation | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:record-assay-partial`; T04 |
 | OR-006 | `ReviewDiscoveryOutcome/assay_scored` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-034 request + asy_id + relation + scorecard + review subject` | Exact unresolved OR-034 request; scorecard exact; independence grade met | W2 `ReviewVerdictRecorded`, `E:assay-reviewed`; review then `asy_` | `U:review`, `U:assay` → `P:assay`; `R:review-discovery-outcome-assay-scored`; T04 |
-| OR-007 | `ReviewDiscoveryOutcome/assay_partial` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-035 request + asy_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met | W2 `ReviewVerdictRecorded`, `E:assay-partial-reviewed`, `E:candidate-assay-partial-reviewed`; review, `asy_`, Candidate | `U:review`, `U:assay`, `U:candidate` → `P:assay`; `R:review-discovery-outcome-assay-partial`; T04 |
+| OR-007 | `ReviewDiscoveryOutcome/assay_partial` (`C:review-discovery-outcome`); independent verifier; `assay_outcome_review = OR-035 request + asy_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met | W2 `ReviewVerdictRecorded`, `E:assay-partial-reviewed`, `E:candidate-assay-partial-reviewed`; review, `asy_`, Candidate | `U:review`, `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:review-discovery-outcome-assay-partial`; T04 |
 | OR-008 | `CancelDiscoveryEvaluation/assay` (`C:cancel-discovery-evaluation`); Portfolio Steward; `assay_cancellation = asy_id + relation + reason/evidence hash` | Assay requested/collecting; not already terminal | `E:assay-cancelled`; `E:candidate-evaluation-cancelled` discriminant `assay`; `asy_`, Candidate | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:cancel-discovery-evaluation-assay`; T04 |
-| OR-009 | `ProposeRevisitDecision/assay` (`C:propose-revisit-decision`); Portfolio Steward; `discovery_revisit_proposal = Candidate + old asy_id + reviewed outcome + satisfied revisit predicate + proposed dec_id` | Exact partial-reviewed/cancelled outcome or parked Candidate; no unresolved proposal | W2 `DecisionProposed`; `E:assay-revisit-requested`; `E:candidate-revisit-requested/assay`; Decision, `asy_`, Candidate | `U:decision`, `U:assay`, `U:candidate` → `P:decision`, `P:assay`, `P:candidate`; `R:propose-revisit-decision-assay`; T04 |
+| OR-009 | `ProposeRevisitDecision/assay` (`C:propose-revisit-decision`); Portfolio Steward; `discovery_revisit_proposal = Candidate + old asy_id + exact resolved outcome review + satisfied revisit predicate + proposed dec_id` | Exact partial-reviewed/cancelled-reviewed outcome or parked Candidate; no unresolved proposal | W2 `DecisionProposed`; `E:assay-revisit-requested`; `E:candidate-revisit-requested/assay`; Decision, `asy_`, Candidate | `U:decision`, `U:assay`, `U:candidate` → `P:decision`, `P:assay`, `P:candidate`; `R:propose-revisit-decision-assay`; T04 |
 | OR-010 | `ResolveDecision/discovery_revisit_assay` (`C:resolve-decision`); Stephen; `discovery_revisit = dec_id + Candidate + old asy_id + relation + review` | Exact proposal; `RETRY`, `PARK` or `KILL` predicates | W2 `DecisionResolved`; `E:assay-revisit-resolved`; `E:candidate-revisit-resolved/assay`; Decision, `asy_`, Candidate | `U:decision`, `U:assay`, `U:candidate` → `P:decision`, `P:assay`, `P:candidate`; `R:resolve-decision-discovery-revisit-assay`; T08 |
 | OR-011 | `RequestAssay/retry` (`C:request-assay`); Portfolio Steward; `assay_retry = Candidate + old/new asy_id + revisit Decision + current AssayBarAcceptance + producer relation` | Both old/Candidate `retry_authorized`; new ID unused | New `asy_`: requested/opened; old `asy_`: `E:assay-superseded`; Candidate: `E:candidate-assay-retry-started`; all in one batch | `U:assay`, `U:candidate` → `P:assay`, `P:candidate`; `R:request-assay-retry`; T04 |
 | OR-012 | `ProposePromotionDecision/assay_to_spike` (`C:propose-promotion-decision`); Portfolio Steward; exact Candidate/asy/reviewed scorecard/proposed dec | Candidate `assay_scored`; no unresolved gate proposal | W2 `DecisionProposed`; `E:candidate-promotion-requested`; Decision, Candidate | `U:decision`, `U:candidate` → `P:decision`, `P:candidate`; `R:propose-promotion-decision-assay-to-spike`; T05 |
@@ -457,13 +496,13 @@ there is no runtime-generated or aliased test identity.
 | OR-014 | `RegisterSpikePlan/initial` (`C:register-spike-plan`); Portfolio Steward; `spike_plan_registration = Candidate + new spk_id + plan art/hash + assay promotion Decision` | Candidate `spike_planning_authorized`; plan relation complete | New `spk_`: `E:spike-planned`, `E:spike-approval-requested`; Candidate: `E:candidate-spike-plan-linked` | `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:register-spike-plan-initial`; T04 |
 | OR-015 | `ProposeSpikeExecutionDecision` (`C:propose-spike-execution-decision`); Portfolio Steward; `spike_execution_proposal = dec_id + spk_id + Candidate + plan + resource/route/assurance refs` | Spike approval-pending; no unresolved proposal | W2 `DecisionProposed`; `E:spike-execution-decision-requested`; Decision, `spk_` | `U:decision`, `U:spike` → `P:decision`, `P:spike`; `R:propose-spike-execution-decision`; T04 |
 | OR-016 | `ResolveDecision/spike_execution_authority` (`C:resolve-decision`); Stephen; exact proposal/spk/Candidate/plan | Required route/resource/assurance current | W2 `DecisionResolved`; `E:spike-authorized`; `E:candidate-spike-authorized`; Decision, `spk_`, Candidate | `U:decision`, `U:spike`, `U:candidate` → `P:decision`, `P:spike`, `P:candidate`; `R:resolve-decision-spike-execution-authority`; T08 |
-| OR-017 | `StartSpike` (`C:start-spike`); Operator/auditor; `spike_execution = spk_id + plan + authorization + lease/attempt/resource identities` | Authorized plan; live lease; attempt unused | `E:spike-started`; `E:candidate-spike-started`; `spk_`, attempt relation, Candidate | `U:spike`, `U:spike-attempt`, `U:candidate` → `P:spike`, `P:candidate`; `R:start-spike`; T05 |
+| OR-017 | `StartSpike` (`C:start-spike`); Operator/auditor; `spike_execution = spk_id + plan + authorization + lease/attempt/resource identities` | Authorized plan; live lease; attempt unused | `E:spike-started`; `E:candidate-spike-started`; `spk_`, attempt relation, Candidate | `U:spike`, `U:spike-attempt`, `U:candidate` → `P:spike`, `P:attempt-lease`, `P:candidate`; `R:start-spike`; T05 |
 | OR-018 | `RecordSpikeVerdict/complete` (`C:record-spike-verdict`); Spike producer; `spike_evidence = spk_id + plan + attempt + verdict art/hash` | Exact evidence closure; PASS/FAIL truth table | `E:spike-verdict-recorded`; `E:candidate-spike-verdict-linked`; `spk_`, Candidate, artefact-use | `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:record-spike-verdict-complete`; T07 |
-| OR-019 | `RecordSpikeVerdict/partial` (`C:record-spike-verdict`); Spike producer; `spike_evidence = spk_id + plan + attempt + PARTIAL verdict art/hash` | Required unable/unmet scope explicit; verdict PARTIAL | `E:spike-partial-recorded`; `E:candidate-spike-partial-linked`; `spk_`, Candidate, artefact-use | `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:record-spike-verdict-partial`; T07 |
+| OR-019 | `RecordSpikeVerdict/partial` (`C:record-spike-verdict`); Spike producer; `spike_evidence = spk_id + plan + attempt/lease + PARTIAL verdict art/hash` | Required unable/unmet scope explicit; verdict PARTIAL; attempt/lease live and exact | `E:spike-partial-recorded`; `E:spike-attempt-closed/partial`; lease released; `E:candidate-spike-partial-linked`; `spk_`, attempt/lease, Candidate, artefact-use | `U:spike`, `U:spike-attempt`, `U:candidate` → `P:spike`, `P:attempt-lease`, `P:candidate`; `R:record-spike-verdict-partial`; T07 |
 | OR-020 | `ReviewDiscoveryOutcome/spike_verdict` (`C:review-discovery-outcome`); independent verifier; exact OR-036 request/verdict subject | Exact unresolved request; verdict exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:spike-reviewed`; review, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:review-discovery-outcome-spike-verdict`; T07 |
 | OR-021 | `ReviewDiscoveryOutcome/spike_partial` (`C:review-discovery-outcome`); independent verifier; `spike_outcome_review = OR-037 request + spk_id + relation + Partial art/hash + review subject` | Exact unresolved request; Partial exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:spike-partial-reviewed`; `E:candidate-spike-partial-reviewed`; review, `spk_`, Candidate | `U:review`, `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:review-discovery-outcome-spike-partial`; T07 |
-| OR-022 | `CancelDiscoveryEvaluation/spike` (`C:cancel-discovery-evaluation`); Operator/auditor; `spike_cancellation = spk_id + plan relation + attempt/lease if any + reason/evidence` | Planned/approval/authorized/running; stop evidence current | `E:spike-cancelled`; conditional `E:spike-attempt-closed`; `E:candidate-evaluation-cancelled/spike`; `spk_`, attempt/lease, Candidate | `U:spike`, `U:spike-attempt`, `U:candidate` → `P:spike`, `P:candidate`; `R:cancel-discovery-evaluation-spike`; T04 |
-| OR-023 | `ProposeRevisitDecision/spike` (`C:propose-revisit-decision`); Portfolio Steward; exact Candidate/old spk/reviewed outcome/satisfied revisit predicate/proposed dec | Partial-reviewed/cancelled outcome or parked Candidate; no unresolved proposal | W2 `DecisionProposed`; `E:spike-revisit-requested`; `E:candidate-revisit-requested/spike`; Decision, `spk_`, Candidate | `U:decision`, `U:spike`, `U:candidate` → `P:decision`, `P:spike`, `P:candidate`; `R:propose-revisit-decision-spike`; T04 |
+| OR-022 | `CancelDiscoveryEvaluation/spike` (`C:cancel-discovery-evaluation`); Operator/auditor; `spike_cancellation = spk_id + plan relation + attempt/lease if any + reason/evidence + unresolved OR-015 proposal or null` | Planned/approval/authorized/running; stop evidence current | `E:spike-cancelled`; conditional `E:spike-attempt-closed/cancelled`; lease released; conditional `E:spike-execution-proposal-superseded-by-cancellation`; `E:candidate-evaluation-cancelled/spike`; Decision when present, `spk_`, attempt/lease, Candidate | `U:decision`, `U:spike`, `U:spike-attempt`, `U:candidate` → `P:decision`, `P:spike`, `P:attempt-lease`, `P:candidate`; `R:cancel-discovery-evaluation-spike`; T04 |
+| OR-023 | `ProposeRevisitDecision/spike` (`C:propose-revisit-decision`); Portfolio Steward; exact Candidate/old spk/resolved outcome review/satisfied revisit predicate/proposed dec | Partial-reviewed/cancelled-reviewed outcome or parked Candidate; no unresolved or cancellation-superseded proposal | W2 `DecisionProposed`; `E:spike-revisit-requested`; `E:candidate-revisit-requested/spike`; Decision, `spk_`, Candidate | `U:decision`, `U:spike`, `U:candidate` → `P:decision`, `P:spike`, `P:candidate`; `R:propose-revisit-decision-spike`; T04 |
 | OR-024 | `ResolveDecision/discovery_revisit_spike` (`C:resolve-decision`); Stephen; exact proposal/Candidate/old spk/relation/review | `RETRY`, `PARK` or `KILL` predicates | W2 `DecisionResolved`; `E:spike-revisit-resolved`; `E:candidate-revisit-resolved/spike`; Decision, `spk_`, Candidate | `U:decision`, `U:spike`, `U:candidate` → `P:decision`, `P:spike`, `P:candidate`; `R:resolve-decision-discovery-revisit-spike`; T08 |
 | OR-025 | `RegisterSpikePlan/retry` (`C:register-spike-plan`); Portfolio Steward; exact Candidate/old+new spk/revisit Decision/new plan | Old and Candidate retry-authorized; new ID unused | New `spk_`: planned/approval requested; old `spk_`: `E:spike-superseded`; Candidate: `E:candidate-spike-retry-started`; one batch | `U:spike`, `U:candidate` → `P:spike`, `P:candidate`; `R:register-spike-plan-retry`; T04 |
 | OR-026 | `ProposePromotionDecision/spike_to_preregistration` (`C:propose-promotion-decision`); Portfolio Steward; exact Candidate/spk/reviewed verdict/proposed dec | Candidate verdict recorded; no unresolved gate proposal | W2 `DecisionProposed`; `E:candidate-promotion-requested`; Decision, Candidate | `U:decision`, `U:candidate` → `P:decision`, `P:candidate`; `R:propose-promotion-decision-spike-to-preregistration`; T05 |
@@ -473,11 +512,15 @@ there is no runtime-generated or aliased test identity.
 | OR-030 | `IngestDiscoveryAnnotation` (`C:ingest-discovery-annotation`); Portfolio Steward; annotation bytes/hash + exact target | Attributed inbox writer; target current; dedup | `E:discovery-annotation-ingested`; annotation evidence stream only | `U:annotation` → `P:annotation-audit`; `R:ingest-discovery-annotation`; T13 |
 | OR-031 | `RecordLegacyPortfolioObservation` (`C:record-legacy-portfolio-observation`); independent verifier/importer; path registration + physical file identity + bytes + parser | §7.3 handle-bound read; no adoption | `E:legacy-portfolio-path-observed`; observation artefact stream | `U:legacy-observation` → `P:legacy-observation-audit`; `R:record-legacy-portfolio-observation`; T14 |
 | OR-032 | `TransitionPortfolioOwnership` (`C:transition-portfolio-ownership`); Operator/auditor; accepted mapping content/acceptance + observation + source row + targets + migration Decision | Exact stored relation; one current owner; versions/tail current | `E:portfolio-item-ownership-transitioned`; item ownership, exact targets, project index; never legacy path | `U:item-ownership`, `U:portfolio-object`, `U:project-index` → `P:successor-discovery`, `P:project-ownership`; `R:transition-portfolio-ownership`; T15/T16 |
-| OR-033 | `CutOverDiscoveryPath` (`C:cut-over-discovery-path`); Operator/auditor; accepted cutover closure + cutover Decision | Closure current; §7.3 lock; writer revocation/final observation unchanged | `E:legacy-discovery-path-cutover-completed`, `E:path-registration-revised`; path + project registry | `U:path-registration`, `U:path-cutover` → `P:path-registry`, `P:successor-discovery`; `R:cut-over-discovery-path`; T18 |
+| OR-033 | `CutOverDiscoveryPath` (`C:cut-over-discovery-path`); Operator/auditor; accepted cutover closure + cutover Decision + exact annotation epoch/fence | Closure current; §7.3 lock; writer revocation/final observation and pre-fence annotation epoch unchanged | `E:annotation-inbox-epoch-fenced`; `E:successor-annotation-epoch-activated`; `E:legacy-discovery-path-cutover-completed`; `E:path-registration-revised`; annotation/path/project registries | `U:annotation-epoch`, `U:path-registration`, `U:path-cutover` → `P:annotation-audit`, `P:path-registry`, `P:successor-discovery`; `R:cut-over-discovery-path`; T13/T18 |
 | OR-034 | `RequestDiscoveryOutcomeReview/assay_scored` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_review_request = asy_id + relation + scorecard + proposed review ID/reviewer relation` | Assay scored; no unresolved review request; proposed reviewer independence plausible | W2 `ReviewRequested`; `E:assay-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-scored`; T04 |
 | OR-035 | `RequestDiscoveryOutcomeReview/assay_partial` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_review_request = asy_id + relation + Partial art/hash + proposed review ID/reviewer relation` | Assay partial; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:assay-partial-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-partial`; T04 |
 | OR-036 | `RequestDiscoveryOutcomeReview/spike_verdict` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_review_request = spk_id + relation + verdict art/hash + proposed review ID/reviewer relation` | Verdict recorded; no unresolved request; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-verdict`; T07 |
 | OR-037 | `RequestDiscoveryOutcomeReview/spike_partial` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_review_request = spk_id + relation + Partial art/hash + proposed review ID/reviewer relation` | Spike partial; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-partial-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-partial`; T07 |
+| OR-038 | `RequestDiscoveryOutcomeReview/assay_cancelled` (`C:request-discovery-outcome-review`); Portfolio Steward; `assay_cancellation_review_request = asy_id + relation + cancellation event/reason/evidence + proposed review ID/reviewer relation` | Assay cancelled; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:assay-cancellation-review-requested`; review stream, `asy_` | `U:review`, `U:assay` → `P:review`, `P:assay`; `R:request-discovery-outcome-review-assay-cancelled`; T04 |
+| OR-039 | `ReviewDiscoveryOutcome/assay_cancelled` (`C:review-discovery-outcome`); independent verifier; exact OR-038 cancellation subject | Exact unresolved request; cancellation evidence exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:assay-cancellation-reviewed`; `E:candidate-assay-cancellation-reviewed`; review, `asy_`, Candidate | `U:review`, `U:assay`, `U:candidate` → `P:review`, `P:assay`, `P:candidate`; `R:review-discovery-outcome-assay-cancelled`; T04 |
+| OR-040 | `RequestDiscoveryOutcomeReview/spike_cancelled` (`C:request-discovery-outcome-review`); Portfolio Steward; `spike_cancellation_review_request = spk_id + plan/attempt/lease/proposal-cleanup relation + cancellation event/reason/evidence + proposed review ID/reviewer relation` | Spike cancelled; attempts/leases/proposals retired; no unresolved review request; reviewer independence plausible | W2 `ReviewRequested`; `E:spike-cancellation-review-requested`; review stream, `spk_` | `U:review`, `U:spike` → `P:review`, `P:spike`; `R:request-discovery-outcome-review-spike-cancelled`; T07 |
+| OR-041 | `ReviewDiscoveryOutcome/spike_cancelled` (`C:review-discovery-outcome`); independent verifier; exact OR-040 cancellation subject | Exact unresolved request; cancellation and cleanup evidence exact; independence grade met | W2 `ReviewVerdictRecorded`; `E:spike-cancellation-reviewed`; `E:candidate-spike-cancellation-reviewed`; review, `spk_`, Candidate | `U:review`, `U:spike`, `U:candidate` → `P:review`, `P:spike`, `P:candidate`; `R:review-discovery-outcome-spike-cancelled`; T07 |
 
 #### 4.2.2 External authority-lifecycle owner rows
 
@@ -487,6 +530,11 @@ Every review grant binds the exact content and file-observation identities plus 
 reviewer's evidence-derived relationship. Every acceptance grant binds those same
 identities, the exact review verdict and Decision subject. Neither role/profile alone
 authorizes the row.
+
+Catalogue materialization/review/acceptance is the sole pre-runtime exception and is
+defined by §8.2's external Git/blob envelope, not by a self-hosted W11 lifecycle.
+OR-140 records only the later one-time genesis import of that already accepted
+envelope; it cannot propose, review, resolve or accept catalogue authority.
 
 | Owner row | Command/schema; eligible W4 profile and exact subject | Preconditions | Ordered events; streams/write set | Reducer → projection; receipt; additional test |
 |---|---|---|---|---|
@@ -529,21 +577,18 @@ authorizes the row.
 | OR-137 | `RecordW11AuthorityReview/legacy_cutover_closure` (`C:record-w11-authority-review`); independent verifier; exact closure subject | Rebuild bijection/final bytes/revocation/race proof | W2 `ReviewVerdictRecorded`; review stream | `U:review` → `P:cutover-closure-candidate`; `R:record-w11-authority-review-legacy-cutover-closure`; T18 |
 | OR-138 | `ProposeW11AuthorityDecision/legacy_path_cutover` (`C:propose-w11-authority-decision`); Gate 6 Manager; closure + file + review + proposed dec | Positive review; §7.3 identities still current | W2 `DecisionProposed`; Decision stream | `U:decision` → `P:decision`; `R:propose-w11-authority-decision-legacy-path-cutover`; T18 |
 | OR-139 | `ResolveDecision/legacy_path_cutover` (`C:resolve-decision`); Stephen; exact OR-138 subject | Proposal/current closure; final lock recheck deferred to OR-033 | W2 `DecisionResolved`; `E:legacy-cutover-closure-accepted`; Decision + closure authority streams | `U:decision`, `U:cutover-closure` → `P:decision`, `P:accepted-cutover-closure`; `R:resolve-decision-legacy-path-cutover`; T18 |
-| OR-140 | `RegisterW11SchemaCatalogueContent` (`C:register-w11-schema-catalogue-content`); schema materializer; owner annex + already-materialized schema file identities | Every schema file exists; complete owner-row multiset; no runtime registry input/self file hash | `E:w11-schema-catalogue-content-registered`; catalogue content stream | `U:schema-catalogue` → `P:schema-catalogue-candidate`; `R:register-w11-schema-catalogue-content`; T03 |
-| OR-141 | `ObserveW11AuthorityFile/w11_schema_catalogue` (`C:observe-w11-authority-file`); independent verifier; catalogue + repository identity/bytes | OR-140 exists; independent file read | `E:w11-authority-file-observed/w11_schema_catalogue`; observation stream | `U:authority-file-observation` → `P:schema-catalogue-candidate`; `R:observe-w11-authority-file-w11-schema-catalogue`; T03 |
-| OR-142 | `RequestW11AuthorityReview/w11_schema_catalogue` (`C:request-w11-authority-review`); Gate 6 Manager; catalogue + file + reviewer | Reviewer independent of materializer/runtime producer | W2 `ReviewRequested`; review stream | `U:review` → `P:schema-catalogue-candidate`; `R:request-w11-authority-review-w11-schema-catalogue`; T03 |
-| OR-143 | `RecordW11AuthorityReview/w11_schema_catalogue` (`C:record-w11-authority-review`); independent verifier; exact catalogue/schema/owner-row subject | Re-resolve every schema file and complete owner row | W2 `ReviewVerdictRecorded`; review stream | `U:review` → `P:schema-catalogue-candidate`; `R:record-w11-authority-review-w11-schema-catalogue`; T03 |
-| OR-144 | `ProposeW11AuthorityDecision/w11_schema_catalogue_acceptance` (`C:propose-w11-authority-decision`); Gate 6 Manager; catalogue + file + review + proposed dec | Positive review; runtime registry/handlers absent | W2 `DecisionProposed`; Decision stream | `U:decision` → `P:decision`; `R:propose-w11-authority-decision-w11-schema-catalogue`; T03 |
-| OR-145 | `ResolveDecision/w11_schema_catalogue_acceptance` (`C:resolve-decision`); Stephen; exact OR-144 subject | Proposal exact; catalogue current | W2 `DecisionResolved`; `E:w11-schema-catalogue-accepted`; Decision + catalogue authority streams | `U:decision`, `U:schema-catalogue` → `P:decision`, `P:accepted-schema-catalogue`; `R:resolve-decision-w11-schema-catalogue-acceptance`; T03 |
+| OR-140 | `ImportAcceptedW11CatalogueGenesis` (`C:import-accepted-w11-catalogue-genesis`); Operator/auditor holding the exact independently verified bootstrap grant; external `W11CatalogueAcceptanceEnvelope` + committed schema/catalogue bytes + bootstrap-contract identities | Stephen's external exact-byte acceptance current; bootstrap implementation independently verified against the accepted contract; no W11 genesis/catalogue state exists | `E:w11-catalogue-genesis-imported`; accepted catalogue authority + genesis provenance, and no review/Decision event | `U:schema-catalogue-genesis` → `P:accepted-schema-catalogue`; `R:import-accepted-w11-catalogue-genesis`; T03/T19 |
 
 The reducer effect in each lifecycle row is the exact from-state/event/to-state edge in
-§4.1/§4.1.1; the owner row and that matrix are one indivisible contract. OR-034–OR-037
-add an unresolved review overlay without changing the outcome phase, while OR-006,
-OR-007, OR-020 and OR-021 satisfy that exact overlay and perform the displayed review
-transition. In each authority row, content registration creates only `candidate`, file
+§4.1/§4.1.1; the owner row and that matrix are one indivisible contract. OR-034–OR-038
+and OR-040 add an unresolved review overlay without changing the outcome phase, while
+OR-006, OR-007, OR-020, OR-021, OR-039 and OR-041 satisfy that exact overlay and perform
+the displayed review transition. In each ordinary authority row, content registration creates only `candidate`, file
 observation adds only `observed`, review request/verdict adds `review_pending` then
 `review_satisfied|review_rejected`, proposal adds `decision_pending`, resolution adds
-`accepted|rejected`, and OR-109 alone adds `stale`. These are closed reducer states; no
+`accepted|rejected`, and OR-109 alone adds `stale`. OR-140 is different by design: it
+imports an already externally accepted immutable envelope once and cannot create any
+acceptance state. These are closed reducer states; no
 materializer may leave the effect blank or map it to a different projection.
 
 No generic `StatusChanged` or `DiscoveryUpdated` event is allowed. Rejection writes no
@@ -553,7 +598,9 @@ event-producer, W4 subject, stream/write-set, reducer, projection, receipt and t
 authority. `CandidateRegistered` deliberately has two producers, OR-001 and OR-029;
 both invoke one exact registration validator/event schema/collision rule/reducer.
 `W11AuthorityFileObserved`, W2 review events and W2 Decision events have only the
-explicit discriminants listed in OR-103–OR-145. Every other W11-specific event has one
+explicit discriminants listed in OR-103–OR-139. The catalogue's pre-runtime observation,
+review and Stephen acceptance live only in the external envelope; OR-140 produces the
+single genesis-import event. Every other W11-specific event has one
 literal owner row. A future catalogue serializes these rows and materialized schema
 hashes; it cannot add an implicit producer, reducer, projection or authority subject.
 
@@ -613,7 +660,14 @@ Assay evidence observation.
 must equal the accepted prospective relation exactly. It stores on `AssayRequested` the
 bar acceptance event/Decision/transaction, exact rubric/scope contents and file
 observations, required-axis/scope hashes, Candidate identity, `assay_id`, producer
-relation, and one canonical `assay_relation_hash` over the complete row. A missing,
+relation, and one canonical `assay_relation_hash`. Its preimage is the P0 canonical
+`AssayRequestRelation` object containing exactly Candidate ID/revision/content hash,
+`assay_id`, Assay-bar acceptance event/Decision/transaction IDs, rubric and scope
+IDs/revisions/content hashes, both file-observation IDs/hashes, required-axis-set hash,
+scope-closure hash, every prospective/actual producer actor/profile/context/grant ID,
+revision and hash, creating command ID and idempotency key. It excludes
+`assay_relation_hash`, the enclosing event/record/content hashes and every later
+scorecard, review, Decision or acceptance. A missing,
 class-only or newly selected producer is unequal. `evidence_collecting` begins only
 after this relation and the later-ordered `AssayEvidenceCollectionOpened` commit in the
 same request batch. Every later Assay command independently loads the stored relation;
@@ -663,6 +717,15 @@ artefact, aggregate relation, proposed reviewer and evidence-derived independenc
 subject in W2 `ReviewRequested`. OR-006/OR-007 can record a verdict only against that
 unresolved request. A complete scorecard becomes `reviewed`; a Partial uses the
 distinct `partial_reviewed` projection and cannot be relabelled complete.
+
+Cancellation review is equally subject-specific. OR-038 freezes the exact
+`AssayCancelled` event, reason/evidence hash, aggregate relation and proposed reviewer;
+OR-039 alone may satisfy it and projects `cancelled_reviewed`. OR-040 freezes the exact
+`SpikeCancelled` event together with the plan, attempt/lease closure and any
+execution-proposal supersession; OR-041 alone may satisfy it and projects
+`cancelled_reviewed`. A Partial review, complete-outcome review or cancellation record
+from another aggregate is not substitutable. `ProposeRevisitDecision` accepts only the
+resolved exact review appropriate to the terminal outcome.
 
 The current TDL legacy rubric maps explicitly to one future accepted rubric revision:
 Axis 1 is the `topology_earns_its_keep` Boolean gate; Axes 2 and 3 are integers in
@@ -1006,14 +1069,22 @@ The Scout profile's complete W11 command allowlist is `RegisterCandidate` and
 allowlist is `RegisterCandidate`, `SupersedeDiscoveryRecord/candidate`,
 `RequestAssay`, `CancelDiscoveryEvaluation/assay`,
 `ProposeRevisitDecision`, `ProposePromotionDecision`, `RegisterSpikePlan`,
-`ProposeSpikeExecutionDecision`, `IngestDiscoveryAnnotation`, and only the content/
-review/Decision-proposal rows that explicitly name Portfolio Steward in OR-101–OR-145.
+`ProposeSpikeExecutionDecision`, `RequestDiscoveryOutcomeReview` with exactly the six
+discriminants `assay_scored | assay_partial | assay_cancelled | spike_verdict |
+spike_partial | spike_cancelled`, `IngestDiscoveryAnnotation`, and only the content/
+review/Decision-proposal rows that explicitly name Portfolio Steward in OR-101–OR-139.
 It has no free-standing Assay/Spike supersession permission: OR-011/OR-025 create the
 replacement and supersede the old aggregate atomically under the exact revisit
 Decision. Preparing a dossier, expected set, inventory, mapping, cutover closure or
 transition proposal is content/artefact production, not permission to execute its
-acceptance/admission/migration command. The other owner rows use the exact profiles and
-grants stated there; every unlisted command remains denied.
+acceptance/admission/migration command. The Operator/auditor profile's complete W11
+allowlist is `StartSpike`, `CancelDiscoveryEvaluation/spike`,
+`AdmitResearchDossier`, `TransitionPortfolioOwnership`, `CutOverDiscoveryPath`,
+`RegisterPathRegistrationContent`, `RequestW11AuthorityReview/path_registration`, and
+`ImportAcceptedW11CatalogueGenesis`; the final command additionally requires the exact
+independently verified bootstrap grant and accepted external envelope bound by OR-140.
+The other owner rows use the exact profiles and grants stated there; every unlisted
+command remains denied.
 
 ## 7. Vault path, writer, annotation, and ownership contract
 
@@ -1114,12 +1185,28 @@ or `comment_only`, body hash, source refs, and supersession ref. Filename and pr
 aliases; after accepted ingestion the exact file is registered as an `art_` artefact,
 and its body bytes/hash are evidence.
 
+The registered annotation root contains one current epoch directory. Every epoch has
+an immutable `annotation_epoch_id`, directory volume/file identity, path-registration
+revision/hash, attributed-writer grant-set hash, activation event position and closed
+status `active | fenced`. Each annotation payload repeats its epoch ID. Writers resolve
+the current epoch from the accepted path registry and may write only that directory;
+an old/fenced/foreign epoch is rejected at ingestion. Subdirectories are physical
+partitions within the required `00-Meta/ARS/Discovery-annotations/` namespace, not new
+authority paths.
+
 `IngestDiscoveryAnnotation` verifies path role, writer attribution, schema, exact bytes,
 target identity, dedup/idempotency, and staleness before recording
 `DiscoveryAnnotationIngested`. Ingestion preserves the human proposal but does not apply
 it. Any object revision, dependency change, promotion, claim action, or migration still
 requires its separately authorized command. Projectors never “round-trip” edits from
 generated pages.
+
+Whole-path cutover follows §7.6.2: it freezes one observed legacy epoch in the accepted
+closure, re-observes it under its directory/registry lock, then atomically fences it and
+activates a fresh successor epoch. A pre-fence member delta invalidates the closure.
+Post-fence annotations resolve the successor epoch and target successor object
+revisions, so they remain ordinary un-ingested evidence after cutover rather than being
+lost or retroactively added to the legacy closure.
 
 Manual edits under `00-Meta/ARS/Discovery/` or the combined path produce projection
 drift diagnostics and are discarded on rebuild; they are never treated as annotations.
@@ -1145,7 +1232,14 @@ topologically ordered distinct authorities:
    one target-mode enum, the complete target object ID/revision/content-hash set, alias
    mapping, collision-scan ID/hash, Stage-A transition-policy refs, and no Decision,
    review, acceptance, transition event or cutover member. Its
-   `transition_relation_hash` is SHA-256 over that complete P0 canonical content row.
+   `transition_relation_hash` is SHA-256 over a separate P0 canonical
+   `LegacyTransitionRelation` containing exactly the accepted source-inventory
+   content/file/review/acceptance IDs and hashes, source-row ID/selector/raw-row hash,
+   `LegacyRecordObserved` ID/hash, source path/bytes/item/aliases, target mode, sorted
+   target object ID/revision/content-hash set, alias mapping, collision-scan ID/hash and
+   transition-policy refs. The preimage excludes `transition_relation_hash`, the
+   enclosing `content_hash`, every mapping file/review/Decision/acceptance hash and all
+   transition/cutover event hashes.
 4. OR-128–OR-133 independently observe/review that content and resolve a separate
    `migration_authority` Decision. `LegacyTransitionMappingAccepted` binds the content,
    file observation, review, Decision, scope and relation hash. It is not serialized
@@ -1249,12 +1343,16 @@ cutover branch after legacy-writer revocation:
     -> cutover source-only inventory acceptance
     -> any still-missing mapping-content acceptances/transition events
 
+annotation branch before closure:
+  accepted annotation-path registration -> legacy annotation-epoch observation
+    -> complete member/ingestion/rejection reconciliation -> empty pending-set hash
+
 join only after every cutover-inventory row is closed:
   cutover inventory + all exact mapping acceptances + all transition events
-    + revocation + final observation + rebuild/race proofs
+    + revocation + final observation + accepted annotation epoch + rebuild/race proofs
     -> LegacyCutoverClosureContent
     -> closure file observation -> review -> LegacyCutoverClosureAccepted
-    -> CutOverDiscoveryPath
+    -> CutOverDiscoveryPath re-observation/fence -> successor annotation epoch
 ```
 
 There is no reverse edge. An inventory never names a mapping; a mapping never names its
@@ -1282,8 +1380,12 @@ After every row has an accepted mapping and transition event, OR-134 creates
   `PortfolioItemOwnershipTransitioned` event to `successor_owned|closed_reference`;
 - zero-extra/zero-missing multiset hashes across inventory rows, mapping rows and
   transition events, plus all valid earlier-inventory row-equivalence proofs;
-- the writer-revocation snapshot, drained-handle proof, un-ingested-annotation set
-  (necessarily empty), collision scan, current path-registration acceptance,
+- the writer-revocation snapshot, drained-handle proof, collision scan, current
+  path-registration acceptance, and one `AnnotationInboxEpochObservation` containing
+  the annotation path-registration ID/revision/hash, legacy epoch ID and directory
+  volume/file identity, writer-grant-set hash and event position, a complete sorted
+  member array of file path/length/SHA-256 plus ingestion-or-rejection event refs, and
+  an exact pending-set hash (necessarily the accepted empty-set hash),
   successor/optional-combined rebuild proofs, projector identities, source positions,
   deletion/rebuild results, §7.3 race results and one-way target state; and
 - producer identity, effective interval and owner-requirement refs.
@@ -1299,20 +1401,34 @@ from `legacy_active` to `successor_active` only when that accepted closure prove
 3. legacy writer revocation is effective and every handle is drained;
 4. final source bytes/physical identity equal the accepted cutover inventory, and no
    write/rename/parent/reparse/byte change occurred after the final observation;
-5. every annotation is ingested or explicitly rejected before closure, projections
-   rebuild without reading their output, and collision/deletion/operation-time race
-   tests pass; and
+5. every member of the accepted legacy annotation epoch is ingested or explicitly
+   rejected, its pending-set hash is empty, projections rebuild without reading their
+   output, and collision/deletion/operation-time race tests pass; and
 6. Stephen's exact `legacy_path_cutover` Decision accepts that closure tuple.
 
 `CutOverDiscoveryPath` accepts only the closure content/file/review/acceptance tuple; it
 does not accept a caller-supplied inventory/event list. While holding the §7.3 verified
-path lock, it reloads and rehashes the full DAG, final observation, revocation and
-bijection, then atomically records `LegacyDiscoveryPathCutoverCompleted` and
-`PathRegistrationRevised`. Any missing/back/cyclic edge, omitted item, extra transition,
-same-parser omission, post-observation write, stale byte or writer/reparse race leaves
-the path active and publishes nothing. Only after that event may a separately accepted
-projector target the legacy-named path. `successor_active -> legacy_active` is invalid;
-recovery rebuilds successor projections or stops and never re-enables legacy writers.
+path lock and the registered annotation-epoch parent/directory locks, it reloads and
+rehashes the full DAG, final observation, revocation and bijection. It then re-enumerates
+the legacy annotation epoch from raw directory handles and requires exact equality of
+epoch ID, directory identity, writer-grant/event position, every member identity and the
+accepted empty pending-set hash. Any pre-fence delta rejects before publication.
+
+On equality, one atomic registry/event transaction revokes the old epoch's attributed-
+writer grants, records `AnnotationInboxEpochFenced`, activates a fresh successor epoch
+and grants, records `SuccessorAnnotationEpochActivated`, then records
+`LegacyDiscoveryPathCutoverCompleted` and `PathRegistrationRevised`. Human writers
+resolve only the registry's current epoch. Files created after the fence therefore name
+the successor epoch and successor object revision and are processed after cutover; the
+legacy epoch is read-only and cannot receive a late member. The locks are held through
+the commit point, so there is no between-observation-and-fence window.
+
+Any missing/back/cyclic edge, omitted item, extra transition, same-parser omission,
+post-observation write, annotation-epoch delta, stale byte or writer/reparse race leaves
+the legacy path and legacy annotation epoch active and publishes none of the four
+events. Only after the atomic cutover may a separately accepted projector target the
+legacy-named path. `successor_active -> legacy_active` is invalid; recovery rebuilds
+successor projections or stops and never re-enables legacy writers.
 
 ### 7.7 Collision, deletion, and rebuild behaviour
 
@@ -1342,8 +1458,8 @@ catalogue below. This task creates none.
 
 ### 8.1 Closed owner universe
 
-Stage A is this exact accepted specification revision and its **82 literal owner rows**:
-OR-001 through OR-037 and OR-101 through OR-145, with no gap inside either range. Every
+Stage A is this exact accepted specification revision and its **81 literal owner rows**:
+OR-001 through OR-041 and OR-101 through OR-140, with no gap inside either range. Every
 row already fixes its command schema/discriminant, eligible W4 profile, exact authority
 subject, preconditions, ordered event producers, streams/write set, reducer,
 projections, receipt and distinct tests. That owner annex is the semantic authority; a
@@ -1361,7 +1477,8 @@ portfolio object/content:
 
 aggregate/relation:
   Candidate, Assay, Spike, assay-request, assay-producer, assay-bar-acceptance,
-  assay-outcome-review, Spike-plan, Spike-attempt, Spike-outcome-review,
+  assay-outcome-review, assay-cancellation-review, Spike-plan, Spike-attempt,
+  Spike-outcome-review, Spike-cancellation-review,
   discovery-promotion, discovery-revisit, authority-content-file-review-acceptance,
   dossier-six-family-closure, legacy-source-row-observation,
   legacy-source-row-target, inventory-mapping-transition-bijection,
@@ -1378,27 +1495,28 @@ Decision discriminant:
   assay_bar_acceptance, discovery_promotion, discovery_revisit,
   spike_execution_authority, dossier_expected_set_acceptance,
   path_registration_acceptance, legacy_source_inventory_acceptance,
-  migration_authority, legacy_path_cutover, w11_schema_catalogue_acceptance
+  migration_authority, legacy_path_cutover
 
 command/event/receipt/authority:
-  every complete OR-001–OR-037 and OR-101–OR-145 row, including every shared W2
+  every complete OR-001–OR-041 and OR-101–OR-140 row, including every shared W2
   ReviewRequested, ReviewVerdictRecorded, DecisionProposed and DecisionResolved
   discriminant; one distinct receipt per row; CandidateRegistered producers exactly
   OR-001 and OR-029; W11AuthorityFileObserved producers exactly OR-103, OR-104,
-  OR-111, OR-117, OR-123, OR-129, OR-135 and OR-141
+  OR-111, OR-117, OR-123, OR-129 and OR-135; catalogue observation/review/acceptance
+  exists only in the external Git/blob envelope; genesis import producer exactly OR-140
 
 reducers/projections:
   authority-content, authority-file-observation, review, Decision, Assay-bar,
   Candidate, Assay, Spike, attempt/lease, dossier admission, portfolio object/edge/
-  scope/project index, Scout observation, annotation, legacy observation,
+  scope/project index, Scout observation, annotation/annotation epoch, legacy observation,
   source inventory, transition mapping, item ownership, cutover closure,
   path registration/cutover, successor Discovery view, optional combined view,
-  schema-catalogue candidate/acceptance
+  schema-catalogue genesis/accepted-catalogue projection
 ```
 
 Any name outside those closed sets requires a new reviewed W11 revision. “Supporting”
 proposal/review/acceptance/path commands are not implementation details: their literal
-owner rows are part of the 82-row authority and are therefore subject to the same
+owner rows are part of the 81-row authority and are therefore subject to the same
 schema, retry, producer and completeness tests.
 
 ### 8.2 Materialization and external catalogue acceptance
@@ -1406,22 +1524,30 @@ schema, retry, producer and completeness tests.
 The topological creation sequence is mandatory:
 
 1. accept the exact W11 specification/owner annex at Stage A;
-2. a schema materializer, in a later authorized task, creates each strict schema file;
-3. an independent observer records for each schema `logical_key`, schema ID/version,
-   exact repository path, Git commit/blob, file length/SHA-256, owner-row IDs and
-   requirement hashes;
-4. only after all schema files exist, create
-   `W11SchemaCatalogueContent` at the proposed path
-   `.research-system/evals/expected/w11-portfolio-discovery-v1.json`;
-5. OR-141 independently observes that catalogue file, OR-142/OR-143 review it, and
-   OR-144/OR-145 obtain Stephen's external acceptance; and
-6. only after `W11SchemaCatalogueAccepted` may a runtime registry, reducer, projector,
-   handler, test discovery mechanism or observed implementation interface be produced.
+2. a schema materializer, in a later authorized task, creates each strict schema file
+   and the minimal bootstrap command/schema/verification contract, but no W11 runtime;
+3. only after all schema files exist, create `W11SchemaCatalogueContent` at the
+   proposed path `.research-system/evals/expected/w11-portfolio-discovery-v1.json`;
+4. an independent observer that executes no W11 command records for every schema and
+   catalogue file its logical key, schema ID/version, exact repository path, Git
+   commit/blob, file length/SHA-256, owner-row IDs and requirement hashes;
+5. a distinct reviewer reconstructs the complete schema-source and owner-row
+   multisets from the accepted specification, verifies the bootstrap contract, and
+   records an exact report identity;
+6. Stephen accepts one external `W11CatalogueAcceptanceEnvelope` containing the exact
+   specification, schema, catalogue, observation, review, owner-multiset and bootstrap-
+   contract identities. That envelope is stored outside the candidate and is the sole
+   pre-runtime catalogue acceptance authority;
+7. only after the envelope is accepted may a runtime registry, reducer, projector,
+   handler, test-discovery mechanism or observed implementation interface be produced;
+   and
+8. the first authoritative mutation is OR-140's independently verified one-time
+   genesis import of that unchanged envelope. Genesis cannot create or amend acceptance.
 
 `W11SchemaCatalogueContent` is a closed Stage-B content candidate. It contains owner-
 spec identity/hash; exact row counts/range hashes; `schema_source_rows[]` with each
 already-materialized schema's identity/path/blob/file digest and independent
-observation; and 82 `owner_contract_rows[]`, each containing:
+observation; and 81 `owner_contract_rows[]`, each containing:
 
 ```text
 owner_row_id, logical_key, schema_id/version/file-observation,
@@ -1431,12 +1557,23 @@ complete write set, reducer, projection targets, receipt identity,
 positive test identity, negative/mutation/retry test identities
 ```
 
-Its `catalogue_content_hash` excludes only itself. The content forbids its own
-repository path/blob/file digest, review/acceptance/Decision/event, runtime-registry
-identity or observed runtime row. Those later facts live in the OR-141–OR-145 records.
-Thus schema hashes precede catalogue content; catalogue content precedes its file
-observation/review/acceptance; and acceptance precedes runtime production. There is no
-schema↔catalogue or content↔acceptance cycle.
+It uses the common `content_hash` only; `catalogue_content_hash` is forbidden. The
+content forbids its own repository path/blob/file digest, observation/review/acceptance/
+Decision/event, runtime-registry identity, genesis result or observed runtime row.
+Those later facts live in the external envelope and OR-140 genesis provenance. Thus
+schema hashes precede catalogue content; catalogue content precedes external byte
+observation/review/acceptance; acceptance precedes runtime production; and genesis
+imports rather than produces that authority. There is no schema↔catalogue,
+content↔acceptance or bootstrap self-cycle.
+
+The external envelope is closed and contains no mutable lifecycle flag. It binds the
+W11 specification commit/blob/SHA-256, catalogue path/blob/SHA-256, every schema path/
+blob/SHA-256, the complete owner-row multiset hash, independent observation and review
+report identities, Stephen's acceptance decision/time/scope, and exact bootstrap
+command-schema/validator/test identities. OR-140 accepts no caller-supplied row or
+schema list: it resolves the envelope and every committed byte independently, requires
+the imported multiset to equal the accepted one, and is idempotent only for the same
+envelope hash. Any prior genesis or conflicting payload fails closed.
 
 Tests compare one-to-one multisets of complete schema-source and owner-contract rows,
 not counts or separately derived field sets. They reject a self/back edge or SCC,
@@ -1452,11 +1589,13 @@ expected side.
 | Failure | Required result |
 |---|---|
 | Any authority content contains its own file/review/acceptance state, or the dependency graph has a self/back edge or SCC | `authority_dependency_cycle`; reject candidate/acceptance/consumer action with zero authoritative state change. |
-| Any OR-001–OR-037/OR-101–OR-145 field, event producer, reducer, projection, receipt or distinct test is missing/blank/foreign | `owner_contract_incomplete`; fail materialization/acceptance before runtime production. |
+| A derived relation hash omits its enumerated preimage, includes itself/enclosing or later authority, or fails topological sorting | `derived_hash_preimage_cyclic`; reject before content hashing or observation. |
+| Any OR-001–OR-041/OR-101–OR-140 field, event producer, reducer, projection, receipt or distinct test is missing/blank/foreign | `owner_contract_incomplete`; fail materialization/acceptance before runtime production. |
+| Catalogue acceptance is absent, candidate/runtime-produced, byte-stale, or the bootstrap contract/genesis import differs from the external envelope | `bootstrap_authority_unavailable`; produce no runtime authority or genesis state. |
 | Candidate/source identity collision | Reject registration; preserve both observations; no Candidate event. |
 | Assay bar is abstract, unaccepted, stale, accepted late, producer-mismatched, swapped after request, or scorecard belongs to another `assay_id` | Reject before evidence linkage; no Assay/Candidate event. |
 | Assay axis missing/extra/duplicate/wrong type or rubric stale | Reject `AssayScored` or record explicit Assay Partial; no promotion proposal inferred. |
-| Partial/cancelled aggregate has no exact review/revisit path, retry reuses an aggregate, or supersession commits without its replacement | `transition_dead_end`; reject the offending transaction; retain the old recoverable state/evidence. |
+| Partial/cancelled aggregate has no exact review/revisit path, leaves an attempt/lease/proposal overlay, retry reuses an aggregate, or supersession commits without its replacement | `recovery_overlay_open`/`transition_dead_end`; reject the offending transaction; retain the old recoverable state/evidence. |
 | Spike plan, attempt, Candidate, or verdict relationship mismatch | Reject verdict; preserve artefacts as unaccepted candidates. |
 | Kill condition triggered but verdict PASS/PARTIAL | Reject verdict schema/relational validation. |
 | Required Spike condition unable to evaluate | PARTIAL; no PASS or promotion. |
@@ -1474,6 +1613,7 @@ expected side.
 | Ownership source/item/target/Decision members do not equal one accepted mapping relation | Reject before allocation; item remains under current owner/path. |
 | Source inventory contains a mapping/owner/transition/cutover back-edge, unknown/uncovered bytes, correlated parser/reproducer, membership mismatch, stale bytes or unaccepted revision | Reject inventory/mapping/cutover; legacy path remains active. |
 | Cutover closure lacks the source-row→accepted-mapping→transition-event bijection, has any legacy-owned/unmapped item, extra transition, active writer, changed final byte or post-observation race | Reject; legacy path remains legacy authority. |
+| Accepted annotation epoch differs before fencing, its pending set is non-empty, the old epoch can still receive writes, or post-fence annotations do not route to the successor epoch | `cutover_epoch_stale`; publish no fence, epoch activation, path cutover or registration revision. |
 | Operation-time root/parent/reparse/hardlink/file identity cannot be proved | Reject/Partial with no authoritative success event or wrong-path write. |
 | Projector deletion/corruption | Rebuild generated view; canonical state unchanged. |
 | Unknown major W11 schema/event | Stop authoritative replay/projection. |
@@ -1502,27 +1642,27 @@ Their absence does not weaken the prospective requirements above.
 | ID | Invariant | Enforcement point | Required test/attack |
 |---|---|---|---|
 | W11-I01 | Object definitions are immutable and state-free. | Closed object schemas and reducers. | Reject lifecycle/status/path fields and in-place revision mutation. |
-| W11-I02 | Every reference/lifecycle artefact binds exact ID/revision/hash plus canonical `asy_`/`spk_` aggregate/stored relation; every content/file/review/acceptance dependency is topologically constructible. | Schema, §3.6 DAG validator, aggregate reducers and relation resolver. | Substitute a valid foreign member; add self/back edge or SCC; assert rejection with state unchanged. |
+| W11-I02 | Every reference/lifecycle artefact binds exact ID/revision/hash plus canonical `asy_`/`spk_` aggregate/stored relation; every derived-hash preimage is explicitly enumerated and every content/file/review/acceptance dependency is topologically constructible. | Schema, §3.6 DAG validator, aggregate reducers and relation resolver. | Substitute a valid foreign member; add self/back edge or SCC; include a relation/enclosing/later hash in its own preimage; assert rejection with state unchanged. |
 | W11-I03 | Required dependency/block subgraph is acyclic. | Edge-registration/admission validator. | Add direct and multi-hop cycles; reject atomically. |
-| W11-I04 | Exact closed rubric/scope contents, file observations, independent review, external Assay-bar acceptance and prospective=actual producer relation are frozen before collection; Partial/cancellation has a non-dead-end reviewed revisit route. | OR-101–OR-109, `RequestAssay`, Assay/Candidate reducers. | Abstract/missing/late/stale bar, producer change, post-request swap, foreign scorecard, axis mutations, every cancellation/Partial/review/RETRY/PARK/KILL edge and same-ID retry. |
+| W11-I04 | Exact closed rubric/scope contents, file observations, independent review, external Assay-bar acceptance and prospective=actual producer relation are frozen before collection; Partial/cancellation has a subject-specific non-dead-end reviewed revisit route. | OR-034–OR-041, OR-101–OR-109, `RequestAssay`, Assay/Candidate reducers. | Abstract/missing/late/stale bar, producer change, post-request swap, foreign scorecard, axis mutations, every cancellation/Partial/request/review/RETRY/PARK/KILL edge and same-ID retry. |
 | W11-I05 | Assay/Spike evidence cannot resolve promotion. | Decision authority resolver. | Feed PROMOTE recommendation/PASS without Stephen Decision; no state change. |
-| W11-I06 | Spike verdict obeys success/failure/kill/Partial logic, and Partial/cancellation closes attempts then has only the reviewed revisit/new-aggregate path. | Spike-verdict schema, rule evaluation and OR-019–OR-025 reducers. | Trigger each kill/unknown condition; traverse every Partial/cancel/review/revisit option; reject false PASS, open lease, dead end and same-ID retry. |
+| W11-I06 | Spike verdict obeys success/failure/kill/Partial logic, and Partial/cancellation atomically closes attempts/leases and supersedes any pending execution proposal before the subject-specific reviewed revisit/new-aggregate path. | Spike-verdict schema, rule evaluation and OR-019–OR-025/OR-040–OR-041 reducers. | Trigger each kill/unknown condition and both cancellation/proposal race orders; traverse every Partial/cancel/review/revisit option; reject false PASS, open lease/proposal, dead end and same-ID retry. |
 | W11-I07 | Promotion is exact-subject, exact-gate, human-locked. | `ResolveDecision` and authority grant. | Wrong actor, Candidate, revision, gate, evidence, option, next state, and stale grant. |
 | W11-I08 | PROMOTE authorizes only one named next design step. | `CandidatePromotionApplied` reducer/write set. | Add Dispatch/pre-registration/result/claim event to batch; reject all. |
 | W11-I09 | Complete literal six-family `DossierExpectedSetContent` precedes independent file observation/review/external acceptance, has no self/back edge, and is frozen before candidate observation. | OR-110–OR-115, §3.6 DAG and admission resolver. | Embed own file/acceptance, create SCC, late/related/unaccepted tuple or coordinated candidate-side omission; unchanged external tuple rejects. |
 | W11-I10 | Dossier closure is exact, including independently resolved/rehashed component and source bytes, not “all supplied passed.” | `AdmitResearchDossier`. | Per-family missing/extra/duplicate/stale/incompatible/tampered/valid-foreign/path-escape/count-only and source-resolution mutations. |
 | W11-I11 | Dossier admission is atomic. | W2 transaction/write set. | Fail each validation step and inject concurrent tail/version changes; assert zero events/final objects/scopes/projections. |
-| W11-I12 | Scout observations are not judgments/authority, and all 82 owner rows bind complete command/discriminant, W4 subject, event producer, streams/write set, reducer, projection, receipt and distinct tests. | Scout schema, §4.2 owner annex and externally accepted §8 catalogue. | Add judgment/direct write; omit/blank/swap any owner-row field; wildcard subject, alternate producer, coordinated catalogue/runtime change or abstract later command; reject. |
+| W11-I12 | Scout observations are not judgments/authority, and all 81 owner rows bind complete command/discriminant, membership in the exact W4 allowlist, event producer, streams/write set, reducer/effect-equivalent projection targets, receipt and three literal per-row test identities. | Scout schema, §4.2 owner annex and externally accepted §8 catalogue. | Add judgment/direct write; omit/blank/swap any owner-row field; remove an allowlist member/projection/test identity; wildcard subject, alternate producer, coordinated catalogue/runtime change or abstract later command; reject. |
 | W11-I13 | Generated views never authorize their source. | Command source allowlists. | Use successor/combined projection as dossier, annotation, transition, or Decision input; reject. |
 | W11-I14 | Legacy, successor, annotation, and combined writer sets remain physically disjoint from registration through the operation commit point. | PathRegistration plus §7.3 handle/file-identity resolver. | Registered-root junction positive; exact/casefold/Unicode/8.3/symlink/reparse/prefix/hardlink/parent-swap race matrix. |
 | W11-I15 | An annotation is evidence until a separate command acts. | `IngestDiscoveryAnnotation`. | Ingest proposed PROMOTE/object edit; only annotation event appears. |
 | W11-I16 | Each active item has one owner and one accepted source-observation→source-only-inventory-row→mapping-content→external-Decision→target relation, with no reverse edge. | OR-122–OR-133, §7.5 resolver, ownership reducer and DAG validator. | Put mapping/owner in inventory; add mapping acceptance back-edge; attempt `dual_owned`, simultaneous or cross-member substitutions. |
 | W11-I17 | Per-item transition never repurposes the legacy path. | Transition write set/path registry. | Transition one item while others remain; assert zero legacy-path write and legacy writer retained. |
-| W11-I18 | Legacy-named generation requires an accepted source-only cutover inventory, mapping/transition completion, later accepted cutover closure with exact row bijection, independent final observation, writer revocation and race-free cutover. | OR-122–OR-139, `LegacyCutoverClosureContent`, OR-033 and §7.3. | Break topological order; omit/alias/unparse row; coordinate parser omission; change final bytes; leave item/writer/collision/annotation; swap parent/reparse; reject. |
+| W11-I18 | Legacy-named generation requires an accepted source-only cutover inventory, mapping/transition completion, later accepted cutover closure with exact row bijection, independent final observation, writer revocation, accepted annotation epoch and race-free epoch fence/cutover. | OR-122–OR-139, `LegacyCutoverClosureContent`, OR-033 and §§7.3–7.6. | Break topological order; omit/alias/unparse row; coordinate parser omission; change final bytes; leave item/writer/collision/annotation; add a pre-fence annotation or write the fenced epoch; swap parent/reparse; reject. |
 | W11-I19 | Whole-path cutover is one way. | Closed cutover state machine. | Attempt `successor_active -> legacy_active`; reject. |
 | W11-I20 | Projection deletion/rebuild is authority-neutral, deterministic, and published only through the operation-time physical-identity protocol. | Projector/replay and §7.3 contract. | Delete/mutate view; rebuild byte-identically; inject parent/reparse/hardlink races; authority unchanged and no wrong-path write. |
 | W11-I21 | Portfolio Claim governance is a required assurance boundary and cannot compensate for W5 claim authority. | Portfolio Claim schema, W5 consumer predicate and Paper Claim governance tests. | Supply accepted-looking Claim without W5 claim Decision; every claim consumer rejects; perform no claim action. |
-| W11-I22 | Replay fails closed on unknown/broken W11 records. | W2 replay/projectors. | Unknown major schema/event, broken hash/ref, missing reducer; no authoritative projection. |
+| W11-I22 | Replay fails closed on unknown/broken W11 records, and the first W11 catalogue state can arise only from the externally accepted exact-byte envelope through the one-time verified genesis importer. | W2 replay/projectors, external envelope resolver and OR-140 bootstrap verifier. | Unknown major schema/event, broken hash/ref, missing reducer, self-produced envelope, stale byte, second/conflicting genesis; no authoritative projection. |
 
 ## 12. Pre-implementation acceptance tests
 
@@ -1530,27 +1670,30 @@ The future materialization/implementation plan must bind distinct test identitie
 following minimum set before any runtime code is written:
 
 1. strict positive/negative schema and §3.6 topological tests for every literal §8
-   content/authority, aggregate/relation, artefact, Decision subtype and all 82 owner
+   content/authority, aggregate/relation, artefact, Decision subtype and all 81 owner
    rows, including every event producer, stream/write set, reducer/projection, receipt,
-   self/back edge, SCC and forbidden candidate acceptance field;
+   self/back edge, SCC, enumerated relation-hash preimage, external catalogue envelope,
+   genesis import and forbidden candidate acceptance field;
 2. one-field-at-a-time type/value/enum/pattern/required/additional-property mutations;
-3. after schema-file materialization, complete-row equality against externally accepted
-   `W11SchemaCatalogueContent`/file/review/acceptance records: reject a schema↔catalogue
-   or content↔acceptance cycle, duplicate/swap/aliased-test/blank reducer/removed effect/
-   omitted supporting command/alternate producer/late schema/coordinated runtime-
-   catalogue attack;
+3. after schema-file materialization, complete-row equality against the exact external
+   `W11CatalogueAcceptanceEnvelope`: reject a schema↔catalogue or content↔acceptance
+   cycle, duplicate/swap/aliased-test/blank reducer/removed effect/allowlist omission/
+   omitted supporting command/alternate producer/late schema/self-produced envelope/
+   stale bootstrap contract/coordinated runtime-catalogue attack and second genesis;
 4. closed Candidate/Assay/Spike matrices covering every §4.1.1 state/command/event/
    stream/reducer edge, unique `asy_`/`spk_`, exact accepted Assay-bar and prospective=
-   actual producer freeze, late/stale/swap cases, Partial review, cancellation with lease
-   closure, RETRY/PARK/KILL, retry-new-aggregate and atomic replacement/supersession;
+   actual producer freeze, late/stale/swap cases, Partial review, subject-specific
+   cancellation request/review, attempt/lease and pending-proposal closure, both
+   cancellation/proposal race orders, RETRY/PARK/KILL, retry-new-aggregate and atomic
+   replacement/supersession;
 5. exact Candidate–Assay–Spike–artefact–review–RuleEvaluation–Decision–acceptance
    relation substitutions using foreign but individually valid current records,
    including old/new retry predecessors and acceptance tuples;
 6. TDL legacy assay-rubric compatibility fixture proving the numeric rule while
    proving legacy `decision` is recommendation-only;
 7. Spike PASS/FAIL/PARTIAL truth table with every kill/unknown condition perturbed at
-   the producing seam plus Partial review, cancellation, attempt/lease closure and
-   no-dead-end reachability;
+   the producing seam plus Partial review, cancellation review, attempt/lease closure,
+   pending execution-proposal supersession and no-dead-end reachability;
 8. PROMOTE/PARK/KILL option-specific requirements and non-Stephen authority negatives;
 9. exact dossier positive fixture from a topologically constructed pre-observation
    `DossierExpectedSetContent` + file observation + review + external acceptance, plus
@@ -1560,12 +1703,15 @@ following minimum set before any runtime code is written:
    the accepted external expected tuple remains fixed;
 10. dossier failure injection at every validation/publication boundary with zero event,
     final-object, ScopeDefinition, and projection publication;
-11. idempotent lost-response retry/conflicting-payload retry for each of the 82 literal
+11. idempotent lost-response retry/conflicting-payload retry for each of the 81 literal
     owner rows, with exact W4 subject, ordered event producer, streams, complete write
-    set, reducer, projection, receipt and per-row `W11-T11-<owner-row>` identity;
+    set, reducer, projection, receipt and exact per-row positive, negative/mutation and
+    retry identities; independently join every row to its W4 allowlist and effect-
+    equivalent projection targets;
 12. Scout source/dedup/collision tests and direct-judgment/direct-write permission
     negatives;
-13. annotation valid/stale/duplicate/foreign-writer/manual-projection-edit tests;
+13. annotation valid/stale/duplicate/foreign-writer/manual-projection-edit tests plus
+    after-closure/before-fence, locked pre-commit and post-fence successor-routing races;
 14. Windows operation-time suite: registered-root-junction positive plus exact,
     case-fold, Unicode, 8.3, symlink/junction/reparse, prefix, hardlink/file-ID,
     parent-replacement and concurrent-writer swaps after every §7.3 phase;
@@ -1581,9 +1727,11 @@ following minimum set before any runtime code is written:
     external acceptance, complete byte/item membership, independent parser/reproducer,
     mapping/transition completion, later cutover-closure content + external acceptance,
     unknown/unparseable/alias/coordinated-omission/SCC attacks, row-mapping-event
-    bijection, post-inventory/final-observation writes, writer revocation, no legacy-
-    named generation before cutover, operation-time races and reverse transition;
-19. genesis and accepted-snapshot replay with projection hashes and unknown-schema
+    bijection, post-inventory/final-observation writes, writer revocation, accepted
+    annotation epoch, pre-fence delta, successor epoch activation, no legacy-named
+    generation before cutover, operation-time races and reverse transition;
+19. external-envelope bootstrap, one-time genesis and accepted-snapshot replay with
+    exact byte identities, projection hashes, conflicting-genesis and unknown-schema
     fail-closed tests;
 20. Paper Claim governance/consumer tests proving combined views, projection prose,
     Assay recommendation, Spike verdict, and portfolio Claim cannot satisfy W5 result/
@@ -1601,10 +1749,11 @@ review or D-G6-4.
 | P-004/P-021 | Keep. Exact path/writer and item ownership bind an acyclic source-inventory→mapping→transition→cutover-closure chain and operation-time physical identities; no shared writer or inferred owner. |
 | P-005/P-022 | Keep. Every Discovery promotion is human-locked; independent review evidence remains distinct from the author. |
 | P-026 | Keep. Specification only; no legacy or successor state mutation. |
-| P-032 | Keep. Canonical closed/recoverable lifecycle, external dossier/Assay/catalogue authorities, complete 82-row command subjects, and vault projection/annotation boundaries are defined prospectively. |
-| P-034 | Keep. Accepted source-only inventory and per-item source–item–target relations precede transitions; a later accepted closure binds final observation/bijection before cutover. No indefinite dual-running, implicit batch or parser omission. |
+| P-032 | Keep. Canonical closed/recoverable lifecycle, external dossier/Assay/catalogue authorities, complete 81-row command subjects, and vault projection/annotation boundaries are defined prospectively. |
+| P-034 | Keep. Accepted source-only inventory and per-item source–item–target relations precede transitions; a later accepted closure binds final observation/bijection and an accepted annotation epoch before atomic fence/cutover. No indefinite dual-running, implicit batch or parser omission. |
 | P-036 | Keep. WP6 launch-basis constraints are unchanged; W11 receives a new exact-revision gate. |
-| D-G6-4 limb 1 | **Open:** revision 0.3 reconciles both `rework_required` reports but is not self-accepted; Stephen may accept its new exact commit only after fresh independent R3 review reports no open Critical/Major. |
+| D-G6-4 bounded policy choices | **Accepted 2026-07-18:** catalogue authority is an external exact Git/blob envelope imported later through verified genesis; cutover uses an accepted annotation epoch, atomic fence and successor-epoch routing. This accepts the policies, not the W11 revision or any implementation/migration. |
+| D-G6-4 limb 1 | **Open:** revision 0.4 reconciles R3 but is not self-accepted; Stephen may accept its new exact commit only after fresh independent R4 review reports no open Critical/Major. |
 | D-G6-4 limb 2 | **Open:** Stephen must approve a content-addressed first ownership-transition batch using the accepted §7.5 relation; no item/path migration is inferred by accepting the spec. |
 | W11-A1 | **Open/optional:** accept the proposed combined-view path, substitute another disjoint third path, or omit the view. |
 
@@ -1618,8 +1767,9 @@ precompute the later cutover closure. An empty or descriptive list is not approv
 
 The report at
 `../reviews/adversarial-wp6-5-w11-spec-review-2026-07-18.md` remains immutable. The R1
-author reconciliation below is retained for provenance; R2 subsequently identified
-five remaining Major defects, so revision 0.3 refines rather than erases those rows:
+author reconciliation below is retained for provenance; R2 and R3 subsequently
+identified further Major defects, so revision 0.4 refines rather than erases those
+historical rows:
 
 | Finding | Revision 0.2 disposition | Invariants/tests re-opened for fresh review |
 |---|---|---|
@@ -1628,7 +1778,7 @@ five remaining Major defects, so revision 0.3 refines rather than erases those r
 | M-1 | Added canonical `asy_`/`spk_` IDs/streams and bound every artefact, event, RuleEvaluation and Decision relation. | I02, I04–I07; tests 1, 4, 5 |
 | M-2 | `RequestAssay` freezes an already accepted exact bar before `evidence_collecting`; revision 0.3 instantiates its closed contents, external lifecycle, producer relation and staleness. | I04–I05; tests 4–6 |
 | M-3 | Admission independently resolves and rehashes every component and every source dependency from verified handles/resolvers. | I09–I10; test 9 |
-| M-4 | §4.2/§8 list commands/events/authority; revision 0.3 replaces the incomplete summary with 82 literal owner rows including supporting review-request/authority lifecycle, reducers, projections and tests. | I12, I15–I18; tests 1, 3, 11–13, 18 |
+| M-4 | §4.2/§8 list commands/events/authority; revision 0.3 replaced the incomplete summary with its then-current 82 literal owner rows including supporting review-request/authority lifecycle, reducers, projections and tests. Revision 0.4 supersedes that catalogue with the 81-row authority reconciled below. | I12, I15–I18; tests 1, 3, 11–13, 18 |
 | M-5 | Added one accepted inventory-item/`LegacyRecordObserved`/source-selector/target/Decision relation hash loaded independently before allocation. | I02, I16–I17; tests 5, 15, 16 |
 | M-6 | Added operation-time registered-root, no-follow traversal, handle/file-ID/hardlink, held-parent, atomic-replace and post-verify protocol plus phase-specific races. | I14, I18, I20; tests 14, 17, 18 |
 | m-1 | Paper Claim is Required for governance/consumer tests while every actual claim activity remains unauthorized. | I21; test 20 |
@@ -1644,10 +1794,24 @@ finding/matrix audit without claiming acceptance:
 | R2-M1 — expected-set self-content-address cycle | §3.6/§5 split `DossierExpectedSetContent` from later file observation, review and external acceptance. No candidate contains its own storage/acceptance; admission validates a topologically ordered tuple. | I02, I09–I11; tests 1, 3, 9–11 |
 | R2-M2 — inventory↔mapping lifecycle/hash cycle | §7.5–§7.6 define source-only inventory → mapping content → external acceptance → transition → later cutover closure. Inventories have no mapping/owner back-edge; cutover consumes an accepted closure. | I02, I16–I20; tests 1, 3, 14–18 |
 | R2-M3 — abstract Assay bar | §4.3 instantiates exact rubric/scope contents, external review/acceptance, prospective=actual producer relation and staleness triggers before `RequestAssay`. | I04–I07; tests 1, 4–8 |
-| R2-M4 — incomplete owner catalogue | §4.2 defines 82 complete literal owner rows, including outcome-review requests, proposal/review/acceptance/path/catalogue commands and exact subjects, events, reducers, projections, receipts/tests. §8 materializes schemas first, then externally accepts the catalogue before runtime. | I09, I12, I14–I18, I22; tests 1, 3, 9, 11–19 |
+| R2-M4 — incomplete owner catalogue | Revision 0.3 defined its then-current 82 literal owner rows, including outcome-review requests, proposal/review/acceptance/path/catalogue commands and exact subjects, events, reducers, projections, receipts/tests. Revision 0.4 supersedes that catalogue with 81 rows and the external-envelope/genesis sequence reconciled under R3-M2/M3. | I09, I12, I14–I18, I22; tests 1, 3, 9, 11–19 |
 | R2-M5 — cancellation/Partial dead ends | §4.1.1 and OR-003–OR-027 give exact Partial review, cancellation, attempt closure, revisit RETRY/PARK/KILL and atomic fresh-aggregate replacement/supersession transitions. | I02, I04–I08; tests 4, 5, 7, 8, 11 |
 
-The two reviews' complete audits are dispositioned, not narrowed: all five design
+The immutable R3 report at
+`../reviews/adversarial-wp6-5-w11-spec-remediation-r3-review-2026-07-18.md` reviewed exact
+subject `3e068c1ee5100e5a6e0bc57d0d047d993b406b2b`. Revision 0.4 dispositions its complete
+finding/matrix audit without claiming acceptance:
+
+| R3 finding | Revision 0.4 disposition | Invariants/tests re-opened for R4 |
+|---|---|---|
+| R3-M1 — cyclic/undefined derived-hash preimages | §3.6 makes every relation digest a separately enumerated preimage that excludes itself, enclosing and later hashes; §4.3 and §7.5 enumerate the Assay and transition relations; §8 removes `catalogue_content_hash`. | I02, I16; tests 1, 3, 4, 15, 18 |
+| R3-M2 — catalogue bootstrap requires prohibited runtime | Stephen approved the external exact Git/blob `W11CatalogueAcceptanceEnvelope`; §3.6/§8.2 require observation, independent review and owner acceptance before runtime, followed only by OR-140's verified one-time genesis import. | I12, I22; tests 1, 3, 11, 19 |
+| R3-M3 — owner rows disagree with allowlist/projections/tests | §4.2/§6.2 join 81 literal rows to the exact W4 allowlist and effect-equivalent projections; OR-004/005/007 project Candidate; every row has a literal positive, negative/mutation and retry identity. | I04, I12; tests 1, 3, 4, 11 |
+| R3-M4 — cancelled outcomes lack a review route | OR-038–OR-041 add exact request/verdict subjects for Assay and Spike cancellation, and §4.1 requires `cancelled_reviewed` before revisit. | I04, I06; tests 4, 7, 11 |
+| R3-M5 — Spike Partial/cancel leaves overlays live | OR-019 closes its attempt/lease on PARTIAL; OR-022 atomically closes attempt/lease and mechanically supersedes any unresolved OR-015 proposal before cancellation review/revisit. | I06; tests 4, 7, 11 |
+| R3-M6 — late annotation can stale cutover closure | Stephen approved the accepted annotation-epoch policy; §§7.4/7.6 bind the exact legacy epoch, re-observe it under lock, atomically fence it and activate successor routing at cutover. | I18; tests 13, 18 |
+
+The three reviews' complete audits are dispositioned, not narrowed: all five design
 entry criteria are now stated as satisfied for authorship; every P-004/P-005/P-021/
 P-022/P-026/P-032/P-034/P-036 and D-G6-4/W11-A1 row remains explicit above; all 22
 invariants remain in §11; all 20 pre-implementation tests remain in §12; §8 resolves
@@ -1658,16 +1822,16 @@ checks are reconciliation evidence only.
 
 ### 13.2 Cross-spec consistency reconciliation
 
-| Invariant / identity | Owning source | Revision 0.3 binding and disposition |
+| Invariant / identity | Owning source | Revision 0.4 binding and disposition |
 |---|---|---|
 | First-class ID, immutable record and canonical stream/reference semantics | W2 §§5–9 | Portfolio/content records remain immutable `obj_`; Assay/Spike use canonical `asy_`/`spk_`; review/acceptance state is external and every reference is topologically constructible. |
 | Decision is not `RuleEvaluation` | W2 §18; P-005/P-022 | Scorecards/verdicts remain evidence; every PROMOTE/PARK/KILL resolution is an exact-subject Stephen Decision and cannot be compensated. |
 | Acceptance bar independent of producer and frozen before observation | W5 §§6–11 | `RequestAssay` freezes exact rubric/scope contents, file observations, review, external acceptance and prospective=actual producer relation; dossier acceptance likewise follows content without self-addressing. |
-| Complete expected-set closure and producer separation | W5 §11; WP6 master §6 | Six literal dossier row families and the 82-row §4.2/§8 owner universe receive external acceptance; candidate/runtime coordinated omissions remain unequal. |
+| Complete expected-set closure and producer separation | W5 §11; WP6 master §6 | Six literal dossier row families and the 81-row §4.2/§8 owner universe receive external exact-byte acceptance before runtime; candidate/runtime coordinated omissions remain unequal. |
 | Atomic publication | W2 §§8–9/13 | Dossier and promotion batches validate exact relations/write sets first; any failure produces zero authoritative event/object/scope/projection publication. |
 | Observation is not adoption | W2 §22; P-032/P-034 | `LegacyRecordObserved` and source-only inventory are evidence; later mapping content, external Decision/acceptance and transition are required for one item. |
-| One active owner and no shared physical writer | W1 §§9–10; P-004/P-021 | Acyclic source inventory→mapping→transition→cutover closure plus §7.3 physical identity closes partial/whole-path cutover without `dual_owned`. |
-| Profile capability is not command authority | W4 §§7/15/19 | Each of 82 literal rows names profile, exact subject, grant, preconditions, events, streams/write set, reducer/projection and receipt/tests; unlisted rows default deny. |
+| One active owner and no shared physical writer | W1 §§9–10; P-004/P-021 | Acyclic source inventory→mapping→transition→cutover closure plus §7.3 physical identity and the accepted annotation-epoch fence close partial/whole-path cutover without `dual_owned` or stranded evidence. |
+| Profile capability is not command authority | W4 §§7/15/19 | Each of 81 literal rows names profile, exact subject, grant, preconditions, events, streams/write set, reducer/effect-equivalent projection and three literal test identities; unlisted rows default deny. |
 | Portfolio Claim is not W5 claim authority | W1 §5.1; W5 §§14/19 | Paper Claim lane is Required for governance/consumer tests, while no actual claim activity is authorized and missing W5 authority cannot be compensated. |
 | Specification is not implementation or migration authority | P-026/P-036; WP6 master | This revision materializes no schema/catalogue/runtime/projection, performs no live action, and leaves D-G6-4, WP6.6 and WP6.7 hard-stopped. |
 
@@ -1682,11 +1846,13 @@ Before W11 can be accepted or WP6.6 planned:
    test matrix, path/writer and transition attacks, failure behaviour, practicality,
    residual risks, and exact reviewed commit.
 3. The reviewer explicitly attacks expected/observed producer separation, valid-foreign
-   relational substitutions, every §3.6 self/back edge and SCC, the complete 82-row
-   owner multiset, Assay-bar producer/staleness, every cancellation/Partial recovery
-   edge, source-inventory/mapping/closure ordering, shared physical writers, partial
-   cutover, legacy-named generation, combined-view feedback, annotation round-tripping,
-   and atomic dossier publication.
+   relational substitutions, every §3.6 self/back edge and SCC, the complete 81-row
+   owner multiset and all three literal per-row test identities, the external catalogue
+   envelope/one-time-genesis boundary, Assay-bar producer/staleness, every cancellation/
+   Partial review and recovery edge, attempt/lease/proposal cleanup in both race orders,
+   source-inventory/mapping/closure ordering, shared physical writers, partial cutover,
+   legacy-named generation, accepted annotation-epoch staleness/fencing/successor routing,
+   combined-view feedback, annotation round-tripping, and atomic dossier publication.
 4. The primary author may perform a self-adversarial check, but it is recorded only as
    author verification and does not satisfy this independent gate.
 5. Reconciliation dispositions every finding and records exact changes. Any material
@@ -1712,7 +1878,7 @@ Fresh review and later implementation review must retain these residual risks:
   expected/observed sides from one runtime registry; review must topologically sort the
   stored graph, reconstruct both sides separately and run coordinated-pair mutations;
 - future lifecycle reducers could omit an owner row or leave a Partial/cancelled state
-  unreachable; review must enumerate all 82 rows and perform full state reachability;
+  unreachable; review must enumerate all 81 rows and perform full state reachability;
 - Windows filesystem features vary by volume and privilege. Tests must record which
   junction/reparse/hardlink/file-ID races executed; any unavailable required test is
   Partial, not pass;
@@ -1752,10 +1918,10 @@ must receive its own D-G6-4 decision.
       specified.
 - [x] All six assurance lanes are dispositioned; Output/Provenance is primary.
 - [x] Invariants map to enforcement points and pre-implementation attacks.
-- [x] R1 and R2 independent adversarial reviews completed with `rework_required`;
+- [x] R1, R2, and R3 independent adversarial reviews completed with `rework_required`;
       immutable reports incorporated unchanged.
-- [x] Primary author reconciliation dispositions every R1/R2 finding and full matrix.
-- [ ] Fresh independent R3 review of the new exact commit reports no open Critical/Major.
+- [x] Primary author reconciliation dispositions every R1/R2/R3 finding and full matrix.
+- [ ] Fresh independent R4 review of the new exact commit reports no open Critical/Major.
 - [ ] Stephen accepts the exact W11 revision under D-G6-4.
 - [ ] Stephen approves the first exact ownership-transition batch under D-G6-4.
 - [ ] Future strict schemas and independent expected catalogue are materialized,

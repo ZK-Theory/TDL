@@ -566,13 +566,20 @@ The WP6.5 specification-only draft exists at
 Independent review of exact revision `70074d42eade8460808e4d1d29348b7806eff2d0`
 returned `rework_required` (2 Critical, 6 Major, 2 Minor). R2 review of exact revision
 `d24df9d26f0d906d177eafa1eaeabb65a5515004` also returned `rework_required`
-(0 Critical, 5 Major). Revision 0.3 records author reconciliation of every R1/R2
-finding and the complete entry/invariant/test/decision/assurance/cross-spec matrices;
-it replaces self/cross-address cycles with a topological external-authority DAG,
-instantiates the Assay bar, freezes 82 owner rows, and closes Partial/cancellation
-recovery. The dated addendum remains in the tracked root evidence register. A fresh
-independent R3 review of the new exact commit is mandatory and author reconciliation is
-not acceptance. This status entry does not
+(0 Critical, 5 Major). R3 review of exact revision
+`3e068c1ee5100e5a6e0bc57d0d047d993b406b2b` returned `rework_required`
+(0 Critical, 6 Major). On 2026-07-18 Stephen approved the two bounded remediation
+policies: pre-runtime catalogue authority may be an external exact Git/blob acceptance
+envelope imported later through verified one-time genesis, and legacy annotation
+cutover may bind an accepted inbox epoch that is atomically fenced while post-fence
+annotations route to a successor epoch. Those approvals do not accept W11 itself.
+Revision 0.4 records author reconciliation of every R1/R2/R3 finding and the complete
+entry/invariant/test/decision/assurance/cross-spec matrices; it defines an acyclic hash
+DAG and bootstrap, reconciles 81 owner rows with W4/projections/test identities, adds
+separate cancellation review and overlay cleanup, and closes the annotation cutover
+race with the accepted epoch/fence protocol. The dated addendum remains in the tracked
+root evidence register. A fresh independent R4 review of the new exact commit is
+mandatory and author reconciliation is not acceptance. This status entry does not
 amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
 schema/projection, ingest/admit any item, transition ownership, cut over a path, or
 perform any result/eligibility/claim action. D-G6-4 remains open for (1) Stephen's
