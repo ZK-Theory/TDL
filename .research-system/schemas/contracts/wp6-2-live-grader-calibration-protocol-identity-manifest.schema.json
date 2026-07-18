@@ -182,10 +182,10 @@
           "const": "validate_future_result_semantics"
         },
         "canonical_sha256": {
-          "const": "11c94043236d1f11ea26fc9c0afcf2c8f9a6fc56f9f8cd5f967e4b27be158538"
+          "const": "ba05254213310efae954be2e17160ee5abfdedc4736c83b6c0a1dc26596f31ff"
         },
         "git_blob_sha1": {
-          "const": "3fea6974f022681a86ae13996cd26b61813edbbd"
+          "const": "6b913f0a3a0184b3808bd35ccbc2ccbfccdf66e3"
         },
         "status": {
           "const": "pure_prospective_semantic_validator_no_io_or_acceptance_authority"

@@ -19,8 +19,9 @@ from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 
 
-SCHEMA_ROOT = Path(".research-system/schemas")
-CONTRACT_ROOT = Path(".research-system/contracts")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+SCHEMA_ROOT = REPOSITORY_ROOT / ".research-system/schemas"
+CONTRACT_ROOT = REPOSITORY_ROOT / ".research-system/contracts"
 PROTOCOL_PATH = CONTRACT_ROOT / "wp6-2-live-grader-calibration-protocol.yaml"
 IDENTITY_MANIFEST_PATH = CONTRACT_ROOT / "wp6-2-live-grader-calibration-protocol-identity-manifest.yaml"
 PROTOCOL_SCHEMA_PATH = SCHEMA_ROOT / "contracts" / "wp6-2-live-grader-calibration-protocol.schema.json"
@@ -90,7 +91,7 @@ def _git_blob_sha1(payload: bytes) -> str:
 
 
 def _git_output(*args: str, text: bool = True) -> str | bytes:
-    return subprocess.check_output(["git", *args], text=text)
+    return subprocess.check_output(["git", *args], cwd=REPOSITORY_ROOT, text=text)
 
 
 def _revision_bytes(revision: str, path: str) -> bytes:
@@ -1313,6 +1314,7 @@ def _validate_prospective_candidate(
     return SEMANTICS.validate_future_result_semantics(
         candidate,
         protocol=protocol,
+        protocol_canonical_bytes=_canonical_file_bytes(PROTOCOL_PATH),
         identity_manifest=manifest,
         accepted_authority_records=authorities,
     )
@@ -1326,6 +1328,35 @@ def test_public_semantic_seam_accepts_only_complete_zero_error_fixture() -> None
     assert disposition.human_adjudication_slot_count == 28
     assert [summary["grader_class"] for summary in disposition.class_summaries] == ["M", "H"]
     assert all(summary["accepted"] for summary in disposition.class_summaries)
+
+
+def test_public_semantic_seam_rejects_unauthenticated_protocol_mapping() -> None:
+    candidate, protocol, manifest, authorities = _prospective_candidate_fixture()
+    protocol["future_result_contract"]["two_layer_validation_rule"] = "forged_but_self_consistent_protocol_mapping"
+
+    with pytest.raises(
+        SEMANTICS.FutureResultSemanticError,
+        match="protocol mapping differs from authenticated canonical bytes",
+    ):
+        _validate_prospective_candidate(candidate, protocol, manifest, authorities)
+
+
+def test_public_semantic_seam_rejects_modified_protocol_bytes_with_matching_mapping() -> None:
+    candidate, protocol, manifest, authorities = _prospective_candidate_fixture()
+    protocol["future_result_contract"]["two_layer_validation_rule"] = "forged_but_self_consistent_protocol_mapping"
+    modified_protocol_bytes = yaml.safe_dump(protocol, sort_keys=False).encode("utf-8")
+
+    with pytest.raises(
+        SEMANTICS.FutureResultSemanticError,
+        match="protocol canonical byte SHA-256",
+    ):
+        SEMANTICS.validate_future_result_semantics(
+            candidate,
+            protocol=protocol,
+            protocol_canonical_bytes=modified_protocol_bytes,
+            identity_manifest=manifest,
+            accepted_authority_records=authorities,
+        )
 
 
 def _duplicate_model_slot_with_varied_hashes(candidate: dict[str, Any], _: dict[str, dict[str, Any]]) -> None:
@@ -1487,14 +1518,6 @@ def _foreign_valid_coordinated_authority(
     )
     candidate.update(
         {
-            "protocol_id": "foreign-protocol",
-            "protocol_version": "9.9.9",
-            "protocol_canonical_sha256": foreign_protocol_sha,
-            "protocol_git_blob_sha1": foreign_protocol_blob,
-            "execution_freeze_sha256": foreign_freeze_sha,
-            "required_slot_set_id": "foreign-slot-set",
-            "required_slot_set_version": "9.9.9",
-            "required_slot_set_sha256": foreign_slot_sha,
             "protocol_identity_record_sha256": protocol_record_sha,
             "required_slot_set_identity_record_sha256": slot_record_sha,
             "t1a_independent_review_record_sha256": review_record_sha,
@@ -1546,10 +1569,14 @@ def test_public_semantic_seam_rejects_r2_relational_bypasses(
 def test_semantic_layer_rejects_coordinated_foreign_authority_without_schema_help() -> None:
     candidate, protocol, manifest, authorities = _prospective_candidate_fixture()
     _foreign_valid_coordinated_authority(candidate, authorities)
-    with pytest.raises(SEMANTICS.FutureResultSemanticError):
+    with pytest.raises(
+        SEMANTICS.FutureResultSemanticError,
+        match="protocol identity record.subject_id differs from frozen authority",
+    ):
         SEMANTICS.validate_future_result_semantics(
             candidate,
             protocol=protocol,
+            protocol_canonical_bytes=_canonical_file_bytes(PROTOCOL_PATH),
             identity_manifest=manifest,
             accepted_authority_records=authorities,
         )
@@ -1599,6 +1626,7 @@ def test_r2_gross_invalid_candidate_reproduction_rejects_at_both_layers() -> Non
         SEMANTICS.validate_future_result_semantics(
             candidate,
             protocol=protocol,
+            protocol_canonical_bytes=_canonical_file_bytes(PROTOCOL_PATH),
             identity_manifest=manifest,
             accepted_authority_records=authorities,
         )
@@ -1617,6 +1645,7 @@ def test_candidate_cannot_self_attest_external_authority_records() -> None:
         SEMANTICS.validate_future_result_semantics(
             candidate,
             protocol=protocol,
+            protocol_canonical_bytes=_canonical_file_bytes(PROTOCOL_PATH),
             identity_manifest=manifest,
             accepted_authority_records={},
         )

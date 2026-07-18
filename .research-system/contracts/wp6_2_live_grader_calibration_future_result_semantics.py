@@ -3,7 +3,8 @@
 This module is part of the T1a contract surface.  It performs no provider,
 credential, runtime, ledger, or result I/O.  Callers must first validate the
 candidate and the scoped identity manifest with their closed JSON Schemas,
-then supply authority records resolved from an independent trusted store.
+supply the protocol's canonical authenticated bytes, and resolve authority
+records from an independent trusted store.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from dataclasses import dataclass
 import hashlib
 import json
 from typing import Any, Mapping, Sequence
+
+import yaml
 
 
 class FutureResultSemanticError(ValueError):
@@ -41,6 +44,11 @@ def canonical_record_sha256(record: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _git_blob_sha1(payload: bytes) -> str:
+    header = f"blob {len(payload)}\0".encode("ascii")
+    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
+
+
 def _fail(message: str) -> None:
     raise FutureResultSemanticError(message)
 
@@ -57,6 +65,78 @@ def _require_exact_keys(record: Mapping[str, Any], keys: set[str], label: str) -
 
 def _require_exact_value(actual: Any, expected: Any, label: str) -> None:
     _require(actual == expected, f"{label} differs from frozen authority")
+
+
+def _authenticate_protocol(
+    *,
+    protocol: Mapping[str, Any],
+    protocol_canonical_bytes: bytes,
+    identity_manifest: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    _require(isinstance(protocol_canonical_bytes, bytes), "protocol canonical bytes must be bytes")
+    _require(not protocol_canonical_bytes.startswith(b"\xef\xbb\xbf"), "protocol canonical bytes contain a BOM")
+    _require(b"\r" not in protocol_canonical_bytes, "protocol canonical bytes are not UTF-8/LF canonical bytes")
+    try:
+        text = protocol_canonical_bytes.decode("utf-8", errors="strict")
+        parsed = yaml.safe_load(text)
+    except (UnicodeDecodeError, yaml.YAMLError) as exc:
+        _fail(f"protocol canonical bytes cannot be parsed: {exc}")
+    _require(isinstance(parsed, Mapping), "protocol canonical bytes do not contain a mapping")
+
+    protocol_identity = identity_manifest["protocol_identity"]
+    _require_exact_value(
+        hashlib.sha256(protocol_canonical_bytes).hexdigest(),
+        protocol_identity["canonical_sha256"],
+        "protocol canonical byte SHA-256",
+    )
+    _require_exact_value(
+        _git_blob_sha1(protocol_canonical_bytes),
+        protocol_identity["git_blob_sha1"],
+        "protocol canonical byte Git blob SHA-1",
+    )
+    _require_exact_value(protocol, parsed, "protocol mapping differs from authenticated canonical bytes")
+    _require_exact_value(parsed["protocol_id"], protocol_identity["contract_id"], "protocol contract_id")
+    _require_exact_value(parsed["protocol_version"], protocol_identity["contract_version"], "protocol contract_version")
+
+    execution_freeze = parsed["execution_case_manifests"]
+    derived_execution_freeze_sha256 = canonical_record_sha256(
+        {key: value for key, value in execution_freeze.items() if key != "execution_freeze_sha256"}
+    )
+    _require_exact_value(
+        execution_freeze["execution_freeze_sha256"],
+        derived_execution_freeze_sha256,
+        "protocol execution freeze SHA-256",
+    )
+
+    required_slots = parsed["required_execution_slot_projection"]
+    derived_required_slot_set_sha256 = canonical_record_sha256(
+        {key: value for key, value in required_slots.items() if key != "required_slot_set_sha256"}
+    )
+    _require_exact_value(
+        required_slots["required_slot_set_sha256"],
+        derived_required_slot_set_sha256,
+        "protocol required slot-set SHA-256",
+    )
+
+    slot_identity = identity_manifest["required_slot_set_identity"]
+    _require_exact_value(
+        derived_execution_freeze_sha256,
+        slot_identity["execution_freeze_sha256"],
+        "identity manifest execution freeze SHA-256",
+    )
+    _require_exact_value(
+        derived_required_slot_set_sha256,
+        slot_identity["canonical_sha256"],
+        "identity manifest required slot-set SHA-256",
+    )
+    for field, records_field in (
+        ("model_initial_slot_count", "model_initial_slots"),
+        ("human_initial_slot_count", "human_initial_slots"),
+        ("human_adjudication_slot_count", "human_adjudication_slots"),
+    ):
+        _require_exact_value(required_slots[field], len(required_slots[records_field]), f"protocol {field}")
+        _require_exact_value(required_slots[field], slot_identity[field], f"identity manifest {field}")
+    return parsed
 
 
 def _case_indexes(protocol: Mapping[str, Any]) -> tuple[dict[str, Mapping[str, Any]], dict[str, Mapping[str, Any]]]:
@@ -510,21 +590,43 @@ def validate_future_result_semantics(
     candidate: Mapping[str, Any],
     *,
     protocol: Mapping[str, Any],
+    protocol_canonical_bytes: bytes,
     identity_manifest: Mapping[str, Any],
     accepted_authority_records: Mapping[str, Mapping[str, Any]],
 ) -> FutureResultSemanticDisposition:
     """Validate prospective evidence against frozen slots and external authority.
 
-    ``accepted_authority_records`` is a trusted caller-supplied set.  It must not
-    be sourced from the candidate.  This function never writes or accepts a
-    result; it only derives whether a prospective candidate is semantically
-    coherent with the T1a contract.
+    Args:
+        candidate: Prospective result already validated by the closed result schema.
+        protocol: Parsed protocol mapping. It must equal the mapping parsed from
+            ``protocol_canonical_bytes`` exactly.
+        protocol_canonical_bytes: Authenticated UTF-8/LF protocol bytes whose SHA-256
+            and Git blob SHA-1 match the scoped identity manifest.
+        identity_manifest: Closed, schema-validated T1a identity manifest.
+        accepted_authority_records: Trusted caller-supplied records resolved from an
+            independent store, never from the candidate.
+
+    Returns:
+        A derived, non-authoritative semantic disposition.
+
+    Raises:
+        FutureResultSemanticError: If protocol byte identity, derived execution or
+            slot hashes, external authority, or candidate relations differ from the
+            frozen T1a contract.
+
+    This function never writes or accepts a result; it only derives whether a
+    prospective candidate is semantically coherent with the T1a contract.
     """
 
     _require_exact_value(
         identity_manifest["scope"],
         "wp6-2-t1a-live-grader-calibration-protocol-only",
         "identity manifest scope",
+    )
+    protocol = _authenticate_protocol(
+        protocol=protocol,
+        protocol_canonical_bytes=protocol_canonical_bytes,
+        identity_manifest=identity_manifest,
     )
     protocol_identity = identity_manifest["protocol_identity"]
     slot_identity = identity_manifest["required_slot_set_identity"]
