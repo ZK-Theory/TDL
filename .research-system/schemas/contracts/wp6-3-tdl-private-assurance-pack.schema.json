@@ -1,0 +1,360 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-3-tdl-private-assurance-pack",
+  "title": "WP6.3 upstream TDL-private assurance-pack contract",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "contract_id",
+    "contract_revision",
+    "status",
+    "contract_content_addressing",
+    "task_assurance_posture",
+    "source_authority",
+    "proposed_pack_identity",
+    "required_pack_contract",
+    "validation_bindings",
+    "review_gate",
+    "hard_stops"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-3-tdl-private-assurance-pack"},
+    "schema_version": {"const": "1.0.0"},
+    "contract_id": {"const": "wp6-3-tdl-private-assurance-pack"},
+    "contract_revision": {"const": 1},
+    "status": {"const": "pending_independent_review"},
+    "contract_content_addressing": {"$ref": "#/$defs/contractContentAddressing"},
+    "task_assurance_posture": {"$ref": "#/$defs/taskAssurancePosture"},
+    "source_authority": {"$ref": "#/$defs/sourceAuthority"},
+    "proposed_pack_identity": {"$ref": "#/$defs/proposedPackIdentity"},
+    "required_pack_contract": {"$ref": "#/$defs/requiredPackContract"},
+    "validation_bindings": {"$ref": "#/$defs/validationBindings"},
+    "review_gate": {"$ref": "#/$defs/reviewGate"},
+    "hard_stops": {"$ref": "#/$defs/hardStops"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitBlob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "nonEmptyStrings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "contractContentAddressing": {
+      "type": "object",
+      "required": ["repository_path", "canonical_byte_surface", "digest_algorithm", "identity_model", "git_blob_binding", "canonical_sha256_binding"],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml"},
+        "canonical_byte_surface": {"const": "git_blob_utf8_lf"},
+        "digest_algorithm": {"const": "sha256"},
+        "identity_model": {"const": "external_git_blob_and_canonical_sha256"},
+        "git_blob_binding": {"const": "required_for_independent_review_and_owner_acceptance"},
+        "canonical_sha256_binding": {"const": "required_for_independent_review_and_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "taskAssurancePosture": {
+      "type": "object",
+      "required": ["primary_lane", "other_lane_treatment", "result_audits_performed", "claim_review_performed"],
+      "properties": {
+        "primary_lane": {"const": "output_provenance"},
+        "other_lane_treatment": {"const": "prospective_schema_requirements_only"},
+        "result_audits_performed": {"const": false},
+        "claim_review_performed": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "sourceReference": {
+      "type": "object",
+      "required": ["repository_path", "sections", "authority_state", "git_commit", "git_blob", "canonical_sha256"],
+      "properties": {
+        "repository_path": {"type": "string", "minLength": 1},
+        "sections": {"$ref": "#/$defs/nonEmptyStrings"},
+        "authority_state": {"enum": ["accepted", "approved_exact_revision", "review_evidence", "observed_current_baseline"]},
+        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_blob": {"$ref": "#/$defs/gitBlob"},
+        "canonical_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "sourceAuthority": {
+      "type": "object",
+      "required": ["accepted_plan_revision", "governing_sources", "missing_authority_diagnosis"],
+      "properties": {
+        "accepted_plan_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
+        "governing_sources": {
+          "type": "array",
+          "minItems": 6,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sourceReference"}
+        },
+        "missing_authority_diagnosis": {
+          "type": "object",
+          "required": ["canonical_pack_schema_missing", "accepted_pack_schema_version_missing", "canonical_tdl_private_pack_path_missing", "resolved_action"],
+          "properties": {
+            "canonical_pack_schema_missing": {"const": true},
+            "accepted_pack_schema_version_missing": {"const": true},
+            "canonical_tdl_private_pack_path_missing": {"const": true},
+            "resolved_action": {"const": "author_upstream_contract_then_stop_for_independent_review"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "proposedPackIdentity": {
+      "type": "object",
+      "required": ["pack_id", "repository_path", "schema_id", "schema_version", "distribution_scope", "decision_state"],
+      "properties": {
+        "pack_id": {"const": "TDL_private"},
+        "repository_path": {"const": ".research-system/packs/tdl-private-assurance.yaml"},
+        "schema_id": {"const": "ars://assurance/assurance-pack"},
+        "schema_version": {"const": "1.0.0"},
+        "distribution_scope": {"const": "TDL_private"},
+        "decision_state": {"const": "proposed_pending_independent_review_and_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "laneRequirement": {
+      "type": "object",
+      "required": ["lane_id", "required_obligation_fields", "prospective_schema_only", "failure_consequence", "cross_lane_compensation"],
+      "properties": {
+        "lane_id": {"enum": ["topology", "stochastic_null", "statistical_panel", "representation", "output_provenance", "paper_claim"]},
+        "required_obligation_fields": {"$ref": "#/$defs/nonEmptyStrings"},
+        "prospective_schema_only": {"const": true},
+        "failure_consequence": {"const": "blocked"},
+        "cross_lane_compensation": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "distributionRequirements": {
+      "type": "object",
+      "required": ["distribution_scope", "permitted_consumers_required", "public_template_export", "publication_boundary_required", "path_restrictions_required", "data_restrictions_required", "restricted_data_representation", "secret_material"],
+      "properties": {
+        "distribution_scope": {"const": "TDL_private"},
+        "permitted_consumers_required": {"const": true},
+        "public_template_export": {"const": "prohibited"},
+        "publication_boundary_required": {"const": true},
+        "path_restrictions_required": {"const": true},
+        "data_restrictions_required": {"const": true},
+        "restricted_data_representation": {"const": "opaque_content_addressed_references_only"},
+        "secret_material": {"const": "prohibited"}
+      },
+      "additionalProperties": false
+    },
+    "lifecycleRequirements": {
+      "type": "object",
+      "required": ["states", "accepted_pack_requires_review", "accepted_pack_requires_owner_acceptance", "supersession_is_immutable", "currency_and_expiry_required", "stale_identity_behavior"],
+      "properties": {
+        "states": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "draft"},
+            {"const": "source_verified"},
+            {"const": "reviewed"},
+            {"const": "accepted"},
+            {"const": "rejected"},
+            {"const": "superseded"},
+            {"const": "retired"}
+          ],
+          "minItems": 7,
+          "maxItems": 7
+        },
+        "accepted_pack_requires_review": {"const": true},
+        "accepted_pack_requires_owner_acceptance": {"const": true},
+        "supersession_is_immutable": {"const": true},
+        "currency_and_expiry_required": {"const": true},
+        "stale_identity_behavior": {"const": "block_and_require_superseding_revision"}
+      },
+      "additionalProperties": false
+    },
+    "governanceRequirements": {
+      "type": "object",
+      "required": ["upstream_contract_author_role", "independent_reviewer_role", "owner_acceptor", "future_pack_producer_role", "future_pack_producer_must_differ_from_contract_author", "minimum_independence_grade", "authority_resolution", "not_applicable"],
+      "properties": {
+        "upstream_contract_author_role": {"const": "wp6_3_upstream_contract_author"},
+        "independent_reviewer_role": {"const": "unassigned_distinct_authority"},
+        "owner_acceptor": {"const": "Stephen"},
+        "future_pack_producer_role": {"const": "unassigned_after_contract_acceptance"},
+        "future_pack_producer_must_differ_from_contract_author": {"const": true},
+        "minimum_independence_grade": {"const": "I2"},
+        "authority_resolution": {"const": "canonical_authority_records_not_role_labels_or_self_attestation"},
+        "not_applicable": {
+          "type": "object",
+          "required": ["rationale_required", "independent_confirmation_required", "producer_only_confirmation", "confirmation_record_hash_required"],
+          "properties": {
+            "rationale_required": {"const": true},
+            "independent_confirmation_required": {"const": true},
+            "producer_only_confirmation": {"const": "prohibited"},
+            "confirmation_record_hash_required": {"const": true}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "referenceRequirements": {
+      "type": "object",
+      "required": ["reference_mode", "version_scheme", "inline_copy", "required_contract_capabilities", "required_skill_ids"],
+      "properties": {
+        "reference_mode": {"const": "exact_versioned_reference_only"},
+        "version_scheme": {"const": "git_blob_with_canonical_sha256"},
+        "inline_copy": {"const": "prohibited"},
+        "required_contract_capabilities": {"$ref": "#/$defs/nonEmptyStrings"},
+        "required_skill_ids": {"$ref": "#/$defs/nonEmptyStrings"}
+      },
+      "additionalProperties": false
+    },
+    "sourceAuthorityBinding": {
+      "type": "object",
+      "required": ["required_source_set", "exact_git_commit_blob_sha256_required", "observed_side_may_supply_expected_authority"],
+      "properties": {
+        "required_source_set": {"const": "exact_governing_sources_from_contract_source_authority"},
+        "exact_git_commit_blob_sha256_required": {"const": true},
+        "observed_side_may_supply_expected_authority": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "fixtureRequirements": {
+      "type": "object",
+      "required": ["required_fixture_cases", "all_expected_outcomes", "producer_seam_mutations_required", "cross_lane_compensation_fixture_required"],
+      "properties": {
+        "required_fixture_cases": {"$ref": "#/$defs/nonEmptyStrings"},
+        "all_expected_outcomes": {"const": "blocked"},
+        "producer_seam_mutations_required": {"const": true},
+        "cross_lane_compensation_fixture_required": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "coreBoundaryRequirements": {
+      "type": "object",
+      "required": ["may_modify_w1_w2_lifecycle", "may_modify_canonical_authority", "may_override_p005_p022", "may_lower_w3_w4_controls", "may_make_observed_assertions", "may_accept_results", "may_promote_claims", "may_authorize_migration"],
+      "properties": {
+        "may_modify_w1_w2_lifecycle": {"const": false},
+        "may_modify_canonical_authority": {"const": false},
+        "may_override_p005_p022": {"const": false},
+        "may_lower_w3_w4_controls": {"const": false},
+        "may_make_observed_assertions": {"const": false},
+        "may_accept_results": {"const": false},
+        "may_promote_claims": {"const": false},
+        "may_authorize_migration": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "requiredPackContract": {
+      "type": "object",
+      "required": ["schema_contract", "source_authority_binding", "six_lane_closure", "lanes", "distribution", "lifecycle", "governance", "references", "fixtures", "limitations_required", "exact_hash_provenance_required", "core_boundary"],
+      "properties": {
+        "schema_contract": {
+          "type": "object",
+          "required": ["repository_path", "schema_id", "schema_version", "all_objects_closed"],
+          "properties": {
+            "repository_path": {"const": ".research-system/schemas/assurance/assurance-pack.schema.json"},
+            "schema_id": {"const": "ars://assurance/assurance-pack"},
+            "schema_version": {"const": "1.0.0"},
+            "all_objects_closed": {"const": true}
+          },
+          "additionalProperties": false
+        },
+        "source_authority_binding": {"$ref": "#/$defs/sourceAuthorityBinding"},
+        "six_lane_closure": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "topology"},
+            {"const": "stochastic_null"},
+            {"const": "statistical_panel"},
+            {"const": "representation"},
+            {"const": "output_provenance"},
+            {"const": "paper_claim"}
+          ],
+          "minItems": 6,
+          "maxItems": 6
+        },
+        "lanes": {
+          "type": "object",
+          "required": ["topology", "stochastic_null", "statistical_panel", "representation", "output_provenance", "paper_claim"],
+          "properties": {
+            "topology": {"$ref": "#/$defs/laneRequirement"},
+            "stochastic_null": {"$ref": "#/$defs/laneRequirement"},
+            "statistical_panel": {"$ref": "#/$defs/laneRequirement"},
+            "representation": {"$ref": "#/$defs/laneRequirement"},
+            "output_provenance": {"$ref": "#/$defs/laneRequirement"},
+            "paper_claim": {"$ref": "#/$defs/laneRequirement"}
+          },
+          "additionalProperties": false
+        },
+        "distribution": {"$ref": "#/$defs/distributionRequirements"},
+        "lifecycle": {"$ref": "#/$defs/lifecycleRequirements"},
+        "governance": {"$ref": "#/$defs/governanceRequirements"},
+        "references": {"$ref": "#/$defs/referenceRequirements"},
+        "fixtures": {"$ref": "#/$defs/fixtureRequirements"},
+        "limitations_required": {"const": true},
+        "exact_hash_provenance_required": {"const": true},
+        "core_boundary": {"$ref": "#/$defs/coreBoundaryRequirements"}
+      },
+      "additionalProperties": false
+    },
+    "validationBindings": {
+      "type": "object",
+      "required": ["test_file", "test_functions"],
+      "properties": {
+        "test_file": {"const": "tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py"},
+        "test_functions": {"$ref": "#/$defs/nonEmptyStrings"}
+      },
+      "additionalProperties": false
+    },
+    "reviewActor": {
+      "type": "object",
+      "required": ["role", "assignment_status", "decision_status"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "assignment_status": {"enum": ["assigned", "unassigned"]},
+        "decision_status": {"enum": ["pending", "approved", "rejected"]}
+      },
+      "additionalProperties": false
+    },
+    "reviewGate": {
+      "type": "object",
+      "required": ["contract_author", "independent_reviewer", "owner_acceptor", "future_pack_producer", "acceptance_order", "current_disposition"],
+      "properties": {
+        "contract_author": {"$ref": "#/$defs/reviewActor"},
+        "independent_reviewer": {"$ref": "#/$defs/reviewActor"},
+        "owner_acceptor": {"$ref": "#/$defs/reviewActor"},
+        "future_pack_producer": {"$ref": "#/$defs/reviewActor"},
+        "acceptance_order": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "upstream_contract_authored"},
+            {"const": "independent_review_completed"},
+            {"const": "stephen_accepts_exact_contract_identity"},
+            {"const": "distinct_future_pack_producer_assigned"},
+            {"const": "future_pack_authored_under_new_task"}
+          ],
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "current_disposition": {"const": "stop_for_independent_review"}
+      },
+      "additionalProperties": false
+    },
+    "hardStops": {
+      "type": "object",
+      "required": ["future_pack_file_created", "core_lifecycle_or_authority_changed", "live_call_made", "research_executed", "result_or_claim_created", "migration_or_eligibility_transition", "results_path_written", "credentials_or_env_contents_accessed", "self_review_counts_as_approval"],
+      "properties": {
+        "future_pack_file_created": {"const": false},
+        "core_lifecycle_or_authority_changed": {"const": false},
+        "live_call_made": {"const": false},
+        "research_executed": {"const": false},
+        "result_or_claim_created": {"const": false},
+        "migration_or_eligibility_transition": {"const": false},
+        "results_path_written": {"const": false},
+        "credentials_or_env_contents_accessed": {"const": false},
+        "self_review_counts_as_approval": {"const": false}
+      },
+      "additionalProperties": false
+    }
+  }
+}

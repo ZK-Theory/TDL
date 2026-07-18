@@ -1,0 +1,293 @@
+schema_id: ars://contracts/wp6-3-tdl-private-assurance-pack
+schema_version: '1.0.0'
+contract_id: wp6-3-tdl-private-assurance-pack
+contract_revision: 1
+status: pending_independent_review
+
+contract_content_addressing:
+  repository_path: .research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml
+  canonical_byte_surface: git_blob_utf8_lf
+  digest_algorithm: sha256
+  identity_model: external_git_blob_and_canonical_sha256
+  git_blob_binding: required_for_independent_review_and_owner_acceptance
+  canonical_sha256_binding: required_for_independent_review_and_owner_acceptance
+
+task_assurance_posture:
+  primary_lane: output_provenance
+  other_lane_treatment: prospective_schema_requirements_only
+  result_audits_performed: false
+  claim_review_performed: false
+
+source_authority:
+  accepted_plan_revision: fe5f1d40bc8f05f061317c677b5891cea0711249
+  governing_sources:
+    - repository_path: docs/plans/agentic-research-system/implementation/06-wp6-gate6-readiness-and-integration-plan.md
+      sections: ['3/WP6.3', '6', '7', '8', '9']
+      authority_state: approved_exact_revision
+      git_commit: fe5f1d40bc8f05f061317c677b5891cea0711249
+      git_blob: 91d943b3c45381b10b11c86d4836c79d0a862cdb
+      canonical_sha256: 016942bb654d5714f7f591e84f873ea243c891e0053e97c6498798c32425a257
+    - repository_path: docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md
+      sections: ['6', '7', '8', '11', '12', '13', '14', '15.1', '16', '17', '24']
+      authority_state: accepted
+      git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+      git_blob: 51e7bfcbd0e5626caa45c828abda0b484d3a5739
+      canonical_sha256: fd52fb1cede920fe6d97b8cd40d580c40fede6729bad2bbdb4433fcf36831075
+    - repository_path: docs/plans/agentic-research-system/03-decisions-and-open-questions.md
+      sections: ['P-005', 'P-022', 'P-023', 'P-025', 'P-029', 'P-036']
+      authority_state: accepted
+      git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+      git_blob: f4aa13d4e6537762d7b9692538ca1187088d5239
+      canonical_sha256: 1531f826043478edf7ab0bd12244595b6b265a6fb072e4643b095a3f2cb2c8fc
+    - repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md
+      sections: ['1', '9', '10', '11', '12']
+      authority_state: review_evidence
+      git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+      git_blob: b6f047db330617f25ffd8e0826da9769facab089
+      canonical_sha256: 15af91fa08f248f55765cbcdf9d0efce3153232c7818a66d385b80c4bdb0e065
+    - repository_path: .research-system/packs/core-assurance.yaml
+      sections: ['complete file']
+      authority_state: observed_current_baseline
+      git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+      git_blob: e68d2f1e322163e27a5cde7029af77a4d9abae03
+      canonical_sha256: d51583d0c216c627843382e9eeb86d05d4a49b8b86fd1abb54e198aaa560d251
+    - repository_path: .research-system/schemas/assurance/assurance-requirement.schema.json
+      sections: ['complete file']
+      authority_state: observed_current_baseline
+      git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+      git_blob: 4a8a6f924cd9a591fcc37c912fc9bdbb4929080d
+      canonical_sha256: ee24efbc271fbc6a8326a1057c25c1dee83d68458e797f88d7446703a4fe7914
+  missing_authority_diagnosis:
+    canonical_pack_schema_missing: true
+    accepted_pack_schema_version_missing: true
+    canonical_tdl_private_pack_path_missing: true
+    resolved_action: author_upstream_contract_then_stop_for_independent_review
+
+proposed_pack_identity:
+  pack_id: TDL_private
+  repository_path: .research-system/packs/tdl-private-assurance.yaml
+  schema_id: ars://assurance/assurance-pack
+  schema_version: '1.0.0'
+  distribution_scope: TDL_private
+  decision_state: proposed_pending_independent_review_and_owner_acceptance
+
+required_pack_contract:
+  schema_contract:
+    repository_path: .research-system/schemas/assurance/assurance-pack.schema.json
+    schema_id: ars://assurance/assurance-pack
+    schema_version: '1.0.0'
+    all_objects_closed: true
+  source_authority_binding:
+    required_source_set: exact_governing_sources_from_contract_source_authority
+    exact_git_commit_blob_sha256_required: true
+    observed_side_may_supply_expected_authority: false
+  six_lane_closure:
+    - topology
+    - stochastic_null
+    - statistical_panel
+    - representation
+    - output_provenance
+    - paper_claim
+  lanes:
+    topology:
+      lane_id: topology
+      required_obligation_fields:
+        - persistence_construction
+        - filtration
+        - coefficient_field
+        - homology_dimensions
+        - benchmark_validation
+        - interpretation_boundaries
+      prospective_schema_only: true
+      failure_consequence: blocked
+      cross_lane_compensation: prohibited
+    stochastic_null:
+      lane_id: stochastic_null
+      required_obligation_fields:
+        - markov_null_design
+        - tested_object_invariance
+        - rng_algorithm
+        - seed_recording
+        - inferential_denominator
+        - null_operation
+        - p_value_formula
+        - exchangeability
+      prospective_schema_only: true
+      failure_consequence: blocked
+      cross_lane_compensation: prohibited
+    statistical_panel:
+      lane_id: statistical_panel
+      required_obligation_fields:
+        - estimand
+        - target_population
+        - eligibility
+        - denominator
+        - missingness
+        - clustering
+        - uncertainty
+        - multiplicity
+        - sensitivity
+      prospective_schema_only: true
+      failure_consequence: blocked
+      cross_lane_compensation: prohibited
+    representation:
+      lane_id: representation
+      required_obligation_fields:
+        - frozen_fit_identity
+        - transform_identity
+        - recoding
+        - vintage
+        - comparability
+        - prohibited_refit
+      prospective_schema_only: true
+      failure_consequence: blocked
+      cross_lane_compensation: prohibited
+    output_provenance:
+      lane_id: output_provenance
+      required_obligation_fields:
+        - immutable_ids_hashes
+        - schema_lineage
+        - currency
+        - retention
+        - consumers
+        - publication_boundaries
+        - path_boundaries
+        - data_boundaries
+        - no_overwrite
+      prospective_schema_only: true
+      failure_consequence: blocked
+      cross_lane_compensation: prohibited
+    paper_claim:
+      lane_id: paper_claim
+      required_obligation_fields:
+        - topology_to_claim_limits
+        - result_decision_bindings
+        - required_reviews
+        - negative_partial_limitations
+        - prohibited_escalations
+      prospective_schema_only: true
+      failure_consequence: blocked
+      cross_lane_compensation: prohibited
+  distribution:
+    distribution_scope: TDL_private
+    permitted_consumers_required: true
+    public_template_export: prohibited
+    publication_boundary_required: true
+    path_restrictions_required: true
+    data_restrictions_required: true
+    restricted_data_representation: opaque_content_addressed_references_only
+    secret_material: prohibited
+  lifecycle:
+    states: [draft, source_verified, reviewed, accepted, rejected, superseded, retired]
+    accepted_pack_requires_review: true
+    accepted_pack_requires_owner_acceptance: true
+    supersession_is_immutable: true
+    currency_and_expiry_required: true
+    stale_identity_behavior: block_and_require_superseding_revision
+  governance:
+    upstream_contract_author_role: wp6_3_upstream_contract_author
+    independent_reviewer_role: unassigned_distinct_authority
+    owner_acceptor: Stephen
+    future_pack_producer_role: unassigned_after_contract_acceptance
+    future_pack_producer_must_differ_from_contract_author: true
+    minimum_independence_grade: I2
+    authority_resolution: canonical_authority_records_not_role_labels_or_self_attestation
+    not_applicable:
+      rationale_required: true
+      independent_confirmation_required: true
+      producer_only_confirmation: prohibited
+      confirmation_record_hash_required: true
+  references:
+    reference_mode: exact_versioned_reference_only
+    version_scheme: git_blob_with_canonical_sha256
+    inline_copy: prohibited
+    required_contract_capabilities:
+      - tda-formulas/w2-exact-diagonal-bound
+      - topology-invariants/null-operation-changes-ph-input
+      - topology-invariants/frozen-loadings-transform-only
+      - stochastic-tests/markov-order-provenance
+      - stochastic-tests/monte-carlo-permutation-p-value
+      - stage1-output-schemas/stage1-output-json-validation
+    required_skill_ids:
+      - validate-topology
+      - statistical-design-audit
+      - representation-freeze-audit
+      - result-provenance-review
+      - paper-claim-trace
+      - research-assurance-triage
+  fixtures:
+    required_fixture_cases:
+      - missing_lane
+      - extra_lane
+      - wrong_distribution_scope
+      - missing_authority_separation
+      - producer_only_not_applicable
+      - unversioned_reference
+      - inline_reference_copy
+      - absent_permitted_consumers
+      - absent_publication_restriction
+      - absent_path_restriction
+      - absent_data_restriction
+      - stale_pack_identity
+      - expired_currency
+      - cross_lane_compensation
+    all_expected_outcomes: blocked
+    producer_seam_mutations_required: true
+    cross_lane_compensation_fixture_required: true
+  limitations_required: true
+  exact_hash_provenance_required: true
+  core_boundary:
+    may_modify_w1_w2_lifecycle: false
+    may_modify_canonical_authority: false
+    may_override_p005_p022: false
+    may_lower_w3_w4_controls: false
+    may_make_observed_assertions: false
+    may_accept_results: false
+    may_promote_claims: false
+    may_authorize_migration: false
+
+validation_bindings:
+  test_file: tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py
+  test_functions:
+    - test_upstream_contract_is_strict_pending_and_content_addressed
+    - test_candidate_pack_accepts_complete_six_lane_shape
+    - test_candidate_pack_rejects_lane_closure_and_distribution_mutations
+    - test_candidate_pack_rejects_authority_and_not_applicable_bypasses
+    - test_candidate_pack_rejects_reference_and_boundary_bypasses
+    - test_candidate_pack_rejects_stale_identity_currency_and_cross_lane_compensation
+
+review_gate:
+  contract_author:
+    role: wp6_3_upstream_contract_author
+    assignment_status: assigned
+    decision_status: pending
+  independent_reviewer:
+    role: distinct_independent_reviewer
+    assignment_status: unassigned
+    decision_status: pending
+  owner_acceptor:
+    role: Stephen
+    assignment_status: assigned
+    decision_status: pending
+  future_pack_producer:
+    role: distinct_future_pack_producer
+    assignment_status: unassigned
+    decision_status: pending
+  acceptance_order:
+    - upstream_contract_authored
+    - independent_review_completed
+    - stephen_accepts_exact_contract_identity
+    - distinct_future_pack_producer_assigned
+    - future_pack_authored_under_new_task
+  current_disposition: stop_for_independent_review
+
+hard_stops:
+  future_pack_file_created: false
+  core_lifecycle_or_authority_changed: false
+  live_call_made: false
+  research_executed: false
+  result_or_claim_created: false
+  migration_or_eligibility_transition: false
+  results_path_written: false
+  credentials_or_env_contents_accessed: false
+  self_review_counts_as_approval: false
