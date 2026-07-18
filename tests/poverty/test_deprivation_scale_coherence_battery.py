@@ -13,6 +13,7 @@ from poverty_tda.scripts import run_deprivation_scale_coherence as driver
 from poverty_tda.scripts.run_deprivation_scale_coherence import (
     PreparedLad,
     REPO_ROOT,
+    _git_head,
     _peak_rss_mb,
     _project_root,
     build_execution_fingerprint,
@@ -106,6 +107,22 @@ def test_peak_rss_instrumentation_is_available_on_windows() -> None:
 
 def test_project_root_is_the_active_worktree() -> None:
     assert _project_root() == REPO_ROOT
+
+
+def test_git_head_reads_linked_worktree_metadata_without_a_subprocess(tmp_path) -> None:
+    worktree = tmp_path / "worktree"
+    git_dir = tmp_path / "repo.git" / "worktrees" / "review"
+    common_dir = tmp_path / "repo.git"
+    worktree.mkdir()
+    git_dir.mkdir(parents=True)
+    (worktree / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
+    (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+    (git_dir / "HEAD").write_text("ref: refs/heads/run/review\n", encoding="utf-8")
+    ref_path = common_dir / "refs" / "heads" / "run" / "review"
+    ref_path.parent.mkdir(parents=True)
+    ref_path.write_text("f" * 40 + "\n", encoding="utf-8")
+
+    assert _git_head(worktree) == "f" * 40
 
 
 @pytest.mark.parametrize(

@@ -9,9 +9,6 @@ import json
 import logging
 import os
 import shutil
-
-# Used only for a fixed trusted Git metadata command without a shell.
-import subprocess  # nosec B404
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -97,22 +94,63 @@ def _project_root() -> Path:
     return REPO_ROOT
 
 
-def _git_head() -> str:
-    """Return HEAD using a fully resolved trusted Git executable."""
-    git_executable = shutil.which("git")
-    if git_executable is None:
-        raise RuntimeError("Git executable is unavailable")
-    # The executable is resolved to an absolute path and every argument is fixed.
-    completed = subprocess.run(  # nosec B603
-        [git_executable, "rev-parse", "HEAD"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    commit = completed.stdout.strip()
+def _resolve_git_dir(repo_root: Path) -> Path:
+    """Resolve a normal or linked-worktree `.git` marker to its metadata dir."""
+    marker = repo_root / ".git"
+    if marker.is_dir():
+        return marker.resolve()
+    if not marker.is_file():
+        raise RuntimeError(f"Git metadata marker is unavailable at {marker}")
+    line = marker.read_text(encoding="utf-8").strip()
+    prefix = "gitdir:"
+    if not line.lower().startswith(prefix):
+        raise RuntimeError(f"Git metadata marker is malformed at {marker}")
+    git_dir = Path(line[len(prefix) :].strip())
+    return (git_dir if git_dir.is_absolute() else repo_root / git_dir).resolve()
+
+
+def _git_storage_dirs(git_dir: Path) -> list[Path]:
+    """Return worktree-local and shared Git metadata roots in lookup order."""
+    roots = [git_dir]
+    common_marker = git_dir / "commondir"
+    if common_marker.is_file():
+        common = Path(common_marker.read_text(encoding="utf-8").strip())
+        common = (common if common.is_absolute() else git_dir / common).resolve()
+        if common not in roots:
+            roots.append(common)
+    return roots
+
+
+def _git_head(repo_root: Path = REPO_ROOT) -> str:
+    """Return HEAD directly from normal or linked-worktree Git metadata."""
+    git_dir = _resolve_git_dir(repo_root)
+    head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    commit = head
+    if head.startswith("ref:"):
+        ref = head.removeprefix("ref:").strip()
+        commit = ""
+        storage_dirs = _git_storage_dirs(git_dir)
+        for storage in storage_dirs:
+            loose_ref = storage / Path(ref)
+            if loose_ref.is_file():
+                commit = loose_ref.read_text(encoding="utf-8").strip()
+                break
+        if not commit:
+            for storage in storage_dirs:
+                packed_refs = storage / "packed-refs"
+                if not packed_refs.is_file():
+                    continue
+                for line in packed_refs.read_text(encoding="utf-8").splitlines():
+                    if not line or line.startswith(("#", "^")):
+                        continue
+                    candidate, candidate_ref = line.split(" ", maxsplit=1)
+                    if candidate_ref == ref:
+                        commit = candidate
+                        break
+                if commit:
+                    break
     if len(commit) != 40 or any(char not in "0123456789abcdef" for char in commit):
-        raise RuntimeError("Git returned an invalid HEAD commit")
+        raise RuntimeError("Git metadata contains an invalid or unresolved HEAD commit")
     return commit
 
 
