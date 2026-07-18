@@ -30,6 +30,32 @@ Use Repowise when the current runtime exposes its MCP tools and the task benefit
 
 If Repowise MCP tools are not exposed in the current session, continue with the built-in navigation tools. Do not invent tool calls. Repowise output is an index, so verify against actual files before editing or making claims about precise source behavior.
 
+### New linked-worktree Repowise bootstrap
+
+Every newly created linked worktree must initialize its own Repowise index
+before repository-level navigation. Run this from the new worktree root after
+copying `.env` and verifying the attached branch:
+
+```powershell
+repowise init --index-only --yes --no-agents --no-codex --no-onboarding
+repowise status
+```
+
+Use the explicit flags: plain `repowise init` opens an interactive selector and
+aborts in non-interactive agent sessions. Before initialization, capture
+`git status --short`. Repowise may rewrite worktree-local integration paths in
+`.claude/CLAUDE.md`, `.mcp.json`, and `.repowise/mcp.json` even with the
+suppression flags. Treat those rewrites as setup state, never task output: do
+not stage or commit them, and restore only files proven clean before the init
+once the worktree session has loaded its MCP configuration.
+
+Verify the effective binding, not only index existence: Repowise's reported
+repository path must equal the exact worktree and its indexed commit must match
+`HEAD`. An MCP server started before the worktree was created does not hot-bind
+to the new index; use the Repowise CLI in that worktree or restart/open the task
+rooted there. Never rely on an MCP result whose reported workspace is another
+checkout.
+
 ## Discovery flow
 
 1. Unfamiliar repo → use Repowise `get_overview` when available; otherwise start with `Glob "**/*.py"` plus `Glob "**/*.md"` for orientation.
@@ -52,6 +78,11 @@ when its path is lexically inside an allowed checkout such as
 not prove edit authority.
 
 Before any worktree write:
+
+An explicit user instruction to create a named worktree is authority for that
+requested `git worktree add` and environment bootstrap only. Code, test, and
+result writes inside the new worktree remain subject to the exact-root
+authorization checks below.
 
 1. Compare the resolved target worktree with the runtime's declared
    `workspace_roots` / `writable_roots`. If the exact worktree is not an
