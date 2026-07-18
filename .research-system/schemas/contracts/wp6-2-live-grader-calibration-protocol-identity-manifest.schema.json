@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-live-grader-calibration-protocol-identity-manifest",
+  "title": "WP6.2 T1a live-grader calibration protocol identity manifest",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "manifest_id",
+    "manifest_version",
+    "scope",
+    "protocol_identity",
+    "required_slot_set_identity",
+    "future_result_schema_identity",
+    "semantic_validator_identity",
+    "review_identity",
+    "r2_review_identity",
+    "acceptance_status"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-2-live-grader-calibration-protocol-identity-manifest"
+    },
+    "schema_version": {
+      "const": "1.2.0"
+    },
+    "manifest_id": {
+      "const": "wp6-2-live-grader-calibration-protocol-identity-manifest"
+    },
+    "manifest_version": {
+      "const": "1.2.0"
+    },
+    "scope": {
+      "const": "wp6-2-t1a-live-grader-calibration-protocol-only"
+    },
+    "protocol_identity": {
+      "type": "object",
+      "required": [
+        "contract_id",
+        "contract_version",
+        "contract_path",
+        "canonical_sha256",
+        "git_blob_sha1",
+        "schema_id",
+        "schema_version",
+        "schema_path",
+        "schema_canonical_sha256",
+        "schema_git_blob_sha1",
+        "status"
+      ],
+      "properties": {
+        "contract_id": {
+          "const": "wp6-2-live-grader-calibration-protocol"
+        },
+        "contract_version": {
+          "const": "1.2.0"
+        },
+        "contract_path": {
+          "const": ".research-system/contracts/wp6-2-live-grader-calibration-protocol.yaml"
+        },
+        "canonical_sha256": {
+          "const": "e9512bef147d0de9bc9103b20eb1ede8b927979bfe43dd85e61fb6c27f05efda"
+        },
+        "git_blob_sha1": {
+          "const": "4c9721a047c9b66912b9786a3b983c6f84e5ab00"
+        },
+        "schema_id": {
+          "const": "ars://contracts/wp6-2-live-grader-calibration-protocol"
+        },
+        "schema_version": {
+          "const": "1.2.0"
+        },
+        "schema_path": {
+          "const": ".research-system/schemas/contracts/wp6-2-live-grader-calibration-protocol.schema.json"
+        },
+        "schema_canonical_sha256": {
+          "const": "3de300f42be5f0f26a966220c8d6e7c4e7372ef54fbafbc4571dec79abd675ec"
+        },
+        "schema_git_blob_sha1": {
+          "const": "a61f583cd25701fe0814c14ab91f95d4ba6d0a27"
+        },
+        "status": {
+          "const": "author_candidate_r2_remediated_no_observation_pending_fresh_independent_r3_review_and_stephen_exact_hash_acceptance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "required_slot_set_identity": {
+      "type": "object",
+      "required": [
+        "required_slot_set_id",
+        "required_slot_set_version",
+        "canonical_sha256",
+        "execution_freeze_sha256",
+        "model_initial_slot_count",
+        "human_initial_slot_count",
+        "human_adjudication_slot_count",
+        "status"
+      ],
+      "properties": {
+        "required_slot_set_id": {
+          "const": "wp6-2-live-grader-calibration-required-execution-slots"
+        },
+        "required_slot_set_version": {
+          "const": "1.2.0"
+        },
+        "canonical_sha256": {
+          "const": "e8acc4ff5e068b1318c0de84e3b7329b211eb9c35f46a5d0c5cba040f59a513f"
+        },
+        "execution_freeze_sha256": {
+          "const": "5daa95e625b6df51cf7779c053adc8b945a6bd8db6e0aae5100e2587454e489b"
+        },
+        "model_initial_slot_count": {
+          "const": 78
+        },
+        "human_initial_slot_count": {
+          "const": 112
+        },
+        "human_adjudication_slot_count": {
+          "const": 28
+        },
+        "status": {
+          "const": "prospective_required_set_pending_fresh_independent_R3_review"
+        }
+      },
+      "additionalProperties": false
+    },
+    "future_result_schema_identity": {
+      "type": "object",
+      "required": [
+        "schema_id",
+        "schema_version",
+        "schema_path",
+        "schema_canonical_sha256",
+        "schema_git_blob_sha1",
+        "status"
+      ],
+      "properties": {
+        "schema_id": {
+          "const": "ars://contracts/wp6-2-live-grader-calibration-future-result"
+        },
+        "schema_version": {
+          "const": "1.1.0"
+        },
+        "schema_path": {
+          "const": ".research-system/schemas/contracts/wp6-2-live-grader-calibration-future-result.schema.json"
+        },
+        "schema_canonical_sha256": {
+          "const": "39b5cf9fd38c4ed4b95d5c3ba77a7bf2239863e6d1c6b59c25f59b5fbf64b985"
+        },
+        "schema_git_blob_sha1": {
+          "const": "67e2bcd725f42b0e57cc970330f214b2086e610b"
+        },
+        "status": {
+          "const": "prospective_schema_only_no_result_or_observation_exists"
+        }
+      },
+      "additionalProperties": false
+    },
+    "semantic_validator_identity": {
+      "type": "object",
+      "required": [
+        "semantic_validator_id",
+        "semantic_validator_version",
+        "semantic_validator_path",
+        "public_api",
+        "canonical_sha256",
+        "git_blob_sha1",
+        "status"
+      ],
+      "properties": {
+        "semantic_validator_id": {
+          "const": "wp6-2-live-grader-calibration-future-result-semantics"
+        },
+        "semantic_validator_version": {
+          "const": "1.0.0"
+        },
+        "semantic_validator_path": {
+          "const": ".research-system/contracts/wp6_2_live_grader_calibration_future_result_semantics.py"
+        },
+        "public_api": {
+          "const": "validate_future_result_semantics"
+        },
+        "canonical_sha256": {
+          "const": "f5e383e95303c09ca3010e60de93d38e2f6e31fd9f491337c2f49f628d3d9a8f"
+        },
+        "git_blob_sha1": {
+          "const": "037933cc4f7329df459ae8d0af010d8f9e8238aa"
+        },
+        "status": {
+          "const": "pure_prospective_semantic_validator_no_io_or_acceptance_authority"
+        }
+      },
+      "additionalProperties": false
+    },
+    "review_identity": {
+      "type": "object",
+      "required": [
+        "review_round",
+        "review_commit",
+        "review_report_path",
+        "review_report_git_blob_sha1",
+        "review_report_canonical_sha256",
+        "review_verdict"
+      ],
+      "properties": {
+        "review_round": {
+          "const": "R1"
+        },
+        "review_commit": {
+          "const": "e7c30ef75750ddbddbe7761e858f1cda68d9247f"
+        },
+        "review_report_path": {
+          "const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-review-2026-07-18.md"
+        },
+        "review_report_git_blob_sha1": {
+          "const": "67a7df66dffd50f6929ec76c428e56a369af815b"
+        },
+        "review_report_canonical_sha256": {
+          "const": "e07963495032a061f2079b32c4fee44a483ce7d80c9a7d63f7291128409c4af0"
+        },
+        "review_verdict": {
+          "const": "rework_required"
+        }
+      },
+      "additionalProperties": false
+    },
+    "r2_review_identity": {
+      "type": "object",
+      "required": [
+        "review_round",
+        "review_commit",
+        "review_report_path",
+        "review_report_git_blob_sha1",
+        "review_report_canonical_sha256",
+        "review_verdict"
+      ],
+      "properties": {
+        "review_round": {
+          "const": "R2"
+        },
+        "review_commit": {
+          "const": "4d8ada73d2d43b4d30b05d44377773461b3a0fe9"
+        },
+        "review_report_path": {
+          "const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-2-t1a-protocol-remediation-r2-review-2026-07-18.md"
+        },
+        "review_report_git_blob_sha1": {
+          "const": "13329ea42ccac8ce62bca0b54c02514f03d68e84"
+        },
+        "review_report_canonical_sha256": {
+          "const": "e4905ec745d95b9ed54e9cbfdab049b14c7caaf8e671b036b4695cd9dd5b407d"
+        },
+        "review_verdict": {
+          "const": "rework_required"
+        }
+      },
+      "additionalProperties": false
+    },
+    "acceptance_status": {
+      "const": "author_candidate_only_fresh_independent_R3_review_then_Stephen_exact_hash_acceptance_required"
+    }
+  },
+  "additionalProperties": false
+}
