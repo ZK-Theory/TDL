@@ -1,16 +1,16 @@
 schema_id: ars://contracts/wp6-3-tdl-private-assurance-pack
 schema_version: '1.0.0'
 contract_id: wp6-3-tdl-private-assurance-pack
-contract_revision: 1
-status: pending_independent_review
+contract_revision: 2
+status: pending_independent_re_review
 
 contract_content_addressing:
   repository_path: .research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml
   canonical_byte_surface: git_blob_utf8_lf
   digest_algorithm: sha256
   identity_model: external_git_blob_and_canonical_sha256
-  git_blob_binding: required_for_independent_review_and_owner_acceptance
-  canonical_sha256_binding: required_for_independent_review_and_owner_acceptance
+  self_embedded_contract_hash: prohibited
+  review_and_owner_acceptance_location: external_content_addressed_lifecycle_records
 
 task_assurance_posture:
   primary_lane: output_provenance
@@ -18,224 +18,434 @@ task_assurance_posture:
   result_audits_performed: false
   claim_review_performed: false
 
+remediation_review:
+  subject_commit: 2ae607803b4cdaef677c2699439e1e1b876856e8
+  review_commit: fe0b8bae0a85b032fb60dc3895578ba6c638e0b8
+  report_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-review-2026-07-18.md
+  report_git_blob: fcd02142d2775a4dae5aaea0a258bec05fbd6ae0
+  report_canonical_sha256: 8553e70ef68e772555ccab20b518c185e38d940840235e73bc8b2de67814a8e1
+  verdict: rework_required
+  finding_ids: [C-1, M-1, M-2, M-3, M-4]
+  report_is_immutable_evidence_not_acceptance: true
+
 source_authority:
   accepted_plan_revision: fe5f1d40bc8f05f061317c677b5891cea0711249
   governing_sources:
-    - repository_path: docs/plans/agentic-research-system/implementation/06-wp6-gate6-readiness-and-integration-plan.md
+    - source_id: source.wp6_plan
+      repository_path: docs/plans/agentic-research-system/implementation/06-wp6-gate6-readiness-and-integration-plan.md
       sections: ['3/WP6.3', '6', '7', '8', '9']
       authority_state: approved_exact_revision
       git_commit: fe5f1d40bc8f05f061317c677b5891cea0711249
       git_blob: 91d943b3c45381b10b11c86d4836c79d0a862cdb
       canonical_sha256: 016942bb654d5714f7f591e84f873ea243c891e0053e97c6498798c32425a257
-    - repository_path: docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md
-      sections: ['6', '7', '8', '11', '12', '13', '14', '15.1', '16', '17', '24']
+    - source_id: source.w5_v0_2
+      repository_path: docs/plans/agentic-research-system/design/05-research-assurance-and-independent-review.md
+      sections: ['6', '7', '8', '11', '12', '13', '14', '15.1', '16', '17', '18', '19', '20', '21', '22', '23', '24', '28']
       authority_state: accepted
       git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
       git_blob: 51e7bfcbd0e5626caa45c828abda0b484d3a5739
       canonical_sha256: fd52fb1cede920fe6d97b8cd40d580c40fede6729bad2bbdb4433fcf36831075
-    - repository_path: docs/plans/agentic-research-system/03-decisions-and-open-questions.md
+    - source_id: source.accepted_decisions
+      repository_path: docs/plans/agentic-research-system/03-decisions-and-open-questions.md
       sections: ['P-005', 'P-022', 'P-023', 'P-025', 'P-029', 'P-036']
       authority_state: accepted
       git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
       git_blob: f4aa13d4e6537762d7b9692538ca1187088d5239
       canonical_sha256: 1531f826043478edf7ab0bd12244595b6b265a6fb072e4643b095a3f2cb2c8fc
-    - repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md
+    - source_id: source.wp6_r5_review
+      repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md
       sections: ['1', '9', '10', '11', '12']
       authority_state: review_evidence
       git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
       git_blob: b6f047db330617f25ffd8e0826da9769facab089
       canonical_sha256: 15af91fa08f248f55765cbcdf9d0efce3153232c7818a66d385b80c4bdb0e065
-    - repository_path: .research-system/packs/core-assurance.yaml
+    - source_id: source.current_core_pack
+      repository_path: .research-system/packs/core-assurance.yaml
       sections: ['complete file']
       authority_state: observed_current_baseline
       git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
       git_blob: e68d2f1e322163e27a5cde7029af77a4d9abae03
       canonical_sha256: d51583d0c216c627843382e9eeb86d05d4a49b8b86fd1abb54e198aaa560d251
-    - repository_path: .research-system/schemas/assurance/assurance-requirement.schema.json
+    - source_id: source.current_assurance_requirement_schema
+      repository_path: .research-system/schemas/assurance/assurance-requirement.schema.json
       sections: ['complete file']
       authority_state: observed_current_baseline
       git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
       git_blob: 4a8a6f924cd9a591fcc37c912fc9bdbb4929080d
       canonical_sha256: ee24efbc271fbc6a8326a1057c25c1dee83d68458e797f88d7446703a4fe7914
+    - source_id: source.current_id_kind_registry
+      repository_path: .research-system/config/id-kind-registry.yaml
+      sections: ['complete file']
+      authority_state: observed_current_baseline
+      git_commit: 4e6fd0cb26c04ff9707c3183f663461d752b53b9
+      git_blob: bbe34facf13ad8e5e105825ff0a2b9170c0b6fbc
+      canonical_sha256: 38cbb524968c09a81d0cd9b4cd93240f53e64e077d704635a1e0721880a4ea45
+    - source_id: source.wp6_3_r1_review
+      repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-3-assurance-contract-review-2026-07-18.md
+      sections: ['complete file']
+      authority_state: review_evidence
+      git_commit: fe0b8bae0a85b032fb60dc3895578ba6c638e0b8
+      git_blob: fcd02142d2775a4dae5aaea0a258bec05fbd6ae0
+      canonical_sha256: 8553e70ef68e772555ccab20b518c185e38d940840235e73bc8b2de67814a8e1
   missing_authority_diagnosis:
-    canonical_pack_schema_missing: true
-    accepted_pack_schema_version_missing: true
-    canonical_tdl_private_pack_path_missing: true
-    resolved_action: author_upstream_contract_then_stop_for_independent_review
+    canonical_pack_schema_missing_at_base: true
+    accepted_pack_schema_version_missing_at_base: true
+    canonical_tdl_private_pack_path_missing_at_base: true
+    assurance_pack_id_registry_kind_missing: true
+    resolved_action: correct_upstream_contract_then_stop_for_fresh_independent_review
 
 proposed_pack_identity:
   pack_id: TDL_private
+  pack_id_semantics: accepted_domain_pack_family_name
   repository_path: .research-system/packs/tdl-private-assurance.yaml
-  schema_id: ars://assurance/assurance-pack
-  schema_version: '1.0.0'
+  assurance_pack_object:
+    id_kind: assurance_pack
+    id_prefix: asp
+    exact_id_in_future_candidate_required: true
+    allocation_state: blocked_pending_w1_registry_materialization_after_contract_owner_acceptance
+    revision: 1
+    content_identity_location: external_pack_subject_record
+  schema_profile:
+    schema_id: ars://assurance/packs/tdl-private/1.0
+    schema_version: '1.0.0'
+    repository_path: .research-system/schemas/assurance/assurance-pack.schema.json
+    content_identity_location: external_contract_review_and_owner_acceptance_records
   distribution_scope: TDL_private
-  decision_state: proposed_pending_independent_review_and_owner_acceptance
+  decision_state: proposed_pending_fresh_independent_review_and_owner_acceptance
+
+identity_separation:
+  pack_family_name_field: pack_id
+  canonical_object_identity_fields: [assurance_pack_id, assurance_pack_revision, canonical_repository_path]
+  schema_identity_fields: [schema_id, schema_version, schema_repository_path, schema_git_blob, schema_canonical_sha256]
+  pack_content_identity_fields: [assurance_pack_id, assurance_pack_revision, canonical_repository_path, pack_git_blob, pack_canonical_sha256]
+  contract_content_identity_fields: [contract_id, contract_revision, repository_path, contract_git_blob, contract_canonical_sha256]
+  candidate_embedded_pack_content_hash: prohibited_as_self_referential
+  exact_hash_authority: external_content_addressed_subject_and_lifecycle_records
 
 required_pack_contract:
   schema_contract:
     repository_path: .research-system/schemas/assurance/assurance-pack.schema.json
-    schema_id: ars://assurance/assurance-pack
+    schema_id: ars://assurance/packs/tdl-private/1.0
     schema_version: '1.0.0'
     all_objects_closed: true
+    candidate_state: proposed_only
+    candidate_review_or_acceptance_fields: prohibited
+  content_addressing:
+    candidate_bytes_surface: git_blob_utf8_lf
+    pack_git_blob_computed_by_loader: true
+    pack_canonical_sha256_computed_by_loader: true
+    schema_and_contract_git_blob_sha256_from_external_acceptance: true
+    candidate_supplied_expected_identity: prohibited
+  public_semantic_interface:
+    required_callable: research_system.assurance.validate_tdl_private_pack_for_acceptance
+    implementation_status: blocking_future_dependency_not_implemented_by_this_upstream_contract_task
+    invoked_by: [pack_loader, pack_review_gate, owner_acceptance_gate, every_pack_consumer]
+    required_independent_inputs:
+      - accepted_upstream_contract_subject
+      - accepted_schema_subject
+      - registered_assurance_pack_object
+      - canonical_authority_and_relationship_records
+      - accepted_assurance_requirement_record
+      - independent_pack_review_record
+      - stephen_owner_acceptance_record
+      - exact_reference_registry_snapshot
+      - raw_candidate_pack_bytes
+      - evaluation_time
+    failure_behavior: pack_unconsumable_and_no_acceptance
+  external_lifecycle:
+    candidate_state: proposed
+    candidate_may_assert_review_or_acceptance: false
+    durable_states: [proposed, independently_reviewed, owner_accepted, superseded, retired]
+    state_record_location: external_immutable_content_addressed_records
+    required_sequence:
+      - upstream_contract_candidate_authored
+      - fresh_independent_contract_review_binds_exact_contract_and_schema_subjects
+      - stephen_accepts_exact_contract_and_schema_subjects
+      - assurance_pack_id_kind_and_object_are_registered_by_w1_authority
+      - distinct_future_producer_authors_proposed_candidate
+      - loader_computes_exact_candidate_subject_identity
+      - independent_pack_review_binds_exact_candidate_subject
+      - stephen_owner_acceptance_binds_same_subject_and_review
+      - consumer_activation_resolves_all_external_records
+    accepted_state_may_be_inferred_from_candidate: false
+    supersession_is_immutable: true
+    stale_identity_behavior: block_and_require_superseding_revision
+  external_acceptance_evidence:
+    required_record_types:
+      - accepted_assurance_requirement
+      - producer_relationship_evidence
+      - independent_pack_review
+      - stephen_owner_acceptance
+      - active_authority_grants
+      - registered_pack_object
+    candidate_may_supply_record_bodies: false
+    record_resolution: canonical_store_by_id_and_exact_hash
+    every_record_subject: exact_loader_computed_pack_subject
+    review_and_owner_decision_subject_must_match: true
+    minimum_independence_grade: I2
+    required_distinct_pairs:
+      - [contract_author, future_pack_producer]
+      - [requirement_author, future_pack_producer]
+      - [requirement_scope_reviewer, future_pack_producer]
+      - [pack_scientific_reviewer, future_pack_producer]
+      - [owner_acceptor, future_pack_producer]
+      - [pack_scientific_reviewer, owner_acceptor]
+    owner_authority_resolution: active_canonical_authority_grant_for_stephen_reserved_decision
+    role_labels_or_candidate_attestations_are_evidence: false
   source_authority_binding:
     required_source_set: exact_governing_sources_from_contract_source_authority
     exact_git_commit_blob_sha256_required: true
     observed_side_may_supply_expected_authority: false
-  six_lane_closure:
-    - topology
-    - stochastic_null
-    - statistical_panel
-    - representation
-    - output_provenance
-    - paper_claim
+  obligation_row_profile:
+    row_profile_id: wp6_3_required_noncompensable_v1
+    applicability: required
+    task_not_applicable_location: external_accepted_assurance_requirement
+    task_not_applicable_requires_producer_independent_confirmation: true
+    producer_only_not_applicable: prohibited
+    source_authority_id: source.w5_v0_2
+    consumer_restriction: tdl_private_named_consumers_only
+    failure_consequence: blocked_no_cross_lane_compensation
+    partial_consequence: partial_never_passes_and_requires_named_consumer_and_claim_restrictions
+    unable_to_grade_consequence: blocked
+    claim_consequence: no_claim_promotion_without_separate_accepted_result_and_claim_decision
+    arbitrary_free_text_as_obligation: prohibited
+  six_lane_closure: [topology, stochastic_null, statistical_panel, representation, output_provenance, paper_claim]
   lanes:
     topology:
       lane_id: topology
-      required_obligation_fields:
-        - persistence_construction
-        - filtration
-        - coefficient_field
-        - homology_dimensions
-        - benchmark_validation
-        - interpretation_boundaries
+      exact_governing_reference_ids:
+        - contract/tda-formulas/w2-exact-diagonal-bound
+        - contract/topology-invariants/null-operation-changes-ph-input
+        - skill/validate-topology
+        - skill/research-assurance-triage
+      required_obligations:
+        - {obligation_id: topology.persistence_construction_and_object, source_sections: ['14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.persistence_construction_and_object, evidence_output_id: evidence.topology.persistence_construction_and_object}
+        - {obligation_id: topology.w2_convention, source_sections: ['14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/tda-formulas/w2-exact-diagonal-bound, skill/validate-topology], review_question_id: review.topology.w2_convention, evidence_output_id: evidence.topology.w2_convention}
+        - {obligation_id: topology.filtration_metric_order, source_sections: ['14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.filtration_metric_order, evidence_output_id: evidence.topology.filtration_metric_order}
+        - {obligation_id: topology.threshold_truncation, source_sections: ['14.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.threshold_truncation, evidence_output_id: evidence.topology.threshold_truncation}
+        - {obligation_id: topology.landmark_rule, source_sections: ['14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.landmark_rule, evidence_output_id: evidence.topology.landmark_rule}
+        - {obligation_id: topology.coefficient_field, source_sections: ['14.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.coefficient_field, evidence_output_id: evidence.topology.coefficient_field}
+        - {obligation_id: topology.homology_dimensions_and_essential_classes, source_sections: ['14.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.homology_dimensions_and_essential_classes, evidence_output_id: evidence.topology.homology_dimensions_and_essential_classes}
+        - {obligation_id: topology.benchmark_known_cases, source_sections: ['13.1', '14.1', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/tda-formulas/w2-exact-diagonal-bound, skill/validate-topology], review_question_id: review.topology.benchmark_known_cases, evidence_output_id: evidence.topology.benchmark_known_cases}
+        - {obligation_id: topology.scaling_and_direction, source_sections: ['13.1', '14.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.scaling_and_direction, evidence_output_id: evidence.topology.scaling_and_direction}
+        - {obligation_id: topology.subject_topological_object_identity, source_sections: ['8.1', '14.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/validate-topology], review_question_id: review.topology.subject_topological_object_identity, evidence_output_id: evidence.topology.subject_topological_object_identity}
+        - {obligation_id: topology.interpretation_topology_geometry_association_causality, source_sections: ['14.1', '15.1'], assertion_classes: [R, H], enforcing_reference_ids: [skill/validate-topology, skill/paper-claim-trace], review_question_id: review.topology.interpretation_limits, evidence_output_id: evidence.topology.interpretation_limits}
+      exact_fixture_ids: [apf_missing_lane, apf_extra_lane, apf_cross_lane_compensation, apf_missing_obligation, apf_extra_obligation, apf_duplicate_obligation_id, apf_swapped_obligation_lane, apf_generic_obligation_prose]
       prospective_schema_only: true
-      failure_consequence: blocked
+      failure_consequence: blocked_no_cross_lane_compensation
       cross_lane_compensation: prohibited
     stochastic_null:
       lane_id: stochastic_null
-      required_obligation_fields:
-        - markov_null_design
-        - tested_object_invariance
-        - rng_algorithm
-        - seed_recording
-        - inferential_denominator
-        - null_operation
-        - p_value_formula
-        - exchangeability
+      exact_governing_reference_ids:
+        - contract/topology-invariants/null-operation-changes-ph-input
+        - contract/stochastic-tests/markov-order-provenance
+        - contract/stochastic-tests/monte-carlo-permutation-p-value
+        - skill/statistical-design-audit
+        - skill/validate-topology
+        - skill/research-assurance-triage
+      required_obligations:
+        - {obligation_id: stochastic_null.null_hypothesis_and_operation, source_sections: ['14.2', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.stochastic_null.null_hypothesis_and_operation, evidence_output_id: evidence.stochastic_null.null_hypothesis_and_operation}
+        - {obligation_id: stochastic_null.exchangeability_conditioning, source_sections: ['14.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.stochastic_null.exchangeability_conditioning, evidence_output_id: evidence.stochastic_null.exchangeability_conditioning}
+        - {obligation_id: stochastic_null.markov_order_and_strata, source_sections: ['14.2', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/stochastic-tests/markov-order-provenance, skill/statistical-design-audit], review_question_id: review.stochastic_null.markov_order_and_strata, evidence_output_id: evidence.stochastic_null.markov_order_and_strata}
+        - {obligation_id: stochastic_null.sampling_unit_and_b, source_sections: ['14.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.stochastic_null.sampling_unit_and_b, evidence_output_id: evidence.stochastic_null.sampling_unit_and_b}
+        - {obligation_id: stochastic_null.rng_and_seed, source_sections: ['7', '14.2'], assertion_classes: [D], enforcing_reference_ids: [contract/stochastic-tests/markov-order-provenance, skill/statistical-design-audit], review_question_id: review.stochastic_null.rng_and_seed, evidence_output_id: evidence.stochastic_null.rng_and_seed}
+        - {obligation_id: stochastic_null.denominator_and_p_value_formula, source_sections: ['14.2'], assertion_classes: [D, R], enforcing_reference_ids: [contract/stochastic-tests/monte-carlo-permutation-p-value, skill/statistical-design-audit], review_question_id: review.stochastic_null.denominator_and_p_value_formula, evidence_output_id: evidence.stochastic_null.denominator_and_p_value_formula}
+        - {obligation_id: stochastic_null.tested_object_mutation, source_sections: ['13.4', '14.2', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/topology-invariants/null-operation-changes-ph-input, skill/validate-topology], review_question_id: review.stochastic_null.tested_object_mutation, evidence_output_id: evidence.stochastic_null.tested_object_mutation}
+        - {obligation_id: stochastic_null.independent_no_op_preflight, source_sections: ['13.3', '13.4', '14.2'], assertion_classes: [D, R], enforcing_reference_ids: [contract/topology-invariants/null-operation-changes-ph-input, skill/validate-topology], review_question_id: review.stochastic_null.independent_no_op_preflight, evidence_output_id: evidence.stochastic_null.independent_no_op_preflight}
+        - {obligation_id: stochastic_null.checkpoint_resume_equivalence, source_sections: ['14.2'], assertion_classes: [D, O], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.stochastic_null.checkpoint_resume_equivalence, evidence_output_id: evidence.stochastic_null.checkpoint_resume_equivalence}
+        - {obligation_id: stochastic_null.multiplicity_family, source_sections: ['14.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.stochastic_null.multiplicity_family, evidence_output_id: evidence.stochastic_null.multiplicity_family}
+        - {obligation_id: stochastic_null.diagnostic_inferential_separation, source_sections: ['14.2'], assertion_classes: [D, R], enforcing_reference_ids: [contract/stochastic-tests/monte-carlo-permutation-p-value, skill/statistical-design-audit], review_question_id: review.stochastic_null.diagnostic_inferential_separation, evidence_output_id: evidence.stochastic_null.diagnostic_inferential_separation}
+      exact_fixture_ids: [apf_pending_reference, apf_tested_object_no_op, apf_degenerate_fallback, apf_missing_obligation, apf_swapped_obligation_lane, apf_unable_to_grade_pass, apf_failed_proof_pass]
       prospective_schema_only: true
-      failure_consequence: blocked
+      failure_consequence: blocked_no_cross_lane_compensation
       cross_lane_compensation: prohibited
     statistical_panel:
       lane_id: statistical_panel
-      required_obligation_fields:
-        - estimand
-        - target_population
-        - eligibility
-        - denominator
-        - missingness
-        - clustering
-        - uncertainty
-        - multiplicity
-        - sensitivity
+      exact_governing_reference_ids:
+        - contract/stochastic-tests/monte-carlo-permutation-p-value
+        - contract/stage1-output-schemas/stage1-output-json-validation
+        - skill/statistical-design-audit
+        - skill/research-assurance-triage
+      required_obligations:
+        - {obligation_id: statistical_panel.estimand, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.estimand, evidence_output_id: evidence.statistical_panel.estimand}
+        - {obligation_id: statistical_panel.target_population, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.target_population, evidence_output_id: evidence.statistical_panel.target_population}
+        - {obligation_id: statistical_panel.eligibility_and_denominator, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.eligibility_and_denominator, evidence_output_id: evidence.statistical_panel.eligibility_and_denominator}
+        - {obligation_id: statistical_panel.clustering_and_dependence, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.clustering_and_dependence, evidence_output_id: evidence.statistical_panel.clustering_and_dependence}
+        - {obligation_id: statistical_panel.missingness_and_imputation, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.missingness_and_imputation, evidence_output_id: evidence.statistical_panel.missingness_and_imputation}
+        - {obligation_id: statistical_panel.weights_and_trimming, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.weights_and_trimming, evidence_output_id: evidence.statistical_panel.weights_and_trimming}
+        - {obligation_id: statistical_panel.variance_and_uncertainty, source_sections: ['14.3'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.variance_and_uncertainty, evidence_output_id: evidence.statistical_panel.variance_and_uncertainty}
+        - {obligation_id: statistical_panel.multiplicity, source_sections: ['14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [contract/stochastic-tests/monte-carlo-permutation-p-value, skill/statistical-design-audit], review_question_id: review.statistical_panel.multiplicity, evidence_output_id: evidence.statistical_panel.multiplicity}
+        - {obligation_id: statistical_panel.sensitivity, source_sections: ['13.1', '14.3', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.sensitivity, evidence_output_id: evidence.statistical_panel.sensitivity}
+        - {obligation_id: statistical_panel.formula_and_software_procedure, source_sections: ['14.3'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.formula_and_software_procedure, evidence_output_id: evidence.statistical_panel.formula_and_software_procedure}
+        - {obligation_id: statistical_panel.boundary_sparse_separation_cases, source_sections: ['13.1', '14.3'], assertion_classes: [D, R], enforcing_reference_ids: [skill/statistical-design-audit], review_question_id: review.statistical_panel.boundary_sparse_separation_cases, evidence_output_id: evidence.statistical_panel.boundary_sparse_separation_cases}
+        - {obligation_id: statistical_panel.descriptive_associational_predictive_causal_limits, source_sections: ['14.3'], assertion_classes: [R, H], enforcing_reference_ids: [skill/statistical-design-audit, skill/paper-claim-trace], review_question_id: review.statistical_panel.claim_type_limits, evidence_output_id: evidence.statistical_panel.claim_type_limits}
+      exact_fixture_ids: [apf_missing_obligation, apf_swapped_obligation_lane, apf_partial_pass, apf_unable_to_grade_pass, apf_cross_lane_compensation]
       prospective_schema_only: true
-      failure_consequence: blocked
+      failure_consequence: blocked_no_cross_lane_compensation
       cross_lane_compensation: prohibited
     representation:
       lane_id: representation
-      required_obligation_fields:
-        - frozen_fit_identity
-        - transform_identity
-        - recoding
-        - vintage
-        - comparability
-        - prohibited_refit
+      exact_governing_reference_ids:
+        - contract/topology-invariants/frozen-loadings-transform-only
+        - skill/representation-freeze-audit
+        - skill/research-assurance-triage
+      required_obligations:
+        - {obligation_id: representation.fit_transform_authority, source_sections: ['14.4', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/topology-invariants/frozen-loadings-transform-only, skill/representation-freeze-audit], review_question_id: review.representation.fit_transform_authority, evidence_output_id: evidence.representation.fit_transform_authority}
+        - {obligation_id: representation.frozen_model_loadings_scaler_labels, source_sections: ['14.4', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/topology-invariants/frozen-loadings-transform-only, skill/representation-freeze-audit], review_question_id: review.representation.frozen_components, evidence_output_id: evidence.representation.frozen_components}
+        - {obligation_id: representation.training_population, source_sections: ['14.4'], assertion_classes: [D, R], enforcing_reference_ids: [skill/representation-freeze-audit], review_question_id: review.representation.training_population, evidence_output_id: evidence.representation.training_population}
+        - {obligation_id: representation.state_recoding, source_sections: ['14.4'], assertion_classes: [D, R], enforcing_reference_ids: [skill/representation-freeze-audit], review_question_id: review.representation.state_recoding, evidence_output_id: evidence.representation.state_recoding}
+        - {obligation_id: representation.windows_dimensions_and_vintage, source_sections: ['14.4'], assertion_classes: [D, R], enforcing_reference_ids: [skill/representation-freeze-audit], review_question_id: review.representation.windows_dimensions_and_vintage, evidence_output_id: evidence.representation.windows_dimensions_and_vintage}
+        - {obligation_id: representation.fingerprint_hash, source_sections: ['14.4'], assertion_classes: [D], enforcing_reference_ids: [skill/representation-freeze-audit], review_question_id: review.representation.fingerprint_hash, evidence_output_id: evidence.representation.fingerprint_hash}
+        - {obligation_id: representation.transform_only, source_sections: ['14.4', '15.1'], assertion_classes: [D, R], enforcing_reference_ids: [contract/topology-invariants/frozen-loadings-transform-only, skill/representation-freeze-audit], review_question_id: review.representation.transform_only, evidence_output_id: evidence.representation.transform_only}
+        - {obligation_id: representation.comparability_across_waves_cohorts_subgroups, source_sections: ['14.4', '15.2'], assertion_classes: [D, R], enforcing_reference_ids: [skill/representation-freeze-audit], review_question_id: review.representation.comparability, evidence_output_id: evidence.representation.comparability}
+        - {obligation_id: representation.prohibited_refit_and_fallback, source_sections: ['13.3', '14.4'], assertion_classes: [D, R], enforcing_reference_ids: [contract/topology-invariants/frozen-loadings-transform-only, skill/representation-freeze-audit], review_question_id: review.representation.prohibited_refit_and_fallback, evidence_output_id: evidence.representation.prohibited_refit_and_fallback}
+        - {obligation_id: representation.uncertainty_and_sensitivity, source_sections: ['13.1', '14.4'], assertion_classes: [D, R], enforcing_reference_ids: [skill/representation-freeze-audit], review_question_id: review.representation.uncertainty_and_sensitivity, evidence_output_id: evidence.representation.uncertainty_and_sensitivity}
+      exact_fixture_ids: [apf_missing_obligation, apf_swapped_obligation_lane, apf_degenerate_fallback, apf_reference_activation_change_stales, apf_cross_lane_compensation]
       prospective_schema_only: true
-      failure_consequence: blocked
+      failure_consequence: blocked_no_cross_lane_compensation
       cross_lane_compensation: prohibited
     output_provenance:
       lane_id: output_provenance
-      required_obligation_fields:
-        - immutable_ids_hashes
-        - schema_lineage
-        - currency
-        - retention
-        - consumers
-        - publication_boundaries
-        - path_boundaries
-        - data_boundaries
-        - no_overwrite
+      exact_governing_reference_ids:
+        - contract/stage1-output-schemas/stage1-output-json-validation
+        - skill/result-provenance-review
+        - skill/research-assurance-triage
+      required_obligations:
+        - {obligation_id: output_provenance.immutable_object_and_input_ids_hashes, source_sections: ['6', '14.5'], assertion_classes: [D], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.immutable_ids_hashes, evidence_output_id: evidence.output_provenance.immutable_ids_hashes}
+        - {obligation_id: output_provenance.code_and_environment, source_sections: ['14.5'], assertion_classes: [D, O], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.code_and_environment, evidence_output_id: evidence.output_provenance.code_and_environment}
+        - {obligation_id: output_provenance.parameters_seeds_and_sample_restrictions, source_sections: ['7', '14.5'], assertion_classes: [D], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.parameters_seeds_sample, evidence_output_id: evidence.output_provenance.parameters_seeds_sample}
+        - {obligation_id: output_provenance.roots_and_date_suffix, source_sections: ['14.5'], assertion_classes: [D, O], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.roots_and_date_suffix, evidence_output_id: evidence.output_provenance.roots_and_date_suffix}
+        - {obligation_id: output_provenance.no_overwrite, source_sections: ['7', '14.5'], assertion_classes: [D, O], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.no_overwrite, evidence_output_id: evidence.output_provenance.no_overwrite}
+        - {obligation_id: output_provenance.schema_cache_lineage_and_regenerability, source_sections: ['14.5'], assertion_classes: [D, O], enforcing_reference_ids: [contract/stage1-output-schemas/stage1-output-json-validation, skill/result-provenance-review], review_question_id: review.output_provenance.schema_cache_lineage, evidence_output_id: evidence.output_provenance.schema_cache_lineage}
+        - {obligation_id: output_provenance.consumer_required_comparison_fields, source_sections: ['14.5'], assertion_classes: [D, R], enforcing_reference_ids: [contract/stage1-output-schemas/stage1-output-json-validation, skill/result-provenance-review], review_question_id: review.output_provenance.consumer_fields, evidence_output_id: evidence.output_provenance.consumer_fields}
+        - {obligation_id: output_provenance.scoped_supersession_and_retention, source_sections: ['6', '18', '23', '24'], assertion_classes: [D, O], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.supersession_retention, evidence_output_id: evidence.output_provenance.supersession_retention}
+        - {obligation_id: output_provenance.exact_accepted_bytes_validation, source_sections: ['14.5', '16'], assertion_classes: [D], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.exact_accepted_bytes, evidence_output_id: evidence.output_provenance.exact_accepted_bytes}
+        - {obligation_id: output_provenance.vault_and_claim_routing_authorization, source_sections: ['14.5', '19'], assertion_classes: [T, H], enforcing_reference_ids: [skill/result-provenance-review, skill/paper-claim-trace], review_question_id: review.output_provenance.routing_authorization, evidence_output_id: evidence.output_provenance.routing_authorization}
+        - {obligation_id: output_provenance.consumer_publication_path_data_boundaries, source_sections: ['8.1', '18', '24'], assertion_classes: [D, O, P], enforcing_reference_ids: [skill/result-provenance-review], review_question_id: review.output_provenance.distribution_boundaries, evidence_output_id: evidence.output_provenance.distribution_boundaries}
+      exact_fixture_ids: [apf_wrong_distribution_scope, apf_absent_permitted_consumers, apf_absent_publication_restriction, apf_absent_path_restriction, apf_absent_data_restriction, apf_consumer_widening, apf_contradictory_distribution, apf_stale_pack_identity, apf_expired_currency, apf_content_hash_mismatch, apf_effective_expiry_inversion, apf_schema_identity_swap]
       prospective_schema_only: true
-      failure_consequence: blocked
+      failure_consequence: blocked_no_cross_lane_compensation
       cross_lane_compensation: prohibited
     paper_claim:
       lane_id: paper_claim
-      required_obligation_fields:
-        - topology_to_claim_limits
-        - result_decision_bindings
-        - required_reviews
-        - negative_partial_limitations
-        - prohibited_escalations
+      exact_governing_reference_ids:
+        - skill/paper-claim-trace
+        - skill/result-provenance-review
+        - skill/research-assurance-triage
+      required_obligations:
+        - {obligation_id: paper_claim.exact_accepted_result_and_evidence_ids_hashes, source_sections: ['14.6', '19'], assertion_classes: [D, H], enforcing_reference_ids: [skill/paper-claim-trace, skill/result-provenance-review], review_question_id: review.paper_claim.accepted_sources, evidence_output_id: evidence.paper_claim.accepted_sources}
+        - {obligation_id: paper_claim.governing_decision_rule_and_outcome, source_sections: ['14.6', '19'], assertion_classes: [D, R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.decision_rule_outcome, evidence_output_id: evidence.paper_claim.decision_rule_outcome}
+        - {obligation_id: paper_claim.proposed_wording, source_sections: ['14.6', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.proposed_wording, evidence_output_id: evidence.paper_claim.proposed_wording}
+        - {obligation_id: paper_claim.claim_type_and_strength, source_sections: ['14.6', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.claim_type_strength, evidence_output_id: evidence.paper_claim.claim_type_strength}
+        - {obligation_id: paper_claim.population_and_domain_scope, source_sections: ['14.6', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.population_domain_scope, evidence_output_id: evidence.paper_claim.population_domain_scope}
+        - {obligation_id: paper_claim.uncertainty, source_sections: ['14.6', '19'], assertion_classes: [D, R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.uncertainty, evidence_output_id: evidence.paper_claim.uncertainty}
+        - {obligation_id: paper_claim.limitations_and_disclosure, source_sections: ['14.6', '18', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.limitations_disclosure, evidence_output_id: evidence.paper_claim.limitations_disclosure}
+        - {obligation_id: paper_claim.negative_and_partial_restrictions, source_sections: ['14.6', '18', '19'], assertion_classes: [D, R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.negative_partial_restrictions, evidence_output_id: evidence.paper_claim.negative_partial_restrictions}
+        - {obligation_id: paper_claim.independent_claim_review, source_sections: ['14.6', '16', '17', '19'], assertion_classes: [R, M, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.independent_review, evidence_output_id: evidence.paper_claim.independent_review}
+        - {obligation_id: paper_claim.stephen_attributed_promotion_decision, source_sections: ['14.6', '17', '19'], assertion_classes: [H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.stephen_promotion, evidence_output_id: evidence.paper_claim.stephen_promotion}
+        - {obligation_id: paper_claim.no_causal_escalation, source_sections: ['14.6', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.no_causal_escalation, evidence_output_id: evidence.paper_claim.no_causal_escalation}
+        - {obligation_id: paper_claim.no_novelty_escalation, source_sections: ['14.6', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.no_novelty_escalation, evidence_output_id: evidence.paper_claim.no_novelty_escalation}
+        - {obligation_id: paper_claim.no_generality_escalation, source_sections: ['14.6', '19'], assertion_classes: [R, H], enforcing_reference_ids: [skill/paper-claim-trace], review_question_id: review.paper_claim.no_generality_escalation, evidence_output_id: evidence.paper_claim.no_generality_escalation}
+        - {obligation_id: paper_claim.result_acceptance_and_claim_promotion_separation, source_sections: ['19'], assertion_classes: [D, T, H], enforcing_reference_ids: [skill/paper-claim-trace, skill/result-provenance-review], review_question_id: review.paper_claim.result_claim_separation, evidence_output_id: evidence.paper_claim.result_claim_separation}
+      exact_fixture_ids: [apf_claim_escalation, apf_partial_pass, apf_unable_to_grade_pass, apf_review_subject_mismatch, apf_owner_subject_mismatch, apf_acceptance_before_review, apf_cross_lane_compensation]
       prospective_schema_only: true
-      failure_consequence: blocked
+      failure_consequence: blocked_no_cross_lane_compensation
       cross_lane_compensation: prohibited
-  distribution:
-    distribution_scope: TDL_private
-    permitted_consumers_required: true
-    public_template_export: prohibited
-    publication_boundary_required: true
-    path_restrictions_required: true
-    data_restrictions_required: true
-    restricted_data_representation: opaque_content_addressed_references_only
-    secret_material: prohibited
-  lifecycle:
-    states: [draft, source_verified, reviewed, accepted, rejected, superseded, retired]
-    accepted_pack_requires_review: true
-    accepted_pack_requires_owner_acceptance: true
-    supersession_is_immutable: true
-    currency_and_expiry_required: true
-    stale_identity_behavior: block_and_require_superseding_revision
-  governance:
-    upstream_contract_author_role: wp6_3_upstream_contract_author
-    independent_reviewer_role: unassigned_distinct_authority
-    owner_acceptor: Stephen
-    future_pack_producer_role: unassigned_after_contract_acceptance
-    future_pack_producer_must_differ_from_contract_author: true
-    minimum_independence_grade: I2
-    authority_resolution: canonical_authority_records_not_role_labels_or_self_attestation
-    not_applicable:
-      rationale_required: true
-      independent_confirmation_required: true
-      producer_only_confirmation: prohibited
-      confirmation_record_hash_required: true
   references:
     reference_mode: exact_versioned_reference_only
-    version_scheme: git_blob_with_canonical_sha256
     inline_copy: prohibited
-    required_contract_capabilities:
-      - tda-formulas/w2-exact-diagonal-bound
-      - topology-invariants/null-operation-changes-ph-input
-      - topology-invariants/frozen-loadings-transform-only
-      - stochastic-tests/markov-order-provenance
-      - stochastic-tests/monte-carlo-permutation-p-value
-      - stage1-output-schemas/stage1-output-json-validation
-    required_skill_ids:
-      - validate-topology
-      - statistical-design-audit
-      - representation-freeze-audit
-      - result-provenance-review
-      - paper-claim-trace
-      - research-assurance-triage
+    exact_reference_rows:
+      - {reference_kind: contract, reference_id: contract/tda-formulas/w2-exact-diagonal-bound, repository_path: contracts/tda-formulas/w2-exact-diagonal-bound.yaml, git_blob: 32d249e7ddc34d76e5babab65fcdfb3d22696c53, canonical_sha256: 21116b6ebfed285f2d46fb07ebbef7023d009c3ec93513e8d0c34aa7c22bf66b, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [topology], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: contract, reference_id: contract/topology-invariants/null-operation-changes-ph-input, repository_path: contracts/topology-invariants/null-operation-changes-ph-input.yaml, git_blob: 1b99f56094814b33f4f6515c9cd19d76cf91f6ee, canonical_sha256: 7e73c05d7d2186480e827c36623c479a4952ad76cf169643f1475b9cd09bac06, activation_state: pending, pack_acceptance_eligible: false, allowed_lane_ids: [topology, stochastic_null], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: contract, reference_id: contract/topology-invariants/frozen-loadings-transform-only, repository_path: contracts/topology-invariants/frozen-loadings-transform-only.yaml, git_blob: d582e0d32e38fe33720720b74ee7c62e13800d02, canonical_sha256: 13ba6bd9bd1f553fb33064c080e1cb1371891d4a6660b680fbdac73d3dcb381f, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [representation], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: contract, reference_id: contract/stochastic-tests/markov-order-provenance, repository_path: contracts/stochastic-tests/markov-order-provenance.yaml, git_blob: 8dd9fbf3c23364f1aba62f02610ad8ab61464f52, canonical_sha256: 2627d649350bfc7ad734f1608f8b556d845315266c52bbe72561dc81ba082d5e, activation_state: pending, pack_acceptance_eligible: false, allowed_lane_ids: [stochastic_null], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: contract, reference_id: contract/stochastic-tests/monte-carlo-permutation-p-value, repository_path: contracts/stochastic-tests/monte-carlo-permutation-p-value.yaml, git_blob: fc216bdb302e1c92e18ce8965538650256ea5aee, canonical_sha256: c5cd380f3812137ae7c7b587ee588d281f1c5fb5b6bd2e64deb20781dc7413d5, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [stochastic_null, statistical_panel], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: contract, reference_id: contract/stage1-output-schemas/stage1-output-json-validation, repository_path: contracts/stage1-output-schemas/stage1-output-json-validation.yaml, git_blob: bdd4357e0f02fb2eadcb9c41f7177ad46b98f51d, canonical_sha256: 6177732d2a8a3d2e9754360796a52374d64c5c09d7777e824cf8b047c64d8dcc, activation_state: active, pack_acceptance_eligible: true, allowed_lane_ids: [statistical_panel, output_provenance], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/validate-topology, repository_path: .agents/skills/validate-topology/SKILL.md, git_blob: fb1d000f96b31a69f9f4c0adc53e0115f89e6d18, canonical_sha256: 7d583681f5bb7c015f9e7a9d6f221c4022e11e06b9449e1a9e8ed5c3f3387942, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [topology, stochastic_null], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/statistical-design-audit, repository_path: .agents/skills/statistical-design-audit/SKILL.md, git_blob: 273d85d134cd10400237624ffd65c48cd9edfb02, canonical_sha256: a6f10d140b4e0bc34f3f541fba39513a0507a532fc065b134ee870e13ad43b2a, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [stochastic_null, statistical_panel], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/representation-freeze-audit, repository_path: .agents/skills/representation-freeze-audit/SKILL.md, git_blob: a15eebe6d3367bbae95566867c45e29668e0ccaa, canonical_sha256: c0a416cab5874ac159f4af6098417e78ce372c1e87df5ff83b0ef308556ba45a, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [representation], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/result-provenance-review, repository_path: .agents/skills/result-provenance-review/SKILL.md, git_blob: 91130d3d1e3c145ca3b2b63cfaab987d39f3b589, canonical_sha256: 4256ded781d7cf919b04b3754b008c84e4446a23b3a643cdbecd855f5173cf2c, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [output_provenance, paper_claim], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/paper-claim-trace, repository_path: .agents/skills/paper-claim-trace/SKILL.md, git_blob: 63be5441a82dc2b82b820597e7791fb5fbf43d90, canonical_sha256: ded1d01181bf279a766374851552b808ed6285bce77adfa6431599ee5ae71107, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [topology, statistical_panel, output_provenance, paper_claim], reference_mode: exact_versioned_reference, inline_body: false}
+      - {reference_kind: skill, reference_id: skill/research-assurance-triage, repository_path: .agents/skills/research-assurance-triage/SKILL.md, git_blob: b16c683f02684db8144b6f1fc5cefa3768b220a5, canonical_sha256: da2d0ceb302871f43ec5f461c55a767858faec21ea94acde791043cf97417cd3, activation_state: repository_version_pinned, pack_acceptance_eligible: true, allowed_lane_ids: [topology, stochastic_null, statistical_panel, representation, output_provenance, paper_claim], reference_mode: exact_versioned_reference, inline_body: false}
+    required_contract_reference_count: 6
+    required_skill_reference_count: 6
+    duplicate_id_different_body: prohibited
+    alias_or_kind_swap: prohibited
+    foreign_valid_reference: prohibited
+    pending_reference_behavior: block_owner_acceptance_and_require_superseding_upstream_contract_revision
+    current_pending_reference_ids:
+      - contract/topology-invariants/null-operation-changes-ph-input
+      - contract/stochastic-tests/markov-order-provenance
   fixtures:
-    required_fixture_cases:
-      - missing_lane
-      - extra_lane
-      - wrong_distribution_scope
-      - missing_authority_separation
-      - producer_only_not_applicable
-      - unversioned_reference
-      - inline_reference_copy
-      - absent_permitted_consumers
-      - absent_publication_restriction
-      - absent_path_restriction
-      - absent_data_restriction
-      - stale_pack_identity
-      - expired_currency
-      - cross_lane_compensation
-    all_expected_outcomes: blocked
-    producer_seam_mutations_required: true
-    cross_lane_compensation_fixture_required: true
-  limitations_required: true
-  exact_hash_provenance_required: true
+    exact_fixture_rows:
+      - {fixture_id: apf_missing_lane, lane_id: cross_lane, attack_class: missing, target_invariant: invariant.lane.exact_closure, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_extra_lane, lane_id: cross_lane, attack_class: extra, target_invariant: invariant.lane.exact_closure, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_wrong_distribution_scope, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.tdl_private, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_missing_authority_separation, lane_id: cross_lane, attack_class: authority, target_invariant: invariant.authority.distinct_pairs, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_producer_only_not_applicable, lane_id: cross_lane, attack_class: authority, target_invariant: invariant.applicability.independent_confirmation, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_unversioned_reference, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.reference.exact_version, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_inline_reference_copy, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.reference.no_inline_body, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_absent_permitted_consumers, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.consumers, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_absent_publication_restriction, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.publication, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_absent_path_restriction, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.path, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_absent_data_restriction, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.data, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_stale_pack_identity, lane_id: output_provenance, attack_class: identity, target_invariant: invariant.identity.exact_subject, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_expired_currency, lane_id: output_provenance, attack_class: currency, target_invariant: invariant.currency.not_expired, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_cross_lane_compensation, lane_id: cross_lane, attack_class: cross_lane_compensation, target_invariant: invariant.two_key.noncompensable, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_candidate_self_acceptance, lane_id: cross_lane, attack_class: lifecycle, target_invariant: invariant.lifecycle.external_acceptance_only, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_actor_alias, lane_id: cross_lane, attack_class: authority, target_invariant: invariant.authority.canonical_actor_id, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_requirement_author_is_producer, lane_id: cross_lane, attack_class: authority, target_invariant: invariant.authority.requirement_producer_separation, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_review_subject_mismatch, lane_id: paper_claim, attack_class: identity, target_invariant: invariant.review.exact_subject, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_owner_subject_mismatch, lane_id: paper_claim, attack_class: identity, target_invariant: invariant.acceptance.exact_subject, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_content_hash_mismatch, lane_id: output_provenance, attack_class: identity, target_invariant: invariant.identity.loader_computed_hash, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_coordinated_contract_pack_replacement, lane_id: cross_lane, attack_class: identity, target_invariant: invariant.identity.external_oracle, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_consumer_widening, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.closed_consumers, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_contradictory_distribution, lane_id: output_provenance, attack_class: distribution, target_invariant: invariant.distribution.no_contradiction, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_effective_expiry_inversion, lane_id: output_provenance, attack_class: currency, target_invariant: invariant.currency.time_order, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_duplicate_reference_id, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.reference.unique_complete_row, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_aliased_reference_id, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.reference.no_alias, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_swapped_reference_kind, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.reference.kind_path_binding, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_foreign_valid_reference, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.reference.exact_set, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_pending_reference, lane_id: stochastic_null, attack_class: reference, target_invariant: invariant.reference.activation, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_dangling_lane_reference, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.lane.reference_resolution, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_swapped_lane_reference, lane_id: cross_lane, attack_class: reference, target_invariant: invariant.lane.allowed_reference_relation, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_missing_fixture, lane_id: cross_lane, attack_class: fixture, target_invariant: invariant.fixture.exact_set, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_extra_fixture, lane_id: cross_lane, attack_class: fixture, target_invariant: invariant.fixture.exact_set, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_duplicate_fixture_id, lane_id: cross_lane, attack_class: fixture, target_invariant: invariant.fixture.unique_complete_row, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_swapped_fixture_attack_class, lane_id: cross_lane, attack_class: fixture, target_invariant: invariant.fixture.attack_binding, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_missing_obligation, lane_id: cross_lane, attack_class: obligation, target_invariant: invariant.obligation.exact_set, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_extra_obligation, lane_id: cross_lane, attack_class: obligation, target_invariant: invariant.obligation.exact_set, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_duplicate_obligation_id, lane_id: cross_lane, attack_class: obligation, target_invariant: invariant.obligation.unique_complete_row, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_swapped_obligation_lane, lane_id: cross_lane, attack_class: obligation, target_invariant: invariant.obligation.lane_binding, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_generic_obligation_prose, lane_id: cross_lane, attack_class: obligation, target_invariant: invariant.obligation.no_free_text_escape, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_unable_to_grade_pass, lane_id: cross_lane, attack_class: lifecycle, target_invariant: invariant.two_key.unable_to_grade_blocks, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_partial_pass, lane_id: cross_lane, attack_class: lifecycle, target_invariant: invariant.two_key.partial_not_pass, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_failed_proof_pass, lane_id: cross_lane, attack_class: lifecycle, target_invariant: invariant.two_key.failed_proof_blocks, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_acceptance_before_review, lane_id: paper_claim, attack_class: lifecycle, target_invariant: invariant.lifecycle.review_before_acceptance, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_accepted_candidate_state, lane_id: cross_lane, attack_class: lifecycle, target_invariant: invariant.lifecycle.candidate_proposed_only, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_schema_identity_swap, lane_id: output_provenance, attack_class: identity, target_invariant: invariant.identity.schema_subject, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_pack_object_id_alias, lane_id: cross_lane, attack_class: identity, target_invariant: invariant.identity.registered_asp_object, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_producer_change_stales_requirement, lane_id: cross_lane, attack_class: authority, target_invariant: invariant.authority.producer_relationship_currency, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_reference_activation_change_stales, lane_id: representation, attack_class: reference, target_invariant: invariant.reference.activation_currency, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_tested_object_no_op, lane_id: stochastic_null, attack_class: no_op, target_invariant: invariant.stochastic.tested_object_change, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_degenerate_fallback, lane_id: stochastic_null, attack_class: degenerate, target_invariant: invariant.stochastic.degenerate_fallback, expected_outcome: blocked, cross_lane_compensation: prohibited}
+      - {fixture_id: apf_claim_escalation, lane_id: paper_claim, attack_class: claim_escalation, target_invariant: invariant.claim.no_escalation, expected_outcome: blocked, cross_lane_compensation: prohibited}
+    exact_set_required: true
+    duplicate_alias_swap_foreign_valid_resistance: required
+    every_expected_outcome: blocked
+  distribution:
+    distribution_scope: TDL_private
+    exact_permitted_consumers:
+      - tdl_private_assurance_requirement_builder
+      - tdl_private_research_execution
+      - tdl_private_scientific_review
+      - tdl_private_result_acceptance
+      - tdl_private_claim_review
+    public_template_export: prohibited
+    publication_boundary: fixed_tdl_private_profile
+    path_restrictions: fixed_tdl_private_profile
+    data_restrictions: fixed_tdl_private_profile
+    consumer_widening_requires_superseding_reviewed_contract: true
   core_boundary:
     may_modify_w1_w2_lifecycle: false
     may_modify_canonical_authority: false
@@ -248,41 +458,39 @@ required_pack_contract:
 
 validation_bindings:
   test_file: tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py
-  test_functions:
-    - test_upstream_contract_is_strict_pending_and_content_addressed
-    - test_candidate_pack_accepts_complete_six_lane_shape
-    - test_candidate_pack_rejects_lane_closure_and_distribution_mutations
-    - test_candidate_pack_rejects_authority_and_not_applicable_bypasses
-    - test_candidate_pack_rejects_reference_and_boundary_bypasses
-    - test_candidate_pack_rejects_stale_identity_currency_and_cross_lane_compensation
+  durable_test_functions:
+    - test_upstream_contract_is_strict_pending_and_identity_separated
+    - test_candidate_schema_is_proposed_only_and_has_no_acceptance_surface
+    - test_external_acceptance_requires_independent_exact_subject_records
+    - test_exact_reference_set_rejects_missing_extra_duplicate_alias_swap_and_foreign_rows
+    - test_lane_reference_relations_reject_dangling_swapped_and_pending_rows
+    - test_exact_fixture_set_rejects_missing_extra_duplicate_and_attack_swaps
+    - test_complete_w5_obligation_rows_reject_missing_duplicate_swap_and_free_text
+    - test_distribution_currency_and_identity_mutations_fail_closed
+    - test_coordinated_candidate_and_oracle_replacement_does_not_change_external_authority
+  task_local_unbound_test_functions:
+    - test_scope_stop_future_pack_is_absent_in_remediation_task
 
 review_gate:
-  contract_author:
-    role: wp6_3_upstream_contract_author
-    assignment_status: assigned
-    decision_status: pending
-  independent_reviewer:
-    role: distinct_independent_reviewer
+  current_candidate_state: pending_fresh_independent_re_review
+  prior_review_verdict: rework_required
+  prior_review_is_acceptance: false
+  fresh_independent_reviewer:
     assignment_status: unassigned
     decision_status: pending
   owner_acceptor:
-    role: Stephen
-    assignment_status: assigned
+    authority: Stephen
+    canonical_actor_and_grant_resolution_status: pending_external_record
     decision_status: pending
   future_pack_producer:
-    role: distinct_future_pack_producer
-    assignment_status: unassigned
-    decision_status: pending
-  acceptance_order:
-    - upstream_contract_authored
-    - independent_review_completed
-    - stephen_accepts_exact_contract_identity
-    - distinct_future_pack_producer_assigned
-    - future_pack_authored_under_new_task
-  current_disposition: stop_for_independent_review
+    assignment_status: prohibited_until_contract_owner_acceptance_and_w1_id_materialization
+    must_differ_from_contract_author: true
+  current_disposition: stop_for_fresh_independent_re_review_and_stephen_acceptance
 
 hard_stops:
   future_pack_file_created: false
+  assurance_pack_id_materialized: false
+  production_semantic_seam_implemented: false
   core_lifecycle_or_authority_changed: false
   live_call_made: false
   research_executed: false
