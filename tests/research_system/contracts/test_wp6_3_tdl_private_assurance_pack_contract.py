@@ -1,8 +1,10 @@
 import hashlib
+import inspect
 import json
 import subprocess
 from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -332,17 +334,29 @@ def _raw_contract_bytes(contract: dict) -> bytes:
 
 
 ContractAuthorityResolver = Callable[[], tuple[bytes, str]]
+_FIXTURE_AUTHORITY_ISSUER = object()
 
 
-def _fixture_contract_authority(contract: dict) -> ContractAuthorityResolver:
+@dataclass(frozen=True)
+class _FixtureContractAuthority:
+    raw_contract_bytes: bytes
+    contract_blob: str
+    issuer: object
+
+    def __call__(self) -> tuple[bytes, str]:
+        return self.raw_contract_bytes, self.contract_blob
+
+
+def _fixture_contract_authority(contract: dict) -> _FixtureContractAuthority:
     """Freeze a hypothetical contract behind an explicit test-only trust seam."""
     raw_contract_bytes = _raw_contract_bytes(contract)
     contract_blob = _git_blob_id_without_filters(raw_contract_bytes)
+    return _FixtureContractAuthority(raw_contract_bytes, contract_blob, _FIXTURE_AUTHORITY_ISSUER)
 
-    def resolve() -> tuple[bytes, str]:
-        return raw_contract_bytes, contract_blob
 
-    return resolve
+def _require_issued_fixture_authority(authority: _FixtureContractAuthority) -> None:
+    if not isinstance(authority, _FixtureContractAuthority) or authority.issuer is not _FIXTURE_AUTHORITY_ISSUER:
+        raise CandidatePackError("hypothetical contract authority was not issued by the fixture factory")
 
 
 def _resolve_contract_authority(
@@ -656,7 +670,7 @@ def _eligible_contract() -> dict:
     return contract
 
 
-def _validate_proposed_pack(
+def _validate_proposed_pack_with_authority(
     pack: dict,
     *,
     contract: dict | None = None,
@@ -748,6 +762,45 @@ def _validate_proposed_pack(
         raise CandidatePackError("candidate currency time order is invalid")
     if expires_at <= as_of:
         raise CandidatePackError("candidate currency expired")
+
+
+def _validate_proposed_pack(
+    pack: dict,
+    *,
+    contract: dict | None = None,
+    require_active_references: bool = False,
+    registered_pack_ids: frozenset[str] = frozenset({ASSURANCE_PACK_ID}),
+    as_of: datetime = AS_OF,
+) -> None:
+    """Validate a consumer candidate against contract bytes resolved internally from Git."""
+    _validate_proposed_pack_with_authority(
+        pack,
+        contract=contract,
+        require_active_references=require_active_references,
+        registered_pack_ids=registered_pack_ids,
+        as_of=as_of,
+    )
+
+
+def _validate_hypothetical_proposed_pack(
+    pack: dict,
+    *,
+    contract: dict,
+    fixture_contract_authority: _FixtureContractAuthority,
+    require_active_references: bool = False,
+    registered_pack_ids: frozenset[str] = frozenset({ASSURANCE_PACK_ID}),
+    as_of: datetime = AS_OF,
+) -> None:
+    """Exercise hypothetical contract variants without widening the consumer entry point."""
+    _require_issued_fixture_authority(fixture_contract_authority)
+    _validate_proposed_pack_with_authority(
+        pack,
+        contract=contract,
+        trusted_contract_resolver=fixture_contract_authority,
+        require_active_references=require_active_references,
+        registered_pack_ids=registered_pack_ids,
+        as_of=as_of,
+    )
 
 
 def _pack_subject(raw_candidate_pack_bytes: bytes, *, expected_pack: dict | None = None) -> dict:
@@ -1133,12 +1186,12 @@ def _resolved_record(
     return record
 
 
-def _validate_external_acceptance(
+def _validate_external_acceptance_with_authority(
     pack: dict,
     *,
     raw_candidate_pack_bytes: bytes,
     contract: dict,
-    trusted_contract_resolver: ContractAuthorityResolver,
+    trusted_contract_resolver: ContractAuthorityResolver | None,
     record_store: dict[str, dict],
     hash_manifest: dict[str, str],
     review_record_id: str = REVIEW_RECORD_ID,
@@ -1148,7 +1201,7 @@ def _validate_external_acceptance(
     parsed_pack = _parse_candidate_pack_bytes(raw_candidate_pack_bytes)
     if parsed_pack != pack:
         raise CandidatePackError("raw candidate bytes do not parse to the supplied candidate")
-    _validate_proposed_pack(
+    _validate_proposed_pack_with_authority(
         parsed_pack,
         contract=contract,
         trusted_contract_resolver=trusted_contract_resolver,
@@ -1448,6 +1501,58 @@ def _validate_external_acceptance(
         raise CandidatePackError("owner authority grant is not current")
 
 
+def _validate_external_acceptance(
+    pack: dict,
+    *,
+    raw_candidate_pack_bytes: bytes,
+    record_store: dict[str, dict],
+    hash_manifest: dict[str, str],
+    review_record_id: str = REVIEW_RECORD_ID,
+    owner_decision_id: str = OWNER_DECISION_ID,
+    as_of: datetime = AS_OF,
+) -> None:
+    """Validate acceptance only against the contract authority resolved internally from Git."""
+    _, trusted_contract, _ = _resolve_contract_authority()
+    _validate_external_acceptance_with_authority(
+        pack,
+        raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+        contract=trusted_contract,
+        trusted_contract_resolver=None,
+        record_store=record_store,
+        hash_manifest=hash_manifest,
+        review_record_id=review_record_id,
+        owner_decision_id=owner_decision_id,
+        as_of=as_of,
+    )
+
+
+def _validate_hypothetical_external_acceptance(
+    pack: dict,
+    *,
+    raw_candidate_pack_bytes: bytes,
+    contract: dict,
+    fixture_contract_authority: _FixtureContractAuthority,
+    record_store: dict[str, dict],
+    hash_manifest: dict[str, str],
+    review_record_id: str = REVIEW_RECORD_ID,
+    owner_decision_id: str = OWNER_DECISION_ID,
+    as_of: datetime = AS_OF,
+) -> None:
+    """Exercise frozen hypothetical fixtures without exposing authority injection to consumers."""
+    _require_issued_fixture_authority(fixture_contract_authority)
+    _validate_external_acceptance_with_authority(
+        pack,
+        raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+        contract=contract,
+        trusted_contract_resolver=fixture_contract_authority,
+        record_store=record_store,
+        hash_manifest=hash_manifest,
+        review_record_id=review_record_id,
+        owner_decision_id=owner_decision_id,
+        as_of=as_of,
+    )
+
+
 def test_upstream_contract_is_strict_pending_and_identity_separated():
     registry = _schema_registry()
     contract = _load_yaml(CONTRACT_PATH)
@@ -1601,11 +1706,11 @@ def test_external_acceptance_requires_independent_exact_subject_records():
     contract, contract_resolver, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
         _eligible_acceptance_fixture()
     )
-    _validate_external_acceptance(
+    _validate_hypothetical_external_acceptance(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
-        trusted_contract_resolver=contract_resolver,
+        fixture_contract_authority=contract_resolver,
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
@@ -1617,11 +1722,11 @@ def test_external_acceptance_requires_independent_exact_subject_records():
         applicability["decision_author_actor_id"] = ACT_PRODUCER
     same_author_raw, same_author_hashes = _coordinate_all_external_hashes(same_author_pack, same_author)
     with pytest.raises(CandidatePackError, match="must be distinct"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             same_author_pack,
             raw_candidate_pack_bytes=same_author_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=same_author,
             hash_manifest=same_author_hashes,
         )
@@ -1633,11 +1738,11 @@ def test_external_acceptance_requires_independent_exact_subject_records():
     wrong_review_subject[OWNER_DECISION_ID]["review_record_sha256"] = wrong_review_hashes[REVIEW_RECORD_ID]
     _rehash_record(wrong_review_subject, wrong_review_hashes, OWNER_DECISION_ID)
     with pytest.raises(CandidatePackError, match="review subject"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=wrong_review_subject,
             hash_manifest=wrong_review_hashes,
         )
@@ -1647,11 +1752,11 @@ def test_external_acceptance_requires_independent_exact_subject_records():
     wrong_owner_subject[OWNER_DECISION_ID]["subject"]["pack_git_blob"] = "f" * 40
     _rehash_record(wrong_owner_subject, wrong_owner_hashes, OWNER_DECISION_ID)
     with pytest.raises(CandidatePackError, match="owner decision subject"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=wrong_owner_subject,
             hash_manifest=wrong_owner_hashes,
         )
@@ -1659,11 +1764,11 @@ def test_external_acceptance_requires_independent_exact_subject_records():
     no_owner_grant = deepcopy(record_store)
     no_owner_grant.pop(OWNER_GRANT_ID)
     with pytest.raises(CandidatePackError, match="missing external record"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=no_owner_grant,
             hash_manifest=hash_manifest,
         )
@@ -1672,11 +1777,11 @@ def test_external_acceptance_requires_independent_exact_subject_records():
     actor_alias["producer_actor_id"] = "act_future_pack_producer"
     actor_alias["assurance_requirement_reference"]["prospective_producer_actor_id"] = "act_future_pack_producer"
     with pytest.raises(SchemaError, match="producer_actor_id"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             actor_alias,
             raw_candidate_pack_bytes=_raw_pack_bytes(actor_alias),
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=record_store,
             hash_manifest=hash_manifest,
         )
@@ -1717,11 +1822,11 @@ def test_hash_valid_external_record_semantic_mutations_are_rejected():
         mutate(record_store)
         raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
         with pytest.raises(CandidatePackError):
-            _validate_external_acceptance(
+            _validate_hypothetical_external_acceptance(
                 pack,
                 raw_candidate_pack_bytes=raw_candidate_pack_bytes,
                 contract=contract,
-                trusted_contract_resolver=contract_resolver,
+                fixture_contract_authority=contract_resolver,
                 record_store=record_store,
                 hash_manifest=hash_manifest,
             )
@@ -1746,11 +1851,11 @@ def test_raw_candidate_bytes_define_portable_review_subject():
         assert subject != baseline_subject
         assert subject["pack_git_blob"] == _git_blob_id_without_filters(candidate_bytes)
         with pytest.raises(CandidatePackError, match="review subject"):
-            _validate_external_acceptance(
+            _validate_hypothetical_external_acceptance(
                 pack,
                 raw_candidate_pack_bytes=candidate_bytes,
                 contract=contract,
-                trusted_contract_resolver=contract_resolver,
+                fixture_contract_authority=contract_resolver,
                 record_store=record_store,
                 hash_manifest=hash_manifest,
             )
@@ -1829,10 +1934,10 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     eligible_contract_resolver = _fixture_contract_authority(eligible_contract)
     _, _, eligible_contract_subject = _resolve_contract_authority(eligible_contract_resolver)
     eligible = _proposed_pack(eligible_contract, contract_subject=eligible_contract_subject)
-    _validate_proposed_pack(
+    _validate_hypothetical_proposed_pack(
         eligible,
         contract=eligible_contract,
-        trusted_contract_resolver=eligible_contract_resolver,
+        fixture_contract_authority=eligible_contract_resolver,
         require_active_references=True,
     )
 
@@ -1841,10 +1946,10 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     missing_pending_resolver = _fixture_contract_authority(missing_pending)
     _, _, missing_pending_subject = _resolve_contract_authority(missing_pending_resolver)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
-        _validate_proposed_pack(
+        _validate_hypothetical_proposed_pack(
             _proposed_pack(missing_pending, contract_subject=missing_pending_subject),
             contract=missing_pending,
-            trusted_contract_resolver=missing_pending_resolver,
+            fixture_contract_authority=missing_pending_resolver,
         )
 
     stale_pending = _eligible_contract()
@@ -1855,10 +1960,10 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     stale_pending_resolver = _fixture_contract_authority(stale_pending)
     _, _, stale_pending_subject = _resolve_contract_authority(stale_pending_resolver)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
-        _validate_proposed_pack(
+        _validate_hypothetical_proposed_pack(
             _proposed_pack(stale_pending, contract_subject=stale_pending_subject),
             contract=stale_pending,
-            trusted_contract_resolver=stale_pending_resolver,
+            fixture_contract_authority=stale_pending_resolver,
         )
 
     omitted_contract = _load_yaml(CONTRACT_PATH)
@@ -1869,10 +1974,10 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     _, _, omitted_contract_subject = _resolve_contract_authority(omitted_contract_resolver)
     omitted_pack = _proposed_pack(omitted_contract, contract_subject=omitted_contract_subject)
     with pytest.raises(CandidatePackError, match="enforcer is omitted"):
-        _validate_proposed_pack(
+        _validate_hypothetical_proposed_pack(
             omitted_pack,
             contract=omitted_contract,
-            trusted_contract_resolver=omitted_contract_resolver,
+            fixture_contract_authority=omitted_contract_resolver,
         )
 
     foreign_valid = _proposed_pack()
@@ -2063,18 +2168,37 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
         eligible_contract,
         contract_subject=eligible_contract_subject,
     )
-    pack, _, record_store, hash_manifest = _external_records(eligible_pack, eligible_contract)
+    pack, raw_candidate_pack_bytes, record_store, hash_manifest = _external_records(eligible_pack, eligible_contract)
+    public_acceptance_parameters = inspect.signature(_validate_external_acceptance).parameters
+    assert "contract" not in public_acceptance_parameters
+    assert "trusted_contract_resolver" not in public_acceptance_parameters
+    assert "fixture_contract_authority" not in public_acceptance_parameters
+    with pytest.raises(CandidatePackError):
+        _validate_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        _validate_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            record_store=record_store,
+            hash_manifest=hash_manifest,
+            trusted_contract_resolver=eligible_contract_resolver,
+        )
     tampered_pack = deepcopy(pack)
     tampered_pack["currency"]["expires_at"] = "2028-07-18T09:00:00Z"
     tampered_review = deepcopy(record_store)
     tampered_raw, _ = _coordinate_all_external_hashes(tampered_pack, tampered_review)
     frozen_external_manifest = deepcopy(hash_manifest)
     with pytest.raises(CandidatePackError, match="external record hash mismatch"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             tampered_pack,
             raw_candidate_pack_bytes=tampered_raw,
             contract=eligible_contract,
-            trusted_contract_resolver=eligible_contract_resolver,
+            fixture_contract_authority=eligible_contract_resolver,
             record_store=tampered_review,
             hash_manifest=frozen_external_manifest,
         )
@@ -2235,11 +2359,11 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
         _eligible_acceptance_fixture()
     )
     assert "canonical_sha256" not in pack["assurance_requirement_reference"]
-    _validate_external_acceptance(
+    _validate_hypothetical_external_acceptance(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
-        trusted_contract_resolver=contract_resolver,
+        fixture_contract_authority=contract_resolver,
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
@@ -2250,7 +2374,11 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     reintroduced = deepcopy(pack)
     reintroduced["assurance_requirement_reference"]["canonical_sha256"] = "a" * 64
     with pytest.raises(SchemaError, match="canonical_sha256"):
-        _validate_proposed_pack(reintroduced, contract=contract, trusted_contract_resolver=contract_resolver)
+        _validate_hypothetical_proposed_pack(
+            reintroduced,
+            contract=contract,
+            fixture_contract_authority=contract_resolver,
+        )
 
     # one-field substitution: candidate claims an acceptance_record_sha256 that does
     # not match the resolved external requirement record's actual content hash.
@@ -2258,11 +2386,11 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     one_field["assurance_requirement_reference"]["acceptance_record_sha256"] = "f" * 64
     one_field_raw = _raw_pack_bytes(one_field)
     with pytest.raises(CandidatePackError, match="does not match external record"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             one_field,
             raw_candidate_pack_bytes=one_field_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=record_store,
             hash_manifest=hash_manifest,
         )
@@ -2282,11 +2410,11 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     coordinated_pack = deepcopy(pack)
     coordinated_raw, coordinated_hashes = _coordinate_all_external_hashes(coordinated_pack, coordinated_store)
     with pytest.raises(CandidatePackError, match="different upstream contract"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             coordinated_pack,
             raw_candidate_pack_bytes=coordinated_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=coordinated_store,
             hash_manifest=coordinated_hashes,
         )
@@ -2323,11 +2451,11 @@ def test_contract_schema_lifecycle_requires_content_addressed_external_authority
         missing_records = deepcopy(record_store)
         missing_records.pop(missing_record_id)
         with pytest.raises(CandidatePackError, match="missing external record"):
-            _validate_external_acceptance(
+            _validate_hypothetical_external_acceptance(
                 pack,
                 raw_candidate_pack_bytes=raw_candidate_pack_bytes,
                 contract=contract,
-                trusted_contract_resolver=contract_resolver,
+                fixture_contract_authority=contract_resolver,
                 record_store=missing_records,
                 hash_manifest=hash_manifest,
             )
@@ -2357,11 +2485,11 @@ def test_contract_schema_lifecycle_requires_content_addressed_external_authority
     )
     coordinated_hashes = {record_id: _canonical_sha256(record) for record_id, record in coordinated_records.items()}
     with pytest.raises(CandidatePackError, match="accepted contract subject"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=coordinated_records,
             hash_manifest=coordinated_hashes,
         )
@@ -2392,11 +2520,11 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
     missing_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"].pop()
     missing_raw, missing_hashes = _coordinate_all_external_hashes(missing_pack, missing_records)
     with pytest.raises(CandidatePackError, match="obligation_applicability_rows"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             missing_pack,
             raw_candidate_pack_bytes=missing_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=missing_records,
             hash_manifest=missing_hashes,
         )
@@ -2410,11 +2538,11 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
     _install_applicability_confirmation(producer_only_records)
     producer_only_raw, producer_only_hashes = _coordinate_all_external_hashes(producer_only_pack, producer_only_records)
     with pytest.raises(CandidatePackError, match="applicability authority is unbound"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             producer_only_pack,
             raw_candidate_pack_bytes=producer_only_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=producer_only_records,
             hash_manifest=producer_only_hashes,
         )
@@ -2424,11 +2552,11 @@ def test_accepted_requirement_binds_content_subject_and_exact_obligation_applica
     coordinated_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]["applicability"] = "not_applicable"
     coordinated_raw, coordinated_hashes = _coordinate_all_external_hashes(coordinated_pack, coordinated_records)
     with pytest.raises(CandidatePackError, match="obligation_applicability_rows"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             coordinated_pack,
             raw_candidate_pack_bytes=coordinated_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=coordinated_records,
             hash_manifest=coordinated_hashes,
         )
@@ -2448,11 +2576,11 @@ def test_applicability_decision_times_are_bounded_by_relationship_and_acceptance
         invalid_pack = deepcopy(pack)
         invalid_raw, invalid_hashes = _coordinate_all_external_hashes(invalid_pack, invalid_records)
         with pytest.raises(CandidatePackError, match="applicability decision time"):
-            _validate_external_acceptance(
+            _validate_hypothetical_external_acceptance(
                 invalid_pack,
                 raw_candidate_pack_bytes=invalid_raw,
                 contract=contract,
-                trusted_contract_resolver=contract_resolver,
+                fixture_contract_authority=contract_resolver,
                 record_store=invalid_records,
                 hash_manifest=invalid_hashes,
             )
@@ -2467,11 +2595,11 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
     _install_applicability_confirmation(confirmed_records)
     confirmed_pack = deepcopy(pack)
     confirmed_raw, confirmed_hashes = _coordinate_all_external_hashes(confirmed_pack, confirmed_records)
-    _validate_external_acceptance(
+    _validate_hypothetical_external_acceptance(
         confirmed_pack,
         raw_candidate_pack_bytes=confirmed_raw,
         contract=contract,
-        trusted_contract_resolver=contract_resolver,
+        fixture_contract_authority=contract_resolver,
         record_store=confirmed_records,
         hash_manifest=confirmed_hashes,
     )
@@ -2481,11 +2609,11 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
     missing_pack = deepcopy(confirmed_pack)
     missing_raw, missing_hashes = _coordinate_all_external_hashes(missing_pack, missing_records)
     with pytest.raises(CandidatePackError, match="missing external record"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             missing_pack,
             raw_candidate_pack_bytes=missing_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=missing_records,
             hash_manifest=missing_hashes,
         )
@@ -2507,11 +2635,11 @@ def test_independently_confirmed_not_applicable_is_reachable_and_fails_closed():
     foreign_pack = deepcopy(confirmed_pack)
     foreign_raw, foreign_hashes = _coordinate_all_external_hashes(foreign_pack, foreign_records)
     with pytest.raises(CandidatePackError, match="does not bind the exact decision"):
-        _validate_external_acceptance(
+        _validate_hypothetical_external_acceptance(
             foreign_pack,
             raw_candidate_pack_bytes=foreign_raw,
             contract=contract,
-            trusted_contract_resolver=contract_resolver,
+            fixture_contract_authority=contract_resolver,
             record_store=foreign_records,
             hash_manifest=foreign_hashes,
         )
