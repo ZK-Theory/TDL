@@ -286,8 +286,8 @@
       "type": "object",
       "required": ["record_class", "record_type", "schema_id", "schema_version", "repository_path", "schema_json_pointer", "schema_git_blob", "schema_canonical_sha256"],
       "properties": {
-        "record_class": {"enum": ["canonical_actor", "producer_relationship_evidence", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
-        "record_type": {"enum": ["canonical_actor", "producer_relationship_evidence", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
+        "record_class": {"enum": ["canonical_actor", "producer_relationship_evidence", "contract_schema_authorship", "independent_contract_review", "independent_schema_review", "stephen_contract_schema_acceptance", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
+        "record_type": {"enum": ["canonical_actor", "producer_relationship_evidence", "contract_schema_authorship", "independent_contract_review", "independent_schema_review", "stephen_contract_schema_acceptance", "accepted_assurance_requirement", "independent_pack_review", "stephen_owner_acceptance", "active_authority_grant", "registered_pack_object"]},
         "schema_id": {"type": "string", "pattern": "^ars://assurance/records/[a-z0-9-]+/1\\.0$"},
         "schema_version": {"const": "1.0.0"},
         "repository_path": {"const": ".research-system/schemas/contracts/wp6-3-tdl-private-assurance-pack.schema.json"},
@@ -305,12 +305,12 @@
         "schema_document_byte_surface": {"const": "git_blob_utf8_lf"},
         "exact_schema_rows": {
           "type": "array",
-          "minItems": 7,
-          "maxItems": 7,
+          "minItems": 11,
+          "maxItems": 11,
           "uniqueItems": true,
           "items": {"$ref": "#/$defs/externalRecordSchemaRow"}
         },
-        "exact_schema_count": {"const": 7},
+        "exact_schema_count": {"const": 11},
         "every_resolved_record_schema_validated": {"const": true},
         "hash_validity_alone_is_sufficient": {"const": false}
       },
@@ -325,6 +325,48 @@
         "repository_path": {"const": ".research-system/contracts/wp6-3-tdl-private-assurance-pack.yaml"},
         "git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
         "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "packSchemaSubject": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "repository_path", "git_blob", "canonical_sha256"],
+      "properties": {
+        "schema_id": {"const": "ars://assurance/packs/tdl-private/1.0"},
+        "schema_version": {"const": "1.0.0"},
+        "repository_path": {"const": ".research-system/schemas/assurance/assurance-pack.schema.json"},
+        "git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "assuranceRequirementSubject": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "assurance_requirement_id", "revision", "content_surface", "canonical_sha256"],
+      "properties": {
+        "schema_id": {"const": "ars://assurance/assurance-requirement"},
+        "schema_version": {"const": "1.0.0"},
+        "assurance_requirement_id": {"type": "string", "pattern": "^asr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "revision": {"type": "integer", "minimum": 1},
+        "content_surface": {"const": "canonical_json_utf8"},
+        "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "obligationApplicabilityRow": {
+      "type": "object",
+      "required": ["lane_id", "obligation_id", "applicability", "rationale", "decision_author_actor_id", "confirming_actor_id", "prospective_producer_actor_id", "relationship_record_id", "minimum_independence_grade", "decided_at"],
+      "properties": {
+        "lane_id": {"enum": ["topology", "stochastic_null", "statistical_panel", "representation", "output_provenance", "paper_claim"]},
+        "obligation_id": {"type": "string", "pattern": "^[a-z_]+\\.[a-z0-9_]+$"},
+        "applicability": {"enum": ["required", "not_applicable"]},
+        "rationale": {"type": "string", "minLength": 1},
+        "decision_author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "confirming_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "prospective_producer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "decided_at": {"type": "string", "format": "date-time"}
       },
       "additionalProperties": false
     },
@@ -368,7 +410,7 @@
       "properties": {
         "record_type": {"const": "producer_relationship_evidence"},
         "relationship_record_id": {"type": "string", "pattern": "^rel_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-        "relationship_context": {"enum": ["requirement_scope_review", "pack_scientific_review"]},
+        "relationship_context": {"enum": ["contract_review", "schema_review", "requirement_scope_review", "pack_scientific_review"]},
         "subject_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "object_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "grade": {"enum": ["I2", "I3"]},
@@ -378,17 +420,108 @@
       },
       "additionalProperties": false
     },
+    "contractSchemaAuthorshipRecord": {
+      "$id": "ars://assurance/records/contract-schema-authorship/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "authorship_record_id", "contract_subject", "pack_schema_subject", "author_actor_id", "authorship_state", "authored_at"],
+      "properties": {
+        "record_type": {"const": "contract_schema_authorship"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
+        "author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "authorship_state": {"const": "completed"},
+        "authored_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "independentContractReviewRecord": {
+      "$id": "ars://assurance/records/independent-contract-review/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "review_record_id", "contract_subject", "pack_schema_subject", "authorship_record_id", "authorship_record_sha256", "reviewer_actor_id", "author_actor_id", "relationship_record_id", "minimum_independence_grade", "verdict", "review_state", "reviewed_at"],
+      "properties": {
+        "record_type": {"const": "independent_contract_review"},
+        "review_record_id": {"type": "string", "pattern": "^crv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_"},
+        "authorship_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "reviewer_actor_id": {"type": "string", "pattern": "^act_"},
+        "author_actor_id": {"type": "string", "pattern": "^act_"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_"},
+        "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "verdict": {"const": "pass"},
+        "review_state": {"const": "completed"},
+        "reviewed_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "independentSchemaReviewRecord": {
+      "$id": "ars://assurance/records/independent-schema-review/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "review_record_id", "pack_schema_subject", "contract_subject", "authorship_record_id", "authorship_record_sha256", "reviewer_actor_id", "author_actor_id", "relationship_record_id", "minimum_independence_grade", "verdict", "review_state", "reviewed_at"],
+      "properties": {
+        "record_type": {"const": "independent_schema_review"},
+        "review_record_id": {"type": "string", "pattern": "^srv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
+        "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_"},
+        "authorship_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "reviewer_actor_id": {"type": "string", "pattern": "^act_"},
+        "author_actor_id": {"type": "string", "pattern": "^act_"},
+        "relationship_record_id": {"type": "string", "pattern": "^rel_"},
+        "minimum_independence_grade": {"enum": ["I2", "I3"]},
+        "verdict": {"const": "pass"},
+        "review_state": {"const": "completed"},
+        "reviewed_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "stephenContractSchemaAcceptanceRecord": {
+      "$id": "ars://assurance/records/stephen-contract-schema-acceptance/1.0",
+      "x-schema-version": "1.0.0",
+      "type": "object",
+      "required": ["record_type", "owner_decision_id", "contract_subject", "pack_schema_subject", "authorship_record_id", "authorship_record_sha256", "contract_review_record_id", "contract_review_record_sha256", "schema_review_record_id", "schema_review_record_sha256", "acceptor_actor_id", "outcome", "decision_state", "decided_at"],
+      "properties": {
+        "record_type": {"const": "stephen_contract_schema_acceptance"},
+        "owner_decision_id": {"type": "string", "pattern": "^csa_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "contract_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "pack_schema_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/packSchemaSubject"},
+        "authorship_record_id": {"type": "string", "pattern": "^cau_"},
+        "authorship_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "contract_review_record_id": {"type": "string", "pattern": "^crv_"},
+        "contract_review_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "schema_review_record_id": {"type": "string", "pattern": "^srv_"},
+        "schema_review_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "acceptor_actor_id": {"type": "string", "pattern": "^act_"},
+        "outcome": {"const": "accepted"},
+        "decision_state": {"const": "active"},
+        "decided_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
     "acceptedAssuranceRequirementRecord": {
       "$id": "ars://assurance/records/accepted-assurance-requirement/1.0",
       "x-schema-version": "1.0.0",
       "type": "object",
-      "required": ["record_type", "acceptance_record_id", "assurance_requirement_id", "revision", "subject_contract", "requirement_author_actor_id", "scope_reviewer_actor_id", "acceptor_actor_id", "prospective_producer_actor_id", "minimum_independence_grade", "scope_relationship_record_id", "outcome", "acceptance_state", "accepted_at"],
+      "required": ["record_type", "acceptance_record_id", "assurance_requirement_id", "revision", "subject_contract", "requirement_subject", "obligation_applicability_rows", "requirement_author_actor_id", "scope_reviewer_actor_id", "acceptor_actor_id", "prospective_producer_actor_id", "minimum_independence_grade", "scope_relationship_record_id", "outcome", "acceptance_state", "accepted_at"],
       "properties": {
         "record_type": {"const": "accepted_assurance_requirement"},
         "acceptance_record_id": {"type": "string", "pattern": "^ard_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "assurance_requirement_id": {"type": "string", "pattern": "^asr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "revision": {"type": "integer", "minimum": 1},
         "subject_contract": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/contractSubject"},
+        "requirement_subject": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/assuranceRequirementSubject"},
+        "obligation_applicability_rows": {
+          "type": "array",
+          "minItems": 69,
+          "maxItems": 69,
+          "uniqueItems": true,
+          "items": {"$ref": "ars://contracts/wp6-3-tdl-private-assurance-pack#/$defs/obligationApplicabilityRow"}
+        },
         "requirement_author_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "scope_reviewer_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
         "acceptor_actor_id": {"type": "string", "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},

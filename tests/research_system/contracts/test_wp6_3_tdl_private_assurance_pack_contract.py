@@ -40,6 +40,8 @@ ACT_REQUIREMENT_AUTHOR = "act_00000000-0000-7000-8000-000000000003"
 ACT_SCOPE_REVIEWER = "act_00000000-0000-7000-8000-000000000004"
 ACT_SCIENTIFIC_REVIEWER = "act_00000000-0000-7000-8000-000000000005"
 ACT_OWNER = "act_00000000-0000-7000-8000-000000000006"
+ACT_CONTRACT_REVIEWER = "act_00000000-0000-7000-8000-00000000000f"
+ACT_SCHEMA_REVIEWER = "act_00000000-0000-7000-8000-000000000010"
 ASSURANCE_PACK_ID = "asp_00000000-0000-7000-8000-000000000007"
 ASSURANCE_REQUIREMENT_ID = "asr_00000000-0000-7000-8000-000000000008"
 REQUIREMENT_RECORD_ID = "ard_00000000-0000-7000-8000-000000000009"
@@ -48,10 +50,20 @@ OWNER_DECISION_ID = "apr_00000000-0000-7000-8000-00000000000b"
 SCOPE_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-00000000000d"
 REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-00000000000e"
 OWNER_GRANT_ID = "agr_00000000-0000-7000-8000-00000000000c"
+CONTRACT_AUTHORSHIP_RECORD_ID = "cau_00000000-0000-7000-8000-000000000011"
+CONTRACT_REVIEW_RECORD_ID = "crv_00000000-0000-7000-8000-000000000012"
+SCHEMA_REVIEW_RECORD_ID = "srv_00000000-0000-7000-8000-000000000013"
+CONTRACT_SCHEMA_ACCEPTANCE_ID = "csa_00000000-0000-7000-8000-000000000014"
+CONTRACT_REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-000000000015"
+SCHEMA_REVIEW_RELATIONSHIP_ID = "rel_00000000-0000-7000-8000-000000000016"
 
 EXPECTED_EXTERNAL_SCHEMA_IDS = {
     "canonical_actor": "ars://assurance/records/canonical-actor/1.0",
     "producer_relationship_evidence": "ars://assurance/records/producer-relationship-evidence/1.0",
+    "contract_schema_authorship": "ars://assurance/records/contract-schema-authorship/1.0",
+    "independent_contract_review": "ars://assurance/records/independent-contract-review/1.0",
+    "independent_schema_review": "ars://assurance/records/independent-schema-review/1.0",
+    "stephen_contract_schema_acceptance": "ars://assurance/records/stephen-contract-schema-acceptance/1.0",
     "accepted_assurance_requirement": "ars://assurance/records/accepted-assurance-requirement/1.0",
     "independent_pack_review": "ars://assurance/records/independent-pack-review/1.0",
     "stephen_owner_acceptance": "ars://assurance/records/stephen-owner-acceptance/1.0",
@@ -309,6 +321,25 @@ def _resolve_external_schema_reference() -> dict:
     }
 
 
+def _raw_contract_bytes(contract: dict) -> bytes:
+    raw = yaml.safe_dump(contract, sort_keys=False, allow_unicode=True, width=4096).encode("utf-8")
+    assert b"\r" not in raw
+    assert raw.endswith(b"\n")
+    return raw
+
+
+def _contract_subject(raw_contract_bytes: bytes) -> dict:
+    parsed = yaml.safe_load(raw_contract_bytes.decode("utf-8"))
+    _schema_registry().validate(CONTRACT_SCHEMA_ID, parsed)
+    return {
+        "schema_id": CONTRACT_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "repository_path": _repo_relative_path(CONTRACT_PATH),
+        "git_blob": _git_blob_id_without_filters(raw_contract_bytes),
+        "canonical_sha256": hashlib.sha256(raw_contract_bytes).hexdigest(),
+    }
+
+
 def _raw_pack_bytes(pack: dict, *, leading_comment: str | None = None, reverse_top_level: bool = False) -> bytes:
     value = dict(reversed(list(pack.items()))) if reverse_top_level else pack
     rendered = yaml.safe_dump(value, sort_keys=False, allow_unicode=True, width=4096)
@@ -473,7 +504,7 @@ def _expanded_obligation(row: dict, profile: dict) -> dict:
     }
 
 
-def _proposed_pack(contract: dict | None = None) -> dict:
+def _proposed_pack(contract: dict | None = None, *, contract_subject: dict | None = None) -> dict:
     contract = deepcopy(contract or _load_yaml(CONTRACT_PATH))
     required = contract["required_pack_contract"]
     reference_rows = required["references"]["exact_reference_rows"]
@@ -502,7 +533,7 @@ def _proposed_pack(contract: dict | None = None) -> dict:
         "distribution_scope": "TDL_private",
         "candidate_state": "proposed",
         "producer_actor_id": ACT_PRODUCER,
-        "upstream_contract_reference": deepcopy(_resolve_external_contract_reference()),
+        "upstream_contract_reference": deepcopy(contract_subject or _resolve_external_contract_reference()),
         "schema_reference": deepcopy(_resolve_external_schema_reference()),
         "assurance_requirement_reference": {
             "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
@@ -603,19 +634,23 @@ def _validate_proposed_pack(
     pack: dict,
     *,
     contract: dict | None = None,
-    accepted_contract_oracle_sha256: str | None = None,
+    raw_contract_bytes: bytes | None = None,
     require_active_references: bool = False,
     registered_pack_ids: frozenset[str] = frozenset({ASSURANCE_PACK_ID}),
     as_of: datetime = AS_OF,
 ) -> None:
-    contract = contract or _load_yaml(CONTRACT_PATH)
-    accepted_contract_oracle_sha256 = accepted_contract_oracle_sha256 or _canonical_sha256(_load_yaml(CONTRACT_PATH))
+    if raw_contract_bytes is None:
+        raw_contract_bytes, _ = _resolve_committed_bytes(CONTRACT_PATH)
+    parsed_contract = yaml.safe_load(raw_contract_bytes.decode("utf-8"))
+    contract = contract or parsed_contract
+    if contract != parsed_contract:
+        raise CandidatePackError("upstream contract bytes do not parse to the supplied contract")
+    accepted_contract_subject = _contract_subject(raw_contract_bytes)
+    _schema_registry().validate(CONTRACT_SCHEMA_ID, contract)
     _schema_registry().validate(PACK_SCHEMA_ID, pack)
     _validate_pending_reference_relation(contract)
     _external_schema_catalogue(contract)
-    if _canonical_sha256(contract) != accepted_contract_oracle_sha256:
-        raise CandidatePackError("upstream contract oracle identity mismatch")
-    if pack["upstream_contract_reference"] != _resolve_external_contract_reference():
+    if pack["upstream_contract_reference"] != accepted_contract_subject:
         raise CandidatePackError("stale upstream contract subject")
     if pack["schema_reference"] != _resolve_external_schema_reference():
         raise CandidatePackError("stale pack schema subject")
@@ -725,13 +760,102 @@ def _actor_record(actor_id: str, canonical_name: str, *, actor_kind: str = "agen
     }
 
 
-def _external_records(pack: dict) -> tuple[dict, bytes, dict[str, dict], dict[str, str]]:
+def _obligation_applicability_rows(contract: dict) -> list[dict]:
+    return [
+        {
+            "lane_id": lane_id,
+            "obligation_id": obligation["obligation_id"],
+            "applicability": "required",
+            "rationale": "required_by_accepted_tdl_private_pack_contract",
+            "decision_author_actor_id": ACT_REQUIREMENT_AUTHOR,
+            "confirming_actor_id": ACT_SCOPE_REVIEWER,
+            "prospective_producer_actor_id": ACT_PRODUCER,
+            "relationship_record_id": SCOPE_RELATIONSHIP_ID,
+            "minimum_independence_grade": "I2",
+            "decided_at": "2026-07-18T08:20:00Z",
+        }
+        for lane_id, lane in contract["required_pack_contract"]["lanes"].items()
+        for obligation in lane["required_obligations"]
+    ]
+
+
+def _requirement_content_preimage(requirement: dict) -> dict:
+    return {
+        "assurance_requirement_id": requirement["assurance_requirement_id"],
+        "revision": requirement["revision"],
+        "subject_contract": requirement["subject_contract"],
+        "prospective_producer_actor_id": requirement["prospective_producer_actor_id"],
+        "obligation_applicability_rows": requirement["obligation_applicability_rows"],
+    }
+
+
+def _external_records(pack: dict, contract: dict) -> tuple[dict, bytes, dict[str, dict], dict[str, str]]:
+    contract_subject = deepcopy(pack["upstream_contract_reference"])
+    pack_schema_subject = deepcopy(pack["schema_reference"])
+    authorship_record = {
+        "record_type": "contract_schema_authorship",
+        "authorship_record_id": CONTRACT_AUTHORSHIP_RECORD_ID,
+        "contract_subject": deepcopy(contract_subject),
+        "pack_schema_subject": deepcopy(pack_schema_subject),
+        "author_actor_id": ACT_CONTRACT_AUTHOR,
+        "authorship_state": "completed",
+        "authored_at": "2026-07-18T07:10:00Z",
+    }
+    authorship_hash = _canonical_sha256(authorship_record)
+    contract_review = {
+        "record_type": "independent_contract_review",
+        "review_record_id": CONTRACT_REVIEW_RECORD_ID,
+        "contract_subject": deepcopy(contract_subject),
+        "pack_schema_subject": deepcopy(pack_schema_subject),
+        "authorship_record_id": CONTRACT_AUTHORSHIP_RECORD_ID,
+        "authorship_record_sha256": authorship_hash,
+        "reviewer_actor_id": ACT_CONTRACT_REVIEWER,
+        "author_actor_id": ACT_CONTRACT_AUTHOR,
+        "relationship_record_id": CONTRACT_REVIEW_RELATIONSHIP_ID,
+        "minimum_independence_grade": "I2",
+        "verdict": "pass",
+        "review_state": "completed",
+        "reviewed_at": "2026-07-18T07:30:00Z",
+    }
+    schema_review = {
+        "record_type": "independent_schema_review",
+        "review_record_id": SCHEMA_REVIEW_RECORD_ID,
+        "pack_schema_subject": deepcopy(pack_schema_subject),
+        "contract_subject": deepcopy(contract_subject),
+        "authorship_record_id": CONTRACT_AUTHORSHIP_RECORD_ID,
+        "authorship_record_sha256": authorship_hash,
+        "reviewer_actor_id": ACT_SCHEMA_REVIEWER,
+        "author_actor_id": ACT_CONTRACT_AUTHOR,
+        "relationship_record_id": SCHEMA_REVIEW_RELATIONSHIP_ID,
+        "minimum_independence_grade": "I2",
+        "verdict": "pass",
+        "review_state": "completed",
+        "reviewed_at": "2026-07-18T07:35:00Z",
+    }
+    contract_schema_acceptance = {
+        "record_type": "stephen_contract_schema_acceptance",
+        "owner_decision_id": CONTRACT_SCHEMA_ACCEPTANCE_ID,
+        "contract_subject": deepcopy(contract_subject),
+        "pack_schema_subject": deepcopy(pack_schema_subject),
+        "authorship_record_id": CONTRACT_AUTHORSHIP_RECORD_ID,
+        "authorship_record_sha256": authorship_hash,
+        "contract_review_record_id": CONTRACT_REVIEW_RECORD_ID,
+        "contract_review_record_sha256": _canonical_sha256(contract_review),
+        "schema_review_record_id": SCHEMA_REVIEW_RECORD_ID,
+        "schema_review_record_sha256": _canonical_sha256(schema_review),
+        "acceptor_actor_id": ACT_OWNER,
+        "outcome": "accepted",
+        "decision_state": "active",
+        "decided_at": "2026-07-18T08:00:00Z",
+    }
+    applicability_rows = _obligation_applicability_rows(contract)
     requirement_record = {
         "record_type": "accepted_assurance_requirement",
         "acceptance_record_id": REQUIREMENT_RECORD_ID,
         "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
         "revision": 1,
-        "subject_contract": deepcopy(_resolve_external_contract_reference()),
+        "subject_contract": deepcopy(contract_subject),
+        "obligation_applicability_rows": applicability_rows,
         "requirement_author_actor_id": ACT_REQUIREMENT_AUTHOR,
         "scope_reviewer_actor_id": ACT_SCOPE_REVIEWER,
         "acceptor_actor_id": ACT_OWNER,
@@ -741,6 +865,14 @@ def _external_records(pack: dict) -> tuple[dict, bytes, dict[str, dict], dict[st
         "outcome": "accepted",
         "acceptance_state": "active",
         "accepted_at": "2026-07-18T08:30:00Z",
+    }
+    requirement_record["requirement_subject"] = {
+        "schema_id": "ars://assurance/assurance-requirement",
+        "schema_version": "1.0.0",
+        "assurance_requirement_id": ASSURANCE_REQUIREMENT_ID,
+        "revision": 1,
+        "content_surface": "canonical_json_utf8",
+        "canonical_sha256": _canonical_sha256(_requirement_content_preimage(requirement_record)),
     }
     requirement_hash = _canonical_sha256(requirement_record)
     pack["assurance_requirement_reference"]["acceptance_record_sha256"] = requirement_hash
@@ -767,6 +899,28 @@ def _external_records(pack: dict) -> tuple[dict, bytes, dict[str, dict], dict[st
         "status": "active",
         "effective_at": "2026-07-18T09:20:00Z",
         "expires_at": "2027-07-18T09:30:00Z",
+    }
+    contract_review_relationship = {
+        "record_type": "producer_relationship_evidence",
+        "relationship_record_id": CONTRACT_REVIEW_RELATIONSHIP_ID,
+        "relationship_context": "contract_review",
+        "subject_actor_id": ACT_CONTRACT_REVIEWER,
+        "object_actor_id": ACT_CONTRACT_AUTHOR,
+        "grade": "I2",
+        "status": "active",
+        "effective_at": "2026-07-18T07:00:00Z",
+        "expires_at": "2027-07-18T07:00:00Z",
+    }
+    schema_review_relationship = {
+        "record_type": "producer_relationship_evidence",
+        "relationship_record_id": SCHEMA_REVIEW_RELATIONSHIP_ID,
+        "relationship_context": "schema_review",
+        "subject_actor_id": ACT_SCHEMA_REVIEWER,
+        "object_actor_id": ACT_CONTRACT_AUTHOR,
+        "grade": "I2",
+        "status": "active",
+        "effective_at": "2026-07-18T07:00:00Z",
+        "expires_at": "2027-07-18T07:00:00Z",
     }
     review_record = {
         "record_type": "independent_pack_review",
@@ -820,9 +974,17 @@ def _external_records(pack: dict) -> tuple[dict, bytes, dict[str, dict], dict[st
         ACT_SCOPE_REVIEWER: _actor_record(ACT_SCOPE_REVIEWER, "requirement-scope-reviewer-agent"),
         ACT_SCIENTIFIC_REVIEWER: _actor_record(ACT_SCIENTIFIC_REVIEWER, "pack-scientific-reviewer-agent"),
         ACT_OWNER: _actor_record(ACT_OWNER, "Stephen", actor_kind="human"),
+        ACT_CONTRACT_REVIEWER: _actor_record(ACT_CONTRACT_REVIEWER, "contract-reviewer-agent"),
+        ACT_SCHEMA_REVIEWER: _actor_record(ACT_SCHEMA_REVIEWER, "schema-reviewer-agent"),
+        CONTRACT_AUTHORSHIP_RECORD_ID: authorship_record,
+        CONTRACT_REVIEW_RECORD_ID: contract_review,
+        SCHEMA_REVIEW_RECORD_ID: schema_review,
+        CONTRACT_SCHEMA_ACCEPTANCE_ID: contract_schema_acceptance,
         REQUIREMENT_RECORD_ID: requirement_record,
         SCOPE_RELATIONSHIP_ID: scope_relationship,
         REVIEW_RELATIONSHIP_ID: review_relationship,
+        CONTRACT_REVIEW_RELATIONSHIP_ID: contract_review_relationship,
+        SCHEMA_REVIEW_RELATIONSHIP_ID: schema_review_relationship,
         REVIEW_RECORD_ID: review_record,
         OWNER_GRANT_ID: owner_grant,
         OWNER_DECISION_ID: owner_decision,
@@ -833,6 +995,10 @@ def _external_records(pack: dict) -> tuple[dict, bytes, dict[str, dict], dict[st
 
 
 def _refresh_acceptance_chain(pack: dict, record_store: dict[str, dict], hash_manifest: dict[str, str]) -> bytes:
+    requirement = record_store[REQUIREMENT_RECORD_ID]
+    requirement["requirement_subject"]["canonical_sha256"] = _canonical_sha256(
+        _requirement_content_preimage(requirement)
+    )
     _rehash_record(record_store, hash_manifest, REQUIREMENT_RECORD_ID)
     pack["assurance_requirement_reference"]["acceptance_record_sha256"] = hash_manifest[REQUIREMENT_RECORD_ID]
     raw_candidate_pack_bytes = _raw_pack_bytes(pack)
@@ -851,13 +1017,14 @@ def _coordinate_all_external_hashes(pack: dict, record_store: dict[str, dict]) -
     return raw_candidate_pack_bytes, hash_manifest
 
 
-def _eligible_acceptance_fixture() -> tuple[dict, str, dict, bytes, dict[str, dict], dict[str, str]]:
+def _eligible_acceptance_fixture() -> tuple[dict, bytes, dict, bytes, dict[str, dict], dict[str, str]]:
     contract = _eligible_contract()
     _schema_registry().validate(CONTRACT_SCHEMA_ID, contract)
     _validate_pending_reference_relation(contract)
-    oracle_sha = _canonical_sha256(contract)
-    pack, raw_candidate_pack_bytes, record_store, hash_manifest = _external_records(_proposed_pack(contract))
-    return contract, oracle_sha, pack, raw_candidate_pack_bytes, record_store, hash_manifest
+    raw_contract_bytes = _raw_contract_bytes(contract)
+    pack = _proposed_pack(contract, contract_subject=_contract_subject(raw_contract_bytes))
+    pack, raw_candidate_pack_bytes, record_store, hash_manifest = _external_records(pack, contract)
+    return contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest
 
 
 def _resolved_record(
@@ -876,6 +1043,10 @@ def _resolved_record(
     identity_fields = {
         "canonical_actor": "actor_id",
         "producer_relationship_evidence": "relationship_record_id",
+        "contract_schema_authorship": "authorship_record_id",
+        "independent_contract_review": "review_record_id",
+        "independent_schema_review": "review_record_id",
+        "stephen_contract_schema_acceptance": "owner_decision_id",
         "accepted_assurance_requirement": "acceptance_record_id",
         "independent_pack_review": "review_record_id",
         "stephen_owner_acceptance": "owner_decision_id",
@@ -892,12 +1063,11 @@ def _validate_external_acceptance(
     *,
     raw_candidate_pack_bytes: bytes,
     contract: dict,
-    accepted_contract_oracle_sha256: str,
+    raw_contract_bytes: bytes,
     record_store: dict[str, dict],
     hash_manifest: dict[str, str],
     review_record_id: str = REVIEW_RECORD_ID,
     owner_decision_id: str = OWNER_DECISION_ID,
-    contract_author_actor_id: str = ACT_CONTRACT_AUTHOR,
     as_of: datetime = AS_OF,
 ) -> None:
     parsed_pack = _parse_candidate_pack_bytes(raw_candidate_pack_bytes)
@@ -906,17 +1076,83 @@ def _validate_external_acceptance(
     _validate_proposed_pack(
         parsed_pack,
         contract=contract,
-        accepted_contract_oracle_sha256=accepted_contract_oracle_sha256,
+        raw_contract_bytes=raw_contract_bytes,
         require_active_references=True,
         as_of=as_of,
     )
+    accepted_contract_subject = _contract_subject(raw_contract_bytes)
+    accepted_pack_schema_subject = _resolve_external_schema_reference()
+    authorship = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        CONTRACT_AUTHORSHIP_RECORD_ID,
+        "contract_schema_authorship",
+    )
+    contract_review = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        CONTRACT_REVIEW_RECORD_ID,
+        "independent_contract_review",
+    )
+    schema_review = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        SCHEMA_REVIEW_RECORD_ID,
+        "independent_schema_review",
+    )
+    contract_schema_acceptance = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        CONTRACT_SCHEMA_ACCEPTANCE_ID,
+        "stephen_contract_schema_acceptance",
+    )
+    lifecycle_records = (authorship, contract_review, schema_review, contract_schema_acceptance)
+    if any(record["contract_subject"] != accepted_contract_subject for record in lifecycle_records):
+        raise CandidatePackError("contract lifecycle does not bind the accepted contract subject")
+    if any(record["pack_schema_subject"] != accepted_pack_schema_subject for record in lifecycle_records):
+        raise CandidatePackError("contract lifecycle does not bind the accepted pack schema subject")
+    if (
+        contract_review["authorship_record_id"] != CONTRACT_AUTHORSHIP_RECORD_ID
+        or contract_review["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
+        or schema_review["authorship_record_id"] != CONTRACT_AUTHORSHIP_RECORD_ID
+        or schema_review["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
+    ):
+        raise CandidatePackError("contract/schema review does not bind exact authorship")
+    if (
+        contract_schema_acceptance["authorship_record_id"] != CONTRACT_AUTHORSHIP_RECORD_ID
+        or contract_schema_acceptance["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
+        or contract_schema_acceptance["contract_review_record_id"] != CONTRACT_REVIEW_RECORD_ID
+        or contract_schema_acceptance["contract_review_record_sha256"] != hash_manifest[CONTRACT_REVIEW_RECORD_ID]
+        or contract_schema_acceptance["schema_review_record_id"] != SCHEMA_REVIEW_RECORD_ID
+        or contract_schema_acceptance["schema_review_record_sha256"] != hash_manifest[SCHEMA_REVIEW_RECORD_ID]
+    ):
+        raise CandidatePackError("Stephen contract/schema acceptance does not bind exact lifecycle records")
+    if (
+        authorship["author_actor_id"] != contract_review["author_actor_id"]
+        or authorship["author_actor_id"] != schema_review["author_actor_id"]
+        or len(
+            {
+                authorship["author_actor_id"],
+                contract_review["reviewer_actor_id"],
+                schema_review["reviewer_actor_id"],
+                contract_schema_acceptance["acceptor_actor_id"],
+                pack["producer_actor_id"],
+            }
+        )
+        != 5
+    ):
+        raise CandidatePackError("contract authorship, reviews, owner acceptance, and production must be distinct")
     requirement_id = pack["assurance_requirement_reference"]["acceptance_record_id"]
     requirement = _resolved_record(
         contract, record_store, hash_manifest, requirement_id, "accepted_assurance_requirement"
     )
     if hash_manifest[requirement_id] != pack["assurance_requirement_reference"]["acceptance_record_sha256"]:
         raise CandidatePackError("candidate requirement reference does not match external record")
-    if requirement["subject_contract"] != _resolve_external_contract_reference():
+    if requirement["subject_contract"] != accepted_contract_subject:
         raise CandidatePackError("assurance requirement binds a different upstream contract")
     if (
         requirement["assurance_requirement_id"] != pack["assurance_requirement_reference"]["assurance_requirement_id"]
@@ -925,6 +1161,36 @@ def _validate_external_acceptance(
         raise CandidatePackError("assurance requirement identity mismatch")
     if requirement["prospective_producer_actor_id"] != pack["producer_actor_id"]:
         raise CandidatePackError("accepted requirement names a different producer")
+    requirement_subject = requirement["requirement_subject"]
+    if (
+        requirement_subject["assurance_requirement_id"] != requirement["assurance_requirement_id"]
+        or requirement_subject["revision"] != requirement["revision"]
+        or requirement_subject["canonical_sha256"] != _canonical_sha256(_requirement_content_preimage(requirement))
+    ):
+        raise CandidatePackError("accepted requirement content subject mismatch")
+    expected_applicability = {
+        (lane_id, obligation["obligation_id"])
+        for lane_id, lane in contract["required_pack_contract"]["lanes"].items()
+        for obligation in lane["required_obligations"]
+    }
+    applicability_rows = requirement["obligation_applicability_rows"]
+    observed_applicability = {(row["lane_id"], row["obligation_id"]) for row in applicability_rows}
+    if len(observed_applicability) != len(applicability_rows) or observed_applicability != expected_applicability:
+        raise CandidatePackError("accepted requirement applicability closure differs")
+    for row in applicability_rows:
+        if (
+            row["prospective_producer_actor_id"] != pack["producer_actor_id"]
+            or row["decision_author_actor_id"] != requirement["requirement_author_actor_id"]
+            or row["confirming_actor_id"] != requirement["scope_reviewer_actor_id"]
+            or row["relationship_record_id"] != requirement["scope_relationship_record_id"]
+            or row["minimum_independence_grade"] != requirement["minimum_independence_grade"]
+        ):
+            raise CandidatePackError("accepted requirement applicability authority is unbound")
+        if (
+            pack["task_applicability_policy"]["pack_obligations"] == "all_required"
+            and row["applicability"] != "required"
+        ):
+            raise CandidatePackError("pack obligation cannot be marked not_applicable")
     scope_relationship = _resolved_record(
         contract,
         record_store,
@@ -938,6 +1204,20 @@ def _validate_external_acceptance(
         record_store,
         hash_manifest,
         review["relationship_record_id"],
+        "producer_relationship_evidence",
+    )
+    contract_review_relationship = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        contract_review["relationship_record_id"],
+        "producer_relationship_evidence",
+    )
+    schema_review_relationship = _resolved_record(
+        contract,
+        record_store,
+        hash_manifest,
+        schema_review["relationship_record_id"],
         "producer_relationship_evidence",
     )
     owner = _resolved_record(contract, record_store, hash_manifest, owner_decision_id, "stephen_owner_acceptance")
@@ -980,8 +1260,19 @@ def _validate_external_acceptance(
         raise CandidatePackError("review relationship does not bind reviewer and producer")
     if review_relationship["grade"] != review["minimum_independence_grade"]:
         raise CandidatePackError("review relationship grade mismatch")
+    for lifecycle_review, relationship, context in (
+        (contract_review, contract_review_relationship, "contract_review"),
+        (schema_review, schema_review_relationship, "schema_review"),
+    ):
+        if (
+            relationship["relationship_context"] != context
+            or relationship["subject_actor_id"] != lifecycle_review["reviewer_actor_id"]
+            or relationship["object_actor_id"] != lifecycle_review["author_actor_id"]
+            or relationship["grade"] != lifecycle_review["minimum_independence_grade"]
+        ):
+            raise CandidatePackError("contract/schema review relationship is unbound")
     actor_ids = {
-        contract_author_actor_id,
+        authorship["author_actor_id"],
         requirement["requirement_author_actor_id"],
         requirement["scope_reviewer_actor_id"],
         pack["producer_actor_id"],
@@ -992,9 +1283,13 @@ def _validate_external_acceptance(
         raise CandidatePackError("authorship, production, review, and acceptance must be distinct")
     if requirement["acceptor_actor_id"] != owner["acceptor_actor_id"]:
         raise CandidatePackError("accepted requirement lacks the canonical Stephen acceptor")
+    if contract_schema_acceptance["acceptor_actor_id"] != owner["acceptor_actor_id"]:
+        raise CandidatePackError("contract/schema acceptance lacks the canonical Stephen acceptor")
     if requirement["acceptor_actor_id"] == pack["producer_actor_id"]:
         raise CandidatePackError("requirement acceptor must be independent of producer")
     for actor_id in actor_ids:
+        _resolved_record(contract, record_store, hash_manifest, actor_id, "canonical_actor")
+    for actor_id in (ACT_CONTRACT_REVIEWER, ACT_SCHEMA_REVIEWER):
         _resolved_record(contract, record_store, hash_manifest, actor_id, "canonical_actor")
     owner_actor = _resolved_record(contract, record_store, hash_manifest, owner["acceptor_actor_id"], "canonical_actor")
     if owner_actor["actor_kind"] != "human" or owner_actor["canonical_name"] != "Stephen":
@@ -1011,18 +1306,34 @@ def _validate_external_acceptance(
     ):
         raise CandidatePackError("assurance pack object registration mismatch")
     requirement_accepted_at = _parse_datetime(requirement["accepted_at"])
+    contract_authored_at = _parse_datetime(authorship["authored_at"])
+    contract_reviewed_at = _parse_datetime(contract_review["reviewed_at"])
+    schema_reviewed_at = _parse_datetime(schema_review["reviewed_at"])
+    contract_accepted_at = _parse_datetime(contract_schema_acceptance["decided_at"])
     registered_at = _parse_datetime(registered_object["registered_at"])
     authored_at = _parse_datetime(pack["currency"]["authored_at"])
     effective_at = _parse_datetime(pack["currency"]["effective_at"])
     reviewed_at = _parse_datetime(review["reviewed_at"])
     decided_at = _parse_datetime(owner["decided_at"])
-    if not requirement_accepted_at < authored_at < reviewed_at < decided_at <= as_of:
+    if not (
+        contract_authored_at
+        < min(contract_reviewed_at, schema_reviewed_at)
+        <= max(contract_reviewed_at, schema_reviewed_at)
+        < contract_accepted_at
+        < requirement_accepted_at
+        < authored_at
+        < reviewed_at
+        < decided_at
+        <= as_of
+    ):
         raise CandidatePackError(
-            "temporal order must be requirement accepted, candidate authored, independently reviewed, owner accepted"
+            "temporal order must bind contract/schema lifecycle before requirement and pack acceptance"
         )
     if not requirement_accepted_at < registered_at <= authored_at <= effective_at < reviewed_at:
         raise CandidatePackError("pack registration and candidate effective-time order is invalid")
     for relationship, action_time in (
+        (contract_review_relationship, contract_reviewed_at),
+        (schema_review_relationship, schema_reviewed_at),
         (scope_relationship, requirement_accepted_at),
         (review_relationship, reviewed_at),
     ):
@@ -1187,12 +1498,14 @@ def test_candidate_schema_is_proposed_only_and_has_no_acceptance_surface():
 
 
 def test_external_acceptance_requires_independent_exact_subject_records():
-    contract, oracle_sha, pack, raw_candidate_pack_bytes, record_store, hash_manifest = _eligible_acceptance_fixture()
+    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
     _validate_external_acceptance(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
-        accepted_contract_oracle_sha256=oracle_sha,
+        raw_contract_bytes=raw_contract_bytes,
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
@@ -1200,13 +1513,15 @@ def test_external_acceptance_requires_independent_exact_subject_records():
     same_author_pack = deepcopy(pack)
     same_author = deepcopy(record_store)
     same_author[REQUIREMENT_RECORD_ID]["requirement_author_actor_id"] = ACT_PRODUCER
+    for applicability in same_author[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"]:
+        applicability["decision_author_actor_id"] = ACT_PRODUCER
     same_author_raw, same_author_hashes = _coordinate_all_external_hashes(same_author_pack, same_author)
     with pytest.raises(CandidatePackError, match="must be distinct"):
         _validate_external_acceptance(
             same_author_pack,
             raw_candidate_pack_bytes=same_author_raw,
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=same_author,
             hash_manifest=same_author_hashes,
         )
@@ -1222,7 +1537,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=wrong_review_subject,
             hash_manifest=wrong_review_hashes,
         )
@@ -1236,7 +1551,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=wrong_owner_subject,
             hash_manifest=wrong_owner_hashes,
         )
@@ -1248,7 +1563,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             pack,
             raw_candidate_pack_bytes=raw_candidate_pack_bytes,
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=no_owner_grant,
             hash_manifest=hash_manifest,
         )
@@ -1261,7 +1576,7 @@ def test_external_acceptance_requires_independent_exact_subject_records():
             actor_alias,
             raw_candidate_pack_bytes=_raw_pack_bytes(actor_alias),
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=record_store,
             hash_manifest=hash_manifest,
         )
@@ -1298,7 +1613,7 @@ def test_hash_valid_external_record_semantic_mutations_are_rejected():
         "review before candidate": lambda records: records[REVIEW_RECORD_ID].update(reviewed_at="2026-07-18T08:50:00Z"),
     }
     for _label, mutate in mutations.items():
-        contract, oracle_sha, pack, _, record_store, _ = _eligible_acceptance_fixture()
+        contract, raw_contract_bytes, pack, _, record_store, _ = _eligible_acceptance_fixture()
         mutate(record_store)
         raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
         with pytest.raises(CandidatePackError):
@@ -1306,14 +1621,16 @@ def test_hash_valid_external_record_semantic_mutations_are_rejected():
                 pack,
                 raw_candidate_pack_bytes=raw_candidate_pack_bytes,
                 contract=contract,
-                accepted_contract_oracle_sha256=oracle_sha,
+                raw_contract_bytes=raw_contract_bytes,
                 record_store=record_store,
                 hash_manifest=hash_manifest,
             )
 
 
 def test_raw_candidate_bytes_define_portable_review_subject():
-    contract, oracle_sha, pack, raw_candidate_pack_bytes, record_store, hash_manifest = _eligible_acceptance_fixture()
+    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
     baseline_subject = _pack_subject(raw_candidate_pack_bytes, expected_pack=pack)
     assert baseline_subject["pack_git_blob"] == _git_blob_id_without_filters(raw_candidate_pack_bytes)
     assert baseline_subject["pack_raw_sha256"] == hashlib.sha256(raw_candidate_pack_bytes).hexdigest()
@@ -1333,7 +1650,7 @@ def test_raw_candidate_bytes_define_portable_review_subject():
                 pack,
                 raw_candidate_pack_bytes=candidate_bytes,
                 contract=contract,
-                accepted_contract_oracle_sha256=oracle_sha,
+                raw_contract_bytes=raw_contract_bytes,
                 record_store=record_store,
                 hash_manifest=hash_manifest,
             )
@@ -1409,21 +1726,23 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
     _schema_registry().validate(CONTRACT_SCHEMA_ID, eligible_contract)
     assert eligible_contract["required_pack_contract"]["references"]["current_pending_reference_ids"] == []
     _validate_pending_reference_relation(eligible_contract)
-    eligible = _proposed_pack(eligible_contract)
+    eligible_contract_bytes = _raw_contract_bytes(eligible_contract)
+    eligible = _proposed_pack(eligible_contract, contract_subject=_contract_subject(eligible_contract_bytes))
     _validate_proposed_pack(
         eligible,
         contract=eligible_contract,
-        accepted_contract_oracle_sha256=_canonical_sha256(eligible_contract),
+        raw_contract_bytes=eligible_contract_bytes,
         require_active_references=True,
     )
 
     missing_pending = _load_yaml(CONTRACT_PATH)
     missing_pending["required_pack_contract"]["references"]["current_pending_reference_ids"].pop()
+    missing_pending_bytes = _raw_contract_bytes(missing_pending)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
         _validate_proposed_pack(
-            _proposed_pack(missing_pending),
+            _proposed_pack(missing_pending, contract_subject=_contract_subject(missing_pending_bytes)),
             contract=missing_pending,
-            accepted_contract_oracle_sha256=_canonical_sha256(missing_pending),
+            raw_contract_bytes=missing_pending_bytes,
         )
 
     stale_pending = _eligible_contract()
@@ -1431,23 +1750,25 @@ def test_lane_reference_relations_reject_dangling_swapped_and_pending_rows():
         "contract/topology-invariants/null-operation-changes-ph-input"
     )
     _schema_registry().validate(CONTRACT_SCHEMA_ID, stale_pending)
+    stale_pending_bytes = _raw_contract_bytes(stale_pending)
     with pytest.raises(CandidatePackError, match="pending reference relation"):
         _validate_proposed_pack(
-            _proposed_pack(stale_pending),
+            _proposed_pack(stale_pending, contract_subject=_contract_subject(stale_pending_bytes)),
             contract=stale_pending,
-            accepted_contract_oracle_sha256=_canonical_sha256(stale_pending),
+            raw_contract_bytes=stale_pending_bytes,
         )
 
     omitted_contract = _load_yaml(CONTRACT_PATH)
     omitted_contract["required_pack_contract"]["lanes"]["topology"]["exact_governing_reference_ids"].remove(
         "skill/paper-claim-trace"
     )
-    omitted_pack = _proposed_pack(omitted_contract)
+    omitted_contract_bytes = _raw_contract_bytes(omitted_contract)
+    omitted_pack = _proposed_pack(omitted_contract, contract_subject=_contract_subject(omitted_contract_bytes))
     with pytest.raises(CandidatePackError, match="enforcer is omitted"):
         _validate_proposed_pack(
             omitted_pack,
             contract=omitted_contract,
-            accepted_contract_oracle_sha256=_canonical_sha256(omitted_contract),
+            raw_contract_bytes=omitted_contract_bytes,
         )
 
     foreign_valid = _proposed_pack()
@@ -1606,21 +1927,26 @@ def test_distribution_currency_and_identity_mutations_fail_closed():
 
 def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_authority():
     accepted_contract = _load_yaml(CONTRACT_PATH)
-    frozen_oracle_sha = _canonical_sha256(accepted_contract)
+    frozen_contract_bytes = _raw_contract_bytes(accepted_contract)
     candidate = _proposed_pack(accepted_contract)
     expected_row = accepted_contract["required_pack_contract"]["references"]["exact_reference_rows"][0]
     expected_row["canonical_sha256"] = "f" * 64
     candidate_row = candidate["references"]["contract_references"][0]
     candidate_row["canonical_sha256"] = "f" * 64
-    with pytest.raises(CandidatePackError, match="oracle identity mismatch"):
+    with pytest.raises(CandidatePackError, match="bytes do not parse"):
         _validate_proposed_pack(
             candidate,
             contract=accepted_contract,
-            accepted_contract_oracle_sha256=frozen_oracle_sha,
+            raw_contract_bytes=frozen_contract_bytes,
         )
 
     eligible_contract = _eligible_contract()
-    pack, _, record_store, hash_manifest = _external_records(_proposed_pack(eligible_contract))
+    eligible_contract_bytes = _raw_contract_bytes(eligible_contract)
+    eligible_pack = _proposed_pack(
+        eligible_contract,
+        contract_subject=_contract_subject(eligible_contract_bytes),
+    )
+    pack, _, record_store, hash_manifest = _external_records(eligible_pack, eligible_contract)
     tampered_pack = deepcopy(pack)
     tampered_pack["currency"]["expires_at"] = "2028-07-18T09:00:00Z"
     tampered_review = deepcopy(record_store)
@@ -1631,7 +1957,7 @@ def test_coordinated_candidate_and_oracle_replacement_does_not_change_external_a
             tampered_pack,
             raw_candidate_pack_bytes=tampered_raw,
             contract=eligible_contract,
-            accepted_contract_oracle_sha256=_canonical_sha256(eligible_contract),
+            raw_contract_bytes=eligible_contract_bytes,
             record_store=tampered_review,
             hash_manifest=frozen_external_manifest,
         )
@@ -1788,13 +2114,15 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     was redundant with it, was never joined to the resolved requirement, and has been
     removed from the schema rather than independently bound — removing a duplicate
     unenforced authority is preferred over adding a second one to reconcile."""
-    contract, oracle_sha, pack, raw_candidate_pack_bytes, record_store, hash_manifest = _eligible_acceptance_fixture()
+    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
     assert "canonical_sha256" not in pack["assurance_requirement_reference"]
     _validate_external_acceptance(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
-        accepted_contract_oracle_sha256=oracle_sha,
+        raw_contract_bytes=raw_contract_bytes,
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
@@ -1805,7 +2133,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
     reintroduced = deepcopy(pack)
     reintroduced["assurance_requirement_reference"]["canonical_sha256"] = "a" * 64
     with pytest.raises(SchemaError, match="canonical_sha256"):
-        _validate_proposed_pack(reintroduced, contract=contract, accepted_contract_oracle_sha256=oracle_sha)
+        _validate_proposed_pack(reintroduced, contract=contract, raw_contract_bytes=raw_contract_bytes)
 
     # one-field substitution: candidate claims an acceptance_record_sha256 that does
     # not match the resolved external requirement record's actual content hash.
@@ -1817,7 +2145,7 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
             one_field,
             raw_candidate_pack_bytes=one_field_raw,
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=record_store,
             hash_manifest=hash_manifest,
         )
@@ -1841,7 +2169,148 @@ def test_requirement_reference_binds_single_authoritative_content_hash():
             coordinated_pack,
             raw_candidate_pack_bytes=coordinated_raw,
             contract=contract,
-            accepted_contract_oracle_sha256=oracle_sha,
+            raw_contract_bytes=raw_contract_bytes,
             record_store=coordinated_store,
+            hash_manifest=coordinated_hashes,
+        )
+
+
+def test_contract_schema_lifecycle_requires_content_addressed_external_authority_records():
+    """Contract/schema bytes are eligible only through typed external lifecycle records."""
+    contract = _load_yaml(CONTRACT_PATH)
+    required_record_types = set(
+        contract["required_pack_contract"]["external_acceptance_evidence"]["required_record_types"]
+    )
+    schema_rows = {
+        row["record_class"]
+        for row in contract["required_pack_contract"]["external_record_schema_catalogue"]["exact_schema_rows"]
+    }
+    lifecycle_record_types = {
+        "contract_schema_authorship",
+        "independent_contract_review",
+        "independent_schema_review",
+        "stephen_contract_schema_acceptance",
+    }
+    assert lifecycle_record_types <= required_record_types
+    assert lifecycle_record_types <= schema_rows
+
+    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
+    for missing_record_id in (
+        CONTRACT_AUTHORSHIP_RECORD_ID,
+        CONTRACT_REVIEW_RECORD_ID,
+        SCHEMA_REVIEW_RECORD_ID,
+        CONTRACT_SCHEMA_ACCEPTANCE_ID,
+    ):
+        missing_records = deepcopy(record_store)
+        missing_records.pop(missing_record_id)
+        with pytest.raises(CandidatePackError, match="missing external record"):
+            _validate_external_acceptance(
+                pack,
+                raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+                contract=contract,
+                raw_contract_bytes=raw_contract_bytes,
+                record_store=missing_records,
+                hash_manifest=hash_manifest,
+            )
+
+    coordinated_records = deepcopy(record_store)
+    foreign_subject = {
+        **deepcopy(pack["upstream_contract_reference"]),
+        "git_blob": "f" * 40,
+        "canonical_sha256": "f" * 64,
+    }
+    for record_id in (
+        CONTRACT_AUTHORSHIP_RECORD_ID,
+        CONTRACT_REVIEW_RECORD_ID,
+        SCHEMA_REVIEW_RECORD_ID,
+        CONTRACT_SCHEMA_ACCEPTANCE_ID,
+    ):
+        coordinated_records[record_id]["contract_subject"] = deepcopy(foreign_subject)
+    authorship_hash = _canonical_sha256(coordinated_records[CONTRACT_AUTHORSHIP_RECORD_ID])
+    for review_id in (CONTRACT_REVIEW_RECORD_ID, SCHEMA_REVIEW_RECORD_ID):
+        coordinated_records[review_id]["authorship_record_sha256"] = authorship_hash
+    coordinated_records[CONTRACT_SCHEMA_ACCEPTANCE_ID]["authorship_record_sha256"] = authorship_hash
+    coordinated_records[CONTRACT_SCHEMA_ACCEPTANCE_ID]["contract_review_record_sha256"] = _canonical_sha256(
+        coordinated_records[CONTRACT_REVIEW_RECORD_ID]
+    )
+    coordinated_records[CONTRACT_SCHEMA_ACCEPTANCE_ID]["schema_review_record_sha256"] = _canonical_sha256(
+        coordinated_records[SCHEMA_REVIEW_RECORD_ID]
+    )
+    coordinated_hashes = {record_id: _canonical_sha256(record) for record_id, record in coordinated_records.items()}
+    with pytest.raises(CandidatePackError, match="accepted contract subject"):
+        _validate_external_acceptance(
+            pack,
+            raw_candidate_pack_bytes=raw_candidate_pack_bytes,
+            contract=contract,
+            raw_contract_bytes=raw_contract_bytes,
+            record_store=coordinated_records,
+            hash_manifest=coordinated_hashes,
+        )
+
+
+def test_accepted_requirement_binds_content_subject_and_exact_obligation_applicability_rows():
+    """The accepted requirement must bind immutable content and every pack obligation."""
+    contract, raw_contract_bytes, pack, raw_candidate_pack_bytes, record_store, hash_manifest = (
+        _eligible_acceptance_fixture()
+    )
+    requirement = record_store[REQUIREMENT_RECORD_ID]
+    subject = requirement["requirement_subject"]
+    assert subject["assurance_requirement_id"] == requirement["assurance_requirement_id"]
+    assert subject["revision"] == requirement["revision"]
+    assert subject["canonical_sha256"] == _canonical_sha256(_requirement_content_preimage(requirement))
+
+    expected_rows = {
+        (lane_id, obligation["obligation_id"])
+        for lane_id, lane in contract["required_pack_contract"]["lanes"].items()
+        for obligation in lane["required_obligations"]
+    }
+    observed_rows = {(row["lane_id"], row["obligation_id"]) for row in requirement["obligation_applicability_rows"]}
+    assert observed_rows == expected_rows
+    assert all(row["applicability"] == "required" for row in requirement["obligation_applicability_rows"])
+
+    missing_pack = deepcopy(pack)
+    missing_records = deepcopy(record_store)
+    missing_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"].pop()
+    missing_raw, missing_hashes = _coordinate_all_external_hashes(missing_pack, missing_records)
+    with pytest.raises(CandidatePackError, match="obligation_applicability_rows"):
+        _validate_external_acceptance(
+            missing_pack,
+            raw_candidate_pack_bytes=missing_raw,
+            contract=contract,
+            raw_contract_bytes=raw_contract_bytes,
+            record_store=missing_records,
+            hash_manifest=missing_hashes,
+        )
+
+    producer_only_pack = deepcopy(pack)
+    producer_only_records = deepcopy(record_store)
+    producer_only_row = producer_only_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]
+    producer_only_row["applicability"] = "not_applicable"
+    producer_only_row["rationale"] = "producer_claimed_not_applicable"
+    producer_only_row["confirming_actor_id"] = ACT_PRODUCER
+    producer_only_raw, producer_only_hashes = _coordinate_all_external_hashes(producer_only_pack, producer_only_records)
+    with pytest.raises(CandidatePackError, match="applicability authority is unbound"):
+        _validate_external_acceptance(
+            producer_only_pack,
+            raw_candidate_pack_bytes=producer_only_raw,
+            contract=contract,
+            raw_contract_bytes=raw_contract_bytes,
+            record_store=producer_only_records,
+            hash_manifest=producer_only_hashes,
+        )
+
+    coordinated_pack = deepcopy(pack)
+    coordinated_records = deepcopy(record_store)
+    coordinated_records[REQUIREMENT_RECORD_ID]["obligation_applicability_rows"][0]["applicability"] = "not_applicable"
+    coordinated_raw, coordinated_hashes = _coordinate_all_external_hashes(coordinated_pack, coordinated_records)
+    with pytest.raises(CandidatePackError, match="cannot be marked not_applicable"):
+        _validate_external_acceptance(
+            coordinated_pack,
+            raw_candidate_pack_bytes=coordinated_raw,
+            contract=contract,
+            raw_contract_bytes=raw_contract_bytes,
+            record_store=coordinated_records,
             hash_manifest=coordinated_hashes,
         )
