@@ -62,7 +62,7 @@ primitive_types:
 - {type_id: type/hashed_ref_list, json_type: array, nullable: false, item_type_ref: object/hashed_ref, source_citation: W2 immutable subject sets, decision_basis: conservative_proposal}
 - {type_id: type/external_artefact_availability_list, json_type: array, nullable: false, item_type_ref: object/external_artefact_availability, source_citation: W8 §19 external artefact manifest and availability, decision_basis: conservative_proposal}
 - {type_id: type/artefact_input_dependency_list, json_type: array, nullable: false, item_type_ref: object/artefact_input_dependency, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
-- {type_id: type/review_gate_condition_list, json_type: array, nullable: false, min_items: 1, item_type_ref: object/review_gate_condition, source_citation: W2 §17.3 conditions and conditional gate satisfaction, decision_basis: conservative_proposal}
+- {type_id: type/review_gate_condition_list, json_type: array, nullable: false, item_type_ref: object/review_gate_condition, source_citation: W2 §17.3 conditions and verdict-scoped conditional gate satisfaction, decision_basis: conservative_proposal}
 source_closed_enums:
 - {enum_id: enum/task_status, values: [draft, readiness_pending, ready, in_progress, review_pending, blocked, input_required, paused, accepted, rejected, partial, cancelled, superseded], source_citation: W2 §11.1, decision_basis: source_literal}
 - {enum_id: enum/member_disposition, values: [accepted, partial_accepted, deferred, superseded, removed_by_amendment, cancelled, rejected], source_citation: W2 §10.2, decision_basis: source_literal}

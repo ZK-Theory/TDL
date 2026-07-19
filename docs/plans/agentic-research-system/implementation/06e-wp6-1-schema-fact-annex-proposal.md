@@ -37,6 +37,8 @@ The current reusable objects are closed rather than loose string maps. D1C-2a su
 
 The global reusable_object_field_rule makes every field listed by every reusable object required. A field marked nullable true is still a required key whose value alone may be null; it does not become optional. Evidence that this proposal claims is present uses type/nonempty_evidence_ref_list.
 
+The review condition list itself permits zero items so unconditional approval and all four negative verdict records remain structurally representable without invented conditions. Only the approve_with_conditions gate branch applies approve_with_conditions_min_items = 1; an empty conditional-approval list is representable but cannot satisfy the gate.
+
 - `object/task_definition`, `object/dispatch_definition`, and `object/root_binding` are complete for the cited W2 §10.1/§12.1 facts in D1C-2a; `source_fact_bindings` records each target field or explicit non-lossy subfield mapping.
 - `family/review` and the `review.record_verdict` command/event selections represent every W2 §§17.3–17.4 verdict condition as a closed per-condition record. The frozen total gate map makes `approve` satisfied, makes `approve_with_conditions` satisfied only for a non-empty all-non-blocking, owned, policy-bound, non-empty-evidence condition list, and makes the four negative verdicts unsatisfied; verdict recording remains separate from the Task transition.
 - `object/artefact_manifest` now represents every independently stateful W2 §§16.1–16.2 identity, production, code/environment, location, integrity, input, research-provenance, validation, authority, and operations fact through closed objects where a relation must remain paired.
@@ -171,7 +173,7 @@ assert contract['reusable_object_field_rule'] == {
 }
 enum_specs = {x['enum_id']: x for x in contract['source_closed_enums']}
 assert enum_specs['enum/review_condition_gate_disposition']['decision_basis'] == 'conservative_proposal'
-assert type_specs['type/review_gate_condition_list']['min_items'] == 1
+assert 'min_items' not in type_specs['type/review_gate_condition_list']
 branches = {x['discriminator_const']: x for x in profile_rule['branches']}
 assert set(branches) == {'trivial', 'bounded', 'long_running'}
 assert len(branches) == 3
@@ -296,9 +298,18 @@ def gate_satisfied(verdict, conditions):
     )
 
 positive_condition = sample_for_ref('object/review_gate_condition')
+assert ref_valid('type/review_gate_condition_list', [])
+def review_record_structurally_valid(verdict, conditions):
+    return verdict in enum_specs['enum/review_verdict']['values'] and ref_valid(
+        'type/review_gate_condition_list',
+        conditions,
+    )
+for verdict in enum_specs['enum/review_verdict']['values']:
+    assert review_record_structurally_valid(verdict, [])
 assert gate_satisfied('approve', [])
 assert gate_satisfied('approve_with_conditions', [positive_condition])
 for verdict in ('changes_requested', 'reject', 'unable_to_verify', 'withdrawn'):
+    assert not gate_satisfied(verdict, [])
     assert not gate_satisfied(verdict, [positive_condition])
 assert not gate_satisfied('approve_with_conditions', [])
 assert not gate_satisfied('approve_with_conditions', [
@@ -438,7 +449,7 @@ git diff --check
 - Confirm the two additional owner-visible identity selections: `rule_evaluation -> type/validation_id (val_)` is a conservative cross-use of W2's ValidationRecord grammar, and the resource/operation ID unions are conservative groupings of W8's separately sourced component prefixes.
 - Verify source-closed enums, especially review verdict, artefact availability/dimensions, operational profile, checkpoint compatibility, and corrected-record kind.
 - Confirm shared types are either one normalized fact or have an explicit discriminator/variant rule.
-- Confirm the closed six-verdict gate map, non-empty conditional list/evidence, all-non-blocking typed-owner policy predicate, four unsatisfied negative verdicts, and no direct Task-state change.
+- Confirm the closed six-verdict gate map, verdict-scoped non-empty conditional-approval list, non-empty per-condition evidence, all-non-blocking typed-owner policy predicate, four unsatisfied negative verdicts, and no direct Task-state change.
 - Confirm all listed reusable-object fields are required, nullable metadata never makes a key optional, each ResourceRequest branch selects non-null complete evidence, and claimed applicability/receipt evidence is non-empty.
 - Confirm all five M-2 source groups and every 06d §1.4/W8 §§19–21 correction/recovery binding; prove all 15 correction branches are non-overlapping and cover their source-literal kinds, with no fallback. Confirm the external manifest is unique and complete and that any unavailable/evidence-less/partial restore is diagnostic-only with no writer lease.
 - Confirm independent source-fact oracle evidence, fresh exact-byte review, and explicit owner approval remain required; this packet must not be treated as Stage-1 readiness or generation authority.
