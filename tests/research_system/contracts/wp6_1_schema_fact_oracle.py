@@ -853,7 +853,7 @@ def assert_generation_boundary(subject: dict[str, Any]) -> None:
         "repeated_rows_share_identity": True,
         "variants_are_closed_within_shared_identity": True,
     }
-    assert len(subject["decision_register"]) == 10
+    assert len(subject["decision_register"]) == 12
     assert all(item["generator_byte_change_allowed"] is False for item in subject["decision_register"])
 
 
