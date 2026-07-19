@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import re
+import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,18 @@ def _canonical_hash(value: Any) -> str:
 
 
 def _git_blob_id(data: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+    return (
+        subprocess.run(
+            ["git", "hash-object", "--no-filters", "--stdin"],
+            cwd=REPO_ROOT,
+            input=data,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        .stdout.decode("ascii")
+        .strip()
+    )
 
 
 def _yaml_bytes(document: Mapping[str, Any]) -> bytes:
