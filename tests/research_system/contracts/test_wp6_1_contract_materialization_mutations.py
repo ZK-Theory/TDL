@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -367,7 +368,7 @@ def test_wp6_1_materialization_schema_is_strict_at_every_object(
     assert all(node.get("additionalProperties") is False for node in objects)
 
 
-def test_wp6_1_schema_identities_are_versioned_hash_bound_and_honestly_unmaterialized() -> None:
+def test_wp6_1_schema_identities_are_materialized_proposals_with_exact_raw_bytes() -> None:
     catalogue, identities = _load_documents()
 
     assert len(catalogue["rows"]) == len(identities["rows"]) == 104
@@ -375,11 +376,28 @@ def test_wp6_1_schema_identities_are_versioned_hash_bound_and_honestly_unmateria
         schema_identities = [row["command_schema_identity"], *row["event_schema_bindings"]]
         for identity in schema_identities:
             prefix = "command" if "command_schema_id" in identity else "event"
+            schema_path = REPO_ROOT / identity[f"{prefix}_schema_path"]
+            schema_bytes = schema_path.read_bytes()
+            schema = json.loads(schema_bytes.decode("utf-8"))
+
             assert identity[f"{prefix}_schema_version"] == "1.0.0"
-            assert identity[f"{prefix}_schema_sha256"] is None
-            assert identity["materialization_status"] == "planned_unmaterialized"
-            assert len(identity[f"{prefix}_identity_contract_sha256"]) == 64
-            assert not (REPO_ROOT / identity[f"{prefix}_schema_path"]).exists()
+            assert re.fullmatch(r"[0-9a-f]{64}", identity[f"{prefix}_schema_sha256"])
+            assert identity[f"{prefix}_schema_sha256"] == hashlib.sha256(schema_bytes).hexdigest()
+            assert identity["materialization_status"] == "proposed_materialized"
+            assert identity["review_status"] == "pending_independent_review"
+            assert identity["acceptance_status"] == "pending_d_g6_3_owner_acceptance"
+            assert not {"accepted", "owner_accepted", "owner_decision", "acceptance_record"} & set(identity)
+            assert schema_path.exists()
+            assert not schema_bytes.startswith(b"\xef\xbb\xbf")
+            assert b"\r" not in schema_bytes
+            assert schema["$id"] == identity[f"{prefix}_schema_id"]
+            assert schema["properties"]["schema_version"]["const"] == identity[f"{prefix}_schema_version"]
+            expected_type = row["command_type"] if prefix == "command" else identity["event_type"]
+            assert schema["properties"][f"{prefix}_type"]["const"] == expected_type
+            hash_field = f"{prefix}_identity_contract_sha256"
+            assert identity[hash_field] == _canonical_hash(
+                {name: value for name, value in identity.items() if name != hash_field}
+            )
 
 
 @pytest.mark.parametrize("key", [row["key"] for row in _load_documents()[0]["rows"]])
