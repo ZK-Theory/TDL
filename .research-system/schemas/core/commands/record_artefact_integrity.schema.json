@@ -10,12 +10,23 @@
               "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.integrity` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "integrity": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.integrity` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "integrity_evidence": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.integrity` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "integrity_valid": {
               "type": "boolean",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.integrity` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "observed_sha256": {
               "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$",
               "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.integrity` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
@@ -23,7 +34,9 @@
           "required": [
             "artefact_id",
             "integrity_valid",
-            "observed_sha256"
+            "observed_sha256",
+            "integrity",
+            "integrity_evidence"
           ],
           "type": "object",
           "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.integrity` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

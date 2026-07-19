@@ -7,15 +7,27 @@
           "properties": {
             "attempt_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "dispatch_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "expires_at": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "holder_actor_id": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -24,83 +36,44 @@
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "task_id": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "task_revision": {
-              "type": "integer",
-              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            }
-          },
-          "required": [
-            "new_lease_id",
-            "task_id",
-            "task_revision",
-            "dispatch_id",
-            "attempt_id",
-            "expires_at"
-          ],
-          "type": "object",
-          "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "attempt_id": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "dispatch_id": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "expires_at": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "new_lease_id": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "process_identity_id": {
               "minLength": 1,
               "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "resource_grant_id": {
               "minLength": 1,
               "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "task_id": {
               "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "task_revision": {
+              "minimum": 1,
               "type": "integer",
-              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
           "required": [
             "new_lease_id",
-            "resource_grant_id",
             "task_id",
             "task_revision",
             "dispatch_id",
             "attempt_id",
-            "process_identity_id",
-            "expires_at"
+            "expires_at",
+            "holder_actor_id",
+            "resource_grant_id",
+            "process_identity_id"
           ],
           "type": "object",
-          "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.claim_execution_lease` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+          "x-source-citation": "W2 §12.3 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `lease.activate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
     }

@@ -5,6 +5,17 @@
         {
           "additionalProperties": false,
           "properties": {
+            "delivered_at": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.deliver` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "delivery_channel": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.deliver` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "delivery_evidence_ref": {
               "minLength": 1,
               "type": "string",
@@ -24,7 +35,9 @@
           "required": [
             "message_id",
             "recipient_actor_id",
-            "delivery_evidence_ref"
+            "delivery_evidence_ref",
+            "delivery_channel",
+            "delivered_at"
           ],
           "type": "object",
           "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.deliver` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

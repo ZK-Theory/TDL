@@ -58,10 +58,14 @@ def _render_field(field: FieldSpec) -> dict[str, Any]:
     }
     if field.const is not None:
         schema["const"] = field.const
+    if field.enum:
+        schema["enum"] = list(field.enum)
     if field.minimum is not None:
         schema["minimum"] = field.minimum
     if field.format is not None:
         schema["format"] = field.format
+    if field.pattern is not None:
+        schema["pattern"] = field.pattern
     if field.json_type == "string" and field.const is None:
         schema["minLength"] = 1
     if field.json_type == "array":
@@ -75,37 +79,78 @@ def _render_field(field: FieldSpec) -> dict[str, Any]:
                 members.append(member)
             schema.update({"prefixItems": members, "minItems": 2, "maxItems": 2})
         elif field.object_spec is not None:
-            schema["items"] = _render_object(field.object_spec)
+            schema["items"] = (
+                {"$ref": f"#/$defs/{field.ref_name}"} if field.ref_name else _render_object(field.object_spec)
+            )
         else:
             schema["items"] = {"type": field.item_type or "string", "minLength": 1}
+            if field.item_pattern is not None:
+                schema["items"]["pattern"] = field.item_pattern
             schema["uniqueItems"] = True
+    elif field.json_type == "object" and field.object_spec is not None:
+        if field.ref_name:
+            schema.pop("type")
+            schema["$ref"] = f"#/$defs/{field.ref_name}"
+        else:
+            schema.update(_render_object(field.object_spec))
     return schema
 
 
 def _render_object(spec: ObjectSpec) -> dict[str, Any]:
-    return {
+    rendered = {
         "type": "object",
-        "required": [field.name for field in spec.fields],
+        "required": [field.name for field in spec.fields if field.required],
         "properties": {field.name: _render_field(field) for field in spec.fields},
         "additionalProperties": False,
         "x-source-citation": _citation_text(spec),
     }
+    if spec.exclusive_required:
+        rendered["oneOf"] = [{"required": list(names)} for names in spec.exclusive_required]
+    return rendered
 
 
 def _object_signature(spec: ObjectSpec) -> tuple[Any, ...]:
     return tuple(
-        (
-            field.name,
-            field.json_type,
-            field.const,
-            field.nullable,
-            field.item_type,
-            field.minimum,
-            field.format,
-            _object_signature(field.object_spec) if field.object_spec else None,
+        sorted(
+            (
+                field.name,
+                field.json_type,
+                field.const,
+                field.nullable,
+                field.item_type,
+                field.ref_name,
+                field.required,
+                field.enum,
+                field.minimum,
+                field.format,
+                field.pattern,
+                field.item_pattern,
+                _object_signature(field.object_spec) if field.object_spec else None,
+            )
+            for field in spec.fields
         )
-        for field in spec.fields
-    )
+    ) + (spec.exclusive_required,)
+
+
+def _named_definitions(payloads: list[ObjectSpec]) -> dict[str, Any]:
+    definitions: dict[str, Any] = {}
+    signatures: dict[str, tuple[Any, ...]] = {}
+
+    def visit(spec: ObjectSpec) -> None:
+        for field in spec.fields:
+            if field.object_spec is None:
+                continue
+            if field.ref_name:
+                signature = _object_signature(field.object_spec)
+                if field.ref_name in signatures and signatures[field.ref_name] != signature:
+                    raise RuntimeError(f"conflicting local definition: {field.ref_name}")
+                signatures[field.ref_name] = signature
+                definitions.setdefault(field.ref_name, _render_object(field.object_spec))
+            visit(field.object_spec)
+
+    for payload in payloads:
+        visit(payload)
+    return definitions
 
 
 def _payload_specs(
@@ -151,6 +196,8 @@ def _generated_schema(
     properties[type_field] = {"const": semantic_type, "x-source-citation": citation}
     properties["payload"] = {"$ref": "#/$defs/payload"}
     payloads = _payload_specs(rows, kind=kind, semantic_type=semantic_type, operations=operations)
+    definitions = {"payload": {"oneOf": [_render_object(payload) for payload in payloads]}}
+    definitions.update(_named_definitions(payloads))
     schema: dict[str, Any] = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": identity[f"{kind}_schema_id"],
@@ -160,7 +207,7 @@ def _generated_schema(
         "required": list(root_names),
         "properties": properties,
         "additionalProperties": False,
-        "$defs": {"payload": {"oneOf": [_render_object(payload) for payload in payloads]}},
+        "$defs": definitions,
         "x-source-citation": citation,
         "x-lifecycle": MATERIALIZATION_STATUS,
     }

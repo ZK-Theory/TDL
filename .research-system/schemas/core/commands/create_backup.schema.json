@@ -5,6 +5,12 @@
         {
           "additionalProperties": false,
           "properties": {
+            "canonical_tail_hash": {
+              "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string",
+              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "control_store_id": {
               "minLength": 1,
               "type": "string",
@@ -20,8 +26,14 @@
               "type": "string",
               "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "snapshot_id": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "tail_hash": {
               "minLength": 1,
+              "pattern": "^[0-9a-f]{64}$",
               "type": "string",
               "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
@@ -30,7 +42,9 @@
             "project_id",
             "control_store_id",
             "tail_hash",
-            "destination_class"
+            "destination_class",
+            "canonical_tail_hash",
+            "snapshot_id"
           ],
           "type": "object",
           "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

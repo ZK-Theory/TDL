@@ -10,6 +10,20 @@
               "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "continuing_consumers": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true,
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "replacement_artefact_id": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "superseding_artefact_id": {
               "minLength": 1,
               "type": "string",
@@ -19,12 +33,20 @@
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "supersession_scope": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
           "required": [
             "artefact_id",
             "superseding_artefact_id",
-            "supersession_reason"
+            "supersession_reason",
+            "replacement_artefact_id",
+            "supersession_scope",
+            "continuing_consumers"
           ],
           "type": "object",
           "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

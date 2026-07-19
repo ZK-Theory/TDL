@@ -7,10 +7,21 @@
           "properties": {
             "attempt_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "dispatch_id": {
+              "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "operational_profile": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -30,6 +41,10 @@
               "type": "string",
               "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "resource_request": {
+              "$ref": "#/$defs/resource_request",
+              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "root_binding_ids": {
               "items": {
                 "minLength": 1,
@@ -41,7 +56,10 @@
             },
             "task_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
@@ -52,12 +70,69 @@
             "attempt_id",
             "operational_profile_id",
             "root_binding_ids",
-            "resource_estimate_ref"
+            "resource_estimate_ref",
+            "operational_profile",
+            "resource_request"
           ],
           "type": "object",
           "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
+    },
+    "resource_request": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "dispatch_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "operation_class": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "operational_profile": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "resource_estimate_ref": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "root_binding_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true,
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "task_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      },
+      "required": [
+        "task_id",
+        "dispatch_id",
+        "attempt_id",
+        "operation_class",
+        "operational_profile",
+        "root_binding_ids",
+        "resource_estimate_ref"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     }
   },
   "$id": "ars://core/command/RequestResourceGrant",

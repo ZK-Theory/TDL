@@ -23,7 +23,17 @@
               "uniqueItems": true,
               "x-source-citation": "W2 §19.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `correction.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "corrected_evidence": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §19.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `correction.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "corrected_evidence_ref": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §19.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `correction.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "corrected_record_kind": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §19.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `correction.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -44,7 +54,9 @@
             "incorrect_assertion",
             "corrected_evidence_ref",
             "affected_projection_ids",
-            "affected_consumer_ids"
+            "affected_consumer_ids",
+            "corrected_evidence",
+            "corrected_record_kind"
           ],
           "type": "object",
           "x-source-citation": "W2 §19.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `correction.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

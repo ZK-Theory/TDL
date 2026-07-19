@@ -12,7 +12,10 @@
             },
             "dispatch_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.issue` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "root_binding_ids": {
@@ -29,12 +32,21 @@
               "type": "string",
               "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.issue` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "task_id": {
+            "target_role": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.issue` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "task_id": {
+              "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.issue` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "task_revision": {
+              "minimum": 1,
               "type": "integer",
               "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.issue` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
@@ -45,7 +57,8 @@
             "task_revision",
             "target_profile_id",
             "context_packet_id",
-            "root_binding_ids"
+            "root_binding_ids",
+            "target_role"
           ],
           "type": "object",
           "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.issue` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

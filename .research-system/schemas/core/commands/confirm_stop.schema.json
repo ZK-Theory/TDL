@@ -7,10 +7,23 @@
           "properties": {
             "attempt_id": {
               "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-source-citation": "W8 §17.1, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.confirm_stop` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "checkpoint_disposition": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §17.1, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.confirm_stop` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "lease_id": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W8 §17.1, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.confirm_stop` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "process_disposition": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §17.1, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.confirm_stop` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -29,7 +42,9 @@
             "attempt_id",
             "lease_id",
             "stop_record_id",
-            "writers_closed"
+            "writers_closed",
+            "checkpoint_disposition",
+            "process_disposition"
           ],
           "type": "object",
           "x-source-citation": "W8 §17.1, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.confirm_stop` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

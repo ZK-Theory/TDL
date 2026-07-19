@@ -387,9 +387,8 @@ def _authority_binding(key: str, command_type: str) -> tuple[str, str]:
     _fail(f"unmapped authority family: {key}")
 
 
-@lru_cache(maxsize=None)
 def _canonical_schema_sha256(path: Path) -> str:
-    """Cache immutable schema-byte checks across the complete mutation matrix."""
+    """Hash current bytes; same-path mutation must never reuse a stale digest."""
     _require(path.is_file(), f"materialized schema is missing: {path}")
     schema_bytes = path.read_bytes()
     _require(
@@ -570,22 +569,40 @@ def _field_spec_shape(field: schema_source.FieldSpec) -> tuple[Any, ...]:
         field.item_type,
         field.minimum,
         field.format,
+        field.pattern,
+        field.item_pattern,
         nested,
+        field.enum,
     )
 
 
 def _object_spec_shape(spec: schema_source.ObjectSpec | None) -> tuple[Any, ...] | None:
     if spec is None:
         return None
-    return tuple(_field_spec_shape(field) for field in spec.fields)
+    return (
+        tuple(sorted((_field_spec_shape(field) for field in spec.fields), key=lambda item: item[0])),
+        tuple(sorted(field.name for field in spec.fields if field.required)),
+        spec.exclusive_required,
+    )
 
 
-def _schema_field_shape(name: str, field: Mapping[str, Any]) -> tuple[Any, ...]:
+def _local_ref(root: Mapping[str, Any], value: Mapping[str, Any]) -> Mapping[str, Any]:
+    token = str(value["$ref"]).removeprefix("#/$defs/")
+    resolved = root.get("$defs", {}).get(token)
+    _require(isinstance(resolved, Mapping), f"unresolved local schema reference: {token}")
+    return resolved
+
+
+def _schema_field_shape(name: str, field: Mapping[str, Any], root: Mapping[str, Any]) -> tuple[Any, ...]:
     raw_type = field.get("type")
     nullable = isinstance(raw_type, list) and set(raw_type) == {"string", "null"}
     json_type = "string" if nullable else raw_type
     nested = None
     item_type = None
+    item_pattern = None
+    if "$ref" in field:
+        json_type = "object"
+        nested = _schema_object_shape(_local_ref(root, field), root)
     if json_type == "array":
         if name == "declared_write_set":
             members = field.get("prefixItems")
@@ -595,21 +612,26 @@ def _schema_field_shape(name: str, field: Mapping[str, Any]) -> tuple[Any, ...]:
             _require(
                 field.get("minItems") == field.get("maxItems") == 2, "ClaimDispatch write set cardinality mismatch"
             )
-            member_shapes = [_schema_object_shape(member) for member in members]
+            member_shapes = [_schema_object_shape(member, root) for member in members]
             _require(
-                [member[1][0][2] for member in member_shapes] == ["dispatch", "task"],
+                [member["properties"]["stream_kind"].get("const") for member in members] == ["dispatch", "task"],
                 "ClaimDispatch write set order/kinds mismatch",
             )
-            nested = tuple(
-                (item[0], item[1], None if item[0] == "stream_kind" else item[2], *item[3:])
-                for item in member_shapes[0][1]
+            fields, required, exclusive = member_shapes[0]
+            nested = (
+                tuple((item[0], item[1], None if item[0] == "stream_kind" else item[2], *item[3:]) for item in fields),
+                required,
+                exclusive,
             )
         else:
             items = field.get("items")
-            if isinstance(items, Mapping) and items.get("type") == "object":
-                nested = _schema_object_shape(items)[1]
+            if isinstance(items, Mapping) and "$ref" in items:
+                nested = _schema_object_shape(_local_ref(root, items), root)
+            elif isinstance(items, Mapping) and items.get("type") == "object":
+                nested = _schema_object_shape(items, root)
             elif isinstance(items, Mapping):
                 item_type = items.get("type")
+                item_pattern = items.get("pattern")
     _require("x-source-citation" in field, f"uncited generated field: {name}")
     return (
         name,
@@ -619,19 +641,29 @@ def _schema_field_shape(name: str, field: Mapping[str, Any]) -> tuple[Any, ...]:
         item_type,
         field.get("minimum"),
         field.get("format"),
+        field.get("pattern"),
+        item_pattern,
         nested,
+        tuple(field.get("enum", [])),
     )
 
 
-def _schema_object_shape(value: Mapping[str, Any]) -> tuple[str, tuple[Any, ...]]:
+def _schema_object_shape(value: Mapping[str, Any], root: Mapping[str, Any]) -> tuple[Any, ...]:
     _require(value.get("type") == "object", "payload variant is not an object")
     _require(value.get("additionalProperties") is False, "generated payload object is not closed")
     required = value.get("required")
     properties = value.get("properties")
     _require(isinstance(required, list) and isinstance(properties, Mapping), "invalid generated payload object")
-    _require(set(required) == set(properties), "generated payload required/property mismatch")
+    _require(set(required) <= set(properties), "generated payload required/property mismatch")
     _require("x-source-citation" in value, "uncited generated payload object")
-    return "object", tuple(_schema_field_shape(name, properties[name]) for name in required)
+    exclusive = tuple(tuple(branch.get("required", [])) for branch in value.get("oneOf", []))
+    return (
+        tuple(
+            sorted((_schema_field_shape(name, properties[name], root) for name in properties), key=lambda item: item[0])
+        ),
+        tuple(sorted(required)),
+        exclusive,
+    )
 
 
 @lru_cache(maxsize=256)
@@ -646,6 +678,224 @@ def _parsed_schema(path: Path, sha256: str) -> Mapping[str, Any]:
 def _semantic_schema(path: Path) -> Mapping[str, Any]:
     data = path.read_bytes()
     return _parsed_schema(path, hashlib.sha256(data).hexdigest())
+
+
+_INDEPENDENT_COMMAND_ROOT = frozenset(
+    {
+        "command_id",
+        "command_type",
+        "schema_id",
+        "schema_version",
+        "submitted_at",
+        "actor_id",
+        "on_behalf_of_actor_id",
+        "authority_grant_id",
+        "target_stream_id",
+        "expected_stream_version",
+        "idempotency_key",
+        "correlation_id",
+        "causation_id",
+        "reason",
+        "evidence_refs",
+        "payload",
+    }
+)
+_INDEPENDENT_EVENT_ROOT = frozenset(
+    {
+        "event_id",
+        "event_type",
+        "schema_id",
+        "schema_version",
+        "project_id",
+        "stream_id",
+        "stream_version",
+        "global_position",
+        "transaction_id",
+        "transaction_index",
+        "transaction_count",
+        "command_id",
+        "command_type",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "idempotency_key",
+        "command_payload_hash",
+        "correlation_id",
+        "causation_id",
+        "actor_id",
+        "authority_grant_id",
+        "occurred_at",
+        "recorded_at",
+        "payload",
+        "previous_event_hash",
+        "event_hash",
+    }
+)
+_INDEPENDENT_BANNED_FIELDS = {
+    "command_key",
+    "event_key",
+    "subject_reference",
+    "evidence_reference",
+    "source_model_citation",
+}
+_INDEPENDENT_DISPOSITIONS = {
+    "accepted",
+    "partial_accepted",
+    "deferred",
+    "superseded",
+    "removed_by_amendment",
+    "cancelled",
+    "rejected",
+}
+_INDEPENDENT_MESSAGE_TYPES = {
+    "assignment",
+    "acknowledgement",
+    "progress",
+    "input_request",
+    "escalation",
+    "report",
+    "review_request",
+    "review_response",
+    "decision_request",
+    "handoff",
+}
+_INDEPENDENT_MESSAGE_COMMON = {
+    "new_message_id",
+    "message_type",
+    "sender_actor_id",
+    "recipient_actor_ids",
+    "audience",
+    "task_id",
+    "dispatch_id",
+    "attempt_id",
+    "review_id",
+    "decision_id",
+    "reply_to_message_id",
+    "thread_id",
+    "typed_subject",
+    "sensitivity_class",
+    "retention_class",
+}
+_INDEPENDENT_ACTIONABLE_MESSAGES = {
+    "assignment",
+    "input_request",
+    "escalation",
+    "review_request",
+    "decision_request",
+    "handoff",
+}
+
+
+def _walk_schema_objects(value: Any) -> list[Mapping[str, Any]]:
+    if isinstance(value, Mapping):
+        result = [value] if value.get("type") == "object" else []
+        return result + [item for child in value.values() for item in _walk_schema_objects(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in _walk_schema_objects(child)]
+    return []
+
+
+def _verify_independent_scope_and_message_contracts(repo_root: Path) -> None:
+    command_paths = sorted((repo_root / ".research-system/schemas/core/commands").glob("*.schema.json"))
+    event_paths = sorted((repo_root / ".research-system/schemas/core/events").glob("*.schema.json"))
+    _require(len(command_paths) == 87 and len(event_paths) == 86, "independent generated schema count mismatch")
+    for kind, paths, expected_root in (
+        ("command", command_paths, _INDEPENDENT_COMMAND_ROOT),
+        ("event", event_paths, _INDEPENDENT_EVENT_ROOT),
+    ):
+        for path in paths:
+            schema = _semantic_schema(path)
+            _require(set(schema.get("required", [])) == expected_root, f"independent {kind} root mismatch: {path}")
+            _require(set(schema.get("properties", {})) == expected_root, f"independent {kind} fields mismatch: {path}")
+            text = json.dumps(schema)
+            _require(
+                not any(f'"{field}"' in text for field in _INDEPENDENT_BANNED_FIELDS),
+                f"banned toy payload field returned: {path}",
+            )
+            _require(
+                all(item.get("additionalProperties") is False for item in _walk_schema_objects(schema)),
+                f"independent open-object check failed: {path}",
+            )
+
+    create = _semantic_schema(repo_root / ".research-system/schemas/core/commands/create_scope_definition.schema.json")
+    member = create["$defs"]["scope_member"]
+    _require(
+        set(member["required"]) == {"member_id", "member_kind", "required_disposition"},
+        "ScopeMember relational fields mismatch",
+    )
+    _require(
+        set(member["properties"]["required_disposition"].get("enum", [])) == _INDEPENDENT_DISPOSITIONS,
+        "ScopeMember disposition vocabulary mismatch",
+    )
+    create_required = set(create["$defs"]["payload"]["oneOf"][0]["required"])
+    _require(
+        {
+            "new_scope_definition_id",
+            "members",
+            "dependencies",
+            "ordering_rules",
+            "completion_rule",
+            "authority_rule",
+            "effective_revision",
+            "effective_at",
+            "supersession_rule",
+            "supersession_lineage",
+        }
+        <= create_required,
+        "CreateScopeDefinition facts are incomplete",
+    )
+    _require(
+        create["$defs"]["payload"]["oneOf"][0]["properties"]["effective_revision"].get("minimum") == 1,
+        "Scope effective revision is not positive",
+    )
+    for name in ("amend_scope_definition", "complete_scope"):
+        scope = _semantic_schema(repo_root / f".research-system/schemas/core/commands/{name}.schema.json")
+        disposition = scope["$defs"]["member_disposition"]
+        _require(
+            set(disposition["required"]) == {"member_id", "member_kind", "disposition"},
+            f"MemberDisposition relational fields mismatch: {name}",
+        )
+        _require(
+            set(disposition["properties"]["disposition"].get("enum", [])) == _INDEPENDENT_DISPOSITIONS,
+            f"MemberDisposition vocabulary mismatch: {name}",
+        )
+
+    for path in (
+        repo_root / ".research-system/schemas/core/commands/publish_message.schema.json",
+        repo_root / ".research-system/schemas/core/events/message_published.schema.json",
+    ):
+        message = _semantic_schema(path)
+        variants = message["$defs"]["payload"]["oneOf"]
+        _require(len(variants) == 10, f"message variant cardinality mismatch: {path}")
+        _require(
+            {variant["properties"]["message_type"]["const"] for variant in variants} == _INDEPENDENT_MESSAGE_TYPES,
+            f"message type vocabulary mismatch: {path}",
+        )
+        body_ref = message["$defs"]["body_artefact_ref"]
+        _require(
+            set(body_ref["required"]) == {"artefact_id", "content_sha256"}
+            and body_ref.get("additionalProperties") is False,
+            f"message body artefact reference mismatch: {path}",
+        )
+        for variant in variants:
+            message_type = variant["properties"]["message_type"]["const"]
+            required = set(variant["required"])
+            properties = variant["properties"]
+            _require(_INDEPENDENT_MESSAGE_COMMON <= required, f"message common facts missing: {path}")
+            _require(
+                variant.get("oneOf") == [{"required": ["body"]}, {"required": ["body_artefact_ref"]}],
+                f"message body XOR mismatch: {path}",
+            )
+            for field in ("task_id", "dispatch_id", "attempt_id", "review_id", "decision_id", "reply_to_message_id"):
+                _require(
+                    set(properties[field].get("type", [])) == {"string", "null"},
+                    f"message nullable correlation mismatch: {path}/{field}",
+                )
+            applicable = message_type in _INDEPENDENT_ACTIONABLE_MESSAGES
+            _require(
+                ({"requested_action", "deadline"} <= required) == applicable,
+                f"message action/deadline applicability mismatch: {path}/{message_type}",
+            )
 
 
 def _verify_generated_semantics(
@@ -670,12 +920,13 @@ def _verify_generated_semantics(
     _require(properties["payload"] == {"$ref": "#/$defs/payload"}, f"generated payload ref mismatch: {path}")
     variants = schema.get("$defs", {}).get("payload", {}).get("oneOf")
     _require(isinstance(variants, list) and variants, f"generated payload union is empty: {path}")
-    actual_shapes = [_schema_object_shape(variant)[1] for variant in variants]
+    actual_shapes = [_schema_object_shape(variant, schema) for variant in variants]
     expected_shapes = list(dict.fromkeys(_object_spec_shape(spec) for spec in payload_specs))
     _require(actual_shapes == expected_shapes, f"generated payload semantics mismatch: {path}")
 
 
 def _verify_all_generated_semantics(repo_root: Path) -> None:
+    _verify_independent_scope_and_message_contracts(repo_root)
     rows = schema_source.source_rows(repo_root)
     operations = schema_source.resolve_operation_specs(repo_root, rows)
     for kind in ("command", "event"):

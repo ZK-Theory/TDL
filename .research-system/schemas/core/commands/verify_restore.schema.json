@@ -23,13 +23,19 @@
             "restore_valid": {
               "type": "boolean",
               "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.verify_restore` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "restore_verdict": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.verify_restore` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
           "required": [
             "project_id",
             "backup_receipt_id",
             "restore_evidence_ref",
-            "restore_valid"
+            "restore_valid",
+            "restore_verdict"
           ],
           "type": "object",
           "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.verify_restore` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

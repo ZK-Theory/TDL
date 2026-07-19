@@ -7,12 +7,42 @@
           "properties": {
             "attempt_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-source-citation": "W2 §12.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `attempt.partial` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "claim_restrictions": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true,
+              "x-source-citation": "W2 §12.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `attempt.partial` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "completed_obligations": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true,
               "x-source-citation": "W2 §12.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `attempt.partial` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "partial_reason": {
               "minLength": 1,
               "type": "string",
+              "x-source-citation": "W2 §12.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `attempt.partial` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "unmet_obligations": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true,
               "x-source-citation": "W2 §12.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `attempt.partial` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "valid_artefact_ids": {
@@ -28,7 +58,10 @@
           "required": [
             "attempt_id",
             "partial_reason",
-            "valid_artefact_ids"
+            "valid_artefact_ids",
+            "claim_restrictions",
+            "completed_obligations",
+            "unmet_obligations"
           ],
           "type": "object",
           "x-source-citation": "W2 §12.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `attempt.partial` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

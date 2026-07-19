@@ -10,8 +10,18 @@
               "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.regenerability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "regenerability": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.regenerability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "regenerable": {
               "type": "boolean",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.regenerability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "regeneration_evidence": {
+              "minLength": 1,
+              "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.regenerability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "regeneration_evidence_ref": {
@@ -23,7 +33,9 @@
           "required": [
             "artefact_id",
             "regenerable",
-            "regeneration_evidence_ref"
+            "regeneration_evidence_ref",
+            "regenerability",
+            "regeneration_evidence"
           ],
           "type": "object",
           "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.regenerability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

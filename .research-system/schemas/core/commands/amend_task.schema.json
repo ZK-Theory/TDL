@@ -10,18 +10,32 @@
               "type": "string",
               "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "effective_at": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "new_task_revision": {
+              "$ref": "#/$defs/task_revision_reference",
+              "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "objective": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "revision": {
+              "minimum": 1,
               "type": "integer",
               "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "task_id": {
               "minLength": 1,
-              "type": "string",
+              "type": [
+                "string",
+                "null"
+              ],
               "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
@@ -29,12 +43,42 @@
             "task_id",
             "revision",
             "objective",
-            "amendment_reason"
+            "amendment_reason",
+            "new_task_revision",
+            "effective_at"
           ],
           "type": "object",
           "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
+    },
+    "task_revision_reference": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "minLength": 1,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "revision": {
+          "minimum": 1,
+          "type": "integer",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "task_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      },
+      "required": [
+        "task_id",
+        "revision",
+        "content_hash"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     }
   },
   "$id": "ars://core/command/AmendTask",

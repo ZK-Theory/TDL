@@ -1,22 +1,77 @@
 {
   "$defs": {
+    "member_disposition": {
+      "additionalProperties": false,
+      "properties": {
+        "completion_evidence_ref": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "disposition": {
+          "enum": [
+            "accepted",
+            "partial_accepted",
+            "deferred",
+            "superseded",
+            "removed_by_amendment",
+            "cancelled",
+            "rejected"
+          ],
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "member_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "member_kind": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      },
+      "required": [
+        "member_id",
+        "member_kind",
+        "disposition"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
     "payload": {
       "oneOf": [
         {
           "additionalProperties": false,
           "properties": {
             "completed_at": {
+              "format": "date-time",
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "completion_evidence_ref": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "completion_rule": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "effective_revision": {
+              "minimum": 1,
+              "type": "integer",
+              "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "member_dispositions": {
               "items": {
-                "minLength": 1,
-                "type": "string"
+                "$ref": "#/$defs/member_disposition"
               },
               "type": "array",
-              "uniqueItems": true,
               "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "scope_definition_id": {
@@ -25,6 +80,7 @@
               "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "scope_revision": {
+              "minimum": 1,
               "type": "integer",
               "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.complete` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
@@ -32,7 +88,10 @@
           "required": [
             "scope_definition_id",
             "scope_revision",
+            "effective_revision",
             "member_dispositions",
+            "completion_rule",
+            "completion_evidence_ref",
             "completed_at"
           ],
           "type": "object",

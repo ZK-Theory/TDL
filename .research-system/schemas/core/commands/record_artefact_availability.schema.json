@@ -10,6 +10,16 @@
               "type": "string",
               "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.availability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "availability": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.availability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "availability_evidence": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.availability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "availability_evidence_ref": {
               "minLength": 1,
               "type": "string",
@@ -23,7 +33,9 @@
           "required": [
             "artefact_id",
             "available",
-            "availability_evidence_ref"
+            "availability_evidence_ref",
+            "availability",
+            "availability_evidence"
           ],
           "type": "object",
           "x-source-citation": "W2 §16 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `artefact.availability` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

@@ -7,6 +7,14 @@
           "properties": {
             "decision_id": {
               "minLength": 1,
+              "type": [
+                "string",
+                "null"
+              ],
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "replacement_decision_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -24,7 +32,8 @@
           "required": [
             "decision_id",
             "superseding_decision_id",
-            "supersession_reason"
+            "supersession_reason",
+            "replacement_decision_id"
           ],
           "type": "object",
           "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.supersede` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

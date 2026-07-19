@@ -11,10 +11,17 @@
               "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "heartbeat_sequence": {
+              "minimum": 0,
               "type": "integer",
               "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "lease_id": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "observed_at": {
+              "format": "date-time",
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -28,6 +35,15 @@
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "sequence": {
+              "minimum": 1,
+              "type": "integer",
+              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "work_unit_progress": {
+              "$ref": "#/$defs/work_unit_progress",
+              "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
           "required": [
@@ -35,12 +51,42 @@
             "heartbeat_sequence",
             "process_identity_id",
             "progress_evidence_ref",
-            "checkpoint_id"
+            "checkpoint_id",
+            "observed_at",
+            "sequence",
+            "work_unit_progress"
           ],
           "type": "object",
           "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
+    },
+    "work_unit_progress": {
+      "additionalProperties": false,
+      "properties": {
+        "completed_units": {
+          "minimum": 0,
+          "type": "integer",
+          "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "evidence_ref": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "remaining_units": {
+          "minimum": 0,
+          "type": "integer",
+          "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      },
+      "required": [
+        "completed_units",
+        "remaining_units",
+        "evidence_ref"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §12, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.record_heartbeat` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     }
   },
   "$id": "ars://core/command/RecordHeartbeat",

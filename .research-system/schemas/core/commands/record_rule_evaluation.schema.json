@@ -10,6 +10,16 @@
               "type": "string",
               "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "input_hashes": {
+              "items": {
+                "minLength": 1,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "type": "array",
+              "uniqueItems": true,
+              "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "input_ids": {
               "items": {
                 "minLength": 1,
@@ -24,12 +34,18 @@
               "type": "string",
               "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "output": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "referent_id": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "rule_version": {
+              "minimum": 0,
               "type": "integer",
               "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
@@ -39,7 +55,9 @@
             "rule_version",
             "referent_id",
             "input_ids",
-            "calculation_ref"
+            "calculation_ref",
+            "input_hashes",
+            "output"
           ],
           "type": "object",
           "x-source-citation": "W2 §18.4 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `rule.evaluate` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

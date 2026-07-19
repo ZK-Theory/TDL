@@ -6,6 +6,7 @@
           "additionalProperties": false,
           "properties": {
             "released_at": {
+              "format": "date-time",
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.release_resources` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

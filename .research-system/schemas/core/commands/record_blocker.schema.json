@@ -24,6 +24,11 @@
               "type": "string",
               "x-source-citation": "W2 §15.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `blocker.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
+            "responsible_owner": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §15.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `blocker.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "resume_condition": {
               "minLength": 1,
               "type": "string",
@@ -35,7 +40,8 @@
             "blocker_type",
             "affected_task_id",
             "resume_condition",
-            "must_stop"
+            "must_stop",
+            "responsible_owner"
           ],
           "type": "object",
           "x-source-citation": "W2 §15.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `blocker.record` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"

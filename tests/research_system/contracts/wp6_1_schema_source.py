@@ -65,14 +65,20 @@ class FieldSpec:
     nullable: bool = False
     item_type: str | None = None
     object_spec: ObjectSpec | None = None
+    ref_name: str | None = None
+    required: bool = True
+    enum: tuple[str, ...] = ()
     minimum: int | None = None
     format: str | None = None
+    pattern: str | None = None
+    item_pattern: str | None = None
 
 
 @dataclass(frozen=True)
 class ObjectSpec:
     fields: tuple[FieldSpec, ...]
     citations: tuple[SourceCitation, ...]
+    exclusive_required: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -308,6 +314,10 @@ _INTEGER_FIELDS = {
     "transaction_index",
     "transaction_count",
     "expected_stream_version",
+    "effective_revision",
+    "new_execution_epoch",
+    "completed_work_units",
+    "sequence",
 }
 _BOOLEAN_FIELDS = {"must_stop", "available", "regenerable", "integrity_valid", "restore_valid", "writers_closed"}
 _ARRAY_FIELDS = {
@@ -331,6 +341,47 @@ _ARRAY_FIELDS = {
     "resource_ids",
     "process_ids",
     "child_process_ids",
+    "audience",
+    "acceptance_criteria",
+    "candidate_artefact_ids",
+    "review_ids",
+    "accepted_artefact_ids",
+    "satisfied_review_ids",
+    "accepted_output_ids",
+    "claim_restrictions",
+    "unmet_obligations",
+    "attempt_dispositions",
+    "outcome_evidence_refs",
+    "completed_obligations",
+    "continuing_consumers",
+    "consumer_restrictions",
+    "subject_hashes",
+    "subject_ids",
+    "findings",
+    "change_requests",
+    "options",
+    "review_questions",
+    "decision_evidence_refs",
+    "input_hashes",
+    "amended_fields",
+}
+
+_MEMBER_DISPOSITIONS = (
+    "accepted",
+    "partial_accepted",
+    "deferred",
+    "superseded",
+    "removed_by_amendment",
+    "cancelled",
+    "rejected",
+)
+_NULLABLE_MESSAGE_FIELDS = {
+    "task_id",
+    "dispatch_id",
+    "attempt_id",
+    "review_id",
+    "decision_id",
+    "reply_to_message_id",
 }
 
 
@@ -393,19 +444,148 @@ def _field(name: str, citations: tuple[SourceCitation, ...], *, const: str | Non
             citations=citations,
         )
         return FieldSpec(name, "array", citations, object_spec=member)
+    nested_fields: dict[str, tuple[str, tuple[FieldSpec, ...]]] = {
+        "members": (
+            "scope_member",
+            (
+                FieldSpec("member_id", "string", citations),
+                FieldSpec("member_kind", "string", citations),
+                FieldSpec("required_disposition", "string", citations, enum=_MEMBER_DISPOSITIONS),
+            ),
+        ),
+        "member_dispositions": (
+            "member_disposition",
+            (
+                FieldSpec("member_id", "string", citations),
+                FieldSpec("member_kind", "string", citations),
+                FieldSpec("disposition", "string", citations, enum=_MEMBER_DISPOSITIONS),
+                FieldSpec("completion_evidence_ref", "string", citations, required=False),
+            ),
+        ),
+        "dependencies": (
+            "scope_dependency",
+            (
+                FieldSpec("predecessor_member_id", "string", citations),
+                FieldSpec("dependent_member_id", "string", citations),
+                FieldSpec("satisfaction_predicate", "string", citations),
+            ),
+        ),
+        "ordering_rules": (
+            "scope_ordering_rule",
+            (
+                FieldSpec("before_member_id", "string", citations),
+                FieldSpec("after_member_id", "string", citations),
+            ),
+        ),
+        "supersession_lineage": (
+            "scope_revision_reference",
+            (
+                FieldSpec("scope_definition_id", "string", citations),
+                FieldSpec("revision", "integer", citations, minimum=1),
+            ),
+        ),
+        "attempt_dispositions": (
+            "attempt_disposition",
+            (
+                FieldSpec("attempt_id", "string", citations),
+                FieldSpec("disposition", "string", citations),
+                FieldSpec("evidence_ref", "string", citations, required=False),
+            ),
+        ),
+    }
+    if name in nested_fields:
+        ref_name, fields = nested_fields[name]
+        return FieldSpec(name, "array", citations, object_spec=ObjectSpec(fields, citations), ref_name=ref_name)
+    if name == "body_artefact_ref":
+        reference = ObjectSpec(
+            (
+                FieldSpec("artefact_id", "string", citations),
+                FieldSpec("content_sha256", "string", citations, pattern="^[0-9a-f]{64}$"),
+            ),
+            citations,
+        )
+        return FieldSpec(name, "object", citations, object_spec=reference, ref_name="body_artefact_ref", required=False)
+    if name == "new_task_revision":
+        revision = ObjectSpec(
+            (
+                FieldSpec("task_id", "string", citations),
+                FieldSpec("revision", "integer", citations, minimum=1),
+                FieldSpec("content_hash", "string", citations, pattern="^[0-9a-f]{64}$"),
+            ),
+            citations,
+        )
+        return FieldSpec(name, "object", citations, object_spec=revision, ref_name="task_revision_reference")
+    if name == "resource_request":
+        request = ObjectSpec(
+            (
+                FieldSpec("task_id", "string", citations),
+                FieldSpec("dispatch_id", "string", citations),
+                FieldSpec("attempt_id", "string", citations),
+                FieldSpec("operation_class", "string", citations),
+                FieldSpec("operational_profile", "string", citations),
+                FieldSpec("root_binding_ids", "array", citations, item_type="string"),
+                FieldSpec("resource_estimate_ref", "string", citations),
+            ),
+            citations,
+        )
+        return FieldSpec(name, "object", citations, object_spec=request, ref_name="resource_request")
+    if name == "work_unit_progress":
+        progress = ObjectSpec(
+            (
+                FieldSpec("completed_units", "integer", citations, minimum=0),
+                FieldSpec("remaining_units", "integer", citations, minimum=0),
+                FieldSpec("evidence_ref", "string", citations),
+            ),
+            citations,
+        )
+        return FieldSpec(name, "object", citations, object_spec=progress, ref_name="work_unit_progress")
+    if name == "recovery_evidence":
+        recovery = ObjectSpec(
+            (
+                FieldSpec("recovery_evidence_id", "string", citations),
+                FieldSpec("detected_condition", "string", citations),
+                FieldSpec("canonical_tail_hash", "string", citations, pattern="^[0-9a-f]{64}$"),
+                FieldSpec("consumer_restrictions", "array", citations, item_type="string"),
+            ),
+            citations,
+        )
+        return FieldSpec(name, "object", citations, object_spec=recovery, ref_name="recovery_evidence")
+    if name == "body":
+        return FieldSpec(name, "string", citations, required=False)
     if name in _INTEGER_FIELDS or name.endswith("_version") or name.endswith("_ordinal"):
-        return FieldSpec(name, "integer", citations, const=const)
+        positive = name in {
+            "revision",
+            "task_revision",
+            "scope_revision",
+            "effective_revision",
+            "new_execution_epoch",
+            "sequence",
+        } or name.endswith("_ordinal")
+        return FieldSpec(name, "integer", citations, const=const, minimum=1 if positive else 0)
     if name in _BOOLEAN_FIELDS:
         return FieldSpec(name, "boolean", citations, const=const)
     if name in _ARRAY_FIELDS or name.endswith("_ids") or name.endswith("_refs"):
-        return FieldSpec(name, "array", citations, const=const, item_type="string")
-    return FieldSpec(name, "string", citations, const=const)
+        item_pattern = "^[0-9a-f]{64}$" if name.endswith("_hashes") else None
+        return FieldSpec(name, "array", citations, const=const, item_type="string", item_pattern=item_pattern)
+    pattern = "^[0-9a-f]{64}$" if name.endswith("_sha256") or name.endswith("_hash") else None
+    timestamp = name.endswith("_at") or name.endswith("_deadline") or name == "deadline"
+    return FieldSpec(
+        name,
+        "string",
+        citations,
+        const=const,
+        nullable=name in _NULLABLE_MESSAGE_FIELDS,
+        format="date-time" if timestamp else None,
+        pattern=pattern,
+    )
 
 
 def _object(row: SourceRow, names: tuple[str, ...], consts: Mapping[str, str] | None = None) -> ObjectSpec:
     citations = _citations(row)
     consts = consts or {}
-    return ObjectSpec(tuple(_field(name, citations, const=consts.get(name)) for name in names), citations)
+    fields = tuple(_field(name, citations, const=consts.get(name)) for name in names)
+    exclusive = (("body",), ("body_artefact_ref",)) if {"body", "body_artefact_ref"} <= set(names) else ()
+    return ObjectSpec(fields, citations, exclusive)
 
 
 # Each tuple is (command fields, event fact field sets, command constants, event constants).
@@ -422,22 +602,122 @@ def _d(
     return command, events, command_consts or {}, event_consts or tuple({} for _ in events)
 
 
+_MESSAGE_COMMON = (
+    "new_message_id",
+    "message_type",
+    "sender_actor_id",
+    "recipient_actor_ids",
+    "audience",
+    "task_id",
+    "dispatch_id",
+    "attempt_id",
+    "review_id",
+    "decision_id",
+    "reply_to_message_id",
+    "thread_id",
+    "typed_subject",
+    "sensitivity_class",
+    "retention_class",
+    "body",
+    "body_artefact_ref",
+)
+
+
+def _message_d(message_type: str, *variant_fields: str, actionable: bool = False) -> _OperationData:
+    action_fields = ("requested_action", "deadline") if actionable else ()
+    fields = _MESSAGE_COMMON + action_fields + variant_fields
+    return _d(
+        fields,
+        fields + ("published_at",),
+        command_consts={"message_type": message_type},
+        event_consts=({"message_type": message_type},),
+    )
+
+
 _OPERATION_DATA: dict[str, _OperationData] = {
     "scope.create": _d(
-        ("new_scope_definition_id", "revision", "member_ids", "completion_predicate"),
-        ("scope_definition_id", "revision", "member_ids", "completion_predicate"),
+        (
+            "new_scope_definition_id",
+            "revision",
+            "members",
+            "dependencies",
+            "ordering_rules",
+            "completion_rule",
+            "authority_rule",
+            "effective_revision",
+            "effective_at",
+            "supersession_rule",
+            "supersession_lineage",
+        ),
+        (
+            "scope_definition_id",
+            "revision",
+            "members",
+            "dependencies",
+            "ordering_rules",
+            "completion_rule",
+            "authority_rule",
+            "effective_revision",
+            "effective_at",
+            "supersession_rule",
+            "supersession_lineage",
+            "created_at",
+        ),
     ),
     "scope.amend_revision": _d(
-        ("scope_definition_id", "revision", "member_dispositions", "amendment_reason"),
-        ("scope_definition_id", "revision", "member_dispositions", "amended_at"),
+        (
+            "scope_definition_id",
+            "revision",
+            "members",
+            "member_dispositions",
+            "dependencies",
+            "ordering_rules",
+            "completion_rule",
+            "authority_rule",
+            "effective_revision",
+            "effective_at",
+            "supersession_rule",
+            "supersession_lineage",
+            "amendment_reason",
+        ),
+        (
+            "scope_definition_id",
+            "revision",
+            "members",
+            "member_dispositions",
+            "dependencies",
+            "ordering_rules",
+            "completion_rule",
+            "authority_rule",
+            "effective_revision",
+            "effective_at",
+            "supersession_rule",
+            "supersession_lineage",
+            "amended_at",
+        ),
     ),
     "scope.supersede": _d(
         ("scope_definition_id", "superseding_scope_definition_id", "supersession_reason"),
         ("scope_definition_id", "superseding_scope_definition_id", "superseded_at"),
     ),
     "scope.complete": _d(
-        ("scope_definition_id", "scope_revision", "member_dispositions", "completion_evidence_ref"),
-        ("scope_definition_id", "scope_revision", "member_dispositions", "completed_at"),
+        (
+            "scope_definition_id",
+            "scope_revision",
+            "effective_revision",
+            "member_dispositions",
+            "completion_rule",
+            "completion_evidence_ref",
+        ),
+        (
+            "scope_definition_id",
+            "scope_revision",
+            "effective_revision",
+            "member_dispositions",
+            "completion_rule",
+            "completion_evidence_ref",
+            "completed_at",
+        ),
     ),
     "task.create": _d(
         ("new_task_id", "revision", "objective", "scope_definition_id", "acceptance_criteria_ref"),
@@ -632,147 +912,16 @@ _OPERATION_DATA: dict[str, _OperationData] = {
             "recorded_at",
         ),
     ),
-    "message.publish_assignment": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "task_id",
-            "dispatch_id",
-            "assignee_id",
-        ),
-        ("message_id", "message_type", "task_id", "dispatch_id", "assignee_id", "published_at"),
-        command_consts={"message_type": "assignment"},
-        event_consts=({"message_type": "assignment"},),
-    ),
-    "message.publish_acknowledgement": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "acknowledged_message_id",
-            "acknowledgement_body",
-        ),
-        ("message_id", "message_type", "acknowledged_message_id", "published_at"),
-        command_consts={"message_type": "acknowledgement"},
-        event_consts=({"message_type": "acknowledgement"},),
-    ),
-    "message.publish_progress": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "attempt_id",
-            "progress_evidence_ref",
-        ),
-        ("message_id", "message_type", "attempt_id", "progress_evidence_ref", "published_at"),
-        command_consts={"message_type": "progress"},
-        event_consts=({"message_type": "progress"},),
-    ),
-    "message.publish_input_request": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "task_id",
-            "input_requirement_id",
-        ),
-        ("message_id", "message_type", "task_id", "input_requirement_id", "published_at"),
-        command_consts={"message_type": "input_request"},
-        event_consts=({"message_type": "input_request"},),
-    ),
-    "message.publish_escalation": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "blocker_id",
-            "escalation_reason",
-        ),
-        ("message_id", "message_type", "blocker_id", "escalation_reason", "published_at"),
-        command_consts={"message_type": "escalation"},
-        event_consts=({"message_type": "escalation"},),
-    ),
-    "message.publish_report": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "attempt_id",
-            "report_artefact_id",
-        ),
-        ("message_id", "message_type", "attempt_id", "report_artefact_id", "published_at"),
-        command_consts={"message_type": "report"},
-        event_consts=({"message_type": "report"},),
-    ),
-    "message.publish_review_request": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "review_id",
-            "subject_artefact_id",
-        ),
-        ("message_id", "message_type", "review_id", "subject_artefact_id", "published_at"),
-        command_consts={"message_type": "review_request"},
-        event_consts=({"message_type": "review_request"},),
-    ),
-    "message.publish_review_response": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "review_id",
-            "verdict_id",
-        ),
-        ("message_id", "message_type", "review_id", "verdict_id", "published_at"),
-        command_consts={"message_type": "review_response"},
-        event_consts=({"message_type": "review_response"},),
-    ),
-    "message.publish_decision_request": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "decision_id",
-            "question",
-        ),
-        ("message_id", "message_type", "decision_id", "question", "published_at"),
-        command_consts={"message_type": "decision_request"},
-        event_consts=({"message_type": "decision_request"},),
-    ),
-    "message.publish_handoff": _d(
-        (
-            "new_message_id",
-            "message_type",
-            "sender_actor_id",
-            "recipient_actor_ids",
-            "thread_id",
-            "task_id",
-            "handoff_manifest_id",
-        ),
-        ("message_id", "message_type", "task_id", "handoff_manifest_id", "published_at"),
-        command_consts={"message_type": "handoff"},
-        event_consts=({"message_type": "handoff"},),
-    ),
+    "message.publish_assignment": _message_d("assignment", "assignee_id", actionable=True),
+    "message.publish_acknowledgement": _message_d("acknowledgement", "acknowledged_message_id"),
+    "message.publish_progress": _message_d("progress", "progress_evidence_ref"),
+    "message.publish_input_request": _message_d("input_request", "input_requirement_id", actionable=True),
+    "message.publish_escalation": _message_d("escalation", "blocker_id", "escalation_reason", actionable=True),
+    "message.publish_report": _message_d("report", "report_artefact_id"),
+    "message.publish_review_request": _message_d("review_request", "subject_artefact_id", actionable=True),
+    "message.publish_review_response": _message_d("review_response", "verdict_id"),
+    "message.publish_decision_request": _message_d("decision_request", "question", actionable=True),
+    "message.publish_handoff": _message_d("handoff", "handoff_manifest_id", actionable=True),
     "message.deliver": _d(
         ("message_id", "recipient_actor_id", "delivery_evidence_ref"),
         ("message_id", "recipient_actor_id", "delivered_at"),
@@ -985,6 +1134,96 @@ _OPERATION_DATA: dict[str, _OperationData] = {
 }
 
 
+# Independent W2/W8 minimum facts that refine the first-wave payload model.
+# Keys are exact owner rows; there is deliberately no family/default expansion.
+_COMMAND_FIELD_CORRECTIONS: dict[str, tuple[str, ...]] = {
+    "scope.amend_revision": ("new_scope_definition_id",),
+    "scope.supersede": ("replacement_scope_definition_id",),
+    "scope.complete": ("scope_definition_revision",),
+    "task.create": ("task_revision", "title", "acceptance_criteria"),
+    "task.amend_revision": ("new_task_revision", "effective_at"),
+    "task.request_readiness": ("readiness_evidence_refs",),
+    "task.approve_readiness": ("readiness_evidence_refs", "approval_basis"),
+    "task.block": ("resume_condition",),
+    "task.request_input": ("input_request_id", "requested_decision"),
+    "task.pause": ("resume_condition",),
+    "task.submit_review": ("attempt_id", "candidate_artefact_ids", "review_ids"),
+    "task.resume": ("resumption_basis", "prior_active_status"),
+    "task.accept": ("satisfied_review_ids", "accepted_artefact_ids"),
+    "task.close_partial": ("accepted_output_ids", "unmet_obligations", "claim_restrictions"),
+    "task.cancel": ("cancellation_reason", "attempt_dispositions"),
+    "task.supersede": ("replacement_task_id", "replacement_task_revision"),
+    "task.reopen_partial": ("new_execution_epoch",),
+    "task.reopen_rejected": ("new_execution_epoch",),
+    "task.reopen_cancelled": ("new_execution_epoch",),
+    "dispatch.issue": ("target_role",),
+    "dispatch.deliver": ("delivery_channel", "delivered_at"),
+    "dispatch.acknowledge": ("acknowledged_at",),
+    "dispatch.fulfil": ("outcome_ref",),
+    "lease.activate": ("holder_actor_id", "resource_grant_id", "process_identity_id"),
+    "lease.renew": ("new_expiry_at",),
+    "lease.release": ("released_at",),
+    "lease.revoke": ("revoked_at",),
+    "attempt.claim": ("claimed_at",),
+    "attempt.start": ("started_at",),
+    "attempt.complete": ("candidate_artefact_ids", "completed_at", "outcome_evidence_refs"),
+    "attempt.fail": ("evidence_refs", "failed_at"),
+    "attempt.partial": ("claim_restrictions", "completed_obligations", "unmet_obligations"),
+    "attempt.resume": ("compatibility_verdict",),
+    "attempt.request_stop": ("stop_deadline",),
+    "attempt.abandon": ("checkpoint_disposition",),
+    "attempt.supersede": ("replacement_attempt_id",),
+    "attempt.retry": ("prior_attempt_id", "reuse_declaration"),
+    "checkpoint.record": ("completed_work_units",),
+    "message.deliver": ("delivery_channel", "delivered_at"),
+    "message.acknowledge": ("acknowledged_at", "acknowledgement_evidence"),
+    "message.delivery_failure": ("failed_at",),
+    "blocker.record": ("responsible_owner",),
+    "blocker.resolve": ("resolution_evidence", "resolved_at"),
+    "artefact.availability": ("availability", "availability_evidence"),
+    "artefact.regenerability": ("regenerability", "regeneration_evidence"),
+    "artefact.integrity": ("integrity", "integrity_evidence"),
+    "artefact.structural_validation": ("validator_identity", "verdict"),
+    "artefact.scientific_review": ("scientific_review_status",),
+    "artefact.use_authority": ("consumer_restrictions",),
+    "artefact.supersede": ("replacement_artefact_id", "supersession_scope", "continuing_consumers"),
+    "review.request": ("subject_ids", "subject_hashes"),
+    "review.assign": ("independence_grade",),
+    "review.start": ("reviewer_session_id", "started_at"),
+    "review.record_verdict": ("findings", "reviewer_actor_id", "subject_hash"),
+    "review.request_changes": ("change_requests",),
+    "review.satisfy": ("satisfaction_basis", "satisfied_gate_id"),
+    "review.satisfy_after_changes": ("satisfaction_basis", "satisfied_gate_id"),
+    "review.withdraw": ("withdrawn_at",),
+    "review.supersede": ("replacement_review_id",),
+    "decision.propose": ("options",),
+    "decision.request_review": ("review_questions",),
+    "decision.resolve": ("decision_evidence_refs", "effective_at"),
+    "decision.reject": ("rejected_at",),
+    "decision.supersede": ("replacement_decision_id",),
+    "rule.evaluate": ("input_hashes", "output"),
+    "decision.amend": ("amended_fields", "new_decision_revision"),
+    "correction.record": ("corrected_evidence", "corrected_record_kind"),
+    "operator.request_resource_grant": ("operational_profile", "resource_request"),
+    "operator.claim_execution_lease": ("holder_actor_id",),
+    "operator.record_heartbeat": ("observed_at", "sequence", "work_unit_progress"),
+    "operator.confirm_pause": ("pause_disposition",),
+    "operator.request_stop": ("stop_deadline",),
+    "operator.confirm_stop": ("checkpoint_disposition", "process_disposition"),
+    "operator.release_resources": ("release_reason",),
+    "operator.quarantine_orphan": ("quarantine_reason", "recovery_evidence", "consumer_restrictions"),
+    "operator.create_backup": ("canonical_tail_hash", "snapshot_id"),
+    "operator.verify_restore": ("restore_verdict",),
+}
+
+
+for _key, _additions in _COMMAND_FIELD_CORRECTIONS.items():
+    _command, _events, _command_consts, _event_consts = _OPERATION_DATA[_key]
+    if set(_command) & set(_additions):
+        raise RuntimeError(f"duplicate WP6.1 corrected command field for {_key}")
+    _OPERATION_DATA[_key] = (_command + _additions, _events, _command_consts, _event_consts)
+
+
 def _resolver_for(key: str) -> Callable[[SourceRow], OperationSpec]:
     data = _OPERATION_DATA[key]
 
@@ -1009,6 +1248,17 @@ def _resolver_for(key: str) -> Callable[[SourceRow], OperationSpec]:
 ROW_RESOLVERS: dict[str, Callable[[SourceRow], OperationSpec]] = {key: _resolver_for(key) for key in _OPERATION_DATA}
 
 
+def _validate_object_spec(spec: ObjectSpec, *, context: str) -> None:
+    names = [field.name for field in spec.fields]
+    if len(names) != len(set(names)) or not names:
+        raise RuntimeError(f"WP6.1 duplicate/empty field model: {context}")
+    for field in spec.fields:
+        if not field.json_type or not field.citations:
+            raise RuntimeError(f"WP6.1 uncited/untyped field: {context}.{field.name}")
+        if field.object_spec is not None:
+            _validate_object_spec(field.object_spec, context=f"{context}.{field.name}")
+
+
 def resolve_operation_specs(repo_root: Path, rows: Iterable[SourceRow]) -> dict[str, OperationSpec]:
     """Resolve the exact 104-row semantic model after verifying all sources."""
     approved_source_bytes(repo_root, W2_SOURCE)
@@ -1024,6 +1274,14 @@ def resolve_operation_specs(repo_root: Path, rows: Iterable[SourceRow]) -> dict[
     resolved = {row.key: ROW_RESOLVERS[row.key](row) for row in row_list}
     if any(not spec.command_payload.fields or not spec.event_payloads for spec in resolved.values()):
         raise RuntimeError("WP6.1 operation model contains an empty payload")
+    for row in row_list:
+        operation = resolved[row.key]
+        expected_fields = _OPERATION_DATA[row.key][0]
+        if tuple(field.name for field in operation.command_payload.fields) != expected_fields:
+            raise RuntimeError(f"WP6.1 command field enumeration mismatch for {row.key}")
+        _validate_object_spec(operation.command_payload, context=f"{row.key}.command")
+        for event_type, payload in operation.event_payloads:
+            _validate_object_spec(payload, context=f"{row.key}.{event_type}")
     return resolved
 
 

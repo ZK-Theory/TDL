@@ -5,6 +5,12 @@
         {
           "additionalProperties": false,
           "properties": {
+            "failed_at": {
+              "format": "date-time",
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.delivery_failure` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
             "failure_reason": {
               "minLength": 1,
               "type": "string",
@@ -24,7 +30,8 @@
           "required": [
             "message_id",
             "recipient_actor_id",
-            "failure_reason"
+            "failure_reason",
+            "failed_at"
           ],
           "type": "object",
           "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.delivery_failure` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
