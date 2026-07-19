@@ -351,3 +351,66 @@ def test_wp6_1_public_registry_rejects_domain_omission_wrong_type_nested_extra_a
         mutator(candidate)
         with pytest.raises(SchemaError):
             registry.validate(schema["$id"], candidate)
+
+
+def test_wp6_1_scope_variants_bind_closed_member_and_disposition_facts() -> None:
+    catalogue, _ = _documents()
+    rows = {row["key"]: row for row in catalogue["rows"]}
+    create = _schema(rows["scope.create"]["command_schema_identity"]["command_schema_path"])
+    member = create["$defs"]["scope_member"]
+    assert member["additionalProperties"] is False
+    assert set(member["required"]) == {"member_id", "member_kind", "required_disposition"}
+    create_required = set(create["$defs"]["payload"]["oneOf"][0]["required"])
+    assert create_required >= {
+        "new_scope_definition_id",
+        "members",
+        "dependencies",
+        "ordering_rules",
+        "completion_rule",
+        "authority_rule",
+        "effective_at",
+        "supersession_rule",
+    }
+    for key in ("scope.amend_revision", "scope.complete"):
+        schema = _schema(rows[key]["command_schema_identity"]["command_schema_path"])
+        disposition = schema["$defs"]["member_disposition"]
+        assert disposition["additionalProperties"] is False
+        assert set(disposition["required"]) == {"member_id", "member_kind", "disposition"}
+
+
+_MESSAGE_UNIVERSAL = {
+    "new_message_id",
+    "message_type",
+    "sender_actor_id",
+    "recipient_actor_ids",
+    "audience",
+    "thread_id",
+    "reply_to_message_id",
+    "typed_subject",
+    "sensitivity_class",
+    "retention_class",
+}
+
+
+def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_exclusivity() -> None:
+    catalogue, _ = _documents()
+    row = next(item for item in catalogue["rows"] if item["key"] == "message.publish_assignment")
+    identities = [row["command_schema_identity"], row["event_schema_bindings"][0]]
+    registry = SchemaRegistry(SCHEMA_ROOT)
+    for identity in identities:
+        kind = "command" if "command_schema_path" in identity else "event"
+        schema = _schema(identity[f"{kind}_schema_path"])
+        variants = schema["$defs"]["payload"]["oneOf"]
+        assert len(variants) == 10
+        for index, variant in enumerate(variants):
+            assert set(variant["required"]) >= _MESSAGE_UNIVERSAL
+            assert {"required": ["body"]} in variant["oneOf"]
+            assert {"required": ["body_artefact_ref"]} in variant["oneOf"]
+            instance = _schema_value(schema, schema)
+            instance["payload"] = _schema_value(variant, schema)
+            registry.validate(schema["$id"], instance)
+            missing = json.loads(json.dumps(instance))
+            missing["payload"].pop("typed_subject")
+            with pytest.raises(SchemaError):
+                registry.validate(schema["$id"], missing)
+            assert index < 10

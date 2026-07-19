@@ -12,6 +12,7 @@ import pytest
 import yaml
 
 from research_system.errors import SchemaError
+from tests.research_system.contracts import wp6_1_materialization_validation as validation
 from tests.research_system.contracts.wp6_1_materialization_validation import (
     validate_wp6_1_contract_materialization,
 )
@@ -614,3 +615,14 @@ def test_wp6_1_runtime_observations_are_compared_to_a_separate_expected_producer
 
     with pytest.raises(SchemaError, match=r"observed runtime rows differ"):
         _validate_candidate(tmp_path, catalogue, identities, observed_runtime_rows=observed)
+
+
+def test_wp6_1_canonical_schema_digest_changes_when_same_path_bytes_change(tmp_path: Path) -> None:
+    schema_path = tmp_path / "candidate.schema.json"
+    schema_path.write_bytes(b'{"$id":"ars://test/first"}\n')
+    first = validation._canonical_schema_sha256(schema_path)
+
+    schema_path.write_bytes(b'{"$id":"ars://test/second"}\n')
+    second = validation._canonical_schema_sha256(schema_path)
+
+    assert first != second
