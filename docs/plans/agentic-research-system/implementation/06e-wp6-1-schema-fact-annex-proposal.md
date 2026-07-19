@@ -60,9 +60,9 @@ The following choices are not silently attributed to W2, W8, or 06d. Each appear
 | Artefact | Retention, sensitivity, provenance-class, and destination-class strings are explicit separately versioned runtime-policy inputs; generation cannot invent institutional classifications. |
 | Review | D1C-2a completes W2 verdict metadata, trace visibility, independence, and conditional-approval ownership; Task acceptance remains a distinct transition. |
 | Decision | Source-closed decision kinds; authority, subject, consequences, conditions, evidence, lifecycle, lineage, and effective-boundary fields are non-compensating. |
-| Rule evaluation | Estimand/object, compared subjects, metric, denominator, input IDs/hashes, validator, output, and evidence hash are explicit. |
+| Rule evaluation | Estimand/object, compared subjects, metric, denominator, input IDs/hashes, validator, output, and evidence hash are explicit. The `rule_evaluation -> type/validation_id (val_)` correction mapping is an owner-visible conservative cross-use: W2 assigns `val_` to ValidationRecord, not source-literally to RuleEvaluation. |
 | Correction | The literal 15-kind mapping freezes each corrected-record ID type, owner projection, governance correction index, subject field, and selector rule. Generation emits exactly 15 non-overlapping `oneOf` branches; a generic fallback is prohibited. |
-| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
+| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. `type/resource_id` unions sourced `rsq`/`rgr`/`rcf` components and `type/operation_id` unions sourced `hbt`/`pid`/`stp`/`rsd`/`rcv`/`opc`/`opr` components; both unions are owner-visible conservative selections, not source-literal families. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
 | Backup/recovery | Closed `external_artefacts` entries replace aggregate availability. A writer lease requires complete unique manifest coverage and every entry `available` with non-empty evidence; missing, inaccessible, quarantined, incomplete, or partial restore is diagnostic-only/no writer lease. |
 
 ## 5. Candidate resolver comparison — evidence, not authority
@@ -128,6 +128,8 @@ assert len(contract['command_root']['fields']) == 17
 assert len(contract['event_root']['fields']) == 27
 assert len(contract['family_specs']) == 14
 assert len(contract['shared_schema_rules']) == 17
+assert len(contract['decision_register']) == 12
+assert len({x['decision_id'] for x in contract['decision_register']}) == 12
 assert contract['cardinalities']['generated_schema_identities'] == 173
 assert contract['generation_contract']['byte_changing_choices_remaining'] == 0
 assert contract['generation_contract']['stage_1_ready'] is False
@@ -213,6 +215,7 @@ git diff --check
 - Confirm 104/106/87/86, 173 identities, 17/27 roots, 14 families, and 17 shared rules exactly; reject duplicates, omissions, aliases, dangling refs, or a zero/fallback branch.
 - Review all 104 command required-field selections and all 106 immutable fact selections against the complete family fields.
 - Review every `conservative_proposal`, every frozen decision-register selection, and the resolver delta; do not infer equivalence from similar names.
+- Confirm the two additional owner-visible identity selections: `rule_evaluation -> type/validation_id (val_)` is a conservative cross-use of W2's ValidationRecord grammar, and the resource/operation ID unions are conservative groupings of W8's separately sourced component prefixes.
 - Verify source-closed enums, especially review verdict, artefact availability/dimensions, operational profile, checkpoint compatibility, and corrected-record kind.
 - Confirm shared types are either one normalized fact or have an explicit discriminator/variant rule.
 - Confirm all five M-2 source groups and every 06d §1.4/W8 §§19–21 correction/recovery binding; prove all 15 correction branches are non-overlapping and cover their source-literal kinds, with no fallback. Confirm the external manifest is unique and complete and that any unavailable/evidence-less/partial restore is diagnostic-only with no writer lease.

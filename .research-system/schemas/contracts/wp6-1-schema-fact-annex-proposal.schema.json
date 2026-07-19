@@ -25,7 +25,7 @@
     "row_bindings": {"type": "array", "minItems": 104, "maxItems": 104, "items": {"$ref": "#/$defs/rowBinding"}},
     "generation_contract": {"$ref": "#/$defs/generationContract"},
     "schema_identity_rule": {"$ref": "#/$defs/schemaIdentityRule"},
-    "decision_register": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/proposalDecision"}}
+    "decision_register": {"type": "array", "minItems": 12, "maxItems": 12, "items": {"$ref": "#/$defs/proposalDecision"}}
   },
   "additionalProperties": false,
   "$defs": {
