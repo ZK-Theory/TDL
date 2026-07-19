@@ -380,3 +380,204 @@ def test_wp6_1_schema_identities_are_versioned_hash_bound_and_honestly_unmateria
             assert identity["materialization_status"] == "planned_unmaterialized"
             assert len(identity[f"{prefix}_identity_contract_sha256"]) == 64
             assert not (REPO_ROOT / identity[f"{prefix}_schema_path"]).exists()
+
+
+@pytest.mark.parametrize("key", [row["key"] for row in _load_documents()[0]["rows"]])
+def test_wp6_1_rejects_every_authority_subject_row_mutation(tmp_path: Path, key: str) -> None:
+    """Each approved row retains its own authority subject; no family-level shortcut."""
+    catalogue, identities = _load_documents()
+    authority = _row(catalogue, key)["authority"]
+    authority["authority_subject_kind"] = (
+        "project_store" if authority["authority_subject_kind"] != "project_store" else "task"
+    )
+    _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
+
+    with pytest.raises(SchemaError, match=rf"authority mismatch: {key}"):
+        _validate_candidate(tmp_path, catalogue, identities)
+
+
+@pytest.mark.parametrize(
+    ("target", "field", "replacement"),
+    [
+        pytest.param(
+            "command_schema_identity", "command_schema_id", "ars://core/command/RetainedTypeAlias", id="command-id"
+        ),
+        pytest.param("command_schema_identity", "command_schema_version", "9.9.9", id="command-version"),
+        pytest.param("command_schema_identity", "command_schema_sha256", "a" * 64, id="command-content-hash"),
+        pytest.param("event_schema_bindings", "event_schema_id", "ars://core/event/RetainedEventAlias", id="event-id"),
+        pytest.param("event_schema_bindings", "event_schema_version", "9.9.9", id="event-version"),
+        pytest.param("event_schema_bindings", "event_schema_sha256", "b" * 64, id="event-content-hash"),
+    ],
+)
+def test_wp6_1_rejects_retained_type_identity_component_mutations(
+    tmp_path: Path, target: str, field: str, replacement: str
+) -> None:
+    catalogue, identities = _load_documents()
+    for document in (catalogue, identities):
+        row = _row(document, "scope.create")
+        identity = row[target][0] if target == "event_schema_bindings" else row[target]
+        identity[field] = replacement
+        hash_field = (
+            "event_identity_contract_sha256"
+            if target == "event_schema_bindings"
+            else "command_identity_contract_sha256"
+        )
+        identity[hash_field] = _canonical_hash({name: value for name, value in identity.items() if name != hash_field})
+    _repair_hashes(identities, "row_identity_contract_sha256", "row_identity_multiset_sha256")
+    _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
+
+    with pytest.raises(SchemaError, match=r"schema identity mismatch"):
+        _validate_candidate(tmp_path, catalogue, identities)
+
+
+@pytest.mark.parametrize(
+    ("field_path", "replacement"),
+    [
+        pytest.param(("reducers",), [], id="reducer-omission"),
+        pytest.param(("projections",), ["governance"], id="wrong-projection"),
+        pytest.param(("projection_selector",), "projection_selector/foreign/v1", id="wrong-selector"),
+        pytest.param(("transition", "discriminator", "value"), "handoff", id="message-discriminator"),
+        pytest.param(("transition", "from_state"), "blocked", id="exact-edge"),
+        pytest.param(("ordered_events",), ["TaskClaimStarted", "DispatchClaimed"], id="event-reorder"),
+        pytest.param(("ordered_events",), [], id="event-omission"),
+    ],
+)
+def test_wp6_1_rejects_row_effect_and_order_mutations(
+    tmp_path: Path, field_path: tuple[str, ...], replacement: Any
+) -> None:
+    catalogue, identities = _load_documents()
+    row = _row(catalogue, "message.publish_assignment" if field_path[0] == "transition" else "task.claim_start")
+    current: Any = row
+    for field in field_path[:-1]:
+        current = current[field]
+    current[field_path[-1]] = replacement
+    _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
+
+    expected = (
+        "ordered event mismatch"
+        if field_path[0] == "ordered_events"
+        else (
+            "reducer effect mismatch"
+            if field_path[0] == "reducers"
+            else "projection"
+            if field_path[0] == "projections"
+            else "mismatch"
+        )
+    )
+    with pytest.raises(SchemaError, match=expected):
+        _validate_candidate(tmp_path, catalogue, identities)
+
+
+@pytest.mark.parametrize(
+    ("path", "replacement"),
+    [
+        pytest.param(("group",), "wrong_group", id="group"),
+        pytest.param(("cardinality",), 1, id="cardinality"),
+        pytest.param(("facets",), ["task.claim_start"], id="missing-dispatch-facet"),
+        pytest.param(("facets",), ["dispatch.claim"], id="missing-task-facet"),
+        pytest.param(("dispatch_authority_subject_source",), "payload.task_id", id="authority-subject"),
+        pytest.param(("stored_relation", "dispatch_task_id_source"), "payload.task_id", id="foreign-current-task"),
+        pytest.param(
+            ("stored_relation", "dispatch_task_revision_source"), "payload.task_revision", id="stale-dispatch-relation"
+        ),
+        pytest.param(
+            ("stored_relation", "payload_task_id_source"), "accepted_dispatch.task_id", id="payload-task-source"
+        ),
+        pytest.param(
+            ("stored_relation", "payload_task_revision_source"),
+            "accepted_dispatch.task_revision",
+            id="payload-revision-source",
+        ),
+        pytest.param(("lease_relation", "lease_task_id_source"), "payload.task_id", id="wrong-lease-task"),
+        pytest.param(
+            ("lease_relation", "lease_task_revision_source"), "payload.task_revision", id="wrong-lease-revision"
+        ),
+        pytest.param(("lease_relation", "lease_dispatch_id_source"), "payload.dispatch_id", id="wrong-lease-dispatch"),
+        pytest.param(("declared_write_set", "0", "stream_kind"), "task", id="write-set-kind"),
+        pytest.param(("declared_write_set", "0", "stream_id_source"), "payload.task_id", id="write-set-id"),
+        pytest.param(
+            ("declared_write_set", "0", "expected_version_source"),
+            "payload.expected_task_stream_version",
+            id="dispatch-version",
+        ),
+        pytest.param(
+            ("declared_write_set", "1", "expected_version_source"),
+            "payload.expected_dispatch_stream_version",
+            id="task-version",
+        ),
+        pytest.param(("ordered_events",), ["TaskClaimStarted", "DispatchClaimed"], id="batch-order-race"),
+        pytest.param(("required_mutations",), [], id="declared-race-catalogue"),
+        pytest.param(("unchanged_surfaces",), ["event_tail"], id="unchanged-surface"),
+    ],
+)
+def test_wp6_1_claim_dispatch_rejects_all_approved_relation_and_race_cases(
+    tmp_path: Path, path: tuple[str, ...], replacement: Any
+) -> None:
+    catalogue, identities = _load_documents()
+    for key in ("task.claim_start", "dispatch.claim"):
+        current: Any = _row(catalogue, key)["atomic_binding"]
+        for token in path[:-1]:
+            current = current[int(token)] if token.isdigit() else current[token]
+        current[path[-1]] = replacement
+    _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
+
+    with pytest.raises(SchemaError, match=r"atomic claim binding mismatch"):
+        _validate_candidate(tmp_path, catalogue, identities)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        pytest.param(
+            lambda selector: selector.__setitem__("selector_id", "projection_selector/foreign/v1"),
+            id="unknown-selector",
+        ),
+        pytest.param(lambda selector: selector.__setitem__("governance_index", "task"), id="missing-governance-index"),
+        pytest.param(
+            lambda selector: selector["mappings"].__setitem__(
+                0, {"corrected_record_kind": "task", "owner_projection": "scope"}
+            ),
+            id="swapped-owner",
+        ),
+        pytest.param(lambda selector: selector["mappings"].pop(), id="zero-owner"),
+        pytest.param(
+            lambda selector: selector["mappings"].append(copy.deepcopy(selector["mappings"][0])), id="multiple-owner"
+        ),
+    ],
+)
+def test_wp6_1_correction_selector_rejects_cardinality_and_owner_mutations(
+    tmp_path: Path, mutation: Callable[[Document], None]
+) -> None:
+    catalogue, identities = _load_documents()
+    mutation(catalogue["correction_selector"])
+    _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
+
+    with pytest.raises(SchemaError, match=r"closed correction selector mismatch"):
+        _validate_candidate(tmp_path, catalogue, identities)
+
+
+def _fixed_expected_runtime_rows() -> list[Mapping[str, Any]]:
+    """Expected values originate from a clean authority copy, never a candidate mutation."""
+    authoritative_catalogue, _ = _load_documents()
+    return _runtime_observations(authoritative_catalogue)
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        pytest.param("key", "scope.create_alias", id="runtime-key"),
+        pytest.param("command_type", "CreateScopeAlias", id="runtime-command-type"),
+        pytest.param("command_schema_id", "ars://core/command/CreateScopeAlias", id="runtime-command-id"),
+        pytest.param("ordered_events", ["ScopeCreatedAlias"], id="runtime-event-order"),
+        pytest.param("event_schema_ids", ["ars://core/event/ScopeCreatedAlias"], id="runtime-event-id"),
+    ],
+)
+def test_wp6_1_runtime_observations_are_compared_to_a_separate_expected_producer(
+    tmp_path: Path, field: str, replacement: Any
+) -> None:
+    catalogue, identities = _load_documents()
+    observed = [dict(item) for item in _fixed_expected_runtime_rows()]
+    observed[0][field] = replacement
+
+    with pytest.raises(SchemaError, match=r"observed runtime rows differ"):
+        _validate_candidate(tmp_path, catalogue, identities, observed_runtime_rows=observed)
