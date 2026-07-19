@@ -188,9 +188,12 @@ _EVENT_ROOT_REQUIRED = {
     "transaction_index",
     "transaction_count",
     "command_id",
+    "command_type",
     "command_schema_id",
     "command_schema_version",
     "command_schema_sha256",
+    "idempotency_key",
+    "command_payload_hash",
     "correlation_id",
     "causation_id",
     "actor_id",
@@ -200,11 +203,6 @@ _EVENT_ROOT_REQUIRED = {
     "payload",
     "previous_event_hash",
     "event_hash",
-    "event_schema_id",
-    "event_schema_version",
-    "event_schema_sha256",
-    "reducer_id",
-    "projection_targets",
 }
 
 
