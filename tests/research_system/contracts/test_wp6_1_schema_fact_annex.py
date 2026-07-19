@@ -1,0 +1,243 @@
+"""Independent source-fact checks for the proposed WP6.1 annex."""
+
+from __future__ import annotations
+
+import copy
+from pathlib import Path
+from typing import Any
+
+import pytest
+import yaml
+
+from tests.research_system.contracts.wp6_1_schema_fact_oracle import (
+    COMPLETE_SOURCE_GROUP_FIELDS,
+    SOURCE_CLOSED_ENUMS,
+    SOURCE_DOCUMENTS,
+    SOURCE_REVISION,
+    assert_all_binding_targets_resolve,
+    assert_complete_source_groups,
+    assert_conservative_identity_selections_are_explicit,
+    assert_correction_and_recovery,
+    assert_exact_roots,
+    assert_generation_boundary,
+    assert_owner_rows_and_bindings,
+    assert_required_source_facts_bound,
+    assert_shared_rules,
+    assert_type_and_enum_authority,
+    immutable_source_bytes,
+    parse_owner_rows,
+    writer_lease_allowed,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PROPOSAL_PATH = REPO_ROOT / ".research-system" / "contracts" / "wp6-1-schema-fact-annex-proposal.yaml"
+
+
+@pytest.fixture(scope="module")
+def proposal() -> dict[str, Any]:
+    return yaml.safe_load(PROPOSAL_PATH.read_bytes())
+
+
+@pytest.fixture(scope="module")
+def owner_rows() -> tuple[Any, ...]:
+    return parse_owner_rows(immutable_source_bytes(REPO_ROOT, "06d"))
+
+
+def _object(subject: dict[str, Any], object_id: str) -> dict[str, Any]:
+    return next(item for item in subject["reusable_objects"] if item["object_id"] == object_id)
+
+
+def _enum(subject: dict[str, Any], enum_id: str) -> dict[str, Any]:
+    return next(item for item in subject["source_closed_enums"] if item["enum_id"] == enum_id)
+
+
+def _type(subject: dict[str, Any], type_id: str) -> dict[str, Any]:
+    return next(item for item in subject["primitive_types"] if item["type_id"] == type_id)
+
+
+def test_wp6_1_fact_annex_binds_the_exact_immutable_w2_w8_and_06d_bytes(proposal: dict[str, Any]) -> None:
+    expected_documents = []
+    for source_id, (path, git_blob_id, sha256) in SOURCE_DOCUMENTS.items():
+        immutable_source_bytes(REPO_ROOT, source_id)
+        expected_documents.append(
+            {
+                "source_id": source_id,
+                "repository_path": path,
+                "git_revision": SOURCE_REVISION,
+                "git_blob_id": git_blob_id,
+                "canonical_utf8_lf_sha256": sha256,
+            }
+        )
+    assert proposal["source_documents"] == expected_documents
+
+
+def test_wp6_1_fact_annex_independently_recovers_all_rows_and_ordered_events(
+    proposal: dict[str, Any], owner_rows: tuple[Any, ...]
+) -> None:
+    assert len(owner_rows) == 104
+    assert sum(len(row.event_types) for row in owner_rows) == 106
+    assert len({row.command_type for row in owner_rows}) == 87
+    assert len({event for row in owner_rows for event in row.event_types}) == 86
+    assert_owner_rows_and_bindings(proposal, owner_rows)
+
+
+def test_wp6_1_fact_annex_has_exact_closed_roots_including_command_project_id(proposal: dict[str, Any]) -> None:
+    assert_exact_roots(proposal)
+
+
+def test_wp6_1_fact_annex_closes_source_enums_id_grammars_and_p0_integer_bounds(proposal: dict[str, Any]) -> None:
+    assert_type_and_enum_authority(proposal)
+
+
+@pytest.mark.parametrize(
+    ("enum_id", "invented"),
+    [
+        ("enum/review_verdict", "invented_verdict"),
+        ("enum/availability", "invented_availability"),
+        ("enum/operational_profile", "invented_profile"),
+        ("enum/checkpoint_compatibility", "invented_compatibility"),
+    ],
+)
+def test_wp6_1_public_closed_vocabulary_probe_rejects_invented_values(
+    proposal: dict[str, Any], enum_id: str, invented: str
+) -> None:
+    assert invented not in _enum(proposal, enum_id)["values"]
+    assert invented not in SOURCE_CLOSED_ENUMS[enum_id]
+
+
+def test_wp6_1_fact_annex_contains_each_complete_high_risk_source_group(proposal: dict[str, Any]) -> None:
+    assert_complete_source_groups(proposal)
+
+
+def test_wp6_1_fact_annex_resolves_every_source_fact_binding_target(proposal: dict[str, Any]) -> None:
+    assert_all_binding_targets_resolve(proposal)
+
+
+def test_wp6_1_fact_annex_does_not_omit_a_required_source_fact_binding(proposal: dict[str, Any]) -> None:
+    assert_required_source_facts_bound(proposal)
+
+
+def test_wp6_1_fact_annex_freezes_all_shared_command_and_event_normalizations(proposal: dict[str, Any]) -> None:
+    assert_shared_rules(proposal)
+
+
+def test_wp6_1_fact_annex_closes_all_correction_and_recovery_relations(proposal: dict[str, Any]) -> None:
+    assert_correction_and_recovery(proposal)
+
+
+def test_wp6_1_fact_annex_keeps_generation_deterministic_pending_and_non_runtime(proposal: dict[str, Any]) -> None:
+    assert_generation_boundary(proposal)
+
+
+def test_wp6_1_non_source_literal_identity_unions_are_separately_labelled_for_approval(
+    proposal: dict[str, Any],
+) -> None:
+    assert_conservative_identity_selections_are_explicit(proposal)
+
+
+@pytest.mark.parametrize(
+    ("object_id", "field_name"),
+    [(object_id, field) for object_id, fields in COMPLETE_SOURCE_GROUP_FIELDS.items() for field in sorted(fields)],
+)
+def test_wp6_1_omitting_any_high_risk_source_fact_is_rejected(
+    proposal: dict[str, Any], object_id: str, field_name: str
+) -> None:
+    candidate = copy.deepcopy(proposal)
+    owner = _object(candidate, object_id)
+    owner["fields"] = [item for item in owner["fields"] if item["field_name"] != field_name]
+    with pytest.raises(AssertionError):
+        assert_complete_source_groups(candidate)
+
+
+@pytest.mark.parametrize(
+    ("kind", "identifier"),
+    [
+        ("enum", "enum/review_verdict"),
+        ("enum", "enum/availability"),
+        ("enum", "enum/operational_profile"),
+        ("enum", "enum/checkpoint_compatibility"),
+        ("id", "type/task_id"),
+        ("id", "type/resource_request_id"),
+        ("integer", "type/nonnegative_integer"),
+        ("integer", "type/positive_integer"),
+    ],
+)
+def test_wp6_1_widening_an_enum_id_or_integer_is_rejected(proposal: dict[str, Any], kind: str, identifier: str) -> None:
+    candidate = copy.deepcopy(proposal)
+    if kind == "enum":
+        _enum(candidate, identifier)["values"].append("invented")
+    elif kind == "id":
+        _type(candidate, identifier)["pattern"] = ".+"
+    else:
+        _type(candidate, identifier)["maximum"] = 2**63
+    with pytest.raises(AssertionError):
+        assert_type_and_enum_authority(candidate)
+
+
+def test_wp6_1_adding_a_generic_correction_fallback_is_rejected(proposal: dict[str, Any]) -> None:
+    candidate = copy.deepcopy(proposal)
+    candidate["correction_variant_mappings"].append(
+        {
+            "corrected_record_kind": "generic",
+            "subject_id_type_ref": "type/any_id",
+            "owner_projection": "governance",
+            "governance_correction_index": "governance_correction_index",
+            "subject_field": "erroneous_record_id",
+            "projection_selector_rule": "fallback",
+        }
+    )
+    with pytest.raises(AssertionError):
+        assert_correction_and_recovery(candidate)
+
+
+def test_wp6_1_changing_owner_row_order_is_rejected(proposal: dict[str, Any], owner_rows: tuple[Any, ...]) -> None:
+    candidate = copy.deepcopy(proposal)
+    candidate["command_payload_specs"][0], candidate["command_payload_specs"][1] = (
+        candidate["command_payload_specs"][1],
+        candidate["command_payload_specs"][0],
+    )
+    with pytest.raises(AssertionError):
+        assert_owner_rows_and_bindings(candidate, owner_rows)
+
+
+@pytest.mark.parametrize("stale_field", ["external_artefact_refs", "external_availability"])
+def test_wp6_1_reintroducing_a_stale_parallel_recovery_field_is_rejected(
+    proposal: dict[str, Any], stale_field: str
+) -> None:
+    candidate = copy.deepcopy(proposal)
+    family = next(item for item in candidate["family_specs"] if item["family_id"] == "family/backup_recovery")
+    family["fields"].append(
+        {
+            "field_name": stale_field,
+            "type_ref": "type/nonempty_string",
+            "nullable": False,
+            "source_citation": "stale",
+            "decision_basis": "conservative_proposal",
+        }
+    )
+    with pytest.raises(AssertionError):
+        assert_correction_and_recovery(candidate)
+
+
+def test_wp6_1_recovery_writer_lease_requires_unique_complete_available_evidence() -> None:
+    expected = {("art_a", "a" * 64), ("art_b", "b" * 64)}
+    valid = [
+        {
+            "artefact_id": artefact_id,
+            "content_sha256": digest,
+            "availability": "available",
+            "availability_evidence_refs": ["evidence"],
+        }
+        for artefact_id, digest in sorted(expected)
+    ]
+    assert writer_lease_allowed(valid, expected)
+    for mutation in (
+        valid[:1],
+        [valid[0], valid[0]],
+        [{**valid[0], "availability": "missing"}, valid[1]],
+        [{**valid[0], "availability": "inaccessible"}, valid[1]],
+        [{**valid[0], "availability": "quarantined"}, valid[1]],
+        [{**valid[0], "availability_evidence_refs": []}, valid[1]],
+    ):
+        assert not writer_lease_allowed(mutation, expected)
