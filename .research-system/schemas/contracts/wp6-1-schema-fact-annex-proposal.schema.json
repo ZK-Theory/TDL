@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://contracts/wp6-1-schema-fact-annex-proposal",
   "type": "object",
-  "required": ["schema_id", "schema_version", "proposal_id", "proposal_status", "source_documents", "cardinalities", "primitive_types", "source_closed_enums", "reusable_objects", "source_fact_bindings", "family_specs", "command_root", "event_root", "command_payload_specs", "event_fact_specs", "shared_schema_rules", "row_bindings", "generation_contract", "schema_identity_rule", "decision_register"],
+  "required": ["schema_id", "schema_version", "proposal_id", "proposal_status", "source_documents", "cardinalities", "primitive_types", "source_closed_enums", "correction_variant_mappings", "recovery_external_artefact_rules", "reusable_objects", "source_fact_bindings", "family_specs", "command_root", "event_root", "command_payload_specs", "event_fact_specs", "shared_schema_rules", "row_bindings", "generation_contract", "schema_identity_rule", "decision_register"],
   "properties": {
     "schema_id": {"const": "ars://contracts/wp6-1-schema-fact-annex-proposal"},
     "schema_version": {"const": "1.0.0"},
@@ -12,6 +12,8 @@
     "cardinalities": {"$ref": "#/$defs/cardinalities"},
     "primitive_types": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/primitiveType"}},
     "source_closed_enums": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/enumSpec"}},
+    "correction_variant_mappings": {"$ref": "#/$defs/correctionVariantMappings"},
+    "recovery_external_artefact_rules": {"$ref": "#/$defs/recoveryExternalArtefactRules"},
     "reusable_objects": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/objectSpec"}},
     "source_fact_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceFactBinding"}},
     "family_specs": {"type": "array", "minItems": 14, "maxItems": 14, "items": {"$ref": "#/$defs/familySpec"}},
@@ -45,7 +47,7 @@
     "primitiveType": {
       "type": "object",
       "required": ["type_id", "json_type", "nullable", "source_citation", "decision_basis"],
-      "properties": {"type_id": {"type": "string", "pattern": "^type/[a-z0-9_]+$"}, "json_type": {"enum": ["string", "integer", "number", "boolean", "array", "object"]}, "nullable": {"type": "boolean"}, "pattern": {"type": "string"}, "format": {"type": "string"}, "minimum": {"type": "number"}, "maximum": {"type": "number"}, "min_length": {"type": "integer", "minimum": 0}, "item_type_ref": {"type": "string", "pattern": "^(type|object)/[a-z0-9_]+$"}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "properties": {"type_id": {"type": "string", "pattern": "^type/[a-z0-9_]+$"}, "json_type": {"enum": ["string", "integer", "number", "boolean", "array", "object"]}, "nullable": {"type": "boolean"}, "pattern": {"type": "string"}, "format": {"type": "string"}, "minimum": {"type": "number"}, "maximum": {"type": "number"}, "min_length": {"type": "integer", "minimum": 0}, "min_items": {"type": "integer", "minimum": 0}, "item_type_ref": {"type": "string", "pattern": "^(type|object)/[a-z0-9_]+$"}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
       "additionalProperties": false
     },
     "enumSpec": {
@@ -66,10 +68,44 @@
       "properties": {"object_id": {"type": "string", "pattern": "^object/[a-z0-9_]+$"}, "additional_properties": {"const": false}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}, "fields": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fieldSpec"}}},
       "additionalProperties": false
     },
+    "correctionVariantMapping": {
+      "type": "object",
+      "required": ["corrected_record_kind", "subject_id_type_ref", "owner_projection", "governance_correction_index", "subject_field", "projection_selector_rule"],
+      "properties": {"corrected_record_kind": {"enum": ["scope_definition", "task", "dispatch", "lease", "attempt", "checkpoint", "message", "blocker", "artefact", "review", "decision", "rule_evaluation", "resource", "operation", "backup"]}, "subject_id_type_ref": {"enum": ["type/object_id", "type/task_id", "type/dispatch_id", "type/lease_id", "type/attempt_id", "type/checkpoint_manifest_id", "type/message_id", "type/blocker_id", "type/artefact_id", "type/review_id", "type/decision_id", "type/validation_id", "type/resource_id", "type/operation_id", "type/backup_receipt_id"]}, "owner_projection": {"enum": ["scope", "task", "dispatch", "lease", "attempt", "checkpoint", "message", "blocker", "artefact", "review", "decision", "rule_evaluation", "resource", "operations", "backup"]}, "governance_correction_index": {"const": "governance_correction_index"}, "subject_field": {"const": "erroneous_record_id"}, "projection_selector_rule": {"const": "exactly_one_owner_projection_plus_governance_correction_index"}},
+      "oneOf": [
+        {"properties": {"corrected_record_kind": {"const": "scope_definition"}, "subject_id_type_ref": {"const": "type/object_id"}, "owner_projection": {"const": "scope"}}},
+        {"properties": {"corrected_record_kind": {"const": "task"}, "subject_id_type_ref": {"const": "type/task_id"}, "owner_projection": {"const": "task"}}},
+        {"properties": {"corrected_record_kind": {"const": "dispatch"}, "subject_id_type_ref": {"const": "type/dispatch_id"}, "owner_projection": {"const": "dispatch"}}},
+        {"properties": {"corrected_record_kind": {"const": "lease"}, "subject_id_type_ref": {"const": "type/lease_id"}, "owner_projection": {"const": "lease"}}},
+        {"properties": {"corrected_record_kind": {"const": "attempt"}, "subject_id_type_ref": {"const": "type/attempt_id"}, "owner_projection": {"const": "attempt"}}},
+        {"properties": {"corrected_record_kind": {"const": "checkpoint"}, "subject_id_type_ref": {"const": "type/checkpoint_manifest_id"}, "owner_projection": {"const": "checkpoint"}}},
+        {"properties": {"corrected_record_kind": {"const": "message"}, "subject_id_type_ref": {"const": "type/message_id"}, "owner_projection": {"const": "message"}}},
+        {"properties": {"corrected_record_kind": {"const": "blocker"}, "subject_id_type_ref": {"const": "type/blocker_id"}, "owner_projection": {"const": "blocker"}}},
+        {"properties": {"corrected_record_kind": {"const": "artefact"}, "subject_id_type_ref": {"const": "type/artefact_id"}, "owner_projection": {"const": "artefact"}}},
+        {"properties": {"corrected_record_kind": {"const": "review"}, "subject_id_type_ref": {"const": "type/review_id"}, "owner_projection": {"const": "review"}}},
+        {"properties": {"corrected_record_kind": {"const": "decision"}, "subject_id_type_ref": {"const": "type/decision_id"}, "owner_projection": {"const": "decision"}}},
+        {"properties": {"corrected_record_kind": {"const": "rule_evaluation"}, "subject_id_type_ref": {"const": "type/validation_id"}, "owner_projection": {"const": "rule_evaluation"}}},
+        {"properties": {"corrected_record_kind": {"const": "resource"}, "subject_id_type_ref": {"const": "type/resource_id"}, "owner_projection": {"const": "resource"}}},
+        {"properties": {"corrected_record_kind": {"const": "operation"}, "subject_id_type_ref": {"const": "type/operation_id"}, "owner_projection": {"const": "operations"}}},
+        {"properties": {"corrected_record_kind": {"const": "backup"}, "subject_id_type_ref": {"const": "type/backup_receipt_id"}, "owner_projection": {"const": "backup"}}}
+      ],
+      "additionalProperties": false
+    },
+    "correctionVariantMappings": {
+      "type": "array", "minItems": 15, "maxItems": 15, "uniqueItems": true, "items": {"$ref": "#/$defs/correctionVariantMapping"},
+      "allOf": [
+        {"contains": {"properties": {"corrected_record_kind": {"const": "scope_definition"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "task"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "dispatch"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "lease"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "attempt"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "checkpoint"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "message"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "blocker"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "artefact"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "review"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "decision"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "rule_evaluation"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "resource"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "operation"}}}, "minContains": 1, "maxContains": 1}, {"contains": {"properties": {"corrected_record_kind": {"const": "backup"}}}, "minContains": 1, "maxContains": 1}
+      ]
+    },
+    "recoveryExternalArtefactRules": {
+      "type": "object", "required": ["external_artefact_field", "entry_object_ref", "entry_identity_fields", "availability_evidence_field", "uniqueness_rule", "manifest_coverage_rule", "writer_lease_rule", "diagnostic_only_conditions"],
+      "properties": {"external_artefact_field": {"const": "external_artefacts"}, "entry_object_ref": {"const": "object/external_artefact_availability"}, "entry_identity_fields": {"const": ["artefact_id", "content_sha256"]}, "availability_evidence_field": {"const": "availability_evidence_refs"}, "uniqueness_rule": {"const": "unique_by_artefact_id_and_content_sha256"}, "manifest_coverage_rule": {"const": "every_external_manifest_reference_exactly_once"}, "writer_lease_rule": {"const": "every_entry_available_with_nonempty_evidence_before_writer_lease"}, "diagnostic_only_conditions": {"const": ["missing", "inaccessible", "quarantined", "missing_availability_evidence", "incomplete_manifest_coverage", "partial_restore"]}},
+      "additionalProperties": false
+    },
     "sourceFactBinding": {
       "type": "object",
       "required": ["binding_id", "source_id", "source_section", "source_fact", "target_path", "decision_basis"],
-      "properties": {"binding_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}, "source_id": {"enum": ["W2", "W8", "06d"]}, "source_section": {"type": "string", "minLength": 1}, "source_fact": {"type": "string", "minLength": 1}, "target_path": {"type": "string", "pattern": "^(object|family)/[a-z0-9_]+\\.(?:[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*|\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})(?:\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})?$"}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "properties": {"binding_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}, "source_id": {"enum": ["W2", "W8", "06d"]}, "source_section": {"type": "string", "minLength": 1}, "source_fact": {"type": "string", "minLength": 1}, "target_path": {"type": "string", "pattern": "^(?:(?:object|family)/[a-z0-9_]+\\.(?:[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*|\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})(?:\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})?|correction_variant_mappings\\{corrected_record_kind=[a-z_]+\\}\\.[a-z][a-z0-9_]*|recovery_external_artefact_rules\\.[a-z][a-z0-9_]*)$"}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
       "additionalProperties": false
     },
     "familySpec": {
@@ -117,8 +153,8 @@
     },
     "generationContract": {
       "type": "object",
-      "required": ["mode", "byte_changing_choices_remaining", "generator_runtime_authority", "generated_schema_identity_count", "open_policy_vocabularies", "institutional_classifications", "stage_1_ready", "pending_r3_remediation"],
-      "properties": {"mode": {"const": "deterministic_total_function"}, "byte_changing_choices_remaining": {"const": 0}, "generator_runtime_authority": {"const": false}, "generated_schema_identity_count": {"const": 173}, "open_policy_vocabularies": {"const": "versioned_runtime_policy_gate_only"}, "institutional_classifications": {"const": "versioned_runtime_policy_gate_only"}, "stage_1_ready": {"const": false}, "pending_r3_remediation": {"type": "array", "const": ["M-5_correction_and_recovery_shapes"]}},
+      "required": ["mode", "byte_changing_choices_remaining", "generator_runtime_authority", "generated_schema_identity_count", "open_policy_vocabularies", "institutional_classifications", "stage_1_ready", "pending_r3_remediation", "readiness_blockers"],
+      "properties": {"mode": {"const": "deterministic_total_function"}, "byte_changing_choices_remaining": {"const": 0}, "generator_runtime_authority": {"const": false}, "generated_schema_identity_count": {"const": 173}, "open_policy_vocabularies": {"const": "versioned_runtime_policy_gate_only"}, "institutional_classifications": {"const": "versioned_runtime_policy_gate_only"}, "stage_1_ready": {"const": false}, "pending_r3_remediation": {"const": []}, "readiness_blockers": {"const": ["independent_source_fact_oracle", "fresh_exact_byte_review", "explicit_owner_approval"]}},
       "additionalProperties": false
     },
     "schemaIdentityRule": {
@@ -130,7 +166,7 @@
     "proposalDecision": {
       "type": "object",
       "required": ["decision_id", "family_ref", "selection_kind", "selected_rule", "generator_byte_change_allowed", "source_citation", "decision_basis"],
-      "properties": {"decision_id": {"type": "string", "pattern": "^proposal_decision/[a-z0-9_]+$"}, "family_ref": {"type": "string", "pattern": "^family/[a-z0-9_]+$"}, "selection_kind": {"enum": ["generation_rule", "runtime_policy_gate", "pending_r3_remediation"]}, "selected_rule": {"type": "string", "minLength": 1}, "generator_byte_change_allowed": {"const": false}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"const": "conservative_proposal"}},
+      "properties": {"decision_id": {"type": "string", "pattern": "^proposal_decision/[a-z0-9_]+$"}, "family_ref": {"type": "string", "pattern": "^family/[a-z0-9_]+$"}, "selection_kind": {"enum": ["generation_rule", "runtime_policy_gate"]}, "selected_rule": {"type": "string", "minLength": 1}, "generator_byte_change_allowed": {"const": false}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"const": "conservative_proposal"}},
       "additionalProperties": false
     }
   }

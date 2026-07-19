@@ -49,8 +49,10 @@ primitive_types:
 - {type_id: type/operator_command_id, json_type: string, nullable: false, pattern: '^opc_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
 - {type_id: type/operator_receipt_id, json_type: string, nullable: false, pattern: '^opr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
 - {type_id: type/resource_id, json_type: string, nullable: false, pattern: '^(rsq|rgr|rcf)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 resource identity union, decision_basis: source_literal}
+- {type_id: type/operation_id, json_type: string, nullable: false, pattern: '^(hbt|pid|stp|rsd|rcv|opc|opr)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 operational identity union, decision_basis: source_literal}
 - {type_id: type/git_object_identity, json_type: string, nullable: false, pattern: '^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$', source_citation: W2 §12.1 expected_commit, decision_basis: conservative_proposal}
 - {type_id: type/string_list, json_type: array, nullable: false, item_type_ref: type/nonempty_string, source_citation: W2 repeated typed references, decision_basis: conservative_proposal}
+- {type_id: type/nonempty_evidence_ref_list, json_type: array, nullable: false, min_items: 1, item_type_ref: type/nonempty_string, source_citation: W8 §19 external availability evidence, decision_basis: conservative_proposal}
 - {type_id: type/id_list, json_type: array, nullable: false, item_type_ref: type/any_id, source_citation: W2 repeated typed references, decision_basis: conservative_proposal}
 - {type_id: type/hash_list, json_type: array, nullable: false, item_type_ref: type/sha256, source_citation: W2 immutable subject sets, decision_basis: conservative_proposal}
 - {type_id: type/alias_list, json_type: array, nullable: false, item_type_ref: object/alias, source_citation: W2 §§10.1 and 24.1, decision_basis: conservative_proposal}
@@ -58,6 +60,7 @@ primitive_types:
 - {type_id: type/root_binding_list, json_type: array, nullable: false, item_type_ref: object/root_binding, source_citation: W2 §12.1 and W8 §7, decision_basis: conservative_proposal}
 - {type_id: type/member_disposition_list, json_type: array, nullable: false, item_type_ref: object/member_disposition, source_citation: W2 §10.2, decision_basis: conservative_proposal}
 - {type_id: type/hashed_ref_list, json_type: array, nullable: false, item_type_ref: object/hashed_ref, source_citation: W2 immutable subject sets, decision_basis: conservative_proposal}
+- {type_id: type/external_artefact_availability_list, json_type: array, nullable: false, item_type_ref: object/external_artefact_availability, source_citation: W8 §19 external artefact manifest and availability, decision_basis: conservative_proposal}
 - {type_id: type/artefact_input_dependency_list, json_type: array, nullable: false, item_type_ref: object/artefact_input_dependency, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
 source_closed_enums:
 - {enum_id: enum/task_status, values: [draft, readiness_pending, ready, in_progress, review_pending, blocked, input_required, paused, accepted, rejected, partial, cancelled, superseded], source_citation: W2 §11.1, decision_basis: source_literal}
@@ -86,6 +89,31 @@ source_closed_enums:
 - {enum_id: enum/profile_applicability, values: [required, not_applicable], source_citation: W8 §11.1 evidence-group applicability only, decision_basis: source_literal}
 - {enum_id: enum/access_mode, values: [read_only, create_only, append_only, read_write], source_citation: W2 §12.1 selected generation rule, decision_basis: conservative_proposal}
 - {enum_id: enum/corrected_record_kind, values: [scope_definition, task, dispatch, lease, attempt, checkpoint, message, blocker, artefact, review, decision, rule_evaluation, resource, operation, backup], source_citation: 06d §1.4, decision_basis: source_literal}
+correction_variant_mappings:
+- {corrected_record_kind: scope_definition, subject_id_type_ref: type/object_id, owner_projection: scope, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: task, subject_id_type_ref: type/task_id, owner_projection: task, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: dispatch, subject_id_type_ref: type/dispatch_id, owner_projection: dispatch, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: lease, subject_id_type_ref: type/lease_id, owner_projection: lease, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: attempt, subject_id_type_ref: type/attempt_id, owner_projection: attempt, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: checkpoint, subject_id_type_ref: type/checkpoint_manifest_id, owner_projection: checkpoint, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: message, subject_id_type_ref: type/message_id, owner_projection: message, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: blocker, subject_id_type_ref: type/blocker_id, owner_projection: blocker, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: artefact, subject_id_type_ref: type/artefact_id, owner_projection: artefact, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: review, subject_id_type_ref: type/review_id, owner_projection: review, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: decision, subject_id_type_ref: type/decision_id, owner_projection: decision, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: rule_evaluation, subject_id_type_ref: type/validation_id, owner_projection: rule_evaluation, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: resource, subject_id_type_ref: type/resource_id, owner_projection: resource, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: operation, subject_id_type_ref: type/operation_id, owner_projection: operations, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+- {corrected_record_kind: backup, subject_id_type_ref: type/backup_receipt_id, owner_projection: backup, governance_correction_index: governance_correction_index, subject_field: erroneous_record_id, projection_selector_rule: exactly_one_owner_projection_plus_governance_correction_index}
+recovery_external_artefact_rules:
+  external_artefact_field: external_artefacts
+  entry_object_ref: object/external_artefact_availability
+  entry_identity_fields: [artefact_id, content_sha256]
+  availability_evidence_field: availability_evidence_refs
+  uniqueness_rule: unique_by_artefact_id_and_content_sha256
+  manifest_coverage_rule: every_external_manifest_reference_exactly_once
+  writer_lease_rule: every_entry_available_with_nonempty_evidence_before_writer_lease
+  diagnostic_only_conditions: [missing, inaccessible, quarantined, missing_availability_evidence, incomplete_manifest_coverage, partial_restore]
 reusable_objects:
 - object_id: object/alias
   additional_properties: false
@@ -117,6 +145,15 @@ reusable_objects:
   fields:
   - {field_name: record_id, type_ref: type/any_id, nullable: false, source_citation: W2 §7, decision_basis: conservative_proposal}
   - {field_name: content_sha256, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1, decision_basis: source_literal}
+- object_id: object/external_artefact_availability
+  additional_properties: false
+  source_citation: W8 §19
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: W8 §19 external artefact manifest, decision_basis: source_literal}
+  - {field_name: content_sha256, type_ref: type/sha256, nullable: false, source_citation: W8 §19 external artefact manifest integrity, decision_basis: source_literal}
+  - {field_name: availability, type_ref: enum/availability, nullable: false, source_citation: W8 §19 external artefact availability status, decision_basis: source_literal}
+  - {field_name: availability_evidence_refs, type_ref: type/nonempty_evidence_ref_list, nullable: false, source_citation: W8 §§19-21 availability proof before writer lease, decision_basis: conservative_proposal}
 - object_id: object/member_disposition
   additional_properties: false
   source_citation: W2 §10.2
@@ -620,6 +657,27 @@ source_fact_bindings:
 - {binding_id: trivial_provider_command, source_id: W8, source_section: '12', source_fact: 'Trivial provider command identity', target_path: 'object/resource_request.trivial_profile_evidence.provider_command_process.provider_command_id', decision_basis: conservative_proposal}
 - {binding_id: trivial_process_na, source_id: W8, source_section: '12', source_fact: 'Trivial process identity not_applicable disposition', target_path: 'object/resource_request.trivial_profile_evidence.provider_command_process.process_identity_disposition', decision_basis: source_literal}
 - {binding_id: trivial_process_na_rationale, source_id: W8, source_section: '12', source_fact: 'Trivial process identity not_applicable rationale', target_path: 'object/resource_request.trivial_profile_evidence.provider_command_process.process_identity_not_applicable_rationale', decision_basis: conservative_proposal}
+- {binding_id: correction_selector_scope_definition, source_id: 06d, source_section: "1.4", source_fact: "scope_definition selects scope and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=scope_definition}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_task, source_id: 06d, source_section: "1.4", source_fact: "task selects task and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=task}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_dispatch, source_id: 06d, source_section: "1.4", source_fact: "dispatch selects dispatch and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=dispatch}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_lease, source_id: 06d, source_section: "1.4", source_fact: "lease selects lease and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=lease}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_attempt, source_id: 06d, source_section: "1.4", source_fact: "attempt selects attempt and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=attempt}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_checkpoint, source_id: 06d, source_section: "1.4", source_fact: "checkpoint selects checkpoint and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=checkpoint}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_message, source_id: 06d, source_section: "1.4", source_fact: "message selects message and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=message}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_blocker, source_id: 06d, source_section: "1.4", source_fact: "blocker selects blocker and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=blocker}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_artefact, source_id: 06d, source_section: "1.4", source_fact: "artefact selects artefact and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=artefact}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_review, source_id: 06d, source_section: "1.4", source_fact: "review selects review and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=review}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_decision, source_id: 06d, source_section: "1.4", source_fact: "decision selects decision and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=decision}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_rule_evaluation, source_id: 06d, source_section: "1.4", source_fact: "rule_evaluation selects rule_evaluation and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=rule_evaluation}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_resource, source_id: 06d, source_section: "1.4", source_fact: "resource selects resource and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=resource}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_operation, source_id: 06d, source_section: "1.4", source_fact: "operation selects operations and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=operation}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_backup, source_id: 06d, source_section: "1.4", source_fact: "backup selects backup and governance correction index", target_path: "correction_variant_mappings{corrected_record_kind=backup}.projection_selector_rule", decision_basis: source_literal}
+- {binding_id: correction_selector_exactly_one_owner, source_id: 06d, source_section: "1.4", source_fact: "Each correction selects exactly one owner projection", target_path: family/correction.affected_projections, decision_basis: source_literal}
+- {binding_id: correction_governance_correction_index, source_id: 06d, source_section: "1.4", source_fact: "Each correction also requires the governance correction index", target_path: family/correction.governance_correction_index, decision_basis: source_literal}
+- {binding_id: recovery_external_manifest, source_id: W8, source_section: "19", source_fact: "BackupReceipt binds external artefact manifest", target_path: recovery_external_artefact_rules.entry_object_ref, decision_basis: conservative_proposal}
+- {binding_id: recovery_external_availability, source_id: W8, source_section: "19", source_fact: "BackupReceipt binds external artefact availability status", target_path: "object/external_artefact_availability.availability", decision_basis: source_literal}
+- {binding_id: recovery_external_availability_evidence, source_id: W8, source_section: "19", source_fact: "Restore availability proof is retained per external artefact", target_path: "object/external_artefact_availability.availability_evidence_refs", decision_basis: conservative_proposal}
+- {binding_id: recovery_restore_writer_lease, source_id: W8, source_section: "19-21", source_fact: "Availability must verify before writer lease; failed or partial restore is diagnostic only with no writer lease", target_path: recovery_external_artefact_rules.writer_lease_rule, decision_basis: source_literal}
 family_specs:
 - family_id: family/scope
   source_citation: W2 §10.2 and 06d scope rows
@@ -1066,8 +1124,7 @@ family_specs:
   - {field_name: tool_versions, type_ref: type/string_list, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: encryption_class, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: redaction_class, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
-  - {field_name: external_artefact_refs, type_ref: type/hashed_ref_list, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
-  - {field_name: external_availability, type_ref: enum/availability, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
+  - {field_name: external_artefacts, type_ref: type/external_artefact_availability_list, nullable: false, source_citation: "W8 §§19-21 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: destination_class, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: backup_receipt_id, type_ref: type/backup_receipt_id, nullable: false, source_citation: W8 §§5 and 18-19, decision_basis: source_literal}
   - {field_name: hash_chain_verified, type_ref: type/boolean, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
@@ -2155,7 +2212,7 @@ command_payload_specs:
   family_ref: family/backup_recovery
   variant_id: operator_create_backup
   subject_source: payload.project_id
-  required_field_names: [project_id, store_identity, canonical_tail_position, canonical_tail_sha256, snapshot_id, snapshot_sha256, replay_start_position, replay_end_position, schema_versions, tool_versions, encryption_class, redaction_class, external_artefact_refs, external_availability, destination_class]
+  required_field_names: [project_id, store_identity, canonical_tail_position, canonical_tail_sha256, snapshot_id, snapshot_sha256, replay_start_position, replay_end_position, schema_versions, tool_versions, encryption_class, redaction_class, external_artefacts, destination_class]
   source_citation: "06d owner row operator.create_backup; governing W2/W8 family section"
   decision_basis: conservative_proposal
   additional_properties: false
@@ -2165,7 +2222,7 @@ command_payload_specs:
   family_ref: family/backup_recovery
   variant_id: operator_verify_restore
   subject_source: payload.project_id
-  required_field_names: [project_id, store_identity, backup_receipt_id, canonical_tail_position, canonical_tail_sha256, hash_chain_verified, snapshot_replay_verified, endpoint_ownership_verified, supported_schema_ids, external_artefact_refs, external_availability, verified_at, recovery_evidence_id]
+  required_field_names: [project_id, store_identity, backup_receipt_id, canonical_tail_position, canonical_tail_sha256, hash_chain_verified, snapshot_replay_verified, endpoint_ownership_verified, supported_schema_ids, external_artefacts, verified_at, recovery_evidence_id]
   source_citation: "06d owner row operator.verify_restore; governing W2/W8 family section"
   decision_basis: conservative_proposal
   additional_properties: false
@@ -3914,8 +3971,7 @@ event_fact_specs:
   - tool_versions
   - encryption_class
   - redaction_class
-  - external_artefact_refs
-  - external_availability
+  - external_artefacts
   - destination_class
   source_citation: 06d owner row operator.create_backup, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields
   decision_basis: conservative_proposal
@@ -3936,8 +3992,7 @@ event_fact_specs:
   - snapshot_replay_verified
   - endpoint_ownership_verified
   - supported_schema_ids
-  - external_artefact_refs
-  - external_availability
+  - external_artefacts
   - verified_at
   - recovery_evidence_id
   source_citation: 06d owner row operator.verify_restore, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields
@@ -4759,7 +4814,8 @@ generation_contract:
   open_policy_vocabularies: versioned_runtime_policy_gate_only
   institutional_classifications: versioned_runtime_policy_gate_only
   stage_1_ready: false
-  pending_r3_remediation: [M-5_correction_and_recovery_shapes]
+  pending_r3_remediation: []
+  readiness_blockers: [independent_source_fact_oracle, fresh_exact_byte_review, explicit_owner_approval]
 schema_identity_rule:
   identity_key: [schema_kind, semantic_type]
   unique_command_identities: 87
@@ -4776,5 +4832,5 @@ decision_register:
 - {decision_id: proposal_decision/schema_id_scope, family_ref: family/correction, selection_kind: generation_rule, selected_rule: "Generate one identity for each of 87 command and 86 event semantic types; repeated owner rows share that semantic identity and closed variants remain inside it.", generator_byte_change_allowed: false, source_citation: 06d §1.1, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/shared_discriminators, family_ref: family/task, selection_kind: generation_rule, selected_rule: "Freeze every discriminator_field and variant_const_values entry in shared_schema_rules; generation may neither rename nor infer them.", generator_byte_change_allowed: false, source_citation: 06d §1.3 repeated semantic types, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/retention_and_sensitivity, family_ref: family/artefact, selection_kind: runtime_policy_gate, selected_rule: "Retention, sensitivity, provenance-class, and destination-class strings are institutional classifications supplied only through a separately versioned runtime policy; schema generation cannot invent values.", generator_byte_change_allowed: false, source_citation: W2 §16 and W8 §§7 and 18-20, decision_basis: conservative_proposal}
-- {decision_id: proposal_decision/recovery_external_availability, family_ref: family/backup_recovery, selection_kind: pending_r3_remediation, selected_rule: "No schemas may be generated until M-5 replaces the aggregate recovery shape with the reviewed per-external-artefact relational shape.", generator_byte_change_allowed: false, source_citation: W8 §§18-20, decision_basis: conservative_proposal}
-- {decision_id: proposal_decision/correction_subject_union, family_ref: family/correction, selection_kind: pending_r3_remediation, selected_rule: "No schemas may be generated until M-5 supplies the literal 15-kind closed correction union with no generic fallback branch.", generator_byte_change_allowed: false, source_citation: 06d §1.4, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/recovery_external_availability, family_ref: family/backup_recovery, selection_kind: generation_rule, selected_rule: "Generate one closed external_artefacts array field whose entries are object/external_artefact_availability. Each entry is an immutable artefact_id plus content_sha256 reference with an exact availability and non-empty availability_evidence_refs. The generator must enforce unique (artefact_id, content_sha256) entries, complete manifest coverage exactly once, and writer-lease eligibility only when every entry is available with evidence; missing, inaccessible, quarantined, missing evidence, incomplete coverage, or partial restore generates diagnostic-only/no-writer-lease behavior.", generator_byte_change_allowed: false, source_citation: W8 §§19-21 and 06d operator backup rows, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/correction_subject_union, family_ref: family/correction, selection_kind: generation_rule, selected_rule: "Generate exactly 15 non-overlapping correction oneOf branches from correction_variant_mappings. Each branch fixes corrected_record_kind, erroneous_record_id grammar via subject_id_type_ref, subject_field, and affected_projections to exactly the mapped owner_projection plus governance_correction_index. Reject an unknown kind, swapped ID/projection, zero or multiple owner projections, missing governance correction index, or generic fallback branch.", generator_byte_change_allowed: false, source_citation: 06d §1.4, decision_basis: conservative_proposal}
