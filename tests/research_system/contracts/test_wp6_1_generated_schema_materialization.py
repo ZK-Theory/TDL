@@ -70,10 +70,16 @@ def _schema_value(definition: dict[str, Any], root: dict[str, Any]) -> Any:
         return _schema_value(root["$defs"][token], root)
     if "const" in definition:
         return definition["const"]
+    if definition.get("type") == "object":
+        properties = definition.get("properties", {})
+        required = list(definition.get("required", []))
+        if "oneOf" in definition:
+            branch = _resolve_local_reference(definition["oneOf"][0], root)
+            properties = {**properties, **branch.get("properties", {})}
+            required.extend(name for name in branch.get("required", []) if name not in required)
+        return {name: _schema_value(properties[name], root) for name in required}
     if "oneOf" in definition:
         return _schema_value(definition["oneOf"][0], root)
-    if definition.get("type") == "object":
-        return {name: _schema_value(definition["properties"][name], root) for name in definition.get("required", [])}
     if definition.get("type") == "array":
         return [_schema_value(definition.get("items", {}), root)]
     if definition.get("type") == "integer":
@@ -156,9 +162,9 @@ def test_wp6_1_each_owner_row_payload_variant_carries_its_independent_minimum_fa
         )
         for variant in variants:
             required = set(variant.get("required", []))
-            assert expectation.required_fields <= required, (
-                f"{row['key']}: applicable payload variant omits {sorted(expectation.required_fields - required)!r}"
-            )
+            assert (
+                expectation.required_fields <= required
+            ), f"{row['key']}: applicable payload variant omits {sorted(expectation.required_fields - required)!r}"
 
 
 def test_wp6_1_generated_schemas_are_closed_domain_specific_and_cover_shared_unions() -> None:
@@ -396,7 +402,7 @@ def test_wp6_1_public_registry_rejects_domain_omission_wrong_type_nested_extra_a
         lambda value: value["payload"].pop("assignee_id", None),
         lambda value: value["payload"].__setitem__("message_type", 7),
         lambda value: value["payload"].__setitem__("nested_escape", {"unexpected": True}),
-        lambda value: value["payload"].update({"message_type": "assignment", "review_id": "rev-1"}),
+        lambda value: value["payload"].update({"message_type": "assignment", "subject_artefact_id": "art-1"}),
     ):
         candidate = json.loads(json.dumps(instance))
         mutator(candidate)
