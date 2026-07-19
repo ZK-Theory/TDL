@@ -125,7 +125,9 @@ reusable_objects:
   - {field_name: canonical_uri, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: workspace_identity, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: access_mode, type_ref: enum/access_mode, nullable: false, source_citation: W2 §12.1 selected generation rule, decision_basis: conservative_proposal}
+  - {field_name: expected_branch, type_ref: type/nonempty_string, nullable: true, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: expected_commit, type_ref: type/git_object_identity, nullable: true, source_citation: W2 §12.1 selected algorithm-tagged Git identity, decision_basis: conservative_proposal}
+  - {field_name: provenance_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
 - object_id: object/command_schema_identity
   additional_properties: false
   source_citation: 06d §1.1
@@ -171,6 +173,8 @@ reusable_objects:
   - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: W2 §10.1 Identity, decision_basis: source_literal}
   - {field_name: revision, type_ref: type/positive_integer, nullable: false, source_citation: W2 §10.1 Identity, decision_basis: conservative_proposal}
   - {field_name: aliases, type_ref: type/alias_list, nullable: false, source_citation: W2 §10.1 Identity, decision_basis: conservative_proposal}
+  - {field_name: project_id, type_ref: type/project_id, nullable: false, source_citation: W2 §10.1 Identity, decision_basis: source_literal}
+  - {field_name: portfolio_refs, type_ref: type/id_list, nullable: false, source_citation: W2 §10.1 Identity, decision_basis: conservative_proposal}
   - {field_name: scope_refs, type_ref: type/id_list, nullable: false, source_citation: W2 §10.1 Identity, decision_basis: conservative_proposal}
   - {field_name: title, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Purpose, decision_basis: conservative_proposal}
   - {field_name: objective, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Purpose, decision_basis: source_literal}
@@ -182,16 +186,25 @@ reusable_objects:
   - {field_name: assurance_lanes, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Assurance, decision_basis: conservative_proposal}
   - {field_name: machine_checks, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Assurance, decision_basis: conservative_proposal}
   - {field_name: human_questions, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Assurance, decision_basis: conservative_proposal}
+  - {field_name: independent_review_requirements, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Assurance, decision_basis: conservative_proposal}
   - {field_name: expected_artefact_types, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Delivery, decision_basis: conservative_proposal}
   - {field_name: acceptance_criteria, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Delivery, decision_basis: conservative_proposal}
   - {field_name: partial_criteria, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Delivery, decision_basis: conservative_proposal}
   - {field_name: prohibited_shortcuts, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Delivery, decision_basis: conservative_proposal}
+  - {field_name: root_binding_requirements, type_ref: type/root_binding_list, nullable: false, source_citation: W2 §10.1 Execution, decision_basis: conservative_proposal}
   - {field_name: concurrency_mode, type_ref: enum/concurrency_mode, nullable: false, source_citation: W2 §§10.1 and 12.6, decision_basis: source_literal}
   - {field_name: resource_policy_ref, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Execution, decision_basis: conservative_proposal}
   - {field_name: checkpoint_expectation, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Execution, decision_basis: conservative_proposal}
-  - {field_name: authority_rules, type_ref: type/string_list, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: dispatch_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: amend_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: cancel_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: review_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: accept_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: reopen_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
+  - {field_name: supersede_authority, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §10.1 Authority, decision_basis: conservative_proposal}
   - {field_name: creator_actor_id, type_ref: type/actor_id, nullable: false, source_citation: W2 §10.1 Provenance, decision_basis: conservative_proposal}
   - {field_name: created_at, type_ref: type/utc_z, nullable: false, source_citation: W2 §10.1 Provenance, decision_basis: conservative_proposal}
+  - {field_name: source_import_refs, type_ref: type/id_list, nullable: false, source_citation: W2 §10.1 Provenance, decision_basis: conservative_proposal}
   - {field_name: content_sha256, type_ref: type/sha256, nullable: false, source_citation: W2 §10.1 Provenance, decision_basis: source_literal}
 - object_id: object/dispatch_definition
   additional_properties: false
@@ -201,7 +214,9 @@ reusable_objects:
   - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
   - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
   - {field_name: task_revision, type_ref: type/positive_integer, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
+  - {field_name: target_role, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: target_profile, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
+  - {field_name: target_actor_id, type_ref: type/actor_id, nullable: true, source_citation: W2 §12.1 optional actor, decision_basis: conservative_proposal}
   - {field_name: model_eval_profile_ref, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: context_packet_id, type_ref: type/context_id, nullable: false, source_citation: W2 §12.1 and §6.1, decision_basis: source_literal}
   - {field_name: policy_version, type_ref: type/policy_version_id, nullable: false, source_citation: W2 §12.1 and §6.1, decision_basis: source_literal}
@@ -296,6 +311,78 @@ reusable_objects:
   - {field_name: benchmark_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
   - {field_name: stop_pause_partial_escalation_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
   - {field_name: cleanup_obligations, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
+source_fact_bindings:
+- {binding_id: task_identity_task_id, source_id: W2, source_section: '10.1', source_fact: 'Identity: task_id', target_path: 'object/task_definition.task_id', decision_basis: source_literal}
+- {binding_id: task_identity_revision, source_id: W2, source_section: '10.1', source_fact: 'Identity: revision', target_path: 'object/task_definition.revision', decision_basis: conservative_proposal}
+- {binding_id: task_identity_aliases, source_id: W2, source_section: '10.1', source_fact: 'Identity: aliases', target_path: 'object/task_definition.aliases', decision_basis: conservative_proposal}
+- {binding_id: task_identity_project, source_id: W2, source_section: '10.1', source_fact: 'Identity: project', target_path: 'object/task_definition.project_id', decision_basis: source_literal}
+- {binding_id: task_identity_portfolio_refs, source_id: W2, source_section: '10.1', source_fact: 'Identity: portfolio references', target_path: 'object/task_definition.portfolio_refs', decision_basis: conservative_proposal}
+- {binding_id: task_identity_scope_refs, source_id: W2, source_section: '10.1', source_fact: 'Identity: scope references', target_path: 'object/task_definition.scope_refs', decision_basis: conservative_proposal}
+- {binding_id: task_purpose_title, source_id: W2, source_section: '10.1', source_fact: 'Purpose: title', target_path: 'object/task_definition.title', decision_basis: conservative_proposal}
+- {binding_id: task_purpose_objective, source_id: W2, source_section: '10.1', source_fact: 'Purpose: objective', target_path: 'object/task_definition.objective', decision_basis: source_literal}
+- {binding_id: task_purpose_bounded_scope, source_id: W2, source_section: '10.1', source_fact: 'Purpose: bounded scope', target_path: 'object/task_definition.bounded_scope', decision_basis: conservative_proposal}
+- {binding_id: task_purpose_non_goals, source_id: W2, source_section: '10.1', source_fact: 'Purpose: non-goals', target_path: 'object/task_definition.non_goals', decision_basis: conservative_proposal}
+- {binding_id: task_dependency_task_ids, source_id: W2, source_section: '10.1', source_fact: 'Dependency: required Task IDs', target_path: 'object/dependency.subject_id{subject_kind=task}', decision_basis: conservative_proposal}
+- {binding_id: task_dependency_decision_ids, source_id: W2, source_section: '10.1', source_fact: 'Dependency: required decision IDs', target_path: 'object/dependency.subject_id{subject_kind=decision}', decision_basis: conservative_proposal}
+- {binding_id: task_dependency_artefact_ids, source_id: W2, source_section: '10.1', source_fact: 'Dependency: required artefact IDs', target_path: 'object/dependency.subject_id{subject_kind=artefact}', decision_basis: conservative_proposal}
+- {binding_id: task_dependency_predicates, source_id: W2, source_section: '10.1', source_fact: 'Dependency: satisfaction predicates', target_path: 'object/dependency.satisfaction_predicate', decision_basis: conservative_proposal}
+- {binding_id: task_design_governing_refs, source_id: W2, source_section: '10.1', source_fact: 'Research design: governing preregistration/design/contract refs', target_path: 'object/task_definition.governing_design_refs', decision_basis: conservative_proposal}
+- {binding_id: task_design_risk_tier, source_id: W2, source_section: '10.1', source_fact: 'Research design: risk tier request', target_path: 'object/task_definition.risk_tier_request', decision_basis: conservative_proposal}
+- {binding_id: task_assurance_lanes, source_id: W2, source_section: '10.1', source_fact: 'Assurance: touched lanes', target_path: 'object/task_definition.assurance_lanes', decision_basis: conservative_proposal}
+- {binding_id: task_assurance_machine_checks, source_id: W2, source_section: '10.1', source_fact: 'Assurance: machine checks', target_path: 'object/task_definition.machine_checks', decision_basis: conservative_proposal}
+- {binding_id: task_assurance_human_questions, source_id: W2, source_section: '10.1', source_fact: 'Assurance: human questions', target_path: 'object/task_definition.human_questions', decision_basis: conservative_proposal}
+- {binding_id: task_assurance_independent_review, source_id: W2, source_section: '10.1', source_fact: 'Assurance: independent-review requirements', target_path: 'object/task_definition.independent_review_requirements', decision_basis: conservative_proposal}
+- {binding_id: task_delivery_artefacts, source_id: W2, source_section: '10.1', source_fact: 'Delivery: expected artefact types', target_path: 'object/task_definition.expected_artefact_types', decision_basis: conservative_proposal}
+- {binding_id: task_delivery_acceptance, source_id: W2, source_section: '10.1', source_fact: 'Delivery: acceptance criteria', target_path: 'object/task_definition.acceptance_criteria', decision_basis: conservative_proposal}
+- {binding_id: task_delivery_partial, source_id: W2, source_section: '10.1', source_fact: 'Delivery: Partial criteria', target_path: 'object/task_definition.partial_criteria', decision_basis: conservative_proposal}
+- {binding_id: task_delivery_shortcuts, source_id: W2, source_section: '10.1', source_fact: 'Delivery: prohibited shortcuts', target_path: 'object/task_definition.prohibited_shortcuts', decision_basis: conservative_proposal}
+- {binding_id: task_execution_roots, source_id: W2, source_section: '10.1', source_fact: 'Execution: root-binding requirements', target_path: 'object/task_definition.root_binding_requirements', decision_basis: conservative_proposal}
+- {binding_id: task_execution_concurrency, source_id: W2, source_section: '10.1', source_fact: 'Execution: concurrency policy', target_path: 'object/task_definition.concurrency_mode', decision_basis: source_literal}
+- {binding_id: task_execution_resource_policy, source_id: W2, source_section: '10.1', source_fact: 'Execution: resource-policy reference', target_path: 'object/task_definition.resource_policy_ref', decision_basis: conservative_proposal}
+- {binding_id: task_execution_checkpoint, source_id: W2, source_section: '10.1', source_fact: 'Execution: checkpoint expectation', target_path: 'object/task_definition.checkpoint_expectation', decision_basis: conservative_proposal}
+- {binding_id: task_authority_actions, source_id: W2, source_section: '10.1', source_fact: 'Authority: dispatch/amend/cancel/review/accept/reopen/supersede', target_path: 'object/task_definition.{dispatch_authority,amend_authority,cancel_authority,review_authority,accept_authority,reopen_authority,supersede_authority}', decision_basis: conservative_proposal}
+- {binding_id: task_provenance_creator, source_id: W2, source_section: '10.1', source_fact: 'Provenance: creator', target_path: 'object/task_definition.creator_actor_id', decision_basis: conservative_proposal}
+- {binding_id: task_provenance_time, source_id: W2, source_section: '10.1', source_fact: 'Provenance: creation time', target_path: 'object/task_definition.created_at', decision_basis: conservative_proposal}
+- {binding_id: task_provenance_imports, source_id: W2, source_section: '10.1', source_fact: 'Provenance: source/import refs', target_path: 'object/task_definition.source_import_refs', decision_basis: conservative_proposal}
+- {binding_id: task_provenance_hash, source_id: W2, source_section: '10.1', source_fact: 'Provenance: content hash', target_path: 'object/task_definition.content_sha256', decision_basis: source_literal}
+- {binding_id: dispatch_task_revision, source_id: W2, source_section: '12.1', source_fact: 'Task revision', target_path: 'object/dispatch_definition.task_revision', decision_basis: source_literal}
+- {binding_id: dispatch_target_role, source_id: W2, source_section: '12.1', source_fact: 'target role', target_path: 'object/dispatch_definition.target_role', decision_basis: conservative_proposal}
+- {binding_id: dispatch_target_profile, source_id: W2, source_section: '12.1', source_fact: 'target profile', target_path: 'object/dispatch_definition.target_profile', decision_basis: conservative_proposal}
+- {binding_id: dispatch_target_actor, source_id: W2, source_section: '12.1', source_fact: 'optional target actor', target_path: 'object/dispatch_definition.target_actor_id', decision_basis: conservative_proposal}
+- {binding_id: dispatch_model_eval, source_id: W2, source_section: '12.1', source_fact: 'required model/eval profile reference', target_path: 'object/dispatch_definition.model_eval_profile_ref', decision_basis: conservative_proposal}
+- {binding_id: dispatch_context, source_id: W2, source_section: '12.1', source_fact: 'context packet ID', target_path: 'object/dispatch_definition.context_packet_id', decision_basis: source_literal}
+- {binding_id: dispatch_policy, source_id: W2, source_section: '12.1', source_fact: 'policy version', target_path: 'object/dispatch_definition.policy_version', decision_basis: source_literal}
+- {binding_id: dispatch_assurance, source_id: W2, source_section: '12.1', source_fact: 'assurance-plan version', target_path: 'object/dispatch_definition.assurance_plan_version', decision_basis: conservative_proposal}
+- {binding_id: dispatch_roots, source_id: W2, source_section: '12.1', source_fact: 'explicit roots', target_path: 'object/dispatch_definition.root_bindings', decision_basis: conservative_proposal}
+- {binding_id: dispatch_branch, source_id: W2, source_section: '12.1', source_fact: 'branch identity', target_path: 'object/dispatch_definition.branch_identity', decision_basis: conservative_proposal}
+- {binding_id: dispatch_worktree, source_id: W2, source_section: '12.1', source_fact: 'worktree identity', target_path: 'object/dispatch_definition.worktree_identity', decision_basis: conservative_proposal}
+- {binding_id: dispatch_commit, source_id: W2, source_section: '12.1', source_fact: 'expected commit', target_path: 'object/dispatch_definition.expected_commit', decision_basis: conservative_proposal}
+- {binding_id: dispatch_capabilities, source_id: W2, source_section: '12.1', source_fact: 'capability set', target_path: 'object/dispatch_definition.capabilities', decision_basis: conservative_proposal}
+- {binding_id: dispatch_permissions, source_id: W2, source_section: '12.1', source_fact: 'permission set', target_path: 'object/dispatch_definition.permissions', decision_basis: conservative_proposal}
+- {binding_id: dispatch_resource_request, source_id: W2, source_section: '12.1', source_fact: 'ResourceRequest reference', target_path: 'object/dispatch_definition.resource_request_id', decision_basis: source_literal}
+- {binding_id: dispatch_namespace, source_id: W2, source_section: '12.1', source_fact: 'output namespace', target_path: 'object/dispatch_definition.output_namespace', decision_basis: conservative_proposal}
+- {binding_id: dispatch_delivery_deadline, source_id: W2, source_section: '12.1', source_fact: 'delivery deadline', target_path: 'object/dispatch_definition.delivery_deadline', decision_basis: source_literal}
+- {binding_id: dispatch_claim_deadline, source_id: W2, source_section: '12.1', source_fact: 'claim deadline', target_path: 'object/dispatch_definition.claim_deadline', decision_basis: source_literal}
+- {binding_id: dispatch_concurrency, source_id: W2, source_section: '12.1', source_fact: 'concurrency mode', target_path: 'object/dispatch_definition.concurrency_mode', decision_basis: source_literal}
+- {binding_id: dispatch_stop_partial_escalation, source_id: W2, source_section: '12.1', source_fact: 'stop/Partial/escalation rules', target_path: 'object/dispatch_definition.{stop_rules,partial_rules,escalation_rules}', decision_basis: conservative_proposal}
+- {binding_id: root_kind, source_id: W2, source_section: '12.1', source_fact: 'root kind', target_path: 'object/root_binding.root_kind', decision_basis: conservative_proposal}
+- {binding_id: root_canonical_uri, source_id: W2, source_section: '12.1', source_fact: 'canonical URI/path', target_path: 'object/root_binding.canonical_uri', decision_basis: conservative_proposal}
+- {binding_id: root_workspace, source_id: W2, source_section: '12.1', source_fact: 'workspace identity', target_path: 'object/root_binding.workspace_identity', decision_basis: conservative_proposal}
+- {binding_id: root_access, source_id: W2, source_section: '12.1', source_fact: 'access mode', target_path: 'object/root_binding.access_mode', decision_basis: conservative_proposal}
+- {binding_id: root_expected_branch_commit, source_id: W2, source_section: '12.1', source_fact: 'applicable expected branch/commit', target_path: 'object/root_binding.{expected_branch,expected_commit}', decision_basis: conservative_proposal}
+- {binding_id: root_provenance_authority, source_id: W2, source_section: '12.1', source_fact: 'provenance authority', target_path: 'object/root_binding.provenance_authority', decision_basis: conservative_proposal}
+- {binding_id: review_verdict, source_id: W2, source_section: '17.3', source_fact: verdict, target_path: 'family/review.verdict', decision_basis: source_literal}
+- {binding_id: review_findings, source_id: W2, source_section: '17.3', source_fact: findings, target_path: 'family/review.findings', decision_basis: conservative_proposal}
+- {binding_id: review_evidence, source_id: W2, source_section: '17.3', source_fact: evidence, target_path: 'family/review.required_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: review_limitations, source_id: W2, source_section: '17.3', source_fact: limitations, target_path: 'family/review.limitations', decision_basis: conservative_proposal}
+- {binding_id: review_conditions, source_id: W2, source_section: '17.3', source_fact: conditions, target_path: 'family/review.conditions', decision_basis: conservative_proposal}
+- {binding_id: review_reviewer_metadata, source_id: W2, source_section: '17.3', source_fact: 'reviewer actor/profile/session/model metadata', target_path: 'family/review.{reviewer_actor_id,reviewer_profile,reviewer_session,reviewer_model_metadata}', decision_basis: conservative_proposal}
+- {binding_id: review_context_manifest, source_id: W2, source_section: '17.3', source_fact: 'context-manifest ID/hash', target_path: 'family/review.{context_manifest_id,context_manifest_sha256}', decision_basis: conservative_proposal}
+- {binding_id: review_subject_hash, source_id: W2, source_section: '17.3', source_fact: subject_hash, target_path: 'family/review.unchanged_subject_sha256', decision_basis: source_literal}
+- {binding_id: review_producing_attempt, source_id: W2, source_section: '17.3', source_fact: producing_attempt_relationship, target_path: 'family/review.producing_attempt_id', decision_basis: conservative_proposal}
+- {binding_id: review_trace_visibility, source_id: W2, source_section: '17.3', source_fact: trace_visibility_evidence, target_path: 'family/review.trace_visibility_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: review_independence_grade, source_id: W2, source_section: '17.3', source_fact: independence_grade, target_path: 'family/review.computed_independence_grade', decision_basis: conservative_proposal}
+- {binding_id: review_conditional_owner, source_id: W2, source_section: '17.3', source_fact: conditional_approval_owner, target_path: 'family/review.conditional_approval_owner', decision_basis: conservative_proposal}
 family_specs:
 - family_id: family/scope
   source_citation: W2 §10.2 and 06d scope rows
@@ -583,6 +670,9 @@ family_specs:
   - {field_name: deadline, type_ref: type/utc_z, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: escalation_rule, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: reviewer_actor_id, type_ref: type/actor_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
+  - {field_name: reviewer_profile, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §17.3, decision_basis: conservative_proposal}
+  - {field_name: reviewer_session, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §17.3, decision_basis: conservative_proposal}
+  - {field_name: reviewer_model_metadata, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §17.3, decision_basis: conservative_proposal}
   - {field_name: computed_independence_grade, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: independence_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: unchanged_subject_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
@@ -593,6 +683,8 @@ family_specs:
   - {field_name: context_manifest_id, type_ref: type/context_id, nullable: false, source_citation: W2 §§6.1 and 17, decision_basis: source_literal}
   - {field_name: context_manifest_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: producing_attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
+  - {field_name: trace_visibility_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W2 §17.3, decision_basis: conservative_proposal}
+  - {field_name: conditional_approval_owner, type_ref: type/nonempty_string, nullable: true, source_citation: W2 §17.3 approve_with_conditions, decision_basis: conservative_proposal}
   - {field_name: policy_evaluation_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: prior_review_state, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: satisfaction_gate, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
@@ -1566,7 +1658,7 @@ command_payload_specs:
   family_ref: family/review
   variant_id: review_record_verdict
   subject_source: envelope.target_stream_id
-  required_field_names: [review_id, verdict, findings, limitations, conditions, reviewer_actor_id, context_manifest_id, context_manifest_sha256, unchanged_subject_sha256, producing_attempt_id, computed_independence_grade]
+  required_field_names: [review_id, verdict, findings, required_evidence_refs, limitations, conditions, reviewer_actor_id, reviewer_profile, reviewer_session, reviewer_model_metadata, context_manifest_id, context_manifest_sha256, unchanged_subject_sha256, producing_attempt_id, trace_visibility_evidence_refs, computed_independence_grade, conditional_approval_owner]
   source_citation: "06d owner row review.record_verdict; governing W2/W8 family section"
   decision_basis: conservative_proposal
   additional_properties: false
@@ -3126,14 +3218,20 @@ event_fact_specs:
   - review_id
   - verdict
   - findings
+  - required_evidence_refs
   - limitations
   - conditions
   - reviewer_actor_id
+  - reviewer_profile
+  - reviewer_session
+  - reviewer_model_metadata
   - context_manifest_id
   - context_manifest_sha256
   - unchanged_subject_sha256
   - producing_attempt_id
+  - trace_visibility_evidence_refs
   - computed_independence_grade
+  - conditional_approval_owner
   source_citation: 06d owner row review.record_verdict, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields
   decision_basis: conservative_proposal
   additional_properties: false
@@ -4424,7 +4522,7 @@ generation_contract:
   open_policy_vocabularies: versioned_runtime_policy_gate_only
   institutional_classifications: versioned_runtime_policy_gate_only
   stage_1_ready: false
-  pending_r3_remediation: [M-2_complete_source_fact_objects, M-5_correction_and_recovery_shapes]
+  pending_r3_remediation: [M-2_artefact_and_resource_source_fact_objects, M-5_correction_and_recovery_shapes]
 schema_identity_rule:
   identity_key: [schema_kind, semantic_type]
   unique_command_identities: 87

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://contracts/wp6-1-schema-fact-annex-proposal",
   "type": "object",
-  "required": ["schema_id", "schema_version", "proposal_id", "proposal_status", "source_documents", "cardinalities", "primitive_types", "source_closed_enums", "reusable_objects", "family_specs", "command_root", "event_root", "command_payload_specs", "event_fact_specs", "shared_schema_rules", "row_bindings", "generation_contract", "schema_identity_rule", "decision_register"],
+  "required": ["schema_id", "schema_version", "proposal_id", "proposal_status", "source_documents", "cardinalities", "primitive_types", "source_closed_enums", "reusable_objects", "source_fact_bindings", "family_specs", "command_root", "event_root", "command_payload_specs", "event_fact_specs", "shared_schema_rules", "row_bindings", "generation_contract", "schema_identity_rule", "decision_register"],
   "properties": {
     "schema_id": {"const": "ars://contracts/wp6-1-schema-fact-annex-proposal"},
     "schema_version": {"const": "1.0.0"},
@@ -13,6 +13,7 @@
     "primitive_types": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/primitiveType"}},
     "source_closed_enums": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/enumSpec"}},
     "reusable_objects": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/objectSpec"}},
+    "source_fact_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceFactBinding"}},
     "family_specs": {"type": "array", "minItems": 14, "maxItems": 14, "items": {"$ref": "#/$defs/familySpec"}},
     "command_root": {"$ref": "#/$defs/rootSpec"},
     "event_root": {"$ref": "#/$defs/rootSpec"},
@@ -65,6 +66,12 @@
       "properties": {"object_id": {"type": "string", "pattern": "^object/[a-z0-9_]+$"}, "additional_properties": {"const": false}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}, "fields": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fieldSpec"}}},
       "additionalProperties": false
     },
+    "sourceFactBinding": {
+      "type": "object",
+      "required": ["binding_id", "source_id", "source_section", "source_fact", "target_path", "decision_basis"],
+      "properties": {"binding_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}, "source_id": {"enum": ["W2", "W8", "06d"]}, "source_section": {"type": "string", "minLength": 1}, "source_fact": {"type": "string", "minLength": 1}, "target_path": {"type": "string", "pattern": "^(object|family)/[a-z0-9_]+\\.(?:[a-z][a-z0-9_]*|\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})(?:\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})?$"}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "additionalProperties": false
+    },
     "familySpec": {
       "type": "object",
       "required": ["family_id", "source_citation", "decision_basis", "fields"],
@@ -111,7 +118,7 @@
     "generationContract": {
       "type": "object",
       "required": ["mode", "byte_changing_choices_remaining", "generator_runtime_authority", "generated_schema_identity_count", "open_policy_vocabularies", "institutional_classifications", "stage_1_ready", "pending_r3_remediation"],
-      "properties": {"mode": {"const": "deterministic_total_function"}, "byte_changing_choices_remaining": {"const": 0}, "generator_runtime_authority": {"const": false}, "generated_schema_identity_count": {"const": 173}, "open_policy_vocabularies": {"const": "versioned_runtime_policy_gate_only"}, "institutional_classifications": {"const": "versioned_runtime_policy_gate_only"}, "stage_1_ready": {"const": false}, "pending_r3_remediation": {"type": "array", "const": ["M-2_complete_source_fact_objects", "M-5_correction_and_recovery_shapes"]}},
+      "properties": {"mode": {"const": "deterministic_total_function"}, "byte_changing_choices_remaining": {"const": 0}, "generator_runtime_authority": {"const": false}, "generated_schema_identity_count": {"const": 173}, "open_policy_vocabularies": {"const": "versioned_runtime_policy_gate_only"}, "institutional_classifications": {"const": "versioned_runtime_policy_gate_only"}, "stage_1_ready": {"const": false}, "pending_r3_remediation": {"type": "array", "const": ["M-2_artefact_and_resource_source_fact_objects", "M-5_correction_and_recovery_shapes"]}},
       "additionalProperties": false
     },
     "schemaIdentityRule": {

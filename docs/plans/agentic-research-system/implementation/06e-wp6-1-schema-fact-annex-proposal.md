@@ -33,12 +33,12 @@ All three sources are read as canonical UTF-8/LF bytes from revision `fe5f1d40bc
 
 The family model is a closed field universe plus a row-specific required-field selection. A generator must take the cited type of each selected field from the row's `family_ref`, close the resulting payload with `additionalProperties: false`, and reject an absent or unknown row. There is no generic object, catch-all branch, fallback payload, or registry widening.
 
-The current reusable objects are closed rather than loose string maps, but the R3 M-2 finding remains open: this packet does not yet prove one-to-one coverage of every atomic W2/W8 source fact for the four objects below.
+The current reusable objects are closed rather than loose string maps. D1C-2a now supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. R3 M-2 remains open only for the Artefact and ResourceRequest objects below; M-5 also remains open.
 
-- `object/task_definition` must be expanded and source-fact-bound against W2 §10.1.
-- `object/dispatch_definition` and `object/root_binding` must be expanded and source-fact-bound against W2 §12.1.
-- `object/artefact_manifest` must be expanded and source-fact-bound against W2 §§16.1–16.2.
-- `object/resource_request` must be expanded and source-fact-bound against W8 §§7 and 11.1.
+- `object/task_definition`, `object/dispatch_definition`, and `object/root_binding` are complete for the cited W2 §10.1/§12.1 facts in D1C-2a; `source_fact_bindings` records each target field or explicit non-lossy subfield mapping.
+- `family/review` and the `review.record_verdict` command/event selections are complete for W2 §§17.3–17.4 verdict facts; verdict recording remains separate from the Task transition.
+- `object/artefact_manifest` remains pending expansion and source-fact binding against W2 §§16.1–16.2.
+- `object/resource_request` remains pending expansion and source-fact binding against W8 §§7 and 11.1.
 
 The machine contract asserts these cardinalities as constants: 104 rows, 104 command bindings, 106 event bindings, 87 unique command types, 86 unique event types, 173 generated schema identities, 17 command-root fields, 27 event-root fields, and 14 families.
 
@@ -49,14 +49,14 @@ The following choices are not silently attributed to W2, W8, or 06d. Each appear
 | Family | Non-source-literal decision selected for review |
 |---|---|
 | Scope | Source-literal W2/W8 ID prefixes are typed; `type/any_id` remains only for genuinely open identifier families. |
-| Task | Current closed definition object and typed lifecycle evidence sets; M-2 expansion/source-fact binding remains pending; shared partial and reopen discriminators are frozen. |
-| Dispatch | `access_mode` is frozen to `read_only`, `create_only`, `append_only`, or `read_write`; Git identities use the exact algorithm-tagged pattern `^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$`. |
+| Task | D1C-2a completes the closed definition object and source-fact bindings; shared partial and reopen discriminators are frozen. |
+| Dispatch | D1C-2a completes distinct target role/profile/optional actor, root binding, and dispatch source facts; `access_mode` is frozen to `read_only`, `create_only`, `append_only`, or `read_write`. |
 | Lease | One normalized claim/grant shape across lifecycle and operator rows; holder/session/capability/renewal fields; scheduler authority on expiry. |
 | Attempt/checkpoint | One family with explicit checkpoint disposition, compatibility, invariants, progress, confidentiality, and `creation_kind`/`subject_kind` discriminators. |
 | Message | Source-closed message types select row variants; delivery, acknowledgement, action, correlation, and evidence fields remain explicit. |
 | Blocker | Stop semantics, responsible authority, resume condition, and evidence lists are normalized as a closed fact. |
 | Artefact | Retention, sensitivity, provenance-class, and destination-class strings are explicit separately versioned runtime-policy inputs; generation cannot invent institutional classifications. |
-| Review | Source-closed review types and verdicts; request, independence, assignment, findings, subject hashes, satisfaction gates, and amendment/supersession facts remain separate. |
+| Review | D1C-2a completes W2 verdict metadata, trace visibility, independence, and conditional-approval ownership; Task acceptance remains a distinct transition. |
 | Decision | Source-closed decision kinds; authority, subject, consequences, conditions, evidence, lifecycle, lineage, and effective-boundary fields are non-compensating. |
 | Rule evaluation | Estimand/object, compared subjects, metric, denominator, input IDs/hashes, validator, output, and evidence hash are explicit. |
 | Correction | The corrected-record-kind vocabulary is source-closed; M-5 must still supply the exact 15-kind union, and a generic fallback remains prohibited. |
@@ -90,10 +90,10 @@ Representative resolver-only names include `completion_rule`, `acceptance_eviden
 
 ## 6. Two-stage authority gate
 
-1. **Fact-annex acceptance.** M-2 complete source-fact objects/bindings and M-5 correction/recovery shapes must first be remediated. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
+1. **Fact-annex acceptance.** D1C-2a completes the Task/Dispatch/root/review-verdict subset, but M-2 Artefact/ResourceRequest source-fact objects and M-5 correction/recovery shapes must first be remediated. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
 2. **Generated-schema acceptance.** Only after stage 1 may a generator consume the accepted annex to materialize the 173 unique command/event schema files and populate all 210 row/event content observations. Those exact generated paths, schema IDs/versions, Git blobs, SHA-256 values, row/multiset identities, and independent review form a separate D-G6-3 owner decision.
 
-This D1C-1 packet is not Stage-1 ready and does not authorize schema generation. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
+This D1C-2a packet is not Stage-1 ready and does not authorize schema generation. D1C-2a does not resolve all of R3 M-2: Artefact and ResourceRequest fact completeness remain pending, alongside M-5. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
 
 ## 7. Validation commands
 
