@@ -13,6 +13,7 @@ import yaml
 
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
+from tests.research_system.contracts.wp6_1_schema_expectations import PAYLOAD_EXPECTATIONS, PayloadExpectation
 from tests.research_system.contracts.wp6_1_schema_materializer import generate_artifacts, materialize
 from tests.research_system.contracts.wp6_1_schema_source import git_blob_id
 
@@ -31,6 +32,32 @@ def _documents() -> tuple[dict[str, Any], dict[str, Any]]:
 
 def _schema(path: str) -> dict[str, Any]:
     return json.loads((REPO_ROOT / path).read_text(encoding="utf-8"))
+
+
+def _resolve_local_reference(definition: dict[str, Any], root: dict[str, Any]) -> dict[str, Any]:
+    """Resolve a local definition without consulting generator implementation."""
+    while "$ref" in definition:
+        token = definition["$ref"].removeprefix("#/$defs/")
+        definition = root["$defs"][token]
+    return definition
+
+
+def _payload_variants(schema: dict[str, Any]) -> list[dict[str, Any]]:
+    payload = _resolve_local_reference(schema["$defs"]["payload"], schema)
+    return [_resolve_local_reference(item, schema) for item in payload.get("oneOf", [payload])]
+
+
+def _applicable_payload_variants(schema: dict[str, Any], expectation: PayloadExpectation) -> list[dict[str, Any]]:
+    variants = _payload_variants(schema)
+    matches: list[dict[str, Any]] = []
+    for variant in variants:
+        properties = variant.get("properties", {})
+        if all(
+            field in properties and _resolve_local_reference(properties[field], schema).get("const") == value
+            for field, value in expectation.selectors
+        ):
+            matches.append(variant)
+    return matches
 
 
 def _valid_instance(schema: dict[str, Any]) -> dict[str, Any]:
@@ -108,6 +135,30 @@ def test_wp6_1_identity_manifest_binds_raw_schema_bytes_paths_ids_versions_and_g
             )
             observations += 1
     assert observations == 210
+
+
+def test_wp6_1_payload_oracle_covers_the_exact_owner_catalogue_key_set() -> None:
+    catalogue, _ = _documents()
+    assert set(PAYLOAD_EXPECTATIONS) == {row["key"] for row in catalogue["rows"]}
+    assert len(PAYLOAD_EXPECTATIONS) == 104
+
+
+def test_wp6_1_each_owner_row_payload_variant_carries_its_independent_minimum_facts() -> None:
+    catalogue, _ = _documents()
+    for row in catalogue["rows"]:
+        expectation = PAYLOAD_EXPECTATIONS[row["key"]]
+        schema = _schema(row["command_schema_identity"]["command_schema_path"])
+        variants = _applicable_payload_variants(schema, expectation)
+
+        assert variants, (
+            f"{row['key']}: no payload variant matches independently specified "
+            f"discriminants {dict(expectation.selectors)!r}"
+        )
+        for variant in variants:
+            required = set(variant.get("required", []))
+            assert expectation.required_fields <= required, (
+                f"{row['key']}: applicable payload variant omits {sorted(expectation.required_fields - required)!r}"
+            )
 
 
 def test_wp6_1_generated_schemas_are_closed_domain_specific_and_cover_shared_unions() -> None:
