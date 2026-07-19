@@ -69,7 +69,7 @@
     "sourceFactBinding": {
       "type": "object",
       "required": ["binding_id", "source_id", "source_section", "source_fact", "target_path", "decision_basis"],
-      "properties": {"binding_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}, "source_id": {"enum": ["W2", "W8", "06d"]}, "source_section": {"type": "string", "minLength": 1}, "source_fact": {"type": "string", "minLength": 1}, "target_path": {"type": "string", "pattern": "^(object|family)/[a-z0-9_]+\\.(?:[a-z][a-z0-9_]*|\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})(?:\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})?$"}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "properties": {"binding_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}, "source_id": {"enum": ["W2", "W8", "06d"]}, "source_section": {"type": "string", "minLength": 1}, "source_fact": {"type": "string", "minLength": 1}, "target_path": {"type": "string", "pattern": "^(object|family)/[a-z0-9_]+\\.(?:[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*|\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})(?:\\{[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?(?:,[a-z][a-z0-9_]*(?:=[a-z0-9_]+)?)*\\})?$"}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
       "additionalProperties": false
     },
     "familySpec": {
@@ -118,7 +118,7 @@
     "generationContract": {
       "type": "object",
       "required": ["mode", "byte_changing_choices_remaining", "generator_runtime_authority", "generated_schema_identity_count", "open_policy_vocabularies", "institutional_classifications", "stage_1_ready", "pending_r3_remediation"],
-      "properties": {"mode": {"const": "deterministic_total_function"}, "byte_changing_choices_remaining": {"const": 0}, "generator_runtime_authority": {"const": false}, "generated_schema_identity_count": {"const": 173}, "open_policy_vocabularies": {"const": "versioned_runtime_policy_gate_only"}, "institutional_classifications": {"const": "versioned_runtime_policy_gate_only"}, "stage_1_ready": {"const": false}, "pending_r3_remediation": {"type": "array", "const": ["M-2_artefact_and_resource_source_fact_objects", "M-5_correction_and_recovery_shapes"]}},
+      "properties": {"mode": {"const": "deterministic_total_function"}, "byte_changing_choices_remaining": {"const": 0}, "generator_runtime_authority": {"const": false}, "generated_schema_identity_count": {"const": 173}, "open_policy_vocabularies": {"const": "versioned_runtime_policy_gate_only"}, "institutional_classifications": {"const": "versioned_runtime_policy_gate_only"}, "stage_1_ready": {"const": false}, "pending_r3_remediation": {"type": "array", "const": ["M-5_correction_and_recovery_shapes"]}},
       "additionalProperties": false
     },
     "schemaIdentityRule": {

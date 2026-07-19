@@ -58,6 +58,7 @@ primitive_types:
 - {type_id: type/root_binding_list, json_type: array, nullable: false, item_type_ref: object/root_binding, source_citation: W2 §12.1 and W8 §7, decision_basis: conservative_proposal}
 - {type_id: type/member_disposition_list, json_type: array, nullable: false, item_type_ref: object/member_disposition, source_citation: W2 §10.2, decision_basis: conservative_proposal}
 - {type_id: type/hashed_ref_list, json_type: array, nullable: false, item_type_ref: object/hashed_ref, source_citation: W2 immutable subject sets, decision_basis: conservative_proposal}
+- {type_id: type/artefact_input_dependency_list, json_type: array, nullable: false, item_type_ref: object/artefact_input_dependency, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
 source_closed_enums:
 - {enum_id: enum/task_status, values: [draft, readiness_pending, ready, in_progress, review_pending, blocked, input_required, paused, accepted, rejected, partial, cancelled, superseded], source_citation: W2 §11.1, decision_basis: source_literal}
 - {enum_id: enum/member_disposition, values: [accepted, partial_accepted, deferred, superseded, removed_by_amendment, cancelled, rejected], source_citation: W2 §10.2, decision_basis: source_literal}
@@ -72,6 +73,14 @@ source_closed_enums:
 - {enum_id: enum/structural_validation, values: [not_run, passed, failed, partial, not_applicable], source_citation: W2 §16.2, decision_basis: source_literal}
 - {enum_id: enum/scientific_review, values: [not_required, pending, approved, rejected, unable_to_verify], source_citation: W2 §16.2, decision_basis: source_literal}
 - {enum_id: enum/use_authority, values: [candidate, accepted_for_scope, rejected, superseded, restricted], source_citation: W2 §16.2, decision_basis: source_literal}
+- {enum_id: enum/profile_evidence_disposition, values: [required, not_applicable], source_citation: W8 §11.1, decision_basis: source_literal}
+- {enum_id: enum/trivial_terminal_receipt_kind, values: [provider_receipt, operator_receipt], source_citation: W8 §11.1, decision_basis: source_literal}
+- {enum_id: enum/lease_scope, values: [command_scoped], source_citation: W8 §11.1, decision_basis: source_literal}
+- {enum_id: enum/not_applicable_profile_evidence, values: [not_applicable], source_citation: W8 §§11.1-12 trivial disposition, decision_basis: source_literal}
+- {enum_id: enum/trivial_request_record_type, values: [resource_request], source_citation: W8 §11.1 typed request, decision_basis: source_literal}
+- {enum_id: enum/trivial_grant_record_type, values: [resource_grant], source_citation: W8 §11.1 typed grant, decision_basis: source_literal}
+- {enum_id: enum/trivial_ceilings_requirement, values: [explicit_resource_ceilings], source_citation: W8 §11.1 explicit ceilings, decision_basis: source_literal}
+- {enum_id: enum/trivial_lease_release, values: [releases_lease], source_citation: W8 §11.1 terminal receipt lease release, decision_basis: source_literal}
 - {enum_id: enum/operational_profile, values: [trivial, bounded, long_running], source_citation: W8 §11.1, decision_basis: source_literal}
 - {enum_id: enum/checkpoint_compatibility, values: [compatible, incompatible, unable_to_determine], source_citation: W8 §16, decision_basis: source_literal}
 - {enum_id: enum/profile_applicability, values: [required, not_applicable], source_citation: W8 §11.1 evidence-group applicability only, decision_basis: source_literal}
@@ -235,36 +244,88 @@ reusable_objects:
   - {field_name: stop_rules, type_ref: type/string_list, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: partial_rules, type_ref: type/string_list, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: escalation_rules, type_ref: type/string_list, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-- object_id: object/artefact_manifest
+- object_id: object/artefact_input_dependency
   additional_properties: false
-  source_citation: W2 §16.1
+  source_citation: W2 §16.1 Inputs
   decision_basis: conservative_proposal
   fields:
-  - {field_name: artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: W2 §16.1 Identity, decision_basis: source_literal}
-  - {field_name: artefact_type, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Identity, decision_basis: conservative_proposal}
-  - {field_name: artefact_schema_id, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Identity, decision_basis: conservative_proposal}
-  - {field_name: artefact_schema_version, type_ref: type/semver, nullable: false, source_citation: W2 §16.1 Identity, decision_basis: conservative_proposal}
-  - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: source_literal}
-  - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: source_literal}
-  - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: source_literal}
-  - {field_name: producer_actor_id, type_ref: type/actor_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: conservative_proposal}
-  - {field_name: context_packet_id, type_ref: type/context_id, nullable: false, source_citation: W2 §16.1 and §6.1, decision_basis: source_literal}
-  - {field_name: code_commit, type_ref: type/git_object_identity, nullable: false, source_citation: W2 §16.1 selected algorithm-tagged Git identity, decision_basis: conservative_proposal}
-  - {field_name: environment_fingerprint, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1 Code/environment, decision_basis: conservative_proposal}
-  - {field_name: root_id, type_ref: type/any_id, nullable: false, source_citation: W2 §16.1 Location, decision_basis: conservative_proposal}
-  - {field_name: relative_path, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Location, decision_basis: conservative_proposal}
-  - {field_name: size_bytes, type_ref: type/nonnegative_integer, nullable: false, source_citation: W2 §16.1 Location, decision_basis: conservative_proposal}
-  - {field_name: media_type, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Location, decision_basis: conservative_proposal}
-  - {field_name: content_sha256, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1 Integrity, decision_basis: source_literal}
-  - {field_name: observed_at, type_ref: type/utc_z, nullable: false, source_citation: W2 §16.1 Integrity, decision_basis: conservative_proposal}
-  - {field_name: input_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
-  - {field_name: input_hashes, type_ref: type/hash_list, nullable: false, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
-  - {field_name: research_provenance_refs, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 Research provenance, decision_basis: conservative_proposal}
-  - {field_name: validation_refs, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 Validation, decision_basis: conservative_proposal}
-  - {field_name: dimensions, type_ref: object/artefact_dimensions, nullable: false, source_citation: W2 §16.2, decision_basis: source_literal}
-  - {field_name: no_overwrite_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W2 §16.1 Operations, decision_basis: conservative_proposal}
-  - {field_name: retention_class, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Operations, decision_basis: conservative_proposal}
-  - {field_name: confidentiality_class, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Operations, decision_basis: conservative_proposal}
+  - {field_name: input_artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: W2 §16.1 input artefact IDs, decision_basis: source_literal}
+  - {field_name: input_content_sha256, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1 input artefact hashes, decision_basis: source_literal}
+  - {field_name: dependency_role, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 dependency roles, decision_basis: conservative_proposal}
+- object_id: object/research_provenance
+  additional_properties: false
+  source_citation: W2 §16.1 Research provenance
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: dataset_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 dataset identities, decision_basis: conservative_proposal}
+  - {field_name: dataset_vintages, type_ref: type/string_list, nullable: false, source_citation: W2 §16.1 dataset vintages, decision_basis: conservative_proposal}
+  - {field_name: representation_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 representation identities, decision_basis: conservative_proposal}
+  - {field_name: parameter_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 parameter identities, decision_basis: conservative_proposal}
+  - {field_name: seed_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 seed identities, decision_basis: conservative_proposal}
+  - {field_name: sample_restriction_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 sample restrictions, decision_basis: conservative_proposal}
+- object_id: object/artefact_validation
+  additional_properties: false
+  source_citation: W2 §16.1 Validation
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: validation_record_refs, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 validation-record refs, decision_basis: conservative_proposal}
+  - {field_name: expected_contract_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 expected contract IDs, decision_basis: conservative_proposal}
+  - {field_name: expected_schema_ids, type_ref: type/id_list, nullable: false, source_citation: W2 §16.1 expected schema IDs, decision_basis: conservative_proposal}
+- object_id: object/artefact_authority
+  additional_properties: false
+  source_citation: W2 §§16.1-16.2
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: availability, type_ref: enum/availability, nullable: false, source_citation: W2 §16.2 Availability, decision_basis: source_literal}
+  - {field_name: regenerability, type_ref: enum/regenerability, nullable: false, source_citation: W2 §16.2 Regenerability, decision_basis: source_literal}
+  - {field_name: integrity, type_ref: enum/integrity, nullable: false, source_citation: W2 §16.2 Integrity, decision_basis: source_literal}
+  - {field_name: structural_validation, type_ref: enum/structural_validation, nullable: false, source_citation: W2 §16.2 Structural validation, decision_basis: source_literal}
+  - {field_name: scientific_review, type_ref: enum/scientific_review, nullable: false, source_citation: W2 §16.2 Scientific review, decision_basis: source_literal}
+  - {field_name: use_authority, type_ref: enum/use_authority, nullable: false, source_citation: W2 §16.2 Use authority, decision_basis: source_literal}
+  - {field_name: accepted_scope, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Authority accepted scope, decision_basis: conservative_proposal}
+  - {field_name: consumer_restrictions, type_ref: type/string_list, nullable: false, source_citation: W2 §16.1 Authority consumer restrictions, decision_basis: conservative_proposal}
+- object_id: object/artefact_operations
+  additional_properties: false
+  source_citation: W2 §16.1 Operations
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: no_overwrite_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W2 §16.1 no-overwrite evidence, decision_basis: conservative_proposal}
+  - {field_name: retention_class, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 retention, decision_basis: conservative_proposal}
+  - {field_name: confidentiality_class, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 confidentiality, decision_basis: conservative_proposal}
+  - {field_name: external_data_constraints, type_ref: type/string_list, nullable: false, source_citation: W2 §16.1 external-data constraints, decision_basis: conservative_proposal}
+- object_id: object/artefact_manifest
+  additional_properties: false
+  source_citation: W2 §§16.1-16.2
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: W2 §16.1 Identity artefact ID, decision_basis: source_literal}
+  - {field_name: aliases, type_ref: type/alias_list, nullable: false, source_citation: W2 §16.1 Identity aliases, decision_basis: conservative_proposal}
+  - {field_name: artefact_type, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Identity type, decision_basis: conservative_proposal}
+  - {field_name: artefact_schema_id, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Identity schema ID, decision_basis: conservative_proposal}
+  - {field_name: artefact_schema_version, type_ref: type/semver, nullable: false, source_citation: W2 §16.1 Identity version, decision_basis: conservative_proposal}
+  - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: W2 §16.1 Production Task, decision_basis: source_literal}
+  - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: W2 §16.1 Production dispatch, decision_basis: source_literal}
+  - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: W2 §16.1 Production attempt, decision_basis: source_literal}
+  - {field_name: producer_actor_id, type_ref: type/actor_id, nullable: false, source_citation: W2 §16.1 Production producer actor, decision_basis: conservative_proposal}
+  - {field_name: producer_profile, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Production producer profile, decision_basis: conservative_proposal}
+  - {field_name: context_packet_id, type_ref: type/context_id, nullable: false, source_citation: W2 §16.1 Production context packet, decision_basis: source_literal}
+  - {field_name: created_at, type_ref: type/utc_z, nullable: false, source_citation: W2 §16.1 Production creation time, decision_basis: conservative_proposal}
+  - {field_name: code_commit, type_ref: type/git_object_identity, nullable: false, source_citation: W2 §16.1 Code/environment commit, decision_basis: conservative_proposal}
+  - {field_name: branch_identity, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Code/environment branch identity, decision_basis: conservative_proposal}
+  - {field_name: worktree_identity, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Code/environment worktree identity, decision_basis: conservative_proposal}
+  - {field_name: environment_fingerprint, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1 Code/environment fingerprint, decision_basis: conservative_proposal}
+  - {field_name: root_id, type_ref: type/any_id, nullable: false, source_citation: W2 §16.1 Location declared root ID, decision_basis: conservative_proposal}
+  - {field_name: relative_path, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Location relative path/URI, decision_basis: conservative_proposal}
+  - {field_name: size_bytes, type_ref: type/nonnegative_integer, nullable: false, source_citation: W2 §16.1 Location size, decision_basis: conservative_proposal}
+  - {field_name: media_type, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Location media type, decision_basis: conservative_proposal}
+  - {field_name: content_sha256, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1 Integrity SHA-256, decision_basis: source_literal}
+  - {field_name: observed_at, type_ref: type/utc_z, nullable: false, source_citation: W2 §16.1 Integrity observation time, decision_basis: conservative_proposal}
+  - {field_name: availability_check_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W2 §16.1 Integrity availability check, decision_basis: conservative_proposal}
+  - {field_name: input_dependencies, type_ref: type/artefact_input_dependency_list, nullable: false, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
+  - {field_name: research_provenance, type_ref: object/research_provenance, nullable: false, source_citation: W2 §16.1 Research provenance, decision_basis: conservative_proposal}
+  - {field_name: validation, type_ref: object/artefact_validation, nullable: false, source_citation: W2 §16.1 Validation, decision_basis: conservative_proposal}
+  - {field_name: authority, type_ref: object/artefact_authority, nullable: false, source_citation: W2 §§16.1-16.2 Authority, decision_basis: conservative_proposal}
+  - {field_name: operations, type_ref: object/artefact_operations, nullable: false, source_citation: W2 §16.1 Operations, decision_basis: conservative_proposal}
 - object_id: object/resource_ceilings
   additional_properties: false
   source_citation: W8 §7
@@ -286,6 +347,49 @@ reusable_objects:
   - {field_name: expected_seconds, type_ref: type/nonnegative_integer, nullable: false, source_citation: W8 §7 requests state ranges, decision_basis: conservative_proposal}
   - {field_name: maximum_seconds, type_ref: type/nonnegative_integer, nullable: false, source_citation: W8 §7 requests state ranges, decision_basis: conservative_proposal}
   - {field_name: uncertainty_basis, type_ref: type/nonempty_string, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
+- object_id: object/profile_evidence_disposition
+  additional_properties: false
+  source_citation: W8 §11.1
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: disposition, type_ref: enum/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 explicitly required or not_applicable, decision_basis: source_literal}
+  - {field_name: policy_id, type_ref: type/policy_version_id, nullable: false, source_citation: W8 §11.1 policy ID, decision_basis: conservative_proposal}
+  - {field_name: rationale, type_ref: type/nonempty_string, nullable: false, source_citation: W8 §11.1 rationale, decision_basis: conservative_proposal}
+  - {field_name: applicability_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §11.1 applicability evidence, decision_basis: conservative_proposal}
+- object_id: object/trivial_not_applicable_evidence
+  additional_properties: false
+  source_citation: W8 §§11.1-12
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: disposition, type_ref: enum/not_applicable_profile_evidence, nullable: false, source_citation: W8 §§11.1-12 explicit not_applicable disposition, decision_basis: source_literal}
+  - {field_name: policy_id, type_ref: type/policy_version_id, nullable: false, source_citation: W8 §§11.1-12 policy ID, decision_basis: conservative_proposal}
+  - {field_name: rationale, type_ref: type/nonempty_string, nullable: false, source_citation: W8 §§11.1-12 rationale, decision_basis: conservative_proposal}
+  - {field_name: applicability_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §§11.1-12 applicability evidence, decision_basis: conservative_proposal}
+- object_id: object/trivial_provider_command_process
+  additional_properties: false
+  source_citation: W8 §§11.1-12
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: provider_command_id, type_ref: type/any_id, nullable: false, source_citation: W8 §12 provider command identity, decision_basis: conservative_proposal}
+  - {field_name: process_identity_disposition, type_ref: enum/not_applicable_profile_evidence, nullable: false, source_citation: W8 §§11.1-12 process identity not_applicable, decision_basis: source_literal}
+  - {field_name: process_identity_not_applicable_rationale, type_ref: type/nonempty_string, nullable: false, source_citation: W8 §12 accepted explicit process-identity rationale, decision_basis: conservative_proposal}
+- object_id: object/trivial_profile_evidence
+  additional_properties: false
+  source_citation: W8 §§11.1-12
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: request_record_type, type_ref: enum/trivial_request_record_type, nullable: false, source_citation: W8 §11.1 typed request, decision_basis: source_literal}
+  - {field_name: grant_record_type, type_ref: enum/trivial_grant_record_type, nullable: false, source_citation: W8 §11.1 typed grant, decision_basis: source_literal}
+  - {field_name: lease_scope, type_ref: enum/lease_scope, nullable: false, source_citation: W8 §11.1 command-scoped lease, decision_basis: source_literal}
+  - {field_name: resource_ceilings_requirement, type_ref: enum/trivial_ceilings_requirement, nullable: false, source_citation: W8 §11.1 explicit resource ceilings, decision_basis: source_literal}
+  - {field_name: terminal_receipt_kind, type_ref: enum/trivial_terminal_receipt_kind, nullable: false, source_citation: W8 §11.1 terminal ProviderReceipt or OperatorReceipt, decision_basis: source_literal}
+  - {field_name: terminal_receipt_lease_release, type_ref: enum/trivial_lease_release, nullable: false, source_citation: W8 §11.1 terminal receipt releases lease, decision_basis: source_literal}
+  - {field_name: terminal_receipt_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §11.1 terminal receipt closure evidence, decision_basis: conservative_proposal}
+  - {field_name: benchmark, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 benchmark disposition, decision_basis: conservative_proposal}
+  - {field_name: checkpoint, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 checkpoint disposition, decision_basis: conservative_proposal}
+  - {field_name: periodic_heartbeat, type_ref: object/trivial_not_applicable_evidence, nullable: false, source_citation: W8 §§11.1-12 periodic-heartbeat not_applicable disposition, decision_basis: conservative_proposal}
+  - {field_name: recovery, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 recovery disposition, decision_basis: conservative_proposal}
+  - {field_name: provider_command_process, type_ref: object/trivial_provider_command_process, nullable: false, source_citation: W8 §12 provider command/process identity, decision_basis: conservative_proposal}
 - object_id: object/resource_request
   additional_properties: false
   source_citation: W8 §§7 and 11.1
@@ -297,20 +401,36 @@ reusable_objects:
   - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: W8 §7, decision_basis: source_literal}
   - {field_name: route_id, type_ref: type/any_id, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
   - {field_name: operation_class, type_ref: type/nonempty_string, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
-  - {field_name: provider_runtime_requirements, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
+  - {field_name: provider_requirements, type_ref: type/string_list, nullable: false, source_citation: W8 §7 provider requirements, decision_basis: conservative_proposal}
+  - {field_name: runtime_requirements, type_ref: type/string_list, nullable: false, source_citation: W8 §7 runtime requirements, decision_basis: conservative_proposal}
   - {field_name: operational_profile, type_ref: enum/operational_profile, nullable: false, source_citation: W8 §11.1, decision_basis: source_literal}
+  - {field_name: operational_profile_policy_id, type_ref: type/policy_version_id, nullable: false, source_citation: W8 §7 operational-profile policy ID, decision_basis: conservative_proposal}
   - {field_name: operational_profile_revision, type_ref: type/semver, nullable: false, source_citation: W8 §11.1, decision_basis: conservative_proposal}
+  - {field_name: requesting_actor_id, type_ref: type/actor_id, nullable: false, source_citation: W8 §7 requesting actor, decision_basis: conservative_proposal}
+  - {field_name: requesting_profile, type_ref: type/nonempty_string, nullable: false, source_citation: W8 §7 requesting profile, decision_basis: conservative_proposal}
+  - {field_name: requesting_authority_grant_id, type_ref: type/authority_grant_id, nullable: false, source_citation: W8 §7 requesting authority, decision_basis: conservative_proposal}
+  - {field_name: expected_control_store_position, type_ref: type/nonnegative_integer, nullable: false, source_citation: W8 §7 expected control-store position, decision_basis: conservative_proposal}
   - {field_name: requested_host_pool, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
   - {field_name: root_bindings, type_ref: type/root_binding_list, nullable: false, source_citation: W8 §7 typed roots, decision_basis: conservative_proposal}
   - {field_name: resource_ceilings, type_ref: object/resource_ceilings, nullable: false, source_citation: W8 §7 typed CPU/RAM/GPU/storage/IO estimates, decision_basis: conservative_proposal}
   - {field_name: network_constraints, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
+  - {field_name: external_write_constraints, type_ref: type/string_list, nullable: false, source_citation: W8 §7 external-write constraints, decision_basis: conservative_proposal}
+  - {field_name: sensitivity_constraints, type_ref: type/string_list, nullable: false, source_citation: W8 §7 sensitivity constraints, decision_basis: conservative_proposal}
+  - {field_name: exclusive_resource_keys, type_ref: type/string_list, nullable: false, source_citation: W8 §7 exclusive resources, decision_basis: conservative_proposal}
+  - {field_name: shared_resource_keys, type_ref: type/string_list, nullable: false, source_citation: W8 §7 shared resources, decision_basis: conservative_proposal}
   - {field_name: compatibility_keys, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
   - {field_name: runtime_distribution, type_ref: object/runtime_distribution, nullable: false, source_citation: W8 §7 range and uncertainty, decision_basis: conservative_proposal}
   - {field_name: deadline, type_ref: type/utc_z, nullable: false, source_citation: W8 §7, decision_basis: source_literal}
-  - {field_name: checkpoint_interval_seconds, type_ref: type/nonnegative_integer, nullable: false, source_citation: W8 §7; zero represents explicit not_applicable proposal, decision_basis: conservative_proposal}
+  - {field_name: checkpoint_interval_seconds, type_ref: type/nonnegative_integer, nullable: false, source_citation: W8 §7 checkpoint interval; not_applicable is represented only by profile evidence, decision_basis: conservative_proposal}
   - {field_name: benchmark_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
-  - {field_name: stop_pause_partial_escalation_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
+  - {field_name: projection_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §7 projection evidence, decision_basis: conservative_proposal}
+  - {field_name: stop_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7 stop rules, decision_basis: conservative_proposal}
+  - {field_name: pause_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7 pause rules, decision_basis: conservative_proposal}
+  - {field_name: partial_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7 Partial rules, decision_basis: conservative_proposal}
+  - {field_name: escalation_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7 escalation rules, decision_basis: conservative_proposal}
+  - {field_name: release_obligations, type_ref: type/string_list, nullable: false, source_citation: W8 §7 resource-release obligations, decision_basis: conservative_proposal}
   - {field_name: cleanup_obligations, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
+  - {field_name: trivial_profile_evidence, type_ref: object/trivial_profile_evidence, nullable: false, source_citation: W8 §§11.1-12 trivial profile evidence, decision_basis: conservative_proposal}
 source_fact_bindings:
 - {binding_id: task_identity_task_id, source_id: W2, source_section: '10.1', source_fact: 'Identity: task_id', target_path: 'object/task_definition.task_id', decision_basis: source_literal}
 - {binding_id: task_identity_revision, source_id: W2, source_section: '10.1', source_fact: 'Identity: revision', target_path: 'object/task_definition.revision', decision_basis: conservative_proposal}
@@ -383,6 +503,123 @@ source_fact_bindings:
 - {binding_id: review_trace_visibility, source_id: W2, source_section: '17.3', source_fact: trace_visibility_evidence, target_path: 'family/review.trace_visibility_evidence_refs', decision_basis: conservative_proposal}
 - {binding_id: review_independence_grade, source_id: W2, source_section: '17.3', source_fact: independence_grade, target_path: 'family/review.computed_independence_grade', decision_basis: conservative_proposal}
 - {binding_id: review_conditional_owner, source_id: W2, source_section: '17.3', source_fact: conditional_approval_owner, target_path: 'family/review.conditional_approval_owner', decision_basis: conservative_proposal}
+- {binding_id: artefact_identity_id, source_id: W2, source_section: '16.1', source_fact: 'Identity: artefact ID', target_path: 'object/artefact_manifest.artefact_id', decision_basis: source_literal}
+- {binding_id: artefact_identity_aliases, source_id: W2, source_section: '16.1', source_fact: 'Identity: aliases', target_path: 'object/artefact_manifest.aliases', decision_basis: conservative_proposal}
+- {binding_id: artefact_identity_type, source_id: W2, source_section: '16.1', source_fact: 'Identity: type', target_path: 'object/artefact_manifest.artefact_type', decision_basis: conservative_proposal}
+- {binding_id: artefact_identity_schema_id, source_id: W2, source_section: '16.1', source_fact: 'Identity: schema ID', target_path: 'object/artefact_manifest.artefact_schema_id', decision_basis: conservative_proposal}
+- {binding_id: artefact_identity_version, source_id: W2, source_section: '16.1', source_fact: 'Identity: version', target_path: 'object/artefact_manifest.artefact_schema_version', decision_basis: conservative_proposal}
+- {binding_id: artefact_production_task, source_id: W2, source_section: '16.1', source_fact: 'Production: Task', target_path: 'object/artefact_manifest.task_id', decision_basis: source_literal}
+- {binding_id: artefact_production_dispatch, source_id: W2, source_section: '16.1', source_fact: 'Production: dispatch', target_path: 'object/artefact_manifest.dispatch_id', decision_basis: source_literal}
+- {binding_id: artefact_production_attempt, source_id: W2, source_section: '16.1', source_fact: 'Production: attempt', target_path: 'object/artefact_manifest.attempt_id', decision_basis: source_literal}
+- {binding_id: artefact_production_actor, source_id: W2, source_section: '16.1', source_fact: 'Production: producer actor', target_path: 'object/artefact_manifest.producer_actor_id', decision_basis: conservative_proposal}
+- {binding_id: artefact_production_profile, source_id: W2, source_section: '16.1', source_fact: 'Production: producer profile', target_path: 'object/artefact_manifest.producer_profile', decision_basis: conservative_proposal}
+- {binding_id: artefact_production_context, source_id: W2, source_section: '16.1', source_fact: 'Production: context packet', target_path: 'object/artefact_manifest.context_packet_id', decision_basis: source_literal}
+- {binding_id: artefact_production_created, source_id: W2, source_section: '16.1', source_fact: 'Production: creation time', target_path: 'object/artefact_manifest.created_at', decision_basis: conservative_proposal}
+- {binding_id: artefact_code_commit, source_id: W2, source_section: '16.1', source_fact: 'Code/environment: commit', target_path: 'object/artefact_manifest.code_commit', decision_basis: conservative_proposal}
+- {binding_id: artefact_code_branch, source_id: W2, source_section: '16.1', source_fact: 'Code/environment: branch identity', target_path: 'object/artefact_manifest.branch_identity', decision_basis: conservative_proposal}
+- {binding_id: artefact_code_worktree, source_id: W2, source_section: '16.1', source_fact: 'Code/environment: worktree identity', target_path: 'object/artefact_manifest.worktree_identity', decision_basis: conservative_proposal}
+- {binding_id: artefact_code_environment, source_id: W2, source_section: '16.1', source_fact: 'Code/environment: environment/toolchain fingerprint', target_path: 'object/artefact_manifest.environment_fingerprint', decision_basis: conservative_proposal}
+- {binding_id: artefact_location_root, source_id: W2, source_section: '16.1', source_fact: 'Location: declared root ID', target_path: 'object/artefact_manifest.root_id', decision_basis: conservative_proposal}
+- {binding_id: artefact_location_path, source_id: W2, source_section: '16.1', source_fact: 'Location: relative path/URI', target_path: 'object/artefact_manifest.relative_path', decision_basis: conservative_proposal}
+- {binding_id: artefact_location_size, source_id: W2, source_section: '16.1', source_fact: 'Location: size', target_path: 'object/artefact_manifest.size_bytes', decision_basis: conservative_proposal}
+- {binding_id: artefact_location_media_type, source_id: W2, source_section: '16.1', source_fact: 'Location: media type', target_path: 'object/artefact_manifest.media_type', decision_basis: conservative_proposal}
+- {binding_id: artefact_integrity_hash, source_id: W2, source_section: '16.1', source_fact: 'Integrity: SHA-256', target_path: 'object/artefact_manifest.content_sha256', decision_basis: source_literal}
+- {binding_id: artefact_integrity_observation, source_id: W2, source_section: '16.1', source_fact: 'Integrity: observation time', target_path: 'object/artefact_manifest.observed_at', decision_basis: conservative_proposal}
+- {binding_id: artefact_integrity_availability_check, source_id: W2, source_section: '16.1', source_fact: 'Integrity: availability check', target_path: 'object/artefact_manifest.availability_check_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: artefact_inputs_id, source_id: W2, source_section: '16.1', source_fact: 'Inputs: input artefact IDs', target_path: 'object/artefact_manifest.input_dependencies.input_artefact_id', decision_basis: source_literal}
+- {binding_id: artefact_inputs_hash, source_id: W2, source_section: '16.1', source_fact: 'Inputs: input artefact hashes', target_path: 'object/artefact_manifest.input_dependencies.input_content_sha256', decision_basis: source_literal}
+- {binding_id: artefact_inputs_role, source_id: W2, source_section: '16.1', source_fact: 'Inputs: dependency roles', target_path: 'object/artefact_manifest.input_dependencies.dependency_role', decision_basis: conservative_proposal}
+- {binding_id: artefact_provenance_dataset_ids, source_id: W2, source_section: '16.1', source_fact: 'Research provenance: dataset IDs', target_path: 'object/artefact_manifest.research_provenance.dataset_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_provenance_vintages, source_id: W2, source_section: '16.1', source_fact: 'Research provenance: dataset vintages', target_path: 'object/artefact_manifest.research_provenance.dataset_vintages', decision_basis: conservative_proposal}
+- {binding_id: artefact_provenance_representations, source_id: W2, source_section: '16.1', source_fact: 'Research provenance: representation IDs', target_path: 'object/artefact_manifest.research_provenance.representation_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_provenance_parameters, source_id: W2, source_section: '16.1', source_fact: 'Research provenance: parameter IDs', target_path: 'object/artefact_manifest.research_provenance.parameter_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_provenance_seeds, source_id: W2, source_section: '16.1', source_fact: 'Research provenance: seed IDs', target_path: 'object/artefact_manifest.research_provenance.seed_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_provenance_restrictions, source_id: W2, source_section: '16.1', source_fact: 'Research provenance: sample restriction IDs', target_path: 'object/artefact_manifest.research_provenance.sample_restriction_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_validation_records, source_id: W2, source_section: '16.1', source_fact: 'Validation: validation-record refs', target_path: 'object/artefact_manifest.validation.validation_record_refs', decision_basis: conservative_proposal}
+- {binding_id: artefact_validation_contracts, source_id: W2, source_section: '16.1', source_fact: 'Validation: expected contract IDs', target_path: 'object/artefact_manifest.validation.expected_contract_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_validation_schemas, source_id: W2, source_section: '16.1', source_fact: 'Validation: expected schema IDs', target_path: 'object/artefact_manifest.validation.expected_schema_ids', decision_basis: conservative_proposal}
+- {binding_id: artefact_authority_availability, source_id: W2, source_section: '16.2', source_fact: 'Authority dimension: availability', target_path: 'object/artefact_manifest.authority.availability', decision_basis: source_literal}
+- {binding_id: artefact_authority_regenerability, source_id: W2, source_section: '16.2', source_fact: 'Authority dimension: regenerability', target_path: 'object/artefact_manifest.authority.regenerability', decision_basis: source_literal}
+- {binding_id: artefact_authority_integrity, source_id: W2, source_section: '16.2', source_fact: 'Authority dimension: integrity', target_path: 'object/artefact_manifest.authority.integrity', decision_basis: source_literal}
+- {binding_id: artefact_authority_structural, source_id: W2, source_section: '16.2', source_fact: 'Authority dimension: structural validation', target_path: 'object/artefact_manifest.authority.structural_validation', decision_basis: source_literal}
+- {binding_id: artefact_authority_scientific, source_id: W2, source_section: '16.2', source_fact: 'Authority dimension: scientific review', target_path: 'object/artefact_manifest.authority.scientific_review', decision_basis: source_literal}
+- {binding_id: artefact_authority_use, source_id: W2, source_section: '16.2', source_fact: 'Authority dimension: use authority', target_path: 'object/artefact_manifest.authority.use_authority', decision_basis: source_literal}
+- {binding_id: artefact_authority_scope, source_id: W2, source_section: '16.1', source_fact: 'Authority: accepted scope', target_path: 'object/artefact_manifest.authority.accepted_scope', decision_basis: conservative_proposal}
+- {binding_id: artefact_authority_consumers, source_id: W2, source_section: '16.1', source_fact: 'Authority: consumer restrictions', target_path: 'object/artefact_manifest.authority.consumer_restrictions', decision_basis: conservative_proposal}
+- {binding_id: artefact_operations_no_overwrite, source_id: W2, source_section: '16.1', source_fact: 'Operations: no-overwrite evidence', target_path: 'object/artefact_manifest.operations.no_overwrite_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: artefact_operations_retention, source_id: W2, source_section: '16.1', source_fact: 'Operations: retention', target_path: 'object/artefact_manifest.operations.retention_class', decision_basis: conservative_proposal}
+- {binding_id: artefact_operations_confidentiality, source_id: W2, source_section: '16.1', source_fact: 'Operations: confidentiality', target_path: 'object/artefact_manifest.operations.confidentiality_class', decision_basis: conservative_proposal}
+- {binding_id: artefact_operations_external_data, source_id: W2, source_section: '16.1', source_fact: 'Operations: external-data constraints', target_path: 'object/artefact_manifest.operations.external_data_constraints', decision_basis: conservative_proposal}
+- {binding_id: resource_identity_request_id, source_id: W8, source_section: '7', source_fact: 'ResourceRequest identity', target_path: 'object/resource_request.resource_request_id', decision_basis: source_literal}
+- {binding_id: resource_identity_task, source_id: W8, source_section: '7', source_fact: 'Task identity', target_path: 'object/resource_request.task_id', decision_basis: source_literal}
+- {binding_id: resource_identity_dispatch, source_id: W8, source_section: '7', source_fact: 'Dispatch identity', target_path: 'object/resource_request.dispatch_id', decision_basis: source_literal}
+- {binding_id: resource_identity_attempt, source_id: W8, source_section: '7', source_fact: 'Attempt identity', target_path: 'object/resource_request.attempt_id', decision_basis: source_literal}
+- {binding_id: resource_identity_route, source_id: W8, source_section: '7', source_fact: 'Route identity', target_path: 'object/resource_request.route_id', decision_basis: conservative_proposal}
+- {binding_id: resource_operation_class, source_id: W8, source_section: '7', source_fact: 'Normalized operation class', target_path: 'object/resource_request.operation_class', decision_basis: conservative_proposal}
+- {binding_id: resource_provider, source_id: W8, source_section: '7', source_fact: 'Provider requirements', target_path: 'object/resource_request.provider_requirements', decision_basis: conservative_proposal}
+- {binding_id: resource_runtime, source_id: W8, source_section: '7', source_fact: 'Runtime requirements', target_path: 'object/resource_request.runtime_requirements', decision_basis: conservative_proposal}
+- {binding_id: resource_profile, source_id: W8, source_section: '7', source_fact: 'Operational profile', target_path: 'object/resource_request.operational_profile', decision_basis: source_literal}
+- {binding_id: resource_profile_policy, source_id: W8, source_section: '7', source_fact: 'Operational-profile policy ID', target_path: 'object/resource_request.operational_profile_policy_id', decision_basis: conservative_proposal}
+- {binding_id: resource_profile_revision, source_id: W8, source_section: '7', source_fact: 'Operational-profile revision', target_path: 'object/resource_request.operational_profile_revision', decision_basis: conservative_proposal}
+- {binding_id: resource_requester_actor, source_id: W8, source_section: '7', source_fact: 'Requesting actor', target_path: 'object/resource_request.requesting_actor_id', decision_basis: conservative_proposal}
+- {binding_id: resource_requester_profile, source_id: W8, source_section: '7', source_fact: 'Requesting profile', target_path: 'object/resource_request.requesting_profile', decision_basis: conservative_proposal}
+- {binding_id: resource_requester_authority, source_id: W8, source_section: '7', source_fact: 'Requesting authority', target_path: 'object/resource_request.requesting_authority_grant_id', decision_basis: conservative_proposal}
+- {binding_id: resource_expected_position, source_id: W8, source_section: '7', source_fact: 'Expected control-store position', target_path: 'object/resource_request.expected_control_store_position', decision_basis: conservative_proposal}
+- {binding_id: resource_host_pool, source_id: W8, source_section: '7', source_fact: 'Requested host pool', target_path: 'object/resource_request.requested_host_pool', decision_basis: conservative_proposal}
+- {binding_id: resource_roots, source_id: W8, source_section: '7', source_fact: 'Typed control/code/result/cache/data roots', target_path: 'object/resource_request.root_bindings', decision_basis: conservative_proposal}
+- {binding_id: resource_cpu_processes, source_id: W8, source_section: '7', source_fact: 'CPU process limits', target_path: 'object/resource_request.resource_ceilings.cpu_processes', decision_basis: conservative_proposal}
+- {binding_id: resource_cpu_threads, source_id: W8, source_section: '7', source_fact: 'CPU thread limits', target_path: 'object/resource_request.resource_ceilings.cpu_threads', decision_basis: conservative_proposal}
+- {binding_id: resource_ram_working, source_id: W8, source_section: '7', source_fact: 'RAM working estimate', target_path: 'object/resource_request.resource_ceilings.ram_working_bytes', decision_basis: conservative_proposal}
+- {binding_id: resource_ram_peak, source_id: W8, source_section: '7', source_fact: 'RAM peak estimate', target_path: 'object/resource_request.resource_ceilings.ram_peak_bytes', decision_basis: conservative_proposal}
+- {binding_id: resource_gpu, source_id: W8, source_section: '7', source_fact: 'GPU/device requirements', target_path: 'object/resource_request.resource_ceilings.gpu_devices', decision_basis: conservative_proposal}
+- {binding_id: resource_storage, source_id: W8, source_section: '7', source_fact: 'Storage estimate', target_path: 'object/resource_request.resource_ceilings.storage_bytes', decision_basis: conservative_proposal}
+- {binding_id: resource_io, source_id: W8, source_section: '7', source_fact: 'IO estimate', target_path: 'object/resource_request.resource_ceilings.io_bytes', decision_basis: conservative_proposal}
+- {binding_id: resource_network, source_id: W8, source_section: '7', source_fact: 'Network constraints', target_path: 'object/resource_request.network_constraints', decision_basis: conservative_proposal}
+- {binding_id: resource_external_write, source_id: W8, source_section: '7', source_fact: 'External-write constraints', target_path: 'object/resource_request.external_write_constraints', decision_basis: conservative_proposal}
+- {binding_id: resource_sensitivity, source_id: W8, source_section: '7', source_fact: 'Sensitivity constraints', target_path: 'object/resource_request.sensitivity_constraints', decision_basis: conservative_proposal}
+- {binding_id: resource_exclusive, source_id: W8, source_section: '7', source_fact: 'Exclusive resources', target_path: 'object/resource_request.exclusive_resource_keys', decision_basis: conservative_proposal}
+- {binding_id: resource_shared, source_id: W8, source_section: '7', source_fact: 'Shared resources', target_path: 'object/resource_request.shared_resource_keys', decision_basis: conservative_proposal}
+- {binding_id: resource_compatibility, source_id: W8, source_section: '7', source_fact: 'Compatibility keys', target_path: 'object/resource_request.compatibility_keys', decision_basis: conservative_proposal}
+- {binding_id: resource_runtime_minimum, source_id: W8, source_section: '7', source_fact: 'Runtime minimum', target_path: 'object/resource_request.runtime_distribution.minimum_seconds', decision_basis: conservative_proposal}
+- {binding_id: resource_runtime_expected, source_id: W8, source_section: '7', source_fact: 'Runtime expected', target_path: 'object/resource_request.runtime_distribution.expected_seconds', decision_basis: conservative_proposal}
+- {binding_id: resource_runtime_maximum, source_id: W8, source_section: '7', source_fact: 'Runtime maximum', target_path: 'object/resource_request.runtime_distribution.maximum_seconds', decision_basis: conservative_proposal}
+- {binding_id: resource_deadline, source_id: W8, source_section: '7', source_fact: 'Deadline', target_path: 'object/resource_request.deadline', decision_basis: source_literal}
+- {binding_id: resource_checkpoint_interval, source_id: W8, source_section: '7', source_fact: 'Checkpoint interval', target_path: 'object/resource_request.checkpoint_interval_seconds', decision_basis: conservative_proposal}
+- {binding_id: resource_benchmark, source_id: W8, source_section: '7', source_fact: 'Benchmark evidence', target_path: 'object/resource_request.benchmark_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: resource_projection, source_id: W8, source_section: '7', source_fact: 'Projection evidence', target_path: 'object/resource_request.projection_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: resource_uncertainty, source_id: W8, source_section: '7', source_fact: 'Uncertainty basis', target_path: 'object/resource_request.runtime_distribution.uncertainty_basis', decision_basis: conservative_proposal}
+- {binding_id: resource_stop, source_id: W8, source_section: '7', source_fact: 'Stop rules', target_path: 'object/resource_request.stop_rules', decision_basis: conservative_proposal}
+- {binding_id: resource_pause, source_id: W8, source_section: '7', source_fact: 'Pause rules', target_path: 'object/resource_request.pause_rules', decision_basis: conservative_proposal}
+- {binding_id: resource_partial, source_id: W8, source_section: '7', source_fact: 'Partial rules', target_path: 'object/resource_request.partial_rules', decision_basis: conservative_proposal}
+- {binding_id: resource_escalation, source_id: W8, source_section: '7', source_fact: 'Escalation rules', target_path: 'object/resource_request.escalation_rules', decision_basis: conservative_proposal}
+- {binding_id: resource_release, source_id: W8, source_section: '7', source_fact: 'Resource-release obligations', target_path: 'object/resource_request.release_obligations', decision_basis: conservative_proposal}
+- {binding_id: resource_cleanup, source_id: W8, source_section: '7', source_fact: 'Cleanup obligations', target_path: 'object/resource_request.cleanup_obligations', decision_basis: conservative_proposal}
+- {binding_id: trivial_typed_request, source_id: W8, source_section: '11.1', source_fact: 'Trivial typed request', target_path: 'object/resource_request.trivial_profile_evidence.request_record_type', decision_basis: source_literal}
+- {binding_id: trivial_typed_grant, source_id: W8, source_section: '11.1', source_fact: 'Trivial typed grant', target_path: 'object/resource_request.trivial_profile_evidence.grant_record_type', decision_basis: source_literal}
+- {binding_id: trivial_command_lease, source_id: W8, source_section: '11.1', source_fact: 'Trivial command-scoped lease', target_path: 'object/resource_request.trivial_profile_evidence.lease_scope', decision_basis: source_literal}
+- {binding_id: trivial_explicit_ceilings, source_id: W8, source_section: '11.1', source_fact: 'Trivial explicit resource ceilings', target_path: 'object/resource_request.trivial_profile_evidence.resource_ceilings_requirement', decision_basis: source_literal}
+- {binding_id: trivial_terminal_receipt_kind, source_id: W8, source_section: '11.1', source_fact: 'Trivial terminal ProviderReceipt or OperatorReceipt', target_path: 'object/resource_request.trivial_profile_evidence.terminal_receipt_kind', decision_basis: source_literal}
+- {binding_id: trivial_terminal_release, source_id: W8, source_section: '11.1', source_fact: 'Trivial terminal receipt releases lease', target_path: 'object/resource_request.trivial_profile_evidence.terminal_receipt_lease_release', decision_basis: source_literal}
+- {binding_id: trivial_terminal_evidence, source_id: W8, source_section: '11.1', source_fact: 'Trivial terminal receipt closure evidence', target_path: 'object/resource_request.trivial_profile_evidence.terminal_receipt_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: trivial_benchmark_disposition, source_id: W8, source_section: '11.1', source_fact: 'Trivial benchmark required or not_applicable disposition', target_path: 'object/resource_request.trivial_profile_evidence.benchmark.disposition', decision_basis: source_literal}
+- {binding_id: trivial_checkpoint_disposition, source_id: W8, source_section: '11.1', source_fact: 'Trivial checkpoint required or not_applicable disposition', target_path: 'object/resource_request.trivial_profile_evidence.checkpoint.disposition', decision_basis: source_literal}
+- {binding_id: trivial_heartbeat_disposition, source_id: W8, source_section: '11.1', source_fact: 'Trivial periodic-heartbeat required or not_applicable disposition', target_path: 'object/resource_request.trivial_profile_evidence.periodic_heartbeat.disposition', decision_basis: source_literal}
+- {binding_id: trivial_recovery_disposition, source_id: W8, source_section: '11.1', source_fact: 'Trivial recovery required or not_applicable disposition', target_path: 'object/resource_request.trivial_profile_evidence.recovery.disposition', decision_basis: source_literal}
+- {binding_id: trivial_benchmark_policy, source_id: W8, source_section: '11.1', source_fact: 'Trivial benchmark disposition policy ID', target_path: 'object/resource_request.trivial_profile_evidence.benchmark.policy_id', decision_basis: conservative_proposal}
+- {binding_id: trivial_benchmark_rationale, source_id: W8, source_section: '11.1', source_fact: 'Trivial benchmark disposition rationale', target_path: 'object/resource_request.trivial_profile_evidence.benchmark.rationale', decision_basis: conservative_proposal}
+- {binding_id: trivial_benchmark_applicability, source_id: W8, source_section: '11.1', source_fact: 'Trivial benchmark applicability evidence', target_path: 'object/resource_request.trivial_profile_evidence.benchmark.applicability_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: trivial_checkpoint_policy, source_id: W8, source_section: '11.1', source_fact: 'Trivial checkpoint disposition policy ID', target_path: 'object/resource_request.trivial_profile_evidence.checkpoint.policy_id', decision_basis: conservative_proposal}
+- {binding_id: trivial_checkpoint_rationale, source_id: W8, source_section: '11.1', source_fact: 'Trivial checkpoint disposition rationale', target_path: 'object/resource_request.trivial_profile_evidence.checkpoint.rationale', decision_basis: conservative_proposal}
+- {binding_id: trivial_checkpoint_applicability, source_id: W8, source_section: '11.1', source_fact: 'Trivial checkpoint applicability evidence', target_path: 'object/resource_request.trivial_profile_evidence.checkpoint.applicability_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: trivial_heartbeat_policy, source_id: W8, source_section: '11.1', source_fact: 'Trivial periodic-heartbeat disposition policy ID', target_path: 'object/resource_request.trivial_profile_evidence.periodic_heartbeat.policy_id', decision_basis: conservative_proposal}
+- {binding_id: trivial_heartbeat_rationale, source_id: W8, source_section: '11.1', source_fact: 'Trivial periodic-heartbeat disposition rationale', target_path: 'object/resource_request.trivial_profile_evidence.periodic_heartbeat.rationale', decision_basis: conservative_proposal}
+- {binding_id: trivial_heartbeat_applicability, source_id: W8, source_section: '11.1', source_fact: 'Trivial periodic-heartbeat applicability evidence', target_path: 'object/resource_request.trivial_profile_evidence.periodic_heartbeat.applicability_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: trivial_recovery_policy, source_id: W8, source_section: '11.1', source_fact: 'Trivial recovery disposition policy ID', target_path: 'object/resource_request.trivial_profile_evidence.recovery.policy_id', decision_basis: conservative_proposal}
+- {binding_id: trivial_recovery_rationale, source_id: W8, source_section: '11.1', source_fact: 'Trivial recovery disposition rationale', target_path: 'object/resource_request.trivial_profile_evidence.recovery.rationale', decision_basis: conservative_proposal}
+- {binding_id: trivial_recovery_applicability, source_id: W8, source_section: '11.1', source_fact: 'Trivial recovery applicability evidence', target_path: 'object/resource_request.trivial_profile_evidence.recovery.applicability_evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: trivial_provider_command, source_id: W8, source_section: '12', source_fact: 'Trivial provider command identity', target_path: 'object/resource_request.trivial_profile_evidence.provider_command_process.provider_command_id', decision_basis: conservative_proposal}
+- {binding_id: trivial_process_na, source_id: W8, source_section: '12', source_fact: 'Trivial process identity not_applicable disposition', target_path: 'object/resource_request.trivial_profile_evidence.provider_command_process.process_identity_disposition', decision_basis: source_literal}
+- {binding_id: trivial_process_na_rationale, source_id: W8, source_section: '12', source_fact: 'Trivial process identity not_applicable rationale', target_path: 'object/resource_request.trivial_profile_evidence.provider_command_process.process_identity_not_applicable_rationale', decision_basis: conservative_proposal}
 family_specs:
 - family_id: family/scope
   source_citation: W2 §10.2 and 06d scope rows
@@ -631,7 +868,7 @@ family_specs:
   fields:
   - {field_name: artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: new_artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
-  - {field_name: manifest, type_ref: object/artefact_manifest, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
+  - {field_name: manifest, type_ref: object/artefact_manifest, nullable: false, source_citation: "W2 §§16.1-16.2 and 06d artefact rows", decision_basis: source_literal}
   - {field_name: subject_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: availability, type_ref: enum/availability, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: regenerability, type_ref: enum/regenerability, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
@@ -767,7 +1004,7 @@ family_specs:
   decision_basis: conservative_proposal
   fields:
   - {field_name: resource_id, type_ref: type/resource_id, nullable: false, source_citation: W8 §5 resource identity union, decision_basis: source_literal}
-  - {field_name: resource_request, type_ref: object/resource_request, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: resource_request, type_ref: object/resource_request, nullable: false, source_citation: "W8 §§7 and 11.1-12 and 06d operator rows", decision_basis: source_literal}
   - {field_name: resource_grant_id, type_ref: type/resource_grant_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: lease_id, type_ref: type/lease_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
@@ -4522,7 +4759,7 @@ generation_contract:
   open_policy_vocabularies: versioned_runtime_policy_gate_only
   institutional_classifications: versioned_runtime_policy_gate_only
   stage_1_ready: false
-  pending_r3_remediation: [M-2_artefact_and_resource_source_fact_objects, M-5_correction_and_recovery_shapes]
+  pending_r3_remediation: [M-5_correction_and_recovery_shapes]
 schema_identity_rule:
   identity_key: [schema_kind, semantic_type]
   unique_command_identities: 87
@@ -4534,7 +4771,7 @@ decision_register:
 - {decision_id: proposal_decision/id_prefixes, family_ref: family/scope, selection_kind: generation_rule, selected_rule: "Use every source-literal W2 §6.1 and W8 §5 prefix; retain type/any_id only where the source leaves the identifier family genuinely open.", generator_byte_change_allowed: false, source_citation: W2 §6.1 and W8 §5, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/access_mode_vocabulary, family_ref: family/dispatch, selection_kind: generation_rule, selected_rule: "Freeze access_mode to [read_only, create_only, append_only, read_write].", generator_byte_change_allowed: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/git_object_identity, family_ref: family/dispatch, selection_kind: generation_rule, selected_rule: "Freeze expected_commit to ^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$; SHA-1 is a Git object algorithm label, not a security digest.", generator_byte_change_allowed: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-- {decision_id: proposal_decision/numeric_policy_bounds, family_ref: family/resource_operation, selection_kind: generation_rule, selected_rule: "All integer primitives use the interoperable maximum 9007199254740991; units remain those stated by each field name and source fact.", generator_byte_change_allowed: false, source_citation: W2 §7.1 and W8 §§7 and 11-17, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/numeric_policy_bounds, family_ref: family/resource_operation, selection_kind: generation_rule, selected_rule: "All integer primitives use the interoperable maximum 9007199254740991; units remain those stated by each field name and source fact. For every ResourceRequest, runtime_distribution.minimum_seconds <= runtime_distribution.expected_seconds <= runtime_distribution.maximum_seconds and resource_ceilings.ram_working_bytes <= resource_ceilings.ram_peak_bytes. No universal resource or duration maximum is generated beyond W2 §7.1's interoperable integer maximum; selected operational-profile policy supplies any narrower ceiling.", generator_byte_change_allowed: false, source_citation: W2 §7.1 and W8 §7 requests state ranges and estimates; W8 §11.1 no universal duration default, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/open_policy_vocabularies, family_ref: family/task, selection_kind: runtime_policy_gate, selected_rule: "Open reason and policy strings remain non-empty strings and may be narrowed only by a separately versioned runtime policy; schema generation cannot change them.", generator_byte_change_allowed: false, source_citation: W2 §§10-18, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/schema_id_scope, family_ref: family/correction, selection_kind: generation_rule, selected_rule: "Generate one identity for each of 87 command and 86 event semantic types; repeated owner rows share that semantic identity and closed variants remain inside it.", generator_byte_change_allowed: false, source_citation: 06d §1.1, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/shared_discriminators, family_ref: family/task, selection_kind: generation_rule, selected_rule: "Freeze every discriminator_field and variant_const_values entry in shared_schema_rules; generation may neither rename nor infer them.", generator_byte_change_allowed: false, source_citation: 06d §1.3 repeated semantic types, decision_basis: conservative_proposal}

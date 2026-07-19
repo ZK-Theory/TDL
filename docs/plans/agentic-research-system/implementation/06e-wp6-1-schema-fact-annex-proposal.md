@@ -33,12 +33,12 @@ All three sources are read as canonical UTF-8/LF bytes from revision `fe5f1d40bc
 
 The family model is a closed field universe plus a row-specific required-field selection. A generator must take the cited type of each selected field from the row's `family_ref`, close the resulting payload with `additionalProperties: false`, and reject an absent or unknown row. There is no generic object, catch-all branch, fallback payload, or registry widening.
 
-The current reusable objects are closed rather than loose string maps. D1C-2a now supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. R3 M-2 remains open only for the Artefact and ResourceRequest objects below; M-5 also remains open.
+The current reusable objects are closed rather than loose string maps. D1C-2a supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. This D1C-2b packet completes the Artefact and ResourceRequest source-fact objects and their one-to-one bindings. The direct-source validation pass proves all five M-2 groups — Task, Dispatch/root binding, review verdict, Artefact manifest, and ResourceRequest — so M-2 is resolved in this proposed fact model. M-5 remains open.
 
 - `object/task_definition`, `object/dispatch_definition`, and `object/root_binding` are complete for the cited W2 §10.1/§12.1 facts in D1C-2a; `source_fact_bindings` records each target field or explicit non-lossy subfield mapping.
 - `family/review` and the `review.record_verdict` command/event selections are complete for W2 §§17.3–17.4 verdict facts; verdict recording remains separate from the Task transition.
-- `object/artefact_manifest` remains pending expansion and source-fact binding against W2 §§16.1–16.2.
-- `object/resource_request` remains pending expansion and source-fact binding against W8 §§7 and 11.1.
+- `object/artefact_manifest` now represents every independently stateful W2 §§16.1–16.2 identity, production, code/environment, location, integrity, input, research-provenance, validation, authority, and operations fact through closed objects where a relation must remain paired.
+- `object/resource_request` now represents W8 §7 request facts and W8 §§11.1–12 trivial-profile evidence, including explicit required-or-`not_applicable` dispositions. Checkpoint compatibility remains the separate three-value W8 §16 relation and never uses `not_applicable`.
 
 The machine contract asserts these cardinalities as constants: 104 rows, 104 command bindings, 106 event bindings, 87 unique command types, 86 unique event types, 173 generated schema identities, 17 command-root fields, 27 event-root fields, and 14 families.
 
@@ -60,7 +60,7 @@ The following choices are not silently attributed to W2, W8, or 06d. Each appear
 | Decision | Source-closed decision kinds; authority, subject, consequences, conditions, evidence, lifecycle, lineage, and effective-boundary fields are non-compensating. |
 | Rule evaluation | Estimand/object, compared subjects, metric, denominator, input IDs/hashes, validator, output, and evidence hash are explicit. |
 | Correction | The corrected-record-kind vocabulary is source-closed; M-5 must still supply the exact 15-kind union, and a generic fallback remains prohibited. |
-| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
+| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
 | Backup/recovery | M-5 remains pending: generation is prohibited until the reviewed per-external-artefact availability relation and correction union are represented. |
 
 ## 5. Candidate resolver comparison — evidence, not authority
@@ -90,10 +90,10 @@ Representative resolver-only names include `completion_rule`, `acceptance_eviden
 
 ## 6. Two-stage authority gate
 
-1. **Fact-annex acceptance.** D1C-2a completes the Task/Dispatch/root/review-verdict subset, but M-2 Artefact/ResourceRequest source-fact objects and M-5 correction/recovery shapes must first be remediated. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
+1. **Fact-annex acceptance.** D1C-2a and D1C-2b together supply all five M-2 direct-source groups; the validation pass must prove those mappings before M-2 is reported resolved. M-5 correction/recovery shapes remain pending, so `stage_1_ready` remains `false` and no generation is authorized. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
 2. **Generated-schema acceptance.** Only after stage 1 may a generator consume the accepted annex to materialize the 173 unique command/event schema files and populate all 210 row/event content observations. Those exact generated paths, schema IDs/versions, Git blobs, SHA-256 values, row/multiset identities, and independent review form a separate D-G6-3 owner decision.
 
-This D1C-2a packet is not Stage-1 ready and does not authorize schema generation. D1C-2a does not resolve all of R3 M-2: Artefact and ResourceRequest fact completeness remain pending, alongside M-5. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
+This D1C-2a/D1C-2b packet is not Stage-1 ready and does not authorize schema generation. The direct-source M-2 pass is complete only after all five groups validate; M-5 remains pending. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
 
 ## 7. Validation commands
 
@@ -139,6 +139,31 @@ for section in ('reusable_objects', 'family_specs'):
         assert len({f['field_name'] for f in owner['fields']}) == len(owner['fields'])
         assert all(f['type_ref'] in valid_refs for f in owner['fields'])
 
+object_specs = {x['object_id']: x for x in contract['reusable_objects']}
+type_specs = {x['type_id']: x for x in contract['primitive_types']}
+def resolves_target(path):
+    owner_id, tail = path.split('.', 1)
+    owner = object_specs.get(owner_id)
+    if owner is None:  # a family target is flat
+        owner = next(x for x in contract['family_specs'] if x['family_id'] == owner_id)
+    fields = {x['field_name']: x for x in owner['fields']}
+    for index, name in enumerate(tail.split('.')):
+        if name not in fields:
+            return False
+        if index == len(tail.split('.')) - 1:
+            return True
+        ref = fields[name]['type_ref']
+        if ref in object_specs:
+            fields = {x['field_name']: x for x in object_specs[ref]['fields']}
+        elif ref in type_specs and type_specs[ref].get('item_type_ref') in object_specs:
+            item = type_specs[ref]['item_type_ref']
+            fields = {x['field_name']: x for x in object_specs[item]['fields']}
+        else:
+            return False
+    return False
+assert len({x['binding_id'] for x in contract['source_fact_bindings']}) == len(contract['source_fact_bindings'])
+assert all(resolves_target(x['target_path']) for x in contract['source_fact_bindings'] if '{' not in x['target_path'])
+
 families = {x['family_id']: {f['field_name'] for f in x['fields']} for x in contract['family_specs']}
 for section in ('command_payload_specs', 'event_fact_specs'):
     for spec in contract[section]:
@@ -175,6 +200,6 @@ git diff --check
 - Review every `conservative_proposal`, every frozen decision-register selection, and the resolver delta; do not infer equivalence from similar names.
 - Verify source-closed enums, especially review verdict, artefact availability/dimensions, operational profile, checkpoint compatibility, and corrected-record kind.
 - Confirm shared types are either one normalized fact or have an explicit discriminator/variant rule.
-- Confirm M-2 and M-5 remain explicit blockers; this packet must not be treated as Stage-1 readiness or generation authority.
+- Confirm all five M-2 source groups have direct one-to-one bindings and that M-5 remains an explicit blocker; this packet must not be treated as Stage-1 readiness or generation authority.
 - Confirm the proposal contains no self-hash, acceptance actor, inferred owner verdict, runtime registration, dispatch, reducer, projection, migration, or Gate 6 transition authorization.
 - Record findings against exact committed bytes. A candidate-authored checklist result is not independent acceptance.
