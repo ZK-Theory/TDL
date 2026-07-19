@@ -3,7 +3,7 @@
 Covers:
 - _compute_wasserstein_distance: symmetry, identity, infinite-death filtering,
   gudhi/scipy fallback routing
-- _scipy_wasserstein_approx: edge cases (empty diagrams, unequal sizes)
+- _scipy_wasserstein_exact: edge cases (empty diagrams, unequal sizes)
 - diagram_wasserstein_pvalue: return-type contract, p-value range, z-score,
   observed_distance content, empty diagrams, method detection
 - stratified_wasserstein_test: group-mapping correctness, pairwise symmetry,
@@ -22,7 +22,7 @@ import pytest
 from trajectory_tda.validation.wasserstein_null_tests import (
     WassersteinNullResult,
     _compute_wasserstein_distance,
-    _scipy_wasserstein_approx,
+    _scipy_wasserstein_exact,
     diagram_wasserstein_pvalue,
     stratified_wasserstein_test,
 )
@@ -49,57 +49,161 @@ DIAG_WITH_INF = np.array([[0.0, 1.0], [0.5, np.inf], [0.1, 0.3]])
 
 
 # ─────────────────────────────────────────────────────────────
-# Tests: _scipy_wasserstein_approx
+# Tests: _scipy_wasserstein_exact
 # ─────────────────────────────────────────────────────────────
 
 
-class TestScipyWassersteinApprox:
-    """Algebraic properties of the scipy fallback approximation."""
+class TestScipyWassersteinExact:
+    """Algebraic properties of the exact scipy fallback."""
 
     def test_identity_returns_zero(self):
         """Distance from a diagram to itself is zero."""
-        d = _scipy_wasserstein_approx(DIAG_SIMPLE, DIAG_SIMPLE)
+        d = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_SIMPLE)
         assert d == pytest.approx(0.0, abs=1e-9)
 
     def test_symmetric(self):
         """d(A, B) == d(B, A)."""
-        d_ab = _scipy_wasserstein_approx(DIAG_SIMPLE, DIAG_SHIFTED)
-        d_ba = _scipy_wasserstein_approx(DIAG_SHIFTED, DIAG_SIMPLE)
+        d_ab = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_SHIFTED)
+        d_ba = _scipy_wasserstein_exact(DIAG_SHIFTED, DIAG_SIMPLE)
         assert d_ab == pytest.approx(d_ba, rel=1e-6)
 
     def test_nonnegative(self):
-        d = _scipy_wasserstein_approx(DIAG_SIMPLE, DIAG_SHIFTED)
+        d = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_SHIFTED)
         assert d >= 0.0
 
     def test_both_empty_returns_zero(self):
-        d = _scipy_wasserstein_approx(DIAG_EMPTY, DIAG_EMPTY)
+        d = _scipy_wasserstein_exact(DIAG_EMPTY, DIAG_EMPTY)
         assert d == pytest.approx(0.0, abs=1e-9)
 
     def test_one_empty_returns_finite(self):
         """Matching a non-empty diagram against the empty one should work."""
-        d = _scipy_wasserstein_approx(DIAG_SIMPLE, DIAG_EMPTY)
+        d = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_EMPTY)
         assert np.isfinite(d)
         assert d >= 0.0
 
     def test_single_point_both_sides(self):
-        d = _scipy_wasserstein_approx(DIAG_SINGLE, DIAG_SINGLE)
+        d = _scipy_wasserstein_exact(DIAG_SINGLE, DIAG_SINGLE)
         assert d == pytest.approx(0.0, abs=1e-9)
 
     def test_unequal_sizes_runs(self):
         """Diagrams with different numbers of pairs should not raise."""
         diag_large = _make_diagram([(i * 0.1, i * 0.1 + 1.0) for i in range(10)])
         diag_small = _make_diagram([(0.0, 1.0)])
-        d = _scipy_wasserstein_approx(diag_large, diag_small)
+        d = _scipy_wasserstein_exact(diag_large, diag_small)
         assert np.isfinite(d) and d >= 0.0
 
     def test_order_2_produces_larger_than_order_1(self):
         """Higher Wasserstein order magnifies large distances."""
-        d1 = _scipy_wasserstein_approx(DIAG_SIMPLE, DIAG_SHIFTED, order=1)
-        d2 = _scipy_wasserstein_approx(DIAG_SIMPLE, DIAG_SHIFTED, order=2)
-        # Both must be finite and non-negative; no strict ordering is guaranteed
-        # for the approximation, but both should be positive when diagrams differ
+        d1 = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_SHIFTED, order=1)
+        d2 = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_SHIFTED, order=2)
+        # Both must be finite and non-negative; no strict ordering between
+        # orders is guaranteed, but both should be positive when diagrams differ
         assert d1 >= 0.0
         assert d2 >= 0.0
+
+
+# ─────────────────────────────────────────────────────────────
+# Tests: scipy fallback == exact W_q (canonical zero-block reduction)
+# ─────────────────────────────────────────────────────────────
+
+
+def _bruteforce_wasserstein(diagram_a: np.ndarray, diagram_b: np.ndarray, order: int = 2) -> float:
+    """Exact W_q oracle by exhaustive enumeration of partial matchings.
+
+    Independent re-derivation of the estimand computed by
+    ``shared/math_invariants.py::wasserstein_exact_small`` (the canonical
+    augmented-assignment oracle, PR #131): every injective partial matching
+    between A and B is enumerated; matched pairs pay the Euclidean ground
+    distance to the ``order``-th power, unmatched points pay their L2
+    distance to the diagonal (persistence / sqrt(2)) to the ``order``-th
+    power. Shares no code with the solver under test. Tiny diagrams only
+    (factorial enumeration).
+    """
+    from itertools import combinations, permutations
+
+    n, m = len(diagram_a), len(diagram_b)
+
+    def diag_cost(pt: np.ndarray) -> float:
+        return float((pt[1] - pt[0]) / np.sqrt(2.0)) ** order
+
+    best = np.inf
+    for k in range(min(n, m) + 1):
+        for a_idx in combinations(range(n), k):
+            for b_idx in permutations(range(m), k):
+                total = sum(float(np.linalg.norm(diagram_a[i] - diagram_b[j])) ** order for i, j in zip(a_idx, b_idx))
+                total += sum(diag_cost(diagram_a[i]) for i in range(n) if i not in a_idx)
+                total += sum(diag_cost(diagram_b[j]) for j in range(m) if j not in b_idx)
+                best = min(best, total)
+    return float(best ** (1.0 / order))
+
+
+class TestScipyFallbackCanonicalReduction:
+    """The scipy fallback must compute exact W_q, not an upper-biased surrogate.
+
+    Regression for the augmented-matrix defect where the diagonal-diagonal
+    block carried the distance between the two diagonal projections instead
+    of 0: whenever the optimal plan contained a real-real match, surplus
+    diagonal slots were forced to pair at positive cost, over-estimating W_q
+    (demonstrated by test_w3_fires_on_no_zero_diagonal_block_reduction in
+    tests/shared/test_math_invariants.py, PR #131).
+    """
+
+    def test_surplus_diagonal_slots_regression(self):
+        """One real-real match plus a surplus diagonal slot: the bug's minimal trigger.
+
+        A = {(10, 11), (0, 4)}, B = {(0, 1.2)}. Optimal plan: (0,4)-(0,1.2)
+        real-real (cost 2.8^2), (10,11) to the diagonal (cost (1/sqrt(2))^2);
+        exact W_2 = sqrt(8.34). The defective matrix additionally charged the
+        leftover B-projection row against the leftover A-projection column.
+        """
+        diag_a = _make_diagram([(10.0, 11.0), (0.0, 4.0)])
+        diag_b = _make_diagram([(0.0, 1.2)])
+        d = _scipy_wasserstein_exact(diag_a, diag_b, order=2)
+        assert d == pytest.approx(np.sqrt(8.34), rel=1e-9)
+        assert d == pytest.approx(_bruteforce_wasserstein(diag_a, diag_b, order=2), rel=1e-9)
+
+    @pytest.mark.parametrize("order", [1, 2])
+    def test_matches_bruteforce_on_fixed_cases(self, order):
+        """Exact agreement with the enumeration oracle on the shared fixtures."""
+        cases = [
+            (DIAG_SIMPLE, DIAG_SHIFTED),
+            (DIAG_SIMPLE, DIAG_SINGLE),
+            (DIAG_SINGLE, DIAG_EMPTY),
+            (DIAG_SIMPLE, DIAG_EMPTY),
+        ]
+        for diag_a, diag_b in cases:
+            d = _scipy_wasserstein_exact(diag_a, diag_b, order=order)
+            expected = _bruteforce_wasserstein(diag_a, diag_b, order=order)
+            assert d == pytest.approx(expected, rel=1e-9, abs=1e-12)
+
+    @pytest.mark.parametrize("order", [1, 2])
+    def test_matches_bruteforce_randomized(self, order):
+        """Exact agreement with the enumeration oracle on random tiny diagrams."""
+        rng = np.random.default_rng(20260718)
+        for _ in range(25):
+            n, m = int(rng.integers(0, 4)), int(rng.integers(0, 4))
+            births_a = rng.uniform(0.0, 2.0, size=n)
+            births_b = rng.uniform(0.0, 2.0, size=m)
+            diag_a = np.column_stack([births_a, births_a + rng.uniform(0.0, 2.0, size=n)]) if n else DIAG_EMPTY
+            diag_b = np.column_stack([births_b, births_b + rng.uniform(0.0, 2.0, size=m)]) if m else DIAG_EMPTY
+            d = _scipy_wasserstein_exact(diag_a, diag_b, order=order)
+            expected = _bruteforce_wasserstein(diag_a, diag_b, order=order)
+            assert d == pytest.approx(expected, rel=1e-9, abs=1e-12)
+
+    def test_one_empty_exact_value(self):
+        """Against the empty diagram every point pays its diagonal distance."""
+        d = _scipy_wasserstein_exact(DIAG_SIMPLE, DIAG_EMPTY, order=2)
+        pers = DIAG_SIMPLE[:, 1] - DIAG_SIMPLE[:, 0]
+        expected = float(np.sum((pers / np.sqrt(2.0)) ** 2) ** 0.5)
+        assert d == pytest.approx(expected, rel=1e-9)
+
+    def test_agrees_with_gudhi_hera_when_available(self):
+        """Cross-check against the exact hera solver (same estimand, internal_p=2)."""
+        hera = pytest.importorskip("gudhi.hera", reason="gudhi hera bindings not installed")
+        for diag_a, diag_b in [(DIAG_SIMPLE, DIAG_SHIFTED), (DIAG_SIMPLE, DIAG_SINGLE)]:
+            d_fallback = _scipy_wasserstein_exact(diag_a, diag_b, order=2)
+            d_hera = hera.wasserstein_distance(diag_a, diag_b, order=2, internal_p=2, delta=1e-8)
+            assert d_fallback == pytest.approx(d_hera, rel=1e-6)
 
 
 # ─────────────────────────────────────────────────────────────

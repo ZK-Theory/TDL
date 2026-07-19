@@ -93,22 +93,30 @@ def _compute_wasserstein_distance(
 
     except ImportError:
         warnings.warn(
-            "gudhi.hera not available; falling back to the scipy linear_sum_assignment solve. "
+            "gudhi.wasserstein not available; falling back to the exact scipy "
+            "Hungarian solve (same estimand, O((n+m)^3) — slow on large diagrams). "
             "Install gudhi with hera support for fast exact distances: pip install gudhi",
             stacklevel=2,
         )
-        return _scipy_wasserstein_approx(finite_a, finite_b, order)
+        return _scipy_wasserstein_exact(finite_a, finite_b, order)
 
 
-def _scipy_wasserstein_approx(
+def _scipy_wasserstein_exact(
     diagram_a: NDArray[np.float64],
     diagram_b: NDArray[np.float64],
     order: int = 2,
 ) -> float:
-    """Approximate Wasserstein distance via scipy linear assignment.
+    """Exact Wasserstein distance via the canonical augmented assignment.
 
-    Augments each diagram with diagonal projections to handle unequal sizes.
-    This is an approximation — use gudhi for exact computation in publication runs.
+    Rows are A's n points plus m diagonal slots; columns are B's m points
+    plus n diagonal slots. Real-real cost is the Euclidean (internal_p=2)
+    ground distance to the ``order``-th power, real-diagonal cost is the
+    point's distance to the diagonal (persistence / sqrt(2)) to the
+    ``order``-th power (uniform across slots), and the diagonal-diagonal
+    block is zero — the zero block is what makes the reduction exact (both
+    slots "unused"). Matches shared/math_invariants.py::wasserstein_exact_small
+    and gudhi with internal_p=2; the Hungarian solve is O((n+m)^3), so prefer
+    gudhi on large diagrams.
 
     Args:
         diagram_a: Finite persistence pairs, shape (n, 2).
@@ -116,29 +124,24 @@ def _scipy_wasserstein_approx(
         order: Wasserstein order.
 
     Returns:
-        Approximate Wasserstein distance.
+        Exact Wasserstein-`order` distance.
     """
     from scipy.optimize import linear_sum_assignment
 
-    def diag_proj(pts: NDArray[np.float64]) -> NDArray[np.float64]:
-        mid = pts.mean(axis=1, keepdims=True)
-        return np.hstack([mid, mid])
-
-    # Augment: each point can be matched to diagonal of the other diagram
-    a_diag = diag_proj(diagram_a) if len(diagram_a) > 0 else np.zeros((0, 2))
-    b_diag = diag_proj(diagram_b) if len(diagram_b) > 0 else np.zeros((0, 2))
-
-    a_aug = np.vstack([diagram_a, b_diag]) if len(diagram_a) > 0 else b_diag
-    b_aug = np.vstack([diagram_b, a_diag]) if len(diagram_b) > 0 else a_diag
-
-    if len(a_aug) == 0 or len(b_aug) == 0:
+    n, m = len(diagram_a), len(diagram_b)
+    if n == 0 and m == 0:
         return 0.0
 
-    n, m = len(a_aug), len(b_aug)
-    cost = np.zeros((n, m))
-    for i in range(n):
-        for j in range(m):
-            cost[i, j] = np.linalg.norm(a_aug[i] - b_aug[j]) ** order
+    cost = np.zeros((n + m, m + n))
+    if n and m:
+        diff = diagram_a[:, None, :] - diagram_b[None, :, :]
+        cost[:n, :m] = np.linalg.norm(diff, axis=2) ** order
+    if n:
+        diag_dist_a = (diagram_a[:, 1] - diagram_a[:, 0]) / np.sqrt(2.0)
+        cost[:n, m:] = (diag_dist_a**order)[:, None]
+    if m:
+        diag_dist_b = (diagram_b[:, 1] - diagram_b[:, 0]) / np.sqrt(2.0)
+        cost[n:, :m] = (diag_dist_b**order)[None, :]
 
     row_ind, col_ind = linear_sum_assignment(cost)
     total_cost = cost[row_ind, col_ind].sum()
@@ -157,8 +160,8 @@ class WassersteinNullResult:
         z_score: Standardised effect size vs. null distribution.
         wasserstein_order: The Wasserstein order used.
         n_null_simulations: Number of null diagrams tested.
-        method: 'hera' (exact up to 1e-8 relative delta) or 'scipy'
-            (linear_sum_assignment fallback).
+        method: 'gudhi' (exact, fast) or 'scipy' (exact Hungarian solve, slow
+            on large diagrams).
     """
 
     observed_distance: float

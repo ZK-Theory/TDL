@@ -559,6 +559,40 @@ alter the reviewed requirements.<br>
 **Affected specifications:** WP6 master and WP6.1/WP6.2 child plans; P-035; D-G6-3;
 Gate 6 launch and dispatch-planning controls.
 
+## W11 specification status (non-decision)
+
+The WP6.5 specification-only draft exists at
+`design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`.
+Independent review of exact revision `70074d42eade8460808e4d1d29348b7806eff2d0`
+returned `rework_required` (2 Critical, 6 Major, 2 Minor). R2 review of exact revision
+`d24df9d26f0d906d177eafa1eaeabb65a5515004` also returned `rework_required`
+(0 Critical, 5 Major). R3 review of exact revision
+`3e068c1ee5100e5a6e0bc57d0d047d993b406b2b` returned `rework_required`
+(0 Critical, 6 Major). On 2026-07-18 Stephen approved the two bounded remediation
+policies: pre-runtime catalogue authority may be an external exact Git/blob acceptance
+envelope imported later through verified one-time genesis, and legacy annotation
+cutover may bind an accepted inbox epoch that is atomically fenced while post-fence
+annotations route to a successor epoch. Those approvals do not accept W11 itself.
+R4 review of exact revision `4b941326e290582db7be07113d5d7bb78d8b97a3`
+returned `rework_required` (0 Critical, 1 Major, 1 Minor): recorded negative or
+unverifiable Discovery review verdicts could still clear the outcome gate, and three
+verdict rows omitted the Review projection. Revision 0.5 records author reconciliation
+of every R1/R2/R3/R4 finding and the complete
+entry/invariant/test/decision/assurance/cross-spec matrices; it defines an acyclic hash
+DAG and bootstrap, reconciles 81 owner rows with W4/projections/test identities, adds
+separate cancellation review and overlay cleanup, and closes the annotation cutover
+race with the accepted epoch/fence protocol. It also separates W2 verdict recording
+from W11 gate satisfaction through a closed six-subject verdict/effect and review-
+supersession policy. The dated addendum remains in the tracked
+root evidence register. A fresh independent R5 review of the new exact commit is
+mandatory and author reconciliation is not acceptance. This status entry does not
+amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
+schema/projection, ingest/admit any item, transition ownership, cut over a path, or
+perform any result/eligibility/claim action. D-G6-4 remains open for (1) Stephen's
+exact-revision acceptance after the fresh review and reconciliation and (2) a
+separately content-addressed first ownership-transition batch using the accepted W11
+relation.
+
 ## Assumptions requiring confirmation
 
 ### A-001 — T1.28 is the final Phase 1 task
