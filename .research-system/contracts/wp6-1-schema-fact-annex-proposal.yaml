@@ -62,6 +62,7 @@ primitive_types:
 - {type_id: type/hashed_ref_list, json_type: array, nullable: false, item_type_ref: object/hashed_ref, source_citation: W2 immutable subject sets, decision_basis: conservative_proposal}
 - {type_id: type/external_artefact_availability_list, json_type: array, nullable: false, item_type_ref: object/external_artefact_availability, source_citation: W8 §19 external artefact manifest and availability, decision_basis: conservative_proposal}
 - {type_id: type/artefact_input_dependency_list, json_type: array, nullable: false, item_type_ref: object/artefact_input_dependency, source_citation: W2 §16.1 Inputs, decision_basis: conservative_proposal}
+- {type_id: type/review_gate_condition_list, json_type: array, nullable: false, item_type_ref: object/review_gate_condition, source_citation: W2 §17.3 conditions and conditional gate satisfaction, decision_basis: conservative_proposal}
 source_closed_enums:
 - {enum_id: enum/task_status, values: [draft, readiness_pending, ready, in_progress, review_pending, blocked, input_required, paused, accepted, rejected, partial, cancelled, superseded], source_citation: W2 §11.1, decision_basis: source_literal}
 - {enum_id: enum/member_disposition, values: [accepted, partial_accepted, deferred, superseded, removed_by_amendment, cancelled, rejected], source_citation: W2 §10.2, decision_basis: source_literal}
@@ -69,6 +70,7 @@ source_closed_enums:
 - {enum_id: enum/message_type, values: [assignment, acknowledgement, progress, input_request, escalation, report, review_request, review_response, decision_request, handoff], source_citation: W2 §14.1, decision_basis: source_literal}
 - {enum_id: enum/review_type, values: [software, provenance, mathematical, statistical, topological, representation, claim, operations, adapter_parity, migration], source_citation: W2 §17.1, decision_basis: source_literal}
 - {enum_id: enum/review_verdict, values: [approve, approve_with_conditions, changes_requested, reject, unable_to_verify, withdrawn], source_citation: W2 §17.3, decision_basis: source_literal}
+- {enum_id: enum/review_condition_gate_disposition, values: [non_blocking, blocking], source_citation: W2 §17.3 acceptance-policy condition classification, decision_basis: source_literal}
 - {enum_id: enum/decision_kind, values: [design_lock, preregistration_amendment, methodological_exception, runtime_guardrail_override, result_interpretation, claim_promotion, scope_amendment, migration_authority, policy_exception, task_reopen], source_citation: W2 §18.1, decision_basis: source_literal}
 - {enum_id: enum/availability, values: [available, missing, inaccessible, quarantined], source_citation: W2 §16.2, decision_basis: source_literal}
 - {enum_id: enum/regenerability, values: [not_declared, regenerable_verified, non_regenerable, unknown], source_citation: W2 §16.2, decision_basis: source_literal}
@@ -114,6 +116,30 @@ recovery_external_artefact_rules:
   manifest_coverage_rule: every_external_manifest_reference_exactly_once
   writer_lease_rule: every_entry_available_with_nonempty_evidence_before_writer_lease
   diagnostic_only_conditions: [missing, inaccessible, quarantined, missing_availability_evidence, incomplete_manifest_coverage, partial_restore]
+object_variant_rules:
+- rule_id: object_variant_rule/resource_request_operational_profile
+  object_id: object/resource_request
+  discriminator_field: operational_profile
+  no_fallback: true
+  source_semantics: source_literal
+  representation_choice: conservative_proposal
+  source_citation: W8 §11.1
+  branches:
+  - {discriminator_const: trivial, required_fields: [trivial_profile_evidence], forbidden_fields: [bounded_profile_evidence, long_running_profile_evidence]}
+  - {discriminator_const: bounded, required_fields: [bounded_profile_evidence], forbidden_fields: [trivial_profile_evidence, long_running_profile_evidence]}
+  - {discriminator_const: long_running, required_fields: [long_running_profile_evidence], forbidden_fields: [trivial_profile_evidence, bounded_profile_evidence]}
+review_gate_condition_rule:
+  rule_id: review_gate_condition_rule/approve_with_conditions
+  family_id: family/review
+  verdict_field: verdict
+  verdict_const: approve_with_conditions
+  condition_field: conditions
+  gate_field: satisfaction_gate
+  gate_satisfaction_rule: every_condition_non_blocking_with_non_null_owner_policy_and_evidence
+  task_state_effect: no_direct_task_state_change
+  source_semantics: source_literal
+  representation_choice: conservative_proposal
+  source_citation: W2 §§17.3-17.4
 reusable_objects:
 - object_id: object/alias
   additional_properties: false
@@ -422,11 +448,41 @@ reusable_objects:
   - {field_name: terminal_receipt_kind, type_ref: enum/trivial_terminal_receipt_kind, nullable: false, source_citation: W8 §11.1 terminal ProviderReceipt or OperatorReceipt, decision_basis: source_literal}
   - {field_name: terminal_receipt_lease_release, type_ref: enum/trivial_lease_release, nullable: false, source_citation: W8 §11.1 terminal receipt releases lease, decision_basis: source_literal}
   - {field_name: terminal_receipt_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §11.1 terminal receipt closure evidence, decision_basis: conservative_proposal}
-  - {field_name: benchmark, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 benchmark disposition, decision_basis: conservative_proposal}
-  - {field_name: checkpoint, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 checkpoint disposition, decision_basis: conservative_proposal}
+  - {field_name: benchmark, type_ref: object/trivial_not_applicable_evidence, nullable: false, source_citation: W8 §11.1 trivial benchmark explicit not_applicable disposition, decision_basis: source_literal}
+  - {field_name: checkpoint, type_ref: object/trivial_not_applicable_evidence, nullable: false, source_citation: W8 §11.1 trivial checkpoint explicit not_applicable disposition, decision_basis: source_literal}
   - {field_name: periodic_heartbeat, type_ref: object/trivial_not_applicable_evidence, nullable: false, source_citation: W8 §§11.1-12 periodic-heartbeat not_applicable disposition, decision_basis: conservative_proposal}
-  - {field_name: recovery, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 recovery disposition, decision_basis: conservative_proposal}
+  - {field_name: recovery, type_ref: object/trivial_not_applicable_evidence, nullable: false, source_citation: W8 §11.1 trivial recovery explicit not_applicable disposition, decision_basis: source_literal}
   - {field_name: provider_command_process, type_ref: object/trivial_provider_command_process, nullable: false, source_citation: W8 §12 provider command/process identity, decision_basis: conservative_proposal}
+- object_id: object/bounded_profile_evidence
+  additional_properties: false
+  source_citation: W8 §11.1 bounded profile
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: heartbeat, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 bounded policy-selected heartbeat group, decision_basis: source_literal}
+  - {field_name: output_tail, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 bounded policy-selected output-tail group, decision_basis: source_literal}
+  - {field_name: stop, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 bounded policy-selected stop group, decision_basis: source_literal}
+  - {field_name: checkpoint, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 bounded policy-selected checkpoint group, decision_basis: source_literal}
+- object_id: object/long_running_profile_evidence
+  additional_properties: false
+  source_citation: W8 §11.1 long_running profile
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: benchmark, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 long-running applicable benchmark obligation, decision_basis: source_literal}
+  - {field_name: heartbeat, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 long-running applicable heartbeat obligation, decision_basis: source_literal}
+  - {field_name: process, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §§11.1-12 long-running applicable process obligation, decision_basis: source_literal}
+  - {field_name: checkpoint, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 long-running applicable checkpoint obligation, decision_basis: source_literal}
+  - {field_name: stop_recovery, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 long-running applicable stop/recovery obligation, decision_basis: source_literal}
+  - {field_name: backup, type_ref: object/profile_evidence_disposition, nullable: false, source_citation: W8 §11.1 long-running applicable backup obligation, decision_basis: source_literal}
+- object_id: object/review_gate_condition
+  additional_properties: false
+  source_citation: W2 §17.3
+  decision_basis: conservative_proposal
+  fields:
+  - {field_name: condition_text, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §17.3 conditions, decision_basis: source_literal}
+  - {field_name: gate_disposition, type_ref: enum/review_condition_gate_disposition, nullable: false, source_citation: W2 §17.3 acceptance policy declares non-blocking conditions, decision_basis: source_literal}
+  - {field_name: owner_actor_id, type_ref: type/actor_id, nullable: true, source_citation: W2 §17.3 condition owner, decision_basis: conservative_proposal}
+  - {field_name: policy_id, type_ref: type/policy_version_id, nullable: false, source_citation: W2 §17.3 acceptance policy, decision_basis: conservative_proposal}
+  - {field_name: evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W2 §17.3 recorded condition evidence, decision_basis: conservative_proposal}
 - object_id: object/resource_request
   additional_properties: false
   source_citation: W8 §§7 and 11.1
@@ -467,7 +523,9 @@ reusable_objects:
   - {field_name: escalation_rules, type_ref: type/string_list, nullable: false, source_citation: W8 §7 escalation rules, decision_basis: conservative_proposal}
   - {field_name: release_obligations, type_ref: type/string_list, nullable: false, source_citation: W8 §7 resource-release obligations, decision_basis: conservative_proposal}
   - {field_name: cleanup_obligations, type_ref: type/string_list, nullable: false, source_citation: W8 §7, decision_basis: conservative_proposal}
-  - {field_name: trivial_profile_evidence, type_ref: object/trivial_profile_evidence, nullable: false, source_citation: W8 §§11.1-12 trivial profile evidence, decision_basis: conservative_proposal}
+  - {field_name: trivial_profile_evidence, type_ref: object/trivial_profile_evidence, nullable: true, source_citation: W8 §§11.1-12 trivial profile evidence; branch-controlled, decision_basis: conservative_proposal}
+  - {field_name: bounded_profile_evidence, type_ref: object/bounded_profile_evidence, nullable: true, source_citation: W8 §11.1 bounded profile evidence; branch-controlled, decision_basis: conservative_proposal}
+  - {field_name: long_running_profile_evidence, type_ref: object/long_running_profile_evidence, nullable: true, source_citation: W8 §11.1 long-running profile evidence; branch-controlled, decision_basis: conservative_proposal}
 source_fact_bindings:
 - {binding_id: task_identity_task_id, source_id: W2, source_section: '10.1', source_fact: 'Identity: task_id', target_path: 'object/task_definition.task_id', decision_basis: source_literal}
 - {binding_id: task_identity_revision, source_id: W2, source_section: '10.1', source_fact: 'Identity: revision', target_path: 'object/task_definition.revision', decision_basis: conservative_proposal}
@@ -532,14 +590,20 @@ source_fact_bindings:
 - {binding_id: review_findings, source_id: W2, source_section: '17.3', source_fact: findings, target_path: 'family/review.findings', decision_basis: conservative_proposal}
 - {binding_id: review_evidence, source_id: W2, source_section: '17.3', source_fact: evidence, target_path: 'family/review.required_evidence_refs', decision_basis: conservative_proposal}
 - {binding_id: review_limitations, source_id: W2, source_section: '17.3', source_fact: limitations, target_path: 'family/review.limitations', decision_basis: conservative_proposal}
-- {binding_id: review_conditions, source_id: W2, source_section: '17.3', source_fact: conditions, target_path: 'family/review.conditions', decision_basis: conservative_proposal}
+- {binding_id: review_conditions, source_id: W2, source_section: '17.3', source_fact: conditions, target_path: 'family/review.conditions', decision_basis: source_literal}
+- {binding_id: review_condition_text, source_id: W2, source_section: '17.3', source_fact: condition text, target_path: 'object/review_gate_condition.condition_text', decision_basis: source_literal}
+- {binding_id: review_condition_gate_disposition, source_id: W2, source_section: '17.3', source_fact: acceptance policy declares each condition non-blocking or blocking, target_path: 'object/review_gate_condition.gate_disposition', decision_basis: source_literal}
+- {binding_id: review_condition_owner_actor, source_id: W2, source_section: '17.3', source_fact: condition owner recorded for gate-satisfying conditional approval, target_path: 'object/review_gate_condition.owner_actor_id', decision_basis: conservative_proposal}
+- {binding_id: review_condition_policy, source_id: W2, source_section: '17.3', source_fact: acceptance policy identity, target_path: 'object/review_gate_condition.policy_id', decision_basis: conservative_proposal}
+- {binding_id: review_condition_evidence, source_id: W2, source_section: '17.3', source_fact: condition evidence, target_path: 'object/review_gate_condition.evidence_refs', decision_basis: conservative_proposal}
+- {binding_id: review_condition_gate_rule, source_id: W2, source_section: '17.3', source_fact: approve_with_conditions satisfies a gate only for all non-blocking owned conditions, target_path: 'family/review.conditions', decision_basis: source_literal}
+- {binding_id: review_verdict_no_direct_task_state, source_id: W2, source_section: '17.4', source_fact: review verdict never directly changes Task state, target_path: 'family/review.verdict', decision_basis: source_literal}
 - {binding_id: review_reviewer_metadata, source_id: W2, source_section: '17.3', source_fact: 'reviewer actor/profile/session/model metadata', target_path: 'family/review.{reviewer_actor_id,reviewer_profile,reviewer_session,reviewer_model_metadata}', decision_basis: conservative_proposal}
 - {binding_id: review_context_manifest, source_id: W2, source_section: '17.3', source_fact: 'context-manifest ID/hash', target_path: 'family/review.{context_manifest_id,context_manifest_sha256}', decision_basis: conservative_proposal}
 - {binding_id: review_subject_hash, source_id: W2, source_section: '17.3', source_fact: subject_hash, target_path: 'family/review.unchanged_subject_sha256', decision_basis: source_literal}
 - {binding_id: review_producing_attempt, source_id: W2, source_section: '17.3', source_fact: producing_attempt_relationship, target_path: 'family/review.producing_attempt_id', decision_basis: conservative_proposal}
 - {binding_id: review_trace_visibility, source_id: W2, source_section: '17.3', source_fact: trace_visibility_evidence, target_path: 'family/review.trace_visibility_evidence_refs', decision_basis: conservative_proposal}
 - {binding_id: review_independence_grade, source_id: W2, source_section: '17.3', source_fact: independence_grade, target_path: 'family/review.computed_independence_grade', decision_basis: conservative_proposal}
-- {binding_id: review_conditional_owner, source_id: W2, source_section: '17.3', source_fact: conditional_approval_owner, target_path: 'family/review.conditional_approval_owner', decision_basis: conservative_proposal}
 - {binding_id: artefact_identity_id, source_id: W2, source_section: '16.1', source_fact: 'Identity: artefact ID', target_path: 'object/artefact_manifest.artefact_id', decision_basis: source_literal}
 - {binding_id: artefact_identity_aliases, source_id: W2, source_section: '16.1', source_fact: 'Identity: aliases', target_path: 'object/artefact_manifest.aliases', decision_basis: conservative_proposal}
 - {binding_id: artefact_identity_type, source_id: W2, source_section: '16.1', source_fact: 'Identity: type', target_path: 'object/artefact_manifest.artefact_type', decision_basis: conservative_proposal}
@@ -678,6 +742,20 @@ source_fact_bindings:
 - {binding_id: recovery_external_availability, source_id: W8, source_section: "19", source_fact: "BackupReceipt binds external artefact availability status", target_path: "object/external_artefact_availability.availability", decision_basis: source_literal}
 - {binding_id: recovery_external_availability_evidence, source_id: W8, source_section: "19", source_fact: "Restore availability proof is retained per external artefact", target_path: "object/external_artefact_availability.availability_evidence_refs", decision_basis: conservative_proposal}
 - {binding_id: recovery_restore_writer_lease, source_id: W8, source_section: "19-21", source_fact: "Availability must verify before writer lease; failed or partial restore is diagnostic only with no writer lease", target_path: recovery_external_artefact_rules.writer_lease_rule, decision_basis: source_literal}
+- {binding_id: resource_profile_variant_discriminator, source_id: W8, source_section: "11.1", source_fact: "one unified ResourceRequest with required operational_profile", target_path: object/resource_request.operational_profile, decision_basis: source_literal}
+- {binding_id: resource_profile_trivial_branch, source_id: W8, source_section: "11.1", source_fact: "trivial explicit not_applicable evidence branch", target_path: object/resource_request.trivial_profile_evidence, decision_basis: source_literal}
+- {binding_id: resource_profile_bounded_branch, source_id: W8, source_section: "11.1", source_fact: "bounded policy-selected heartbeat output-tail stop checkpoint branch", target_path: object/resource_request.bounded_profile_evidence, decision_basis: source_literal}
+- {binding_id: resource_profile_long_running_branch, source_id: W8, source_section: "11.1", source_fact: "long_running full applicable benchmark heartbeat process checkpoint stop-recovery backup branch", target_path: object/resource_request.long_running_profile_evidence, decision_basis: source_literal}
+- {binding_id: bounded_profile_heartbeat, source_id: W8, source_section: "11.1", source_fact: "bounded heartbeat group selected by policy", target_path: object/bounded_profile_evidence.heartbeat, decision_basis: source_literal}
+- {binding_id: bounded_profile_output_tail, source_id: W8, source_section: "11.1", source_fact: "bounded output-tail group selected by policy", target_path: object/bounded_profile_evidence.output_tail, decision_basis: source_literal}
+- {binding_id: bounded_profile_stop, source_id: W8, source_section: "11.1", source_fact: "bounded stop group selected by policy", target_path: object/bounded_profile_evidence.stop, decision_basis: source_literal}
+- {binding_id: bounded_profile_checkpoint, source_id: W8, source_section: "11.1", source_fact: "bounded checkpoint group selected by policy", target_path: object/bounded_profile_evidence.checkpoint, decision_basis: source_literal}
+- {binding_id: long_running_profile_benchmark, source_id: W8, source_section: "11.1", source_fact: "long_running applicable benchmark obligation", target_path: object/long_running_profile_evidence.benchmark, decision_basis: source_literal}
+- {binding_id: long_running_profile_heartbeat, source_id: W8, source_section: "11.1", source_fact: "long_running applicable heartbeat obligation", target_path: object/long_running_profile_evidence.heartbeat, decision_basis: source_literal}
+- {binding_id: long_running_profile_process, source_id: W8, source_section: "11.1-12", source_fact: "long_running applicable process obligation", target_path: object/long_running_profile_evidence.process, decision_basis: source_literal}
+- {binding_id: long_running_profile_checkpoint, source_id: W8, source_section: "11.1", source_fact: "long_running applicable checkpoint obligation", target_path: object/long_running_profile_evidence.checkpoint, decision_basis: source_literal}
+- {binding_id: long_running_profile_stop_recovery, source_id: W8, source_section: "11.1", source_fact: "long_running applicable stop/recovery obligation", target_path: object/long_running_profile_evidence.stop_recovery, decision_basis: source_literal}
+- {binding_id: long_running_profile_backup, source_id: W8, source_section: "11.1", source_fact: "long_running applicable backup obligation", target_path: object/long_running_profile_evidence.backup, decision_basis: source_literal}
 family_specs:
 - family_id: family/scope
   source_citation: W2 §10.2 and 06d scope rows
@@ -974,12 +1052,11 @@ family_specs:
   - {field_name: verdict, type_ref: enum/review_verdict, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: findings, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: limitations, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
-  - {field_name: conditions, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
+  - {field_name: conditions, type_ref: type/review_gate_condition_list, nullable: false, source_citation: "W2 §17.3 conditions and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: context_manifest_id, type_ref: type/context_id, nullable: false, source_citation: W2 §§6.1 and 17, decision_basis: source_literal}
   - {field_name: context_manifest_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: producing_attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: trace_visibility_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W2 §17.3, decision_basis: conservative_proposal}
-  - {field_name: conditional_approval_owner, type_ref: type/nonempty_string, nullable: true, source_citation: W2 §17.3 approve_with_conditions, decision_basis: conservative_proposal}
   - {field_name: policy_evaluation_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: prior_review_state, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: satisfaction_gate, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
@@ -1952,7 +2029,7 @@ command_payload_specs:
   family_ref: family/review
   variant_id: review_record_verdict
   subject_source: envelope.target_stream_id
-  required_field_names: [review_id, verdict, findings, required_evidence_refs, limitations, conditions, reviewer_actor_id, reviewer_profile, reviewer_session, reviewer_model_metadata, context_manifest_id, context_manifest_sha256, unchanged_subject_sha256, producing_attempt_id, trace_visibility_evidence_refs, computed_independence_grade, conditional_approval_owner]
+  required_field_names: [review_id, verdict, findings, required_evidence_refs, limitations, conditions, reviewer_actor_id, reviewer_profile, reviewer_session, reviewer_model_metadata, context_manifest_id, context_manifest_sha256, unchanged_subject_sha256, producing_attempt_id, trace_visibility_evidence_refs, computed_independence_grade]
   source_citation: "06d owner row review.record_verdict; governing W2/W8 family section"
   decision_basis: conservative_proposal
   additional_properties: false
@@ -3525,7 +3602,6 @@ event_fact_specs:
   - producing_attempt_id
   - trace_visibility_evidence_refs
   - computed_independence_grade
-  - conditional_approval_owner
   source_citation: 06d owner row review.record_verdict, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields
   decision_basis: conservative_proposal
   additional_properties: false
@@ -4836,3 +4912,5 @@ decision_register:
 - {decision_id: proposal_decision/retention_and_sensitivity, family_ref: family/artefact, selection_kind: runtime_policy_gate, selected_rule: "Retention, sensitivity, provenance-class, and destination-class strings are institutional classifications supplied only through a separately versioned runtime policy; schema generation cannot invent values.", generator_byte_change_allowed: false, source_citation: W2 §16 and W8 §§7 and 18-20, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/recovery_external_availability, family_ref: family/backup_recovery, selection_kind: generation_rule, selected_rule: "Generate one closed external_artefacts array field whose entries are object/external_artefact_availability. Each entry is an immutable artefact_id plus content_sha256 reference with an exact availability and non-empty availability_evidence_refs. The generator must enforce unique (artefact_id, content_sha256) entries, complete manifest coverage exactly once, and writer-lease eligibility only when every entry is available with evidence; missing, inaccessible, quarantined, missing evidence, incomplete coverage, or partial restore generates diagnostic-only/no-writer-lease behavior.", generator_byte_change_allowed: false, source_citation: W8 §§19-21 and 06d operator backup rows, decision_basis: conservative_proposal}
 - {decision_id: proposal_decision/correction_subject_union, family_ref: family/correction, selection_kind: generation_rule, selected_rule: "Generate exactly 15 non-overlapping correction oneOf branches from correction_variant_mappings. Each branch fixes corrected_record_kind, erroneous_record_id grammar via subject_id_type_ref, subject_field, and affected_projections to exactly the mapped owner_projection plus governance_correction_index. Reject an unknown kind, swapped ID/projection, zero or multiple owner projections, missing governance correction index, or generic fallback branch.", generator_byte_change_allowed: false, source_citation: 06d §1.4, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/resource_request_profile_discriminator, family_ref: family/resource_operation, selection_kind: generation_rule, selected_rule: "Use object_variant_rules as the sole closed JSON discriminator authority for the unified object/resource_request: operational_profile has exactly trivial, bounded, and long_running branches; each branch requires only its matching profile-evidence object, forbids both other profile-evidence objects, and has no fallback.", generator_byte_change_allowed: false, source_citation: W8 §11.1, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/review_condition_gate_relation, family_ref: family/review, selection_kind: generation_rule, selected_rule: "Represent each review condition as a closed object carrying text, gate disposition, typed nullable owner actor, policy ID, and evidence. review_gate_condition_rule permits approve_with_conditions to satisfy a gate only when every condition is non_blocking and has a non-null owner, policy, and evidence; a verdict never directly changes Task state.", generator_byte_change_allowed: false, source_citation: W2 §§17.3-17.4, decision_basis: conservative_proposal}

@@ -33,12 +33,12 @@ All three sources are read as canonical UTF-8/LF bytes from revision `fe5f1d40bc
 
 The family model is a closed field universe plus a row-specific required-field selection. A generator must take the cited type of each selected field from the row's `family_ref`, close the resulting payload with `additionalProperties: false`, and reject an absent or unknown row. There is no generic object, catch-all branch, fallback payload, or registry widening.
 
-The current reusable objects are closed rather than loose string maps. D1C-2a supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. This D1C-2b/D1C-3 packet completes the Artefact and ResourceRequest source-fact objects and the correction/recovery relations. The direct-source validation pass proves all five M-2 groups — Task, Dispatch/root binding, review verdict, Artefact manifest, and ResourceRequest — so M-2 is resolved in this proposed fact model. Candidate R3 M-5 remediation is complete, but this proposal remains pending an independent source-fact oracle, fresh exact-byte review, and explicit owner approval.
+The current reusable objects are closed rather than loose string maps. D1C-2a supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. This D1C-2b/D1C-3 packet completes the Artefact and ResourceRequest source-fact objects and the correction/recovery relations. The R4-M1 proposal remediation closes the previously absent ResourceRequest profile and review-gate conditionals: completion remains a candidate claim pending a strengthened independent source-fact oracle and fresh exact-byte review. Candidate R3 M-5 remediation is complete, but this proposal remains pending an independent source-fact oracle, fresh exact-byte review, and explicit owner approval.
 
 - `object/task_definition`, `object/dispatch_definition`, and `object/root_binding` are complete for the cited W2 §10.1/§12.1 facts in D1C-2a; `source_fact_bindings` records each target field or explicit non-lossy subfield mapping.
-- `family/review` and the `review.record_verdict` command/event selections are complete for W2 §§17.3–17.4 verdict facts; verdict recording remains separate from the Task transition.
+- `family/review` and the `review.record_verdict` command/event selections represent every W2 §§17.3–17.4 verdict condition as a closed per-condition record. The frozen gate rule permits `approve_with_conditions` only for all-non-blocking, owned, policy/evidence-bearing conditions; verdict recording remains separate from the Task transition.
 - `object/artefact_manifest` now represents every independently stateful W2 §§16.1–16.2 identity, production, code/environment, location, integrity, input, research-provenance, validation, authority, and operations fact through closed objects where a relation must remain paired.
-- `object/resource_request` now represents W8 §7 request facts and W8 §§11.1–12 trivial-profile evidence, including explicit required-or-`not_applicable` dispositions. Checkpoint compatibility remains the separate three-value W8 §16 relation and never uses `not_applicable`.
+- `object/resource_request` remains one unified W8 §7/§§11.1–12 request object. Its closed `operational_profile` discriminator has exactly `trivial`, `bounded`, and `long_running` branches, with branch-controlled evidence, no fallback, and trivial-only explicit `not_applicable` dispositions. Checkpoint compatibility remains the separate three-value W8 §16 relation and never uses `not_applicable`.
 - `correction_variant_mappings` is the literal 06d §1.4 authority table: exactly 15 kind-specific branches fix the subject-ID grammar, exactly one owner projection, and the governance correction index; no generic correction branch is permitted.
 - `object/external_artefact_availability` carries one immutable artefact ID/content-SHA-256 reference, availability, and non-empty evidence. `external_artefacts` replaces the lossy parallel recovery fields; its deterministic rules require unique complete manifest coverage and diagnostic-only/no-writer-lease treatment unless every entry is available with evidence.
 
@@ -58,11 +58,11 @@ The following choices are not silently attributed to W2, W8, or 06d. Each appear
 | Message | Source-closed message types select row variants; delivery, acknowledgement, action, correlation, and evidence fields remain explicit. |
 | Blocker | Stop semantics, responsible authority, resume condition, and evidence lists are normalized as a closed fact. |
 | Artefact | Retention, sensitivity, provenance-class, and destination-class strings are explicit separately versioned runtime-policy inputs; generation cannot invent institutional classifications. |
-| Review | D1C-2a completes W2 verdict metadata, trace visibility, independence, and conditional-approval ownership; Task acceptance remains a distinct transition. |
+| Review | The owner-visible conservative JSON relation uses closed per-condition records (text, policy disposition, typed owner, policy ID, evidence) and freezes the all-non-blocking/non-null-owner gate predicate; Task acceptance remains a distinct transition. |
 | Decision | Source-closed decision kinds; authority, subject, consequences, conditions, evidence, lifecycle, lineage, and effective-boundary fields are non-compensating. |
 | Rule evaluation | Estimand/object, compared subjects, metric, denominator, input IDs/hashes, validator, output, and evidence hash are explicit. The `rule_evaluation -> type/validation_id (val_)` correction mapping is an owner-visible conservative cross-use: W2 assigns `val_` to ValidationRecord, not source-literally to RuleEvaluation. |
 | Correction | The literal 15-kind mapping freezes each corrected-record ID type, owner projection, governance correction index, subject field, and selector rule. Generation emits exactly 15 non-overlapping `oneOf` branches; a generic fallback is prohibited. |
-| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. `type/resource_id` unions sourced `rsq`/`rgr`/`rcf` components and `type/operation_id` unions sourced `hbt`/`pid`/`stp`/`rsd`/`rcv`/`opc`/`opr` components; both unions are owner-visible conservative selections, not source-literal families. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
+| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. `type/resource_id` unions sourced `rsq`/`rgr`/`rcf` components and `type/operation_id` unions sourced `hbt`/`pid`/`stp`/`rsd`/`rcv`/`opc`/`opr` components; both unions are owner-visible conservative selections, not source-literal families. A second owner-visible conservative JSON choice freezes the unified ResourceRequest discriminator shape: exactly three non-overlapping branches, matching evidence required, other evidence forbidden, no fallback. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
 | Backup/recovery | Closed `external_artefacts` entries replace aggregate availability. A writer lease requires complete unique manifest coverage and every entry `available` with non-empty evidence; missing, inaccessible, quarantined, incomplete, or partial restore is diagnostic-only/no writer lease. |
 
 ## 5. Candidate resolver comparison — evidence, not authority
@@ -92,10 +92,10 @@ Representative resolver-only names include `completion_rule`, `acceptance_eviden
 
 ## 6. Two-stage authority gate
 
-1. **Fact-annex acceptance.** D1C-2a/D1C-2b/D1C-3 supply the five M-2 source groups and the candidate R3 M-5 correction/recovery shapes. `stage_1_ready` remains `false`: an independently authored source-fact oracle, fresh exact-byte review, and Stephen's explicit owner approval are still required, and no generation is authorized. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
+1. **Fact-annex acceptance.** D1C-2a/D1C-2b/D1C-3 plus the R4-M1 conditional remediation supply the candidate source groups and R3 M-5 correction/recovery shapes. `stage_1_ready` remains `false`: a strengthened independently authored source-fact oracle, fresh exact-byte review, and Stephen's explicit owner approval are still required, and no generation is authorized. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
 2. **Generated-schema acceptance.** Only after stage 1 may a generator consume the accepted annex to materialize the 173 unique command/event schema files and populate all 210 row/event content observations. Those exact generated paths, schema IDs/versions, Git blobs, SHA-256 values, row/multiset identities, and independent review form a separate D-G6-3 owner decision.
 
-This D1C-2a/D1C-2b/D1C-3 candidate is not Stage-1 ready and does not authorize schema generation. Candidate M-2 and R3 M-5 remediation are complete, but independent oracle evidence, fresh exact-byte review, and explicit owner approval remain closed readiness blockers. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
+This D1C-2a/D1C-2b/D1C-3 candidate is not Stage-1 ready and does not authorize schema generation. The R4-M1 proposal remediation is complete pending strengthened oracle evidence, fresh exact-byte review, and explicit owner approval; those independent readiness blockers remain closed. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
 
 ## 7. Validation commands
 
@@ -128,8 +128,8 @@ assert len(contract['command_root']['fields']) == 17
 assert len(contract['event_root']['fields']) == 27
 assert len(contract['family_specs']) == 14
 assert len(contract['shared_schema_rules']) == 17
-assert len(contract['decision_register']) == 12
-assert len({x['decision_id'] for x in contract['decision_register']}) == 12
+assert len(contract['decision_register']) == 14
+assert len({x['decision_id'] for x in contract['decision_register']}) == 14
 assert contract['cardinalities']['generated_schema_identities'] == 173
 assert contract['generation_contract']['byte_changing_choices_remaining'] == 0
 assert contract['generation_contract']['stage_1_ready'] is False
@@ -153,6 +153,52 @@ for section in ('reusable_objects', 'family_specs'):
 object_specs = {x['object_id']: x for x in contract['reusable_objects']}
 type_specs = {x['type_id']: x for x in contract['primitive_types']}
 correction_mappings = {x['corrected_record_kind']: x for x in contract['correction_variant_mappings']}
+profile_rules = contract['object_variant_rules']
+assert len(profile_rules) == 1
+profile_rule = profile_rules[0]
+assert profile_rule['object_id'] == 'object/resource_request'
+assert profile_rule['discriminator_field'] == 'operational_profile'
+assert profile_rule['no_fallback'] is True
+branches = {x['discriminator_const']: x for x in profile_rule['branches']}
+assert set(branches) == {'trivial', 'bounded', 'long_running'}
+assert len(branches) == 3
+for profile, evidence in {
+    'trivial': 'trivial_profile_evidence',
+    'bounded': 'bounded_profile_evidence',
+    'long_running': 'long_running_profile_evidence',
+}.items():
+    branch = branches[profile]
+    assert branch['required_fields'] == [evidence]
+    assert set(branch['forbidden_fields']) == {
+        'trivial_profile_evidence',
+        'bounded_profile_evidence',
+        'long_running_profile_evidence',
+    } - {evidence}
+trivial = object_specs['object/trivial_profile_evidence']
+trivial_fields = {x['field_name']: x for x in trivial['fields']}
+for name in ('benchmark', 'checkpoint', 'periodic_heartbeat', 'recovery'):
+    assert trivial_fields[name]['type_ref'] == 'object/trivial_not_applicable_evidence'
+assert 'provider_command_process' in trivial_fields
+bounded = {x['field_name'] for x in object_specs['object/bounded_profile_evidence']['fields']}
+assert bounded == {'heartbeat', 'output_tail', 'stop', 'checkpoint'}
+long_running = {x['field_name'] for x in object_specs['object/long_running_profile_evidence']['fields']}
+assert long_running == {'benchmark', 'heartbeat', 'process', 'checkpoint', 'stop_recovery', 'backup'}
+resource_fields = {x['field_name']: x for x in object_specs['object/resource_request']['fields']}
+assert {'trivial_profile_evidence', 'bounded_profile_evidence', 'long_running_profile_evidence'} <= set(resource_fields)
+
+def gate_satisfied(verdict, conditions):
+    return verdict != 'approve_with_conditions' or all(
+        x['gate_disposition'] == 'non_blocking'
+        and x['owner_actor_id'] is not None
+        and x['policy_id']
+        and x['evidence_refs']
+        for x in conditions
+    )
+positive = [{'gate_disposition': 'non_blocking', 'owner_actor_id': 'act_00000000-0000-7000-8000-000000000000', 'policy_id': 'pol_00000000-0000-7000-8000-000000000000', 'evidence_refs': ['evidence']}]
+assert gate_satisfied('approve_with_conditions', positive)
+assert not gate_satisfied('approve_with_conditions', [{**positive[0], 'owner_actor_id': None}])
+assert not gate_satisfied('approve_with_conditions', [{**positive[0], 'gate_disposition': 'blocking'}])
+assert contract['review_gate_condition_rule']['task_state_effect'] == 'no_direct_task_state_change'
 def resolves_target(path):
     if path.startswith('correction_variant_mappings{'):
         kind = path.split('corrected_record_kind=', 1)[1].split('}', 1)[0]
