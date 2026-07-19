@@ -34,22 +34,35 @@ def _schema(path: str) -> dict[str, Any]:
 
 
 def _valid_instance(schema: dict[str, Any]) -> dict[str, Any]:
-    payload = schema["$defs"]["payload"]["oneOf"][0]
-    payload_values: dict[str, Any] = {}
-    for name, definition in payload["properties"].items():
-        payload_values[name] = definition.get("const", f"{name}-value")
-    return {
-        "schema_id": schema["$id"],
-        "schema_version": "1.0.0",
-        "command_type" if "/command/" in schema["$id"] else "event_type": schema["$id"].rsplit("/", 1)[1],
-        "envelope": {
-            "project_id": "project-1",
-            "stream_id": "stream-1",
-            "authority_grant_id": "grant-1",
-            "idempotency_key": "idem-1",
-        },
-        "payload": payload_values,
-    }
+    return _schema_value(schema, schema)
+
+
+def _schema_value(definition: dict[str, Any], root: dict[str, Any]) -> Any:
+    if "$ref" in definition:
+        token = definition["$ref"].removeprefix("#/$defs/")
+        return _schema_value(root["$defs"][token], root)
+    if "const" in definition:
+        return definition["const"]
+    if "oneOf" in definition:
+        return _schema_value(definition["oneOf"][0], root)
+    if definition.get("type") == "object":
+        return {name: _schema_value(definition["properties"][name], root) for name in definition.get("required", [])}
+    if definition.get("type") == "array":
+        return [_schema_value(definition.get("items", {}), root)]
+    if definition.get("type") == "integer":
+        return max(1, definition.get("minimum", 1))
+    if definition.get("type") == "boolean":
+        return True
+    if definition.get("type") == ["string", "null"]:
+        return "value"
+    pattern = definition.get("pattern", "")
+    if "[0-9a-f]{64}" in pattern:
+        return "a" * 64
+    if "date-time" == definition.get("format"):
+        return "2026-07-19T00:00:00Z"
+    if "uuid" in pattern:
+        return "tsk_01979c31-6710-7a2d-8d4b-6d2c62e07f51"
+    return "value"
 
 
 def test_wp6_1_generator_is_idempotent_and_matches_all_committed_raw_bytes() -> None:
