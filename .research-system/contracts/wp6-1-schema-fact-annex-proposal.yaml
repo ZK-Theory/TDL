@@ -6,14 +6,14 @@ source_documents:
 - {source_id: W2, repository_path: docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md, git_revision: fe5f1d40bc8f05f061317c677b5891cea0711249, git_blob_id: 7e09a9c49605663bb50163840fff3ae4c8212748, canonical_utf8_lf_sha256: dd5f45ec91cb4c10f0e8d1d99341ad16745bec21f58400b6643285224870f9c6}
 - {source_id: W8, repository_path: docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md, git_revision: fe5f1d40bc8f05f061317c677b5891cea0711249, git_blob_id: d26f24b9a6670b095d307fe531a7bb9b31c55311, canonical_utf8_lf_sha256: 84c80a8b499394fed65ed0d4e7fe1f4f9a85a8ccc23b299c85198e5d60e79a58}
 - {source_id: 06d, repository_path: docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md, git_revision: fe5f1d40bc8f05f061317c677b5891cea0711249, git_blob_id: 5e2eb60ca4419d1529506de6859fb027cff518af, canonical_utf8_lf_sha256: 96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7}
-cardinalities: {owner_rows: 104, command_bindings: 104, event_bindings: 106, unique_command_types: 87, unique_event_types: 86, command_root_fields: 16, event_root_fields: 27, families: 14}
+cardinalities: {owner_rows: 104, command_bindings: 104, event_bindings: 106, unique_command_types: 87, unique_event_types: 86, generated_schema_identities: 173, command_root_fields: 17, event_root_fields: 27, families: 14}
 primitive_types:
 - {type_id: type/nonempty_string, json_type: string, nullable: false, min_length: 1, source_citation: W2 §7 typed records, decision_basis: conservative_proposal}
 - {type_id: type/sha256, json_type: string, nullable: false, pattern: '^[0-9a-f]{64}$', source_citation: W2 §§7 and 9.2 content hashes, decision_basis: source_literal}
 - {type_id: type/semver, json_type: string, nullable: false, pattern: '^[0-9]+\.[0-9]+\.[0-9]+$', source_citation: W2 §7 schema versioning, decision_basis: conservative_proposal}
 - {type_id: type/utc_z, json_type: string, nullable: false, format: date-time, pattern: 'Z$', source_citation: W2 §8.1 submitted_at, decision_basis: source_literal}
-- {type_id: type/nonnegative_integer, json_type: integer, nullable: false, minimum: 0, source_citation: W2 §§8-9 versions and positions, decision_basis: conservative_proposal}
-- {type_id: type/positive_integer, json_type: integer, nullable: false, minimum: 1, source_citation: W2 §§9-12 revisions and positions, decision_basis: conservative_proposal}
+- {type_id: type/nonnegative_integer, json_type: integer, nullable: false, minimum: 0, maximum: 9007199254740991, source_citation: W2 §7.1 interoperable integer bound, decision_basis: source_literal}
+- {type_id: type/positive_integer, json_type: integer, nullable: false, minimum: 1, maximum: 9007199254740991, source_citation: W2 §7.1 interoperable integer bound, decision_basis: source_literal}
 - {type_id: type/boolean, json_type: boolean, nullable: false, source_citation: W2 and W8 typed predicates, decision_basis: conservative_proposal}
 - {type_id: type/payload_object, json_type: object, nullable: false, source_citation: W2 §§8.1 and 9.2, decision_basis: conservative_proposal}
 - {type_id: type/any_id, json_type: string, nullable: false, min_length: 1, source_citation: W2 §7 canonical IDs; prefix not fixed for every family, decision_basis: conservative_proposal}
@@ -27,6 +27,29 @@ primitive_types:
 - {type_id: type/command_id, json_type: string, nullable: false, pattern: '^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §§7 and 8.1, decision_basis: source_literal}
 - {type_id: type/event_id, json_type: string, nullable: false, pattern: '^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §§7 and 9.2, decision_basis: source_literal}
 - {type_id: type/transaction_id, json_type: string, nullable: false, pattern: '^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §9.2, decision_basis: source_literal}
+- {type_id: type/object_id, json_type: string, nullable: false, pattern: '^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/lease_id, json_type: string, nullable: false, pattern: '^els_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 and W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/message_id, json_type: string, nullable: false, pattern: '^msg_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/blocker_id, json_type: string, nullable: false, pattern: '^blk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/validation_id, json_type: string, nullable: false, pattern: '^val_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/review_id, json_type: string, nullable: false, pattern: '^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/decision_id, json_type: string, nullable: false, pattern: '^dec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/context_id, json_type: string, nullable: false, pattern: '^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/policy_version_id, json_type: string, nullable: false, pattern: '^pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W2 §6.1 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/resource_request_id, json_type: string, nullable: false, pattern: '^rsq_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/resource_grant_id, json_type: string, nullable: false, pattern: '^rgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/resource_conflict_id, json_type: string, nullable: false, pattern: '^rcf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/heartbeat_id, json_type: string, nullable: false, pattern: '^hbt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/process_identity_id, json_type: string, nullable: false, pattern: '^pid_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/checkpoint_manifest_id, json_type: string, nullable: false, pattern: '^cpm_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/stop_record_id, json_type: string, nullable: false, pattern: '^stp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/resume_decision_id, json_type: string, nullable: false, pattern: '^rsd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/recovery_evidence_id, json_type: string, nullable: false, pattern: '^rcv_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/backup_receipt_id, json_type: string, nullable: false, pattern: '^bkr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/operator_command_id, json_type: string, nullable: false, pattern: '^opc_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/operator_receipt_id, json_type: string, nullable: false, pattern: '^opr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 ID vocabulary, decision_basis: source_literal}
+- {type_id: type/resource_id, json_type: string, nullable: false, pattern: '^(rsq|rgr|rcf)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', source_citation: W8 §5 resource identity union, decision_basis: source_literal}
+- {type_id: type/git_object_identity, json_type: string, nullable: false, pattern: '^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$', source_citation: W2 §12.1 expected_commit, decision_basis: conservative_proposal}
 - {type_id: type/string_list, json_type: array, nullable: false, item_type_ref: type/nonempty_string, source_citation: W2 repeated typed references, decision_basis: conservative_proposal}
 - {type_id: type/id_list, json_type: array, nullable: false, item_type_ref: type/any_id, source_citation: W2 repeated typed references, decision_basis: conservative_proposal}
 - {type_id: type/hash_list, json_type: array, nullable: false, item_type_ref: type/sha256, source_citation: W2 immutable subject sets, decision_basis: conservative_proposal}
@@ -50,7 +73,9 @@ source_closed_enums:
 - {enum_id: enum/scientific_review, values: [not_required, pending, approved, rejected, unable_to_verify], source_citation: W2 §16.2, decision_basis: source_literal}
 - {enum_id: enum/use_authority, values: [candidate, accepted_for_scope, rejected, superseded, restricted], source_citation: W2 §16.2, decision_basis: source_literal}
 - {enum_id: enum/operational_profile, values: [trivial, bounded, long_running], source_citation: W8 §11.1, decision_basis: source_literal}
-- {enum_id: enum/checkpoint_compatibility, values: [compatible, incompatible, unable_to_determine, not_applicable], source_citation: W8 §16 and §11.1, decision_basis: source_literal}
+- {enum_id: enum/checkpoint_compatibility, values: [compatible, incompatible, unable_to_determine], source_citation: W8 §16, decision_basis: source_literal}
+- {enum_id: enum/profile_applicability, values: [required, not_applicable], source_citation: W8 §11.1 evidence-group applicability only, decision_basis: source_literal}
+- {enum_id: enum/access_mode, values: [read_only, create_only, append_only, read_write], source_citation: W2 §12.1 selected generation rule, decision_basis: conservative_proposal}
 - {enum_id: enum/corrected_record_kind, values: [scope_definition, task, dispatch, lease, attempt, checkpoint, message, blocker, artefact, review, decision, rule_evaluation, resource, operation, backup], source_citation: 06d §1.4, decision_basis: source_literal}
 reusable_objects:
 - object_id: object/alias
@@ -60,7 +85,7 @@ reusable_objects:
   fields:
   - {field_name: namespace, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §24.1, decision_basis: source_literal}
   - {field_name: value, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §24.1, decision_basis: source_literal}
-  - {field_name: scope_id, type_ref: type/any_id, nullable: false, source_citation: W2 §24.1, decision_basis: source_literal}
+  - {field_name: scope_id, type_ref: type/object_id, nullable: false, source_citation: W2 §§6.1 and 24.1, decision_basis: source_literal}
 - object_id: object/dependency
   additional_properties: false
   source_citation: W2 §10.1 Dependency
@@ -99,8 +124,8 @@ reusable_objects:
   - {field_name: root_kind, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1 names control/code/result/cache/paper/vault/external-data roots, decision_basis: conservative_proposal}
   - {field_name: canonical_uri, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: workspace_identity, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-  - {field_name: access_mode, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-  - {field_name: expected_commit, type_ref: type/nonempty_string, nullable: true, source_citation: W2 §12.1, decision_basis: conservative_proposal}
+  - {field_name: access_mode, type_ref: enum/access_mode, nullable: false, source_citation: W2 §12.1 selected generation rule, decision_basis: conservative_proposal}
+  - {field_name: expected_commit, type_ref: type/git_object_identity, nullable: true, source_citation: W2 §12.1 selected algorithm-tagged Git identity, decision_basis: conservative_proposal}
 - object_id: object/command_schema_identity
   additional_properties: false
   source_citation: 06d §1.1
@@ -124,7 +149,7 @@ reusable_objects:
   source_citation: W2 §12.5 and W8 §§15-17
   decision_basis: conservative_proposal
   fields:
-  - {field_name: checkpoint_manifest_id, type_ref: type/any_id, nullable: true, source_citation: W8 §15, decision_basis: conservative_proposal}
+  - {field_name: checkpoint_manifest_id, type_ref: type/checkpoint_manifest_id, nullable: true, source_citation: W8 §§5 and 15, decision_basis: source_literal}
   - {field_name: compatibility, type_ref: enum/checkpoint_compatibility, nullable: false, source_citation: W8 §16, decision_basis: source_literal}
   - {field_name: evidence_refs, type_ref: type/string_list, nullable: false, source_citation: W8 §16, decision_basis: conservative_proposal}
 - object_id: object/artefact_dimensions
@@ -178,16 +203,16 @@ reusable_objects:
   - {field_name: task_revision, type_ref: type/positive_integer, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
   - {field_name: target_profile, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: model_eval_profile_ref, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-  - {field_name: context_packet_id, type_ref: type/any_id, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
-  - {field_name: policy_version, type_ref: type/semver, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
+  - {field_name: context_packet_id, type_ref: type/context_id, nullable: false, source_citation: W2 §12.1 and §6.1, decision_basis: source_literal}
+  - {field_name: policy_version, type_ref: type/policy_version_id, nullable: false, source_citation: W2 §12.1 and §6.1, decision_basis: source_literal}
   - {field_name: assurance_plan_version, type_ref: type/semver, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: root_bindings, type_ref: type/root_binding_list, nullable: false, source_citation: W2 §12.1 typed roots, decision_basis: conservative_proposal}
   - {field_name: branch_identity, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: worktree_identity, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-  - {field_name: expected_commit, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1 expected commit; Git object format is unresolved, decision_basis: conservative_proposal}
+  - {field_name: expected_commit, type_ref: type/git_object_identity, nullable: false, source_citation: W2 §12.1 selected algorithm-tagged Git identity, decision_basis: conservative_proposal}
   - {field_name: capabilities, type_ref: type/string_list, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: permissions, type_ref: type/string_list, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
-  - {field_name: resource_request_id, type_ref: type/any_id, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
+  - {field_name: resource_request_id, type_ref: type/resource_request_id, nullable: false, source_citation: W2 §12.1 and W8 §5, decision_basis: source_literal}
   - {field_name: output_namespace, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
   - {field_name: delivery_deadline, type_ref: type/utc_z, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
   - {field_name: claim_deadline, type_ref: type/utc_z, nullable: false, source_citation: W2 §12.1, decision_basis: source_literal}
@@ -208,8 +233,8 @@ reusable_objects:
   - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: source_literal}
   - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: source_literal}
   - {field_name: producer_actor_id, type_ref: type/actor_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: conservative_proposal}
-  - {field_name: context_packet_id, type_ref: type/any_id, nullable: false, source_citation: W2 §16.1 Production, decision_basis: source_literal}
-  - {field_name: code_commit, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Code/environment, decision_basis: conservative_proposal}
+  - {field_name: context_packet_id, type_ref: type/context_id, nullable: false, source_citation: W2 §16.1 and §6.1, decision_basis: source_literal}
+  - {field_name: code_commit, type_ref: type/git_object_identity, nullable: false, source_citation: W2 §16.1 selected algorithm-tagged Git identity, decision_basis: conservative_proposal}
   - {field_name: environment_fingerprint, type_ref: type/sha256, nullable: false, source_citation: W2 §16.1 Code/environment, decision_basis: conservative_proposal}
   - {field_name: root_id, type_ref: type/any_id, nullable: false, source_citation: W2 §16.1 Location, decision_basis: conservative_proposal}
   - {field_name: relative_path, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §16.1 Location, decision_basis: conservative_proposal}
@@ -251,7 +276,7 @@ reusable_objects:
   source_citation: W8 §§7 and 11.1
   decision_basis: conservative_proposal
   fields:
-  - {field_name: resource_request_id, type_ref: type/any_id, nullable: false, source_citation: W8 §§5 and 7, decision_basis: source_literal}
+  - {field_name: resource_request_id, type_ref: type/resource_request_id, nullable: false, source_citation: W8 §§5 and 7, decision_basis: source_literal}
   - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: W8 §7, decision_basis: source_literal}
   - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: W8 §7, decision_basis: source_literal}
   - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: W8 §7, decision_basis: source_literal}
@@ -276,8 +301,8 @@ family_specs:
   source_citation: W2 §10.2 and 06d scope rows
   decision_basis: conservative_proposal
   fields:
-  - {field_name: scope_definition_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
-  - {field_name: new_scope_definition_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
+  - {field_name: scope_definition_id, type_ref: type/object_id, nullable: false, source_citation: W2 §§6.1 and 10.2, decision_basis: source_literal}
+  - {field_name: new_scope_definition_id, type_ref: type/object_id, nullable: false, source_citation: W2 §§6.1 and 10.2, decision_basis: source_literal}
   - {field_name: revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
   - {field_name: prior_revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
   - {field_name: new_revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
@@ -291,7 +316,7 @@ family_specs:
   - {field_name: amendment_authority, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
   - {field_name: effective_boundary, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
   - {field_name: effective_at, type_ref: type/utc_z, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
-  - {field_name: replacement_scope_definition_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
+  - {field_name: replacement_scope_definition_id, type_ref: type/object_id, nullable: false, source_citation: W2 §§6.1 and 10.2, decision_basis: source_literal}
   - {field_name: replacement_revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
   - {field_name: lineage_reason, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
   - {field_name: changed_fields, type_ref: type/string_list, nullable: false, source_citation: "W2 §10.2 and 06d scope rows", decision_basis: conservative_proposal}
@@ -333,7 +358,7 @@ family_specs:
   - {field_name: satisfied_review_ids, type_ref: type/id_list, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
   - {field_name: satisfied_acceptance_criteria, type_ref: type/string_list, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
   - {field_name: selected_artefact_ids, type_ref: type/id_list, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
-  - {field_name: review_verdict_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
+  - {field_name: review_verdict_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 17.3, decision_basis: source_literal}
   - {field_name: verdict_subject_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
   - {field_name: rejection_reason, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
   - {field_name: completed_obligations, type_ref: type/string_list, nullable: false, source_citation: "W2 §§10-11 and 06d task rows", decision_basis: conservative_proposal}
@@ -380,15 +405,15 @@ family_specs:
   - {field_name: expected_task_stream_version, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W2 §12.1-12.2 and 06d dispatch rows", decision_basis: conservative_proposal}
   - {field_name: expected_global_position, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W2 §12.1-12.2 and 06d dispatch rows", decision_basis: conservative_proposal}
   - {field_name: expected_tail_hash, type_ref: type/sha256, nullable: false, source_citation: "W2 §12.1-12.2 and 06d dispatch rows", decision_basis: conservative_proposal}
-  - {field_name: lease_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §12.1-12.2 and 06d dispatch rows", decision_basis: conservative_proposal}
+  - {field_name: lease_id, type_ref: type/lease_id, nullable: false, source_citation: W2 §§6.1 and 12.1-12.2, decision_basis: source_literal}
   - {field_name: declared_write_set, type_ref: type/string_list, nullable: false, source_citation: "W2 §12.1-12.2 and 06d dispatch rows", decision_basis: conservative_proposal}
 - family_id: family/lease
   source_citation: W2 §12.3 and W8 §§11-13
   decision_basis: conservative_proposal
   fields:
-  - {field_name: lease_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §12.3 and W8 §§11-13", decision_basis: conservative_proposal}
-  - {field_name: new_lease_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §12.3 and W8 §§11-13", decision_basis: conservative_proposal}
-  - {field_name: resource_grant_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §12.3 and W8 §§11-13", decision_basis: conservative_proposal}
+  - {field_name: lease_id, type_ref: type/lease_id, nullable: false, source_citation: W2 §§6.1 and 12.3, decision_basis: source_literal}
+  - {field_name: new_lease_id, type_ref: type/lease_id, nullable: false, source_citation: W2 §§6.1 and 12.3, decision_basis: source_literal}
+  - {field_name: resource_grant_id, type_ref: type/resource_grant_id, nullable: false, source_citation: W8 §5, decision_basis: source_literal}
   - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: "W2 §12.3 and W8 §§11-13", decision_basis: conservative_proposal}
   - {field_name: task_revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §12.3 and W8 §§11-13", decision_basis: conservative_proposal}
   - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: "W2 §12.3 and W8 §§11-13", decision_basis: conservative_proposal}
@@ -420,12 +445,12 @@ family_specs:
   - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: task_revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
-  - {field_name: lease_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
+  - {field_name: lease_id, type_ref: type/lease_id, nullable: false, source_citation: W2 §§6.1 and 12.4-12.7, decision_basis: source_literal}
   - {field_name: execution_epoch, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: attempt_ordinal, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
-  - {field_name: process_identity_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
+  - {field_name: process_identity_id, type_ref: type/process_identity_id, nullable: false, source_citation: W8 §§5 and 14-17, decision_basis: source_literal}
   - {field_name: session_identity, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
-  - {field_name: context_packet_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
+  - {field_name: context_packet_id, type_ref: type/context_id, nullable: false, source_citation: W2 §6.1, decision_basis: source_literal}
   - {field_name: root_bindings, type_ref: type/root_binding_list, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: code_identity, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: environment_fingerprint, type_ref: type/sha256, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
@@ -448,7 +473,7 @@ family_specs:
   - {field_name: retained_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: prior_outcome, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: reuse_declaration, type_ref: type/string_list, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
-  - {field_name: checkpoint_manifest_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
+  - {field_name: checkpoint_manifest_id, type_ref: type/checkpoint_manifest_id, nullable: false, source_citation: W8 §§5 and 14-17, decision_basis: source_literal}
   - {field_name: completed_units, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: remaining_units, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
   - {field_name: code_config_data_seed_identities, type_ref: type/hash_list, nullable: false, source_citation: "W2 §§12.4-12.7 and W8 §§14-17", decision_basis: conservative_proposal}
@@ -461,14 +486,14 @@ family_specs:
   source_citation: W2 §14 and 06d message rows
   decision_basis: conservative_proposal
   fields:
-  - {field_name: message_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
-  - {field_name: new_message_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
+  - {field_name: message_id, type_ref: type/message_id, nullable: false, source_citation: W2 §§6.1 and 14, decision_basis: source_literal}
+  - {field_name: new_message_id, type_ref: type/message_id, nullable: false, source_citation: W2 §§6.1 and 14, decision_basis: source_literal}
   - {field_name: message_type, type_ref: enum/message_type, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: sender_actor_id, type_ref: type/actor_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: recipient_actor_ids, type_ref: type/id_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: audience, type_ref: type/string_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: thread_id, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
-  - {field_name: reply_to_message_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
+  - {field_name: reply_to_message_id, type_ref: type/message_id, nullable: false, source_citation: W2 §§6.1 and 14, decision_basis: source_literal}
   - {field_name: typed_subject, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: body, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: body_artefact_ref, type_ref: object/hashed_ref, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
@@ -479,7 +504,7 @@ family_specs:
   - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: requested_action, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: deadline, type_ref: type/utc_z, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
-  - {field_name: correlation_message_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
+  - {field_name: correlation_message_id, type_ref: type/message_id, nullable: false, source_citation: W2 §§6.1 and 14, decision_basis: source_literal}
   - {field_name: acknowledged_subject_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: progress_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: required_authority, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
@@ -488,11 +513,11 @@ family_specs:
   - {field_name: escalation_route, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: escalation_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: artefact_ids, type_ref: type/id_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
-  - {field_name: review_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
+  - {field_name: review_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 14, decision_basis: source_literal}
   - {field_name: subject_ids, type_ref: type/id_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: subject_hashes, type_ref: type/hash_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
-  - {field_name: verdict_record_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
-  - {field_name: decision_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
+  - {field_name: verdict_record_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 17.3, decision_basis: source_literal}
+  - {field_name: decision_id, type_ref: type/decision_id, nullable: false, source_citation: W2 §§6.1 and 14, decision_basis: source_literal}
   - {field_name: scope_refs, type_ref: type/id_list, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: content_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
   - {field_name: delivery_adapter_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §14 and 06d message rows", decision_basis: conservative_proposal}
@@ -504,8 +529,8 @@ family_specs:
   source_citation: W2 §15 and 06d blocker rows
   decision_basis: conservative_proposal
   fields:
-  - {field_name: blocker_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §15 and 06d blocker rows", decision_basis: conservative_proposal}
-  - {field_name: new_blocker_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §15 and 06d blocker rows", decision_basis: conservative_proposal}
+  - {field_name: blocker_id, type_ref: type/blocker_id, nullable: false, source_citation: W2 §§6.1 and 15, decision_basis: source_literal}
+  - {field_name: new_blocker_id, type_ref: type/blocker_id, nullable: false, source_citation: W2 §§6.1 and 15, decision_basis: source_literal}
   - {field_name: blocker_kind, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §15 and 06d blocker rows", decision_basis: conservative_proposal}
   - {field_name: owner_actor_id, type_ref: type/actor_id, nullable: false, source_citation: "W2 §15 and 06d blocker rows", decision_basis: conservative_proposal}
   - {field_name: stop_required, type_ref: type/boolean, nullable: false, source_citation: "W2 §15 and 06d blocker rows", decision_basis: conservative_proposal}
@@ -529,7 +554,7 @@ family_specs:
   - {field_name: use_authority, type_ref: enum/use_authority, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: evidence_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: validator_identity, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
-  - {field_name: review_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
+  - {field_name: review_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 16, decision_basis: source_literal}
   - {field_name: consumer_predicate, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: replacement_artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
   - {field_name: replacement_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §16 and 06d artefact rows", decision_basis: conservative_proposal}
@@ -541,8 +566,8 @@ family_specs:
   source_citation: W2 §17 and 06d review rows
   decision_basis: conservative_proposal
   fields:
-  - {field_name: review_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
-  - {field_name: new_review_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
+  - {field_name: review_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 17, decision_basis: source_literal}
+  - {field_name: new_review_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 17, decision_basis: source_literal}
   - {field_name: subject_ids, type_ref: type/id_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: subject_hashes, type_ref: type/hash_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: review_type, type_ref: enum/review_type, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
@@ -565,21 +590,21 @@ family_specs:
   - {field_name: findings, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: limitations, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: conditions, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
-  - {field_name: context_manifest_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
+  - {field_name: context_manifest_id, type_ref: type/context_id, nullable: false, source_citation: W2 §§6.1 and 17, decision_basis: source_literal}
   - {field_name: context_manifest_sha256, type_ref: type/sha256, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: producing_attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: policy_evaluation_refs, type_ref: type/string_list, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: prior_review_state, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: satisfaction_gate, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
   - {field_name: withdrawal_reason, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
-  - {field_name: replacement_review_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
+  - {field_name: replacement_review_id, type_ref: type/review_id, nullable: false, source_citation: W2 §§6.1 and 17, decision_basis: source_literal}
   - {field_name: continuing_gate_disposition, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §17 and 06d review rows", decision_basis: conservative_proposal}
 - family_id: family/decision
   source_citation: W2 §18 and 06d decision rows
   decision_basis: conservative_proposal
   fields:
-  - {field_name: decision_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
-  - {field_name: new_decision_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
+  - {field_name: decision_id, type_ref: type/decision_id, nullable: false, source_citation: W2 §§6.1 and 18, decision_basis: source_literal}
+  - {field_name: new_decision_id, type_ref: type/decision_id, nullable: false, source_citation: W2 §§6.1 and 18, decision_basis: source_literal}
   - {field_name: decision_revision, type_ref: type/positive_integer, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
   - {field_name: decision_kind, type_ref: enum/decision_kind, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
   - {field_name: question, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
@@ -605,7 +630,7 @@ family_specs:
   - {field_name: revisit_triggers, type_ref: type/string_list, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
   - {field_name: rejection_reason, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
   - {field_name: observed_at, type_ref: type/utc_z, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
-  - {field_name: replacement_decision_id, type_ref: type/any_id, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
+  - {field_name: replacement_decision_id, type_ref: type/decision_id, nullable: false, source_citation: W2 §§6.1 and 18, decision_basis: source_literal}
   - {field_name: lineage_reason, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
   - {field_name: changed_fields, type_ref: type/string_list, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
   - {field_name: rationale, type_ref: type/nonempty_string, nullable: false, source_citation: "W2 §18 and 06d decision rows", decision_basis: conservative_proposal}
@@ -649,33 +674,33 @@ family_specs:
   source_citation: W8 §§7-18 and 06d operator rows
   decision_basis: conservative_proposal
   fields:
-  - {field_name: resource_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: resource_id, type_ref: type/resource_id, nullable: false, source_citation: W8 §5 resource identity union, decision_basis: source_literal}
   - {field_name: resource_request, type_ref: object/resource_request, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: resource_grant_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: lease_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: resource_grant_id, type_ref: type/resource_grant_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
+  - {field_name: lease_id, type_ref: type/lease_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: attempt_id, type_ref: type/attempt_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: task_id, type_ref: type/task_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: dispatch_id, type_ref: type/dispatch_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: heartbeat_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: heartbeat_id, type_ref: type/heartbeat_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: heartbeat_sequence, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: wall_time, type_ref: type/utc_z, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: monotonic_time, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: host_identity, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: boot_identity, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: process_identity_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: process_identity_id, type_ref: type/process_identity_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: work_unit_progress, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: progress_evidence_refs, type_ref: type/string_list, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: cpu_observation, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: ram_observation_bytes, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: io_observation_bytes, type_ref: type/nonnegative_integer, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: gpu_observations, type_ref: type/string_list, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: checkpoint_manifest_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: checkpoint_manifest_id, type_ref: type/checkpoint_manifest_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: output_tail_sha256, type_ref: type/sha256, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: blocker_warning_stop_state, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: checkpoint_deadline, type_ref: type/utc_z, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: process_disposition, type_ref: object/process_disposition, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: checkpoint_disposition, type_ref: object/checkpoint_disposition, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: stop_record_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: stop_record_id, type_ref: type/stop_record_id, nullable: false, source_citation: W8 §§5 and 7-18, decision_basis: source_literal}
   - {field_name: stop_reason, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: signals, type_ref: type/string_list, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: stop_deadline, type_ref: type/utc_z, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
@@ -694,7 +719,7 @@ family_specs:
   - {field_name: artefact_id, type_ref: type/artefact_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: artefact_sha256, type_ref: type/sha256, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
   - {field_name: late_observed_at, type_ref: type/utc_z, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
-  - {field_name: review_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
+  - {field_name: review_id, type_ref: type/review_id, nullable: false, source_citation: W2 §6.1 and W8 §§7-18, decision_basis: source_literal}
   - {field_name: allowed_consumer_scope, type_ref: type/string_list, nullable: false, source_citation: "W8 §§7-18 and 06d operator rows", decision_basis: conservative_proposal}
 - family_id: family/backup_recovery
   source_citation: W8 §§18-19 and 06d backup operator rows
@@ -715,13 +740,13 @@ family_specs:
   - {field_name: external_artefact_refs, type_ref: type/hashed_ref_list, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: external_availability, type_ref: enum/availability, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: destination_class, type_ref: type/nonempty_string, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
-  - {field_name: backup_receipt_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
+  - {field_name: backup_receipt_id, type_ref: type/backup_receipt_id, nullable: false, source_citation: W8 §§5 and 18-19, decision_basis: source_literal}
   - {field_name: hash_chain_verified, type_ref: type/boolean, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: snapshot_replay_verified, type_ref: type/boolean, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: endpoint_ownership_verified, type_ref: type/boolean, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: supported_schema_ids, type_ref: type/string_list, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
   - {field_name: verified_at, type_ref: type/utc_z, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
-  - {field_name: recovery_evidence_id, type_ref: type/any_id, nullable: false, source_citation: "W8 §§18-19 and 06d backup operator rows", decision_basis: conservative_proposal}
+  - {field_name: recovery_evidence_id, type_ref: type/recovery_evidence_id, nullable: false, source_citation: W8 §§5 and 18-19, decision_basis: source_literal}
 command_root:
   root_id: root/command
   additional_properties: false
@@ -730,6 +755,7 @@ command_root:
   - {field_name: command_type, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §8.1 and 06d §1, decision_basis: source_literal}
   - {field_name: schema_id, type_ref: type/nonempty_string, nullable: false, source_citation: W2 §8.1 and 06d §1.1, decision_basis: source_literal}
   - {field_name: schema_version, type_ref: type/semver, nullable: false, source_citation: W2 §8.1 and 06d §1.1, decision_basis: source_literal}
+  - {field_name: project_id, type_ref: type/project_id, nullable: false, source_citation: W2 §8.1 and 06d §1.2, decision_basis: source_literal}
   - {field_name: submitted_at, type_ref: type/utc_z, nullable: false, source_citation: W2 §8.1, decision_basis: source_literal}
   - {field_name: actor_id, type_ref: type/actor_id, nullable: false, source_citation: W2 §8.1, decision_basis: source_literal}
   - {field_name: on_behalf_of_actor_id, type_ref: type/actor_id, nullable: true, source_citation: W2 §8.1, decision_basis: source_literal}
@@ -3601,6 +3627,7 @@ shared_schema_rules:
   source_citation: 06d repeated command identity ReopenTask; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: prior_terminal_status
+  variant_const_values: [{variant_id: task_reopen_partial, const_value: partial}, {variant_id: task_reopen_rejected, const_value: rejected}, {variant_id: task_reopen_cancelled, const_value: cancelled}]
 - schema_kind: command
   semantic_type: ExpireDispatch
   variant_rule: one_of_discriminator
@@ -3611,6 +3638,7 @@ shared_schema_rules:
   source_citation: 06d repeated command identity ExpireDispatch; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: observed_prior_state
+  variant_const_values: [{variant_id: dispatch_expire_issued, const_value: issued}, {variant_id: dispatch_expire_delivered, const_value: delivered}, {variant_id: dispatch_expire_acknowledged, const_value: acknowledged}]
 - schema_kind: command
   semantic_type: WithdrawDispatch
   variant_rule: one_of_discriminator
@@ -3620,6 +3648,7 @@ shared_schema_rules:
   source_citation: 06d repeated command identity WithdrawDispatch; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: observed_prior_state
+  variant_const_values: [{variant_id: dispatch_withdraw_issued, const_value: issued}, {variant_id: dispatch_withdraw_claimed, const_value: claimed}]
 - schema_kind: command
   semantic_type: ClaimExecutionLease
   variant_rule: single_normalized_fact
@@ -3645,6 +3674,7 @@ shared_schema_rules:
   source_citation: 06d repeated command identity PublishMessage; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: message_type
+  variant_const_values: [{variant_id: message_publish_assignment, const_value: assignment}, {variant_id: message_publish_acknowledgement, const_value: acknowledgement}, {variant_id: message_publish_progress, const_value: progress}, {variant_id: message_publish_input_request, const_value: input_request}, {variant_id: message_publish_escalation, const_value: escalation}, {variant_id: message_publish_report, const_value: report}, {variant_id: message_publish_review_request, const_value: review_request}, {variant_id: message_publish_review_response, const_value: review_response}, {variant_id: message_publish_decision_request, const_value: decision_request}, {variant_id: message_publish_handoff, const_value: handoff}]
 - schema_kind: command
   semantic_type: SatisfyReview
   variant_rule: one_of_discriminator
@@ -3654,6 +3684,7 @@ shared_schema_rules:
   source_citation: 06d repeated command identity SatisfyReview; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: prior_review_state
+  variant_const_values: [{variant_id: review_satisfy, const_value: verdict_recorded}, {variant_id: review_satisfy_after_changes, const_value: changes_requested}]
 - schema_kind: event
   semantic_type: DispatchClaimed
   variant_rule: single_normalized_fact
@@ -3679,6 +3710,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity PartialOutcomeRecorded; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: subject_kind
+  variant_const_values: [{variant_id: task_close_partial, const_value: task}, {variant_id: attempt_partial, const_value: attempt}]
 - schema_kind: event
   semantic_type: TaskReopened
   variant_rule: one_of_discriminator
@@ -3689,6 +3721,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity TaskReopened; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: prior_terminal_status
+  variant_const_values: [{variant_id: task_reopen_partial, const_value: partial}, {variant_id: task_reopen_rejected, const_value: rejected}, {variant_id: task_reopen_cancelled, const_value: cancelled}]
 - schema_kind: event
   semantic_type: DispatchExpired
   variant_rule: one_of_discriminator
@@ -3699,6 +3732,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity DispatchExpired; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: observed_prior_state
+  variant_const_values: [{variant_id: dispatch_expire_issued, const_value: issued}, {variant_id: dispatch_expire_delivered, const_value: delivered}, {variant_id: dispatch_expire_acknowledged, const_value: acknowledged}]
 - schema_kind: event
   semantic_type: DispatchWithdrawn
   variant_rule: one_of_discriminator
@@ -3708,6 +3742,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity DispatchWithdrawn; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: observed_prior_state
+  variant_const_values: [{variant_id: dispatch_withdraw_issued, const_value: issued}, {variant_id: dispatch_withdraw_claimed, const_value: claimed}]
 - schema_kind: event
   semantic_type: LeaseGranted
   variant_rule: single_normalized_fact
@@ -3725,6 +3760,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity AttemptCreated; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: creation_kind
+  variant_const_values: [{variant_id: attempt_create, const_value: initial}, {variant_id: attempt_retry, const_value: retry}]
 - schema_kind: event
   semantic_type: MessagePublished
   variant_rule: one_of_discriminator
@@ -3742,6 +3778,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity MessagePublished; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: message_type
+  variant_const_values: [{variant_id: message_publish_assignment, const_value: assignment}, {variant_id: message_publish_acknowledgement, const_value: acknowledgement}, {variant_id: message_publish_progress, const_value: progress}, {variant_id: message_publish_input_request, const_value: input_request}, {variant_id: message_publish_escalation, const_value: escalation}, {variant_id: message_publish_report, const_value: report}, {variant_id: message_publish_review_request, const_value: review_request}, {variant_id: message_publish_review_response, const_value: review_response}, {variant_id: message_publish_decision_request, const_value: decision_request}, {variant_id: message_publish_handoff, const_value: handoff}]
 - schema_kind: event
   semantic_type: ReviewSatisfied
   variant_rule: one_of_discriminator
@@ -3751,6 +3788,7 @@ shared_schema_rules:
   source_citation: 06d repeated event identity ReviewSatisfied; normalized against W2/W8 family facts
   decision_basis: conservative_proposal
   discriminator_field: prior_review_state
+  variant_const_values: [{variant_id: review_satisfy, const_value: verdict_recorded}, {variant_id: review_satisfy_after_changes, const_value: changes_requested}]
 row_bindings:
 - row_key: scope.create
   command_payload_spec_ref: command_payload/scope_create
@@ -4378,64 +4416,30 @@ row_bindings:
   - event_fact/operator_verify_restore/1
   source_citation: 06d owner row operator.verify_restore exact command-to-ordered-event binding
   decision_basis: source_literal
-unresolved_decisions:
-- decision_id: proposal_decision/id_prefixes
-  family_ref: family/scope
-  question: Which UUIDv7 prefixes apply to scope, message, blocker, review, decision, rule-evaluation, lease, checkpoint, resource, operation, and backup identifiers?
-  safe_proposal: Retain non-empty strings for unfixed identifier classes and prohibit runtime registration until the owner accepts a closed prefix vocabulary.
-  source_citation: W2 ?7 fixes only a subset of ID prefixes
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/access_mode_vocabulary
-  family_ref: family/dispatch
-  question: What is the closed access_mode vocabulary for declared roots?
-  safe_proposal: Keep access_mode as a non-empty string in the proposal and require a later owner-approved closed enum before generation.
-  source_citation: W2 ?12.1 names access_mode but does not enumerate values
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/git_object_identity
-  family_ref: family/dispatch
-  question: Must expected_commit accept SHA-1, SHA-256, or an algorithm-tagged Git object identifier?
-  safe_proposal: Use a non-empty string here; final generation must choose an algorithm-tagged pattern without treating Git SHA-1 as a security digest.
-  source_citation: W2 ?12.1 names expected_commit without a representation grammar
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/numeric_policy_bounds
-  family_ref: family/resource_operation
-  question: What exact upper bounds and units govern cadence, deadlines, resource ceilings, quotas, and retry counts?
-  safe_proposal: Apply only source-stated non-negative or positive lower bounds; no unstated upper bound becomes authoritative.
-  source_citation: W8 ??7 and 11-17 name quantitative controls without one closed unit and bound table
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/open_policy_vocabularies
-  family_ref: family/task
-  question: Which currently open policy and reason strings require closed enums?
-  safe_proposal: Keep them typed non-empty strings and enumerate each vocabulary in a separately reviewed amendment before runtime use.
-  source_citation: W2 ??10-18 use policy and reason labels without complete closed value tables
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/schema_id_scope
-  family_ref: family/correction
-  question: Does each of the 173 generated files receive a distinct schema_id or share a semantic-type schema_id across variants?
-  safe_proposal: Use distinct path-bound schema identities while allowing repeated semantic types to reference an explicit shared normalization rule.
-  source_citation: 06d ?1.1 requires exact path, ID, version, blob, and SHA per binding
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/shared_discriminators
-  family_ref: family/task
-  question: Are the proposed shared-type discriminator names and values final?
-  safe_proposal: Retain explicit variant metadata and discriminator fields so heterogeneous shared types cannot be silently unioned; owner review may rename them before generation.
-  source_citation: 06d repeats semantic types across differently scoped rows; W2/W8 do not close every discriminator
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/retention_and_sensitivity
-  family_ref: family/artefact
-  question: What are the closed sensitivity, retention, provenance-class, and destination-class vocabularies?
-  safe_proposal: Preserve typed non-empty strings; do not infer institutional classifications.
-  source_citation: W2 ?16 and W8 backup/resource sections name these fields without a single closed vocabulary
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/recovery_external_availability
-  family_ref: family/backup_recovery
-  question: Must external availability be a per-reference object or a parallel list, and which failure states are terminal?
-  safe_proposal: Retain the proposed shape and require a relational review before generated backup/recovery schemas are accepted.
-  source_citation: W8 ??18-20 require external availability evidence without a complete relational JSON shape
-  decision_basis: conservative_proposal
-- decision_id: proposal_decision/correction_subject_union
-  family_ref: family/correction
-  question: How is corrected-record subject identity discriminated across all corrected_record_kind values?
-  safe_proposal: Keep corrected_record_kind source-closed and require kind-specific one-of branches in generated schemas; never accept a generic fallback branch.
-  source_citation: 06d ?1.4 closes corrected record kinds and forbids selector compensation
-  decision_basis: conservative_proposal
+generation_contract:
+  mode: deterministic_total_function
+  byte_changing_choices_remaining: 0
+  generator_runtime_authority: false
+  generated_schema_identity_count: 173
+  open_policy_vocabularies: versioned_runtime_policy_gate_only
+  institutional_classifications: versioned_runtime_policy_gate_only
+  stage_1_ready: false
+  pending_r3_remediation: [M-2_complete_source_fact_objects, M-5_correction_and_recovery_shapes]
+schema_identity_rule:
+  identity_key: [schema_kind, semantic_type]
+  unique_command_identities: 87
+  unique_event_identities: 86
+  total_identities: 173
+  repeated_rows_share_identity: true
+  variants_are_closed_within_shared_identity: true
+decision_register:
+- {decision_id: proposal_decision/id_prefixes, family_ref: family/scope, selection_kind: generation_rule, selected_rule: "Use every source-literal W2 §6.1 and W8 §5 prefix; retain type/any_id only where the source leaves the identifier family genuinely open.", generator_byte_change_allowed: false, source_citation: W2 §6.1 and W8 §5, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/access_mode_vocabulary, family_ref: family/dispatch, selection_kind: generation_rule, selected_rule: "Freeze access_mode to [read_only, create_only, append_only, read_write].", generator_byte_change_allowed: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/git_object_identity, family_ref: family/dispatch, selection_kind: generation_rule, selected_rule: "Freeze expected_commit to ^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$; SHA-1 is a Git object algorithm label, not a security digest.", generator_byte_change_allowed: false, source_citation: W2 §12.1, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/numeric_policy_bounds, family_ref: family/resource_operation, selection_kind: generation_rule, selected_rule: "All integer primitives use the interoperable maximum 9007199254740991; units remain those stated by each field name and source fact.", generator_byte_change_allowed: false, source_citation: W2 §7.1 and W8 §§7 and 11-17, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/open_policy_vocabularies, family_ref: family/task, selection_kind: runtime_policy_gate, selected_rule: "Open reason and policy strings remain non-empty strings and may be narrowed only by a separately versioned runtime policy; schema generation cannot change them.", generator_byte_change_allowed: false, source_citation: W2 §§10-18, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/schema_id_scope, family_ref: family/correction, selection_kind: generation_rule, selected_rule: "Generate one identity for each of 87 command and 86 event semantic types; repeated owner rows share that semantic identity and closed variants remain inside it.", generator_byte_change_allowed: false, source_citation: 06d §1.1, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/shared_discriminators, family_ref: family/task, selection_kind: generation_rule, selected_rule: "Freeze every discriminator_field and variant_const_values entry in shared_schema_rules; generation may neither rename nor infer them.", generator_byte_change_allowed: false, source_citation: 06d §1.3 repeated semantic types, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/retention_and_sensitivity, family_ref: family/artefact, selection_kind: runtime_policy_gate, selected_rule: "Retention, sensitivity, provenance-class, and destination-class strings are institutional classifications supplied only through a separately versioned runtime policy; schema generation cannot invent values.", generator_byte_change_allowed: false, source_citation: W2 §16 and W8 §§7 and 18-20, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/recovery_external_availability, family_ref: family/backup_recovery, selection_kind: pending_r3_remediation, selected_rule: "No schemas may be generated until M-5 replaces the aggregate recovery shape with the reviewed per-external-artefact relational shape.", generator_byte_change_allowed: false, source_citation: W8 §§18-20, decision_basis: conservative_proposal}
+- {decision_id: proposal_decision/correction_subject_union, family_ref: family/correction, selection_kind: pending_r3_remediation, selected_rule: "No schemas may be generated until M-5 supplies the literal 15-kind closed correction union with no generic fallback branch.", generator_byte_change_allowed: false, source_citation: 06d §1.4, decision_basis: conservative_proposal}
