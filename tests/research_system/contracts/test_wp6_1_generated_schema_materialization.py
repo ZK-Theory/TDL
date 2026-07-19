@@ -148,3 +148,195 @@ def test_wp6_1_field_family_negatives_reject_wrong_discriminator_or_empty_domain
 
     with pytest.raises(SchemaError):
         registry.validate(schema["$id"], instance)
+
+
+_TOY_PAYLOAD_FIELDS = {
+    "command_key",
+    "event_key",
+    "subject_reference",
+    "evidence_reference",
+    "source_model_citation",
+}
+_COMMAND_ROOT_REQUIRED = {
+    "command_id",
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "submitted_at",
+    "actor_id",
+    "on_behalf_of_actor_id",
+    "authority_grant_id",
+    "target_stream_id",
+    "expected_stream_version",
+    "idempotency_key",
+    "correlation_id",
+    "causation_id",
+    "reason",
+    "evidence_refs",
+    "payload",
+}
+_EVENT_ROOT_REQUIRED = {
+    "event_id",
+    "event_type",
+    "schema_id",
+    "schema_version",
+    "project_id",
+    "stream_id",
+    "stream_version",
+    "global_position",
+    "transaction_id",
+    "transaction_index",
+    "transaction_count",
+    "command_id",
+    "command_schema_id",
+    "command_schema_version",
+    "command_schema_sha256",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "authority_grant_id",
+    "occurred_at",
+    "recorded_at",
+    "payload",
+    "previous_event_hash",
+    "event_hash",
+    "event_schema_id",
+    "event_schema_version",
+    "event_schema_sha256",
+    "reducer_id",
+    "projection_targets",
+}
+
+
+def _walk_objects(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, dict):
+        found = [value] if value.get("type") == "object" else []
+        return found + [item for child in value.values() for item in _walk_objects(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in _walk_objects(child)]
+    return []
+
+
+def _all_catalogue_schemas() -> list[tuple[dict[str, Any], dict[str, Any], str]]:
+    catalogue, _ = _documents()
+    result: list[tuple[dict[str, Any], dict[str, Any], str]] = []
+    seen: set[str] = set()
+    for row in catalogue["rows"]:
+        bindings = [
+            (row["command_schema_identity"], "command"),
+            *[(item, "event") for item in row["event_schema_bindings"]],
+        ]
+        for identity, kind in bindings:
+            path = identity[f"{kind}_schema_path"]
+            if path not in seen:
+                result.append((identity, _schema(path), kind))
+                seen.add(path)
+    return result
+
+
+def test_wp6_1_generated_schemas_reject_toy_shell_fields_and_close_every_object() -> None:
+    for _identity, schema, _kind in _all_catalogue_schemas():
+        payload_text = json.dumps(schema)
+        assert not any(f'"{field}"' in payload_text for field in _TOY_PAYLOAD_FIELDS)
+        objects = _walk_objects(schema)
+        assert objects
+        assert all(node.get("additionalProperties") is False for node in objects)
+
+
+def test_wp6_1_generated_roots_materialize_the_approved_command_and_event_envelopes() -> None:
+    for _identity, schema, kind in _all_catalogue_schemas():
+        expected = _COMMAND_ROOT_REQUIRED if kind == "command" else _EVENT_ROOT_REQUIRED
+        assert set(schema["required"]) == expected
+        assert "envelope" not in schema["properties"]
+
+
+def test_wp6_1_catalogue_authority_sources_are_real_required_domain_fields() -> None:
+    catalogue, _ = _documents()
+    for row in catalogue["rows"]:
+        schema = _schema(row["command_schema_identity"]["command_schema_path"])
+        source = row["authority"]["authority_subject_id_source"]
+        if source.startswith("payload."):
+            field = source.split(".", 1)[1]
+            variants = schema["$defs"]["payload"]["oneOf"]
+            assert any(field in variant["required"] for variant in variants), row["key"]
+        elif source == "envelope.target_stream_id":
+            assert "target_stream_id" in schema["required"]
+            assert "x-source-citation" in schema["properties"]["target_stream_id"]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "scope.create",
+        "task.create",
+        "dispatch.issue",
+        "task.claim_start",
+        "attempt.create",
+        "checkpoint.record",
+        "message.publish_assignment",
+        "artefact.register",
+        "review.request",
+        "decision.propose",
+        "rule.evaluate",
+        "correction.record",
+        "operator.request_resource_grant",
+        "operator.record_heartbeat",
+        "operator.request_pause",
+        "operator.request_stop",
+        "operator.request_resume",
+        "operator.quarantine_orphan",
+        "operator.create_backup",
+    ],
+)
+def test_wp6_1_representative_command_variants_require_domain_facts_not_metadata(key: str) -> None:
+    catalogue, _ = _documents()
+    row = next(item for item in catalogue["rows"] if item["key"] == key)
+    schema = _schema(row["command_schema_identity"]["command_schema_path"])
+    variants = schema["$defs"]["payload"]["oneOf"]
+    metadata = {"schema_id", "schema_version", "command_type", "command_id", "project_id", "target_stream_id"}
+    assert all(len(set(variant["required"]) - metadata) >= 2 for variant in variants), key
+
+
+def test_wp6_1_shared_command_families_preserve_atomic_and_discriminated_domain_variants() -> None:
+    catalogue, _ = _documents()
+    claim = next(row for row in catalogue["rows"] if row["key"] == "task.claim_start")
+    claim_schema = _schema(claim["command_schema_identity"]["command_schema_path"])
+    claim_payload = claim_schema["$defs"]["payload"]["oneOf"]
+    assert len(claim_payload) == 1
+    assert set(claim_payload[0]["required"]) >= {"dispatch_id", "task_id", "task_revision", "lease_id"}
+
+    message = next(row for row in catalogue["rows"] if row["key"] == "message.publish_assignment")
+    variants = _schema(message["command_schema_identity"]["command_schema_path"])["$defs"]["payload"]["oneOf"]
+    assert len(variants) == 10
+    assert {item["properties"]["message_type"]["const"] for item in variants} == {
+        "assignment",
+        "acknowledgement",
+        "progress",
+        "input_request",
+        "escalation",
+        "report",
+        "review_request",
+        "review_response",
+        "decision_request",
+        "handoff",
+    }
+    assert all(len(set(item["required"]) - {"message_type"}) >= 2 for item in variants)
+
+
+def test_wp6_1_public_registry_rejects_domain_omission_wrong_type_nested_extra_and_hybrid() -> None:
+    catalogue, _ = _documents()
+    message = next(row for row in catalogue["rows"] if row["key"] == "message.publish_assignment")
+    schema = _schema(message["command_schema_identity"]["command_schema_path"])
+    registry = SchemaRegistry(SCHEMA_ROOT)
+    instance = _valid_instance(schema)
+    registry.validate(schema["$id"], instance)
+    for mutator in (
+        lambda value: value["payload"].pop("assignee_id", None),
+        lambda value: value["payload"].__setitem__("message_type", 7),
+        lambda value: value["payload"].__setitem__("nested_escape", {"unexpected": True}),
+        lambda value: value["payload"].update({"message_type": "assignment", "review_id": "rev-1"}),
+    ):
+        candidate = json.loads(json.dumps(instance))
+        mutator(candidate)
+        with pytest.raises(SchemaError):
+            registry.validate(schema["$id"], candidate)
