@@ -248,17 +248,17 @@ class TestComputeWassersteinDistance:
         assert np.isfinite(d) and d >= 0.0
 
     def test_dispatches_to_scipy_when_gudhi_absent(self):
-        """When gudhi.wasserstein is not importable, falls back to scipy with a warning."""
-        # Ensure gudhi.wasserstein is absent by patching builtins.__import__
+        """When gudhi.hera is not importable, falls back to scipy with a warning."""
+        # Ensure gudhi.hera is absent by patching builtins.__import__
         real_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
 
         def _block_gudhi(name: str, *args: Any, **kwargs: Any) -> Any:
-            if name == "gudhi.wasserstein":
-                raise ImportError("mocked absence of gudhi.wasserstein")
+            if name == "gudhi.hera":
+                raise ImportError("mocked absence of gudhi.hera")
             return real_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=_block_gudhi):
-            with pytest.warns(UserWarning, match="gudhi.wasserstein not available"):
+            with pytest.warns(UserWarning, match="gudhi.hera not available"):
                 d = _compute_wasserstein_distance(DIAG_SIMPLE, DIAG_SHIFTED)
         assert np.isfinite(d) and d >= 0.0
 
@@ -337,7 +337,7 @@ class TestDiagramWassersteinPvalue:
     def test_method_is_str(self):
         null = _make_null_diagrams(10)
         result = diagram_wasserstein_pvalue(DIAG_SIMPLE, null)
-        assert result.method in ("gudhi", "scipy")
+        assert result.method in ("hera", "scipy")
 
     def test_identical_observed_and_null_p_value(self):
         """When observed matches all null diagrams, all distances are zero.
@@ -401,17 +401,17 @@ class TestDiagramWassersteinPvalue:
         assert np.isfinite(result.observed_distance)
 
     def test_gudhi_absent_falls_back_to_scipy(self):
-        """When gudhi.wasserstein is missing, method should be 'scipy'."""
+        """When gudhi.hera is missing, method should be 'scipy'."""
         real_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
 
         def _block_gudhi(name: str, *args: Any, **kwargs: Any) -> Any:
-            if name == "gudhi.wasserstein":
+            if name == "gudhi.hera":
                 raise ImportError("blocked for test")
             return real_import(name, *args, **kwargs)
 
         null = _make_null_diagrams(5)
         with patch("builtins.__import__", side_effect=_block_gudhi):
-            with pytest.warns(UserWarning, match="gudhi.wasserstein not available"):
+            with pytest.warns(UserWarning, match="gudhi.hera not available"):
                 result = diagram_wasserstein_pvalue(DIAG_SIMPLE, null)
         assert result.method == "scipy"
         assert 0.0 <= result.p_value <= 1.0

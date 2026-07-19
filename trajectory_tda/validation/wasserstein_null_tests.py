@@ -15,10 +15,11 @@ Two tests:
        demographically-stratified trajectory subgroups, replacing the
        current bootstrap-p approach.
 
-Uses hera (via gudhi Python bindings) for exact Wasserstein distances.
-Falls back to an exact scipy Hungarian solve of the canonical augmented
-assignment if gudhi is unavailable (same estimand; O((n+m)^3), so slower
-on large diagrams).
+Primary backend is gudhi.hera.wasserstein_distance (Kerber-Morozov-Nigmetov
+geometric matching; no POT dependency), called with delta=1e-8 so the
+(1+delta) relative-error bound is exact to well below numerical precision.
+Falls back to a scipy linear_sum_assignment solve if hera is unavailable.
+The backend that actually ran is stamped in WassersteinNullResult.method.
 
 References:
     Robinson, A., & Turner, K. (2017). Hypothesis testing for topological
@@ -39,6 +40,24 @@ from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
+# Relative-error tolerance passed to hera: the returned value is within a
+# (1 + _HERA_DELTA) factor of the true distance, i.e. exact to ~1e-8.
+_HERA_DELTA = 1e-8
+
+
+def _resolve_backend() -> str:
+    """Return the Wasserstein backend that _compute_wasserstein_distance will use.
+
+    Returns:
+        'hera' if gudhi's hera bindings import cleanly, else 'scipy'.
+    """
+    try:
+        import gudhi.hera  # noqa: F401
+
+        return "hera"
+    except ImportError:
+        return "scipy"
+
 
 def _compute_wasserstein_distance(
     diagram_a: NDArray[np.float64],
@@ -47,9 +66,11 @@ def _compute_wasserstein_distance(
 ) -> float:
     """Compute Wasserstein distance between two persistence diagrams.
 
-    Attempts to use gudhi's hera bindings (exact, fast C++). Falls back
-    to an exact scipy linear_sum_assignment solve of the canonical
-    augmented matching (same estimand, slower on large diagrams).
+    Primary path is gudhi.hera.wasserstein_distance (exact up to a 1e-8
+    relative delta; no POT dependency — the POT-backed gudhi.wasserstein
+    module is deliberately not used, see APM Failure Inventory Class 1).
+    Falls back to a scipy linear_sum_assignment solve if hera is
+    unavailable.
 
     Args:
         diagram_a: Persistence diagram, shape (n_pairs, 2) with (birth, death).
@@ -65,9 +86,9 @@ def _compute_wasserstein_distance(
     finite_b = diagram_b[np.isfinite(diagram_b).all(axis=1)]
 
     try:
-        import gudhi.wasserstein
+        import gudhi.hera
 
-        dist = gudhi.wasserstein.wasserstein_distance(finite_a, finite_b, order=order, internal_p=2)
+        dist = gudhi.hera.wasserstein_distance(finite_a, finite_b, order=order, internal_p=2, delta=_HERA_DELTA)
         return float(dist)
 
     except ImportError:
@@ -177,12 +198,7 @@ def diagram_wasserstein_pvalue(
     Returns:
         WassersteinNullResult with p-value and z-score.
     """
-    try:
-        import gudhi.wasserstein  # noqa: F401
-
-        method = "gudhi"
-    except ImportError:
-        method = "scipy"
+    method = _resolve_backend()
 
     # Observed test statistic: mean Wasserstein distance from the observed
     # diagram to each null diagram.
