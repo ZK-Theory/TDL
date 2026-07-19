@@ -1,78 +1,33 @@
 {
   "$defs": {
-    "envelope": {
-      "additionalProperties": false,
-      "properties": {
-        "authority_grant_id": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        "idempotency_key": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        "project_id": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        "stream_id": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        }
-      },
-      "required": [
-        "project_id",
-        "stream_id",
-        "authority_grant_id",
-        "idempotency_key"
-      ],
-      "type": "object"
-    },
     "payload": {
       "oneOf": [
         {
           "additionalProperties": false,
           "properties": {
-            "event_key": {
-              "const": "decision.reject",
-              "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "event_type": {
-              "const": "DecisionRejected",
-              "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "evidence_reference": {
+            "decision_id": {
               "minLength": 1,
               "type": "string",
-              "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "source_command_type": {
-              "const": "RejectDecision",
-              "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "source_model_citation": {
-              "const": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
-              "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "subject_reference": {
+            "rejected_at": {
               "minLength": 1,
               "type": "string",
-              "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "rejection_reason": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
           "required": [
-            "event_key",
-            "subject_reference",
-            "evidence_reference",
-            "source_model_citation",
-            "source_command_type",
-            "event_type"
+            "decision_id",
+            "rejection_reason",
+            "rejected_at"
           ],
-          "type": "object"
+          "type": "object",
+          "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
     }
@@ -82,31 +37,176 @@
   "additionalProperties": false,
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
-    "envelope": {
-      "$ref": "#/$defs/envelope"
+    "actor_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "authority_grant_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "causation_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "command_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "command_payload_hash": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "command_schema_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "command_schema_sha256": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "command_schema_version": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "command_type": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "correlation_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "event_hash": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "event_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "event_type": {
-      "const": "DecisionRejected"
+      "const": "DecisionRejected",
+      "x-source-citation": "06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "global_position": {
+      "minimum": 1,
+      "type": "integer",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "payload": {
       "$ref": "#/$defs/payload"
     },
+    "previous_event_hash": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "project_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "recorded_at": {
+      "format": "date-time",
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
     "schema_id": {
-      "const": "ars://core/event/DecisionRejected"
+      "const": "ars://core/event/DecisionRejected",
+      "x-source-citation": "06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     },
     "schema_version": {
-      "const": "1.0.0"
+      "const": "1.0.0",
+      "x-source-citation": "06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "stream_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "stream_version": {
+      "minimum": 1,
+      "type": "integer",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "transaction_count": {
+      "minimum": 1,
+      "type": "integer",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "transaction_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "transaction_index": {
+      "minimum": 1,
+      "type": "integer",
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     }
   },
   "required": [
+    "event_id",
+    "event_type",
     "schema_id",
     "schema_version",
-    "event_type",
-    "envelope",
-    "payload"
+    "project_id",
+    "stream_id",
+    "stream_version",
+    "global_position",
+    "transaction_id",
+    "transaction_index",
+    "transaction_count",
+    "command_id",
+    "command_type",
+    "command_schema_id",
+    "command_schema_version",
+    "command_schema_sha256",
+    "idempotency_key",
+    "command_payload_hash",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "authority_grant_id",
+    "occurred_at",
+    "recorded_at",
+    "payload",
+    "previous_event_hash",
+    "event_hash"
   ],
   "title": "WP6.1 proposed event schema: DecisionRejected",
   "type": "object",
   "x-lifecycle": "proposed_materialized",
-  "x-source-citation": "06d §3 / W2, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+  "x-source-citation": "06d §3, owner row `decision.reject` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
 }

@@ -21,12 +21,20 @@ from tests.research_system.contracts.wp6_1_schema_source import (
     ANNEX_PATH,
     ANNEX_REVISION,
     ANNEX_SHA256,
+    COMMAND_ROOT_NAMES,
+    EVENT_ROOT_NAMES,
+    FieldSpec,
+    ObjectSpec,
+    OperationSpec,
     SourceRow,
     canonical_yaml_bytes,
+    command_root_spec,
+    event_root_spec,
     git_blob_id,
     grouped_rows,
     schema_identity,
     sha256_value,
+    resolve_operation_specs,
     source_citation,
     source_rows,
 )
@@ -39,73 +47,146 @@ SCHEMA_VERSION = "1.0.0"
 CONTRACT_ROOT = ".research-system/contracts"
 
 
-def _citation_property(schema: dict[str, Any], citation: str) -> dict[str, Any]:
-    schema["x-source-citation"] = citation
+def _citation_text(spec: FieldSpec | ObjectSpec) -> str:
+    return "; ".join(citation.text() for citation in spec.citations)
+
+
+def _render_field(field: FieldSpec) -> dict[str, Any]:
+    schema: dict[str, Any] = {
+        "type": [field.json_type, "null"] if field.nullable else field.json_type,
+        "x-source-citation": _citation_text(field),
+    }
+    if field.const is not None:
+        schema["const"] = field.const
+    if field.minimum is not None:
+        schema["minimum"] = field.minimum
+    if field.format is not None:
+        schema["format"] = field.format
+    if field.json_type == "string" and field.const is None:
+        schema["minLength"] = 1
+    if field.json_type == "array":
+        if field.name == "declared_write_set":
+            if field.object_spec is None:
+                raise RuntimeError("ClaimDispatch write set lacks its closed member contract")
+            members = []
+            for stream_kind in ("dispatch", "task"):
+                member = _render_object(field.object_spec)
+                member["properties"]["stream_kind"]["const"] = stream_kind
+                members.append(member)
+            schema.update({"prefixItems": members, "minItems": 2, "maxItems": 2})
+        elif field.object_spec is not None:
+            schema["items"] = _render_object(field.object_spec)
+        else:
+            schema["items"] = {"type": field.item_type or "string", "minLength": 1}
+            schema["uniqueItems"] = True
     return schema
 
 
-def _variant(row: SourceRow, *, kind: str, semantic_type: str) -> dict[str, Any]:
-    citation = source_citation(row)
-    key_name = "command_key" if kind == "command" else "event_key"
-    fields: dict[str, Any] = {
-        key_name: _citation_property({"const": row.key}, citation),
-        "subject_reference": _citation_property({"type": "string", "minLength": 1}, citation),
-        "evidence_reference": _citation_property({"type": "string", "minLength": 1}, citation),
-        "source_model_citation": _citation_property({"const": citation}, citation),
-    }
-    if kind == "command":
-        fields["command_type"] = _citation_property({"const": semantic_type}, citation)
-    else:
-        fields["source_command_type"] = _citation_property({"const": row.command_type}, citation)
-        fields["event_type"] = _citation_property({"const": semantic_type}, citation)
+def _render_object(spec: ObjectSpec) -> dict[str, Any]:
     return {
         "type": "object",
-        "required": list(fields),
-        "properties": fields,
+        "required": [field.name for field in spec.fields],
+        "properties": {field.name: _render_field(field) for field in spec.fields},
         "additionalProperties": False,
+        "x-source-citation": _citation_text(spec),
     }
+
+
+def _object_signature(spec: ObjectSpec) -> tuple[Any, ...]:
+    return tuple(
+        (
+            field.name,
+            field.json_type,
+            field.const,
+            field.nullable,
+            field.item_type,
+            field.minimum,
+            field.format,
+            _object_signature(field.object_spec) if field.object_spec else None,
+        )
+        for field in spec.fields
+    )
+
+
+def _payload_specs(
+    rows: list[tuple[SourceRow, str, str]],
+    *,
+    kind: str,
+    semantic_type: str,
+    operations: Mapping[str, OperationSpec],
+) -> list[ObjectSpec]:
+    candidates: list[ObjectSpec] = []
+    for row, _, _ in rows:
+        operation = operations[row.key]
+        if kind == "command":
+            candidates.append(operation.command_payload)
+            continue
+        matches = [payload for event_type, payload in operation.event_payloads if event_type == semantic_type]
+        if len(matches) != 1:
+            raise RuntimeError(f"event payload binding mismatch for {row.key}/{semantic_type}")
+        candidates.extend(matches)
+    unique: dict[tuple[Any, ...], ObjectSpec] = {}
+    for candidate in candidates:
+        unique.setdefault(_object_signature(candidate), candidate)
+    if not unique:
+        raise RuntimeError(f"empty {kind} payload union for {semantic_type}")
+    return list(unique.values())
 
 
 def _generated_schema(
-    rows: list[tuple[SourceRow, str, str]], *, kind: str, identity: Mapping[str, str]
+    rows: list[tuple[SourceRow, str, str]],
+    *,
+    kind: str,
+    identity: Mapping[str, str],
+    operations: Mapping[str, OperationSpec],
 ) -> dict[str, Any]:
     semantic_type = identity[f"{kind}_schema_id"].rsplit("/", 1)[1]
     citation = "; ".join(source_citation(row) for row, _, _ in rows)
-    envelope_fields = {
-        "project_id": _citation_property({"type": "string", "minLength": 1}, citation),
-        "stream_id": _citation_property({"type": "string", "minLength": 1}, citation),
-        "authority_grant_id": _citation_property({"type": "string", "minLength": 1}, citation),
-        "idempotency_key": _citation_property({"type": "string", "minLength": 1}, citation),
-    }
+    root = command_root_spec() if kind == "command" else event_root_spec()
+    root_names = COMMAND_ROOT_NAMES if kind == "command" else EVENT_ROOT_NAMES
     type_field = "command_type" if kind == "command" else "event_type"
+    properties = {field.name: _render_field(field) for field in root.fields}
+    properties["schema_id"] = {"const": identity[f"{kind}_schema_id"], "x-source-citation": citation}
+    properties["schema_version"] = {"const": SCHEMA_VERSION, "x-source-citation": citation}
+    properties[type_field] = {"const": semantic_type, "x-source-citation": citation}
+    properties["payload"] = {"$ref": "#/$defs/payload"}
+    payloads = _payload_specs(rows, kind=kind, semantic_type=semantic_type, operations=operations)
     schema: dict[str, Any] = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": identity[f"{kind}_schema_id"],
         "title": f"WP6.1 proposed {kind} schema: {semantic_type}",
         "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
         "type": "object",
-        "required": ["schema_id", "schema_version", type_field, "envelope", "payload"],
-        "properties": {
-            "schema_id": {"const": identity[f"{kind}_schema_id"]},
-            "schema_version": {"const": SCHEMA_VERSION},
-            type_field: {"const": semantic_type},
-            "envelope": {"$ref": "#/$defs/envelope"},
-            "payload": {"$ref": "#/$defs/payload"},
-        },
+        "required": list(root_names),
+        "properties": properties,
         "additionalProperties": False,
-        "$defs": {
-            "envelope": {
-                "type": "object",
-                "required": list(envelope_fields),
-                "properties": envelope_fields,
-                "additionalProperties": False,
-            },
-            "payload": {"oneOf": [_variant(row, kind=kind, semantic_type=type_) for row, _, type_ in rows]},
-        },
+        "$defs": {"payload": {"oneOf": [_render_object(payload) for payload in payloads]}},
         "x-source-citation": citation,
         "x-lifecycle": MATERIALIZATION_STATUS,
     }
     return schema
+
+
+def _preflight_model(rows: list[SourceRow], operations: Mapping[str, OperationSpec]) -> None:
+    banned = {"command_key", "event_key", "subject_reference", "evidence_reference", "source_model_citation"}
+    if len(operations) != 104 or set(operations) != {row.key for row in rows}:
+        raise RuntimeError("WP6.1 semantic model is not exactly the approved 104 rows")
+    for row in rows:
+        operation = operations[row.key]
+        if len(operation.event_payloads) != len(row.events):
+            raise RuntimeError(f"WP6.1 event fact count mismatch for {row.key}")
+        command_names = {field.name for field in operation.command_payload.fields}
+        if command_names & banned or len(command_names) < 2:
+            raise RuntimeError(f"WP6.1 invalid command payload for {row.key}")
+        if any(not field.citations for field in operation.command_payload.fields):
+            raise RuntimeError(f"WP6.1 uncited command field for {row.key}")
+        _, authority_source = validation._authority_binding(row.key, row.command_type)
+        if authority_source.startswith("payload.") and authority_source.split(".", 1)[1] not in command_names:
+            raise RuntimeError(f"WP6.1 authority subject is absent from {row.key}")
+        for event_type, payload in operation.event_payloads:
+            names = {field.name for field in payload.fields}
+            if names & banned or len(names) < 2 or any(not field.citations for field in payload.fields):
+                raise RuntimeError(f"WP6.1 invalid immutable event facts for {row.key}/{event_type}")
 
 
 def _identity(identity: Mapping[str, str], *, kind: str, schema_bytes: bytes) -> dict[str, str]:
@@ -215,6 +296,8 @@ def _catalogue_rows(rows: list[SourceRow], identity_rows: list[dict[str, Any]]) 
 def generate_artifacts(repo_root: Path) -> dict[str, bytes]:
     """Build the complete acyclic output graph without modifying the checkout."""
     rows = source_rows(repo_root)
+    operations = resolve_operation_specs(repo_root, rows)
+    _preflight_model(rows, operations)
     command_groups = grouped_rows(rows, kind="command")
     event_groups = grouped_rows(rows, kind="event")
     if len(command_groups) != 87 or len(event_groups) != 86:
@@ -225,7 +308,12 @@ def generate_artifacts(repo_root: Path) -> dict[str, bytes]:
             _, token, semantic_type = group[0]
             artifacts[path] = (
                 json_bytes := json.dumps(
-                    _generated_schema(group, kind=kind, identity=schema_identity(token, semantic_type, kind)),
+                    _generated_schema(
+                        group,
+                        kind=kind,
+                        identity=schema_identity(token, semantic_type, kind),
+                        operations=operations,
+                    ),
                     ensure_ascii=False,
                     sort_keys=True,
                     indent=2,

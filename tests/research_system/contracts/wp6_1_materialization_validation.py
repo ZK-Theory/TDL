@@ -16,6 +16,7 @@ import yaml
 
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
+from tests.research_system.contracts import wp6_1_schema_source as schema_source
 
 
 WP6_1_CATALOGUE_SCHEMA_ID = "ars://contracts/wp6-1-owner-source-catalogue"
@@ -559,6 +560,144 @@ def _schema_registry(schema_root: Path) -> SchemaRegistry:
     return SchemaRegistry(schema_root)
 
 
+def _field_spec_shape(field: schema_source.FieldSpec) -> tuple[Any, ...]:
+    nested = _object_spec_shape(field.object_spec) if field.object_spec else None
+    return (
+        field.name,
+        field.json_type,
+        field.const,
+        field.nullable,
+        field.item_type,
+        field.minimum,
+        field.format,
+        nested,
+    )
+
+
+def _object_spec_shape(spec: schema_source.ObjectSpec | None) -> tuple[Any, ...] | None:
+    if spec is None:
+        return None
+    return tuple(_field_spec_shape(field) for field in spec.fields)
+
+
+def _schema_field_shape(name: str, field: Mapping[str, Any]) -> tuple[Any, ...]:
+    raw_type = field.get("type")
+    nullable = isinstance(raw_type, list) and set(raw_type) == {"string", "null"}
+    json_type = "string" if nullable else raw_type
+    nested = None
+    item_type = None
+    if json_type == "array":
+        if name == "declared_write_set":
+            members = field.get("prefixItems")
+            _require(
+                isinstance(members, list) and len(members) == 2, "ClaimDispatch write set is not exactly two members"
+            )
+            _require(
+                field.get("minItems") == field.get("maxItems") == 2, "ClaimDispatch write set cardinality mismatch"
+            )
+            member_shapes = [_schema_object_shape(member) for member in members]
+            _require(
+                [member[1][0][2] for member in member_shapes] == ["dispatch", "task"],
+                "ClaimDispatch write set order/kinds mismatch",
+            )
+            nested = tuple(
+                (item[0], item[1], None if item[0] == "stream_kind" else item[2], *item[3:])
+                for item in member_shapes[0][1]
+            )
+        else:
+            items = field.get("items")
+            if isinstance(items, Mapping) and items.get("type") == "object":
+                nested = _schema_object_shape(items)[1]
+            elif isinstance(items, Mapping):
+                item_type = items.get("type")
+    _require("x-source-citation" in field, f"uncited generated field: {name}")
+    return (
+        name,
+        json_type,
+        field.get("const"),
+        nullable,
+        item_type,
+        field.get("minimum"),
+        field.get("format"),
+        nested,
+    )
+
+
+def _schema_object_shape(value: Mapping[str, Any]) -> tuple[str, tuple[Any, ...]]:
+    _require(value.get("type") == "object", "payload variant is not an object")
+    _require(value.get("additionalProperties") is False, "generated payload object is not closed")
+    required = value.get("required")
+    properties = value.get("properties")
+    _require(isinstance(required, list) and isinstance(properties, Mapping), "invalid generated payload object")
+    _require(set(required) == set(properties), "generated payload required/property mismatch")
+    _require("x-source-citation" in value, "uncited generated payload object")
+    return "object", tuple(_schema_field_shape(name, properties[name]) for name in required)
+
+
+@lru_cache(maxsize=256)
+def _parsed_schema(path: Path, sha256: str) -> Mapping[str, Any]:
+    data = path.read_bytes()
+    _require(hashlib.sha256(data).hexdigest() == sha256, f"schema changed while validating: {path}")
+    value = json.loads(data)
+    _require(isinstance(value, Mapping), f"generated schema is not an object: {path}")
+    return value
+
+
+def _semantic_schema(path: Path) -> Mapping[str, Any]:
+    data = path.read_bytes()
+    return _parsed_schema(path, hashlib.sha256(data).hexdigest())
+
+
+def _verify_generated_semantics(
+    *,
+    path: Path,
+    kind: str,
+    semantic_type: str,
+    payload_specs: list[schema_source.ObjectSpec],
+) -> None:
+    schema = _semantic_schema(path)
+    expected_root = set(schema_source.COMMAND_ROOT_NAMES if kind == "command" else schema_source.EVENT_ROOT_NAMES)
+    _require(set(schema.get("required", [])) == expected_root, f"generated {kind} root mismatch: {path}")
+    properties = schema.get("properties")
+    _require(
+        isinstance(properties, Mapping) and set(properties) == expected_root, f"generated root fields mismatch: {path}"
+    )
+    _require("envelope" not in properties, f"nested envelope returned: {path}")
+    _require(schema.get("additionalProperties") is False, f"generated root is not closed: {path}")
+    _require(schema.get("$id") == f"ars://core/{kind}/{semantic_type}", f"generated schema id mismatch: {path}")
+    type_field = f"{kind}_type"
+    _require(properties[type_field].get("const") == semantic_type, f"generated semantic type mismatch: {path}")
+    _require(properties["payload"] == {"$ref": "#/$defs/payload"}, f"generated payload ref mismatch: {path}")
+    variants = schema.get("$defs", {}).get("payload", {}).get("oneOf")
+    _require(isinstance(variants, list) and variants, f"generated payload union is empty: {path}")
+    actual_shapes = [_schema_object_shape(variant)[1] for variant in variants]
+    expected_shapes = list(dict.fromkeys(_object_spec_shape(spec) for spec in payload_specs))
+    _require(actual_shapes == expected_shapes, f"generated payload semantics mismatch: {path}")
+
+
+def _verify_all_generated_semantics(repo_root: Path) -> None:
+    rows = schema_source.source_rows(repo_root)
+    operations = schema_source.resolve_operation_specs(repo_root, rows)
+    for kind in ("command", "event"):
+        for relative_path, group in schema_source.grouped_rows(rows, kind=kind).items():
+            semantic_type = group[0][2]
+            payload_specs: list[schema_source.ObjectSpec] = []
+            for row, _, _ in group:
+                operation = operations[row.key]
+                if kind == "command":
+                    payload_specs.append(operation.command_payload)
+                else:
+                    payload_specs.extend(
+                        payload for event_type, payload in operation.event_payloads if event_type == semantic_type
+                    )
+            _verify_generated_semantics(
+                path=repo_root / relative_path,
+                kind=kind,
+                semantic_type=semantic_type,
+                payload_specs=payload_specs,
+            )
+
+
 def validate_wp6_1_contract_materialization(
     *,
     catalogue_path: Path,
@@ -575,6 +714,7 @@ def validate_wp6_1_contract_materialization(
 
     schema_root = schema_root.resolve()
     repo_root = schema_root.parent.parent
+    _verify_all_generated_semantics(repo_root)
     identities_bytes, identities = _read_yaml(identities_path)
     _, catalogue = _read_yaml(catalogue_path)
     registry = _schema_registry(schema_root)

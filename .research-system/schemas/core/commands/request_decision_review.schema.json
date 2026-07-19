@@ -1,73 +1,33 @@
 {
   "$defs": {
-    "envelope": {
-      "additionalProperties": false,
-      "properties": {
-        "authority_grant_id": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        "idempotency_key": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        "project_id": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
-        "stream_id": {
-          "minLength": 1,
-          "type": "string",
-          "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        }
-      },
-      "required": [
-        "project_id",
-        "stream_id",
-        "authority_grant_id",
-        "idempotency_key"
-      ],
-      "type": "object"
-    },
     "payload": {
       "oneOf": [
         {
           "additionalProperties": false,
           "properties": {
-            "command_key": {
-              "const": "decision.request_review",
-              "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "command_type": {
-              "const": "RequestDecisionReview",
-              "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "evidence_reference": {
+            "decision_id": {
               "minLength": 1,
               "type": "string",
-              "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "source_model_citation": {
-              "const": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
-              "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "subject_reference": {
+            "review_id": {
               "minLength": 1,
               "type": "string",
-              "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "review_questions_ref": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             }
           },
           "required": [
-            "command_key",
-            "subject_reference",
-            "evidence_reference",
-            "source_model_citation",
-            "command_type"
+            "decision_id",
+            "review_id",
+            "review_questions_ref"
           ],
-          "type": "object"
+          "type": "object",
+          "x-source-citation": "W2 §18 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
     }
@@ -77,31 +37,113 @@
   "additionalProperties": false,
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
-    "command_type": {
-      "const": "RequestDecisionReview"
+    "actor_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
-    "envelope": {
-      "$ref": "#/$defs/envelope"
+    "authority_grant_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "causation_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "command_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "command_type": {
+      "const": "RequestDecisionReview",
+      "x-source-citation": "06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "correlation_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "evidence_refs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true,
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "expected_stream_version": {
+      "minimum": 0,
+      "type": "integer",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "on_behalf_of_actor_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "payload": {
       "$ref": "#/$defs/payload"
     },
+    "reason": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
     "schema_id": {
-      "const": "ars://core/command/RequestDecisionReview"
+      "const": "ars://core/command/RequestDecisionReview",
+      "x-source-citation": "06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     },
     "schema_version": {
-      "const": "1.0.0"
+      "const": "1.0.0",
+      "x-source-citation": "06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "submitted_at": {
+      "format": "date-time",
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "target_stream_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     }
   },
   "required": [
+    "command_id",
+    "command_type",
     "schema_id",
     "schema_version",
-    "command_type",
-    "envelope",
+    "submitted_at",
+    "actor_id",
+    "on_behalf_of_actor_id",
+    "authority_grant_id",
+    "target_stream_id",
+    "expected_stream_version",
+    "idempotency_key",
+    "correlation_id",
+    "causation_id",
+    "reason",
+    "evidence_refs",
     "payload"
   ],
   "title": "WP6.1 proposed command schema: RequestDecisionReview",
   "type": "object",
   "x-lifecycle": "proposed_materialized",
-  "x-source-citation": "06d §3 / W2, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+  "x-source-citation": "06d §3, owner row `decision.request_review` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
 }
