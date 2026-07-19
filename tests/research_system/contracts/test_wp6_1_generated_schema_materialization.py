@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -436,7 +437,6 @@ def test_wp6_1_scope_variants_bind_closed_member_and_disposition_facts() -> None
 
 
 _MESSAGE_UNIVERSAL = {
-    "new_message_id",
     "message_type",
     "sender_actor_id",
     "recipient_actor_ids",
@@ -447,6 +447,8 @@ _MESSAGE_UNIVERSAL = {
     "sensitivity_class",
     "retention_class",
 }
+_MESSAGE_COMMAND_ID_FIELDS = {"new_message_id"}
+_MESSAGE_EVENT_ID_FIELDS = {"message_id"}
 
 
 def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_exclusivity() -> None:
@@ -460,7 +462,11 @@ def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_
         variants = schema["$defs"]["payload"]["oneOf"]
         assert len(variants) == 10
         for index, variant in enumerate(variants):
-            assert set(variant["required"]) >= _MESSAGE_UNIVERSAL
+            required = set(variant["required"])
+            identifier_fields = _MESSAGE_COMMAND_ID_FIELDS if kind == "command" else _MESSAGE_EVENT_ID_FIELDS
+            prohibited_identifier = "message_id" if kind == "command" else "new_message_id"
+            assert required >= _MESSAGE_UNIVERSAL | identifier_fields
+            assert prohibited_identifier not in required
             assert {"required": ["body"]} in variant["oneOf"]
             assert {"required": ["body_artefact_ref"]} in variant["oneOf"]
             instance = _schema_value(schema, schema)
@@ -471,3 +477,12 @@ def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_
             with pytest.raises(SchemaError):
                 registry.validate(schema["$id"], missing)
             assert index < 10
+
+
+def test_wp6_1_event_payloads_never_use_command_intent_new_identifier_fields() -> None:
+    event_schemas = [schema for _identity, schema, kind in _all_catalogue_schemas() if kind == "event"]
+    assert len(event_schemas) == 86
+    for schema in event_schemas:
+        for variant in _payload_variants(schema):
+            leaked = {field for field in variant.get("required", []) if re.fullmatch(r"new_.*_id", field)}
+            assert not leaked, f"{schema['$id']}: event payload leaks command-intent identifiers {sorted(leaked)}"
