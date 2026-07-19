@@ -29,6 +29,7 @@ from tests.research_system.contracts.wp6_1_schema_fact_oracle import (
     parse_owner_rows,
     resource_profile_branch_allowed,
     review_verdict_satisfies_gate,
+    review_verdict_structurally_valid,
     writer_lease_allowed,
 )
 
@@ -151,40 +152,124 @@ def test_wp6_1_r4_wrong_but_resolving_semantic_attacks_are_rejected(proposal: di
         assertion(candidate)
 
 
-@pytest.mark.parametrize(
-    "record",
-    [
-        {"operational_profile": "trivial", "trivial_profile_evidence": {}},
-        {"operational_profile": "bounded", "bounded_profile_evidence": {}},
-        {"operational_profile": "long_running", "long_running_profile_evidence": {}},
-    ],
-)
-def test_wp6_1_exact_resource_profile_branches_accept_only_the_matching_evidence(record: dict[str, Any]) -> None:
-    assert resource_profile_branch_allowed(record)
+_POLICY_ID = "pol_01989abc-1234-7abc-8def-0123456789ab"
+_ACTOR_ID = "act_01989abc-1234-7abc-8def-0123456789ab"
+
+
+def _applicability(disposition: str = "required") -> dict[str, Any]:
+    return {
+        "disposition": disposition,
+        "policy_id": _POLICY_ID,
+        "rationale": "selected by the profile policy",
+        "applicability_evidence_refs": ["profile-evidence"],
+    }
+
+
+def _not_applicable() -> dict[str, Any]:
+    return {
+        "disposition": "not_applicable",
+        "policy_id": _POLICY_ID,
+        "rationale": "outside the trivial envelope",
+        "applicability_evidence_refs": ["not-applicable-evidence"],
+    }
+
+
+def _valid_profile_record(profile: str) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "operational_profile": profile,
+        "operational_profile_policy_id": _POLICY_ID,
+        "operational_profile_revision": "1.0.0",
+    }
+    if profile == "trivial":
+        record["trivial_profile_evidence"] = {
+            "request_record_type": "resource_request",
+            "grant_record_type": "resource_grant",
+            "lease_scope": "command_scoped",
+            "resource_ceilings_requirement": "explicit_resource_ceilings",
+            "terminal_receipt_kind": "provider_receipt",
+            "terminal_receipt_lease_release": "releases_lease",
+            "terminal_receipt_evidence_refs": ["receipt-evidence"],
+            "benchmark": _not_applicable(),
+            "checkpoint": _not_applicable(),
+            "periodic_heartbeat": _not_applicable(),
+            "recovery": _not_applicable(),
+            "provider_command_process": {
+                "provider_command_id": "provider-command",
+                "process_identity_disposition": "not_applicable",
+                "process_identity_not_applicable_rationale": "provider-only command",
+            },
+        }
+    elif profile == "bounded":
+        record["bounded_profile_evidence"] = {
+            "heartbeat": _applicability(),
+            "output_tail": _applicability(),
+            "stop": _applicability(),
+            "checkpoint": _applicability("not_applicable"),
+        }
+    else:
+        record["long_running_profile_evidence"] = {
+            "benchmark": _applicability(),
+            "heartbeat": _applicability(),
+            "process": _applicability(),
+            "checkpoint": _applicability(),
+            "stop_recovery": _applicability(),
+            "backup": _applicability(),
+        }
+    return record
+
+
+@pytest.mark.parametrize("profile", ["trivial", "bounded", "long_running"])
+def test_wp6_1_exact_resource_profile_branches_accept_complete_matching_evidence(profile: str) -> None:
+    assert resource_profile_branch_allowed(_valid_profile_record(profile))
 
 
 @pytest.mark.parametrize(
-    "record",
+    "attack",
     [
-        {"operational_profile": "trivial"},
-        {
-            "operational_profile": "trivial",
-            "trivial_profile_evidence": {},
-            "bounded_profile_evidence": {},
-        },
-        {"operational_profile": "bounded"},
-        {
-            "operational_profile": "bounded",
-            "bounded_profile_evidence": {},
-            "long_running_profile_evidence": {},
-        },
-        {"operational_profile": "long_running"},
-        {"operational_profile": "invented", "long_running_profile_evidence": {}},
+        "null",
+        "empty",
+        "missing",
+        "nested_null",
+        "wrong_type",
+        "wrong_disposition",
+        "empty_evidence",
+        "extra",
+        "leakage",
+        "fallback",
+        "outer_null",
+        "outer_missing",
+        "outer_wrong_type",
     ],
 )
-def test_wp6_1_exact_resource_profile_branches_reject_missing_extra_or_unknown_evidence(
-    record: dict[str, Any],
-) -> None:
+def test_wp6_1_resource_profile_fixture_rejects_incomplete_or_leaking_nested_evidence(attack: str) -> None:
+    record = _valid_profile_record("bounded")
+    evidence = record["bounded_profile_evidence"]
+    if attack == "null":
+        record["bounded_profile_evidence"] = None
+    elif attack == "empty":
+        record["bounded_profile_evidence"] = {}
+    elif attack == "missing":
+        evidence.pop("checkpoint")
+    elif attack == "nested_null":
+        evidence["checkpoint"] = None
+    elif attack == "wrong_type":
+        evidence["heartbeat"] = "not-an-object"
+    elif attack == "wrong_disposition":
+        evidence["heartbeat"]["disposition"] = "invented"
+    elif attack == "empty_evidence":
+        evidence["heartbeat"]["applicability_evidence_refs"] = []
+    elif attack == "extra":
+        evidence["unexpected"] = _applicability()
+    elif attack == "leakage":
+        record["trivial_profile_evidence"] = _valid_profile_record("trivial")["trivial_profile_evidence"]
+    elif attack == "fallback":
+        record["operational_profile"] = "invented"
+    elif attack == "outer_null":
+        record["operational_profile_policy_id"] = None
+    elif attack == "outer_missing":
+        record.pop("operational_profile_revision")
+    else:
+        record["operational_profile_revision"] = 1
     assert not resource_profile_branch_allowed(record)
 
 
@@ -192,37 +277,55 @@ def _owned_non_blocking_condition() -> dict[str, Any]:
     return {
         "condition_text": "publish the stated limitation",
         "gate_disposition": "non_blocking",
-        "owner_actor_id": "act_01989abc-1234-7abc-8def-0123456789ab",
-        "policy_id": "pol_01989abc-1234-7abc-8def-0123456789ab",
+        "owner_actor_id": _ACTOR_ID,
+        "policy_id": _POLICY_ID,
         "evidence_refs": ["policy-evidence"],
     }
 
 
 def test_wp6_1_review_gate_accepts_unconditional_or_fully_owned_non_blocking_approval() -> None:
+    assert review_verdict_structurally_valid("approve", [])
     assert review_verdict_satisfies_gate("approve", [])
     assert review_verdict_satisfies_gate("approve_with_conditions", [_owned_non_blocking_condition()])
 
 
-@pytest.mark.parametrize("missing_or_wrong", ["empty", "blocking", "owner", "policy", "evidence", "verdict"])
+@pytest.mark.parametrize("verdict", ["changes_requested", "reject", "unable_to_verify", "withdrawn"])
+def test_wp6_1_negative_review_verdicts_are_structurally_valid_but_gate_unsatisfied(verdict: str) -> None:
+    assert review_verdict_structurally_valid(verdict, [])
+    assert not review_verdict_satisfies_gate(verdict, [])
+
+
+def test_wp6_1_empty_conditional_approval_is_structurally_valid_but_gate_unsatisfied() -> None:
+    assert review_verdict_structurally_valid("approve_with_conditions", [])
+    assert not review_verdict_satisfies_gate("approve_with_conditions", [])
+
+
+@pytest.mark.parametrize(
+    "missing_or_wrong",
+    ["mixed", "blocking", "null_owner", "missing_owner", "wrong_owner_type", "policy", "evidence"],
+)
 def test_wp6_1_review_gate_rejects_unowned_blocking_or_unproved_conditional_approval(
     missing_or_wrong: str,
 ) -> None:
     condition = _owned_non_blocking_condition()
-    verdict = "approve_with_conditions"
     conditions = [condition]
-    if missing_or_wrong == "empty":
-        conditions = []
+    if missing_or_wrong == "mixed":
+        blocking = _owned_non_blocking_condition()
+        blocking["gate_disposition"] = "blocking"
+        conditions.append(blocking)
     elif missing_or_wrong == "blocking":
         condition["gate_disposition"] = "blocking"
-    elif missing_or_wrong == "owner":
+    elif missing_or_wrong == "null_owner":
         condition["owner_actor_id"] = None
+    elif missing_or_wrong == "missing_owner":
+        condition.pop("owner_actor_id")
+    elif missing_or_wrong == "wrong_owner_type":
+        condition["owner_actor_id"] = "not-an-actor-id"
     elif missing_or_wrong == "policy":
         condition["policy_id"] = ""
-    elif missing_or_wrong == "evidence":
-        condition["evidence_refs"] = []
     else:
-        verdict = "changes_requested"
-    assert not review_verdict_satisfies_gate(verdict, conditions)
+        condition["evidence_refs"] = []
+    assert not review_verdict_satisfies_gate("approve_with_conditions", conditions)
 
 
 @pytest.mark.parametrize("attack", ["profile_fallback", "profile_branch", "review_gate_rule"])
@@ -238,6 +341,80 @@ def test_wp6_1_mutating_an_exact_profile_or_review_conditional_is_rejected(
         candidate["review_gate_condition_rule"]["gate_satisfaction_rule"] = "owner_optional"
     with pytest.raises(AssertionError):
         assert_high_risk_field_semantics(candidate)
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "verdict_missing",
+        "verdict_result",
+        "verdict_extra",
+        "condition_min_zero",
+        "condition_min_two",
+        "condition_min_absent",
+        "global_list_min",
+        "reusable_requiredness",
+        "reusable_nullable_semantics",
+        "nullable_outer_profile",
+        "missing_nested_profile_field",
+        "evidence_field_type",
+        "evidence_minimum",
+        "provenance_enum",
+        "provenance_field",
+        "provenance_binding",
+    ],
+)
+def test_wp6_1_r5_authority_mutations_are_rejected(proposal: dict[str, Any], attack: str) -> None:
+    candidate = copy.deepcopy(proposal)
+    assertion = assert_high_risk_field_semantics
+    if attack == "verdict_missing":
+        candidate["review_gate_condition_rule"]["verdict_gate_results"].pop("withdrawn")
+    elif attack == "verdict_result":
+        candidate["review_gate_condition_rule"]["verdict_gate_results"]["reject"] = "satisfied"
+    elif attack == "verdict_extra":
+        candidate["review_gate_condition_rule"]["verdict_gate_results"]["invented"] = "satisfied"
+    elif attack == "condition_min_zero":
+        candidate["review_gate_condition_rule"]["approve_with_conditions_min_items"] = 0
+    elif attack == "condition_min_two":
+        candidate["review_gate_condition_rule"]["approve_with_conditions_min_items"] = 2
+    elif attack == "condition_min_absent":
+        candidate["review_gate_condition_rule"].pop("approve_with_conditions_min_items")
+    elif attack == "global_list_min":
+        _type(candidate, "type/review_gate_condition_list")["min_items"] = 1
+    elif attack == "reusable_requiredness":
+        candidate["reusable_object_field_rule"]["all_listed_reusable_object_fields_required"] = False
+    elif attack == "reusable_nullable_semantics":
+        candidate["reusable_object_field_rule"]["nullable_field_semantics"] = "listed_fields_optional"
+    elif attack == "nullable_outer_profile":
+        owner = _object(candidate, "object/resource_request")
+        next(item for item in owner["fields"] if item["field_name"] == "bounded_profile_evidence")["nullable"] = True
+    elif attack == "missing_nested_profile_field":
+        owner = _object(candidate, "object/bounded_profile_evidence")
+        owner["fields"] = [item for item in owner["fields"] if item["field_name"] != "checkpoint"]
+    elif attack == "evidence_field_type":
+        owner = _object(candidate, "object/profile_evidence_disposition")
+        next(item for item in owner["fields"] if item["field_name"] == "applicability_evidence_refs")["type_ref"] = (
+            "type/string_list"
+        )
+    elif attack == "evidence_minimum":
+        _type(candidate, "type/nonempty_evidence_ref_list")["min_items"] = 0
+    elif attack == "provenance_enum":
+        _enum(candidate, "enum/review_condition_gate_disposition")["decision_basis"] = "source_literal"
+    elif attack == "provenance_field":
+        owner = _object(candidate, "object/review_gate_condition")
+        next(item for item in owner["fields"] if item["field_name"] == "gate_disposition")["decision_basis"] = (
+            "source_literal"
+        )
+    else:
+        binding = next(
+            item
+            for item in candidate["source_fact_bindings"]
+            if item["binding_id"] == "review_condition_gate_disposition"
+        )
+        binding["decision_basis"] = "source_literal"
+        assertion = assert_required_source_facts_bound
+    with pytest.raises(AssertionError):
+        assertion(candidate)
 
 
 def test_wp6_1_fact_annex_freezes_all_shared_command_and_event_normalizations(proposal: dict[str, Any]) -> None:

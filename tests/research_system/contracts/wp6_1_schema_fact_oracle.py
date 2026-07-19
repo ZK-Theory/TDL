@@ -575,19 +575,19 @@ RESOURCE_REQUEST_PROFILE_FIELD_FACTS = {
         (
             "trivial_profile_evidence",
             "object/trivial_profile_evidence",
-            True,
+            False,
             "required_iff:operational_profile=trivial;forbidden_otherwise",
         ),
         (
             "bounded_profile_evidence",
             "object/bounded_profile_evidence",
-            True,
+            False,
             "required_iff:operational_profile=bounded;forbidden_otherwise",
         ),
         (
             "long_running_profile_evidence",
             "object/long_running_profile_evidence",
-            True,
+            False,
             "required_iff:operational_profile=long_running;forbidden_otherwise",
         ),
     ),
@@ -595,13 +595,18 @@ RESOURCE_REQUEST_PROFILE_FIELD_FACTS = {
         ("disposition", "enum/profile_evidence_disposition", False, "policy_selects:required_or_not_applicable"),
         ("policy_id", "type/policy_version_id", False, "required_for:profile_evidence_disposition"),
         ("rationale", "type/nonempty_string", False, "required_for:profile_evidence_disposition"),
-        ("applicability_evidence_refs", "type/string_list", False, "required_for:profile_evidence_disposition"),
+        (
+            "applicability_evidence_refs",
+            "type/nonempty_evidence_ref_list",
+            False,
+            "required_for:profile_evidence_disposition",
+        ),
     ),
     "object/trivial_not_applicable_evidence": (
         ("disposition", "enum/not_applicable_profile_evidence", False, "const:not_applicable"),
         ("policy_id", "type/policy_version_id", False, "required_for:not_applicable"),
         ("rationale", "type/nonempty_string", False, "required_for:not_applicable"),
-        ("applicability_evidence_refs", "type/string_list", False, "required_for:not_applicable"),
+        ("applicability_evidence_refs", "type/nonempty_evidence_ref_list", False, "required_for:not_applicable"),
     ),
     "object/trivial_provider_command_process": (
         ("provider_command_id", "type/any_id", False, "allowed_only:operational_profile=trivial"),
@@ -640,7 +645,12 @@ RESOURCE_REQUEST_PROFILE_FIELD_FACTS = {
             False,
             "required_if:operational_profile=trivial",
         ),
-        ("terminal_receipt_evidence_refs", "type/string_list", False, "required_if:operational_profile=trivial"),
+        (
+            "terminal_receipt_evidence_refs",
+            "type/nonempty_evidence_ref_list",
+            False,
+            "required_if:operational_profile=trivial",
+        ),
         ("benchmark", "object/trivial_not_applicable_evidence", False, "not_applicable_if:operational_profile=trivial"),
         (
             "checkpoint",
@@ -741,22 +751,48 @@ REVIEW_CONDITION_FIELD_FACTS = {
             "non_null_when:approve_with_conditions_satisfies_gate",
         ),
         ("policy_id", "type/policy_version_id", False, "required_when:approve_with_conditions_satisfies_gate"),
-        ("evidence_refs", "type/string_list", False, "required_when:approve_with_conditions_satisfies_gate"),
+        (
+            "evidence_refs",
+            "type/nonempty_evidence_ref_list",
+            False,
+            "required_when:approve_with_conditions_satisfies_gate",
+        ),
     ),
 }
 
+VERDICT_GATE_RESULTS = {
+    "approve": "satisfied",
+    "approve_with_conditions": (
+        "satisfied_if_nonempty_all_conditions_non_blocking_with_non_null_typed_actor_owner_policy_and_nonempty_evidence"
+    ),
+    "changes_requested": "unsatisfied",
+    "reject": "unsatisfied",
+    "unable_to_verify": "unsatisfied",
+    "withdrawn": "unsatisfied",
+}
+
 REVIEW_GATE_CONDITION_RULE = {
-    "rule_id": "review_gate_condition_rule/approve_with_conditions",
+    "rule_id": "review_gate_condition_rule/total_verdict_gate_relation",
     "family_id": "family/review",
     "verdict_field": "verdict",
-    "verdict_const": "approve_with_conditions",
     "condition_field": "conditions",
     "gate_field": "satisfaction_gate",
-    "gate_satisfaction_rule": "every_condition_non_blocking_with_non_null_owner_policy_and_evidence",
+    "gate_satisfaction_rule": "closed_total_verdict_map",
+    "verdict_gate_results": VERDICT_GATE_RESULTS,
+    "approve_with_conditions_min_items": 1,
+    "condition_item_rule": "every_condition_non_blocking_with_non_null_typed_actor_owner_policy_and_nonempty_evidence",
     "task_state_effect": "no_direct_task_state_change",
     "source_semantics": "source_literal",
     "representation_choice": "conservative_proposal",
     "source_citation": "W2 §§17.3-17.4",
+}
+
+REUSABLE_OBJECT_FIELD_RULE = {
+    "all_listed_reusable_object_fields_required": True,
+    "nullable_field_semantics": "required_key_value_may_be_null_only_when_nullable_true",
+    "nonempty_evidence_type_ref": "type/nonempty_evidence_ref_list",
+    "decision_basis": "conservative_proposal",
+    "source_citation": "W2/W8 listed typed facts and R5 requiredness closure",
 }
 
 # Independently transcribed from immutable W2/W8/06d facts and the reviewed
@@ -828,7 +864,7 @@ review_evidence	W2	17.3	evidence	family/review.required_evidence_refs	conservati
 review_limitations	W2	17.3	limitations	family/review.limitations	conservative_proposal
 review_conditions	W2	17.3	conditions	family/review.conditions	source_literal
 review_condition_text	W2	17.3	condition text	object/review_gate_condition.condition_text	source_literal
-review_condition_gate_disposition	W2	17.3	acceptance policy declares each condition non-blocking or blocking	object/review_gate_condition.gate_disposition	source_literal
+review_condition_gate_disposition	W2	17.3	closed non_blocking/blocking JSON representation of acceptance-policy condition classification	object/review_gate_condition.gate_disposition	conservative_proposal
 review_condition_owner_actor	W2	17.3	condition owner recorded for gate-satisfying conditional approval	object/review_gate_condition.owner_actor_id	conservative_proposal
 review_condition_policy	W2	17.3	acceptance policy identity	object/review_gate_condition.policy_id	conservative_proposal
 review_condition_evidence	W2	17.3	condition evidence	object/review_gate_condition.evidence_refs	conservative_proposal
@@ -1160,15 +1196,26 @@ def assert_high_risk_field_semantics(subject: dict[str, Any]) -> None:
     objects = {item["object_id"]: item for item in subject["reusable_objects"]}
     families = {item["family_id"]: item for item in subject["family_specs"]}
     types = {item["type_id"]: item for item in subject["primitive_types"]}
+    enums = {item["enum_id"]: item for item in subject["source_closed_enums"]}
 
     assert subject["object_variant_rules"] == [RESOURCE_PROFILE_VARIANT_RULE]
     assert subject["review_gate_condition_rule"] == REVIEW_GATE_CONDITION_RULE
+    assert subject["reusable_object_field_rule"] == REUSABLE_OBJECT_FIELD_RULE
     review_condition_list = types["type/review_gate_condition_list"]
     assert (
         review_condition_list["json_type"],
         review_condition_list["nullable"],
         review_condition_list["item_type_ref"],
     ) == ("array", False, "object/review_gate_condition")
+    assert "min_items" not in review_condition_list
+    nonempty_evidence = types["type/nonempty_evidence_ref_list"]
+    assert (
+        nonempty_evidence["json_type"],
+        nonempty_evidence["nullable"],
+        nonempty_evidence["min_items"],
+        nonempty_evidence["item_type_ref"],
+    ) == ("array", False, 1, "type/nonempty_string")
+    assert enums["enum/review_condition_gate_disposition"]["decision_basis"] == "conservative_proposal"
 
     for object_id, expected in RESOURCE_REQUEST_PROFILE_FIELD_FACTS.items():
         fields = field_map(objects[object_id])
@@ -1189,6 +1236,9 @@ def assert_high_risk_field_semantics(subject: dict[str, Any]) -> None:
             for field_name, _type_ref, _nullable, conditional_relation in expected
         )
         assert observed == expected
+    assert field_map(objects["object/review_gate_condition"])["gate_disposition"]["decision_basis"] == (
+        "conservative_proposal"
+    )
 
 
 def _resolve_target(subject: dict[str, Any], target: str) -> bool:
@@ -1354,6 +1404,39 @@ def assert_conservative_identity_selections_are_explicit(subject: dict[str, Any]
     assert types["type/operation_id"]["decision_basis"] == "conservative_proposal"
 
 
+def _valid_typed_value(value: Any, type_ref: str) -> bool:
+    if type_ref in SOURCE_CLOSED_ENUMS:
+        return value in SOURCE_CLOSED_ENUMS[type_ref]
+    if type_ref in {"type/nonempty_string", "type/any_id"}:
+        return isinstance(value, str) and bool(value)
+    if type_ref == "type/semver":
+        return isinstance(value, str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value) is not None
+    if type_ref in {"type/policy_version_id", "type/actor_id"}:
+        prefix = SOURCE_LITERAL_ID_PREFIXES[type_ref]
+        return isinstance(value, str) and re.fullmatch(f"{prefix}_{UUID7_TAIL}", value) is not None
+    if type_ref == "type/nonempty_evidence_ref_list":
+        return isinstance(value, list) and bool(value) and all(isinstance(item, str) and item for item in value)
+    if type_ref.startswith("object/"):
+        return _profile_object_valid(value, type_ref)
+    return False
+
+
+def _profile_object_valid(value: Any, object_id: str) -> bool:
+    expected = RESOURCE_REQUEST_PROFILE_FIELD_FACTS.get(object_id)
+    if expected is None or not isinstance(value, dict):
+        return False
+    if set(value) != {item[0] for item in expected}:
+        return False
+    for field_name, type_ref, nullable, _relation in expected:
+        field_value = value[field_name]
+        if field_value is None:
+            if not nullable:
+                return False
+        elif not _valid_typed_value(field_value, type_ref):
+            return False
+    return True
+
+
 def resource_profile_branch_allowed(record: dict[str, Any]) -> bool:
     profile = record.get("operational_profile")
     branch = next(
@@ -1362,23 +1445,46 @@ def resource_profile_branch_allowed(record: dict[str, Any]) -> bool:
     )
     if branch is None:
         return False
-    return all(field in record and record[field] is not None for field in branch["required_fields"]) and all(
-        field not in record for field in branch["forbidden_fields"]
+    required = {
+        "operational_profile",
+        "operational_profile_policy_id",
+        "operational_profile_revision",
+        *branch["required_fields"],
+    }
+    if set(record) != required:
+        return False
+    fields = {item[0]: item for item in RESOURCE_REQUEST_PROFILE_FIELD_FACTS["object/resource_request"]}
+    return all(
+        record[field_name] is not None and _valid_typed_value(record[field_name], fields[field_name][1])
+        for field_name in required
     )
+
+
+def review_verdict_structurally_valid(verdict: str, conditions: Any) -> bool:
+    if verdict not in VERDICT_GATE_RESULTS or not isinstance(conditions, list):
+        return False
+    expected = REVIEW_CONDITION_FIELD_FACTS["object/review_gate_condition"]
+    for condition in conditions:
+        if not isinstance(condition, dict) or set(condition) != {item[0] for item in expected}:
+            return False
+        for field_name, type_ref, nullable, _relation in expected:
+            value = condition[field_name]
+            if value is None:
+                if not nullable:
+                    return False
+            elif not _valid_typed_value(value, type_ref):
+                return False
+    return True
 
 
 def review_verdict_satisfies_gate(verdict: str, conditions: list[dict[str, Any]]) -> bool:
-    if verdict == "approve":
-        return True
-    if verdict != "approve_with_conditions" or not conditions:
+    if not review_verdict_structurally_valid(verdict, conditions):
         return False
-    return all(
-        item.get("gate_disposition") == "non_blocking"
-        and bool(item.get("owner_actor_id"))
-        and bool(item.get("policy_id"))
-        and bool(item.get("evidence_refs"))
-        for item in conditions
-    )
+    if VERDICT_GATE_RESULTS[verdict] == "satisfied":
+        return True
+    if verdict != "approve_with_conditions" or len(conditions) < 1:
+        return False
+    return all(item["gate_disposition"] == "non_blocking" and item["owner_actor_id"] is not None for item in conditions)
 
 
 def writer_lease_allowed(entries: list[dict[str, Any]], expected_manifest: set[tuple[str, str]]) -> bool:
