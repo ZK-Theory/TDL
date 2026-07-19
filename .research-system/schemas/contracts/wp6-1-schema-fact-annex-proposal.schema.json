@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-1-schema-fact-annex-proposal",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "proposal_id", "proposal_status", "source_documents", "cardinalities", "primitive_types", "source_closed_enums", "reusable_objects", "family_specs", "command_root", "event_root", "command_payload_specs", "event_fact_specs", "shared_schema_rules", "row_bindings", "unresolved_decisions"],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-1-schema-fact-annex-proposal"},
+    "schema_version": {"const": "1.0.0"},
+    "proposal_id": {"const": "wp6-1-schema-fact-annex-proposal"},
+    "proposal_status": {"const": "proposed_pending_explicit_owner_approval"},
+    "source_documents": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/sourceDocument"}},
+    "cardinalities": {"$ref": "#/$defs/cardinalities"},
+    "primitive_types": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/primitiveType"}},
+    "source_closed_enums": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/enumSpec"}},
+    "reusable_objects": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/objectSpec"}},
+    "family_specs": {"type": "array", "minItems": 14, "maxItems": 14, "items": {"$ref": "#/$defs/familySpec"}},
+    "command_root": {"$ref": "#/$defs/rootSpec"},
+    "event_root": {"$ref": "#/$defs/rootSpec"},
+    "command_payload_specs": {"type": "array", "minItems": 104, "maxItems": 104, "items": {"$ref": "#/$defs/payloadSpec"}},
+    "event_fact_specs": {"type": "array", "minItems": 106, "maxItems": 106, "items": {"$ref": "#/$defs/eventFactSpec"}},
+    "shared_schema_rules": {"type": "array", "items": {"$ref": "#/$defs/sharedRule"}},
+    "row_bindings": {"type": "array", "minItems": 104, "maxItems": 104, "items": {"$ref": "#/$defs/rowBinding"}},
+    "unresolved_decisions": {"type": "array", "items": {"$ref": "#/$defs/unresolvedDecision"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "gitBlob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "decisionBasis": {"enum": ["source_literal", "conservative_proposal"]},
+    "sourceDocument": {
+      "type": "object",
+      "required": ["source_id", "repository_path", "git_revision", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {"source_id": {"type": "string", "minLength": 1}, "repository_path": {"type": "string", "minLength": 1}, "git_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "git_blob_id": {"$ref": "#/$defs/gitBlob"}, "canonical_utf8_lf_sha256": {"$ref": "#/$defs/sha256"}},
+      "additionalProperties": false
+    },
+    "cardinalities": {
+      "type": "object",
+      "required": ["owner_rows", "command_bindings", "event_bindings", "unique_command_types", "unique_event_types", "command_root_fields", "event_root_fields", "families"],
+      "properties": {"owner_rows": {"const": 104}, "command_bindings": {"const": 104}, "event_bindings": {"const": 106}, "unique_command_types": {"const": 87}, "unique_event_types": {"const": 86}, "command_root_fields": {"const": 16}, "event_root_fields": {"const": 27}, "families": {"const": 14}},
+      "additionalProperties": false
+    },
+    "primitiveType": {
+      "type": "object",
+      "required": ["type_id", "json_type", "nullable", "source_citation", "decision_basis"],
+      "properties": {"type_id": {"type": "string", "pattern": "^type/[a-z0-9_]+$"}, "json_type": {"enum": ["string", "integer", "number", "boolean", "array", "object"]}, "nullable": {"type": "boolean"}, "pattern": {"type": "string"}, "format": {"type": "string"}, "minimum": {"type": "number"}, "min_length": {"type": "integer", "minimum": 0}, "item_type_ref": {"type": "string", "pattern": "^(type|object)/[a-z0-9_]+$"}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "additionalProperties": false
+    },
+    "enumSpec": {
+      "type": "object",
+      "required": ["enum_id", "values", "source_citation", "decision_basis"],
+      "properties": {"enum_id": {"type": "string", "pattern": "^enum/[a-z0-9_]+$"}, "values": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "additionalProperties": false
+    },
+    "fieldSpec": {
+      "type": "object",
+      "required": ["field_name", "type_ref", "nullable", "source_citation", "decision_basis"],
+      "properties": {"field_name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "type_ref": {"type": "string", "pattern": "^(type|enum|object)/[a-z0-9_]+$"}, "nullable": {"type": "boolean"}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "additionalProperties": false
+    },
+    "objectSpec": {
+      "type": "object",
+      "required": ["object_id", "additional_properties", "source_citation", "decision_basis", "fields"],
+      "properties": {"object_id": {"type": "string", "pattern": "^object/[a-z0-9_]+$"}, "additional_properties": {"const": false}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}, "fields": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fieldSpec"}}},
+      "additionalProperties": false
+    },
+    "familySpec": {
+      "type": "object",
+      "required": ["family_id", "source_citation", "decision_basis", "fields"],
+      "properties": {"family_id": {"type": "string", "pattern": "^family/[a-z0-9_]+$"}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}, "fields": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fieldSpec"}}},
+      "additionalProperties": false
+    },
+    "rootSpec": {
+      "type": "object",
+      "required": ["root_id", "additional_properties", "fields"],
+      "properties": {"root_id": {"enum": ["root/command", "root/event"]}, "additional_properties": {"const": false}, "fields": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/fieldSpec"}}},
+      "additionalProperties": false
+    },
+    "payloadSpec": {
+      "type": "object",
+      "required": ["spec_id", "row_key", "command_type", "family_ref", "variant_id", "subject_source", "required_field_names", "source_citation", "decision_basis", "additional_properties"],
+      "properties": {"spec_id": {"type": "string", "pattern": "^command_payload/[a-z0-9_]+$"}, "row_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"}, "command_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"}, "family_ref": {"type": "string", "pattern": "^family/[a-z0-9_]+$"}, "variant_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "subject_source": {"type": "string", "pattern": "^(envelope|payload)\\.[a-z][a-z0-9_]*$"}, "required_field_names": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}, "additional_properties": {"const": false}},
+      "additionalProperties": false
+    },
+    "eventFactSpec": {
+      "type": "object",
+      "required": ["spec_id", "row_key", "event_ordinal", "event_type", "family_ref", "variant_id", "required_field_names", "source_citation", "decision_basis", "additional_properties"],
+      "properties": {"spec_id": {"type": "string", "pattern": "^event_fact/[a-z0-9_]+/[0-9]+$"}, "row_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"}, "event_ordinal": {"type": "integer", "minimum": 1, "maximum": 2}, "event_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"}, "family_ref": {"type": "string", "pattern": "^family/[a-z0-9_]+$"}, "variant_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "required_field_names": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}, "additional_properties": {"const": false}},
+      "additionalProperties": false
+    },
+    "sharedRule": {
+      "type": "object",
+      "required": ["schema_kind", "semantic_type", "variant_rule", "variant_ids", "source_citation", "decision_basis"],
+      "properties": {"schema_kind": {"enum": ["command", "event"]}, "semantic_type": {"type": "string", "minLength": 1}, "variant_rule": {"enum": ["single_normalized_fact", "one_of_discriminator"]}, "discriminator_field": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}, "variant_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "additionalProperties": false
+    },
+    "rowBinding": {
+      "type": "object",
+      "required": ["row_key", "command_payload_spec_ref", "ordered_event_fact_spec_refs", "source_citation", "decision_basis"],
+      "properties": {"row_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"}, "command_payload_spec_ref": {"type": "string", "pattern": "^command_payload/[a-z0-9_]+$"}, "ordered_event_fact_spec_refs": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"type": "string", "pattern": "^event_fact/[a-z0-9_]+/[0-9]+$"}}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"$ref": "#/$defs/decisionBasis"}},
+      "additionalProperties": false
+    },
+    "unresolvedDecision": {
+      "type": "object",
+      "required": ["decision_id", "family_ref", "question", "safe_proposal", "source_citation", "decision_basis"],
+      "properties": {"decision_id": {"type": "string", "pattern": "^proposal_decision/[a-z0-9_]+$"}, "family_ref": {"type": "string", "pattern": "^family/[a-z0-9_]+$"}, "question": {"type": "string", "minLength": 1}, "safe_proposal": {"type": "string", "minLength": 1}, "source_citation": {"type": "string", "minLength": 1}, "decision_basis": {"const": "conservative_proposal"}},
+      "additionalProperties": false
+    }
+  }
+}
