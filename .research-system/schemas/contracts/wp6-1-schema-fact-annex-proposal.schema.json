@@ -146,8 +146,8 @@
     },
     "reusableObjectFieldRule": {
       "type": "object",
-      "required": ["all_listed_reusable_object_fields_required", "nullable_field_semantics", "nonempty_evidence_type_ref", "decision_basis", "source_citation"],
-      "properties": {"all_listed_reusable_object_fields_required": {"const": true}, "nullable_field_semantics": {"const": "required_key_value_may_be_null_only_when_nullable_true"}, "nonempty_evidence_type_ref": {"const": "type/nonempty_evidence_ref_list"}, "decision_basis": {"const": "conservative_proposal"}, "source_citation": {"const": "W2/W8 listed typed facts and R5 requiredness closure"}},
+      "required": ["all_listed_reusable_object_fields_required", "variant_controlled_field_exception", "variant_controlled_field_derivation", "requiredness_precedence", "non_variant_listed_fields_required", "selected_variant_required_fields_non_null", "selected_variant_forbidden_fields_absent", "selected_nested_object_fields_required", "nullable_field_semantics", "nonempty_evidence_type_ref", "decision_basis", "source_citation"],
+      "properties": {"all_listed_reusable_object_fields_required": {"const": true}, "variant_controlled_field_exception": {"const": "fields_controlled_by_same_object_variant_rule_are_exempt_from_global_requiredness"}, "variant_controlled_field_derivation": {"const": "union_of_all_branch_required_fields_and_forbidden_fields"}, "requiredness_precedence": {"const": "variant_branch_presence_rules_override_global_requiredness_for_controlled_fields_only"}, "non_variant_listed_fields_required": {"const": true}, "selected_variant_required_fields_non_null": {"const": true}, "selected_variant_forbidden_fields_absent": {"const": true}, "selected_nested_object_fields_required": {"const": true}, "nullable_field_semantics": {"const": "required_key_value_may_be_null_only_when_nullable_true"}, "nonempty_evidence_type_ref": {"const": "type/nonempty_evidence_ref_list"}, "decision_basis": {"const": "conservative_proposal"}, "source_citation": {"const": "W2/W8 listed typed facts and R6 same-object variant requiredness composition"}},
       "additionalProperties": false
     },
     "sourceFactBinding": {

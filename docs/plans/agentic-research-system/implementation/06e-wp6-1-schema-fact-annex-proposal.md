@@ -33,16 +33,16 @@ All three sources are read as canonical UTF-8/LF bytes from revision `fe5f1d40bc
 
 The family model is a closed field universe plus a row-specific required-field selection. A generator must take the cited type of each selected field from the row's `family_ref`, close the resulting payload with `additionalProperties: false`, and reject an absent or unknown row. There is no generic object, catch-all branch, fallback payload, or registry widening.
 
-The current reusable objects are closed rather than loose string maps. D1C-2a supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. This D1C-2b/D1C-3 packet completes the Artefact and ResourceRequest source-fact objects and the correction/recovery relations. The R5 semantic remediation freezes the total six-verdict gate relation plus non-null, complete profile evidence; completion remains a candidate claim pending a strengthened independent source-fact oracle and fresh exact-byte review. Candidate R3 M-5 remediation is complete, but this proposal remains pending an independent source-fact oracle, fresh exact-byte review, and explicit owner approval.
+The current reusable objects are closed rather than loose string maps. D1C-2a supplies the closed Task, Dispatch/root-binding, and review-verdict facts with machine-readable one-to-one source-fact bindings. This D1C-2b/D1C-3 packet completes the Artefact and ResourceRequest source-fact objects and the correction/recovery relations. The R6 satisfiability remediation composes the R5 total six-verdict gate relation and non-null, complete profile evidence with the global reusable-object requiredness rule; completion remains a candidate claim pending a strengthened independent source-fact oracle and fresh exact-byte review. Candidate R3 M-5 remediation is complete, but this proposal remains pending an independent source-fact oracle, fresh exact-byte review, and explicit owner approval.
 
-The global reusable_object_field_rule makes every field listed by every reusable object required. A field marked nullable true is still a required key whose value alone may be null; it does not become optional. Evidence that this proposal claims is present uses type/nonempty_evidence_ref_list.
+The global reusable_object_field_rule makes every listed reusable-object field required except fields controlled for the same object by an object_variant_rule. The controlled set is derived exactly as the union of every branch's required_fields and forbidden_fields; branch presence rules take precedence only for that derived set. The selected branch's required fields are present and non-null, its forbidden fields are absent, every other listed outer field remains required, and all listed fields of a selected nested evidence object remain ordinarily globally required. A field marked nullable true is still a required key whose value alone may be null; it does not become optional. Evidence that this proposal claims is present uses type/nonempty_evidence_ref_list.
 
 The review condition list itself permits zero items so unconditional approval and all four negative verdict records remain structurally representable without invented conditions. Only the approve_with_conditions gate branch applies approve_with_conditions_min_items = 1; an empty conditional-approval list is representable but cannot satisfy the gate.
 
 - `object/task_definition`, `object/dispatch_definition`, and `object/root_binding` are complete for the cited W2 §10.1/§12.1 facts in D1C-2a; `source_fact_bindings` records each target field or explicit non-lossy subfield mapping.
 - `family/review` and the `review.record_verdict` command/event selections represent every W2 §§17.3–17.4 verdict condition as a closed per-condition record. The frozen total gate map makes `approve` satisfied, makes `approve_with_conditions` satisfied only for a non-empty all-non-blocking, owned, policy-bound, non-empty-evidence condition list, and makes the four negative verdicts unsatisfied; verdict recording remains separate from the Task transition.
 - `object/artefact_manifest` now represents every independently stateful W2 §§16.1–16.2 identity, production, code/environment, location, integrity, input, research-provenance, validation, authority, and operations fact through closed objects where a relation must remain paired.
-- `object/resource_request` remains one unified W8 §7/§§11.1–12 request object. Its closed `operational_profile` discriminator has exactly `trivial`, `bounded`, and `long_running` branches, with a required non-null matching evidence object, both foreign evidence objects forbidden, no fallback, globally required nested fields, and trivial-only explicit `not_applicable` dispositions. Checkpoint compatibility remains the separate three-value W8 §16 relation and never uses `not_applicable`.
+- `object/resource_request` remains one unified W8 §7/§§11.1–12 request object. Its closed `operational_profile` discriminator has exactly `trivial`, `bounded`, and `long_running` branches. The controlled set derived from those branches is exactly `trivial_profile_evidence`, `bounded_profile_evidence`, and `long_running_profile_evidence`; the selected matching object is required and non-null, both foreign objects are absent, every non-variant outer field is required, every selected nested field is required, and no fallback exists. Trivial-only explicit `not_applicable` dispositions remain distinct from the separate three-value W8 §16 checkpoint-compatibility relation.
 - `correction_variant_mappings` is the literal 06d §1.4 authority table: exactly 15 kind-specific branches fix the subject-ID grammar, exactly one owner projection, and the governance correction index; no generic correction branch is permitted.
 - `object/external_artefact_availability` carries one immutable artefact ID/content-SHA-256 reference, availability, and non-empty evidence. `external_artefacts` replaces the lossy parallel recovery fields; its deterministic rules require unique complete manifest coverage and diagnostic-only/no-writer-lease treatment unless every entry is available with evidence.
 
@@ -66,7 +66,7 @@ The following choices are not silently attributed to W2, W8, or 06d. Each appear
 | Decision | Source-closed decision kinds; authority, subject, consequences, conditions, evidence, lifecycle, lineage, and effective-boundary fields are non-compensating. |
 | Rule evaluation | Estimand/object, compared subjects, metric, denominator, input IDs/hashes, validator, output, and evidence hash are explicit. The `rule_evaluation -> type/validation_id (val_)` correction mapping is an owner-visible conservative cross-use: W2 assigns `val_` to ValidationRecord, not source-literally to RuleEvaluation. |
 | Correction | The literal 15-kind mapping freezes each corrected-record ID type, owner projection, governance correction index, subject field, and selector rule. Generation emits exactly 15 non-overlapping `oneOf` branches; a generic fallback is prohibited. |
-| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. `type/resource_id` unions sourced `rsq`/`rgr`/`rcf` components and `type/operation_id` unions sourced `hbt`/`pid`/`stp`/`rsd`/`rcv`/`opc`/`opr` components; both unions are owner-visible conservative selections, not source-literal families. A second owner-visible conservative JSON choice freezes the unified ResourceRequest discriminator shape: exactly three non-overlapping branches, matching evidence required, other evidence forbidden, no fallback. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
+| Resource/operation | Integer primitives are capped at the interoperable maximum `9007199254740991`; `minimum <= expected <= maximum` runtime and `ram_working <= ram_peak` are generation rules. No universal maximum beyond P0 is invented. `type/resource_id` unions sourced `rsq`/`rgr`/`rcf` components and `type/operation_id` unions sourced `hbt`/`pid`/`stp`/`rsd`/`rcv`/`opc`/`opr` components; both unions are owner-visible conservative selections, not source-literal families. A second owner-visible conservative JSON choice freezes the unified ResourceRequest discriminator shape and its requiredness composition: exactly three non-overlapping branches; their required/forbidden union is the exact three-field exception to global outer requiredness; branch presence rules have precedence only for those fields; matching evidence is required and non-null, foreign evidence is absent, all non-variant outer and selected nested fields are required, and no fallback exists. Checkpoint compatibility is exactly `compatible`, `incompatible`, or `unable_to_determine`, while `not_applicable` belongs only to profile applicability. |
 | Backup/recovery | Closed `external_artefacts` entries replace aggregate availability. A writer lease requires complete unique manifest coverage and every entry `available` with non-empty evidence; missing, inaccessible, quarantined, incomplete, or partial restore is diagnostic-only/no writer lease. |
 
 ## 5. Candidate resolver comparison — evidence, not authority
@@ -96,10 +96,10 @@ Representative resolver-only names include `completion_rule`, `acceptance_eviden
 
 ## 6. Two-stage authority gate
 
-1. **Fact-annex acceptance.** D1C-2a/D1C-2b/D1C-3 plus the R5 semantic remediation supply the candidate source groups and R3 M-5 correction/recovery shapes. `stage_1_ready` remains `false`: a strengthened independently authored source-fact oracle, fresh exact-byte review, and Stephen's explicit owner approval are still required, and no generation is authorized. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
+1. **Fact-annex acceptance.** D1C-2a/D1C-2b/D1C-3 plus the R6 satisfiability remediation supply the candidate source groups and R3 M-5 correction/recovery shapes while preserving the R5 total-verdict semantics. `stage_1_ready` remains `false`: a strengthened independently authored source-fact oracle, fresh exact-byte review, and Stephen's explicit owner approval are still required, and no generation is authorized. An independent reviewer then validates the exact committed Markdown, YAML, and JSON Schema bytes; recomputes their Git blobs and SHA-256 values; reviews every conservative proposal and resolver delta; and returns a verdict. Stephen may then explicitly accept the exact annex path, schema ID/version, Git blob, and SHA-256. Candidate status cannot assert or infer this acceptance.
 2. **Generated-schema acceptance.** Only after stage 1 may a generator consume the accepted annex to materialize the 173 unique command/event schema files and populate all 210 row/event content observations. Those exact generated paths, schema IDs/versions, Git blobs, SHA-256 values, row/multiset identities, and independent review form a separate D-G6-3 owner decision.
 
-This D1C-2a/D1C-2b/D1C-3 candidate is not Stage-1 ready and does not authorize schema generation. The R5 semantic-gap remediation is complete pending strengthened oracle evidence, fresh exact-byte review, and explicit owner approval; those independent readiness blockers remain closed. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
+This D1C-2a/D1C-2b/D1C-3 candidate is not Stage-1 ready and does not authorize schema generation. The R6 satisfiability remediation composes the preserved R5 semantic rules and is complete pending strengthened oracle evidence, fresh exact-byte review, and explicit owner approval; those independent readiness blockers remain closed. Stage 1 does not authorize generation as runtime implementation. Stage 2 does not authorize registration, dispatch, reduction, projection, migration, hooks, or Gate 6 transition work. Those remain later gates.
 
 ## 7. Validation commands
 
@@ -166,10 +166,17 @@ assert profile_rule['discriminator_field'] == 'operational_profile'
 assert profile_rule['no_fallback'] is True
 assert contract['reusable_object_field_rule'] == {
     'all_listed_reusable_object_fields_required': True,
+    'variant_controlled_field_exception': 'fields_controlled_by_same_object_variant_rule_are_exempt_from_global_requiredness',
+    'variant_controlled_field_derivation': 'union_of_all_branch_required_fields_and_forbidden_fields',
+    'requiredness_precedence': 'variant_branch_presence_rules_override_global_requiredness_for_controlled_fields_only',
+    'non_variant_listed_fields_required': True,
+    'selected_variant_required_fields_non_null': True,
+    'selected_variant_forbidden_fields_absent': True,
+    'selected_nested_object_fields_required': True,
     'nullable_field_semantics': 'required_key_value_may_be_null_only_when_nullable_true',
     'nonempty_evidence_type_ref': 'type/nonempty_evidence_ref_list',
     'decision_basis': 'conservative_proposal',
-    'source_citation': 'W2/W8 listed typed facts and R5 requiredness closure',
+    'source_citation': 'W2/W8 listed typed facts and R6 same-object variant requiredness composition',
 }
 enum_specs = {x['enum_id']: x for x in contract['source_closed_enums']}
 assert enum_specs['enum/review_condition_gate_disposition']['decision_basis'] == 'conservative_proposal'
@@ -333,6 +340,56 @@ profile_fields = {
     profile: branches[profile]['required_fields'][0]
     for profile in branches
 }
+controlled_fields = set().union(*(
+    set(branch['required_fields']) | set(branch['forbidden_fields'])
+    for branch in branches.values()
+))
+assert controlled_fields == {
+    'trivial_profile_evidence',
+    'bounded_profile_evidence',
+    'long_running_profile_evidence',
+}
+non_variant_required_fields = set(resource_fields) - controlled_fields
+assert 'operational_profile' in non_variant_required_fields
+
+requiredness_rule = contract['reusable_object_field_rule']
+def requiredness_rule_valid(rule):
+    return rule == {
+        'all_listed_reusable_object_fields_required': True,
+        'variant_controlled_field_exception': 'fields_controlled_by_same_object_variant_rule_are_exempt_from_global_requiredness',
+        'variant_controlled_field_derivation': 'union_of_all_branch_required_fields_and_forbidden_fields',
+        'requiredness_precedence': 'variant_branch_presence_rules_override_global_requiredness_for_controlled_fields_only',
+        'non_variant_listed_fields_required': True,
+        'selected_variant_required_fields_non_null': True,
+        'selected_variant_forbidden_fields_absent': True,
+        'selected_nested_object_fields_required': True,
+        'nullable_field_semantics': 'required_key_value_may_be_null_only_when_nullable_true',
+        'nonempty_evidence_type_ref': 'type/nonempty_evidence_ref_list',
+        'decision_basis': 'conservative_proposal',
+        'source_citation': 'W2/W8 listed typed facts and R6 same-object variant requiredness composition',
+    }
+
+assert requiredness_rule_valid(requiredness_rule)
+deleted_exception = deepcopy(requiredness_rule)
+del deleted_exception['variant_controlled_field_exception']
+assert not requiredness_rule_valid(deleted_exception)
+reversed_precedence = deepcopy(requiredness_rule)
+reversed_precedence['requiredness_precedence'] = 'global_requiredness_overrides_variant_branch_presence_rules'
+assert not requiredness_rule_valid(reversed_precedence)
+overbroad_exception = deepcopy(requiredness_rule)
+overbroad_exception['variant_controlled_field_derivation'] = 'all_listed_fields_on_variant_object'
+assert not requiredness_rule_valid(overbroad_exception)
+
+def sample_resource_request(profile):
+    value = {
+        name: sample_for_ref(field['type_ref'])
+        for name, field in resource_fields.items()
+        if name in non_variant_required_fields
+    }
+    value['operational_profile'] = profile
+    selected = profile_fields[profile]
+    value[selected] = sample_for_ref(profile_object_refs[profile])
+    return value
 
 def profile_valid(value):
     if not isinstance(value, dict):
@@ -341,31 +398,57 @@ def profile_valid(value):
     if profile not in branches:
         return False
     branch = branches[profile]
-    if any(name not in value for name in branch['required_fields']):
+    required_fields = non_variant_required_fields | set(branch['required_fields'])
+    forbidden_fields = set(branch['forbidden_fields'])
+    if required_fields & forbidden_fields:
         return False
-    if any(name in value for name in branch['forbidden_fields']):
+    if set(value) != required_fields:
         return False
     selected = profile_fields[profile]
-    return value[selected] is not None and object_valid(profile_object_refs[profile], value[selected])
+    if value[selected] is None:
+        return False
+    for name in required_fields:
+        field = resource_fields[name]
+        if value[name] is None:
+            if not field['nullable']:
+                return False
+        elif not ref_valid(field['type_ref'], value[name]):
+            return False
+    return object_valid(profile_object_refs[profile], value[selected])
 
 valid_profiles = {}
 for profile in ('trivial', 'bounded', 'long_running'):
     selected = profile_fields[profile]
-    evidence = sample_for_ref(profile_object_refs[profile])
-    fixture = {'operational_profile': profile, selected: evidence}
+    branch = branches[profile]
+    required_fields = non_variant_required_fields | set(branch['required_fields'])
+    forbidden_fields = set(branch['forbidden_fields'])
+    assert not required_fields & forbidden_fields
+    fixture = sample_resource_request(profile)
     valid_profiles[profile] = fixture
     assert profile_valid(fixture)
-    assert not profile_valid({'operational_profile': profile, selected: None})
-    assert not profile_valid({'operational_profile': profile, selected: {}})
-    for group in tuple(evidence):
+    missing_nonvariant = deepcopy(fixture)
+    del missing_nonvariant['resource_request_id']
+    assert not profile_valid(missing_nonvariant)
+    null_selected = deepcopy(fixture)
+    null_selected[selected] = None
+    assert not profile_valid(null_selected)
+    incomplete_selected = deepcopy(fixture)
+    incomplete_selected[selected] = {}
+    assert not profile_valid(incomplete_selected)
+    for group in tuple(fixture[selected]):
         incomplete = deepcopy(fixture)
         del incomplete[selected][group]
         assert not profile_valid(incomplete)
     leaked = deepcopy(fixture)
-    foreign = next(name for name in branches[profile]['forbidden_fields'])
-    leaked[foreign] = {}
+    foreign = next(iter(forbidden_fields))
+    leaked[foreign] = sample_for_ref(resource_fields[foreign]['type_ref'])
     assert not profile_valid(leaked)
-assert not profile_valid({'operational_profile': 'fallback'})
+    extra = deepcopy(fixture)
+    extra['unexpected_outer_field'] = 'value'
+    assert not profile_valid(extra)
+fallback = deepcopy(valid_profiles['trivial'])
+fallback['operational_profile'] = 'fallback'
+assert not profile_valid(fallback)
 
 for name in ('benchmark', 'checkpoint', 'periodic_heartbeat', 'recovery'):
     empty_evidence = deepcopy(valid_profiles['trivial'])
@@ -450,7 +533,7 @@ git diff --check
 - Verify source-closed enums, especially review verdict, artefact availability/dimensions, operational profile, checkpoint compatibility, and corrected-record kind.
 - Confirm shared types are either one normalized fact or have an explicit discriminator/variant rule.
 - Confirm the closed six-verdict gate map, verdict-scoped non-empty conditional-approval list, non-empty per-condition evidence, all-non-blocking typed-owner policy predicate, four unsatisfied negative verdicts, and no direct Task-state change.
-- Confirm all listed reusable-object fields are required, nullable metadata never makes a key optional, each ResourceRequest branch selects non-null complete evidence, and claimed applicability/receipt evidence is non-empty.
+- Confirm every listed reusable-object field is globally required except the exact same-object variant-controlled union; prove that the ResourceRequest controlled set is exactly its three profile-evidence fields, branch presence rules take precedence only there, every branch has zero required/forbidden intersection, every complete branch witness is satisfiable, every non-variant outer and selected nested field remains required, nullable metadata never makes a key optional, and claimed applicability/receipt evidence is non-empty. Reject deletion, precedence reversal, overbroad exception, missing non-variant fields, null or incomplete selected evidence, foreign evidence, fallback, and extra outer fields.
 - Confirm all five M-2 source groups and every 06d §1.4/W8 §§19–21 correction/recovery binding; prove all 15 correction branches are non-overlapping and cover their source-literal kinds, with no fallback. Confirm the external manifest is unique and complete and that any unavailable/evidence-less/partial restore is diagnostic-only with no writer lease.
 - Confirm independent source-fact oracle evidence, fresh exact-byte review, and explicit owner approval remain required; this packet must not be treated as Stage-1 readiness or generation authority.
 - Confirm the proposal contains no self-hash, acceptance actor, inferred owner verdict, runtime registration, dispatch, reducer, projection, migration, or Gate 6 transition authorization.
