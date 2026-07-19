@@ -48,10 +48,19 @@ downstream consumer treated its output as the intended statistic.
   diagonal bound — solver-uncertifiable (no solver-identity field, no retained
   per-pair arrays); its cells are held out of P01-B Table 2 pending the
   pre-registered certified recompute (2026-07-17 pre-registration).
-- A second, *benign* silent fallback exists for contrast:
-  `validation/wasserstein_null_tests` falls back to scipy Hungarian on augmented
-  diagrams — same estimand, different algorithm. The defect class is
-  estimand-changing fallbacks, not fallbacks per se.
+- A second silent fallback, `validation/wasserstein_null_tests`'s scipy Hungarian
+  on augmented diagrams, was characterized here as benign — "same estimand,
+  different algorithm". That characterization was wrong: its augmented cost matrix
+  priced the diagonal-diagonal block at the distance between the two diagonal
+  projections instead of 0, so whenever the optimal plan contained a real-real
+  match, surplus diagonal slots were forced to pair at positive cost — an
+  upper-biased estimator of W_q, i.e. estimand-changing after all (demonstrated by
+  `test_w3_fires_on_no_zero_diagonal_block_reduction`,
+  `tests/shared/test_math_invariants.py`, PR #131; fixed on
+  `pipe/w2-fallback-canonical-reduction` via the canonical zero-block reduction
+  with an exact-oracle regression test). The defect class is estimand-changing
+  fallbacks, not fallbacks per se — but this contrast case shows "same estimand"
+  is itself a claim requiring proof, not inspection.
 
 **Countermeasure in place.** The dual-metric mandate (W₂ + landscape L²), unit
 tests, smoke canaries, per-file result schemas, CodeRabbit review, and the
