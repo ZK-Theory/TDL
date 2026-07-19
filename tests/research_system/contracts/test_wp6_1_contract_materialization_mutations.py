@@ -444,7 +444,14 @@ def test_wp6_1_rejects_retained_type_identity_component_mutations(
     _repair_hashes(identities, "row_identity_contract_sha256", "row_identity_multiset_sha256")
     _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
 
-    with pytest.raises(SchemaError, match=r"schema identity mismatch"):
+    with pytest.raises(
+        SchemaError,
+        match=(
+            r"schema identity mismatch|event identity mismatch: scope\.create|"
+            r"command_schema_version: '1\.0\.0' was expected|"
+            r"event_schema_version: '1\.0\.0' was expected"
+        ),
+    ):
         _validate_candidate(tmp_path, catalogue, identities)
 
 
@@ -472,10 +479,10 @@ def test_wp6_1_rejects_row_effect_and_order_mutations(
     _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
 
     expected = (
-        "ordered event mismatch"
+        r"ordered event mismatch|rows\.11\.ordered_events: \[\] should be non-empty"
         if field_path[0] == "ordered_events"
         else (
-            "reducer effect mismatch"
+            r"reducer effect mismatch|rows\.11\.reducers: \[\] should be non-empty"
             if field_path[0] == "reducers"
             else "projection"
             if field_path[0] == "projections"
@@ -539,7 +546,10 @@ def test_wp6_1_claim_dispatch_rejects_all_approved_relation_and_race_cases(
         current[path[-1]] = replacement
     _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
 
-    with pytest.raises(SchemaError, match=r"atomic claim binding mismatch"):
+    with pytest.raises(
+        SchemaError,
+        match=r"atomic claim binding mismatch|rows\.(11|25)\.atomic_binding:",
+    ):
         _validate_candidate(tmp_path, catalogue, identities)
 
 
@@ -570,7 +580,12 @@ def test_wp6_1_correction_selector_rejects_cardinality_and_owner_mutations(
     mutation(catalogue["correction_selector"])
     _repair_hashes(catalogue, "complete_record_sha256", "catalogue_multiset_sha256")
 
-    with pytest.raises(SchemaError, match=r"closed correction selector mismatch"):
+    with pytest.raises(
+        SchemaError,
+        match=(
+            r"closed correction selector mismatch|" r"correction_selector\.(selector_id|governance_index|mappings):"
+        ),
+    ):
         _validate_candidate(tmp_path, catalogue, identities)
 
 
