@@ -1,0 +1,392 @@
+{
+  "schema_version": "deprivation-scale-coherence-staged-plan/v1",
+  "family_sha256": "b8fee887a54871bbccd8d30d35d37d94c147a8b5e8f47cc9be7f212179262192",
+  "eligible_count": 69,
+  "batch_count": 3,
+  "assignment": "descending (-n_lsoas, lad_code) least-loaded assignment with a hard 23-LAD capacity; ties resolve by batch index and batch 1 starts with the largest LAD",
+  "approval": {
+    "approved_at": "2026-07-16T11:21:29.760700+00:00",
+    "approved_by": "User",
+    "instruction": "Approve staged launch"
+  },
+  "locked_compute_contract": {
+    "B": 999,
+    "per_draw_seeds": "42+b for b=0..998",
+    "workers": 8,
+    "statistic_and_null_unchanged": true,
+    "bh_family_sha256": "b8fee887a54871bbccd8d30d35d37d94c147a8b5e8f47cc9be7f212179262192"
+  },
+  "inference_deferred_until_all_batches_complete": true,
+  "projected_total_hours": 16.467787314035043,
+  "batches": [
+    {
+      "batch_index": 1,
+      "member_count": 23,
+      "lsoa_count": 5154,
+      "projected_hours": 5.489262438011681,
+      "members": [
+        {
+          "lad_code": "E08000025",
+          "lad_name": "Birmingham",
+          "n_lsoas": 659
+        },
+        {
+          "lad_code": "E06000052",
+          "lad_name": "Cornwall",
+          "n_lsoas": 336
+        },
+        {
+          "lad_code": "E08000032",
+          "lad_name": "Bradford",
+          "n_lsoas": 312
+        },
+        {
+          "lad_code": "E08000003",
+          "lad_name": "Manchester",
+          "n_lsoas": 295
+        },
+        {
+          "lad_code": "E06000049",
+          "lad_name": "Cheshire East",
+          "n_lsoas": 244
+        },
+        {
+          "lad_code": "E09000008",
+          "lad_name": "Croydon",
+          "n_lsoas": 229
+        },
+        {
+          "lad_code": "E09000003",
+          "lad_name": "Barnet",
+          "n_lsoas": 220
+        },
+        {
+          "lad_code": "E08000015",
+          "lad_name": "Wirral",
+          "n_lsoas": 209
+        },
+        {
+          "lad_code": "E08000027",
+          "lad_name": "Dudley",
+          "n_lsoas": 203
+        },
+        {
+          "lad_code": "E08000010",
+          "lad_name": "Wigan",
+          "n_lsoas": 200
+        },
+        {
+          "lad_code": "E09000009",
+          "lad_name": "Ealing",
+          "n_lsoas": 199
+        },
+        {
+          "lad_code": "E08000014",
+          "lad_name": "Sefton",
+          "n_lsoas": 191
+        },
+        {
+          "lad_code": "E08000024",
+          "lad_name": "Sunderland",
+          "n_lsoas": 185
+        },
+        {
+          "lad_code": "E09000005",
+          "lad_name": "Brent",
+          "n_lsoas": 181
+        },
+        {
+          "lad_code": "E06000018",
+          "lad_name": "Nottingham",
+          "n_lsoas": 179
+        },
+        {
+          "lad_code": "E06000025",
+          "lad_name": "South Gloucestershire",
+          "n_lsoas": 175
+        },
+        {
+          "lad_code": "E09000028",
+          "lad_name": "Southwark",
+          "n_lsoas": 173
+        },
+        {
+          "lad_code": "E08000030",
+          "lad_name": "Walsall",
+          "n_lsoas": 169
+        },
+        {
+          "lad_code": "E06000042",
+          "lad_name": "Milton Keynes",
+          "n_lsoas": 166
+        },
+        {
+          "lad_code": "E06000026",
+          "lad_name": "Plymouth",
+          "n_lsoas": 164
+        },
+        {
+          "lad_code": "E06000021",
+          "lad_name": "Stoke-on-Trent",
+          "n_lsoas": 163
+        },
+        {
+          "lad_code": "E06000015",
+          "lad_name": "Derby",
+          "n_lsoas": 152
+        },
+        {
+          "lad_code": "E09000018",
+          "lad_name": "Hounslow",
+          "n_lsoas": 150
+        }
+      ]
+    },
+    {
+      "batch_index": 2,
+      "member_count": 23,
+      "lsoa_count": 5067,
+      "projected_hours": 5.489262438011681,
+      "members": [
+        {
+          "lad_code": "E08000035",
+          "lad_name": "Leeds",
+          "n_lsoas": 488
+        },
+        {
+          "lad_code": "E06000066",
+          "lad_name": "Somerset",
+          "n_lsoas": 339
+        },
+        {
+          "lad_code": "E06000047",
+          "lad_name": "County Durham",
+          "n_lsoas": 330
+        },
+        {
+          "lad_code": "E08000012",
+          "lad_name": "Liverpool",
+          "n_lsoas": 302
+        },
+        {
+          "lad_code": "E08000034",
+          "lad_name": "Kirklees",
+          "n_lsoas": 260
+        },
+        {
+          "lad_code": "E06000062",
+          "lad_name": "West Northamptonshire",
+          "n_lsoas": 238
+        },
+        {
+          "lad_code": "E06000050",
+          "lad_name": "Cheshire West and Chester",
+          "n_lsoas": 222
+        },
+        {
+          "lad_code": "E06000011",
+          "lad_name": "East Riding of Yorkshire",
+          "n_lsoas": 213
+        },
+        {
+          "lad_code": "E08000026",
+          "lad_name": "Coventry",
+          "n_lsoas": 203
+        },
+        {
+          "lad_code": "E06000057",
+          "lad_name": "Northumberland",
+          "n_lsoas": 200
+        },
+        {
+          "lad_code": "E09000006",
+          "lad_name": "Bromley",
+          "n_lsoas": 199
+        },
+        {
+          "lad_code": "E08000007",
+          "lad_name": "Stockport",
+          "n_lsoas": 191
+        },
+        {
+          "lad_code": "E09000032",
+          "lad_name": "Wandsworth",
+          "n_lsoas": 186
+        },
+        {
+          "lad_code": "E09000010",
+          "lad_name": "Enfield",
+          "n_lsoas": 183
+        },
+        {
+          "lad_code": "E08000021",
+          "lad_name": "Newcastle upon Tyne",
+          "n_lsoas": 180
+        },
+        {
+          "lad_code": "E08000001",
+          "lad_name": "Bolton",
+          "n_lsoas": 177
+        },
+        {
+          "lad_code": "E09000023",
+          "lad_name": "Lewisham",
+          "n_lsoas": 175
+        },
+        {
+          "lad_code": "E09000017",
+          "lad_name": "Hillingdon",
+          "n_lsoas": 170
+        },
+        {
+          "lad_code": "E09000030",
+          "lad_name": "Tower Hamlets",
+          "n_lsoas": 169
+        },
+        {
+          "lad_code": "E06000043",
+          "lad_name": "Brighton and Hove",
+          "n_lsoas": 165
+        },
+        {
+          "lad_code": "E09000026",
+          "lad_name": "Redbridge",
+          "n_lsoas": 164
+        },
+        {
+          "lad_code": "E08000031",
+          "lad_name": "Wolverhampton",
+          "n_lsoas": 161
+        },
+        {
+          "lad_code": "E06000045",
+          "lad_name": "Southampton",
+          "n_lsoas": 152
+        }
+      ]
+    },
+    {
+      "batch_index": 3,
+      "member_count": 23,
+      "lsoa_count": 5004,
+      "projected_hours": 5.489262438011681,
+      "members": [
+        {
+          "lad_code": "E06000065",
+          "lad_name": "North Yorkshire",
+          "n_lsoas": 379
+        },
+        {
+          "lad_code": "E08000019",
+          "lad_name": "Sheffield",
+          "n_lsoas": 343
+        },
+        {
+          "lad_code": "E06000060",
+          "lad_name": "Buckinghamshire",
+          "n_lsoas": 334
+        },
+        {
+          "lad_code": "E06000054",
+          "lad_name": "Wiltshire",
+          "n_lsoas": 307
+        },
+        {
+          "lad_code": "E06000023",
+          "lad_name": "Bristol, City of",
+          "n_lsoas": 268
+        },
+        {
+          "lad_code": "E06000058",
+          "lad_name": "Bournemouth, Christchurch and Poole",
+          "n_lsoas": 240
+        },
+        {
+          "lad_code": "E06000059",
+          "lad_name": "Dorset",
+          "n_lsoas": 223
+        },
+        {
+          "lad_code": "E08000036",
+          "lad_name": "Wakefield",
+          "n_lsoas": 215
+        },
+        {
+          "lad_code": "E06000061",
+          "lad_name": "North Northamptonshire",
+          "n_lsoas": 205
+        },
+        {
+          "lad_code": "E06000016",
+          "lad_name": "Leicester",
+          "n_lsoas": 200
+        },
+        {
+          "lad_code": "E08000017",
+          "lad_name": "Doncaster",
+          "n_lsoas": 199
+        },
+        {
+          "lad_code": "E06000051",
+          "lad_name": "Shropshire",
+          "n_lsoas": 198
+        },
+        {
+          "lad_code": "E08000028",
+          "lad_name": "Sandwell",
+          "n_lsoas": 190
+        },
+        {
+          "lad_code": "E09000025",
+          "lad_name": "Newham",
+          "n_lsoas": 185
+        },
+        {
+          "lad_code": "E09000022",
+          "lad_name": "Lambeth",
+          "n_lsoas": 181
+        },
+        {
+          "lad_code": "E06000063",
+          "lad_name": "Cumberland",
+          "n_lsoas": 177
+        },
+        {
+          "lad_code": "E06000056",
+          "lad_name": "Central Bedfordshire",
+          "n_lsoas": 175
+        },
+        {
+          "lad_code": "E08000018",
+          "lad_name": "Rotherham",
+          "n_lsoas": 170
+        },
+        {
+          "lad_code": "E06000035",
+          "lad_name": "Medway",
+          "n_lsoas": 169
+        },
+        {
+          "lad_code": "E06000010",
+          "lad_name": "Kingston upon Hull, City of",
+          "n_lsoas": 168
+        },
+        {
+          "lad_code": "E09000011",
+          "lad_name": "Greenwich",
+          "n_lsoas": 164
+        },
+        {
+          "lad_code": "E08000006",
+          "lad_name": "Salford",
+          "n_lsoas": 161
+        },
+        {
+          "lad_code": "E09000016",
+          "lad_name": "Havering",
+          "n_lsoas": 153
+        }
+      ]
+    }
+  ]
+}

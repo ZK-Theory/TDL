@@ -40,6 +40,10 @@ env/
 *.rds
 *.h5
 *.hdf5
+# All research data lives outside the repo or gitignored (UKDA T&C + size).
+# Wholesale-ignore the top-level data/ tree; specific subdirs below are kept
+# for documentation but are subsumed by this rule.
+/data/
 data/guides
 data/UKDA-6614-tab
 data/raw/
@@ -180,9 +184,16 @@ results/**/.partial/
 results/trajectory_tda_integration/stage1/bhps_nonoverlap_reanalysis/
 
 # - markov2 alpha-sweep per-cell checkpoints + status files (T1.8 intermediates;
-#   the committed summary JSON embeds every per-cell result inline)
+#   the committed summary JSON embeds every per-cell W2 result inline — but NOT
+#   the landscape L2 blocks, which exist only in the per-cell files)
 results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_*.json
 results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_*.status.json
+# H6 ruling (2026-07-18 [DECISION]): the two alpha=1 cell JSONs are the sole source
+# of P01-B Table 2's certified Markov-2 landscape L2 values — whitelist them so the
+# citation-grade artifact is committed (their W2 fields remain do-not-cite; see
+# results/trajectory_tda_integration/stage1/SUPERSEDED.md)
+!results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_usoc_alpha1_B1000_L5000_seed42_2026-06-15.json
+!results/trajectory_tda_integration/post_audit/markov2_alpha_sweep_cell_bhps_alpha1_B1000_L5000_seed42_2026-06-08.json
 
 # repomix dump (regenerable; 108MB blob was rejected by GitHub LFS limit
 # in commit 52af787 and removed from history via filter-repo 2026-05-22)
@@ -192,6 +203,11 @@ repomix-output.*
 # T1.28 per-subgroup W2 checkpoint intermediates (gitignored; committed
 # deliverables are stratified_w2_recompute_<date>.json + stratified_w2_bh_per_family_<date>.json)
 results/panel_methodology/fdr/subgroup_checkpoints/
+
+# Regenerable per-run checkpoint dirs anywhere under results/ (npz/json null
+# diagrams, resume state; deliverable JSONs live at their own results/ paths).
+results/**/checkpoints/
+results/**/pl_checkpoints/
 
 # Local isolated implementation worktrees.
 .worktrees/
@@ -207,3 +223,8 @@ results/panel_methodology/fdr/subgroup_checkpoints/
 
 # Discovery-spike scratch outputs (toy/feasibility compute; never results/)
 scratch/
+
+# Cross-workstream local residue (not this project's tracked content):
+# Codex sandbox probe residue and the ARS WP5.6 acceptance-review bundle.
+/.codex-sandbox-investigation/
+/wp56-acceptance-review/

@@ -1,0 +1,92 @@
+{
+  "task_id": "mcbif-deprivation-scale-coherence",
+  "paper_id": "P04",
+  "command": "uv run python -m poverty_tda.scripts.run_deprivation_scale_coherence --mode full --workers 8",
+  "data_scale": {
+    "lad_count": 69,
+    "lsoa_count_min": 150,
+    "lsoa_count_max": 659,
+    "null_draws_per_lad": 999,
+    "target_statistic_calls": 68931
+  },
+  "resources": {
+    "cpu_cores": 20,
+    "memory_gb": null,
+    "disk_free_gb": 39.34531784057617,
+    "driver_peak_rss_mb_at_preflight": 393.25
+  },
+  "strategy": {
+    "parallel_backend": "ProcessPoolExecutor",
+    "workers": 8,
+    "parallel_axis": "LAD",
+    "checkpointing": true,
+    "resume_supported": true,
+    "progress_reporting": true,
+    "checkpoint_interval_draws": 25
+  },
+  "benchmark": {
+    "harness_is_production_entry_point": true,
+    "full_B_mid_sized_lad": {
+      "lad_code": "E08000014",
+      "lad_name": "Sefton",
+      "n_lsoas": 191,
+      "B": 999,
+      "wall_seconds": 1232.4560805000074,
+      "peak_rss_mb": null,
+      "production_entry_point": "run_lad_battery"
+    },
+    "worker_sweep": [
+      {
+        "workers": 1,
+        "wall_seconds": 350.4968818000052,
+        "lad_count": 8,
+        "draws_per_lad": 25,
+        "production_entry_point": "run_family"
+      },
+      {
+        "workers": 2,
+        "wall_seconds": 234.49849990000075,
+        "lad_count": 8,
+        "draws_per_lad": 25,
+        "production_entry_point": "run_family"
+      },
+      {
+        "workers": 4,
+        "wall_seconds": 217.26991790000466,
+        "lad_count": 8,
+        "draws_per_lad": 25,
+        "production_entry_point": "run_family"
+      },
+      {
+        "workers": 8,
+        "wall_seconds": 244.3438238999952,
+        "lad_count": 8,
+        "draws_per_lad": 25,
+        "production_entry_point": "run_family"
+      }
+    ],
+    "sweep_call_count": 800,
+    "target_call_count": 68931,
+    "scale_pct": 1.1605808707257983,
+    "measured_speedup_at_target": 1.434441338461889
+  },
+  "risk_flags": [
+    "worker sweep is sub-scale and the family projection remains provisional until full launch",
+    "LAD geometry sizes vary from the full-B canary",
+    "the committed full-B canary predates the Windows peak-RSS fallback and records peak_rss_mb=null"
+  ],
+  "estimated_wall_time_seconds": 59284.03433052615,
+  "estimated_wall_time_hours": 16.467787314035043,
+  "provisional": true,
+  "decision": {
+    "launch_authorized": false,
+    "status": "STOP",
+    "stop_threshold_hours": 12,
+    "reason": "projected single launch 16.47 h exceeds 12 h",
+    "staged_launch_proposal": "Split the frozen 69-LAD family into deterministic size-balanced batches, largest LADs first, with unchanged B=999/seeds/statistic/null; assemble BH-FDR only after every batch completes. Requires User approval before launch."
+  },
+  "validation_commands": [
+    "uv run pytest tests/poverty tests/discovery/test_deprivation_scale_coherence_contract.py -q",
+    "uv run ruff check poverty_tda tests/poverty tests/discovery/test_deprivation_scale_coherence_contract.py"
+  ]
+}

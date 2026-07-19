@@ -34,6 +34,23 @@ framework (`contract_binding_check.py`). See the 2026-06-02 `[DECISION]` in
 
 ---
 
+## APM Prose Production Frozen — ARS Transition (locked 2026-07-17)
+
+**Rule.** No manuscript prose is authored by APM-dispatched agents. Prose
+production resumes only under an ARS workflow that enforces document-register
+and claim→artifact binding as machine-checkable properties of the deliverable.
+
+**Rationale.** The APM prose lane has a repeated, uncorrectable-in-place failure
+record — document-register violations and evidence-unbound claims in nearly every
+prose task, detected only by the User and CodeRabbit because APM has no
+enforcement surface at the semantic level of prose. The 2026-07-17 claim-trace
+audit quantified the damage. The compute lane stays open under its existing
+hardened gates. See the 2026-07-18 `[DECISION]` in `04-Methods/Computational-Log.md`
+and the freeze instructions at
+`.apm/memory/handoffs/2026-07-17-apm-freeze-and-ars-transition-instructions.md`.
+
+---
+
 ## Authorship
 
 All papers in this programme are single-authored:

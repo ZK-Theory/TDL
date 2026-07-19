@@ -69,6 +69,19 @@ Additional constraints from the audit:
 - **`markov2_alpha_sweep_summary_2026-06-16.json`** — dated after the 2026-05-29/30
   boundary ⇒ **exact era, presumed IMMUNE**, but never explicitly gated. Feeds
   P01-B §4.2 Table 2's Markov-2 rows. Confirm by gate before citing as verified.
+- **`post_audit/markov2_alpha_sweep_cell_{usoc,bhps}_alpha1_B1000_L5000_seed42_*.json`**
+  (USoc 2026-06-15, BHPS 2026-06-08; committed under the H6 ruling, 2026-07-18
+  `[DECISION]`) — split verdict by field family. **Landscape L² blocks
+  (`result.h0/h1.landscape_*`): citable.** The landscape pipeline contains no
+  optimal-transport solver, so these values are structurally immune to the greedy
+  fallback; they are the sole source of P01-B Table 2's Markov-2 landscape values
+  (USoc H₀ 0.2577→0.258, H₁ 0.002997→0.003; BHPS H₀/H₁ 0.000999→<0.001) and of the
+  2026-07-17 recompute pre-registration's "certified landscape in hand" figures —
+  resolving the audit's open conflict (footnote ‡ describes the W₂-only *summary*
+  artifact; both statements are true of different artifacts). **W₂ fields:
+  do-not-cite** — same solver-uncertifiable class as the summary (no solver-identity
+  stamp; the fragile-window screen applies). Consequence: the pre-registered
+  certified Markov-2 recompute is scoped to **W₂ only**.
 - **`bhps_nonoverlap_reanalysis_2026-06-09`** H1 W2 — the retained L=5000
   remainder cache was re-derived under exact W2 by T1.38 on 2026-07-16
   (`w2_gap_closure_phase1_2026-07-16.json`). Its fresh greedy convention gate
