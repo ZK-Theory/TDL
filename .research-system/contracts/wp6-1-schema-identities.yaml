@@ -15,7 +15,7 @@ governance:
   review_status: pending_independent_review
   acceptance_status: pending_d_g6_3_owner_acceptance
 normalized_row_count: 104
-row_identity_multiset_sha256: 353f93c60c2ed3dc558895cc0fb950dff989b543601bbfc8f0fd4e3a866524e2
+row_identity_multiset_sha256: 8fab062320b6b51463ee0039b3d937945f7049c17f8701d8b5883deb66e44b27
 rows:
 - key: scope.create
   command_type: CreateScopeDefinition
@@ -24,23 +24,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/create_scope_definition.schema.json
     command_schema_id: ars://core/command/CreateScopeDefinition
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0771a286433432a3df9d0c697b7b72248cb566676ec50b19495b3962c6947fff
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 9adbb4c79a700b81f21513dbed9f14cc85e4394e2e0e287ddd9b290ea36db878
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ef6ae0e5945e22268dd2815effc69c65dc25ac0fc62266bc28ec4a8100319828
   event_schema_bindings:
   - event_type: ScopeDefinitionCreated
     schema_token: evt/scope_definition_created
     event_schema_path: .research-system/schemas/core/events/scope_definition_created.schema.json
     event_schema_id: ars://core/event/ScopeDefinitionCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 511cf1ef040b3d6053222a38c07efecef20fc58bb43e05fba21280dbfbd58517
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 64e3a1a3624ef423b20d4cebdcc91e5e85a82fa80293f534e179a7cb78122988
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 12d297439d8b3e42512b8d2943dd31a0e1aec9d95639d0a3cb8ce40d03aa956d
+    event_identity_contract_sha256: 79fb94b7eed4866cb0653fa4236c657b4e1a0c2fd17e8621962cb089195d9d54
+  row_identity_contract_sha256: 90f79ed129dfc7f6a63d2b1bb857dd4e44ac46e58aad14e514532c7127ccd243
 - key: scope.amend_revision
   command_type: AmendScopeDefinition
   command_schema_identity:
@@ -48,23 +48,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/amend_scope_definition.schema.json
     command_schema_id: ars://core/command/AmendScopeDefinition
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 254c22bd9e1faad3f64e7f2c581ca9705ead1eb4e06670ad7c8c8b15281b0b36
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 5eb917e4d7bebdbfbd35cfbec1622921c31c30975b35aa830632ddd4f73c8dc6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: bce5c2813fd50b7f00b1e6ee534e315e415a8a48088a1b31cb64ec80bcbffe95
   event_schema_bindings:
   - event_type: ScopeDefinitionAmended
     schema_token: evt/scope_definition_amended
     event_schema_path: .research-system/schemas/core/events/scope_definition_amended.schema.json
     event_schema_id: ars://core/event/ScopeDefinitionAmended
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 6f392cd73fc42b3cc571d6535bd8efd7c66ea4b908ca19030161b88c73e5acf2
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: e7466b743dba758d5b44bcab33db8eee4e0824bc51c2d4d06df118b472233056
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 054f2ca6609cebefd2255224459fd76c14b55dfe23c797b201ac92442d73c387
+    event_identity_contract_sha256: 7f2444a99316596e5499d71b45e941b651027051362548b757ab470a17b0f78b
+  row_identity_contract_sha256: 95488aeef625b82fd44c887c7de3a3306874cbedcb54f216b79b9e9d076264b4
 - key: scope.supersede
   command_type: SupersedeScopeDefinition
   command_schema_identity:
@@ -72,23 +72,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_scope_definition.schema.json
     command_schema_id: ars://core/command/SupersedeScopeDefinition
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 828a11f0bea445a19f942f8df4052fc194818436950d5ba2ad9d48deb759db28
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 79a80133f30190b424c509101b7b9879c43dc671bbdc6ab66aa6d4650a34bfb9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 19d3e1952e85930ac0bfd69ecda2cec90e4e5a85d26206cd81e82887e7ca5e4f
   event_schema_bindings:
   - event_type: ScopeDefinitionSuperseded
     schema_token: evt/scope_definition_superseded
     event_schema_path: .research-system/schemas/core/events/scope_definition_superseded.schema.json
     event_schema_id: ars://core/event/ScopeDefinitionSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 45bade318659c845910bd9b82f10ae7537dc2c66b90971b571af9fa20aba515b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: a9c4c46464d9d737047010b48979e8b535cabf793775f1043f649b130261c7ad
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 58ba7d9b02d59ecb82a65a4d407afd5aa050a19952b91f5700f86c09999ec98e
+    event_identity_contract_sha256: bf306f10808034d45400fb5d1135a52907051766fdd47ece23df6fd363caa5b5
+  row_identity_contract_sha256: 73d0f94823d40a126d99775dcb011e3ed4aecde719040b77c8fba4774cde596c
 - key: scope.complete
   command_type: CompleteScope
   command_schema_identity:
@@ -96,23 +96,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/complete_scope.schema.json
     command_schema_id: ars://core/command/CompleteScope
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: b7a0c21c3f613138c5edc956979f1447f385d027c979f7d9b8323384dfc82c5b
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 599d5983035cffe4806f60078026a94dac7f96b9fe596da4e513f9361f2c369f
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: bdf098593bfe27e961f7def5577a03e0307df1137ca119e7993ad6827e9c0b01
   event_schema_bindings:
   - event_type: ScopeCompleted
     schema_token: evt/scope_completed
     event_schema_path: .research-system/schemas/core/events/scope_completed.schema.json
     event_schema_id: ars://core/event/ScopeCompleted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 589981fd37c4619658c6fbf90ea0e37e00a95cc86617fea1d9c9fa8a2d634577
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7389d2e2615abae986a2ba513d38f50c051ac84002cc29a0fbb52614e86aa66b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 5db20045d333807d583a3fc778d2062e40f754e606b672f1c204a929825b215d
+    event_identity_contract_sha256: eba35a8a793c70bf2fc25388e48aeb986474909fe1b5b5f73bc792cf85de363a
+  row_identity_contract_sha256: f77b58cf4198e3c7be81602c2378c7a599c5eb122ca4c8884bd22450ccee5fe5
 - key: task.create
   command_type: CreateTask
   command_schema_identity:
@@ -120,23 +120,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/create_task.schema.json
     command_schema_id: ars://core/command/CreateTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 5efefd1146da1d144e99281f72605ce41e627a12a7ef3b85ffb498e5107baa34
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 1f1411ab7c7e9a58a9298644a913d7342582a05ef4620068c4eb992e0862971c
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: a9510f8f99c72abb51edfc3f1f07a559971bd0221857ae390a039ea9e571af75
   event_schema_bindings:
   - event_type: TaskCreated
     schema_token: evt/task_created
     event_schema_path: .research-system/schemas/core/events/task_created.schema.json
     event_schema_id: ars://core/event/TaskCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 27d8c0c239d0fca822e5ba865ac0a360bac0008f5da9b29358c2a25986136a25
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: d7cfa4450f37bff685a2e3efcccb114b5da3c45723730fe13aec6f969b8b7c09
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 6b0efd6d15ce7d75f58538168c5f96609e9c86c17db26db8577fe481cc7abc7d
+    event_identity_contract_sha256: a3a3de18e697a6a6e77537a03315ef9ae7ca30308fb3bafa7320135b77e34da8
+  row_identity_contract_sha256: 506ce64ca889c3f4f14b7fedff7d428cd0a2cc562712892a9bc07c71c4386ca0
 - key: task.amend_revision
   command_type: AmendTask
   command_schema_identity:
@@ -144,23 +144,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/amend_task.schema.json
     command_schema_id: ars://core/command/AmendTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 53973cb57c5942eebc5416bac643677c92f2346a0fce7dcb49e955ae4e736493
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 1668c3f1f0c48f0a461aaea754fcf04c1fed21a24c3bd2e8c7e7b526e3ba5e94
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 59c6d7dd2545415a8fce15cc3fb649cbe3cf101bebe0cd934b6ef9a8c8d01a60
   event_schema_bindings:
   - event_type: TaskAmended
     schema_token: evt/task_amended
     event_schema_path: .research-system/schemas/core/events/task_amended.schema.json
     event_schema_id: ars://core/event/TaskAmended
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: cefc517493e6e1d858c3e3e62951af4720a3cbe32dfc035fda4ffe9a4b511bee
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: bf83ee52c72f066047f1fbcb6ae974ba4514401baf7e64bf634fe62c60a56f61
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 4520fcd071ad880015c600eff4779acc0f984f3895b06ceb631d3a5fcac6834c
+    event_identity_contract_sha256: a9367016e150f85b3b8a9a1c2eaea6839f2308b4ef05ddb5ff36e42dc46eb6e0
+  row_identity_contract_sha256: 2872fe80e1dd5830108127e268338462cc4b51ff89965878da3674bbffaf54bc
 - key: task.request_readiness
   command_type: RequestReadiness
   command_schema_identity:
@@ -168,23 +168,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_readiness.schema.json
     command_schema_id: ars://core/command/RequestReadiness
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 6511a6b2da121c82d5d2691a7694222c5f9f9bef053e32d1be7f5998aa9d6375
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f66fc60d9e5eda70d4597c4939ab80fa04edfa14e65b4b288b9b2a795133bf17
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 59cf8a3737aaf7665ef66b4ad59ba1b7fb17973758ea70239cc1e9a030fd4c7d
   event_schema_bindings:
   - event_type: ReadinessRequested
     schema_token: evt/readiness_requested
     event_schema_path: .research-system/schemas/core/events/readiness_requested.schema.json
     event_schema_id: ars://core/event/ReadinessRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 5f9d04e62eec2ec2074c72b2da4dd10a561b632fd2865f64c26f4124fb5a96ee
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 66905b338c403ebe35ed66268af80822782bddd1c77b120cc66dd87ac3b53d90
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: c2ec496880202de4851674f4b59d0f983f030a995817aa14ab10029bd144bbf4
+    event_identity_contract_sha256: 23ed1cce5b8b16fd8ef36b6ee5025e4c7f93d74911a00c67f679bd7058b91642
+  row_identity_contract_sha256: 8d27579593d927f99cb329e0a6d7d8d72bc91f990ff86db89190e11e257ef6af
 - key: task.approve_readiness
   command_type: ApproveReadiness
   command_schema_identity:
@@ -192,23 +192,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/approve_readiness.schema.json
     command_schema_id: ars://core/command/ApproveReadiness
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: c663a21920c5da9ef7a21be19d2140bec7ea5faa100ccbf54cbc988ffc3d531b
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 0e9c6d8407bb7d8b06a994ae72f168f22da4eabaf16488136bd2180fd47daad5
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 540df1c57394c7184026ad716d82024685da1c654eb53e27d80e700c8c73b249
   event_schema_bindings:
   - event_type: ReadinessApproved
     schema_token: evt/readiness_approved
     event_schema_path: .research-system/schemas/core/events/readiness_approved.schema.json
     event_schema_id: ars://core/event/ReadinessApproved
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: aaf6e1bdc78eb9691cc3c75fc8811134af625d73f74b768aa22c34ca73c78a9b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 476009f2b2161ba1b75246f0cb6c54d2c2611d638627cde91c432f18bd22861b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: c3b3a3d6aeb7353b9cb7fb5218316f48e8a206c0c94ff644c0f1939a323f0112
+    event_identity_contract_sha256: eadcbbdcfd10eb1d9e9574f14e2b356d95719c76047db733c2c547cc54215bb4
+  row_identity_contract_sha256: 19230388728e8ae83bf5fdaea4b549eda85d59a810cf168ce3b45ebd0512b675
 - key: task.block
   command_type: BlockTask
   command_schema_identity:
@@ -216,23 +216,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/block_task.schema.json
     command_schema_id: ars://core/command/BlockTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 4766544f05250833df04054ac7a9032094e0d3f8d800c18406d2137aaa96d052
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: d2b1c33b0e1d0c64d0c77a5d21f1d31f6273d8e346afa70c5d373131ce55fa81
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 8e025af587abd04ffa577ff6cfb22236b1712e7a06d332cb033d84006483750a
   event_schema_bindings:
   - event_type: TaskBlocked
     schema_token: evt/task_blocked
     event_schema_path: .research-system/schemas/core/events/task_blocked.schema.json
     event_schema_id: ars://core/event/TaskBlocked
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: fd59bfcc371ea315fb9dc5714aadbdc3e5eb2b3b3e2a1fd83a66dd0fdc7341e8
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: f19d14f603bf8cf0365b3367afd30512a253675dc08d31388f484c273875bec3
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 12f84f78e4696bb66980080b80e74924eec4ac4fcacb4542d16e13ec96879bae
+    event_identity_contract_sha256: 477002ed2b8ebd6ad5d88ed839fed012268bd5d6544c7cec660c9d01e7e083c9
+  row_identity_contract_sha256: ca1640d054fbf4eee4413e891d5659f16641142c65e377fdde3607dea0555811
 - key: task.request_input
   command_type: RequestInput
   command_schema_identity:
@@ -240,23 +240,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_input.schema.json
     command_schema_id: ars://core/command/RequestInput
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0d5f583eff1469e2e807ed5ee8665a3a230b88de3e90e53156a82a812233c04a
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: ffab18440a14a8f45332da867da9ddd885488dab471aef60cebc02f219bf946b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ec2553d08561789c98ca27824cdddb86b0d6dc476fb9d744132fc2aac352e55a
   event_schema_bindings:
   - event_type: InputRequested
     schema_token: evt/input_requested
     event_schema_path: .research-system/schemas/core/events/input_requested.schema.json
     event_schema_id: ars://core/event/InputRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: b5b616c8dd90ea99ee975bde230593c6a0ba16b81e9323093d395b3f2e9b5f09
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 668437938936393cb84f65c511e90551f569587f3bfc843de8f6099dcb24a85f
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 49d47f86bacb57215385f5754b74c87679fe742bc2433aabc3b7ac498cf64e0c
+    event_identity_contract_sha256: 8a2e62ae164bfceec84d44b3764ad2404551b56a437040f4438e583859b96b4e
+  row_identity_contract_sha256: fc02ba5ad9b36a9785b8ac231853a42080d1cf78d1569ad2d7f89597a55848e0
 - key: task.pause
   command_type: PauseTask
   command_schema_identity:
@@ -264,23 +264,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/pause_task.schema.json
     command_schema_id: ars://core/command/PauseTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba42168a13341902ee4e25cc8a3b8cf401fd38bcc78493a4355ecf9820724e2f
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 615b79aa9eb35fae90bf8f40b945f28b940eb0732b4ef6ce3d80313307f2bc97
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 0be622bc8e0b304f7e341381209624456d710e39294dc75251c6b4f704188e3a
   event_schema_bindings:
   - event_type: TaskPaused
     schema_token: evt/task_paused
     event_schema_path: .research-system/schemas/core/events/task_paused.schema.json
     event_schema_id: ars://core/event/TaskPaused
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: bf2a77d29d5c77957ae492d8fa7ad897a09673d3b387f76d4e7146ac53e81d97
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 3956726a13d986c375eddafd701cd4270f9f134837177aeba9202451b0653b81
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 87b71b870c0081fd867bd15f0e0f7761fb501c8c687dc9e0713809d07c7a7858
+    event_identity_contract_sha256: ad0f11b3c9f73ed2489b3d3159c45e9d7fb0560d72128c8286f6d6c5da4e2cd0
+  row_identity_contract_sha256: ef26213e9d61ea5a3194c368f1e96f7e18609594c811cf0bd431833ae654cefe
 - key: task.claim_start
   command_type: ClaimDispatch
   command_schema_identity:
@@ -288,33 +288,33 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/claim_dispatch.schema.json
     command_schema_id: ars://core/command/ClaimDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: f06965aaa08108e4fced7dc20a6e180d0072f3057c3b46624ce020cfccc93dc3
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: d928515550ac044d06e3e1854793ed7253d463439b76dca32b887f7e7a0adaa4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 0e58d269fe4bda7cca31f95bca2e70e57595f49a32919d6580353dcd41efb914
   event_schema_bindings:
   - event_type: DispatchClaimed
     schema_token: evt/dispatch_claimed
     event_schema_path: .research-system/schemas/core/events/dispatch_claimed.schema.json
     event_schema_id: ars://core/event/DispatchClaimed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 61a97dd3580192d699f14bbef2aa16e0b49ad857e66a86671a5913b991a7838b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 5da77a8972b35cce11a2aca1fff7c3fc3d935063f35faf3ec174f181368d53cb
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    event_identity_contract_sha256: 4e49f50d239a444dc5349e2a50aa0d12bf464a264e627b77dc60510499d3276a
   - event_type: TaskClaimStarted
     schema_token: evt/task_claim_started
     event_schema_path: .research-system/schemas/core/events/task_claim_started.schema.json
     event_schema_id: ars://core/event/TaskClaimStarted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: af5409c06a1862b9132562b65843b877bb3b3818df336925d2a1bf42aad6687f
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 262402cf179182643ce3c20cc8bd74f3c02dbb2142ee7d42d8b65aec1cc0a355
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 3a9bf39590094156ece1384fffc3e3affa9b3a44bd414938b2655476ef4d570c
+    event_identity_contract_sha256: 028501393ca0c94cd55e9d32457bf9016eb69bbcb22531ca71b950eacdcf9373
+  row_identity_contract_sha256: 72acc46ae61d1aea25264d8512db26a5ef5a5592b9223d7a048e95d8babb180f
 - key: task.submit_review
   command_type: SubmitForReview
   command_schema_identity:
@@ -322,23 +322,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/submit_for_review.schema.json
     command_schema_id: ars://core/command/SubmitForReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 782b7d69c1bc070f459a44f599766046cf48bdb1c3198df84fa10d10e6bdaf8b
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 5e67cea725b1d716bc8760e056be858699c67b6366b2c207b023c40c6920d6ec
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 2c467ef817ffb97cbe288e545d75a5e815772b1b3a9de366e117a17c0ed50e58
   event_schema_bindings:
   - event_type: TaskSubmittedForReview
     schema_token: evt/task_submitted_for_review
     event_schema_path: .research-system/schemas/core/events/task_submitted_for_review.schema.json
     event_schema_id: ars://core/event/TaskSubmittedForReview
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 37d621524a6670aae267c63012474ec57e2dd11b89d32640a66cce24608df3ee
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: afb0a1bc0b74ba6a18a5ff5d40745ec18a2ac15874ced44660ec5a82cce16a7b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e83fa8a5b077ffe9ef3c750de34cd9894d5307d90e6d7d65c846cd87b2347ac1
+    event_identity_contract_sha256: 4d6061d3470877d7235d514039b21105caeb9f9da9064fcc88e897d0f37c686d
+  row_identity_contract_sha256: d31ba91e06a21a1806a621d29005e690705836402541c5668e26a3c2deacd778
 - key: task.resume
   command_type: ResumeTask
   command_schema_identity:
@@ -346,23 +346,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/resume_task.schema.json
     command_schema_id: ars://core/command/ResumeTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: d35d1015d992886aec0554febf3adce00086020e3c51b062df0908a2d2556574
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 47db322e31c8ac7d457c586e0ef1868c24ea9d9fb950d9a8253ff4e0233e2fa5
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: fea0b754eea72a8a84b3bb043c5f7806325c89af4dd25baeb30ba493e0345204
   event_schema_bindings:
   - event_type: TaskResumed
     schema_token: evt/task_resumed
     event_schema_path: .research-system/schemas/core/events/task_resumed.schema.json
     event_schema_id: ars://core/event/TaskResumed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 8641b7625860b4b2c35aa6a1cbea87ccbe13eeda9bfae52827a56f6a647e12c7
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 1498fea49b5a043e969f19e2a2fce910a4af12d5fc72676a851819ee3a8a3c87
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 17373635f24192eaf2614002d4c56f1957c8743cc642f60c6a0dfe2f846fbba5
+    event_identity_contract_sha256: 9a7aedbe1e0fb9b7f9cc865e7e710d395553e2b44ec9f5e8aa8387192d757b71
+  row_identity_contract_sha256: 7b2f1859502afa8c32ce0f4972b478597ef7f90e0e2590dfbcdcb6ce9cd4c313
 - key: task.accept
   command_type: AcceptTask
   command_schema_identity:
@@ -370,23 +370,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/accept_task.schema.json
     command_schema_id: ars://core/command/AcceptTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: dd96a4438449b9bb548925b39847e66de2e33aa4c068c26b2ce9ea1772e5b7cc
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4c7b0dafbd3b5ac1464cf1fcc05b31967365dd271526c6806b4480c8a1298818
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 270eafcaf93c8d6c988c2a4e8b21aecf80d5dacb5e9bb018d883b37d2a744007
   event_schema_bindings:
   - event_type: TaskAccepted
     schema_token: evt/task_accepted
     event_schema_path: .research-system/schemas/core/events/task_accepted.schema.json
     event_schema_id: ars://core/event/TaskAccepted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 6e750936e0c2bf320160a1cce72ac0acc9d0514767d53a3c696ac5694db3cce4
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 29a013bc3f734eac42bfdbfd5e681e7ff2c38cc9315458b6e8cb6a714d387409
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 346ae6a87c0aad32e7002059edf2f28c09bbbf9773d9c236c3510d26a1c023ee
+    event_identity_contract_sha256: 60ff5f0572e9431f592d70bfdab9ee4ecb65d535a80fd1966afcbf0368af2d16
+  row_identity_contract_sha256: cdbc50a4b09dd220af5b6eafec43dcccb962a1bc08e03d3ec6a3eb8ac4b936de
 - key: task.reject
   command_type: RejectTask
   command_schema_identity:
@@ -394,23 +394,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/reject_task.schema.json
     command_schema_id: ars://core/command/RejectTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: eeeb91b025c96d9868e4ca96f377cc93bd28441468a76c815368acaa24d8926e
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 615118a438d830ed36070d30cfa05c6d0db7606a9c3aa685255b63b2d47eb626
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 40a30e3ceab4e7a1e5cd0d36bfc1f237f14f7af0557c78a026197f8ded9ccc8f
   event_schema_bindings:
   - event_type: TaskRejected
     schema_token: evt/task_rejected
     event_schema_path: .research-system/schemas/core/events/task_rejected.schema.json
     event_schema_id: ars://core/event/TaskRejected
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 805691e08e15fe6482ef0109796d9eeb516549cd3ca6fc1f466cb01974403dd8
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: f9380c85dd3afdc612fc4f73714c1b27744e503ef2c77997250ad378b3f70be2
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 78e498a8864d6b938d9d706c1ee36c110d31a56c067448efde469434b2e8f3b5
+    event_identity_contract_sha256: b9b26a556c31cd8e761a795830d20b66fca517b4436db548794e17e7f160b923
+  row_identity_contract_sha256: 90e3328f65680f161dc299b63f1289b9d428dfd63d278b4e5baaa0880bebc1d6
 - key: task.close_partial
   command_type: ClosePartial
   command_schema_identity:
@@ -418,23 +418,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/close_partial.schema.json
     command_schema_id: ars://core/command/ClosePartial
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 8486bbb521cadb532a6bad2118d636d169bc6621782034da4fde497b192a86bf
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: b26e6c41d0933b869f9295d0b5863a2e98054f29035d708d995f042e28f4feb5
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 0e736993dd41c431bfceaec2a9c7e9a0274f69af31dcc345a595589e2d927d66
   event_schema_bindings:
   - event_type: PartialOutcomeRecorded
     schema_token: evt/partial_outcome_recorded
     event_schema_path: .research-system/schemas/core/events/partial_outcome_recorded.schema.json
     event_schema_id: ars://core/event/PartialOutcomeRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 3c09aa6cfa85027ab54d39dd2172ea3701800ed790cd66549370da39d83e6541
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 03bbe08b1841d0df393465acbf917d5984c3774fe2ad943490bed89e736372a5
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 0c46c1fe1e2729d8b7b91ea9c40c86d18e7023c1be210471eb76bba26a383283
+    event_identity_contract_sha256: 4fd21f3aa4308053da90a0fe6a85e132aa1bf394c1a64c56afcaf9114f5247eb
+  row_identity_contract_sha256: d94dcc7e6cf499409e9cce39fbec7f911b2a43d684e456ede1a9155494d66912
 - key: task.cancel
   command_type: CancelTask
   command_schema_identity:
@@ -442,23 +442,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/cancel_task.schema.json
     command_schema_id: ars://core/command/CancelTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 6799046e0be51dd6c68f4212046ecf3bb36bfe84dc7eea834c8e161de028b787
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f38fe4a13170c17e4cd01131500c08a4897f2fe2438ed525f703a5128e82e4cf
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ffb25ee31429bfabd849435c972890d03c738fa678cbfe35bac99d7b5f5de676
   event_schema_bindings:
   - event_type: TaskCancelled
     schema_token: evt/task_cancelled
     event_schema_path: .research-system/schemas/core/events/task_cancelled.schema.json
     event_schema_id: ars://core/event/TaskCancelled
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: fe17d8907a673724ad32daf2d07ee4a6353712c523e4f83b220db2c876f89a34
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 60e9a0555301816d36967a4c27433ba010d950591842b9a0bc736c79c2c4c18d
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: ed5523673e8a1f7dcda4f738f39912d8c4e244a706b928ae94edf6ce91d0610c
+    event_identity_contract_sha256: 9be51d6260db42506db565ed9223b378c53394140326b028827238737d43789f
+  row_identity_contract_sha256: a3a1f93a950b9f3bac2270b07c690e50efd7fa3621d6a029005977c34c02986d
 - key: task.supersede
   command_type: SupersedeTask
   command_schema_identity:
@@ -466,23 +466,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_task.schema.json
     command_schema_id: ars://core/command/SupersedeTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 229ff4600263fac7013c1e9992494c81f285e2dbd0d2994c554b8db0f3f8c169
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: b9549266bf60295c5f8b25d52bfa839a44db1195f6dd136958be3c113cc6cd4e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 8b4410d5adb5244f5612ca6485469014f2ef4cb7507e42010b8d26f46ec2ffcc
   event_schema_bindings:
   - event_type: TaskSuperseded
     schema_token: evt/task_superseded
     event_schema_path: .research-system/schemas/core/events/task_superseded.schema.json
     event_schema_id: ars://core/event/TaskSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 01e4194a81404b937a2745f0073c8dd2d7b2e2ba21ee24b8ebefb301a60bf576
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 1fe342421b6853a4846d7a1619319e15e26964ad268d5c22aa13aab4cdb16b62
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: c4bc051d08ad3cda8c17ca4f06845176a9b0fc615cbadc155cfe0ea0381ed8ca
+    event_identity_contract_sha256: b3e057e0fb3269bbb78a98dec4c4d43d2373130827aa8375ab64124105f10242
+  row_identity_contract_sha256: aa0aa34419e3c6ef9c932c166408317d974b6c47483ce26bdecb570fcdb5a872
 - key: task.reopen_partial
   command_type: ReopenTask
   command_schema_identity:
@@ -490,23 +490,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/reopen_task.schema.json
     command_schema_id: ars://core/command/ReopenTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0042af54b222d5f5714f962c133321d171efcb328a84791002938cb40877be8c
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 0a9a695c3693d6e8d991d664f792958dfe7f605c122284d202a93198d5507e8b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 3689af68d99ff36cf394baa0bcf3edfcb5f00b23e7356ba9cfe3465f82724125
   event_schema_bindings:
   - event_type: TaskReopened
     schema_token: evt/task_reopened
     event_schema_path: .research-system/schemas/core/events/task_reopened.schema.json
     event_schema_id: ars://core/event/TaskReopened
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 255c7a0a602f4b29da1be1f4255f03ef59cb66a6483673b14623675bf842532a
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: c6580a1c3a011562dbb7d098f4ba1dd4c071df93345fcb12735b3199082fc7b2
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e5cd4d3ea73d0fa832f7e1db82333bd60146c10ecf2b8aaf584ad8a61e592f5a
+    event_identity_contract_sha256: 194a90fed8504b23cb143d0aff28d5ff2766d206f4fe798ee12de695e09c3a25
+  row_identity_contract_sha256: 0e731adb0efe6c150b50241b144cc96899d9553ed16b8b4f8a341e075fd1c7a5
 - key: task.reopen_rejected
   command_type: ReopenTask
   command_schema_identity:
@@ -514,23 +514,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/reopen_task.schema.json
     command_schema_id: ars://core/command/ReopenTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0042af54b222d5f5714f962c133321d171efcb328a84791002938cb40877be8c
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 0a9a695c3693d6e8d991d664f792958dfe7f605c122284d202a93198d5507e8b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 3689af68d99ff36cf394baa0bcf3edfcb5f00b23e7356ba9cfe3465f82724125
   event_schema_bindings:
   - event_type: TaskReopened
     schema_token: evt/task_reopened
     event_schema_path: .research-system/schemas/core/events/task_reopened.schema.json
     event_schema_id: ars://core/event/TaskReopened
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 255c7a0a602f4b29da1be1f4255f03ef59cb66a6483673b14623675bf842532a
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: c6580a1c3a011562dbb7d098f4ba1dd4c071df93345fcb12735b3199082fc7b2
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 575a4b072ef8a43a78671ae635a8941c26da212b930c3ee0b168a41d2307eae2
+    event_identity_contract_sha256: 194a90fed8504b23cb143d0aff28d5ff2766d206f4fe798ee12de695e09c3a25
+  row_identity_contract_sha256: 32829046aa0650d75f168ce8346a8549428f909c3dff4f3c5541838c33c4aff0
 - key: task.reopen_cancelled
   command_type: ReopenTask
   command_schema_identity:
@@ -538,23 +538,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/reopen_task.schema.json
     command_schema_id: ars://core/command/ReopenTask
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0042af54b222d5f5714f962c133321d171efcb328a84791002938cb40877be8c
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 0a9a695c3693d6e8d991d664f792958dfe7f605c122284d202a93198d5507e8b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 3689af68d99ff36cf394baa0bcf3edfcb5f00b23e7356ba9cfe3465f82724125
   event_schema_bindings:
   - event_type: TaskReopened
     schema_token: evt/task_reopened
     event_schema_path: .research-system/schemas/core/events/task_reopened.schema.json
     event_schema_id: ars://core/event/TaskReopened
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 255c7a0a602f4b29da1be1f4255f03ef59cb66a6483673b14623675bf842532a
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: c6580a1c3a011562dbb7d098f4ba1dd4c071df93345fcb12735b3199082fc7b2
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: a6f235b12e428c691262d4663e945843f1fa41d94101ee237364d6e03d4cc364
+    event_identity_contract_sha256: 194a90fed8504b23cb143d0aff28d5ff2766d206f4fe798ee12de695e09c3a25
+  row_identity_contract_sha256: e0d31dc630ddda260e5db356b2431e6ef2018527b899f5f11318f639588ecfa0
 - key: dispatch.issue
   command_type: IssueDispatch
   command_schema_identity:
@@ -562,23 +562,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/issue_dispatch.schema.json
     command_schema_id: ars://core/command/IssueDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: a6862a0dd48c65d478944963eac642b04ce35126cb6bf49225af3a40c6f65083
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: ec7d649c293b46c3b43f74fdebcbba59aae1bd085af7794fc87c2ed8a508b8ef
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 135784b34c1fa5d415e95f275beb492a973c15d6118bbec7c4d2d674debd96ea
   event_schema_bindings:
   - event_type: DispatchIssued
     schema_token: evt/dispatch_issued
     event_schema_path: .research-system/schemas/core/events/dispatch_issued.schema.json
     event_schema_id: ars://core/event/DispatchIssued
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 7627f9bd45a6dae88d83768cb0c88f9027a74a7599816a56eeeffe05c0bae437
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b5daf45ae20e1322d4d9e46f896f4c26ed6e8373d9b6c029089a36511b46bfc5
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e3fcfcccdb9544eca8959b913cacc79be4b1c268097e1a004e1ed105b8e0b378
+    event_identity_contract_sha256: 293c9cede6a9b5a5a99d46c878e9dacd7d5bf10008d4a11e199224ab0a9df1da
+  row_identity_contract_sha256: 99411f926a592c480c56aa08c606d6b5111289d23a9c16f5127d6e4288ea5b4a
 - key: dispatch.deliver
   command_type: RecordDispatchDelivery
   command_schema_identity:
@@ -586,23 +586,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_dispatch_delivery.schema.json
     command_schema_id: ars://core/command/RecordDispatchDelivery
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 511cb79f6b16195b4186c19180359af7cf9a8e5789ea5b276d38d3ee5bfecaec
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4ea1a992c372e70e6ecdea018685681dadc37aea2169c8f72006e06a7231dfe1
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 6a3fc7f502a3c51d0ecf5813185df7117839134e00079667e14a7d7798c305bf
   event_schema_bindings:
   - event_type: DispatchDelivered
     schema_token: evt/dispatch_delivered
     event_schema_path: .research-system/schemas/core/events/dispatch_delivered.schema.json
     event_schema_id: ars://core/event/DispatchDelivered
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 5d393d006fcc26e24265c81070626787c6167343d7df62da3c2381cc1ff6a0d9
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 791a065296ad8bd406c6f7b7d33463c7f6cb9a906ad1c25529559e3be986537d
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2dd420ce4d2161fd6b362423755b9ac8f7568cb91be610b0e7994698b18b6236
+    event_identity_contract_sha256: d4f706d7c6c58e726f1f5fe74f13fd5a593c68538610728995e5bc92c17838f5
+  row_identity_contract_sha256: ae8ad574a83d5fd4eff150a38cef74af3f779ede514817e459ae2a2f43b9e482
 - key: dispatch.acknowledge
   command_type: AcknowledgeDispatch
   command_schema_identity:
@@ -610,23 +610,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/acknowledge_dispatch.schema.json
     command_schema_id: ars://core/command/AcknowledgeDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 87915461d017728bf559ab65abba434f442244a6f06db3eec9f84405555195a3
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 45c3696f5ff2a531bc836c9bbd9e63b98c2f7949de412c39e8075ade82df7623
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 88c89adf99ddc8f265a9e0e8842c7e53b9d8d9b50775bcb3912f5d52fd7da6b2
   event_schema_bindings:
   - event_type: DispatchAcknowledged
     schema_token: evt/dispatch_acknowledged
     event_schema_path: .research-system/schemas/core/events/dispatch_acknowledged.schema.json
     event_schema_id: ars://core/event/DispatchAcknowledged
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: e83aee692acefdfdc50782baddb7b010a7359487f11cf8e0158161ded475b105
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: c9427ad605c0c65e2fb64bee6ea2a1451a7be754a485dac959030c107e1cbf33
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 830d6ca43e97cee0fcde7143278db8b3a3ade6de823cce04d81020f471d09a4b
+    event_identity_contract_sha256: dfb204b2c062e014786b4a345893a43278ed1c9282eb8b760901db98284be5c2
+  row_identity_contract_sha256: cb0b58c7ba14b89d4c364694d4b234034efe52a18b0e9a670ce54bdafc416f17
 - key: dispatch.claim
   command_type: ClaimDispatch
   command_schema_identity:
@@ -634,33 +634,33 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/claim_dispatch.schema.json
     command_schema_id: ars://core/command/ClaimDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: f06965aaa08108e4fced7dc20a6e180d0072f3057c3b46624ce020cfccc93dc3
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: d928515550ac044d06e3e1854793ed7253d463439b76dca32b887f7e7a0adaa4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 0e58d269fe4bda7cca31f95bca2e70e57595f49a32919d6580353dcd41efb914
   event_schema_bindings:
   - event_type: DispatchClaimed
     schema_token: evt/dispatch_claimed
     event_schema_path: .research-system/schemas/core/events/dispatch_claimed.schema.json
     event_schema_id: ars://core/event/DispatchClaimed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 61a97dd3580192d699f14bbef2aa16e0b49ad857e66a86671a5913b991a7838b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 5da77a8972b35cce11a2aca1fff7c3fc3d935063f35faf3ec174f181368d53cb
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    event_identity_contract_sha256: 4e49f50d239a444dc5349e2a50aa0d12bf464a264e627b77dc60510499d3276a
   - event_type: TaskClaimStarted
     schema_token: evt/task_claim_started
     event_schema_path: .research-system/schemas/core/events/task_claim_started.schema.json
     event_schema_id: ars://core/event/TaskClaimStarted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: af5409c06a1862b9132562b65843b877bb3b3818df336925d2a1bf42aad6687f
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 262402cf179182643ce3c20cc8bd74f3c02dbb2142ee7d42d8b65aec1cc0a355
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: d2af79b8b4010830225fe9de0d84ff47214c08093727ac9acabcdfe798453dc8
+    event_identity_contract_sha256: 028501393ca0c94cd55e9d32457bf9016eb69bbcb22531ca71b950eacdcf9373
+  row_identity_contract_sha256: 224ab15ddee9a1ac6b532a18f50acfbfa08747e5e843ccf913c8d88be15ba9aa
 - key: dispatch.fulfil
   command_type: FulfilDispatch
   command_schema_identity:
@@ -668,23 +668,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/fulfil_dispatch.schema.json
     command_schema_id: ars://core/command/FulfilDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 1e153c4c66e15d0c0a23faebe14c0efcf257fa97b17b6e3f585341af38532ead
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 75eb37b678fdf2293f6367f6b6322b114b6a8448fadb18b24f45f0eded1c56f3
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: b2650b13d80ab2d171daa4ae73182dffc7ba99fbb3f9719e4de631599784288c
   event_schema_bindings:
   - event_type: DispatchFulfilled
     schema_token: evt/dispatch_fulfilled
     event_schema_path: .research-system/schemas/core/events/dispatch_fulfilled.schema.json
     event_schema_id: ars://core/event/DispatchFulfilled
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 9884a64635d1cb4c418f8688540592c162e300cff8eb21541c3a31600e6d52ba
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: f02c3bb43df18492dfad526e9844bdd56018fc40780e1146432753b34c96e75e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: d08c4ddb784d308ddc1100e412306ff043cc09775f55cdbd2adb61307f2b3332
+    event_identity_contract_sha256: 202c7af8afb4d1af53d5e7b02697d936127f7e147cfc72ac86d98a6ea305a8be
+  row_identity_contract_sha256: d1f338db1f0dd55a6805e525af9d640c131a8e2022768088f257c23df91bf5fe
 - key: dispatch.expire_issued
   command_type: ExpireDispatch
   command_schema_identity:
@@ -692,23 +692,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/expire_dispatch.schema.json
     command_schema_id: ars://core/command/ExpireDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 7a9bfbb2e171ee4238b2376d007555fa13c93b0f60a69a8c2ea13a195f189ce6
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 07b6958ba136313bd8c7ed7a928cb4d8dc93a67df92a5a9a83266c2c49b41a3e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 391e00c73a4175fb014489b9aee0ecef86ad4b245f7e527e7d15c2c1b93a61ae
   event_schema_bindings:
   - event_type: DispatchExpired
     schema_token: evt/dispatch_expired
     event_schema_path: .research-system/schemas/core/events/dispatch_expired.schema.json
     event_schema_id: ars://core/event/DispatchExpired
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: a5c1d548923482c60a1b8cc948774f85e2f71b66bc4e657773be775f6916ae58
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7bcb4350abbab79e5a018526a73ac3c1278a86d014f854e8095034a395ce3b95
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 7683d1cc7253fff29ae090937edfb26b8430aeca54d6b10461795b89377ffea9
+    event_identity_contract_sha256: 7a523c88799ef2441828d386dfd3db6f706de62bd362cc581424fa2debc0ce03
+  row_identity_contract_sha256: cb0a5b4c3e4a20a2626f7d3036c3090181164aef94875cfb654052e81bc50ba1
 - key: dispatch.expire_delivered
   command_type: ExpireDispatch
   command_schema_identity:
@@ -716,23 +716,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/expire_dispatch.schema.json
     command_schema_id: ars://core/command/ExpireDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 7a9bfbb2e171ee4238b2376d007555fa13c93b0f60a69a8c2ea13a195f189ce6
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 07b6958ba136313bd8c7ed7a928cb4d8dc93a67df92a5a9a83266c2c49b41a3e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 391e00c73a4175fb014489b9aee0ecef86ad4b245f7e527e7d15c2c1b93a61ae
   event_schema_bindings:
   - event_type: DispatchExpired
     schema_token: evt/dispatch_expired
     event_schema_path: .research-system/schemas/core/events/dispatch_expired.schema.json
     event_schema_id: ars://core/event/DispatchExpired
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: a5c1d548923482c60a1b8cc948774f85e2f71b66bc4e657773be775f6916ae58
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7bcb4350abbab79e5a018526a73ac3c1278a86d014f854e8095034a395ce3b95
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 1513e5350f7f3d24b32495dbdf69438f856851a88c164769b9fca6091cdff9d6
+    event_identity_contract_sha256: 7a523c88799ef2441828d386dfd3db6f706de62bd362cc581424fa2debc0ce03
+  row_identity_contract_sha256: 1a6fa3f2b6eb7979fc59fb95eee0f6ffd9c6b13106979a757f234412aa1e1225
 - key: dispatch.expire_acknowledged
   command_type: ExpireDispatch
   command_schema_identity:
@@ -740,23 +740,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/expire_dispatch.schema.json
     command_schema_id: ars://core/command/ExpireDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 7a9bfbb2e171ee4238b2376d007555fa13c93b0f60a69a8c2ea13a195f189ce6
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 07b6958ba136313bd8c7ed7a928cb4d8dc93a67df92a5a9a83266c2c49b41a3e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 391e00c73a4175fb014489b9aee0ecef86ad4b245f7e527e7d15c2c1b93a61ae
   event_schema_bindings:
   - event_type: DispatchExpired
     schema_token: evt/dispatch_expired
     event_schema_path: .research-system/schemas/core/events/dispatch_expired.schema.json
     event_schema_id: ars://core/event/DispatchExpired
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: a5c1d548923482c60a1b8cc948774f85e2f71b66bc4e657773be775f6916ae58
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7bcb4350abbab79e5a018526a73ac3c1278a86d014f854e8095034a395ce3b95
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e650ded9da2ced82cab30aebd7a341212352abd4c9fe0952dbe8fe6929d8e7af
+    event_identity_contract_sha256: 7a523c88799ef2441828d386dfd3db6f706de62bd362cc581424fa2debc0ce03
+  row_identity_contract_sha256: e8790d436cb8fe08bb4704bd47d62718db66785d4ff9da8e02fcceff8f974758
 - key: dispatch.withdraw_issued
   command_type: WithdrawDispatch
   command_schema_identity:
@@ -764,23 +764,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/withdraw_dispatch.schema.json
     command_schema_id: ars://core/command/WithdrawDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: d646391be9f2040bcf151c6691c717f9ec8d550d3e7e0c01713f7d590d39fe97
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 85ccb16c5c17cb9e818cdc751b0f3965857cfc0f76c6442ca4f98cc29ffda9d4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 8eba41522b30a59a005316c39decdcbe60a03ceed20250d7dada1c20b6aaa828
   event_schema_bindings:
   - event_type: DispatchWithdrawn
     schema_token: evt/dispatch_withdrawn
     event_schema_path: .research-system/schemas/core/events/dispatch_withdrawn.schema.json
     event_schema_id: ars://core/event/DispatchWithdrawn
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: efd7146f5bccd9ed176fff60f937fb438213e0aed3cd6743596234ff7221923f
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 05fe8af0a24ae3fd28e6ed82b211f9dadb53bae117a328621f8c9c416a5b0de8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 6223091e710fec3b8b51facf45d0cdd2cb4d61b94db8ee6857fdd7392dcb10f3
+    event_identity_contract_sha256: 0c86eeed2e244363a7534286fcf88550481679bd621cb365455d7de47dffc434
+  row_identity_contract_sha256: 074228b728d8dd5fa281e232d261b92264fc3a26bd5149fea1aa7fac99035efd
 - key: dispatch.withdraw_claimed
   command_type: WithdrawDispatch
   command_schema_identity:
@@ -788,23 +788,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/withdraw_dispatch.schema.json
     command_schema_id: ars://core/command/WithdrawDispatch
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: d646391be9f2040bcf151c6691c717f9ec8d550d3e7e0c01713f7d590d39fe97
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 85ccb16c5c17cb9e818cdc751b0f3965857cfc0f76c6442ca4f98cc29ffda9d4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 8eba41522b30a59a005316c39decdcbe60a03ceed20250d7dada1c20b6aaa828
   event_schema_bindings:
   - event_type: DispatchWithdrawn
     schema_token: evt/dispatch_withdrawn
     event_schema_path: .research-system/schemas/core/events/dispatch_withdrawn.schema.json
     event_schema_id: ars://core/event/DispatchWithdrawn
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: efd7146f5bccd9ed176fff60f937fb438213e0aed3cd6743596234ff7221923f
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 05fe8af0a24ae3fd28e6ed82b211f9dadb53bae117a328621f8c9c416a5b0de8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 3cf71eda0bca21c50d129a40eaa63d0e1f1df52c0a927544b736137068f3f164
+    event_identity_contract_sha256: 0c86eeed2e244363a7534286fcf88550481679bd621cb365455d7de47dffc434
+  row_identity_contract_sha256: da50d0637a67f9f4e52a7f440238794538818308294a599cd45ce0ec341d795b
 - key: lease.activate
   command_type: ClaimExecutionLease
   command_schema_identity:
@@ -812,23 +812,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/claim_execution_lease.schema.json
     command_schema_id: ars://core/command/ClaimExecutionLease
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 9cdda07c7ecb8a29eb3f0a9623af899fa6b9dd8053018b124b68c7e23c8bcf2a
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: bf9798fcf08239b51f03214a0ea027b596176e621cad333f3b003e9f01ff1af6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 2c16d2a16047b9822d96aa2a3579a9384135b99805870178821a223113bd014c
   event_schema_bindings:
   - event_type: LeaseGranted
     schema_token: evt/lease_granted
     event_schema_path: .research-system/schemas/core/events/lease_granted.schema.json
     event_schema_id: ars://core/event/LeaseGranted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 0d70e8ead866c67029df8ee5901865bb212327d1a379d543a9e8528f45fbb18b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 6e021bc32f73feaedba259c2b5832b1b3c3ad8565593c97b5b5ef08ad887a3ad
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2de83c4931064bbb1f864af79d0766b0656f2dc48d3152a0b5ac8a24c24e43e4
+    event_identity_contract_sha256: 6abf727afe19fb96511641b790a31d3773f7dcc8a71c9237822daf16b82e5903
+  row_identity_contract_sha256: 01a703d5b204a929c8386f99f25eac5dfc6e89b76707b1741d92021a070622c6
 - key: lease.renew
   command_type: RenewExecutionLease
   command_schema_identity:
@@ -836,23 +836,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/renew_execution_lease.schema.json
     command_schema_id: ars://core/command/RenewExecutionLease
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 07123ed7e139e1e90b3a709ad279182a26ae977c70544df9f053c9966d8d38d6
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 75f26ce18290157e220b5a2b90ba096f11944c8c0bf29ca37201586e601a3b92
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: c677b6606408fa323e39f17528a2018e8260b588f8ce6a841554ce13a09e49fb
   event_schema_bindings:
   - event_type: LeaseRenewed
     schema_token: evt/lease_renewed
     event_schema_path: .research-system/schemas/core/events/lease_renewed.schema.json
     event_schema_id: ars://core/event/LeaseRenewed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 428e284df382c60efe6211365171a9afc314431b1b1e2f744639abbabc0e36cf
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 3bb1f072ce139088ae6b079bd79f196d6a9370d7559d5e024e06060a7f3de83b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 981494b18f53d1f4668b69b8c367f226646cfdc9957360929eae0bc7054c8a9b
+    event_identity_contract_sha256: 4010f85499aa8fc7124da02cf7a70d9304ffa8b426d6a18b9865f6fd79041b3e
+  row_identity_contract_sha256: e8b57cac48133c489a6990e0b43050e6517b59b5002233164fc92c8e37759933
 - key: lease.release
   command_type: ReleaseExecutionLease
   command_schema_identity:
@@ -860,23 +860,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/release_execution_lease.schema.json
     command_schema_id: ars://core/command/ReleaseExecutionLease
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 1d2a854193f368e4d7e0b2f447d4cb49bbfc6ae8455a3e07af70d30137451f12
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: c3dd0652874b2819e0d52fbc0f67cbfeeeb69c03be90bb3a35b96bde038ad63a
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 50548f8a59152d029cf580dfbe3b84c9dbe4d155f3845c83e910d6148b561858
   event_schema_bindings:
   - event_type: LeaseReleased
     schema_token: evt/lease_released
     event_schema_path: .research-system/schemas/core/events/lease_released.schema.json
     event_schema_id: ars://core/event/LeaseReleased
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: f27238b9dc79de4e879f4db4d84b87d476943244521f5f262254e7cdbb03e0d7
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 2f200612fea2c762cc827c409d11ac08f82010ea50a7dea36d4a40be2ce76a09
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 40978d76d71dc3d5e5abd85cd0e6260d06d92a694fbbd2458db157a035d3231b
+    event_identity_contract_sha256: 0d5dfc18ee9802d6fc21059c595142ab34a66b7d06cab8a071c8e18296465a6a
+  row_identity_contract_sha256: 4ebb6bad42d7e24ebabf32c532915a773ea0fcfc368e10d4892f2af534c60fa4
 - key: lease.expire
   command_type: ExpireLease
   command_schema_identity:
@@ -884,23 +884,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/expire_lease.schema.json
     command_schema_id: ars://core/command/ExpireLease
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 652d99b58ebb4d3bf3504d0386cffa65bc4c6e3bcee72768a35cf0c51ef266bf
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: b7fc722a8dab6d2f318effef1fc6650077714bca907b334c40f49ee20cdc2252
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ea93ad85314ed3f0a3b804d3746411ac3a8a6c416d1fe82d2e5cded031453614
   event_schema_bindings:
   - event_type: LeaseExpired
     schema_token: evt/lease_expired
     event_schema_path: .research-system/schemas/core/events/lease_expired.schema.json
     event_schema_id: ars://core/event/LeaseExpired
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 8ff962ef760c0391f8ebb042bd9211a6835484dc795d6efc7bb1e283083395a7
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 1dea70868733bb91ffbcf72d2beb909d349d5ecbada54cd72b9f501425dce13e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e3338ae56c27532ea4dee5cbc3da975d68c50e890af3392d2b69ca21551c3e00
+    event_identity_contract_sha256: 069a332c1306ecac93d975f0fe0b06d7839ee35f0a448af01239e7a5f3842317
+  row_identity_contract_sha256: 5445851efa13d1c904bf9a1539cf73b040b67c64cf7dfc18aa68308ecf4f888a
 - key: lease.revoke
   command_type: RevokeLease
   command_schema_identity:
@@ -908,23 +908,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/revoke_lease.schema.json
     command_schema_id: ars://core/command/RevokeLease
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: bf6f59d15f07d74b4e9792fa392e16d6eb72f0995b6b0e7caa7b5321fc157ae2
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 1b6e45366ed5b065f0ddd92ff8949e17161ca68cbc9d58bd6a57807c43872471
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 9a98294c8a95c7d71619f40eacb0b5e434fb3e128a1aa206e6562555509250dd
   event_schema_bindings:
   - event_type: LeaseRevoked
     schema_token: evt/lease_revoked
     event_schema_path: .research-system/schemas/core/events/lease_revoked.schema.json
     event_schema_id: ars://core/event/LeaseRevoked
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: a167a634a9bdee9349d54272428bf261c8687c5a087cdd07180d22be3b042c3c
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 8dd3344569f643cdc73655bae39581baab5b2b12fd0e390abeb4acef75f304bc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: ad2324a566d316c02563a0d9abd751a38c9b7d3f7f4d4140535ec9a2b4a2801b
+    event_identity_contract_sha256: 91c68de4b43ef3f8bf1d370c4e788b3444297cc89e67190b7753baf80df641e3
+  row_identity_contract_sha256: 9e9401dd7c87a7dfcf8a27e015a172e0f60d21326f14a0c844459a7b9fcc8b69
 - key: attempt.create
   command_type: CreateAttempt
   command_schema_identity:
@@ -932,23 +932,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/create_attempt.schema.json
     command_schema_id: ars://core/command/CreateAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 4523ad6992c4469a703fda452546a1977aade86660c3619a85fdcb774e88aa33
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 06d7377fde0a7ff206b56b46b30f67b24942bce0db4842a347f03ab921f45a68
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 29baacb5144951ae0b9962ad094e539f5a3dc88c0969c343030d93c7a7164041
   event_schema_bindings:
   - event_type: AttemptCreated
     schema_token: evt/attempt_created
     event_schema_path: .research-system/schemas/core/events/attempt_created.schema.json
     event_schema_id: ars://core/event/AttemptCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: c6d16af07290a4495aad19bf603ddcd9d20ca29d5952e964b93f09dea9ff3041
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: ead59f19626d73cd07900eb661f492e1f98b42a67ac36c3b062e65a5173ada28
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 73eda5e53edb51b99fc95fa9a624696fdffc15a23950ac9661485f73e5f0cdc5
+    event_identity_contract_sha256: 54da1f97b84e83e618ce0c47d2be20335c48e018fc98eaafa2f71c1b1b50ad3a
+  row_identity_contract_sha256: 13b5de392f2ac00849a1e30ce29b50c6264283914cbc1f632c4ea36299c3a91b
 - key: attempt.claim
   command_type: ClaimAttempt
   command_schema_identity:
@@ -956,23 +956,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/claim_attempt.schema.json
     command_schema_id: ars://core/command/ClaimAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 7587abe36de0e4ba303f5e27087801699cecf055afa9d4c9e48fb403cde10763
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 568a5190fcf829e8c1d0d079a4368254cd831c0c863373e19cccc5bce31f66fe
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 1bdeaeb5caa90254d43ad3d5a741f74db1b10107a4d093f1af1b9f2d260755be
   event_schema_bindings:
   - event_type: AttemptClaimed
     schema_token: evt/attempt_claimed
     event_schema_path: .research-system/schemas/core/events/attempt_claimed.schema.json
     event_schema_id: ars://core/event/AttemptClaimed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: fd7aa917feb7677339e422cd3b1fc91510e71d3f1e20f3ba6fe55b65144f33f8
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: ae51fcb166effbf8271214b908fc279099c0dd05c91b02b97741d89997d62c67
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 59a9f1873842971231507ea2fec39a32b5946bf624401da047ed686e9c709548
+    event_identity_contract_sha256: eea19289b86d6deb4b87dfba420e15a887fe93eac71a43ee2a4926f8c5841b43
+  row_identity_contract_sha256: 2461be535b1d8fa34c8952edb422775ccc0b09b52c6252df057216b14e8365ac
 - key: attempt.start
   command_type: StartAttempt
   command_schema_identity:
@@ -980,23 +980,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/start_attempt.schema.json
     command_schema_id: ars://core/command/StartAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 347961031d70c30225946ed7542288b096d1d7581f778709f037780059c345bc
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 6832641026c2738d2fe6efea053e161cefdb3656f98c88208bf0fe261740a039
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: a2dbc50f41dc44a7579f41b7245e1f66f4e4b210be1809d9eabb759e5048a27c
   event_schema_bindings:
   - event_type: AttemptStarted
     schema_token: evt/attempt_started
     event_schema_path: .research-system/schemas/core/events/attempt_started.schema.json
     event_schema_id: ars://core/event/AttemptStarted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: f58e694b59af7914b5d44d4f5eefc0a06048bc6d5492f9fe5028f7cdf03f6f91
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b2d35a285dee1972b790287b3dc67d1c17db230dd571d217bd54096b1f75d204
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 851349a39ac27e5d08b680221c2e8d84c5eec2ef7b8b2150b8aad1dc9e9ae84b
+    event_identity_contract_sha256: 72e862ee580298e4b35b294e29ad59868cab6c6b3a31745b87f280799eb580aa
+  row_identity_contract_sha256: 4c1370f91eff1b1de76a724475c7f6f2190cc268906e42ec88294e17793d15b1
 - key: attempt.complete
   command_type: CompleteAttempt
   command_schema_identity:
@@ -1004,23 +1004,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/complete_attempt.schema.json
     command_schema_id: ars://core/command/CompleteAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 3e3089a29a84e15ce61d5c93ac8738452b0f76908f265cd5f822ae298fda7046
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: dd993da76b36f9ce54af6fa9601be1179a869e411e79586b2478cc9906f9cd9c
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: c17c7b91f0da8ab8a684b335ebf12fb9d20ee1e0b8a12da857f5eadc9c33f513
   event_schema_bindings:
   - event_type: AttemptCompleted
     schema_token: evt/attempt_completed
     event_schema_path: .research-system/schemas/core/events/attempt_completed.schema.json
     event_schema_id: ars://core/event/AttemptCompleted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 55246ec5f3891a7562b4dde4556ef015ff554210ee65cd53e30c07361f3d4a86
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: ae609b07749e0b191b8f0ce4cff600e75aea1eece440482b1b0d421be2623e0e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e62c6dc7475f0a330fb8631e6bd02a2c721694238d6f37561dcbf378bc961e49
+    event_identity_contract_sha256: f21255ee59cc8acb641bdf789a1340ec75b064bca20a6094e1a59600fc3ee595
+  row_identity_contract_sha256: 447a803661d1713556b2b1dc67ce68b48342f30e67175c9e1a4acb12a7dc415d
 - key: attempt.fail
   command_type: FailAttempt
   command_schema_identity:
@@ -1028,23 +1028,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/fail_attempt.schema.json
     command_schema_id: ars://core/command/FailAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 398fb2944f32971f2c14f548c2fbe285c2da287d95a77e228875499473ae8ef3
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a198cfee73c624437582565107a97af762f5c9eb16f1cb27e95a146ff808786f
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 37856bdf38a975a63ff18d5cf7b24278f487564fbfcbe0d62b296bd54d6f06a6
   event_schema_bindings:
   - event_type: AttemptFailed
     schema_token: evt/attempt_failed
     event_schema_path: .research-system/schemas/core/events/attempt_failed.schema.json
     event_schema_id: ars://core/event/AttemptFailed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: f8c4959262b21de3e1164482f7cb9bb0da38368b835961940b706977af167894
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 240d63ceae0089f67fc6eeab0a46bc1481402a371c339e4d2c9ebcca3c4a9a58
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: b3b5d1fa9cfc28b4ea3302abadba32558487e51d9d44ff41553f983f1a753134
+    event_identity_contract_sha256: e4ed2a38adf2f1b19672fe1cf62f02d2c0e406f8fb1867477917b0c8be6f3e63
+  row_identity_contract_sha256: 24eafb03d985d3146b7bd2eefcb414ded755c69c6aa70fa7fde52e26474bca1e
 - key: attempt.partial
   command_type: RecordAttemptPartial
   command_schema_identity:
@@ -1052,23 +1052,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_attempt_partial.schema.json
     command_schema_id: ars://core/command/RecordAttemptPartial
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 802a4f753972a27031543ee696161fa35281cb40c7609b7e11b8688e11fd96ae
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 94025f85f3e1e53320e069e96afed5640bf94c6ca4202059b7367e170c122936
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ca2cc13b02430c550d8181c40a57a860b0afdcfca6b31a756a1a4af78b885433
   event_schema_bindings:
   - event_type: PartialOutcomeRecorded
     schema_token: evt/partial_outcome_recorded
     event_schema_path: .research-system/schemas/core/events/partial_outcome_recorded.schema.json
     event_schema_id: ars://core/event/PartialOutcomeRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 3c09aa6cfa85027ab54d39dd2172ea3701800ed790cd66549370da39d83e6541
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 03bbe08b1841d0df393465acbf917d5984c3774fe2ad943490bed89e736372a5
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: c0234d2c5a5ec6256f7ba2d5358985e227b11ca7745ab5830868c8240aead897
+    event_identity_contract_sha256: 4fd21f3aa4308053da90a0fe6a85e132aa1bf394c1a64c56afcaf9114f5247eb
+  row_identity_contract_sha256: 9b88cb2929a4e61deb5eb7439a5070195b9c33bd7d9b1a4de6c6528f8b122c87
 - key: attempt.pause
   command_type: PauseAttempt
   command_schema_identity:
@@ -1076,23 +1076,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/pause_attempt.schema.json
     command_schema_id: ars://core/command/PauseAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: e3b1e31b6d7c4bef7ee872e4042473a76dfc246c22763c25de70e6f43fbf7889
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a5db1372f7107aaa1d4788fbd7cacce3efd1f02b357cdb0e55ae963b0c1dccc7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ddc8980688cc1bc7025e97d2ec593e36f412ae89ae0c7e4f9c3abba11c050b15
   event_schema_bindings:
   - event_type: AttemptPaused
     schema_token: evt/attempt_paused
     event_schema_path: .research-system/schemas/core/events/attempt_paused.schema.json
     event_schema_id: ars://core/event/AttemptPaused
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: e76e6125375876f4dc2a8694d42e0ea593d764e7adbee595a24a3adddd80ce1d
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 4aacea16a97b15a0cef18870b624d6c9ad69b5050b17a21172ed07bd212f414c
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 70115bf486bd51505195a2d6909f10e32b090f5f1a013af345814c59d18587e1
+    event_identity_contract_sha256: baab85318c17b02a5e65f76928d3972706ff19eeff222d29c105653c1ced59f7
+  row_identity_contract_sha256: a7bf92a2e4b2d8dae0f41e81b0b95a5f788d6f1649c2568ff78c575878bd15dc
 - key: attempt.resume
   command_type: ResumeAttempt
   command_schema_identity:
@@ -1100,23 +1100,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/resume_attempt.schema.json
     command_schema_id: ars://core/command/ResumeAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: a1bdfbb8b2f2d80319f6e95aff8212471865547f0cce6c8ab5a33f06b8c88b47
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 9329065d378f989bf5cf8697ae2fcdf417ece2a0eff48ec8f36d765b9b156c65
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 1efa983f971425443e227819fa4e5411f65db4c3f0b713319c728bd3452bb2bf
   event_schema_bindings:
   - event_type: AttemptResumed
     schema_token: evt/attempt_resumed
     event_schema_path: .research-system/schemas/core/events/attempt_resumed.schema.json
     event_schema_id: ars://core/event/AttemptResumed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: ed77cdc80df75fdcda2dca088428f96c1cfba69549b0b33899ce7b1e09687bad
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7d00ffacd6ded97913a0bd6b876f2c2e58ab4a2494af10aa5d3226663f08b1f4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 4bfddd940732ddb65908619f7289b2f5a743d4629c3e77869711be827065b734
+    event_identity_contract_sha256: 8326d7b59eebbf28b87b1d569bcabb33e62f98ac310818d1e038f65dd91c5583
+  row_identity_contract_sha256: f1fd5e9fc74d2ee62c64ddbea85eb23554c517b6ba4bf2366d62dece80768b2e
 - key: attempt.request_stop
   command_type: RequestAttemptStop
   command_schema_identity:
@@ -1124,23 +1124,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_attempt_stop.schema.json
     command_schema_id: ars://core/command/RequestAttemptStop
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: d5bef2dc1db14abe22fbc586b753be62842bf56e4ebb55ee36ed9bbd65cdc77c
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: dce7be5d6314483c74225c9a6b2010f761c44e161f54509209d4dfc07641b7b4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 3d684d67b4d17092b561446f1644f8612a62d8fb865cd7f3d52111339058d70f
   event_schema_bindings:
   - event_type: AttemptStopRequested
     schema_token: evt/attempt_stop_requested
     event_schema_path: .research-system/schemas/core/events/attempt_stop_requested.schema.json
     event_schema_id: ars://core/event/AttemptStopRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 196c2b694cb43695cd606e36a8a7929b77cee301d4861e64b78b578955fe88c4
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 6542d5487a91a4992c0dd411f0e9e8239b22a6353db034e38f2b39f48160a462
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 967fec860070883a98d50b7016e559e261570b7aa0e8a0de2b76645dbd9049a0
+    event_identity_contract_sha256: da84ac11c7f1b790452983ee2cb1a76afd3551d69da0ba47be626457bfc799e8
+  row_identity_contract_sha256: 7b8c96ed9fa1ef31fb07970bc4ac43dbc99b7757a086031a3f5094de03266b2a
 - key: attempt.abandon
   command_type: ConfirmAttemptStopped
   command_schema_identity:
@@ -1148,23 +1148,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/confirm_attempt_stopped.schema.json
     command_schema_id: ars://core/command/ConfirmAttemptStopped
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 09b7c2b2ce2bd36e3a3bc989acc34c8d1d70b5c6e1508e3785c0e756549c4bd9
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 7646aed1f88c72e074048215b9b1146ed1d314a0841e023372ff7cb082c94f74
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: f4f7cdd505a7d1fc161b7ee6f3d2d7e90e67eaaab985d16566ee9629540c5182
   event_schema_bindings:
   - event_type: AttemptAbandoned
     schema_token: evt/attempt_abandoned
     event_schema_path: .research-system/schemas/core/events/attempt_abandoned.schema.json
     event_schema_id: ars://core/event/AttemptAbandoned
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 28ba0b0ee3dbcae6d8af47af641c903a764bf21a203ed06d73a5e31eb7099050
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 8dfa7051a262314084d96cee585c4acdb3443ffafdf85f9b62cc647fc8673c8b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: b5fbbc19e3ec7fcf4744ef0184e0bf1db6d790ea5451bc76ef014d574ae8aa49
+    event_identity_contract_sha256: 265002fae1740c5747e2c9cbab95c3e4260138db5a424826c9c76479aa801195
+  row_identity_contract_sha256: 091589c590a488a7abf95257a7e121a7225b904aef0a2a7d4760849274c78084
 - key: attempt.supersede
   command_type: SupersedeAttempt
   command_schema_identity:
@@ -1172,23 +1172,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_attempt.schema.json
     command_schema_id: ars://core/command/SupersedeAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: c97b6defa58942f1d57735ded40e6e2676dd9d31d6cbb22926186bb44e229747
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a8219efe3bdbd06197a23f758ba441a5e04d0d23a9247850d1d7b3b84534d626
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 86ca76f01dbc5ef9cc0aa0b5a257d5c5568da4d222cfdc89c5e781785a9c10c1
   event_schema_bindings:
   - event_type: AttemptSuperseded
     schema_token: evt/attempt_superseded
     event_schema_path: .research-system/schemas/core/events/attempt_superseded.schema.json
     event_schema_id: ars://core/event/AttemptSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 96749f3bde56206904140b1f52e97b0db521904af5201df6b40bb04608a5fed6
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: e8d020b960106e20294678b423b04055691dc8bf52dc6436565ac5bb96174ec8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e7e683c26b0ac441d6175aa20f3c4d01579d14d00c5d2f17d3a0163f0e9795b9
+    event_identity_contract_sha256: cdf3dfcc39cf63249feeae3c87a014b69a134927cd2515d1afdef6fa90c6712e
+  row_identity_contract_sha256: 234c924dc5c218b7437fee71e1a448ce3887bab21a7bfc1ca4c738c985064eb0
 - key: attempt.retry
   command_type: RetryAttempt
   command_schema_identity:
@@ -1196,23 +1196,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/retry_attempt.schema.json
     command_schema_id: ars://core/command/RetryAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ccb7946c7426a5b9354e9f195c0066c5f661bcd4022f318e375d95203a4c2134
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: c79d3e2f2102428fb975f6364772c5b26453d75e6f60eb15496bf1ff618ed4c0
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 54a500e6bfd284b164732c9f615b5450260f12f628d033f9ccaa35e7f086f347
   event_schema_bindings:
   - event_type: AttemptCreated
     schema_token: evt/attempt_created
     event_schema_path: .research-system/schemas/core/events/attempt_created.schema.json
     event_schema_id: ars://core/event/AttemptCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: c6d16af07290a4495aad19bf603ddcd9d20ca29d5952e964b93f09dea9ff3041
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: ead59f19626d73cd07900eb661f492e1f98b42a67ac36c3b062e65a5173ada28
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: fc200331c8365d136dc0382448e9cb9a70f03079f481314921579dea4fd8686b
+    event_identity_contract_sha256: 54da1f97b84e83e618ce0c47d2be20335c48e018fc98eaafa2f71c1b1b50ad3a
+  row_identity_contract_sha256: 9ae29b1148ffe7a64d998c9c28bb934f7077d035b6d91ce173b55fac61fcd0db
 - key: checkpoint.record
   command_type: RecordCheckpoint
   command_schema_identity:
@@ -1220,23 +1220,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_checkpoint.schema.json
     command_schema_id: ars://core/command/RecordCheckpoint
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 8e8077a8d8a49047c8f8a6a9dc5b8faba0a84e425c5e3c713f28e43db41f308d
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 145d83016900905a52ae35606ca0db2683fa4cdff0a0b4760e3e8450418b8a7d
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 1490cd8b0396de3ab6e43c1ed6c4f2039331e48330de6b6a85e811fe34b446f5
   event_schema_bindings:
   - event_type: CheckpointRecorded
     schema_token: evt/checkpoint_recorded
     event_schema_path: .research-system/schemas/core/events/checkpoint_recorded.schema.json
     event_schema_id: ars://core/event/CheckpointRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 23ba3b34e4baa8b114dbf36f68b0b2e81c35fff9abf21d8ecc9c7cada8b8a7f5
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: e57c669a5665b9704e5c7b4cff0c9d187875999e0ed2ca8d47226883b886c3b7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 3d80c9e1b976453ebbc4dc74707f935b85a456141100b256ae686e4d2e753672
+    event_identity_contract_sha256: d8ea2ea186021a893122e10cdfd21433bf80a7fbed626b499aa2aeee21b7f751
+  row_identity_contract_sha256: 2d58a29b84573d9a412296afa7b344b423ed5d2b05bb67f283a58eab2e95b855
 - key: message.publish_assignment
   command_type: PublishMessage
   command_schema_identity:
@@ -1244,23 +1244,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 6dd8747d87da2c4e93ac86e553ce0f739db2da89dcf1e21139905e09786532c6
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 641f473f4a2e9da83cbf9a62b024d59af39d42e4b310dbb763dffcd7fcc30f5b
 - key: message.publish_acknowledgement
   command_type: PublishMessage
   command_schema_identity:
@@ -1268,23 +1268,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 55822481ba82234d241571302a0a2e1f1b4d43527f2535f4064d18f49b291c1f
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 2c50229c006f0fb1d9f83dcd26417b2a6258ea3797aa53b8a6a16f069fed20de
 - key: message.publish_progress
   command_type: PublishMessage
   command_schema_identity:
@@ -1292,23 +1292,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 8284438595fd251285ef5275bfcbb65079500afe6471f738b8fe4ed264a14996
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: c61e378289842fb169e929a75fc4946a42829c57b6c4412a1370b31313cc37db
 - key: message.publish_input_request
   command_type: PublishMessage
   command_schema_identity:
@@ -1316,23 +1316,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 47b38a169027c92bfc1314e7395f3463989644c00f9eabfd0b830bd2ebff0249
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 1902777c33498c04ba7f6478e5fc809c6cda275f39e1815158c51d54b16aac09
 - key: message.publish_escalation
   command_type: PublishMessage
   command_schema_identity:
@@ -1340,23 +1340,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2cbf70637b473dc2fa2efadf2d08f81d84ba8f85047f0e2865b64578782298b4
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 28c3d72a2c533294066cc0bd5a1ae13e56ba1e1a19eaf8b9a02793eb97c995a8
 - key: message.publish_report
   command_type: PublishMessage
   command_schema_identity:
@@ -1364,23 +1364,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 61ddb4c766db9106fa3aa015e2bd590ef785edd137431ade91dcb658958d12bf
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 6ed36266f60ee343ac835c7e96f058bc9d0a0ceb610dd25be640e8083d69736b
 - key: message.publish_review_request
   command_type: PublishMessage
   command_schema_identity:
@@ -1388,23 +1388,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: f541e1d343b321b339f90bf9588641c82470327eac433fec088eb81734f9e041
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 2b3ac92888846310798864c3623c7fb6e4fe58c9602a4a603fa80d73cce76aad
 - key: message.publish_review_response
   command_type: PublishMessage
   command_schema_identity:
@@ -1412,23 +1412,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 1eebcbe11ae44978dd1fa0628c2e6e36815ac81a5a5d2d694cf00276850fd9de
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 126c402433d59f9dc73c32a9b0f07f403a4cc5da06e174ef74fc35dfdbf42098
 - key: message.publish_decision_request
   command_type: PublishMessage
   command_schema_identity:
@@ -1436,23 +1436,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: faa7d88d430f029279504fd092acb7b174e23409c35ebf0cae04d525a728efdf
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: 8c31ec3b2cf0159f527976b03e5f970f9a9e20c170f952cc4bbd384558c9749b
 - key: message.publish_handoff
   command_type: PublishMessage
   command_schema_identity:
@@ -1460,23 +1460,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/publish_message.schema.json
     command_schema_id: ars://core/command/PublishMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: ba7ead5fecb0c9e62bc797ca04fdf8ba0817381a9be971b41d51cb6e069bc812
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: f55d012044cbb8e355cc1f56ad19bfadb90d39d5f85732cebfe4a1eab6b580a9
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d831e42d90b634aedbafe2ca887f5839113ddc0cb534000b8df7e22b572e2f7c
   event_schema_bindings:
   - event_type: MessagePublished
     schema_token: evt/message_published
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 64f1574b8d901e30c982bb09951f35735b8a9f351d440b0dd7ff9c0230c15990
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 85e727723c3cfca05d9ccd17368b3b5f31cd055d409b144c5c78c16af44ae8cc
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 190be46e56eb139f89f3f44d9587531651d9ce1d45ac9378650dd45a57085579
+    event_identity_contract_sha256: 088125122f1aedbbbf6896544a16b0568628d2a1096a8d743404ff5bf678540c
+  row_identity_contract_sha256: eec935bc8338ab90c480c0fea028647dfef3aafd4d043103e826a4c7999e6b04
 - key: message.deliver
   command_type: RecordMessageDelivery
   command_schema_identity:
@@ -1484,23 +1484,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_message_delivery.schema.json
     command_schema_id: ars://core/command/RecordMessageDelivery
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 343f6fdd193f10d4875e29f3c6dd3ca250e0d6db2bcf78a3277464adf19e8312
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 07ce3371245df4766dcebce87c337b3d943d67a56cc96d984c1e0be853e0cc59
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 1e5c0bbff62d1f8397551662edbbf29aedc52eacc2717fd01f20349f190ca797
   event_schema_bindings:
   - event_type: MessageDelivered
     schema_token: evt/message_delivered
     event_schema_path: .research-system/schemas/core/events/message_delivered.schema.json
     event_schema_id: ars://core/event/MessageDelivered
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 25314a6bc4098d8af9f8cea0c639863380fbbbbe71d11f76533d711c1071c1b1
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: ed61773640e077cce98408023c03d3a660cc63101dc780475055cdf8701bce29
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: ffd77e7fc1a4a6f97f273090c71cace2eba52597c989a31dcd40fa9cc351ae2d
+    event_identity_contract_sha256: 33fedb37bc1cfbee4491387d5951aeaf29b341378009711164ee23b1f3e54307
+  row_identity_contract_sha256: c1ee8c58920300998d57246bc908e7ca315e400ab943e5e0a39776bdc1b71b2c
 - key: message.acknowledge
   command_type: AcknowledgeMessage
   command_schema_identity:
@@ -1508,23 +1508,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/acknowledge_message.schema.json
     command_schema_id: ars://core/command/AcknowledgeMessage
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 78a364168302690c2a007c980be700bf3e77863e523474e4af4ef23401225967
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: c6c7521b175cd185b08ad1a1e1f4c2268ad9a076abe2e6385e3ac098b1db01f1
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d4fd26a936ffe588f1bcf886b83fb0af5d0c2a31e37406286d4fe746d9380257
   event_schema_bindings:
   - event_type: MessageAcknowledged
     schema_token: evt/message_acknowledged
     event_schema_path: .research-system/schemas/core/events/message_acknowledged.schema.json
     event_schema_id: ars://core/event/MessageAcknowledged
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: ba057856103f2433c95ee51640f97338070ba8d947b79bbe6a5d6bfb5c77f3d7
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: e64e51adea81a6635d43b054f34354d8cb61df9f1d675b212f6822ca51431570
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 6e096f49073c2c1a215875eb519998bf1685db180df9d7811019719331dc6cff
+    event_identity_contract_sha256: 689cb9b0d59838d74f29f1104be2f74f9ac3e58d0b40a43263c61e1b2e02e69c
+  row_identity_contract_sha256: c1224cdf898b7f70d0a61439d3cffea9e8dc066e64105f05b58c69ece3a87549
 - key: message.delivery_failure
   command_type: RecordMessageDeliveryFailure
   command_schema_identity:
@@ -1532,23 +1532,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_message_delivery_failure.schema.json
     command_schema_id: ars://core/command/RecordMessageDeliveryFailure
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: bce96c611a2cd99509969678c95bbd68b73ec44b25d0c5e77561a52a0aeebd4a
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: fdd71bebf1ee11a493ce6f119958491d1b4911985a8714d3d19f679c58597d43
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: e1717eac6e90a39a9b12211825391fe456a5a49e161014859b025904c3b3ff68
   event_schema_bindings:
   - event_type: MessageDeliveryFailed
     schema_token: evt/message_delivery_failed
     event_schema_path: .research-system/schemas/core/events/message_delivery_failed.schema.json
     event_schema_id: ars://core/event/MessageDeliveryFailed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: b6e4e23330327d00294e01dd700252883554c51f784b63e8a200247c8905a47a
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 89ffa1457f911a1b18c061e1710cadfe96033893c5a69a50758051493cf19dab
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 3b9bb6af773f634b2dac4139f974ed5311be642866cfaabebce7e145a75367d0
+    event_identity_contract_sha256: e12dd418902234b5b5f6d211d5d6e17dce38364eac91b1d001d038fe8b8bec42
+  row_identity_contract_sha256: 5d8b433d6d22b74630e1bf981fa005e4f632382f6c9e70fa61863007d4865ba4
 - key: blocker.record
   command_type: RecordBlocker
   command_schema_identity:
@@ -1556,23 +1556,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_blocker.schema.json
     command_schema_id: ars://core/command/RecordBlocker
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: c9d7443854fd00d7baf03e74d6a43ea60419d4c924d0e294841beb3ac6994b4f
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a6bf0413b8e6f0c04c0b4adb69fed1f06702a93f82fe036eacf81727d6d76eb7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 270c5b72186eefee26db82e172fab538e0fed9dd51e265b37f53f86953cb38c6
   event_schema_bindings:
   - event_type: BlockerRecorded
     schema_token: evt/blocker_recorded
     event_schema_path: .research-system/schemas/core/events/blocker_recorded.schema.json
     event_schema_id: ars://core/event/BlockerRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 01fcb24184871d76c18b6815a5e89e0e0a2c366ab3162d1096a936f314ac571f
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 82ed9a1fd3e5602269fca6866127a7a87f4c4ed2c22a32d628b0fbd5d17b235c
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 4531c5f0679d4c30fb0bac03f55318230fcd731ed9891585181f0bae7b97fc58
+    event_identity_contract_sha256: dca086e3cd0c4ecdc4f3b9cb7de51725e218ae6dc1ce9ecfb4cdd2118007908e
+  row_identity_contract_sha256: 468cfa0a0db71ad8bcc32e3121d5fca78db871ef73cb0fb87dcec0fb6f2ac935
 - key: blocker.resolve
   command_type: ResolveBlocker
   command_schema_identity:
@@ -1580,23 +1580,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/resolve_blocker.schema.json
     command_schema_id: ars://core/command/ResolveBlocker
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: d3c71dc80e2cdecfec3dcd177b935c6f25df5338e22a83aa917972d8a94de065
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 66aa713e63962eff11090b91f246f4b52cc091e80f238cd9ad643c1c90f188fb
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d1ae82651a3e946c292f25ca9bf1e56eb59095d0658cb51364dd7510b8f4b134
   event_schema_bindings:
   - event_type: BlockerResolved
     schema_token: evt/blocker_resolved
     event_schema_path: .research-system/schemas/core/events/blocker_resolved.schema.json
     event_schema_id: ars://core/event/BlockerResolved
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 8a407d5b571a4e6f2a17e8bcad4f4e706d59d44cc4ab61386a02593de9a61e6a
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 6e15539d72c64147a4dc0dad20da2e1deb7af99dd9c36dc97df8f3b95c83af5b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: fc0e24f9edfa1771db29843ad81ca06be47f369c28d50b12892e741b1907858d
+    event_identity_contract_sha256: 48461e80a190703296fb789dfbfbf6de9920e55d02ea951c273a8938c0268460
+  row_identity_contract_sha256: a182c3321274c634031ead69a2247c1eedd6a429e4bfc81ad82a44e7a63dda96
 - key: artefact.register
   command_type: RegisterArtefact
   command_schema_identity:
@@ -1604,23 +1604,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/register_artefact.schema.json
     command_schema_id: ars://core/command/RegisterArtefact
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 80e36399b0c46ff8cfc6f2d759235f55d77a7fdaecf4e3a3f945bbb9c77f51ec
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a354b47efaac61bfcdf5292710588f492ec4640d4adc7a63fb6b6c21f0bcb217
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 76f3e47b436c3354966e92ec526f9625b55ec772d4fe40857efa584f7810211a
   event_schema_bindings:
   - event_type: ArtefactRegistered
     schema_token: evt/artefact_registered
     event_schema_path: .research-system/schemas/core/events/artefact_registered.schema.json
     event_schema_id: ars://core/event/ArtefactRegistered
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: bbd8d99b03dcfe88a70243d9c237d97816d69a147d494e799a91265f5fc05f21
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 30b367069113b2144bd400ce9c6c0ef7d90b3f69a57e794749e1b778bd300f06
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 93122211f65f3c774d196e6dbb0d3607871392ef28878770d00c3f5d5388b734
+    event_identity_contract_sha256: 7a7c38e2a1203076b2aeed69769b71a8908cd320d7170619cb38627296dfc48b
+  row_identity_contract_sha256: c043b530ffcdd27080254d2f9eee74eaaab4acab29a7b91c1df2e118ed87eda2
 - key: artefact.availability
   command_type: RecordArtefactAvailability
   command_schema_identity:
@@ -1628,23 +1628,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_artefact_availability.schema.json
     command_schema_id: ars://core/command/RecordArtefactAvailability
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 8edfd9f83d6918cd367ae1f2b8777bcc0349384e5c14d7b867e980406d165d33
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 942d3401ccb3cff4be2b4cd79eac7833c4caf0ca1611796263ba91df030daefb
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 4c628e0f1072df8e601450fc78dbc1e772b228d1527c97cfe3235f1fa073c373
   event_schema_bindings:
   - event_type: ArtefactAvailabilityRecorded
     schema_token: evt/artefact_availability_recorded
     event_schema_path: .research-system/schemas/core/events/artefact_availability_recorded.schema.json
     event_schema_id: ars://core/event/ArtefactAvailabilityRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 258bf7f84df2258c6e141a867c3192dbef0796b8943b9c57cfafd873f92eacaf
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 3b0906a2f03666a1318a436191a8d5ba6c7293f23a2701c14b3df4d2e24ec4b7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 0db6180bda41fa354cba54253ffb5532619c889e66c795f6d628f0389d0060e1
+    event_identity_contract_sha256: 6e4008ea2344018149f54a29fc83561ac8e25dce21a7b52506db6635ae1d0a17
+  row_identity_contract_sha256: b3cb242c6b7cbb9053df443a8b99ad1688dd7d395552f9eae17f057b49fc8680
 - key: artefact.regenerability
   command_type: RecordArtefactRegenerability
   command_schema_identity:
@@ -1652,23 +1652,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_artefact_regenerability.schema.json
     command_schema_id: ars://core/command/RecordArtefactRegenerability
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 4bef82f1722911b399270c18f94561df8897d78413c85afcf43ca7d3b8b5f6e2
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: aa64548eb2ba5c490bacd036a15c1d3870d6e855de88fb48ea0077a59ed49c53
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: e835f0d124192e8962b928067a1a60c162a7010ed7a20e798a0ed2e1f637d6ad
   event_schema_bindings:
   - event_type: ArtefactRegenerabilityRecorded
     schema_token: evt/artefact_regenerability_recorded
     event_schema_path: .research-system/schemas/core/events/artefact_regenerability_recorded.schema.json
     event_schema_id: ars://core/event/ArtefactRegenerabilityRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: efee9a892a12901a31dcd5ab7cb5a15088c15bb1e194acfb60fd5b51e3f1ad6b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: cafb3d2aedecf394b78ac71e617aa5a75a6eb92d29bf1afa128e721ded02d81b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 9f6d8d33c2e895285dc10819119016dab348ce00e40a7cd40789e01d4a3979ac
+    event_identity_contract_sha256: e95bc0c04234b93a0c61836b8242f74e9b2dfbbdf89f82fe733be45a63ac2b5a
+  row_identity_contract_sha256: 2e2190c3f15be95b74469260dc85be976909a2c5d84647c5e034088158c33f5e
 - key: artefact.integrity
   command_type: RecordArtefactIntegrity
   command_schema_identity:
@@ -1676,23 +1676,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_artefact_integrity.schema.json
     command_schema_id: ars://core/command/RecordArtefactIntegrity
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: a021943b8ef1d704cb03bd5900dadb0be6b5cbed2d5eac2e908f442b2f028761
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 458b0d79312ce5c2529953d3286d0676f6b08104a2e162c6f0f2cdd88e00b93b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 28b4999d5195572604482448e3ec2bb4e7c85e729b65f8e4adb798d50ca8b26d
   event_schema_bindings:
   - event_type: ArtefactIntegrityRecorded
     schema_token: evt/artefact_integrity_recorded
     event_schema_path: .research-system/schemas/core/events/artefact_integrity_recorded.schema.json
     event_schema_id: ars://core/event/ArtefactIntegrityRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 9c2fc9244a120ce18219a51ba63615fbfedce073ebda118186244eefbe23886b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: d260edcd1aded11d8f44e84b736b9f73211df2aa87b2cf36158131cd1d45b2a2
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: da177273398572bf62a3c0030f969117abdc8bfbc19eaa2fe36b3613599a828b
+    event_identity_contract_sha256: a7969ccee2de93f10ab4c542849a2a8e454cfca945429d850f5efde269236d4b
+  row_identity_contract_sha256: 1fb1f3df5cae7e7cfce3710ea8d4c995d04e891ce2bcb7cbd0be24fbafcb62d5
 - key: artefact.structural_validation
   command_type: RecordStructuralValidation
   command_schema_identity:
@@ -1700,23 +1700,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_structural_validation.schema.json
     command_schema_id: ars://core/command/RecordStructuralValidation
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 506f6ecdc9a2435c4e3a61db982c655c23117c87dbf4fdb64e3064b577a883b5
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 2b585581a6bc4a15c579c4d3c9adb9e206acc30ca88a88d6be8a5e5ec12c04a8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 16030511f8ea985ddee74535949fb34dbd03e48193eff1335d2c86f6cc8dd9ba
   event_schema_bindings:
   - event_type: StructuralValidationRecorded
     schema_token: evt/structural_validation_recorded
     event_schema_path: .research-system/schemas/core/events/structural_validation_recorded.schema.json
     event_schema_id: ars://core/event/StructuralValidationRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: a6dbf283b00203ce36c60940a628ea7a04b19eee46c5d5d5438f8f909cc403c8
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b01a6358caead20d17dc3edf9f13eef7d17595471eed9e621f5f1ea0b656cbb3
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 6ca60f1261964ca975b28ec021409a92621e1944dee1fc9e7f1fc7ec4cf6e23d
+    event_identity_contract_sha256: 7aae70478e0a457cff8daf9b8e4b60a1d6af18b4c4c6d0e4c824726b131a84b2
+  row_identity_contract_sha256: bfe529372ee4c56fe6669a7f902559a2ab067673b761e6e5b6b671fd54df5f1f
 - key: artefact.scientific_review
   command_type: RecordScientificReview
   command_schema_identity:
@@ -1724,23 +1724,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_scientific_review.schema.json
     command_schema_id: ars://core/command/RecordScientificReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: cdc5a5704b92aac92c8c26bae02d4a883d06365df26b51178e6f11926685425a
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: ebf639e72ad60144c2f1c18e20c16ac22722eb227545b552864c3a5d4d5e4034
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 6d0a31ee519012721e35b08638a480ed19322f35048832fabe0d732109ade0fa
   event_schema_bindings:
   - event_type: ScientificReviewRecorded
     schema_token: evt/scientific_review_recorded
     event_schema_path: .research-system/schemas/core/events/scientific_review_recorded.schema.json
     event_schema_id: ars://core/event/ScientificReviewRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 904bba523e15a1f7a9c362cdd644331a8a165c732c1bbf1b14185380ed6255a0
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: eacf0fa817c9d0ba094fd08b8de53c8f1f9b3c1dd2a93804aa9dc0bf04f9e617
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 62e220d0a0d9196b668b83c642baa321b5793db87fa052338c57a65bf0317eb1
+    event_identity_contract_sha256: 4bb259046921ac9a9de0f5bc5a9859d8e7df46641315b55a2c03e409a4717514
+  row_identity_contract_sha256: 564e204d5b7f15deb9cb37c7499fef0c85c36f18713547e64bf061456c4b50cc
 - key: artefact.use_authority
   command_type: SetArtefactUseAuthority
   command_schema_identity:
@@ -1748,23 +1748,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/set_artefact_use_authority.schema.json
     command_schema_id: ars://core/command/SetArtefactUseAuthority
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 8918aac653cb66b8fa3e3aae5473c6c893d17fc74df62f1f5f33ed3a788033e2
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4471f884e2e4ad7e0199b82c57748ae9f94b2b1192ad455261ff8e5639c2efa0
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 50edab07407824356eca382f8857b1b8f950b6bbc2e073059b867ae20506c01f
   event_schema_bindings:
   - event_type: ArtefactUseAuthoritySet
     schema_token: evt/artefact_use_authority_set
     event_schema_path: .research-system/schemas/core/events/artefact_use_authority_set.schema.json
     event_schema_id: ars://core/event/ArtefactUseAuthoritySet
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: d3f41d0dc66abb8ffb3d449184695c78ab8ef20016159e9567afcb302e140dc7
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b01a50ae8d7922c82066e1317b1f7b9c9722d47642339d4adcbabc07ea008276
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 95af16d68d18a49b1d036faafe0d3ac3b631d4194203062204a24edb90d1e892
+    event_identity_contract_sha256: b97a67ac714a79fa04bd1a0c53d4dfa7470eff7cd825d7b2d2b9c2f6ffa9257c
+  row_identity_contract_sha256: 5dda09eaad217e7d8b4c3d717e5e2e61663fe3035009241dc0c01e4fa3158272
 - key: artefact.supersede
   command_type: SupersedeArtefact
   command_schema_identity:
@@ -1772,23 +1772,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_artefact.schema.json
     command_schema_id: ars://core/command/SupersedeArtefact
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 90313fdddff28fdb7d87814255232a1707a710b1efee2d139a201e059fd8068c
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: b79e0ed17fa415ae1f9cad4b7bc6101414cb86ed661457e26b5b999e23290ded
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: e071ff8b8dd3192545efaf50da0d66c370b31af06a65143e18bfe99dec32c3e6
   event_schema_bindings:
   - event_type: ArtefactSuperseded
     schema_token: evt/artefact_superseded
     event_schema_path: .research-system/schemas/core/events/artefact_superseded.schema.json
     event_schema_id: ars://core/event/ArtefactSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 9a44721bf38df02356a937b0f4633e383a6dae7d6879b6b308935796f3ecad50
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b566efb1c2ccd9ce6ddd8e75f9ae1f9daf7ea625d22740b16b40a898ba3f0eab
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: d77cff9e8b41d7c0622accd13bf0fa38f4f0ee3e2b65c152e4380299bc7cff84
+    event_identity_contract_sha256: 591638bbbf83aac210281a37d7c5bce81a362ffc707144a10161ea87bfb25654
+  row_identity_contract_sha256: 4c8813bc1e7cb70a7787f1bcb8b56746f0d20a3b0b354e7505e47854ccbb3bc1
 - key: review.request
   command_type: RequestReview
   command_schema_identity:
@@ -1796,23 +1796,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_review.schema.json
     command_schema_id: ars://core/command/RequestReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 409d088ac1ad0ad455d724d1ae9ce9ad119951f2b8797a9dd4f8c5f7cdcfa4b7
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a9f51ca42a8098b23e2c27421bc3e58e77c1ba589e090329a2ea694d98a37ddd
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: b9f969bbfa874688d5da4f84cd0d840194e2469decece732064c7bdf727feef1
   event_schema_bindings:
   - event_type: ReviewRequested
     schema_token: evt/review_requested
     event_schema_path: .research-system/schemas/core/events/review_requested.schema.json
     event_schema_id: ars://core/event/ReviewRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: e0ae8c6a9d91587b188212f04f3872c994d970487eab6ab654a9c9cf041c55c9
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 907e909e7cef7ebab26c07614d9687270d0ad72b62db67662c20bd8310de5d43
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: b3966269f6136f9265938596646d9ba53702aced855284286edb28071a42f09b
+    event_identity_contract_sha256: 99384c5c3d8cbfecf343ddee811e80a9d9bbacc1f46f8f0e5506eafe279a17f3
+  row_identity_contract_sha256: c1d7f0703a1255f6ba09bf2df3eb1e37ad6e53eb6be3fae5bc3a88ef00fc339d
 - key: review.assign
   command_type: AssignReview
   command_schema_identity:
@@ -1820,23 +1820,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/assign_review.schema.json
     command_schema_id: ars://core/command/AssignReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: a612377b671104aa51e28ef899fe09acf440c5d31ff9c1e4a5ef3c38e000f45f
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: e1ce238328671a94e1c7859932a9002a29b970666539358187de875863f5ca47
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 1b10aa1649130e9574189283bfd7574576528c212d908ecfdc1abdf7317d5ef4
   event_schema_bindings:
   - event_type: ReviewAssigned
     schema_token: evt/review_assigned
     event_schema_path: .research-system/schemas/core/events/review_assigned.schema.json
     event_schema_id: ars://core/event/ReviewAssigned
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 2939a54e93a5321efb66b1e93504b26d4254718c4cb0a9144d3150a3bb897d02
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7ccd4883ae918a7c7aa9e10d6ad668be8ac5d6394b14025530638063feb38d37
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 9c02779b833744aa9626b024ca58e3c2afd1ffa6c82857157d42f7e457aab69a
+    event_identity_contract_sha256: 59490005d1605623133adbc2a5252e9c373cbfa39f51fa67246496c76a6634a5
+  row_identity_contract_sha256: 2c21ae940766c0d5888ab89e809d91bb3b6a72722389fe48b674343d12ba122d
 - key: review.start
   command_type: StartReview
   command_schema_identity:
@@ -1844,23 +1844,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/start_review.schema.json
     command_schema_id: ars://core/command/StartReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 165603bae93cce279376f4ff90a5f7c521b20f44ad2490b8c8454bd3f81639e9
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: d67eddfab2c524141b87cba2ae1a255a119b65bed68badc8038da595d3f3cf4e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 26be9a3fbaf393f0bbff2dbb2a079724d0a976a8427ab7d53776728ca512c890
   event_schema_bindings:
   - event_type: ReviewStarted
     schema_token: evt/review_started
     event_schema_path: .research-system/schemas/core/events/review_started.schema.json
     event_schema_id: ars://core/event/ReviewStarted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 75f4af245c54bbd6e25c5a93f59d670b74cdb229d45a62ac4dae312bbfc936d3
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 1579f88759bf53ef42fe3b7d61699dcbea71793a7f197f2984521f22e9cf5816
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 7b4e6eb57032490cd8c4253a19a6501b469ee2c55c8e864c5548ab3d5d34e874
+    event_identity_contract_sha256: 67114f56d9826aa575e340b923699a108b59916a48abcebe9225e5805607e8fd
+  row_identity_contract_sha256: 29cfa4dcf2f2f005bb16672f94a4d8079433108d5c7685980f9cf1a4cf95e3a2
 - key: review.record_verdict
   command_type: RecordReviewVerdict
   command_schema_identity:
@@ -1868,23 +1868,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_review_verdict.schema.json
     command_schema_id: ars://core/command/RecordReviewVerdict
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 5373d068e3a958dc389e483d20adf86760ee9eaee3948a7960b87f13508205b8
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4e7a20db3d967ee1845e20fc97e60e9064929f2c798b2ba91bb676bbd53eebb2
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 6012a5844ba6e04d6c5a84a53f87ecd9cb4262c448c16644643a242c5fd88ef1
   event_schema_bindings:
   - event_type: ReviewVerdictRecorded
     schema_token: evt/review_verdict_recorded
     event_schema_path: .research-system/schemas/core/events/review_verdict_recorded.schema.json
     event_schema_id: ars://core/event/ReviewVerdictRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: dfad08f522bd7e944c0119699f0853bdef66ee0ab3afac73504306d198f42228
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 54bdd1f63ee9926b1adcacf01feaa6cb707ce8f37a42517e9ea2c51aff74e43e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 72cefa453f88676a65a8eadc0275b3db30a588bfece3a96d3767bc2bff402c6a
+    event_identity_contract_sha256: 905523c4f8154f22392eba1d213b4b6e215461b12132204abc08d12f8c64e7e6
+  row_identity_contract_sha256: 932afd18be9a004fc81b5558a2ffa246a1fa3b75fdda9e5f509a679eb31aebdf
 - key: review.request_changes
   command_type: RequestReviewChanges
   command_schema_identity:
@@ -1892,23 +1892,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_review_changes.schema.json
     command_schema_id: ars://core/command/RequestReviewChanges
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 5d11421613435f6893ac227cf4bf926671c4090eff7ebdd81ecab47f557a43c5
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 736953dd931733d0d72568306345211d810b99fde9db9d61c005d39afdf8cbc6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ba61fb77069eaa67dc78088ca3471828db2f4a70e88ca0d0e648605c7322b0f5
   event_schema_bindings:
   - event_type: ReviewChangesRequested
     schema_token: evt/review_changes_requested
     event_schema_path: .research-system/schemas/core/events/review_changes_requested.schema.json
     event_schema_id: ars://core/event/ReviewChangesRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: f13f5eb2aef9b4c02824f041e079296af5faa815019fef9a78d409e057f42dc9
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 5859c24d47144d57263ac14708a1abc401198a0ecad82a1d5d41a1f22356a833
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 7783f4177830c1593498bc93071f3f94ad1b8e9a81afab0cc5c43dd42db3c1d1
+    event_identity_contract_sha256: 0d7107dace2639ab1bdea29a4898adb60f8f977d6e1207e0491136b9630c911a
+  row_identity_contract_sha256: 97ee457104c8f56d0697bc54fbcc0d2115482834abe830ec72e968fc1f89952b
 - key: review.satisfy
   command_type: SatisfyReview
   command_schema_identity:
@@ -1916,23 +1916,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/satisfy_review.schema.json
     command_schema_id: ars://core/command/SatisfyReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 3a4f560e1bcfd0e8a1cdfdb3987a15dba8010216eba4c9eb7613f002646dd700
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 40ae1ad21e15a402c5fca79dee5573510c015eda504c4abec9fa9f94e462c4e4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ad44643fba7fc1560d822f862c014dc30da2f82de66c6a08c229f175c537ebe5
   event_schema_bindings:
   - event_type: ReviewSatisfied
     schema_token: evt/review_satisfied
     event_schema_path: .research-system/schemas/core/events/review_satisfied.schema.json
     event_schema_id: ars://core/event/ReviewSatisfied
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 18ffe23582c253ad05f599c06da11ef23ba923f882cd6a817ddd7886b0677134
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 3527f258fa3a5b2a7c8a2b47faf5eca8262139a60e889b699e925502eece58b8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2a70f6b7093b919ea4b43f337a5b632135a9fa2b745924733009792fc5de4ce8
+    event_identity_contract_sha256: c5d4ce7c9cbc021b72d8b517b7bbf258860f7277b716cf77922b59ca5f1afdb0
+  row_identity_contract_sha256: 15eccddd03fd9c3eefa59962b3f25e51ecc71dfb2394f0fdf1bdc51983dabe10
 - key: review.satisfy_after_changes
   command_type: SatisfyReview
   command_schema_identity:
@@ -1940,23 +1940,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/satisfy_review.schema.json
     command_schema_id: ars://core/command/SatisfyReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 3a4f560e1bcfd0e8a1cdfdb3987a15dba8010216eba4c9eb7613f002646dd700
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 40ae1ad21e15a402c5fca79dee5573510c015eda504c4abec9fa9f94e462c4e4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ad44643fba7fc1560d822f862c014dc30da2f82de66c6a08c229f175c537ebe5
   event_schema_bindings:
   - event_type: ReviewSatisfied
     schema_token: evt/review_satisfied
     event_schema_path: .research-system/schemas/core/events/review_satisfied.schema.json
     event_schema_id: ars://core/event/ReviewSatisfied
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 18ffe23582c253ad05f599c06da11ef23ba923f882cd6a817ddd7886b0677134
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 3527f258fa3a5b2a7c8a2b47faf5eca8262139a60e889b699e925502eece58b8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 4ed595353b97ccd77e8e49b8db5e06aa56f4bb55befed85304b3bd588db4c662
+    event_identity_contract_sha256: c5d4ce7c9cbc021b72d8b517b7bbf258860f7277b716cf77922b59ca5f1afdb0
+  row_identity_contract_sha256: cae915f4020ed8c022c6fca0e43779eb3771a52934ca0623eb777697c411045e
 - key: review.withdraw
   command_type: WithdrawReview
   command_schema_identity:
@@ -1964,23 +1964,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/withdraw_review.schema.json
     command_schema_id: ars://core/command/WithdrawReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0a2b2459a656865b7deb1a93404d30a4c4a33056f302242510e9806742816060
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4c263f346ef0df843289beb020de7727079041d4e910a72e4f7fd5e85283536e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 890e7307f490828391fc459fccbe6b8c1e1cd5f255500c5fa1bde9cf4caf9d32
   event_schema_bindings:
   - event_type: ReviewWithdrawn
     schema_token: evt/review_withdrawn
     event_schema_path: .research-system/schemas/core/events/review_withdrawn.schema.json
     event_schema_id: ars://core/event/ReviewWithdrawn
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 4e6d8d5d99d551da7d056fac33af27e8563fe41a77c42310b4688ae5c53f1e20
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 99123e59e19927d2b4e8d87205f91992868c3b70350bbc921b92319579a6d293
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 96028b932cd2690a0c5b4972e3d93ab7ba7a02675b0d6e10f32f26e4c919353a
+    event_identity_contract_sha256: 9459743db2f51ae43dd8d20ee31aa795bff0087475468dcb1ac1508b6467b09f
+  row_identity_contract_sha256: 335dc147795400b931136d63fb2e1b3566825f357ce44fb8c72f366d4c584b9b
 - key: review.supersede
   command_type: SupersedeReview
   command_schema_identity:
@@ -1988,23 +1988,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_review.schema.json
     command_schema_id: ars://core/command/SupersedeReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 82e527a355962c6398adf7939f4e5ad35271f194fc3c57e7674f6deff3204204
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: cfcbfc9086a1b98c3906591a59442090d4ed9e770d6bdc209e1cbef03f79f4af
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: cff16c1b1099930b59c37b78fca26c3e31b5b161504211d4398de6c3cdd2a054
   event_schema_bindings:
   - event_type: ReviewSuperseded
     schema_token: evt/review_superseded
     event_schema_path: .research-system/schemas/core/events/review_superseded.schema.json
     event_schema_id: ars://core/event/ReviewSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: feafe36f5915aaba1f30fbee590763dff9851535dd1536bb4d38da637db96ccc
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: f6837aac8f1bae5ff1132cd9d023063094f1b85229ea0481879a048867f6e893
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 472d152ffde8fb529061cb64ebdfbc42d0adf6f5081bcf515a29672405580f34
+    event_identity_contract_sha256: 8ab74154ba9301a6c36beb1c0c788c4d1ce97f1515bc75536534999b0869001c
+  row_identity_contract_sha256: a40a7e4e1e86e79ca3ee6668b7cca3669a515865670b23b32f89808e5fa4a332
 - key: decision.propose
   command_type: ProposeDecision
   command_schema_identity:
@@ -2012,23 +2012,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/propose_decision.schema.json
     command_schema_id: ars://core/command/ProposeDecision
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 1c7b8e2b5171e72a0e7dd2d4c2220da584a71ea003d1e694c3f6005161520db7
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 22f4d5a7c337a6eeee6f5f8d77989d2113d57d0e6c76758497f9d54296ef385b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: aa464aba2c71c715b24dfabd85d49a707632208b5df6bb53832ada7ac99c644b
   event_schema_bindings:
   - event_type: DecisionProposed
     schema_token: evt/decision_proposed
     event_schema_path: .research-system/schemas/core/events/decision_proposed.schema.json
     event_schema_id: ars://core/event/DecisionProposed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: b92e79a00e9b379570b49e1a7afb5b4ea49a3dd2b73b62c3d6d6bce400ecf6e7
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: a6393d9cc2351f042307dd8d62af613cb46493de8dedc72fabf1ae1a61765861
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 0b0f7b9ba3ba0e833663b620700bfd6d2bb35b0cff1e7ac343a7a6cbbe8eb97d
+    event_identity_contract_sha256: cfa1f5dd70b16ffc89f745004e8cd630894a84d158c8650351c7c099d2aa2b34
+  row_identity_contract_sha256: 6a73f23abfb6078f984f031224a560c0873c023133862585a5e6ff91f3fd77a7
 - key: decision.request_review
   command_type: RequestDecisionReview
   command_schema_identity:
@@ -2036,23 +2036,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_decision_review.schema.json
     command_schema_id: ars://core/command/RequestDecisionReview
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: b38941100bde96eed060aa3104f956f8a900f176173f22ef62cc54c83573a920
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 44d2c719ee28e95e7ca7d1fe2252c3e0264d213f67897d43fd67226cb4a391d6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 4bbf544841d2ff993f25b2a2ffd4cc8f0e168f481a7ec8af14c9f966b671453e
   event_schema_bindings:
   - event_type: DecisionReviewRequested
     schema_token: evt/decision_review_requested
     event_schema_path: .research-system/schemas/core/events/decision_review_requested.schema.json
     event_schema_id: ars://core/event/DecisionReviewRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: caac5e1d0a7d58727d8ed26bc993b5775d306a29287b5812ff3ecc9c244e7a64
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b3dca0bb4c9e50aa1cb8f19c62fe56ef835f76282aa25b514697b186340093d6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 3885c711ade1dd21b69d71e83a7fa891760fcfa66f7eadb0a3752003c64b5470
+    event_identity_contract_sha256: 5ad67b9dfe5b2d9dcf8b06e7e36485870c6b77100632ee86d29a307f622fe124
+  row_identity_contract_sha256: ae8ccd23aecc4cbd3506ee0abd088ae77de046dd4158c3a7d3b16b9860a2a13c
 - key: decision.resolve
   command_type: ResolveDecision
   command_schema_identity:
@@ -2060,23 +2060,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/resolve_decision.schema.json
     command_schema_id: ars://core/command/ResolveDecision
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 1d12b6c4bdb5d84640722c25a372404dbc5758b5a8c4d7956ef9d1393217f1a0
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 3492c4c5203291197440731c522be1f504576a6692585876a5ec1816224ada68
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 9d2295ff6eaa971efc72b3e9b72c3595b9cfeb7209b5bf253c403ad1fb4e2308
   event_schema_bindings:
   - event_type: DecisionResolved
     schema_token: evt/decision_resolved
     event_schema_path: .research-system/schemas/core/events/decision_resolved.schema.json
     event_schema_id: ars://core/event/DecisionResolved
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: d9b48322a1fb74c2bf2f7333b8cbc97e57f040aecc13649c8cf560e3191be6b1
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: ca3db3cfd455287e4aafa4bba4ddeb95e76f8b4c35b37a71e114b2b037a9278e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2dd5db016f3e61d8eb72cf28f61e3f90aa1dca8221d2a68337c8d196c88056b0
+    event_identity_contract_sha256: 726029963185adfb8b37e2d3fbba70b9473ecb3df757c08b28ba0f5b1eda026a
+  row_identity_contract_sha256: 6e3c3214e11fdaa26743df13138fd41161df1eabb85ea578851d1ea8fe37696c
 - key: decision.reject
   command_type: RejectDecision
   command_schema_identity:
@@ -2084,23 +2084,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/reject_decision.schema.json
     command_schema_id: ars://core/command/RejectDecision
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 8bc01eac5f3cb1b6d03c31969775c99b5093fc5829e7a6561e9d12658601e98d
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 22c8a5c2755ac9deaae26548328e01bb5d91c474d881326c9938366ffa6bb870
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: acbbc7361641bd18f63f1dadaac31bfab91659924425d7211fe51ce31012ffdb
   event_schema_bindings:
   - event_type: DecisionRejected
     schema_token: evt/decision_rejected
     event_schema_path: .research-system/schemas/core/events/decision_rejected.schema.json
     event_schema_id: ars://core/event/DecisionRejected
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: c233c3d6c2cc0f44d4f3299d521dd3e9564d20a68183aead3b0a2589fee9ea8e
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: bbf1126ac55a4e9740df86e370a5ecd9cff43a9e511c898608fea9728726c175
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 602127a0a159945db319020856189d79e3ceeb834fc5ceaa3d703a4da08f22b4
+    event_identity_contract_sha256: edcb1a9e7e6f30b072b6b873f26f55efbfc409c634c8f39cd9bd79f7c2b24050
+  row_identity_contract_sha256: 1a8a925fe44c20062e4b90a76a09e93159e475408adc3234c38c3a0bd54ee48a
 - key: decision.expire
   command_type: ExpireDecision
   command_schema_identity:
@@ -2108,23 +2108,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/expire_decision.schema.json
     command_schema_id: ars://core/command/ExpireDecision
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 6ec5f97e8aaaa328546804338ef07a13ccb349ad2a702b5804b76bdb2dd1439b
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 48a44a3cd6391086099b723c3551dafe50a240ff5ffa3ad016253fca6dfb623e
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: f17069023a5303a87bc8d0c29b60f35673496bea203af7fb8c1d807344d894c6
   event_schema_bindings:
   - event_type: DecisionExpired
     schema_token: evt/decision_expired
     event_schema_path: .research-system/schemas/core/events/decision_expired.schema.json
     event_schema_id: ars://core/event/DecisionExpired
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 9b5d14bb597942d864294226eb0b56dcdbf69880b05a060b13e005921d5a9182
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: c478a06980dad87e71df386db1f4dfc0be666c12cff6accbdd384caae5f8a309
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 158fdf4f4251f0c2ef3f17eb4597d98eb86338303e273f5cf4c33fdb30cc005b
+    event_identity_contract_sha256: 79ea6e0942ac35af1b72295586a25c56c8ddd446ea22fe1815933e81d80dd2da
+  row_identity_contract_sha256: 1ea4771710b1c612e76a05ba904a99e94fe415a5c2dea0f37a3ba552df42c374
 - key: decision.supersede
   command_type: SupersedeDecision
   command_schema_identity:
@@ -2132,23 +2132,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_decision.schema.json
     command_schema_id: ars://core/command/SupersedeDecision
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 4dee3cf056a8fbb067f7bac9a876a439a53845f7b8bda8164deb191ab42a9e57
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4c8ad27c49f4f5e6fc900e7d09c6a9bcf2f9f1cfa5b5a10ff34bf95cf10047d8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: c6fa5522153a5d5e8006c068d6b6ea2ef6e3d86a3f79c6bf456d3354cab8ef2b
   event_schema_bindings:
   - event_type: DecisionSuperseded
     schema_token: evt/decision_superseded
     event_schema_path: .research-system/schemas/core/events/decision_superseded.schema.json
     event_schema_id: ars://core/event/DecisionSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 62a3abf035cfd2765c33770746c312107e534df3d5baec6e9ccac72b3b53bb6e
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 5dc93b2abfa7c869e05decfd1bd8fe91d19502257fbb7c36429db3d9753c6fc1
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 4a371f419bd57b49d7a297c075613d223b147a077b45472edd73e3b1909ab441
+    event_identity_contract_sha256: 9f4798b58a045ec1fb46c8d0dc186831598a95d24bd085a4a9b4b5313aa26e3f
+  row_identity_contract_sha256: 6063864780cdf97edd6e055c7153ff632df38d33f9a6b58a52262ae95bc85c8f
 - key: rule.evaluate
   command_type: RecordRuleEvaluation
   command_schema_identity:
@@ -2156,23 +2156,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_rule_evaluation.schema.json
     command_schema_id: ars://core/command/RecordRuleEvaluation
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 9c4395c4abff20f2704bd9d97c6a7a75826e0e64fd20951e75ea9f9bbdbcc2d9
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 49bb121d37a48a60fc439690041bc0ab9f6bf119b451d9fbec9c5c104ea455ec
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: cc543ccba17fb74dee624eeb1a9553fd552eca19e198234236d033783a0bd7eb
   event_schema_bindings:
   - event_type: RuleEvaluationRecorded
     schema_token: evt/rule_evaluation_recorded
     event_schema_path: .research-system/schemas/core/events/rule_evaluation_recorded.schema.json
     event_schema_id: ars://core/event/RuleEvaluationRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: c44283f2c9fef93e2776511c91763008e614d483d32d0ddb8cd08b55e37b50cc
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 894eb3f9701a261c3380ebd4e060cd33f4a31fe84e993877d71cac3330821a4b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: ae59cf6005db19a801f56685eed1c996d4d68677158184cc4d9b51bfbf708276
+    event_identity_contract_sha256: 42d2dc7933d1a2b867c3d0b2e3247d3c4689f7e8d720c0839955d4ba3b72fd81
+  row_identity_contract_sha256: bfc29c6c29bde31b90bdf7648dff31a85a78ab803a27ccacfeb0f7c6adeb432a
 - key: decision.amend
   command_type: AmendDecision
   command_schema_identity:
@@ -2180,23 +2180,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/amend_decision.schema.json
     command_schema_id: ars://core/command/AmendDecision
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: a72cfab73582752d490a1e83750e828abc299565c115fcd20f34ad0acdbb4f8c
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 12fb855782b98318fbb1905743ae7217ac432add527c2af9c910759949b675ae
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 549c951d1010ff7ecea5c7ee1f1029b634d6bdb8980590544c5bbc4e56fa4a45
   event_schema_bindings:
   - event_type: DecisionAmendmentProposed
     schema_token: evt/decision_amendment_proposed
     event_schema_path: .research-system/schemas/core/events/decision_amendment_proposed.schema.json
     event_schema_id: ars://core/event/DecisionAmendmentProposed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 27722c03495b7ec91613475193478802c23a4276f910f944429badcf98cdb401
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 3d3c5f8a0426a5fee98b24ce4358e3b6c90b434035dea80858c4a67e25747c2b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: bd180afec582a52844dd426974c29cc7683ac33f9e2a5fc83fa38b7b5ddef862
+    event_identity_contract_sha256: 0d693cacb21fefb3c89eac03e0b2b94f6bca52e16c33fb16d3631602dac3a402
+  row_identity_contract_sha256: e9f0f87acfb68f243c043d97a747e637c0ade1d72002cfafa49478a9b0f3cc9f
 - key: correction.record
   command_type: RecordCorrection
   command_schema_identity:
@@ -2204,23 +2204,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_correction.schema.json
     command_schema_id: ars://core/command/RecordCorrection
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: e58f55d8038a02d2ad3f7c98d59f00a653b51defd04d8f5a0adf7d721b50d61f
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: bcd7d72fd09d1bc0e58c0c64c4beead6863b4162d8ecb32b95c0bce46c8b896b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 23a95ab4113508cd61af7f091c96242c7e600e892a331ad06dedcb04d25698fc
   event_schema_bindings:
   - event_type: RecordCorrected
     schema_token: evt/record_corrected
     event_schema_path: .research-system/schemas/core/events/record_corrected.schema.json
     event_schema_id: ars://core/event/RecordCorrected
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 3e2c346fa6bd75b6178708e52a01f56b97fc8487542c4d9791daa52489da574e
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b3957653ef3a407bf83d2a7ac632cd28d454e4344c70aacb4eddd027274a53d4
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: cfa4832ac45eacc595b88d02df206911ee421974bbe30485ada5a8d6c1ce5c04
+    event_identity_contract_sha256: a27a4280058dfe71427a83b20cb75f4c9a6317de9090675c36e275a76d7e7b83
+  row_identity_contract_sha256: d5acc0eac887423ce8961a62c93dfd661f236801981bb12c07bcff7d9d4fe46f
 - key: operator.request_resource_grant
   command_type: RequestResourceGrant
   command_schema_identity:
@@ -2228,23 +2228,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_resource_grant.schema.json
     command_schema_id: ars://core/command/RequestResourceGrant
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 23c1ef424c4441511a34b61da8895eb9c7dd972b0260e74798babeab18bb1caa
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 2d26cffe35bdd86748f2c4946c2aef6b904fdb54d749818332b3ab26085d9964
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 9f91ebe0dc594c3e7d7862d49d1d1e4a04a91a7a11ee4bb40ce9b4a7c9b1444d
   event_schema_bindings:
   - event_type: ResourceGrantRequested
     schema_token: evt/resource_grant_requested
     event_schema_path: .research-system/schemas/core/events/resource_grant_requested.schema.json
     event_schema_id: ars://core/event/ResourceGrantRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: b1118fb6dfca41059620c8588c56891fb1bac669bc223c6498feb61d030860ec
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 967b16bcb0e7c48d906d1539920a764e6579ebe934f59f209b96f5d579a71d61
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 86e086d8e6373d47bf2bdf928de1bf7133e5772bd657dce341d0163efd205a86
+    event_identity_contract_sha256: 7613deda01630f2e6676a6fe85c9635adee62361121f140d9baa0605fe6a6080
+  row_identity_contract_sha256: 1125707ecea11bff00e1ba6ee2f269f94981b8ac14d98c5dfe8d45bcd2cc6ff3
 - key: operator.claim_execution_lease
   command_type: ClaimExecutionLease
   command_schema_identity:
@@ -2252,23 +2252,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/claim_execution_lease.schema.json
     command_schema_id: ars://core/command/ClaimExecutionLease
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 9cdda07c7ecb8a29eb3f0a9623af899fa6b9dd8053018b124b68c7e23c8bcf2a
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: bf9798fcf08239b51f03214a0ea027b596176e621cad333f3b003e9f01ff1af6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 2c16d2a16047b9822d96aa2a3579a9384135b99805870178821a223113bd014c
   event_schema_bindings:
   - event_type: LeaseGranted
     schema_token: evt/lease_granted
     event_schema_path: .research-system/schemas/core/events/lease_granted.schema.json
     event_schema_id: ars://core/event/LeaseGranted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 0d70e8ead866c67029df8ee5901865bb212327d1a379d543a9e8528f45fbb18b
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 6e021bc32f73feaedba259c2b5832b1b3c3ad8565593c97b5b5ef08ad887a3ad
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 322abb421c51c3f1422adfa8d73aea4e518c8ad89fbbf24161369c9c114f5503
+    event_identity_contract_sha256: 6abf727afe19fb96511641b790a31d3773f7dcc8a71c9237822daf16b82e5903
+  row_identity_contract_sha256: f5c919f292b58c347f0bd072b7124ad5c3c839e7acbca8048e864f80ced7c44f
 - key: operator.record_heartbeat
   command_type: RecordHeartbeat
   command_schema_identity:
@@ -2276,23 +2276,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_heartbeat.schema.json
     command_schema_id: ars://core/command/RecordHeartbeat
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: c9d2d367c791fb7d58ca17f0b54af848110fc3c76e7971eccf403d3dc5274736
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 376ea7dd79cf1a5758e6c124a2c77f24739bde3535695c89f5a55da9672ac7a3
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: fe8d1f67c01bf3ebc4e0cfa4d859f55c32e00173859348254bd7286ae3067f82
   event_schema_bindings:
   - event_type: HeartbeatRecorded
     schema_token: evt/heartbeat_recorded
     event_schema_path: .research-system/schemas/core/events/heartbeat_recorded.schema.json
     event_schema_id: ars://core/event/HeartbeatRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: d120e1b84f0944043a0ab6605cf83d221292f689182439d146ec995db70b7c63
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 5566afaac4c82ec00ded2649b55b63806ec36779ce105a9678c7c097bca9584b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: fc02beb035af8cae076db44c632783b2c04036e9052c93bee9917f30518be2be
+    event_identity_contract_sha256: 693dd24151c261294a09bfffabce4535b899a05f9663f6608b359aa323fc456d
+  row_identity_contract_sha256: fce27b966b6a6558eacd1c4240416f7640ab1e56b7b30909e03eeafe07c41b77
 - key: operator.request_pause
   command_type: RequestPause
   command_schema_identity:
@@ -2300,23 +2300,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_pause.schema.json
     command_schema_id: ars://core/command/RequestPause
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 2104348a4c775df000a17d44249b98008a5d714dec8f59aa98998b14a081beec
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: e7ecc178266e2c1eee9d3182fa84f006574a581440d56ff177fd8c2c2e157449
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 6479f12027e3a405064d1546138e8cd7aae008b81f83af5a921af345f7ffbeff
   event_schema_bindings:
   - event_type: PauseRequested
     schema_token: evt/pause_requested
     event_schema_path: .research-system/schemas/core/events/pause_requested.schema.json
     event_schema_id: ars://core/event/PauseRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: d6f7be6653438a30bfb593304aa7589c94ef278163ca580e80833619416cb634
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: f4c02457a6820f41044b83525bcf122cc5e8a32639112d69b3943c9ddba963f8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2fe1a1d03b67ab72eb5e7d49e6c1504348ea98601fb7738ad7cfd00fc180a682
+    event_identity_contract_sha256: 3288c9003fdd5a75f5e94b73bb97aff636d4bf53f2180a55f8969a969d5b0a62
+  row_identity_contract_sha256: 9ac14ec22bcb9a02da9a05992c2c23e94e0c721e371341db8f0420472456a706
 - key: operator.confirm_pause
   command_type: ConfirmPause
   command_schema_identity:
@@ -2324,23 +2324,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/confirm_pause.schema.json
     command_schema_id: ars://core/command/ConfirmPause
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 3b6dd9e8f49a85f210566ffbb7b4c5d7faa5becd6db371df7978f3ca128ad4f5
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: fe810be497b17cb2ab38275328e20ff37f33167dc54679c89fa9a7adf3ef879d
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: a755367ca19851598577b53162f39479bbc223488cdc8b08732fd60828cb271c
   event_schema_bindings:
   - event_type: PauseConfirmed
     schema_token: evt/pause_confirmed
     event_schema_path: .research-system/schemas/core/events/pause_confirmed.schema.json
     event_schema_id: ars://core/event/PauseConfirmed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: bc5a5205999e32669c07f1a3e53106a3dbcdb9a00f57a6bf481c093866f935f3
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 237be5255027b8d434f192a25c67029e67c95fc4256179a194d0178f281986f7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e5ffb4145530e5faccbeb69d7098a011232bcc7e609e2fdaac2b0d429618b5de
+    event_identity_contract_sha256: df332d33dd3a34691b716c2553a418f306aad35630b00271ddc2f6734696da2a
+  row_identity_contract_sha256: d498ec7e0039519aa9198ee41dc5ed08785f2688cc6726c149b231c9cc30975d
 - key: operator.request_stop
   command_type: RequestStop
   command_schema_identity:
@@ -2348,23 +2348,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_stop.schema.json
     command_schema_id: ars://core/command/RequestStop
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 9baccb5794b7595d8a171d0255af373e27dd6e36a8bdc6367205a7f1575a496e
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: ab55e16e0843b84f3bb8062714bcf8ad0a97581cdc46885f36911ba9b4f68ce6
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 796d4126c41d41d00f5be782f6867c86f050352041a5cade02ef884aea886fb3
   event_schema_bindings:
   - event_type: StopRequested
     schema_token: evt/stop_requested
     event_schema_path: .research-system/schemas/core/events/stop_requested.schema.json
     event_schema_id: ars://core/event/StopRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 58d08baae3716a30c0b8096a9fb6b76d1ce31060c6006518dc243fe0e0474ab3
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: b6a2ac09bf6734d203698b1ee97a1886b7d1a82c5a925f3a5d9420d9901a2493
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: ef3e8e8deb89b82be3fab7bf7d58214c39201b715ce4e8974f6423c5f1912939
+    event_identity_contract_sha256: 491359cafd503db1279ac99ad3a5a76e5a2f8f426fca29a01f36bc6ddceb2d91
+  row_identity_contract_sha256: 82eefb6ccb5ecfca32697dd76aa7a58a347b275a6a1d57feb0f8d4816b6b3204
 - key: operator.confirm_stop
   command_type: ConfirmStop
   command_schema_identity:
@@ -2372,23 +2372,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/confirm_stop.schema.json
     command_schema_id: ars://core/command/ConfirmStop
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 09c8b04b47379c160d252adaca5154edd7164f4752dfd41d1fb7ee67733f98ae
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: c11a36a7ce5b2e09df319b83bd40909be3f530ec029b7639c0155a6f47a8e2b8
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: ffdb4628ae16d993272630961e10555e655336439d1fbe82fdc5f20f0dcfdaf7
   event_schema_bindings:
   - event_type: StopConfirmed
     schema_token: evt/stop_confirmed
     event_schema_path: .research-system/schemas/core/events/stop_confirmed.schema.json
     event_schema_id: ars://core/event/StopConfirmed
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: d56a8e2561ad1a1f334c75cbd30732ebfcd5456af167449f78b9e2234b3b6abe
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 40622d790c826916e894d3cf1bdfd7772ff35012e04d5d2c14fe2d3f884f9110
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 8bdc4de5ea4dbbbea27120a256b4d9702cf06488bafd1d38c99bcce6ec1c928d
+    event_identity_contract_sha256: f321f8c7875600a13742d96cfb8380097fbe45523419bc983a2052a40dc89fb5
+  row_identity_contract_sha256: 8ece3d4c095fe6062dc0c8ef34647f22c52ef1a226aeada71dae0235d11415cc
 - key: operator.request_resume
   command_type: RequestResume
   command_schema_identity:
@@ -2396,23 +2396,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_resume.schema.json
     command_schema_id: ars://core/command/RequestResume
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 455315ebcd1776d842048538a42a5724aaae36a11deb6daedf87cff0141a3da3
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: a92c3c103082a9385a31bda9a9e1533bbdd21617156f437217c9b11c89168dd7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 3edeca956030c38bd35ee75f88df0224468f8ee88d38caad135f14b9d4860b5b
   event_schema_bindings:
   - event_type: ResumeRequested
     schema_token: evt/resume_requested
     event_schema_path: .research-system/schemas/core/events/resume_requested.schema.json
     event_schema_id: ars://core/event/ResumeRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 680c0c339612fa281fe1e85eaa840ca145a7031ad842d444c4b274fe053d5c8d
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 951db0969ac7d4e4602daef073f71add190ab0d3063ebe6d0a16b197b826ec54
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 400effc2b98cd94ad918137137a7fefabc99f207f15aede76331fed2206cadaa
+    event_identity_contract_sha256: 2d7ea8a7db610e8a499947937bf5edf4e6eadaf3835ddfe5b7cfd53aaf4c462f
+  row_identity_contract_sha256: d903751b57244c894b28a3c46c7145830120ef6e897e6042462f98ac52c84fc2
 - key: operator.release_resources
   command_type: ReleaseResources
   command_schema_identity:
@@ -2420,23 +2420,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/release_resources.schema.json
     command_schema_id: ars://core/command/ReleaseResources
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 68e3e6b9c64d3ebc7c1182c2d6bb8272cd3a26ec80a3fa0d285ea852fd08666a
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: bf49ca4326a42e684240261c70b8eda1d5372821cf76860ff42ec003039a1789
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 90351c01b7a89b91835c60228a54c78408b114e00e71e8dab96e2ea14300c89c
   event_schema_bindings:
   - event_type: ResourcesReleased
     schema_token: evt/resources_released
     event_schema_path: .research-system/schemas/core/events/resources_released.schema.json
     event_schema_id: ars://core/event/ResourcesReleased
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: c7a190789cd9cc550607becf3385104a3a11034174849650ce863296c27e5435
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7190c9cf5272cc184db145f33fdcaab2eb12d70f562e5738820b370c30ae33c1
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 704afdf6eacffc901cf077b594215c1ee269ff7fe18a2b826ad8c6919e0ce04d
+    event_identity_contract_sha256: d655e70b8cf8bad766b923f3372dc5c94c1d8314e52201425587aa918e8b270c
+  row_identity_contract_sha256: 8528fab40d376a0f4063391db56bf3072294c58af6070c6053c66bc9196512b9
 - key: operator.quarantine_orphan
   command_type: QuarantineOrphan
   command_schema_identity:
@@ -2444,23 +2444,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/quarantine_orphan.schema.json
     command_schema_id: ars://core/command/QuarantineOrphan
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 0f3cfb73a117d8cfc7d1bb68f28e51f22b4d6539b3556bc7aa589d850f93acac
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 6520eef331c44ea5e35aec76e893bad6ba6f4236c82a4b660c8323238859e2f3
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 36a0e61b8c9736a1652a2426cf11042e0f9c29919df2ffa0ff82d15b896887a5
   event_schema_bindings:
   - event_type: OrphanQuarantined
     schema_token: evt/orphan_quarantined
     event_schema_path: .research-system/schemas/core/events/orphan_quarantined.schema.json
     event_schema_id: ars://core/event/OrphanQuarantined
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: e9cb4b466f4a74039e295d6fd335c85fc38f6b5869f16512619127aa58c37ea4
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 7b6ceb4a2fad4140628570b74272e7665fbb0d9c3dca30b11db07307be95101c
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: dddb186d40b0230d1b9f0492a2da13b97443e188cf7ed3ec01e42e716223d578
+    event_identity_contract_sha256: f37ca5c6d4ea4443e4e100a362a3c6f90741f7c4fb277687ec051cbb901511c3
+  row_identity_contract_sha256: b9df653e3cea38ce2230c7bbc98754f2ea672a8bf4fb2c9f2faed0a2907b83fb
 - key: operator.adopt_late_artefact
   command_type: AdoptLateArtefact
   command_schema_identity:
@@ -2468,23 +2468,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/adopt_late_artefact.schema.json
     command_schema_id: ars://core/command/AdoptLateArtefact
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: 7d17ac3e97a7c60f28172d92cc8f271898542e67559326284f7e25a6ab5979b4
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: bbab082489dfaf9cdafd87483ed449fd3afcaeed491f8f102be602f7e7fec08b
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: cf0d7e01d08abdf7d5aff104583adb2b48bde061fa31552347a084a125153546
   event_schema_bindings:
   - event_type: LateArtefactAdopted
     schema_token: evt/late_artefact_adopted
     event_schema_path: .research-system/schemas/core/events/late_artefact_adopted.schema.json
     event_schema_id: ars://core/event/LateArtefactAdopted
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 59ea33ffbc5e1ba2dfb56707de62455bf165f9083333895c6a015499dcd17551
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 58fe3514dfbdf8b174c9fbf9c4792d8619c5b871feff91698c072dd8965eca5a
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: 2527c15cc07939f7a355dfe0c9d03012052ed062b420a54925d37473e3392c64
+    event_identity_contract_sha256: 3e6fdc3ad23c3f4bcb7eff74ae9541616b8c608ca66d9cc7aad652e63d1c2a5a
+  row_identity_contract_sha256: 9fcea0d03d930dde9fd5008f62587b84ef1e080a03102b93ac28e688228b86b5
 - key: operator.create_backup
   command_type: CreateBackup
   command_schema_identity:
@@ -2492,23 +2492,23 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/create_backup.schema.json
     command_schema_id: ars://core/command/CreateBackup
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: b1889c90c881fd3c1b8fa6e058f7c168013e983c079b743f41e871eedb2eee3d
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 8a1a67c57887ec1d345db98490e12ec2e7b381b78238febcf4fd3e2163126950
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: 3838e5268574d48f9e2536520aa45c61b002526d888913db1cbf47c835c95f3e
   event_schema_bindings:
   - event_type: BackupCreated
     schema_token: evt/backup_created
     event_schema_path: .research-system/schemas/core/events/backup_created.schema.json
     event_schema_id: ars://core/event/BackupCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 038eba58d04309df899e4b5198f611bf269cb0a16b34cfe2d1657f5843ad8a96
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 95ff1940081cda1c03737bec7b09d62fcc5e1da99c2c083ec896a98727eb77a7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: e3b73cc222b2f3726fcad3d0734bfead8458f633cac624ba95f5925763a089ef
+    event_identity_contract_sha256: 5878e6bcca89304da1468d53329afefb2e3244f90f897aa6c6a697cc22cded3f
+  row_identity_contract_sha256: 7f423b38bcad20b81c977222a09f6516f7cee545be9337d5d3fb9e8220ea63f3
 - key: operator.verify_restore
   command_type: VerifyRestore
   command_schema_identity:
@@ -2516,20 +2516,20 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/verify_restore.schema.json
     command_schema_id: ars://core/command/VerifyRestore
     command_schema_version: 1.0.0
-    command_schema_sha256: null
-    command_identity_contract_sha256: d06cbb8d1f992d2bccd1623c73c268f0258d6d1ef337ae619fb1b6d0aa4a4eb8
-    materialization_status: planned_unmaterialized
+    command_schema_sha256: 4c516ec8146edeeb15777cc7972b2e69348cb749e13d1c75a3034780da796ee7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
+    command_identity_contract_sha256: d3172ad5c007c5ffedc101ef8421eb6c31032eedd18ec96ee1eed4d0950fe194
   event_schema_bindings:
   - event_type: RestoreVerified
     schema_token: evt/restore_verified
     event_schema_path: .research-system/schemas/core/events/restore_verified.schema.json
     event_schema_id: ars://core/event/RestoreVerified
     event_schema_version: 1.0.0
-    event_schema_sha256: null
-    event_identity_contract_sha256: 0dea3016eafd6502a437e25a0b58a572a8c43e4ad2c57274b3d9efc5bf5568da
-    materialization_status: planned_unmaterialized
+    event_schema_sha256: 35af16cab74d10c7eed2761ca0d7bf1e9ba9724ac89ee907517472717aa381b7
+    materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-  row_identity_contract_sha256: acf247e5cc48cf0ce63489608a567cd0f3f469bcf2a94d995ae0c2e099bfcf48
+    event_identity_contract_sha256: b469a21f134446e66bb8ed69f9a3f4917faf65acc2bc0a6c8249139939caae25
+  row_identity_contract_sha256: dea0a564259f730da5f13e1b98764a7ee6911dde427f751b6796241b2e1180b9

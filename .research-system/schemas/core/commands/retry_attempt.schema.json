@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "envelope": {
+      "additionalProperties": false,
+      "properties": {
+        "authority_grant_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "project_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "stream_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      },
+      "required": [
+        "project_id",
+        "stream_id",
+        "authority_grant_id",
+        "idempotency_key"
+      ],
+      "type": "object"
+    },
+    "payload": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "command_key": {
+              "const": "attempt.retry",
+              "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "command_type": {
+              "const": "RetryAttempt",
+              "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "evidence_reference": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "source_model_citation": {
+              "const": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            },
+            "subject_reference": {
+              "minLength": 1,
+              "type": "string",
+              "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            }
+          },
+          "required": [
+            "command_key",
+            "subject_reference",
+            "evidence_reference",
+            "source_model_citation",
+            "command_type"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "ars://core/command/RetryAttempt",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
+  "properties": {
+    "command_type": {
+      "const": "RetryAttempt"
+    },
+    "envelope": {
+      "$ref": "#/$defs/envelope"
+    },
+    "payload": {
+      "$ref": "#/$defs/payload"
+    },
+    "schema_id": {
+      "const": "ars://core/command/RetryAttempt"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "command_type",
+    "envelope",
+    "payload"
+  ],
+  "title": "WP6.1 proposed command schema: RetryAttempt",
+  "type": "object",
+  "x-lifecycle": "proposed_materialized",
+  "x-source-citation": "06d §2 / W2, owner row `attempt.retry` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+}

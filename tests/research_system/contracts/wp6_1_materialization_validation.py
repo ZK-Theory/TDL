@@ -199,9 +199,18 @@ def _sha256_value(value: Any) -> str:
     return hashlib.sha256(_canonical_json(value)).hexdigest()
 
 
-def _git_blob_id(data: bytes) -> str:
-    header = b"blob " + str(len(data)).encode("ascii") + b"\0"
-    return hashlib.sha1(header + data).hexdigest()
+def _git_blob_id(data: bytes, repo_root: Path) -> str:
+    """Obtain the raw Git blob identity without reimplementing SHA-1."""
+    result = subprocess.run(
+        ["git", "hash-object", "--no-filters", "--stdin"],
+        cwd=repo_root,
+        input=data,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _require(result.returncode == 0, "Git cannot calculate a raw blob identity")
+    return result.stdout.decode("ascii").strip()
 
 
 def _plain(value: str) -> str:
@@ -223,7 +232,7 @@ def _read_yaml(path: Path) -> tuple[bytes, dict[str, Any]]:
     return data, value
 
 
-def _verify_approved_annex_provenance(repo_root: Path) -> None:
+def _verify_approved_annex_provenance(repo_root: Path) -> bytes:
     result = subprocess.run(
         [
             "git",
@@ -236,18 +245,19 @@ def _verify_approved_annex_provenance(repo_root: Path) -> None:
         stderr=subprocess.PIPE,
     )
     _require(result.returncode == 0, "approved annex revision is unavailable")
-    _require(_git_blob_id(result.stdout) == APPROVED_WP6_1_ANNEX_BLOB, "approved annex Git blob mismatch")
+    _require(_git_blob_id(result.stdout, repo_root) == APPROVED_WP6_1_ANNEX_BLOB, "approved annex Git blob mismatch")
     _require(
         hashlib.sha256(result.stdout).hexdigest() == APPROVED_WP6_1_ANNEX_SHA256,
         "approved annex canonical SHA-256 mismatch",
     )
+    return result.stdout
 
 
-def _parse_annex(path: Path) -> list[_AnnexRow]:
+def _parse_annex_bytes(data: bytes) -> list[_AnnexRow]:
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        raise SchemaError(f"WP6.1 contract materialization: unreadable approved annex: {path}") from exc
+        lines = data.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise SchemaError("WP6.1 contract materialization: approved annex is not UTF-8") from exc
     section: str | None = None
     rows: list[_AnnexRow] = []
     for line in lines:
@@ -266,6 +276,14 @@ def _parse_annex(path: Path) -> list[_AnnexRow]:
             continue
         rows.append(_AnnexRow(section, _plain(cells[0]), cells))  # type: ignore[arg-type]
     return rows
+
+
+def _parse_annex(path: Path) -> list[_AnnexRow]:
+    """Legacy checkout parser retained only for external compatibility tests."""
+    try:
+        return _parse_annex_bytes(path.read_bytes())
+    except OSError as exc:
+        raise SchemaError(f"WP6.1 contract materialization: unreadable approved annex: {path}") from exc
 
 
 def _command_event_parts(cell: str) -> tuple[str, str, list[str], list[str]]:
@@ -368,7 +386,19 @@ def _authority_binding(key: str, command_type: str) -> tuple[str, str]:
     _fail(f"unmapped authority family: {key}")
 
 
-def _identity_object(schema_token: str, semantic_type: str, kind: str) -> dict[str, Any]:
+@lru_cache(maxsize=None)
+def _canonical_schema_sha256(path: Path) -> str:
+    """Cache immutable schema-byte checks across the complete mutation matrix."""
+    _require(path.is_file(), f"materialized schema is missing: {path}")
+    schema_bytes = path.read_bytes()
+    _require(
+        not schema_bytes.startswith(b"\xef\xbb\xbf") and b"\r" not in schema_bytes,
+        f"schema bytes are not canonical: {path}",
+    )
+    return hashlib.sha256(schema_bytes).hexdigest()
+
+
+def _identity_object(schema_token: str, semantic_type: str, kind: str, repo_root: Path) -> dict[str, Any]:
     token = schema_token.split("/", 1)[1]
     if kind == "command":
         base = {
@@ -376,8 +406,8 @@ def _identity_object(schema_token: str, semantic_type: str, kind: str) -> dict[s
             "command_schema_path": f".research-system/schemas/core/commands/{token}.schema.json",
             "command_schema_id": f"ars://core/command/{semantic_type}",
             "command_schema_version": "1.0.0",
-            "command_schema_sha256": None,
-            "materialization_status": "planned_unmaterialized",
+            "command_schema_sha256": "",
+            "materialization_status": "proposed_materialized",
             "review_status": "pending_independent_review",
             "acceptance_status": "pending_d_g6_3_owner_acceptance",
         }
@@ -388,11 +418,14 @@ def _identity_object(schema_token: str, semantic_type: str, kind: str) -> dict[s
             "event_schema_path": f".research-system/schemas/core/events/{token}.schema.json",
             "event_schema_id": f"ars://core/event/{semantic_type}",
             "event_schema_version": "1.0.0",
-            "event_schema_sha256": None,
-            "materialization_status": "planned_unmaterialized",
+            "event_schema_sha256": "",
+            "materialization_status": "proposed_materialized",
             "review_status": "pending_independent_review",
             "acceptance_status": "pending_d_g6_3_owner_acceptance",
         }
+    path_field = "command_schema_path" if kind == "command" else "event_schema_path"
+    path = repo_root / base[path_field]
+    base["command_schema_sha256" if kind == "command" else "event_schema_sha256"] = _canonical_schema_sha256(path)
     result: dict[str, Any] = {}
     digest = _sha256_value(base)
     for field, value in base.items():
@@ -517,7 +550,8 @@ def _verify_schema_identity(identity: Mapping[str, Any], expected: Mapping[str, 
     path_field = "command_schema_path" if "command_schema_path" in expected else "event_schema_path"
     _require(identity == expected, f"schema identity mismatch: {expected[path_field]}")
     path = repo_root / str(identity[path_field])
-    _require(not path.exists(), f"planned schema now exists but remains declared unmaterialized: {path}")
+    hash_field = "command_schema_sha256" if "command_schema_path" in expected else "event_schema_sha256"
+    _require(identity[hash_field] == _canonical_schema_sha256(path), f"schema SHA-256 mismatch: {path}")
 
 
 @lru_cache(maxsize=1)
@@ -568,14 +602,17 @@ def validate_wp6_1_contract_materialization(
     )
 
     manifest_ref = catalogue["schema_identity_manifest"]
-    _require(manifest_ref["git_blob_id"] == _git_blob_id(identities_bytes), "identity manifest Git blob mismatch")
+    _require(
+        manifest_ref["git_blob_id"] == _git_blob_id(identities_bytes, repo_root),
+        "identity manifest Git blob mismatch",
+    )
     _require(
         manifest_ref["canonical_utf8_lf_sha256"] == hashlib.sha256(identities_bytes).hexdigest(),
         "identity manifest SHA-256 mismatch",
     )
 
-    _verify_approved_annex_provenance(repo_root)
-    annex_rows = _parse_annex(repo_root / APPROVED_WP6_1_ANNEX_PATH)
+    approved_annex_bytes = _verify_approved_annex_provenance(repo_root)
+    annex_rows = _parse_annex_bytes(approved_annex_bytes)
     binding_surface = [[row.source_table, *row.cells] for row in annex_rows]
     _require(
         _sha256_value(binding_surface) == APPROVED_WP6_1_ANNEX_ROW_BINDING_SHA256,
@@ -604,9 +641,9 @@ def validate_wp6_1_contract_materialization(
     for annex_row, row in zip(annex_rows, catalogue_rows, strict=True):
         cells = annex_row.cells
         schema_token, command_type, events, event_tokens = _command_event_parts(cells[2])
-        command_identity = _identity_object(schema_token, command_type, "command")
+        command_identity = _identity_object(schema_token, command_type, "command", repo_root)
         event_identities = [
-            _identity_object(event_token, event_type, "event")
+            _identity_object(event_token, event_type, "event", repo_root)
             for event_type, event_token in zip(events, event_tokens, strict=True)
         ]
         reducers, projections, selector = _reducer_projection_parts(cells[3])

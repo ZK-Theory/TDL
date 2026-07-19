@@ -256,9 +256,9 @@
         },
         "command_schema_id": {"type": "string", "pattern": "^ars://core/command/[A-Za-z][A-Za-z0-9]+$"},
         "command_schema_version": {"const": "1.0.0"},
-        "command_schema_sha256": {"type": "null"},
+        "command_schema_sha256": {"$ref": "#/$defs/sha256"},
         "command_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
-        "materialization_status": {"const": "planned_unmaterialized"},
+        "materialization_status": {"const": "proposed_materialized"},
         "review_status": {"const": "pending_independent_review"},
         "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
       },
@@ -287,9 +287,9 @@
         },
         "event_schema_id": {"type": "string", "pattern": "^ars://core/event/[A-Za-z][A-Za-z0-9]+$"},
         "event_schema_version": {"const": "1.0.0"},
-        "event_schema_sha256": {"type": "null"},
+        "event_schema_sha256": {"$ref": "#/$defs/sha256"},
         "event_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
-        "materialization_status": {"const": "planned_unmaterialized"},
+        "materialization_status": {"const": "proposed_materialized"},
         "review_status": {"const": "pending_independent_review"},
         "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
       },
