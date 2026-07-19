@@ -92,13 +92,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_assignment` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "assignment",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_assignment` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "assignment",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_assignment` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -173,7 +173,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -258,13 +258,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_acknowledgement` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "acknowledgement",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_acknowledgement` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "acknowledgement",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_acknowledgement` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -334,7 +334,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -412,13 +412,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_progress` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "progress",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_progress` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "progress",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_progress` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -493,7 +493,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -582,13 +582,13 @@
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_input_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "input_request",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_input_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "input_request",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_input_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -663,7 +663,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -759,13 +759,13 @@
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_escalation` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "escalation",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_escalation` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "escalation",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_escalation` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -840,7 +840,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -921,13 +921,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_report` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "report",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_report` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "report",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_report` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -1002,7 +1002,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -1086,13 +1086,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_review_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "review_request",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_review_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "review_request",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_review_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -1172,7 +1172,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -1252,13 +1252,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_review_response` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "review_response",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_review_response` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "review_response",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_review_response` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -1333,7 +1333,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -1417,13 +1417,13 @@
               ],
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_decision_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "decision_request",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_decision_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "decision_request",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_decision_request` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -1503,7 +1503,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",
@@ -1594,13 +1594,13 @@
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_handoff` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "message_type": {
-              "const": "handoff",
+            "message_id": {
+              "minLength": 1,
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_handoff` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "new_message_id": {
-              "minLength": 1,
+            "message_type": {
+              "const": "handoff",
               "type": "string",
               "x-source-citation": "W2 §14.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `message.publish_handoff` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
@@ -1675,7 +1675,7 @@
             }
           },
           "required": [
-            "new_message_id",
+            "message_id",
             "message_type",
             "sender_actor_id",
             "recipient_actor_ids",

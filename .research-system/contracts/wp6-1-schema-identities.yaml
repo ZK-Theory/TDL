@@ -15,7 +15,7 @@ governance:
   review_status: pending_independent_review
   acceptance_status: pending_d_g6_3_owner_acceptance
 normalized_row_count: 104
-row_identity_multiset_sha256: efb97fde90cbc2db85f9d3699f06478f6ef20147fb8677e8085be2b38fc62f8e
+row_identity_multiset_sha256: 4195f45758788f4e627ac92bac7a78c792ed8961435b81b288e1b5702dde1012
 rows:
 - key: scope.create
   command_type: CreateScopeDefinition
@@ -1255,12 +1255,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: ca2974e3039b67263d860470f39090b360abe115bd6bd13a6db83f5a66879b91
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: 24eaef63495f0e09bc397bb4612be8df47c7a3722e4c5ab4447f3a6401a9c114
 - key: message.publish_acknowledgement
   command_type: PublishMessage
   command_schema_identity:
@@ -1279,12 +1279,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: b103d3cce6350c1bec9514499e44b5752d4a22fb31ac521fa6f7d785f7dad876
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: 9327d027dbc51f2dcf26204398a859c890576f11b0948556ea371bd2753a6fa3
 - key: message.publish_progress
   command_type: PublishMessage
   command_schema_identity:
@@ -1303,12 +1303,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: e42883713a216dbd22fa89fd30ace24c56172a13e9be3a58efd64be40d8ce986
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: 5b9a79a5b6ba697c7e41462d6e314bd5dcb0446ff52bf13c929b35fd109a4a34
 - key: message.publish_input_request
   command_type: PublishMessage
   command_schema_identity:
@@ -1327,12 +1327,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: e7c024fb55ce5ec14ca24624b729b43920c80a697cc1d76a9d932abdcf7d3995
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: cd4cf69a962b1b0a37562d5d9d540bed61d5d48f278630ea65c7ac6cb1dcdcbd
 - key: message.publish_escalation
   command_type: PublishMessage
   command_schema_identity:
@@ -1351,12 +1351,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: b04bad870258cd6726930a3cdbc5496070bc70a372808f5fb9266b10bfcd23cb
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: a46f99cba2c041bce7ce69649e3a99cbc4c95da3d7f52473152f9f99af437d6d
 - key: message.publish_report
   command_type: PublishMessage
   command_schema_identity:
@@ -1375,12 +1375,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: 1244e21a761b9e9352afcd515961d9b0f7413fa4237178225260e2da8f9f0631
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: 51d7de582d4043cb7d8663f6ab15c550e6dda71a8431d5c08ffa0153f7e1a1e0
 - key: message.publish_review_request
   command_type: PublishMessage
   command_schema_identity:
@@ -1399,12 +1399,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: a03e0cb6c6e1ebbaddea84d2d5e95a46cceefeef636c110f2af255a4c64ea28d
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: b1656ef684acf14cf86c0bc390b766b54a80659a970b80c8a3f6c957c421413f
 - key: message.publish_review_response
   command_type: PublishMessage
   command_schema_identity:
@@ -1423,12 +1423,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: 44816763e60d74db81d4d2e127f1e59d2642213a13077bb5d50dd4c35594c722
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: 1ec0820bee029ab5b40f1b61ec81c66ba0c7fb035477e4bc822cbf66bad81e73
 - key: message.publish_decision_request
   command_type: PublishMessage
   command_schema_identity:
@@ -1447,12 +1447,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: caa383cc9dc11bbe2a99acf67cd8641d520c2269c1b8ff6c477dec1aedf5457c
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: aade265839b416fc86650c4924120daf43db3623d64953d41521f42015d82c36
 - key: message.publish_handoff
   command_type: PublishMessage
   command_schema_identity:
@@ -1471,12 +1471,12 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
-  row_identity_contract_sha256: 96d5d120a0bd8c3b97995c79bb8a0f8e03f17b9fb3cc85ab02ee969ace82ee3c
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
+  row_identity_contract_sha256: 1e9dc685eda5f282fcaa6b984e50ac8538797dd1c5e34009082c21a69ff1df05
 - key: message.deliver
   command_type: RecordMessageDelivery
   command_schema_identity:

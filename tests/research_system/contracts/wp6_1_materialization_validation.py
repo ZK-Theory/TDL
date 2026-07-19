@@ -759,8 +759,7 @@ _INDEPENDENT_MESSAGE_TYPES = {
     "decision_request",
     "handoff",
 }
-_INDEPENDENT_MESSAGE_COMMON = {
-    "new_message_id",
+_INDEPENDENT_MESSAGE_COMMON_FACTS = {
     "message_type",
     "sender_actor_id",
     "recipient_actor_ids",
@@ -865,6 +864,10 @@ def _verify_independent_scope_and_message_contracts(repo_root: Path) -> None:
         repo_root / ".research-system/schemas/core/events/message_published.schema.json",
     ):
         message = _semantic_schema(path)
+        is_command = path.parent.name == "commands"
+        message_identity = "new_message_id" if is_command else "message_id"
+        forbidden_identity = "message_id" if is_command else "new_message_id"
+        expected_common = _INDEPENDENT_MESSAGE_COMMON_FACTS | {message_identity}
         variants = message["$defs"]["payload"]["oneOf"]
         _require(len(variants) == 10, f"message variant cardinality mismatch: {path}")
         _require(
@@ -881,7 +884,11 @@ def _verify_independent_scope_and_message_contracts(repo_root: Path) -> None:
             message_type = variant["properties"]["message_type"]["const"]
             required = set(variant["required"])
             properties = variant["properties"]
-            _require(_INDEPENDENT_MESSAGE_COMMON <= required, f"message common facts missing: {path}")
+            _require(expected_common <= required, f"message common facts missing: {path}")
+            _require(
+                forbidden_identity not in properties,
+                f"command/event message identity leaked across the boundary: {path}",
+            )
             _require(
                 variant.get("oneOf") == [{"required": ["body"]}, {"required": ["body_artefact_ref"]}],
                 f"message body XOR mismatch: {path}",

@@ -602,8 +602,7 @@ def _d(
     return command, events, command_consts or {}, event_consts or tuple({} for _ in events)
 
 
-_MESSAGE_COMMON = (
-    "new_message_id",
+_MESSAGE_COMMON_FACTS = (
     "message_type",
     "sender_actor_id",
     "recipient_actor_ids",
@@ -625,10 +624,11 @@ _MESSAGE_COMMON = (
 
 def _message_d(message_type: str, *variant_fields: str, actionable: bool = False) -> _OperationData:
     action_fields = ("requested_action", "deadline") if actionable else ()
-    fields = _MESSAGE_COMMON + action_fields + variant_fields
+    command_fields = ("new_message_id",) + _MESSAGE_COMMON_FACTS + action_fields + variant_fields
+    event_fields = ("message_id",) + _MESSAGE_COMMON_FACTS + action_fields + variant_fields
     return _d(
-        fields,
-        fields + ("published_at",),
+        command_fields,
+        event_fields + ("published_at",),
         command_consts={"message_type": message_type},
         event_consts=({"message_type": message_type},),
     )

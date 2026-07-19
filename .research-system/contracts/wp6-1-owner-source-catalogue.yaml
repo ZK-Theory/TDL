@@ -12,8 +12,8 @@ schema_identity_manifest:
   repository_path: .research-system/contracts/wp6-1-schema-identities.yaml
   schema_id: ars://contracts/wp6-1-schema-identities
   schema_version: 1.0.0
-  git_blob_id: cfdbdf644b93e468ec9afb220408479dea95156b
-  canonical_utf8_lf_sha256: 54c9f10887d3c2e6c1ec9383cbb84bf690932e9027d33699d04cd1aaa4e2049b
+  git_blob_id: 8a4ed4cd2a9fe390f08f2fbaa46bb3975eff765f
+  canonical_utf8_lf_sha256: 52a8e0c9032eb4ef3e77dafed396b511016bc559164e46d8b1495c824dac931a
   review_status: pending_independent_review
   acceptance_status: pending_d_g6_3_owner_acceptance
 governance:
@@ -281,7 +281,7 @@ decision_rule_evaluation_non_compensation:
   - decision_projection
   - rule_evaluation_projection
   - governance_correction_index
-catalogue_multiset_sha256: 2abb3c67e647aa86e290085611bfe91221737d44cf8befa6561727b27d636cfc
+catalogue_multiset_sha256: b37fc85caf2edfd47ea62a46373b9b83228b1c3e9de2eb48d1ec068a43a0f7fc
 rows:
 - source_table: w2_lifecycle
   key: scope.create
@@ -4960,11 +4960,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5020,7 +5020,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact recipients/subject/action
     receipt_positive_negatives: '`R`; `pos_message_assignment`; `NA`'
-  complete_record_sha256: 648fdecf626b54e702e62cf33163966135812099da38f2d9f332a02c137f5909
+  complete_record_sha256: d3245650f29013894a51601e95da4c9c7e84ed9319f9d61c902bd07f404ebf64
 - source_table: w2_messages_governance
   key: message.publish_acknowledgement
   owner_transition_discriminator: W2 §14 `none → published`, type `acknowledgement`
@@ -5050,11 +5050,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5110,7 +5110,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact correlation/reply identity
     receipt_positive_negatives: '`R`; `pos_message_acknowledgement`; `NA`'
-  complete_record_sha256: 336a5f67ff5d8caa75c74e78e3b269d33d169ed0c40e2a4c47848fc98ea7f392
+  complete_record_sha256: 2669f2429b62719529c3f4b14738f086f6cb4b0ec3f193cfc113295e9c433367
 - source_table: w2_messages_governance
   key: message.publish_progress
   owner_transition_discriminator: W2 §14 `none → published`, type `progress`
@@ -5140,11 +5140,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5200,7 +5200,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact Task/attempt correlation
     receipt_positive_negatives: '`R`; `pos_message_progress`; `NA`'
-  complete_record_sha256: f389393e2b8aba93deb122dbb6a4c815040229053402503228ec6e9319e35aab
+  complete_record_sha256: 1b8504249bd78b6c2d4765df267f07ec76b95d13423d2daebb3c4a14a8d26501
 - source_table: w2_messages_governance
   key: message.publish_input_request
   owner_transition_discriminator: W2 §14 `none → published`, type `input_request`
@@ -5230,11 +5230,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5290,7 +5290,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; named action/deadline/recipient
     receipt_positive_negatives: '`R`; `pos_message_input_request`; `NA`'
-  complete_record_sha256: 72f50c18d608c5d3b2fd33550621e60ca7034a4bc951ae4006696f390cd839d4
+  complete_record_sha256: 9ca2ce923dba6f5b81b270bd74e4f295002ee2c86dd58379acbb8dcb9f658939
 - source_table: w2_messages_governance
   key: message.publish_escalation
   owner_transition_discriminator: W2 §14 `none → published`, type `escalation`
@@ -5320,11 +5320,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5380,7 +5380,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; typed evidence and escalation route
     receipt_positive_negatives: '`R`; `pos_message_escalation`; `NA`'
-  complete_record_sha256: a468ca6e9711d28e3f4b1c5956802371231af916d9439e0e4dff01439887c267
+  complete_record_sha256: 2449e7278696d0de209af377d5dfade947b2bac8841bfa8e77b1457d72d54851
 - source_table: w2_messages_governance
   key: message.publish_report
   owner_transition_discriminator: W2 §14 `none → published`, type `report`
@@ -5410,11 +5410,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5470,7 +5470,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact Task/attempt/artefact refs
     receipt_positive_negatives: '`R`; `pos_message_report`; `NA`'
-  complete_record_sha256: 9583009b238d9dc6b94f16bf77b325363be6abb59220766c60d5c479fe0735f1
+  complete_record_sha256: 7d4cbb2b4d6e571d4f2ac0ddbc2ba99428fcfbcf30ce4420310639927bbf8763
 - source_table: w2_messages_governance
   key: message.publish_review_request
   owner_transition_discriminator: W2 §14 `none → published`, type `review_request`
@@ -5500,11 +5500,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5560,7 +5560,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact review/subject refs
     receipt_positive_negatives: '`R`; `pos_message_review_request`; `NA`'
-  complete_record_sha256: 768b5e96c939a1a2f494a5ee0c57713b1cdd2355e7cb39315978aacb83f6beee
+  complete_record_sha256: b41151e8e06c2664736cde7aab37a29175343e1a57ff73b600a0c400eafb96ca
 - source_table: w2_messages_governance
   key: message.publish_review_response
   owner_transition_discriminator: W2 §14 `none → published`, type `review_response`
@@ -5590,11 +5590,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5650,7 +5650,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact review/reply refs
     receipt_positive_negatives: '`R`; `pos_message_review_response`; `NA`'
-  complete_record_sha256: 54b7ce78aa64aa8ce2f94fd0319a15c8013bb2fd2be4307b103b77aecc9ac46f
+  complete_record_sha256: c949780245a2f7576b9cd2c512eda7346f3056a89b4153cd249d1231e967c0cf
 - source_table: w2_messages_governance
   key: message.publish_decision_request
   owner_transition_discriminator: W2 §14 `none → published`, type `decision_request`
@@ -5680,11 +5680,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5740,7 +5740,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact Decision/question refs
     receipt_positive_negatives: '`R`; `pos_message_decision_request`; `NA`'
-  complete_record_sha256: c8eebc7133a3a0c3e0c73605c42dff935bad56091cefa85930b3f60a80bb493e
+  complete_record_sha256: 23ed401939cc4ca7f5d7c2843968d28b5ee16baea6c180d6dcce769138f8beb2
 - source_table: w2_messages_governance
   key: message.publish_handoff
   owner_transition_discriminator: W2 §14 `none → published`, type `handoff`
@@ -5770,11 +5770,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/message_published.schema.json
     event_schema_id: ars://core/event/MessagePublished
     event_schema_version: 1.0.0
-    event_schema_sha256: 2828757edd8dc394e3028b24f27c29c4d3d8b80387ce545945885c38fb3b1d4a
+    event_schema_sha256: 5a36cab42e704ceaed68db229e34655a1039df5597b0e4b4c1313ce5b7182cab
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 0fa3dd364001a4c81eb70410b0bf7ee643b0a6991a3b052f214fb3efd0f10f04
+    event_identity_contract_sha256: bdcb86eb69cd9a1c403670364489ce308e861010037716dbe179fb98369c7ff2
   reducers:
   - reduce_message
   projections:
@@ -5830,7 +5830,7 @@ rows:
     reducer_projections_selector: '`reduce_message`; message'
     authority_precondition: sender authority; exact scope/evidence/recipient refs
     receipt_positive_negatives: '`R`; `pos_message_handoff`; `NA`'
-  complete_record_sha256: c7ea3e492444aac4233563675aefa4e3ce86bde24d57836f9c538036dd1b0af7
+  complete_record_sha256: 1453e4d158389a662b52bd6edc3439bc2cf234d5bef28c84cb56535aea1ea742
 - source_table: w2_messages_governance
   key: message.deliver
   owner_transition_discriminator: W2 §14 `published → delivered`
