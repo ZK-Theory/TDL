@@ -789,10 +789,21 @@ REVIEW_GATE_CONDITION_RULE = {
 
 REUSABLE_OBJECT_FIELD_RULE = {
     "all_listed_reusable_object_fields_required": True,
+    "variant_controlled_field_exception": (
+        "fields_controlled_by_same_object_variant_rule_are_exempt_from_global_requiredness"
+    ),
+    "variant_controlled_field_derivation": "union_of_all_branch_required_fields_and_forbidden_fields",
+    "requiredness_precedence": (
+        "variant_branch_presence_rules_override_global_requiredness_for_controlled_fields_only"
+    ),
+    "non_variant_listed_fields_required": True,
+    "selected_variant_required_fields_non_null": True,
+    "selected_variant_forbidden_fields_absent": True,
+    "selected_nested_object_fields_required": True,
     "nullable_field_semantics": "required_key_value_may_be_null_only_when_nullable_true",
     "nonempty_evidence_type_ref": "type/nonempty_evidence_ref_list",
     "decision_basis": "conservative_proposal",
-    "source_citation": "W2/W8 listed typed facts and R5 requiredness closure",
+    "source_citation": "W2/W8 listed typed facts and R6 same-object variant requiredness composition",
 }
 
 # Independently transcribed from immutable W2/W8/06d facts and the reviewed
@@ -1435,6 +1446,84 @@ def _profile_object_valid(value: Any, object_id: str) -> bool:
         elif not _valid_typed_value(field_value, type_ref):
             return False
     return True
+
+
+def resource_request_composed_field_sets(
+    profile: str,
+    variant_rule: dict[str, Any] | None = None,
+    field_rule: dict[str, Any] | None = None,
+) -> dict[str, frozenset[str]] | None:
+    variant_rule = RESOURCE_PROFILE_VARIANT_RULE if variant_rule is None else variant_rule
+    field_rule = REUSABLE_OBJECT_FIELD_RULE if field_rule is None else field_rule
+    branches = variant_rule.get("branches", [])
+    selected = [item for item in branches if item.get("discriminator_const") == profile]
+    if len(selected) != 1:
+        return None
+    controlled = frozenset(
+        field for branch in branches for key in ("required_fields", "forbidden_fields") for field in branch.get(key, [])
+    )
+    all_fields = COMPLETE_SOURCE_GROUP_FIELDS["object/resource_request"]
+    exception_is_exact = all(
+        (
+            variant_rule.get("object_id") == "object/resource_request",
+            variant_rule.get("no_fallback") is True,
+            field_rule.get("all_listed_reusable_object_fields_required") is True,
+            field_rule.get("variant_controlled_field_exception")
+            == "fields_controlled_by_same_object_variant_rule_are_exempt_from_global_requiredness",
+            field_rule.get("variant_controlled_field_derivation")
+            == "union_of_all_branch_required_fields_and_forbidden_fields",
+            field_rule.get("requiredness_precedence")
+            == "variant_branch_presence_rules_override_global_requiredness_for_controlled_fields_only",
+            field_rule.get("non_variant_listed_fields_required") is True,
+            field_rule.get("selected_variant_required_fields_non_null") is True,
+            field_rule.get("selected_variant_forbidden_fields_absent") is True,
+            field_rule.get("selected_nested_object_fields_required") is True,
+        )
+    )
+    common = frozenset(all_fields - controlled) if exception_is_exact else frozenset(all_fields)
+    required = common | frozenset(selected[0].get("required_fields", []))
+    forbidden = frozenset(selected[0].get("forbidden_fields", []))
+    return {
+        "controlled": controlled,
+        "common": common,
+        "required": required,
+        "forbidden": forbidden,
+    }
+
+
+def composed_resource_request_satisfiable(
+    record: dict[str, Any],
+    variant_rule: dict[str, Any] | None = None,
+    field_rule: dict[str, Any] | None = None,
+) -> bool:
+    field_sets = resource_request_composed_field_sets(
+        record.get("operational_profile"), variant_rule=variant_rule, field_rule=field_rule
+    )
+    if field_sets is None:
+        return False
+    if field_sets["controlled"] != frozenset(
+        {"trivial_profile_evidence", "bounded_profile_evidence", "long_running_profile_evidence"}
+    ):
+        return False
+    if len(field_sets["common"]) != 35 or field_sets["required"] & field_sets["forbidden"]:
+        return False
+    if set(record) != field_sets["required"]:
+        return False
+    selected_fields = field_sets["required"] & field_sets["controlled"]
+    if len(selected_fields) != 1 or any(record[field] is None for field in selected_fields):
+        return False
+    profile_slice = {
+        key: value
+        for key, value in record.items()
+        if key
+        in {
+            "operational_profile",
+            "operational_profile_policy_id",
+            "operational_profile_revision",
+            *field_sets["controlled"],
+        }
+    }
+    return resource_profile_branch_allowed(profile_slice)
 
 
 def resource_profile_branch_allowed(record: dict[str, Any]) -> bool:

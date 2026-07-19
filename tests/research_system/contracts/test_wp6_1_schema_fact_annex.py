@@ -11,6 +11,8 @@ import yaml
 
 from tests.research_system.contracts.wp6_1_schema_fact_oracle import (
     COMPLETE_SOURCE_GROUP_FIELDS,
+    RESOURCE_PROFILE_VARIANT_RULE,
+    REUSABLE_OBJECT_FIELD_RULE,
     SOURCE_CLOSED_ENUMS,
     SOURCE_DOCUMENTS,
     SOURCE_REVISION,
@@ -25,9 +27,11 @@ from tests.research_system.contracts.wp6_1_schema_fact_oracle import (
     assert_required_source_facts_bound,
     assert_shared_rules,
     assert_type_and_enum_authority,
+    composed_resource_request_satisfiable,
     immutable_source_bytes,
     parse_owner_rows,
     resource_profile_branch_allowed,
+    resource_request_composed_field_sets,
     review_verdict_satisfies_gate,
     review_verdict_structurally_valid,
     writer_lease_allowed,
@@ -273,6 +277,67 @@ def test_wp6_1_resource_profile_fixture_rejects_incomplete_or_leaking_nested_evi
     assert not resource_profile_branch_allowed(record)
 
 
+_CONTROLLED_PROFILE_FIELDS = {
+    "trivial_profile_evidence",
+    "bounded_profile_evidence",
+    "long_running_profile_evidence",
+}
+
+
+def _complete_resource_request_witness(profile: str) -> dict[str, Any]:
+    record = _valid_profile_record(profile)
+    for field_name in COMPLETE_SOURCE_GROUP_FIELDS["object/resource_request"] - _CONTROLLED_PROFILE_FIELDS:
+        record.setdefault(field_name, "present")
+    return record
+
+
+@pytest.mark.parametrize("profile", ["trivial", "bounded", "long_running"])
+def test_wp6_1_composed_resource_request_requiredness_has_a_complete_witness(profile: str) -> None:
+    field_sets = resource_request_composed_field_sets(profile)
+    assert field_sets is not None
+    assert field_sets["controlled"] == frozenset(_CONTROLLED_PROFILE_FIELDS)
+    assert len(field_sets["common"]) == 35
+    assert not field_sets["required"] & field_sets["forbidden"]
+    assert field_sets["required"] | field_sets["forbidden"] == COMPLETE_SOURCE_GROUP_FIELDS["object/resource_request"]
+    assert composed_resource_request_satisfiable(_complete_resource_request_witness(profile))
+
+
+@pytest.mark.parametrize(
+    "attack",
+    ["missing_common", "null_selected", "incomplete_nested", "foreign", "leakage", "fallback", "extra"],
+)
+def test_wp6_1_composed_resource_request_rejects_incomplete_or_overbroad_outer_instances(attack: str) -> None:
+    record = _complete_resource_request_witness("bounded")
+    if attack == "missing_common":
+        record.pop("resource_request_id")
+    elif attack == "null_selected":
+        record["bounded_profile_evidence"] = None
+    elif attack == "incomplete_nested":
+        record["bounded_profile_evidence"].pop("heartbeat")
+    elif attack == "foreign":
+        record["trivial_profile_evidence"] = _valid_profile_record("trivial")["trivial_profile_evidence"]
+    elif attack == "leakage":
+        record["long_running_profile_evidence"] = _valid_profile_record("long_running")["long_running_profile_evidence"]
+    elif attack == "fallback":
+        record["operational_profile"] = "invented"
+    else:
+        record["unexpected"] = "extra"
+    assert not composed_resource_request_satisfiable(record)
+
+
+@pytest.mark.parametrize("profile", ["trivial", "bounded", "long_running"])
+def test_wp6_1_composed_resource_request_rejects_any_required_forbidden_intersection(profile: str) -> None:
+    variant_rule = copy.deepcopy(RESOURCE_PROFILE_VARIANT_RULE)
+    branch = next(item for item in variant_rule["branches"] if item["discriminator_const"] == profile)
+    branch["forbidden_fields"].append(branch["required_fields"][0])
+    field_sets = resource_request_composed_field_sets(profile, variant_rule=variant_rule)
+    assert field_sets is not None
+    assert field_sets["required"] & field_sets["forbidden"]
+    assert not composed_resource_request_satisfiable(
+        _complete_resource_request_witness(profile), variant_rule=variant_rule
+    )
+
+
 def _owned_non_blocking_condition() -> dict[str, Any]:
     return {
         "condition_text": "publish the stated limitation",
@@ -415,6 +480,64 @@ def test_wp6_1_r5_authority_mutations_are_rejected(proposal: dict[str, Any], att
         assertion = assert_required_source_facts_bound
     with pytest.raises(AssertionError):
         assertion(candidate)
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "exception_missing",
+        "exception_changed",
+        "exception_cross_object",
+        "exception_all_fields",
+        "derivation_changed",
+        "precedence_reversed",
+        "precedence_overbroad",
+        "global_required_false",
+        "common_required_false",
+        "selected_non_null_false",
+        "forbidden_absent_false",
+        "nested_required_false",
+    ],
+)
+def test_wp6_1_r6_composed_requiredness_authority_mutations_are_rejected(proposal: dict[str, Any], attack: str) -> None:
+    candidate = copy.deepcopy(proposal)
+    rule = candidate["reusable_object_field_rule"]
+    if attack == "exception_missing":
+        rule.pop("variant_controlled_field_exception")
+    elif attack == "exception_changed":
+        rule["variant_controlled_field_exception"] = "variant_fields_may_be_optional"
+    elif attack == "exception_cross_object":
+        rule["variant_controlled_field_exception"] = "fields_controlled_by_any_object_variant_rule_are_exempt"
+    elif attack == "exception_all_fields":
+        rule["variant_controlled_field_exception"] = "all_fields_on_variant_objects_are_exempt"
+    elif attack == "derivation_changed":
+        rule["variant_controlled_field_derivation"] = "union_of_required_fields_only"
+    elif attack == "precedence_reversed":
+        rule["requiredness_precedence"] = "global_requiredness_overrides_variant_branches"
+    elif attack == "precedence_overbroad":
+        rule["requiredness_precedence"] = "variant_branches_override_all_global_requiredness"
+    elif attack == "global_required_false":
+        rule["all_listed_reusable_object_fields_required"] = False
+    elif attack == "common_required_false":
+        rule["non_variant_listed_fields_required"] = False
+    elif attack == "selected_non_null_false":
+        rule["selected_variant_required_fields_non_null"] = False
+    elif attack == "forbidden_absent_false":
+        rule["selected_variant_forbidden_fields_absent"] = False
+    else:
+        rule["selected_nested_object_fields_required"] = False
+    with pytest.raises(AssertionError):
+        assert_high_risk_field_semantics(candidate)
+
+
+@pytest.mark.parametrize("profile", ["trivial", "bounded", "long_running"])
+def test_wp6_1_missing_same_object_exception_recreates_an_empty_profile_language(profile: str) -> None:
+    field_rule = copy.deepcopy(REUSABLE_OBJECT_FIELD_RULE)
+    field_rule.pop("variant_controlled_field_exception")
+    field_sets = resource_request_composed_field_sets(profile, field_rule=field_rule)
+    assert field_sets is not None
+    assert field_sets["required"] & field_sets["forbidden"]
+    assert not composed_resource_request_satisfiable(_complete_resource_request_witness(profile), field_rule=field_rule)
 
 
 def test_wp6_1_fact_annex_freezes_all_shared_command_and_event_normalizations(proposal: dict[str, Any]) -> None:
