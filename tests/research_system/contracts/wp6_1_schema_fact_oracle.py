@@ -322,6 +322,7 @@ SOURCE_CLOSED_ENUMS = {
         "unable_to_verify",
         "withdrawn",
     ),
+    "enum/review_condition_gate_disposition": ("non_blocking", "blocking"),
     "enum/decision_kind": (
         "design_lock",
         "preregistration_amendment",
@@ -340,6 +341,14 @@ SOURCE_CLOSED_ENUMS = {
     "enum/structural_validation": ("not_run", "passed", "failed", "partial", "not_applicable"),
     "enum/scientific_review": ("not_required", "pending", "approved", "rejected", "unable_to_verify"),
     "enum/use_authority": ("candidate", "accepted_for_scope", "rejected", "superseded", "restricted"),
+    "enum/profile_evidence_disposition": ("required", "not_applicable"),
+    "enum/trivial_terminal_receipt_kind": ("provider_receipt", "operator_receipt"),
+    "enum/lease_scope": ("command_scoped",),
+    "enum/not_applicable_profile_evidence": ("not_applicable",),
+    "enum/trivial_request_record_type": ("resource_request",),
+    "enum/trivial_grant_record_type": ("resource_grant",),
+    "enum/trivial_ceilings_requirement": ("explicit_resource_ceilings",),
+    "enum/trivial_lease_release": ("releases_lease",),
     "enum/operational_profile": ("trivial", "bounded", "long_running"),
     "enum/checkpoint_compatibility": ("compatible", "incompatible", "unable_to_determine"),
     "enum/profile_applicability": ("required", "not_applicable"),
@@ -547,9 +556,444 @@ COMPLETE_SOURCE_GROUP_FIELDS = {
             "release_obligations",
             "cleanup_obligations",
             "trivial_profile_evidence",
+            "bounded_profile_evidence",
+            "long_running_profile_evidence",
         }
     ),
 }
+
+RESOURCE_REQUEST_PROFILE_FIELD_FACTS = {
+    "object/resource_request": (
+        (
+            "operational_profile",
+            "enum/operational_profile",
+            False,
+            "discriminator:object_variant_rule/resource_request_operational_profile",
+        ),
+        ("operational_profile_policy_id", "type/policy_version_id", False, None),
+        ("operational_profile_revision", "type/semver", False, None),
+        (
+            "trivial_profile_evidence",
+            "object/trivial_profile_evidence",
+            True,
+            "required_iff:operational_profile=trivial;forbidden_otherwise",
+        ),
+        (
+            "bounded_profile_evidence",
+            "object/bounded_profile_evidence",
+            True,
+            "required_iff:operational_profile=bounded;forbidden_otherwise",
+        ),
+        (
+            "long_running_profile_evidence",
+            "object/long_running_profile_evidence",
+            True,
+            "required_iff:operational_profile=long_running;forbidden_otherwise",
+        ),
+    ),
+    "object/profile_evidence_disposition": (
+        ("disposition", "enum/profile_evidence_disposition", False, "policy_selects:required_or_not_applicable"),
+        ("policy_id", "type/policy_version_id", False, "required_for:profile_evidence_disposition"),
+        ("rationale", "type/nonempty_string", False, "required_for:profile_evidence_disposition"),
+        ("applicability_evidence_refs", "type/string_list", False, "required_for:profile_evidence_disposition"),
+    ),
+    "object/trivial_not_applicable_evidence": (
+        ("disposition", "enum/not_applicable_profile_evidence", False, "const:not_applicable"),
+        ("policy_id", "type/policy_version_id", False, "required_for:not_applicable"),
+        ("rationale", "type/nonempty_string", False, "required_for:not_applicable"),
+        ("applicability_evidence_refs", "type/string_list", False, "required_for:not_applicable"),
+    ),
+    "object/trivial_provider_command_process": (
+        ("provider_command_id", "type/any_id", False, "allowed_only:operational_profile=trivial"),
+        (
+            "process_identity_disposition",
+            "enum/not_applicable_profile_evidence",
+            False,
+            "const:not_applicable;allowed_only:operational_profile=trivial",
+        ),
+        (
+            "process_identity_not_applicable_rationale",
+            "type/nonempty_string",
+            False,
+            "required_for:trivial_provider_command_process",
+        ),
+    ),
+    "object/trivial_profile_evidence": (
+        ("request_record_type", "enum/trivial_request_record_type", False, "required_if:operational_profile=trivial"),
+        ("grant_record_type", "enum/trivial_grant_record_type", False, "required_if:operational_profile=trivial"),
+        ("lease_scope", "enum/lease_scope", False, "required_if:operational_profile=trivial"),
+        (
+            "resource_ceilings_requirement",
+            "enum/trivial_ceilings_requirement",
+            False,
+            "required_if:operational_profile=trivial",
+        ),
+        (
+            "terminal_receipt_kind",
+            "enum/trivial_terminal_receipt_kind",
+            False,
+            "required_if:operational_profile=trivial",
+        ),
+        (
+            "terminal_receipt_lease_release",
+            "enum/trivial_lease_release",
+            False,
+            "required_if:operational_profile=trivial",
+        ),
+        ("terminal_receipt_evidence_refs", "type/string_list", False, "required_if:operational_profile=trivial"),
+        ("benchmark", "object/trivial_not_applicable_evidence", False, "not_applicable_if:operational_profile=trivial"),
+        (
+            "checkpoint",
+            "object/trivial_not_applicable_evidence",
+            False,
+            "not_applicable_if:operational_profile=trivial",
+        ),
+        (
+            "periodic_heartbeat",
+            "object/trivial_not_applicable_evidence",
+            False,
+            "not_applicable_if:operational_profile=trivial",
+        ),
+        ("recovery", "object/trivial_not_applicable_evidence", False, "not_applicable_if:operational_profile=trivial"),
+        (
+            "provider_command_process",
+            "object/trivial_provider_command_process",
+            False,
+            "allowed_only:operational_profile=trivial",
+        ),
+    ),
+    "object/bounded_profile_evidence": (
+        ("heartbeat", "object/profile_evidence_disposition", False, "policy_selected_if:operational_profile=bounded"),
+        ("output_tail", "object/profile_evidence_disposition", False, "policy_selected_if:operational_profile=bounded"),
+        ("stop", "object/profile_evidence_disposition", False, "policy_selected_if:operational_profile=bounded"),
+        ("checkpoint", "object/profile_evidence_disposition", False, "policy_selected_if:operational_profile=bounded"),
+    ),
+    "object/long_running_profile_evidence": (
+        ("benchmark", "object/profile_evidence_disposition", False, "applicable_if:operational_profile=long_running"),
+        ("heartbeat", "object/profile_evidence_disposition", False, "applicable_if:operational_profile=long_running"),
+        ("process", "object/profile_evidence_disposition", False, "applicable_if:operational_profile=long_running"),
+        ("checkpoint", "object/profile_evidence_disposition", False, "applicable_if:operational_profile=long_running"),
+        (
+            "stop_recovery",
+            "object/profile_evidence_disposition",
+            False,
+            "applicable_if:operational_profile=long_running",
+        ),
+        ("backup", "object/profile_evidence_disposition", False, "applicable_if:operational_profile=long_running"),
+    ),
+}
+
+RESOURCE_PROFILE_VARIANT_RULE = {
+    "rule_id": "object_variant_rule/resource_request_operational_profile",
+    "object_id": "object/resource_request",
+    "discriminator_field": "operational_profile",
+    "no_fallback": True,
+    "source_semantics": "source_literal",
+    "representation_choice": "conservative_proposal",
+    "source_citation": "W8 §11.1",
+    "branches": [
+        {
+            "discriminator_const": "trivial",
+            "required_fields": ["trivial_profile_evidence"],
+            "forbidden_fields": ["bounded_profile_evidence", "long_running_profile_evidence"],
+        },
+        {
+            "discriminator_const": "bounded",
+            "required_fields": ["bounded_profile_evidence"],
+            "forbidden_fields": ["trivial_profile_evidence", "long_running_profile_evidence"],
+        },
+        {
+            "discriminator_const": "long_running",
+            "required_fields": ["long_running_profile_evidence"],
+            "forbidden_fields": ["trivial_profile_evidence", "bounded_profile_evidence"],
+        },
+    ],
+}
+
+REVIEW_CONDITION_FIELD_FACTS = {
+    "family/review": (
+        ("verdict", "enum/review_verdict", False, "controls:review_gate_condition_rule/approve_with_conditions"),
+        (
+            "conditions",
+            "type/review_gate_condition_list",
+            False,
+            "all_items:non_blocking_with_non_null_owner_policy_and_evidence_when_gate_satisfied",
+        ),
+        (
+            "satisfaction_gate",
+            "type/nonempty_string",
+            False,
+            "satisfied_iff:every_condition_non_blocking_with_non_null_owner_policy_and_evidence",
+        ),
+    ),
+    "object/review_gate_condition": (
+        ("condition_text", "type/nonempty_string", False, "required_for:approve_with_conditions"),
+        (
+            "gate_disposition",
+            "enum/review_condition_gate_disposition",
+            False,
+            "must_equal:non_blocking_when_gate_satisfied",
+        ),
+        (
+            "owner_actor_id",
+            "type/actor_id",
+            True,
+            "non_null_when:approve_with_conditions_satisfies_gate",
+        ),
+        ("policy_id", "type/policy_version_id", False, "required_when:approve_with_conditions_satisfies_gate"),
+        ("evidence_refs", "type/string_list", False, "required_when:approve_with_conditions_satisfies_gate"),
+    ),
+}
+
+REVIEW_GATE_CONDITION_RULE = {
+    "rule_id": "review_gate_condition_rule/approve_with_conditions",
+    "family_id": "family/review",
+    "verdict_field": "verdict",
+    "verdict_const": "approve_with_conditions",
+    "condition_field": "conditions",
+    "gate_field": "satisfaction_gate",
+    "gate_satisfaction_rule": "every_condition_non_blocking_with_non_null_owner_policy_and_evidence",
+    "task_state_effect": "no_direct_task_state_change",
+    "source_semantics": "source_literal",
+    "representation_choice": "conservative_proposal",
+    "source_citation": "W2 §§17.3-17.4",
+}
+
+# Independently transcribed from immutable W2/W8/06d facts and the reviewed
+# conservative target selections.  This ledger must never be generated from
+# the proposal, resolver, materializer, generated schemas, or companion schema.
+SOURCE_FACT_BINDING_TSV = """\
+task_identity_task_id	W2	10.1	Identity: task_id	object/task_definition.task_id	source_literal
+task_identity_revision	W2	10.1	Identity: revision	object/task_definition.revision	conservative_proposal
+task_identity_aliases	W2	10.1	Identity: aliases	object/task_definition.aliases	conservative_proposal
+task_identity_project	W2	10.1	Identity: project	object/task_definition.project_id	source_literal
+task_identity_portfolio_refs	W2	10.1	Identity: portfolio references	object/task_definition.portfolio_refs	conservative_proposal
+task_identity_scope_refs	W2	10.1	Identity: scope references	object/task_definition.scope_refs	conservative_proposal
+task_purpose_title	W2	10.1	Purpose: title	object/task_definition.title	conservative_proposal
+task_purpose_objective	W2	10.1	Purpose: objective	object/task_definition.objective	source_literal
+task_purpose_bounded_scope	W2	10.1	Purpose: bounded scope	object/task_definition.bounded_scope	conservative_proposal
+task_purpose_non_goals	W2	10.1	Purpose: non-goals	object/task_definition.non_goals	conservative_proposal
+task_dependency_task_ids	W2	10.1	Dependency: required Task IDs	object/dependency.subject_id{subject_kind=task}	conservative_proposal
+task_dependency_decision_ids	W2	10.1	Dependency: required decision IDs	object/dependency.subject_id{subject_kind=decision}	conservative_proposal
+task_dependency_artefact_ids	W2	10.1	Dependency: required artefact IDs	object/dependency.subject_id{subject_kind=artefact}	conservative_proposal
+task_dependency_predicates	W2	10.1	Dependency: satisfaction predicates	object/dependency.satisfaction_predicate	conservative_proposal
+task_design_governing_refs	W2	10.1	Research design: governing preregistration/design/contract refs	object/task_definition.governing_design_refs	conservative_proposal
+task_design_risk_tier	W2	10.1	Research design: risk tier request	object/task_definition.risk_tier_request	conservative_proposal
+task_assurance_lanes	W2	10.1	Assurance: touched lanes	object/task_definition.assurance_lanes	conservative_proposal
+task_assurance_machine_checks	W2	10.1	Assurance: machine checks	object/task_definition.machine_checks	conservative_proposal
+task_assurance_human_questions	W2	10.1	Assurance: human questions	object/task_definition.human_questions	conservative_proposal
+task_assurance_independent_review	W2	10.1	Assurance: independent-review requirements	object/task_definition.independent_review_requirements	conservative_proposal
+task_delivery_artefacts	W2	10.1	Delivery: expected artefact types	object/task_definition.expected_artefact_types	conservative_proposal
+task_delivery_acceptance	W2	10.1	Delivery: acceptance criteria	object/task_definition.acceptance_criteria	conservative_proposal
+task_delivery_partial	W2	10.1	Delivery: Partial criteria	object/task_definition.partial_criteria	conservative_proposal
+task_delivery_shortcuts	W2	10.1	Delivery: prohibited shortcuts	object/task_definition.prohibited_shortcuts	conservative_proposal
+task_execution_roots	W2	10.1	Execution: root-binding requirements	object/task_definition.root_binding_requirements	conservative_proposal
+task_execution_concurrency	W2	10.1	Execution: concurrency policy	object/task_definition.concurrency_mode	source_literal
+task_execution_resource_policy	W2	10.1	Execution: resource-policy reference	object/task_definition.resource_policy_ref	conservative_proposal
+task_execution_checkpoint	W2	10.1	Execution: checkpoint expectation	object/task_definition.checkpoint_expectation	conservative_proposal
+task_authority_actions	W2	10.1	Authority: dispatch/amend/cancel/review/accept/reopen/supersede	object/task_definition.{dispatch_authority,amend_authority,cancel_authority,review_authority,accept_authority,reopen_authority,supersede_authority}	conservative_proposal
+task_provenance_creator	W2	10.1	Provenance: creator	object/task_definition.creator_actor_id	conservative_proposal
+task_provenance_time	W2	10.1	Provenance: creation time	object/task_definition.created_at	conservative_proposal
+task_provenance_imports	W2	10.1	Provenance: source/import refs	object/task_definition.source_import_refs	conservative_proposal
+task_provenance_hash	W2	10.1	Provenance: content hash	object/task_definition.content_sha256	source_literal
+dispatch_task_revision	W2	12.1	Task revision	object/dispatch_definition.task_revision	source_literal
+dispatch_target_role	W2	12.1	target role	object/dispatch_definition.target_role	conservative_proposal
+dispatch_target_profile	W2	12.1	target profile	object/dispatch_definition.target_profile	conservative_proposal
+dispatch_target_actor	W2	12.1	optional target actor	object/dispatch_definition.target_actor_id	conservative_proposal
+dispatch_model_eval	W2	12.1	required model/eval profile reference	object/dispatch_definition.model_eval_profile_ref	conservative_proposal
+dispatch_context	W2	12.1	context packet ID	object/dispatch_definition.context_packet_id	source_literal
+dispatch_policy	W2	12.1	policy version	object/dispatch_definition.policy_version	source_literal
+dispatch_assurance	W2	12.1	assurance-plan version	object/dispatch_definition.assurance_plan_version	conservative_proposal
+dispatch_roots	W2	12.1	explicit roots	object/dispatch_definition.root_bindings	conservative_proposal
+dispatch_branch	W2	12.1	branch identity	object/dispatch_definition.branch_identity	conservative_proposal
+dispatch_worktree	W2	12.1	worktree identity	object/dispatch_definition.worktree_identity	conservative_proposal
+dispatch_commit	W2	12.1	expected commit	object/dispatch_definition.expected_commit	conservative_proposal
+dispatch_capabilities	W2	12.1	capability set	object/dispatch_definition.capabilities	conservative_proposal
+dispatch_permissions	W2	12.1	permission set	object/dispatch_definition.permissions	conservative_proposal
+dispatch_resource_request	W2	12.1	ResourceRequest reference	object/dispatch_definition.resource_request_id	source_literal
+dispatch_namespace	W2	12.1	output namespace	object/dispatch_definition.output_namespace	conservative_proposal
+dispatch_delivery_deadline	W2	12.1	delivery deadline	object/dispatch_definition.delivery_deadline	source_literal
+dispatch_claim_deadline	W2	12.1	claim deadline	object/dispatch_definition.claim_deadline	source_literal
+dispatch_concurrency	W2	12.1	concurrency mode	object/dispatch_definition.concurrency_mode	source_literal
+dispatch_stop_partial_escalation	W2	12.1	stop/Partial/escalation rules	object/dispatch_definition.{stop_rules,partial_rules,escalation_rules}	conservative_proposal
+root_kind	W2	12.1	root kind	object/root_binding.root_kind	conservative_proposal
+root_canonical_uri	W2	12.1	canonical URI/path	object/root_binding.canonical_uri	conservative_proposal
+root_workspace	W2	12.1	workspace identity	object/root_binding.workspace_identity	conservative_proposal
+root_access	W2	12.1	access mode	object/root_binding.access_mode	conservative_proposal
+root_expected_branch_commit	W2	12.1	applicable expected branch/commit	object/root_binding.{expected_branch,expected_commit}	conservative_proposal
+root_provenance_authority	W2	12.1	provenance authority	object/root_binding.provenance_authority	conservative_proposal
+review_verdict	W2	17.3	verdict	family/review.verdict	source_literal
+review_findings	W2	17.3	findings	family/review.findings	conservative_proposal
+review_evidence	W2	17.3	evidence	family/review.required_evidence_refs	conservative_proposal
+review_limitations	W2	17.3	limitations	family/review.limitations	conservative_proposal
+review_conditions	W2	17.3	conditions	family/review.conditions	source_literal
+review_condition_text	W2	17.3	condition text	object/review_gate_condition.condition_text	source_literal
+review_condition_gate_disposition	W2	17.3	acceptance policy declares each condition non-blocking or blocking	object/review_gate_condition.gate_disposition	source_literal
+review_condition_owner_actor	W2	17.3	condition owner recorded for gate-satisfying conditional approval	object/review_gate_condition.owner_actor_id	conservative_proposal
+review_condition_policy	W2	17.3	acceptance policy identity	object/review_gate_condition.policy_id	conservative_proposal
+review_condition_evidence	W2	17.3	condition evidence	object/review_gate_condition.evidence_refs	conservative_proposal
+review_condition_gate_rule	W2	17.3	approve_with_conditions satisfies a gate only for all non-blocking owned conditions	family/review.conditions	source_literal
+review_verdict_no_direct_task_state	W2	17.4	review verdict never directly changes Task state	family/review.verdict	source_literal
+review_reviewer_metadata	W2	17.3	reviewer actor/profile/session/model metadata	family/review.{reviewer_actor_id,reviewer_profile,reviewer_session,reviewer_model_metadata}	conservative_proposal
+review_context_manifest	W2	17.3	context-manifest ID/hash	family/review.{context_manifest_id,context_manifest_sha256}	conservative_proposal
+review_subject_hash	W2	17.3	subject_hash	family/review.unchanged_subject_sha256	source_literal
+review_producing_attempt	W2	17.3	producing_attempt_relationship	family/review.producing_attempt_id	conservative_proposal
+review_trace_visibility	W2	17.3	trace_visibility_evidence	family/review.trace_visibility_evidence_refs	conservative_proposal
+review_independence_grade	W2	17.3	independence_grade	family/review.computed_independence_grade	conservative_proposal
+artefact_identity_id	W2	16.1	Identity: artefact ID	object/artefact_manifest.artefact_id	source_literal
+artefact_identity_aliases	W2	16.1	Identity: aliases	object/artefact_manifest.aliases	conservative_proposal
+artefact_identity_type	W2	16.1	Identity: type	object/artefact_manifest.artefact_type	conservative_proposal
+artefact_identity_schema_id	W2	16.1	Identity: schema ID	object/artefact_manifest.artefact_schema_id	conservative_proposal
+artefact_identity_version	W2	16.1	Identity: version	object/artefact_manifest.artefact_schema_version	conservative_proposal
+artefact_production_task	W2	16.1	Production: Task	object/artefact_manifest.task_id	source_literal
+artefact_production_dispatch	W2	16.1	Production: dispatch	object/artefact_manifest.dispatch_id	source_literal
+artefact_production_attempt	W2	16.1	Production: attempt	object/artefact_manifest.attempt_id	source_literal
+artefact_production_actor	W2	16.1	Production: producer actor	object/artefact_manifest.producer_actor_id	conservative_proposal
+artefact_production_profile	W2	16.1	Production: producer profile	object/artefact_manifest.producer_profile	conservative_proposal
+artefact_production_context	W2	16.1	Production: context packet	object/artefact_manifest.context_packet_id	source_literal
+artefact_production_created	W2	16.1	Production: creation time	object/artefact_manifest.created_at	conservative_proposal
+artefact_code_commit	W2	16.1	Code/environment: commit	object/artefact_manifest.code_commit	conservative_proposal
+artefact_code_branch	W2	16.1	Code/environment: branch identity	object/artefact_manifest.branch_identity	conservative_proposal
+artefact_code_worktree	W2	16.1	Code/environment: worktree identity	object/artefact_manifest.worktree_identity	conservative_proposal
+artefact_code_environment	W2	16.1	Code/environment: environment/toolchain fingerprint	object/artefact_manifest.environment_fingerprint	conservative_proposal
+artefact_location_root	W2	16.1	Location: declared root ID	object/artefact_manifest.root_id	conservative_proposal
+artefact_location_path	W2	16.1	Location: relative path/URI	object/artefact_manifest.relative_path	conservative_proposal
+artefact_location_size	W2	16.1	Location: size	object/artefact_manifest.size_bytes	conservative_proposal
+artefact_location_media_type	W2	16.1	Location: media type	object/artefact_manifest.media_type	conservative_proposal
+artefact_integrity_hash	W2	16.1	Integrity: SHA-256	object/artefact_manifest.content_sha256	source_literal
+artefact_integrity_observation	W2	16.1	Integrity: observation time	object/artefact_manifest.observed_at	conservative_proposal
+artefact_integrity_availability_check	W2	16.1	Integrity: availability check	object/artefact_manifest.availability_check_evidence_refs	conservative_proposal
+artefact_inputs_id	W2	16.1	Inputs: input artefact IDs	object/artefact_manifest.input_dependencies.input_artefact_id	source_literal
+artefact_inputs_hash	W2	16.1	Inputs: input artefact hashes	object/artefact_manifest.input_dependencies.input_content_sha256	source_literal
+artefact_inputs_role	W2	16.1	Inputs: dependency roles	object/artefact_manifest.input_dependencies.dependency_role	conservative_proposal
+artefact_provenance_dataset_ids	W2	16.1	Research provenance: dataset IDs	object/artefact_manifest.research_provenance.dataset_ids	conservative_proposal
+artefact_provenance_vintages	W2	16.1	Research provenance: dataset vintages	object/artefact_manifest.research_provenance.dataset_vintages	conservative_proposal
+artefact_provenance_representations	W2	16.1	Research provenance: representation IDs	object/artefact_manifest.research_provenance.representation_ids	conservative_proposal
+artefact_provenance_parameters	W2	16.1	Research provenance: parameter IDs	object/artefact_manifest.research_provenance.parameter_ids	conservative_proposal
+artefact_provenance_seeds	W2	16.1	Research provenance: seed IDs	object/artefact_manifest.research_provenance.seed_ids	conservative_proposal
+artefact_provenance_restrictions	W2	16.1	Research provenance: sample restriction IDs	object/artefact_manifest.research_provenance.sample_restriction_ids	conservative_proposal
+artefact_validation_records	W2	16.1	Validation: validation-record refs	object/artefact_manifest.validation.validation_record_refs	conservative_proposal
+artefact_validation_contracts	W2	16.1	Validation: expected contract IDs	object/artefact_manifest.validation.expected_contract_ids	conservative_proposal
+artefact_validation_schemas	W2	16.1	Validation: expected schema IDs	object/artefact_manifest.validation.expected_schema_ids	conservative_proposal
+artefact_authority_availability	W2	16.2	Authority dimension: availability	object/artefact_manifest.authority.availability	source_literal
+artefact_authority_regenerability	W2	16.2	Authority dimension: regenerability	object/artefact_manifest.authority.regenerability	source_literal
+artefact_authority_integrity	W2	16.2	Authority dimension: integrity	object/artefact_manifest.authority.integrity	source_literal
+artefact_authority_structural	W2	16.2	Authority dimension: structural validation	object/artefact_manifest.authority.structural_validation	source_literal
+artefact_authority_scientific	W2	16.2	Authority dimension: scientific review	object/artefact_manifest.authority.scientific_review	source_literal
+artefact_authority_use	W2	16.2	Authority dimension: use authority	object/artefact_manifest.authority.use_authority	source_literal
+artefact_authority_scope	W2	16.1	Authority: accepted scope	object/artefact_manifest.authority.accepted_scope	conservative_proposal
+artefact_authority_consumers	W2	16.1	Authority: consumer restrictions	object/artefact_manifest.authority.consumer_restrictions	conservative_proposal
+artefact_operations_no_overwrite	W2	16.1	Operations: no-overwrite evidence	object/artefact_manifest.operations.no_overwrite_evidence_refs	conservative_proposal
+artefact_operations_retention	W2	16.1	Operations: retention	object/artefact_manifest.operations.retention_class	conservative_proposal
+artefact_operations_confidentiality	W2	16.1	Operations: confidentiality	object/artefact_manifest.operations.confidentiality_class	conservative_proposal
+artefact_operations_external_data	W2	16.1	Operations: external-data constraints	object/artefact_manifest.operations.external_data_constraints	conservative_proposal
+resource_identity_request_id	W8	7	ResourceRequest identity	object/resource_request.resource_request_id	source_literal
+resource_identity_task	W8	7	Task identity	object/resource_request.task_id	source_literal
+resource_identity_dispatch	W8	7	Dispatch identity	object/resource_request.dispatch_id	source_literal
+resource_identity_attempt	W8	7	Attempt identity	object/resource_request.attempt_id	source_literal
+resource_identity_route	W8	7	Route identity	object/resource_request.route_id	conservative_proposal
+resource_operation_class	W8	7	Normalized operation class	object/resource_request.operation_class	conservative_proposal
+resource_provider	W8	7	Provider requirements	object/resource_request.provider_requirements	conservative_proposal
+resource_runtime	W8	7	Runtime requirements	object/resource_request.runtime_requirements	conservative_proposal
+resource_profile	W8	7	Operational profile	object/resource_request.operational_profile	source_literal
+resource_profile_policy	W8	7	Operational-profile policy ID	object/resource_request.operational_profile_policy_id	conservative_proposal
+resource_profile_revision	W8	7	Operational-profile revision	object/resource_request.operational_profile_revision	conservative_proposal
+resource_requester_actor	W8	7	Requesting actor	object/resource_request.requesting_actor_id	conservative_proposal
+resource_requester_profile	W8	7	Requesting profile	object/resource_request.requesting_profile	conservative_proposal
+resource_requester_authority	W8	7	Requesting authority	object/resource_request.requesting_authority_grant_id	conservative_proposal
+resource_expected_position	W8	7	Expected control-store position	object/resource_request.expected_control_store_position	conservative_proposal
+resource_host_pool	W8	7	Requested host pool	object/resource_request.requested_host_pool	conservative_proposal
+resource_roots	W8	7	Typed control/code/result/cache/data roots	object/resource_request.root_bindings	conservative_proposal
+resource_cpu_processes	W8	7	CPU process limits	object/resource_request.resource_ceilings.cpu_processes	conservative_proposal
+resource_cpu_threads	W8	7	CPU thread limits	object/resource_request.resource_ceilings.cpu_threads	conservative_proposal
+resource_ram_working	W8	7	RAM working estimate	object/resource_request.resource_ceilings.ram_working_bytes	conservative_proposal
+resource_ram_peak	W8	7	RAM peak estimate	object/resource_request.resource_ceilings.ram_peak_bytes	conservative_proposal
+resource_gpu	W8	7	GPU/device requirements	object/resource_request.resource_ceilings.gpu_devices	conservative_proposal
+resource_storage	W8	7	Storage estimate	object/resource_request.resource_ceilings.storage_bytes	conservative_proposal
+resource_io	W8	7	IO estimate	object/resource_request.resource_ceilings.io_bytes	conservative_proposal
+resource_network	W8	7	Network constraints	object/resource_request.network_constraints	conservative_proposal
+resource_external_write	W8	7	External-write constraints	object/resource_request.external_write_constraints	conservative_proposal
+resource_sensitivity	W8	7	Sensitivity constraints	object/resource_request.sensitivity_constraints	conservative_proposal
+resource_exclusive	W8	7	Exclusive resources	object/resource_request.exclusive_resource_keys	conservative_proposal
+resource_shared	W8	7	Shared resources	object/resource_request.shared_resource_keys	conservative_proposal
+resource_compatibility	W8	7	Compatibility keys	object/resource_request.compatibility_keys	conservative_proposal
+resource_runtime_minimum	W8	7	Runtime minimum	object/resource_request.runtime_distribution.minimum_seconds	conservative_proposal
+resource_runtime_expected	W8	7	Runtime expected	object/resource_request.runtime_distribution.expected_seconds	conservative_proposal
+resource_runtime_maximum	W8	7	Runtime maximum	object/resource_request.runtime_distribution.maximum_seconds	conservative_proposal
+resource_deadline	W8	7	Deadline	object/resource_request.deadline	source_literal
+resource_checkpoint_interval	W8	7	Checkpoint interval	object/resource_request.checkpoint_interval_seconds	conservative_proposal
+resource_benchmark	W8	7	Benchmark evidence	object/resource_request.benchmark_evidence_refs	conservative_proposal
+resource_projection	W8	7	Projection evidence	object/resource_request.projection_evidence_refs	conservative_proposal
+resource_uncertainty	W8	7	Uncertainty basis	object/resource_request.runtime_distribution.uncertainty_basis	conservative_proposal
+resource_stop	W8	7	Stop rules	object/resource_request.stop_rules	conservative_proposal
+resource_pause	W8	7	Pause rules	object/resource_request.pause_rules	conservative_proposal
+resource_partial	W8	7	Partial rules	object/resource_request.partial_rules	conservative_proposal
+resource_escalation	W8	7	Escalation rules	object/resource_request.escalation_rules	conservative_proposal
+resource_release	W8	7	Resource-release obligations	object/resource_request.release_obligations	conservative_proposal
+resource_cleanup	W8	7	Cleanup obligations	object/resource_request.cleanup_obligations	conservative_proposal
+trivial_typed_request	W8	11.1	Trivial typed request	object/resource_request.trivial_profile_evidence.request_record_type	source_literal
+trivial_typed_grant	W8	11.1	Trivial typed grant	object/resource_request.trivial_profile_evidence.grant_record_type	source_literal
+trivial_command_lease	W8	11.1	Trivial command-scoped lease	object/resource_request.trivial_profile_evidence.lease_scope	source_literal
+trivial_explicit_ceilings	W8	11.1	Trivial explicit resource ceilings	object/resource_request.trivial_profile_evidence.resource_ceilings_requirement	source_literal
+trivial_terminal_receipt_kind	W8	11.1	Trivial terminal ProviderReceipt or OperatorReceipt	object/resource_request.trivial_profile_evidence.terminal_receipt_kind	source_literal
+trivial_terminal_release	W8	11.1	Trivial terminal receipt releases lease	object/resource_request.trivial_profile_evidence.terminal_receipt_lease_release	source_literal
+trivial_terminal_evidence	W8	11.1	Trivial terminal receipt closure evidence	object/resource_request.trivial_profile_evidence.terminal_receipt_evidence_refs	conservative_proposal
+trivial_benchmark_disposition	W8	11.1	Trivial benchmark required or not_applicable disposition	object/resource_request.trivial_profile_evidence.benchmark.disposition	source_literal
+trivial_checkpoint_disposition	W8	11.1	Trivial checkpoint required or not_applicable disposition	object/resource_request.trivial_profile_evidence.checkpoint.disposition	source_literal
+trivial_heartbeat_disposition	W8	11.1	Trivial periodic-heartbeat required or not_applicable disposition	object/resource_request.trivial_profile_evidence.periodic_heartbeat.disposition	source_literal
+trivial_recovery_disposition	W8	11.1	Trivial recovery required or not_applicable disposition	object/resource_request.trivial_profile_evidence.recovery.disposition	source_literal
+trivial_benchmark_policy	W8	11.1	Trivial benchmark disposition policy ID	object/resource_request.trivial_profile_evidence.benchmark.policy_id	conservative_proposal
+trivial_benchmark_rationale	W8	11.1	Trivial benchmark disposition rationale	object/resource_request.trivial_profile_evidence.benchmark.rationale	conservative_proposal
+trivial_benchmark_applicability	W8	11.1	Trivial benchmark applicability evidence	object/resource_request.trivial_profile_evidence.benchmark.applicability_evidence_refs	conservative_proposal
+trivial_checkpoint_policy	W8	11.1	Trivial checkpoint disposition policy ID	object/resource_request.trivial_profile_evidence.checkpoint.policy_id	conservative_proposal
+trivial_checkpoint_rationale	W8	11.1	Trivial checkpoint disposition rationale	object/resource_request.trivial_profile_evidence.checkpoint.rationale	conservative_proposal
+trivial_checkpoint_applicability	W8	11.1	Trivial checkpoint applicability evidence	object/resource_request.trivial_profile_evidence.checkpoint.applicability_evidence_refs	conservative_proposal
+trivial_heartbeat_policy	W8	11.1	Trivial periodic-heartbeat disposition policy ID	object/resource_request.trivial_profile_evidence.periodic_heartbeat.policy_id	conservative_proposal
+trivial_heartbeat_rationale	W8	11.1	Trivial periodic-heartbeat disposition rationale	object/resource_request.trivial_profile_evidence.periodic_heartbeat.rationale	conservative_proposal
+trivial_heartbeat_applicability	W8	11.1	Trivial periodic-heartbeat applicability evidence	object/resource_request.trivial_profile_evidence.periodic_heartbeat.applicability_evidence_refs	conservative_proposal
+trivial_recovery_policy	W8	11.1	Trivial recovery disposition policy ID	object/resource_request.trivial_profile_evidence.recovery.policy_id	conservative_proposal
+trivial_recovery_rationale	W8	11.1	Trivial recovery disposition rationale	object/resource_request.trivial_profile_evidence.recovery.rationale	conservative_proposal
+trivial_recovery_applicability	W8	11.1	Trivial recovery applicability evidence	object/resource_request.trivial_profile_evidence.recovery.applicability_evidence_refs	conservative_proposal
+trivial_provider_command	W8	12	Trivial provider command identity	object/resource_request.trivial_profile_evidence.provider_command_process.provider_command_id	conservative_proposal
+trivial_process_na	W8	12	Trivial process identity not_applicable disposition	object/resource_request.trivial_profile_evidence.provider_command_process.process_identity_disposition	source_literal
+trivial_process_na_rationale	W8	12	Trivial process identity not_applicable rationale	object/resource_request.trivial_profile_evidence.provider_command_process.process_identity_not_applicable_rationale	conservative_proposal
+correction_selector_scope_definition	06d	1.4	scope_definition selects scope and governance correction index	correction_variant_mappings{corrected_record_kind=scope_definition}.projection_selector_rule	source_literal
+correction_selector_task	06d	1.4	task selects task and governance correction index	correction_variant_mappings{corrected_record_kind=task}.projection_selector_rule	source_literal
+correction_selector_dispatch	06d	1.4	dispatch selects dispatch and governance correction index	correction_variant_mappings{corrected_record_kind=dispatch}.projection_selector_rule	source_literal
+correction_selector_lease	06d	1.4	lease selects lease and governance correction index	correction_variant_mappings{corrected_record_kind=lease}.projection_selector_rule	source_literal
+correction_selector_attempt	06d	1.4	attempt selects attempt and governance correction index	correction_variant_mappings{corrected_record_kind=attempt}.projection_selector_rule	source_literal
+correction_selector_checkpoint	06d	1.4	checkpoint selects checkpoint and governance correction index	correction_variant_mappings{corrected_record_kind=checkpoint}.projection_selector_rule	source_literal
+correction_selector_message	06d	1.4	message selects message and governance correction index	correction_variant_mappings{corrected_record_kind=message}.projection_selector_rule	source_literal
+correction_selector_blocker	06d	1.4	blocker selects blocker and governance correction index	correction_variant_mappings{corrected_record_kind=blocker}.projection_selector_rule	source_literal
+correction_selector_artefact	06d	1.4	artefact selects artefact and governance correction index	correction_variant_mappings{corrected_record_kind=artefact}.projection_selector_rule	source_literal
+correction_selector_review	06d	1.4	review selects review and governance correction index	correction_variant_mappings{corrected_record_kind=review}.projection_selector_rule	source_literal
+correction_selector_decision	06d	1.4	decision selects decision and governance correction index	correction_variant_mappings{corrected_record_kind=decision}.projection_selector_rule	source_literal
+correction_selector_rule_evaluation	06d	1.4	rule_evaluation selects rule_evaluation and governance correction index	correction_variant_mappings{corrected_record_kind=rule_evaluation}.projection_selector_rule	source_literal
+correction_selector_resource	06d	1.4	resource selects resource and governance correction index	correction_variant_mappings{corrected_record_kind=resource}.projection_selector_rule	source_literal
+correction_selector_operation	06d	1.4	operation selects operations and governance correction index	correction_variant_mappings{corrected_record_kind=operation}.projection_selector_rule	source_literal
+correction_selector_backup	06d	1.4	backup selects backup and governance correction index	correction_variant_mappings{corrected_record_kind=backup}.projection_selector_rule	source_literal
+correction_selector_exactly_one_owner	06d	1.4	Each correction selects exactly one owner projection	family/correction.affected_projections	source_literal
+correction_governance_correction_index	06d	1.4	Each correction also requires the governance correction index	family/correction.governance_correction_index	source_literal
+recovery_external_manifest	W8	19	BackupReceipt binds external artefact manifest	recovery_external_artefact_rules.entry_object_ref	conservative_proposal
+recovery_external_availability	W8	19	BackupReceipt binds external artefact availability status	object/external_artefact_availability.availability	source_literal
+recovery_external_availability_evidence	W8	19	Restore availability proof is retained per external artefact	object/external_artefact_availability.availability_evidence_refs	conservative_proposal
+recovery_restore_writer_lease	W8	19-21	Availability must verify before writer lease; failed or partial restore is diagnostic only with no writer lease	recovery_external_artefact_rules.writer_lease_rule	source_literal
+resource_profile_variant_discriminator	W8	11.1	one unified ResourceRequest with required operational_profile	object/resource_request.operational_profile	source_literal
+resource_profile_trivial_branch	W8	11.1	trivial explicit not_applicable evidence branch	object/resource_request.trivial_profile_evidence	source_literal
+resource_profile_bounded_branch	W8	11.1	bounded policy-selected heartbeat output-tail stop checkpoint branch	object/resource_request.bounded_profile_evidence	source_literal
+resource_profile_long_running_branch	W8	11.1	long_running full applicable benchmark heartbeat process checkpoint stop-recovery backup branch	object/resource_request.long_running_profile_evidence	source_literal
+bounded_profile_heartbeat	W8	11.1	bounded heartbeat group selected by policy	object/bounded_profile_evidence.heartbeat	source_literal
+bounded_profile_output_tail	W8	11.1	bounded output-tail group selected by policy	object/bounded_profile_evidence.output_tail	source_literal
+bounded_profile_stop	W8	11.1	bounded stop group selected by policy	object/bounded_profile_evidence.stop	source_literal
+bounded_profile_checkpoint	W8	11.1	bounded checkpoint group selected by policy	object/bounded_profile_evidence.checkpoint	source_literal
+long_running_profile_benchmark	W8	11.1	long_running applicable benchmark obligation	object/long_running_profile_evidence.benchmark	source_literal
+long_running_profile_heartbeat	W8	11.1	long_running applicable heartbeat obligation	object/long_running_profile_evidence.heartbeat	source_literal
+long_running_profile_process	W8	11.1-12	long_running applicable process obligation	object/long_running_profile_evidence.process	source_literal
+long_running_profile_checkpoint	W8	11.1	long_running applicable checkpoint obligation	object/long_running_profile_evidence.checkpoint	source_literal
+long_running_profile_stop_recovery	W8	11.1	long_running applicable stop/recovery obligation	object/long_running_profile_evidence.stop_recovery	source_literal
+long_running_profile_backup	W8	11.1	long_running applicable backup obligation	object/long_running_profile_evidence.backup	source_literal
+"""
+SOURCE_FACT_BINDINGS = tuple(tuple(value for value in row.split("\t")) for row in SOURCE_FACT_BINDING_TSV.splitlines())
 
 REVIEW_VERDICT_FACTS = frozenset(
     {
@@ -568,7 +1012,6 @@ REVIEW_VERDICT_FACTS = frozenset(
         "producing_attempt_id",
         "trace_visibility_evidence_refs",
         "computed_independence_grade",
-        "conditional_approval_owner",
     }
 )
 
@@ -712,6 +1155,42 @@ def assert_complete_source_groups(subject: dict[str, Any]) -> None:
     assert REVIEW_VERDICT_FACTS <= frozenset(field_map(review))
 
 
+def assert_high_risk_field_semantics(subject: dict[str, Any]) -> None:
+    """Compare exact source-derived types, nullability, and conditional relations."""
+    objects = {item["object_id"]: item for item in subject["reusable_objects"]}
+    families = {item["family_id"]: item for item in subject["family_specs"]}
+    types = {item["type_id"]: item for item in subject["primitive_types"]}
+
+    assert subject["object_variant_rules"] == [RESOURCE_PROFILE_VARIANT_RULE]
+    assert subject["review_gate_condition_rule"] == REVIEW_GATE_CONDITION_RULE
+    review_condition_list = types["type/review_gate_condition_list"]
+    assert (
+        review_condition_list["json_type"],
+        review_condition_list["nullable"],
+        review_condition_list["item_type_ref"],
+    ) == ("array", False, "object/review_gate_condition")
+
+    for object_id, expected in RESOURCE_REQUEST_PROFILE_FIELD_FACTS.items():
+        fields = field_map(objects[object_id])
+        if object_id != "object/resource_request":
+            assert tuple(fields) == tuple(item[0] for item in expected)
+        observed = tuple(
+            (field_name, fields[field_name]["type_ref"], fields[field_name]["nullable"], conditional_relation)
+            for field_name, _type_ref, _nullable, conditional_relation in expected
+        )
+        assert observed == expected
+
+    for owner_id, expected in REVIEW_CONDITION_FIELD_FACTS.items():
+        fields = field_map(objects.get(owner_id, families.get(owner_id)))
+        if owner_id == "object/review_gate_condition":
+            assert tuple(fields) == tuple(item[0] for item in expected)
+        observed = tuple(
+            (field_name, fields[field_name]["type_ref"], fields[field_name]["nullable"], conditional_relation)
+            for field_name, _type_ref, _nullable, conditional_relation in expected
+        )
+        assert observed == expected
+
+
 def _resolve_target(subject: dict[str, Any], target: str) -> bool:
     if target.startswith("correction_variant_mappings{"):
         match = re.fullmatch(r"correction_variant_mappings\{corrected_record_kind=([a-z_]+)\}\.([a-z_]+)", target)
@@ -761,24 +1240,16 @@ def assert_all_binding_targets_resolve(subject: dict[str, Any]) -> None:
     assert all(_resolve_target(subject, item["target_path"]) for item in bindings)
 
 
+def assert_exact_source_fact_bindings(subject: dict[str, Any]) -> None:
+    keys = ("binding_id", "source_id", "source_section", "source_fact", "target_path", "decision_basis")
+    observed = tuple(tuple(str(item[key]) for key in keys) for item in subject["source_fact_bindings"])
+    assert len(SOURCE_FACT_BINDINGS) == 229
+    assert observed == SOURCE_FACT_BINDINGS
+
+
 def assert_required_source_facts_bound(subject: dict[str, Any]) -> None:
-    bindings = {item["binding_id"]: item for item in subject["source_fact_bindings"]}
-    # W2 section 10.1 names Task/Decision/Artefact dependencies and their
-    # satisfaction predicates as a non-compensating Task group.
-    required_dependencies = {
-        "task_dependency_task_ids",
-        "task_dependency_decision_ids",
-        "task_dependency_artefact_ids",
-        "task_dependency_predicates",
-    }
-    assert required_dependencies <= set(bindings)
-    required_recovery = {
-        "recovery_external_manifest",
-        "recovery_external_availability",
-        "recovery_external_availability_evidence",
-        "recovery_restore_writer_lease",
-    }
-    assert required_recovery <= set(bindings)
+    """Compatibility entry point retained for the intentional RED mutation suite."""
+    assert_exact_source_fact_bindings(subject)
 
 
 def assert_owner_rows_and_bindings(subject: dict[str, Any], rows: tuple[OwnerRow, ...]) -> None:
@@ -853,7 +1324,7 @@ def assert_generation_boundary(subject: dict[str, Any]) -> None:
         "repeated_rows_share_identity": True,
         "variants_are_closed_within_shared_identity": True,
     }
-    assert len(subject["decision_register"]) == 12
+    assert len(subject["decision_register"]) == 14
     assert all(item["generator_byte_change_allowed"] is False for item in subject["decision_register"])
 
 
@@ -881,6 +1352,33 @@ def assert_conservative_identity_selections_are_explicit(subject: dict[str, Any]
     types = {item["type_id"]: item for item in subject["primitive_types"]}
     assert types["type/resource_id"]["decision_basis"] == "conservative_proposal"
     assert types["type/operation_id"]["decision_basis"] == "conservative_proposal"
+
+
+def resource_profile_branch_allowed(record: dict[str, Any]) -> bool:
+    profile = record.get("operational_profile")
+    branch = next(
+        (item for item in RESOURCE_PROFILE_VARIANT_RULE["branches"] if item["discriminator_const"] == profile),
+        None,
+    )
+    if branch is None:
+        return False
+    return all(field in record and record[field] is not None for field in branch["required_fields"]) and all(
+        field not in record for field in branch["forbidden_fields"]
+    )
+
+
+def review_verdict_satisfies_gate(verdict: str, conditions: list[dict[str, Any]]) -> bool:
+    if verdict == "approve":
+        return True
+    if verdict != "approve_with_conditions" or not conditions:
+        return False
+    return all(
+        item.get("gate_disposition") == "non_blocking"
+        and bool(item.get("owner_actor_id"))
+        and bool(item.get("policy_id"))
+        and bool(item.get("evidence_refs"))
+        for item in conditions
+    )
 
 
 def writer_lease_allowed(entries: list[dict[str, Any]], expected_manifest: set[tuple[str, str]]) -> bool:

@@ -20,12 +20,15 @@ from tests.research_system.contracts.wp6_1_schema_fact_oracle import (
     assert_correction_and_recovery,
     assert_exact_roots,
     assert_generation_boundary,
+    assert_high_risk_field_semantics,
     assert_owner_rows_and_bindings,
     assert_required_source_facts_bound,
     assert_shared_rules,
     assert_type_and_enum_authority,
     immutable_source_bytes,
     parse_owner_rows,
+    resource_profile_branch_allowed,
+    review_verdict_satisfies_gate,
     writer_lease_allowed,
 )
 
@@ -110,12 +113,131 @@ def test_wp6_1_fact_annex_contains_each_complete_high_risk_source_group(proposal
     assert_complete_source_groups(proposal)
 
 
+def test_wp6_1_fact_annex_has_exact_profile_and_review_condition_semantics(proposal: dict[str, Any]) -> None:
+    assert_high_risk_field_semantics(proposal)
+
+
 def test_wp6_1_fact_annex_resolves_every_source_fact_binding_target(proposal: dict[str, Any]) -> None:
     assert_all_binding_targets_resolve(proposal)
 
 
 def test_wp6_1_fact_annex_does_not_omit_a_required_source_fact_binding(proposal: dict[str, Any]) -> None:
     assert_required_source_facts_bound(proposal)
+
+
+@pytest.mark.parametrize(
+    "attack",
+    ["resource_profile_type", "review_condition_owner_type", "resource_profile_revision_binding"],
+)
+def test_wp6_1_r4_wrong_but_resolving_semantic_attacks_are_rejected(proposal: dict[str, Any], attack: str) -> None:
+    candidate = copy.deepcopy(proposal)
+    if attack == "resource_profile_type":
+        owner = _object(candidate, "object/resource_request")
+        next(item for item in owner["fields"] if item["field_name"] == "operational_profile")["type_ref"] = (
+            "type/nonempty_string"
+        )
+        assertion = assert_high_risk_field_semantics
+    elif attack == "review_condition_owner_type":
+        owner = _object(candidate, "object/review_gate_condition")
+        next(item for item in owner["fields"] if item["field_name"] == "owner_actor_id")["type_ref"] = "type/any_id"
+        assertion = assert_high_risk_field_semantics
+    else:
+        binding = next(
+            item for item in candidate["source_fact_bindings"] if item["binding_id"] == "resource_profile_revision"
+        )
+        binding["target_path"] = "object/resource_request.operational_profile_policy_id"
+        assertion = assert_required_source_facts_bound
+    with pytest.raises(AssertionError):
+        assertion(candidate)
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"operational_profile": "trivial", "trivial_profile_evidence": {}},
+        {"operational_profile": "bounded", "bounded_profile_evidence": {}},
+        {"operational_profile": "long_running", "long_running_profile_evidence": {}},
+    ],
+)
+def test_wp6_1_exact_resource_profile_branches_accept_only_the_matching_evidence(record: dict[str, Any]) -> None:
+    assert resource_profile_branch_allowed(record)
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"operational_profile": "trivial"},
+        {
+            "operational_profile": "trivial",
+            "trivial_profile_evidence": {},
+            "bounded_profile_evidence": {},
+        },
+        {"operational_profile": "bounded"},
+        {
+            "operational_profile": "bounded",
+            "bounded_profile_evidence": {},
+            "long_running_profile_evidence": {},
+        },
+        {"operational_profile": "long_running"},
+        {"operational_profile": "invented", "long_running_profile_evidence": {}},
+    ],
+)
+def test_wp6_1_exact_resource_profile_branches_reject_missing_extra_or_unknown_evidence(
+    record: dict[str, Any],
+) -> None:
+    assert not resource_profile_branch_allowed(record)
+
+
+def _owned_non_blocking_condition() -> dict[str, Any]:
+    return {
+        "condition_text": "publish the stated limitation",
+        "gate_disposition": "non_blocking",
+        "owner_actor_id": "act_01989abc-1234-7abc-8def-0123456789ab",
+        "policy_id": "pol_01989abc-1234-7abc-8def-0123456789ab",
+        "evidence_refs": ["policy-evidence"],
+    }
+
+
+def test_wp6_1_review_gate_accepts_unconditional_or_fully_owned_non_blocking_approval() -> None:
+    assert review_verdict_satisfies_gate("approve", [])
+    assert review_verdict_satisfies_gate("approve_with_conditions", [_owned_non_blocking_condition()])
+
+
+@pytest.mark.parametrize("missing_or_wrong", ["empty", "blocking", "owner", "policy", "evidence", "verdict"])
+def test_wp6_1_review_gate_rejects_unowned_blocking_or_unproved_conditional_approval(
+    missing_or_wrong: str,
+) -> None:
+    condition = _owned_non_blocking_condition()
+    verdict = "approve_with_conditions"
+    conditions = [condition]
+    if missing_or_wrong == "empty":
+        conditions = []
+    elif missing_or_wrong == "blocking":
+        condition["gate_disposition"] = "blocking"
+    elif missing_or_wrong == "owner":
+        condition["owner_actor_id"] = None
+    elif missing_or_wrong == "policy":
+        condition["policy_id"] = ""
+    elif missing_or_wrong == "evidence":
+        condition["evidence_refs"] = []
+    else:
+        verdict = "changes_requested"
+    assert not review_verdict_satisfies_gate(verdict, conditions)
+
+
+@pytest.mark.parametrize("attack", ["profile_fallback", "profile_branch", "review_gate_rule"])
+def test_wp6_1_mutating_an_exact_profile_or_review_conditional_is_rejected(
+    proposal: dict[str, Any], attack: str
+) -> None:
+    candidate = copy.deepcopy(proposal)
+    if attack == "profile_fallback":
+        candidate["object_variant_rules"][0]["no_fallback"] = False
+    elif attack == "profile_branch":
+        candidate["object_variant_rules"][0]["branches"][0]["forbidden_fields"] = []
+    else:
+        candidate["review_gate_condition_rule"]["gate_satisfaction_rule"] = "owner_optional"
+    with pytest.raises(AssertionError):
+        assert_high_risk_field_semantics(candidate)
 
 
 def test_wp6_1_fact_annex_freezes_all_shared_command_and_event_normalizations(proposal: dict[str, Any]) -> None:
