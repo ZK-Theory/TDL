@@ -17,9 +17,12 @@ behind Gate 6 → pilot → promotion is accepted.
 1. **`design/09-migration-and-pilot.md` (W9)** — the migration/pilot specification the
    02-roadmap reserves: legacy import format and status mapping, `.apm/` compatibility
    views, rollback and stop criteria, baseline and comparison metrics, user review
-   points, deprecation path for mutable bus/Tracker state. Its review gate (unchanged):
-   *pilot failure can be rolled back without changing any accepted research artefact or
-   decision.*
+   points, deprecation path for mutable bus/Tracker state. The W9 description must state
+   that legacy import produces only content-addressed, read-only compatibility
+   projections and explicitly prohibit copying or writing legacy tasks, bus records,
+   logs, claims, or decisions into successor authority, while preserving the existing
+   rollback guarantee that pilot failure can be rolled back without changing any accepted
+   research artefact or decision.
 2. **Gate 7 definition** — a short addition to `04-parallel-specification-and-foundation-
    pilot-plan.md` §4 (plus a currency note): **Gate 7 — Legacy research integration.**
    Formalizes W9 acceptance + WP6.7 execution, with P01-A and P01-B as its first named
