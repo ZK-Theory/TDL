@@ -130,3 +130,6 @@ downstream input or paper-facing source.
 - Use `reproducibility-package-review` for end-to-end regenerability of a result set.
 - Enforcing contracts: `stage1-output-json-validation`, the
   `*-output-json-validation` dispatch contracts, and `markov-order-provenance`.
+## Staged-execution provenance
+
+When a final result is assembled from deferred partials, require and verify from disk: the approved plan path and digest, approval state, every batch path and digest, expected and observed unit counts, completion states, deferred-inference declaration, and producer commit. Classify provenance as PASS only when the terminal result binds the complete authorised execution chain.

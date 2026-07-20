@@ -69,3 +69,8 @@ tier 2 skill first.
 `result-provenance-review` (artifact immutability) ·
 `schema-contract-design` / `contract-first-tdd` (the contract split) ·
 `tda-handoff` (safety rules travel with the handoff).
+## Bootstrap side-effect classification
+
+Do not infer purity from names such as `validate`, `check`, or `ensure`. Before probing any helper, perform static inspection, a dry-run execution, or isolated sandboxing to determine whether it creates targets, writes directories, mutates registries, or acquires locks, and classify those effects before authorising the call.
+
+Before delivery, re-read the active guardrails and verify that every invoked helper's observed effects match its authorised phase and ownership boundary.

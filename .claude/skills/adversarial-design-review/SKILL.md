@@ -201,3 +201,14 @@ verification evidence for any edits.
 - `research-assurance-triage` (validity of a *result/claim*, not a design document),
   `result-provenance-review` (provenance of result files), `humanizer` (prose quality).
 - `pre-reg-to-dispatch` when a reviewed-and-accepted decision must become an executable task.
+## Exact-authority and lifecycle stress tests
+
+- Bind validation to an exact commit. Compare reported, local, remote PR, and check-run heads; any later commit requires focused re-review and execution.
+- For partial cutovers, enumerate path-level owners for old and new surfaces and reject overlap or unowned gaps.
+- Topologically order gates and producers. An early owner gate cannot require evidence that only a downstream accepted action can create.
+- For exact sets, bind complete row identity and test cross-record joins: allowlist membership, discriminants, effect-to-projection targets, and class-specific producer/owner enums.
+- Reject expected authorities copied from the implementation under test or deferred semantic copies lacking independent provenance.
+- In read-only pytest reviews, disable repository coverage and other write-producing plugins explicitly.
+- Draw hash dependencies as a directed graph; reject self-edges and strongly connected components without a specified non-hashed indirection or staged identity.
+- For cancel, Partial, and failure edges, enumerate live proposals, requests, attempts, leases, grants, and locks; require each to close, supersede, or be deliberately preserved before the next command.
+- When testing uncommitted bytes under Windows checkout filters, stage only scoped files in a disposable clone, rematerialize them from its index, and confirm CRLF bytes were actually produced before crediting portability.

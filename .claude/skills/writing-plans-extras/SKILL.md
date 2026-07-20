@@ -33,3 +33,8 @@ Keep the obligation register in the master plan or its governing checklist. Task
 - Re-run the forward-language scan against every governing source.
 - Confirm every hit has a source-backed disposition and every deferral has an owner and next gate.
 - Confirm no plan task crosses an approval boundary merely because the underlying specification was accepted.
+## Authority and lifecycle bindings
+
+- For parity or policy plans, give every required semantic field a typed accepted source. Adjacent metadata and self-attested manifests are not substitutes; missing authority requires an owner-gated decision and fail-closed Partial.
+- Bind evidence IDs and hashes to the execution that produced them, with negatives for plain or self-attested manifests.
+- Scope re-baselines by lifecycle and evidence epoch. Never let a later baseline silently redefine the identity of evidence accepted under an earlier gate.

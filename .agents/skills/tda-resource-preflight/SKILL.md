@@ -156,3 +156,7 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 `tda-task-brief-from-plan` (runtime constraints in dispatched briefs) ·
 `tda-acceleration-benchmarking` (when a different execution strategy
 should replace the current one).
+## Coordinator failure handling
+
+- Persist the complete preflight evidence record before raising a stop condition, including checks already completed and the precise failing trigger.
+- Treat native stderr as diagnostic data unless the child exit code, protocol, or explicit rule declares failure. Long-run coordinators must not terminate solely because a successful native process wrote stderr.

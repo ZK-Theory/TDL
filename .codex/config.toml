@@ -1,6 +1,5 @@
-
-
 sandbox_mode = "danger-full-access"
+
 [mcp_servers.github]
 args = [
     "-y",
@@ -18,3 +17,12 @@ CL_VAULT_PATH = 'C:\Users\steph\Documents\Counting Lives\Counting Lives'
 LLAMA_CUDA = "0"
 NODE_LLAMA_CPP_GPU = "false"
 TDA_VAULT_PATH = 'C:\Users\steph\Documents\TDA-Research'
+
+[mcp_servers.repowise]
+command = "repowise"
+args = [
+    "mcp",
+    "C:/Users/steph/TDL",
+    "--transport",
+    "stdio",
+]

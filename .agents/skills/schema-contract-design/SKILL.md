@@ -103,3 +103,14 @@ The contract YAML + the manifest entry + a one-line note of pending status.
 - Pairs with every audit skill (they identify what to mechanize) and
   `sensitivity-comparison-review` (schema completeness for comparison JSONs).
 - Meta-schema: `contracts/schema/contract.schema.yaml`. Gate: `contract_binding_check.py`.
+## Content-addressed and relational contract checks
+
+- Classify rules as shape-local, cross-field relational, or external-authority equality. Put shape in strict schema; bind every relational/external rule to a semantic validator and negative fixtures.
+- Generate heterogeneous arrays from the union of recursively normalized record shapes and validate the entire source contract before content-addressing it.
+- Check owned paths and recursive registry discovery before adding manifests or validators; do not widen shared or production surfaces beyond lane authority.
+- Keep candidates immutable and `proposed`; derive review and acceptance from independent records bound to the candidate's computed identity.
+- Compute repository identity from exact bytes before parsing. Enforce encoding/EOL, calculate Git blob and raw-byte SHA-256, then parse and validate those same bytes.
+- Prefer Git's own `hash-object` modes for blob portability tests; avoid general-purpose SHA-1 APIs where scanners prohibit them.
+- For large generated payloads, transport bounded chunks with a unique temporary end marker, remove it in the final chunk, then prove byte identity, parseability, schema validity, and canonical hash.
+
+Before delivery, verify that the contract is structurally closed, relationally enforced, ownership-compliant, acyclic in its acceptance dependencies, and byte-identical to its canonical source.
