@@ -5,7 +5,7 @@ alwaysApply: true
 
 ## Code Navigation Policy
 
-This repository uses the built-in `Read`, `Grep`, and `Glob` tools for code navigation. There is no symbol-level MCP server in use.
+This repository uses the built-in `Read`, `Grep`, and `Glob` tools for code navigation, alongside the Repowise MCP server for repository-level codebase intelligence.
 
 ### Tool routing
 

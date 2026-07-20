@@ -17,6 +17,7 @@ This repository uses the built-in `Read`, `Grep`, and `Glob` tools for baseline 
 ## Repowise MCP
 
 Repowise is configured in `.mcp.json`, `.repowise/mcp.json`, and the relevant Claude user/desktop MCP configs.
+(Note: The legacy "Graphify" / "Graphifyy" tool has been uninstalled. Do not attempt to use or refer to Graphifyy; always use Repowise.)
 
 Use Repowise when the current runtime exposes its MCP tools and the task benefits from repository-level context:
 
@@ -49,12 +50,9 @@ suppression flags. Treat those rewrites as setup state, never task output: do
 not stage or commit them, and restore only files proven clean before the init
 once the worktree session has loaded its MCP configuration.
 
-Verify the effective binding, not only index existence: Repowise's reported
-repository path must equal the exact worktree and its indexed commit must match
-`HEAD`. An MCP server started before the worktree was created does not hot-bind
-to the new index; use the Repowise CLI in that worktree or restart/open the task
-rooted there. Never rely on an MCP result whose reported workspace is another
-checkout.
+The MCP configuration uses the current working directory, so Repowise will automatically serve the main branch's index when started in a newly created worktree. This main-branch index is perfectly valid and encouraged for read-only codebase navigation, orientation, and symbol lookup, as the vast majority of the architecture remains identical.
+
+You do not need to re-initialize Repowise or verify binding just to read the codebase. Only run `repowise init` if you are about to make sweeping architectural changes in the worktree and need the index to reflect those local, uncommitted changes.
 
 ## Discovery flow
 
