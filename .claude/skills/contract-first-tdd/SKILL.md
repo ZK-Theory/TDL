@@ -84,3 +84,13 @@ internals, so they survive refactors.
 `schema-contract-design` (contract authoring, upstream of this skill) ·
 `research-assurance-triage` · `tda-diagnosing-computational-defects` ·
 `result-provenance-review` · `tda-resource-preflight`.
+## High-assurance negative controls
+
+- Perturb each named public producer seam before observation; mutating only a produced dictionary or digest proves serialization sensitivity, not provenance.
+- For content-addressed evidence, retain every identity-preimage field, recompute identity at construction, and rebuild release evidence from authoritative execution inputs.
+- Diagnose byte mismatches against the task base, attributes, raw hashes, and out-of-tree regeneration before rewriting; separate inherited EOL baselines from semantic drift.
+- Put required CLI authority inputs in the parser contract and help surface; test missing-argument parse failure separately from invalid supplied values.
+- Test immutable writers under identical and conflicting races. Arbitration keys must match the logical revision key, with exactly one visible value under conflict.
+- Attack capabilities after normal binding, across instances, and under replay/reuse; validate instance ownership and consumption at the protected seam.
+- Capture long test partitions independently so one timeout cannot erase completed evidence.
+- For decorated public APIs, test both runtime signatures and source-visible defaults/annotations; hidden parameters must be optional yet fail closed.

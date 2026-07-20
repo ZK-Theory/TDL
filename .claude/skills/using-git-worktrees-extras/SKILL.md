@@ -98,3 +98,10 @@ the runtime workspace. Do not retry from the orchestrating task.
 ## Pre-Delivery Check
 
 Report the full and scoped baseline states separately, the explicit approval for scoping, the exact excluded ownership, and evidence that reads, edits, index operations, and tests all resolved inside one worktree.
+## Worktree execution guardrails
+
+- Verify both commit identity and attachment: the expected ref must resolve to the required commit and `git symbolic-ref --short HEAD` must name that branch. A ref pointing at detached HEAD is not attachment.
+- Before mandated `uv run --no-sync`, prove the selected environment is populated and lock-compatible. If routing to an existing environment, set `UV_PROJECT_ENVIRONMENT` explicitly and report it; never silently sync.
+- Bootstrap Repowise in each new worktree with the repository-prescribed non-interactive command, verify its reported path and indexed commit, keep integration-path rewrites out of task output, and do not trust an MCP server bound to another checkout.
+- Do not enumerate unrelated worktrees during bootstrap when tooling assumes one schema root. Limit discovery to the authorised checkout unless multi-root behaviour is explicitly required and tested.
+- Run cross-worktree tests from the checkout whose bytes are under review; verify cwd, source import paths, executable, and output paths before crediting results.

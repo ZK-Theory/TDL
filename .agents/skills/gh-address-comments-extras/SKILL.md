@@ -29,3 +29,12 @@ Before prescribing or adding a suppression:
 ## Pre-Delivery Check
 
 Confirm thread retrieval was complete under explicit UTF-8 decoding and every suppression is backed by exact scanner metadata plus a fresh remote result. Label unresolved metadata or pending reruns explicitly.
+## Review-finding verification
+
+- Verify a scanner's claimed rule against the effective local configuration and a focused invocation. Preserve a valid style request while correcting an inaccurate enforcement rationale.
+- Before optimizing a test, name the defect it proves and retain that falsification power through a deterministic clock or synchronization seam.
+- When subprocess use is flagged, prefer a constrained metadata seam with fixed executable/arguments and validated inputs; do not broaden into general command execution.
+- Classify a target as current authority or immutable historical evidence before editing. Search for downstream blob/SHA/path pins and use additive superseding records for content-addressed history.
+- Treat the review service's latest availability countdown as authoritative. Persist the exact head, wait through the stated window plus margin, confirm no review is active, and post only once.
+
+Before delivery, re-check each accepted fix against the original behavioral claim, effective tool configuration, evidence epoch, and exact reviewed head.

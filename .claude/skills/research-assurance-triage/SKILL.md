@@ -139,3 +139,6 @@ Cross-cutting: `pre-reg-to-dispatch` converts a pre-registration into the Task
 Prompt block (Manager-facing); `schema-contract-design` is the procedure for
 adding a new enforcing contract; `tda-experiment` covers result JSON schemas and
 experiment logging.
+## Artefact-stage routing
+
+Classify the subject before selecting assurance: a plan needs design/dispatch scrutiny, while produced results need provenance, statistical, reproducibility, and claim checks. A result-shaped artefact must not be routed as a plan merely because it contains future-work language, and a plan must not receive result assurance before evidence exists.

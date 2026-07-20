@@ -115,3 +115,6 @@ authoring) · `tda-resource-preflight` · `tda-handoff` (carrying an
 unfinished brief across sessions) · any tier-2 specialist skill as a
 dispatch target (routing table: the SKILL-INDEX in the authoring tree) ·
 `tda-light-task-triage` (low-risk chores that do not need a brief).
+## Assurance-lane disposition
+
+For every assurance lane named or implied by a plan, record an explicit disposition: required now, deferred with owner and gate, not applicable with rationale, or prohibited. Bind each required lane to its authority source, producer, evidence, acceptance condition, and failure state; do not treat aggregate coverage prose as per-lane closure.
