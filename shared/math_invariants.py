@@ -86,7 +86,9 @@ def check_diagram_wellformed(diagram: Diagram) -> InvariantVerdict:
     """D1: shape (n, 2), no NaN, and birth <= death for every finite pair.
 
     Infinite-death pairs are admissible (they must be filtered or declared by
-    the consumer) but NaN and death < birth are hard violations.
+    the consumer) but NaN and death < birth are hard violations.  Malformed
+    input shapes (1-D, (n, 3), etc.) are reported as a failed verdict with a
+    ``shape_error`` key rather than propagating an exception.
 
     Args:
         diagram: Persistence diagram, shape (n, 2) birth/death rows.
@@ -94,7 +96,14 @@ def check_diagram_wellformed(diagram: Diagram) -> InvariantVerdict:
     Returns:
         Verdict with counts of violating rows in ``detail``.
     """
-    dgm = _as_diagram(diagram)
+    arr = np.asarray(diagram, dtype=np.float64)
+    if arr.ndim != 2 or (arr.size > 0 and arr.shape[1] != 2):
+        return InvariantVerdict(
+            name="D1.wellformed",
+            passed=False,
+            detail={"shape_error": str(arr.shape), "reason": "expected (n, 2)"},
+        )
+    dgm = arr if arr.size else arr.reshape(0, 2)
     n_nan = int(np.isnan(dgm).any(axis=1).sum()) if dgm.size else 0
     finite = dgm[np.isfinite(dgm).all(axis=1)] if dgm.size else dgm
     n_inverted = int((finite[:, 1] < finite[:, 0]).sum()) if finite.size else 0
@@ -270,6 +279,12 @@ def check_solver_agreement(
     for a, b in pairs:
         oracle = wasserstein_exact_small(a, b, order=order, internal_p=internal_p)
         tested = float(dist_fn(a, b))
+        if not math.isfinite(tested):
+            return InvariantVerdict(
+                name="W3.solver_agreement",
+                passed=False,
+                detail={"non_finite_result": tested, "n_pairs": len(pairs)},
+            )
         denom = max(oracle, 1e-12)
         worst = max(worst, abs(tested - oracle) / denom)
     return InvariantVerdict(
@@ -460,6 +475,21 @@ def landscape_norm_closed_form(diagram: Diagram, p: float = 2.0) -> float:
     return float((2.0 * h ** (p + 1.0) / (p + 1.0)).sum())
 
 
+def _max_overlap_depth(diagram: Diagram) -> int:
+    """Maximum number of simultaneously alive intervals (sweep-line).
+
+    For n disjoint intervals the depth is 1; for n fully nested intervals
+    the depth is n. The landscape has exactly this many non-trivial levels.
+    """
+    dgm = _as_diagram(diagram)
+    if dgm.shape[0] == 0:
+        return 0
+    events = np.concatenate([dgm[:, 0], dgm[:, 1]])
+    signs = np.concatenate([np.ones(dgm.shape[0]), -np.ones(dgm.shape[0])])
+    order = np.argsort(events, kind="stable")
+    return int(np.cumsum(signs[order]).max())
+
+
 def check_landscape_norm(
     levels: NDArray[np.float64],
     ts: NDArray[np.float64],
@@ -492,7 +522,7 @@ def check_landscape_norm(
     computed = float(np.trapezoid(lv**p, t, axis=1).sum()) if lv.size else 0.0
     covers = bool(dgm.size == 0 or (t.min() <= dgm[:, 0].min() and t.max() >= dgm[:, 1].max()))
     atol = 1e-12
-    no_truncation = lv.shape[0] >= dgm.shape[0]
+    no_truncation = lv.shape[0] >= _max_overlap_depth(dgm)
     upper_ok = computed <= closed * (1.0 + rtol) + atol
     lower_ok = (not no_truncation) or computed >= closed * (1.0 - rtol) - atol
     return InvariantVerdict(
@@ -570,6 +600,8 @@ def check_landscape_stability(
     levels_a: NDArray[np.float64],
     levels_b: NDArray[np.float64],
     bottleneck: float,
+    ts_a: NDArray[np.float64] | None = None,
+    ts_b: NDArray[np.float64] | None = None,
     rtol: float = 1e-9,
 ) -> InvariantVerdict:
     """L3: landscape infinity-stability against an independent bottleneck.
@@ -580,16 +612,37 @@ def check_landscape_stability(
     independent implementations wrong. The grid supremum underestimates the
     true supremum, so no grid slack is needed on the passing side.
 
+    When ``ts_a`` and ``ts_b`` are provided, the grids are validated for
+    identical length and coordinates before comparing landscape values;
+    mismatched grids produce an immediate failed verdict.
+
     Args:
         levels_a: Landscape of A, shape (K_a, T), same grid as ``levels_b``.
         levels_b: Landscape of B, shape (K_b, T); level counts may differ
             (missing levels are zero).
         bottleneck: Independently computed bottleneck distance.
+        ts_a: Optional evaluation grid for landscape A.
+        ts_b: Optional evaluation grid for landscape B.
         rtol: Relative floating-point slack.
 
     Returns:
         Verdict with the observed supremum and the bound in ``detail``.
     """
+    if ts_a is not None and ts_b is not None:
+        ga = np.asarray(ts_a, dtype=np.float64)
+        gb = np.asarray(ts_b, dtype=np.float64)
+        if ga.shape[0] != gb.shape[0]:
+            return InvariantVerdict(
+                name="L3.stability",
+                passed=False,
+                detail={"grid_error": f"length mismatch: {ga.shape[0]} vs {gb.shape[0]}"},
+            )
+        if not np.allclose(ga, gb, atol=1e-14):
+            return InvariantVerdict(
+                name="L3.stability",
+                passed=False,
+                detail={"grid_error": "coordinate mismatch"},
+            )
     la = np.asarray(levels_a, dtype=np.float64)
     lb = np.asarray(levels_b, dtype=np.float64)
     k = max(la.shape[0], lb.shape[0])
@@ -671,10 +724,18 @@ def null_sensitivity_probe(
     observed = float(statistic_fn(observed_data))
     probes = [float(statistic_fn(null_draw_fn(observed_data, rng))) for _ in range(n_probes)]
     spread = max(abs(v - observed) for v in probes) if probes else 0.0
+    probe_range = (max(probes) - min(probes)) if len(probes) > 1 else 0.0
+    passed = spread > atol and probe_range > atol
     return InvariantVerdict(
         name="P3.null_sensitivity",
-        passed=spread > atol,
-        detail={"observed": observed, "max_probe_deviation": spread, "n_probes": n_probes, "seed": seed},
+        passed=passed,
+        detail={
+            "observed": observed,
+            "max_probe_deviation": spread,
+            "probe_range": probe_range,
+            "n_probes": n_probes,
+            "seed": seed,
+        },
     )
 
 

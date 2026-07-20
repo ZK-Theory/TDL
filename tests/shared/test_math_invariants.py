@@ -91,6 +91,17 @@ def test_d1_fires_on_nan_and_inverted_pairs() -> None:
     assert not mi.check_diagram_wellformed(np.array([[2.0, 1.0]])).passed
 
 
+def test_d1_fires_on_malformed_shapes() -> None:
+    """Regression: 1-D and (n, 3) inputs produce a failed verdict, not an exception."""
+    verdict_1d = mi.check_diagram_wellformed(np.array([0.0, 1.0, 2.0]))
+    assert not verdict_1d.passed
+    assert "shape_error" in verdict_1d.detail
+
+    verdict_3col = mi.check_diagram_wellformed(np.array([[0.0, 1.0, 2.0]]))
+    assert not verdict_3col.passed
+    assert "shape_error" in verdict_3col.detail
+
+
 # ---------------------------------------------------------------------------
 # W1 — closed-form empty-diagram oracle
 # ---------------------------------------------------------------------------
@@ -182,6 +193,24 @@ def test_w3_fires_on_no_zero_diagonal_block_reduction() -> None:
     naive = _augmented_no_zero_block(a, b)
     assert correct == pytest.approx(np.sqrt(0.52), rel=1e-9)
     assert naive > correct + 1e-3  # upper-biased, as documented in the spec §4
+
+
+def test_w3_fires_on_nan_returning_solver() -> None:
+    """Regression: a solver returning NaN must produce a failed verdict immediately."""
+    rng = np.random.default_rng(RNG_SEED)
+    pairs = [(_random_diagram(rng, 3), _random_diagram(rng, 3))]
+    verdict = mi.check_solver_agreement(lambda a, b: float("nan"), pairs)
+    assert not verdict.passed
+    assert "non_finite_result" in verdict.detail
+
+
+def test_w3_fires_on_inf_returning_solver() -> None:
+    """Regression: a solver returning +inf must produce a failed verdict immediately."""
+    rng = np.random.default_rng(RNG_SEED)
+    pairs = [(_random_diagram(rng, 3), _random_diagram(rng, 3))]
+    verdict = mi.check_solver_agreement(lambda a, b: float("inf"), pairs)
+    assert not verdict.passed
+    assert "non_finite_result" in verdict.detail
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +327,17 @@ def test_l2_closed_form_hand_value() -> None:
     assert mi.landscape_norm_closed_form(np.array([[0.0, 2.0]]), p=2.0) == pytest.approx(2.0 / 3.0, rel=1e-12)
 
 
+def test_l2_disjoint_diagram_passes_at_k1() -> None:
+    """Regression: disjoint intervals have max overlap 1; K=1 is full depth."""
+    dgm = np.array([[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]])
+    ts = np.linspace(-0.5, 5.5, 6001)
+    levels = mi.landscape_levels(dgm, ts, k_max=1)
+    verdict = mi.check_landscape_norm(levels, ts, dgm, p=2.0, rtol=1e-3)
+    # K=1 >= max_overlap(1): two-sided check applies and must pass
+    assert verdict.passed, verdict.detail
+    assert not verdict.detail["truncation_possible"]
+
+
 # ---------------------------------------------------------------------------
 # L3 — landscape stability against the bottleneck
 # ---------------------------------------------------------------------------
@@ -328,6 +368,38 @@ def test_l3_stability_against_gudhi_bottleneck() -> None:
         bottleneck = float(gudhi.bottleneck_distance(a, b))
         verdict = mi.check_landscape_stability(la, lb, bottleneck, rtol=1e-6)
         assert verdict.passed, verdict.detail
+
+
+def test_l3_fires_on_mismatched_grid_length() -> None:
+    """Regression: grids with different lengths are rejected before comparison."""
+    la = np.array([[0.0, 0.1, 0.0]])
+    lb = np.array([[0.0, 0.1, 0.0, 0.0]])
+    verdict = mi.check_landscape_stability(
+        la,
+        lb,
+        bottleneck=1.0,
+        ts_a=np.linspace(0, 1, 3),
+        ts_b=np.linspace(0, 1, 4),
+    )
+    assert not verdict.passed
+    assert "grid_error" in verdict.detail
+    assert "length mismatch" in verdict.detail["grid_error"]
+
+
+def test_l3_fires_on_mismatched_grid_coordinates() -> None:
+    """Regression: same-length grids with different coordinates are rejected."""
+    la = np.array([[0.0, 0.1, 0.0]])
+    lb = np.array([[0.0, 0.1, 0.0]])
+    verdict = mi.check_landscape_stability(
+        la,
+        lb,
+        bottleneck=1.0,
+        ts_a=np.array([0.0, 0.5, 1.0]),
+        ts_b=np.array([0.0, 0.6, 1.0]),
+    )
+    assert not verdict.passed
+    assert "grid_error" in verdict.detail
+    assert "coordinate mismatch" in verdict.detail["grid_error"]
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +446,23 @@ def test_p3_passes_on_effective_null() -> None:
         observed_data=data,
     )
     assert verdict.passed
+
+
+def test_p3_fires_on_constant_shift_null() -> None:
+    """Regression: null that shifts all probes by a fixed offset is degenerate.
+
+    Every probe differs from observed by the same amount, but probes are
+    identical to each other — zero inter-probe variation. Must fail.
+    """
+    data = np.array([1.0, 2.0, 3.0])
+    verdict = mi.null_sensitivity_probe(
+        statistic_fn=lambda d: float(d.sum()),
+        null_draw_fn=lambda d, rng: d + 42.0,  # constant shift, no randomness
+        observed_data=data,
+    )
+    assert not verdict.passed
+    assert verdict.detail["max_probe_deviation"] > 0  # probes do differ from observed
+    assert verdict.detail["probe_range"] == 0.0  # but no inter-probe variation
 
 
 # ---------------------------------------------------------------------------
