@@ -54,7 +54,7 @@ not the §3.2 one.**
 mild: the pooled empirical start marginal reproduces the observed marginal, so the
 cost is variance (lost per-trajectory coupling of start state to length/cohort),
 second-order. The order-2 deviation is material: a uniform second token perturbs
-the bigrams at positions (0,1) and (1,2) — roughly 2/(T−1) ≈ 12–17% of each
+the bigrams at positions (0,1) and (1,2) — roughly 2/(T−1) ≈ 22.2% to 11.8% of each
 trajectory's bigram mass at T ∈ [10, 18] — toward uniform, in a state space where
 real transitions are strongly persistent. Every surrogate is perturbed in the
 *same direction*, so the entire null ensemble is coherently displaced in n-gram
@@ -92,7 +92,7 @@ must stop asserting different nulls.
 **What is implemented.** `_battery_core.py` lines 408–411 (and identically for the
 landscape metric, lines 428–431):
 
-```
+```text
 r  = #{ null-null pair distances  ≥  mean of the B obs-null distances }
 p  = (r + 1) / (N_pairs + 1)
 ```
@@ -117,16 +117,17 @@ with surrogates), the mean-of-B-distances statistic concentrates: its conditiona
 expectation given the observed draw has the same mean as an individual pair
 distance (E over obs and null of W equals E of a null-null pair) but strictly
 smaller dispersion. Comparing a concentrated statistic against the quantiles of a
-dispersed reference means null p-values pile up near the mid-tail probability
-P(pair ≥ E[mean]) ≈ 0.4–0.6 and essentially never take small values — the test is
-severely conservative, its p-values are not uniform under H₀, and its power
-behaviour is uncalibrated. (It remains superuniform, hence "valid" in the weak
-sense, under a tail-dominance condition that generically holds; it is not a
-permutation test in any standard sense.) Note the composition with A1: the
-generator's coherent displacement inflates the mean-of-distances numerator without
-touching the pair-distance reference — the two defects push in opposite
-directions on different axes (A2 deflates size; A1 inflates the statistic), and
-nothing currently quantifies the net.
+dispersed reference means the calibration of the null p-values is not the same as
+for an individual pair-distance statistic, but the direction of the resulting size
+distortion is not established from this conditional variance argument alone; a
+derivation or a double-null simulation is needed before claiming conservativeness,
+a near-absence of small p-values, or superuniformity. The implemented pipeline's
+unconditional behavior therefore remains an empirical question rather than a settled
+theorem. Note the composition with A1: the generator's coherent displacement
+inflates the mean-of-distances numerator without touching the pair-distance
+reference — the two defects push in opposite directions on different axes (A2
+changes the reference calibration; A1 inflates the statistic), and nothing
+currently quantifies the net.
 
 **Remediation.** Adopt exactly one construction as a registry object (I10a):
 recommend §3.3's LOO-ratio form, which is the standard surrogate-data test
@@ -139,8 +140,10 @@ homology** wherever per-pair arrays were retained (the retention mandate exists
 precisely for this); (ii) where only summary scalars survive, the cell joins the
 recompute queue already scoped at Gate 7. The §3.3 subtlety to fix while adopting
 it: the fixed 500-pair null-null subsample is shared across all T⁽ʲ⁾, inducing
-dependence between reference ratios — use all pairs or draw independent subsamples
-per j, and say which.
+dependence between reference ratios; using all null pairs still leaves the LOO
+ratios dependent when they share a reference set, so the paper should specify an
+approach that either removes that dependence (for example, independent subsamples
+per j) or quantifies it explicitly.
 
 ### A3. Every "permutation p-value" at the Markov rungs is a parametric-bootstrap p-value, and the calibration analysis the paper cites in its own defence does not exist
 
@@ -243,7 +246,7 @@ Three instances, all disclosed or partially disclosed, none yet resolved: the BC
 intervals resample dependent distance arrays i.i.d. (§3.3 says "descriptive" —
 then the tables must not present them alongside inferential p-values without the
 qualifier); the 500-pair null-null subsample shares diagrams across pairs
-(underestimates reference dispersion; affects both s_null,null and A2's reference
+(can misestimate reference dispersion; affects both s_null,null and A2's reference
 quantiles); and d_perm's denominator is the sd of *pair distances*, which scales
 with diagram size and landmark count — cross-cell d_perm league tables (12/12,
 9/11 subgroup counts) implicitly compare incommensurable units. Remediation:
