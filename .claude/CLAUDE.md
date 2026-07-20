@@ -57,25 +57,24 @@ Path-scoped rules (lazy-loaded): `.claude/rules/` — `papers.md`,
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-07-12 (commit 5bec9c7). Confidence: 100%.
+Last indexed: 2026-07-20 (commit 8b128db). Confidence: 100%.
 ### Architecture
-repo is a Topological Data Analysis (TDA) orchestration engine that consumes raw financial, poverty, and trajectory datasets, processes them through multi-dimensional persistence and Morse-Smale filtration pipelines, and outputs structured topological features for predictive modeling and trend validation. The repository serves as a unified monorepo for research-grade data science workflows, integrating custom embedding strategies with rigorous validation frameworks to transform high-dimensional noise into actionable analytical insights. The repository is organized into domain-specific modules that encapsulate distinct TDA methodologies:
-**Operational Flow:**
+repo is a Topological Data Analysis (TDA) orchestration engine that consumes raw financial, poverty, and trajectory datasets, processes them through multi-dimensional persistence and Morse-Smale filtration pipelines, and outputs structured topological features for predictive modeling and trend validation. The repository serves as a unified monorepo for research-grade data science workflows, integrating custom embedding strategies with rigorous validation frameworks to transform high-dimensional noise into actionable analytical insights. *   **Core Language:** Python (35.8%) is the primary driver for TDA logic, data processing, and model validation. *   **Documentation & Metadata:** Markdown (35.9%) and JSON (24.2%) constitute the bulk of the repository, reflecting a heavy emphasis on documentation-driven development and configuration-based orchestration.
 ### Key Modules
-| Module | Purpose |
-|--------|---------|
-| `community-3` | The financial_tda module serves as the topological data analysis (TDA) engine… |
-| `community-1` | The poverty_tda/validation module serves as the statistical verification and… |
-| `community-0` | The trajectory_tda/scripts module serves as the execution and orchestration… |
-| `community-2` | The trajectory_tda/scripts module serves as the execution layer of the… |
-| `community-4` | The validation/financial_tda module serves as the analytical validation layer… |
-| `community-5` | The trajectory_tda/mapper module serves as the topological analysis subsystem… |
-| `community-7` | The poverty_tda/viz module serves as the visualization and geospatial synthesis… |
-| `community-12` | The shared module serves as the foundational utility layer of the topological… |
-| `community-823` | The tests module serves as the verification and quality assurance subsystem for… |
-| `community-14` | The ttk_visualization module serves as the presentation layer of the… |
+| Module | Purpose | Owner |
+|--------|---------|-------|
+| `community-3` | The financial_tda module serves as the topological data analysis (TDA) engine of | — |
+| `community-1` | The poverty_tda/validation module serves as the statistical verification and ben | — |
+| `community-0` | The trajectory_tda/scripts module serves as the execution and orchestration laye | — |
+| `community-2` | The trajectory_tda/scripts module serves as the execution layer of the trajector | — |
+| `community-4` | The validation/financial_tda module serves as the analytical validation layer of | — |
+| `community-5` | The trajectory_tda/mapper module serves as the topological analysis subsystem of | — |
+| `community-7` | The poverty_tda/viz module serves as the visualization and geospatial synthesis  | — |
+| `community-12` | The shared module serves as the foundational utility layer of the topological da | — |
+| `community-823` | The tests module serves as the verification and quality assurance subsystem for  | — |
+| `community-14` | The ttk_visualization module serves as the presentation layer of the Topological | — |
 ### Entry Points
-- `research_system/cli.py`
+- `.apm/memory/index.md`
 ### Tech Stack
 **Languages:** Node.js, Python
 **Frameworks:** PyTorch
@@ -83,47 +82,45 @@ repo is a Topological Data Analysis (TDA) orchestration engine that consumes raw
 ### Architectural Layers
 | Layer | Files | Purpose |
 |-------|-------|---------|
-| Application | 923 |  |
-| Config | 428 |  |
-| Utility | 38 |  |
-| Types | 118 |  |
-| Data | 46 |  |
-| Docs & Tooling | 176 |  |
-| Test | 192 |  |
+| trajectory_tda/scripts | 120 |  |
+| research_system/tests | 92 |  |
+| poverty_tda/validation | 50 |  |
+| financial_tda | 52 |  |
+| validation/financial_tda | 28 |  |
+| research_system/evals | 35 |  |
+| trajectory_tda/mapper | 17 |  |
+| financial_tda/sector_analysis | 7 |  |
+| poverty_tda/viz | 17 |  |
+| financial_tda/multiasset_analysis | 6 |  |
 
 ### Guided Tour (12 steps)
-1. `TDL` — Start here for the end-to-end picture before diving into the code.
-2. `shared/persistence.py` — An entry point — execution and imports fan out from here.
-3. `tests/conftest.py` — Directly used by the entry points above; a core collaborator.
-4. `shared/ttk_utils.py` — Directly used by the entry points above; a core collaborator.
-5. `tests/financial/test_rips_gnn.py` — Directly used by the entry points above; a core collaborator.
-6. `tests/shared/test_validation_patterns.py` — Directly used by the entry points above; a core collaborator.
+1. **README.md**
+2. **cli.py**
+3. **errors.py**
+4. **canonical.py**
+5. **schema_registry.py**
+6. **ledger.py**
 ... and 6 more steps
 ### Hotspots (High Churn)
 | File | Churn | 90d Commits | Owner |
 |------|-------|-------------|-------|
-| `trajectory_tda/scripts/stage1/_battery_core.py` | 99.8th %ile | 18 | stephendor |
-| `trajectory_tda/scripts/stage1/run_bhps_markov1_credibility.py` | 99.7th %ile | 7 | stephendor |
-| `trajectory_tda/scripts/run_stage1_aux_diagnostics.py` | 99.5th %ile | 8 | stephendor |
-| `tests/trajectory_tda/test_t1_6_markov1_credibility_contracts.py` | 99.4th %ile | 5 | stephendor |
-| `trajectory_tda/analysis/panel/regression_tier1.R` | 99.2th %ile | 4 | stephendor |
+| `tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py` | 99.9th %ile | 13 | stephendor |
+| `research_system/command/service.py` | 99.7th %ile | 21 | stephendor |
+| `tests/research_system/unit/test_release_publication.py` | 99.6th %ile | 9 | stephendor |
+| `tests/research_system/integration/test_authority_grant_source.py` | 99.4th %ile | 8 | stephendor |
+| `research_system/cli.py` | 99.3th %ile | 24 | stephendor |
 
 ## Code health
-Three signals: **defect risk** (the overall score), **maintainability** (smells that hurt readability/change-cost without predicting bugs), and **performance** (static performance RISK: I/O-in-loop / N+1 shapes that waste work, high-precision/low-recall). Maintainability and performance are co-equal views, never blended into the defect headline. See `docs/CODE_HEALTH.md`.
-
-Defect risk, Hotspot health: 5.79/10 (stable) ·
-Average: 9.49/10 ·
-Worst: 1.0/10 (`poverty_tda/topology/multidim_ph.py`)
-Maintainability, Average: 9.58/10
-Performance risk: 207 open findings (14.31 per 10K covered LOC) · Average: 9.97/10 (a bounded [9,10] summary of the findings, not a verification claim)
-Performance coverage: perf detectors ran on 100.0% of analyzed code linesPerformance scope: static RISK detection (I/O-in-loop / N+1, resource-in-loop, regex/defer-in-loop, blocking-in-async); high-precision, low-recall. Does NOT cover algorithmic blowups, GC/memory pressure, or ORM lazy-load N+1. Full list: `get_health(include=["biomarkers","performance"])`.
+Hotspot health: 6.18/10 (stable) ·
+Average: 7.31/10 ·
+Worst: 1.0/10 (`poverty_tda/validation/spatial_comparison.py`)
 
 ### Critical biomarkers
-- `research_system/evals/retention_authorizer.py` — change entropy — impact −3.0
-- `tests/research_system/unit/test_retention.py` — change entropy — impact −3.0
-- `tests/research_system/unit/test_replay.py` — change entropy — impact −2.6
-- `trajectory_tda/scripts/run_t128_stratified_w2.py` — change entropy — impact −2.5
-- `tests/trajectory_tda/test_t1_6_markov1_credibility_contracts.py` — change entropy — impact −2.4
+- `research_system/evals/coverage.py` — function hotspot (load_p0_coverage) — impact −2.4
+- `poverty_tda/topology/multidim_ph.py` — untested hotspot — impact −2.0
+- `research_system/evals/models.py` — untested hotspot — impact −2.0
+- `research_system/evals/retention.py` — complex conditional (validate_deletion_manifest_for_event) — impact −2.0
+- `research_system/store/ledger.py` — untested hotspot — impact −2.0
 
 ### Repowise MCP Tools
 
@@ -133,37 +130,22 @@ This repo has the Repowise MCP server configured. The tools below answer questio
 
 | Tool | What only this tool answers |
 |------|------------------------------|
-| `get_answer(question)` | Synthesised answer with citations and a content-grounded `confidence`. First call for "how does X work" / "where is Y" / "why is Z" — and the one-shot for "explain function/method/class X": when the question names an indexed symbol, get_answer anchors its defining file (even when fuzzy retrieval would miss it) and returns the symbol's full live body in `symbol_bodies` — read that instead of a `get_symbol` follow-up. Value questions may return `grounding: "extracted"` (verbatim source line). On low confidence returns `best_guesses` with one-line justifications, plus `code_rationale` (rationale comments mined live from the candidate source) when the "why" lives in a code comment the wiki never captured. |
-| `get_context(targets=[...])` | Triage card for files/modules/symbols — title, summary, signatures, `hotspot` bit, `decision_records` titles, `symbol_id`s. File targets auto-upgrade to a `verified` skeleton (every signature, ~37% of a full Read). `include=["callers"]` works on file targets too (import + call rollup). |
-| `get_symbol(...)` | Source bytes with live-verified bounds. Three forms: `"path.py::Name"` (indexed symbol), `"path.py:140-180"` (live range read, ≤200 lines), `"repowise#<hex>"` (omission ref). Index misses return `fallback_lines` from a live grep instead of a dead end. |
-| `search_codebase(query, mode?, kind?, symbol_kind?)` | Hybrid code search. `mode="auto"` (default) routes by query shape: an identifier → indexed symbol hits (`symbol_id`/`file`/line bounds — pipe into `get_symbol`), a path → file pages (pipe into `get_context`), prose → wiki-semantic search, mixed → hybrid (symbols first). Force a branch with `mode=symbol\|path\|concept\|hybrid`. Concept hits carry `search_method` (`embedding` vs `bm25` fallback); decision records rank below file pages unless the query is why-shaped. |
-| `get_why(query, targets?)` | Architectural decision archaeology — *why* the code is shaped this way. Call before refactors or pattern divergences. Falls back to git archaeology when no ADRs exist for a file, and to `code_rationale` (rationale comments mined from the source) when neither decisions nor git history explain it. |
+| `get_answer(question)` | Synthesised answer with verified citations and a calibrated `retrieval_quality`. First call for "how does X work" / "why is Y like this". On low confidence returns `best_guesses` with one-line justifications instead of an empty answer. |
+| `get_context(targets=[...])` | Triage card for files/modules/symbols — title, summary, signatures, `hotspot` bit, `decision_records` titles, and `symbol_id`s to pipe into `get_symbol`. Use `include=["callers","ownership",...]` to widen. NOT for source bytes. |
+| `get_symbol("path/to/file.py::Name")` | Raw source bytes for one indexed symbol with exact line bounds. Cheaper and safer than `Read` + offset math. Use the `symbol_id` returned by `get_context`. |
+| `search_codebase(query, kind?)` | Find pages by concept when you don't know the file. Each result carries `search_method` (`embedding` vs `bm25` fallback). For exact identifiers use Grep — the tool will hint when it sees one. |
+| `get_why(query, targets?)` | Architectural decision archaeology — *why* the code is shaped this way. Call before refactors or pattern divergences. Falls back to git archaeology when no ADRs exist for a file. |
 | `get_risk(targets, changed_files?)` | What history says about touching these files: churn, owners, blast radius. Pass `changed_files` for PR mode → returns a `directive` (`will_break`, `missing_cochanges`, `missing_tests`). |
-| `get_health(targets?, include?)` | Code-health scores + biomarker findings (defect / maintainability / performance pillars). Self-check before a PR — read the same signals the merge-gate judges your change on. Default is lean; opt in with `include`: `["accuracy"]` (does the score rank the buggy files first — precision@K + `lift`), `["signals"]` (per-file prior-defects / churn / owners / degree, targeted mode), `["churn_complexity"]` (volatile-and-complex danger-zone files), `["biomarkers"]` (all findings), and a dimension name `["performance"]` / `["defect"]` / `["maintainability"]` to filter findings to one pillar. |
 | `get_dead_code(...)` | Tiered unreachable / unused-export / zombie-package findings. Run before a cleanup sprint, not before a targeted fix. |
-| `get_overview(repo?)` | Architecture map + `tool_guide` recipes. One-time orientation; skip on subsequent calls in the same session. |
-
-**Trust protocol — when a response replaces reading the source:**
-- `verified: true` on any response means the served content was checked against the live working tree. **Never follow a verified response with a Read of the same lines** — you would be paying twice for identical bytes.
-- `get_answer` with `confidence: "high"` or `grounding: "extracted"` is content-grounded (asserted values were verified against retrieved source; ≥1 citation is source-backed). Cite it directly. `quotes` entries `{path, lines, quote}` are verbatim live source — quote them instead of re-reading. `symbol_bodies` entries `{path, name, lines, source}` are the full live body of a named definition — read that body, do not call `get_symbol` for the same symbol (a `continuation` token names the next range if it was truncated).
-- `code_rationale` entries `{path, lines, comment}` (on a low-confidence `get_answer` or a fallen-back `get_why`) are rationale comments read live from the source. When the "why" you asked for is a code comment rather than an ADR, the comment is right there: cite it instead of opening the file to hunt for it.
-- Reading code: `get_context` skeleton first (~37% of a full Read), then `get_symbol` for bodies, `"path.py:a-b"` range reads for anything between symbols. Raw `Read` is for files the index marks `mostly_full` or cannot serve. On a **large file** `get_symbol("path::Name")` is the win — it serves one verified body instead of pulling the whole file into context.
-- The **only** re-read triggers: `bounds: "approximate"`, `_meta.stale_warning`, `search_method: "bm25"`, or `confidence: "low"`/`retrieval_quality: "weak"`.
-- Disallowed rationalizations for extra reads: "just to be safe", "to double-check the tool", "to see the full context" (use the skeleton / a range read), "the file might have changed" (that is what `verified` already checked).
-- When a plain `Grep` is the right tool, use it: an exhaustive literal-token sweep (rename every call site, find all occurrences) is one grep and unbeatable on cost. MCP's edge there is not fewer tokens — it is the `callers_total`/`callers_truncated` honesty signal that tells you whether a list is complete; reach for `get_context(include=["callers"])` when silent incompleteness would bite.
+| `get_overview(repo?)` | Architecture map for an unfamiliar repo. One-time orientation; skip on subsequent calls in the same session. |
 
 **Composition tips:**
-- `get_answer` → if `confidence` is `medium`/`low`, follow `best_guesses[0].file` or `fallback_targets[0]` into `get_context`, then `get_symbol` for bytes.
-- `get_context` returns `decision_records` titles → `get_why(targets=[...])` for the rationale; `hotspot: true` → `get_risk` before editing.
+- `get_answer` → if `confidence` is `medium`/`low`, follow the `best_guesses[0].file` or `fallback_targets[0]` into `get_context`, then `get_symbol` for bytes.
+- `get_context` returns `decision_records` titles → call `get_why(targets=[...])` for the rationale.
+- `get_context` returns `hotspot: true` → call `get_risk` before editing.
 - PR review → `get_risk(targets=[...], changed_files=[...])`; read the `directive` block first.
-- A `tombstone` error means the file was deleted/renamed since indexing — follow `successor_paths`.
 
-### Output Distillation
-
-- Prefer `repowise distill <cmd>` for noisy commands — test runs, builds, `git status`/`log`/`diff`, searches, file listings. It runs the command unchanged (exit code preserved) and prints a compact, errors-first rendering; every error line survives.
-- Output may contain a marker like `[repowise#a1b2c3d4e5f6: 230 lines omitted (~6.1k tokens); restore: repowise expand a1b2c3d4e5f6]`. The omitted content is fully preserved — run `repowise expand <ref>` to retrieve it, or `repowise expand <ref> -q <regex>` for just the matching lines.
-- Never re-run a command to see omitted output; expand the marker instead.
-- For structure-level questions about a large indexed file ("what's in here", "which function handles X"), `get_context(["path"], include=["skeleton"])` returns the file with bodies elided — every signature plus the bodies of the most central symbols — at a fraction of the cost of a full Read.
+**Verify when:** `_meta.stale_warning` is present, or `retrieval_quality` is `partial`/`weak`, or `search_method` is `bm25`. Otherwise trust the response and act on it.
 
 ### Codebase Conventions
 **Commands:**
