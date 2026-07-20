@@ -262,10 +262,6 @@ class TestComputeWassersteinDistance:
                 d = _compute_wasserstein_distance(DIAG_SIMPLE, DIAG_SHIFTED)
         assert np.isfinite(d) and d >= 0.0
 
-    @pytest.mark.skipif(
-        "gudhi.wasserstein" not in sys.modules and True,
-        reason="test always runs; skip if want to isolate",
-    )
     def test_order_parameter_forwarded(self):
         """Different order values should give different (non-negative) results."""
         d1 = _compute_wasserstein_distance(DIAG_SIMPLE, DIAG_SHIFTED, order=1)

@@ -56,9 +56,10 @@ downstream consumer treated its output as the intended statistic.
   match, surplus diagonal slots were forced to pair at positive cost — an
   upper-biased estimator of W_q, i.e. estimand-changing after all (demonstrated by
   `test_w3_fires_on_no_zero_diagonal_block_reduction`,
-  `tests/shared/test_math_invariants.py`, PR #131; fixed on
-  `pipe/w2-fallback-canonical-reduction` via the canonical zero-block reduction
-  with an exact-oracle regression test). The defect class is estimand-changing
+  `tests/shared/test_math_invariants.py`, PR #131, and documented in
+  `docs/plans/strategy/Theorem-Derived-Invariant-Battery-2026-07-18.md` §4;
+  fixed in PR #133 (merged) via the canonical zero-block reduction with an
+  exact-oracle regression test). The defect class is estimand-changing
   fallbacks, not fallbacks per se — but this contrast case shows "same estimand"
   is itself a claim requiring proof, not inspection.
 
