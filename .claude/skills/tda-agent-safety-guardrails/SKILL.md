@@ -71,6 +71,6 @@ tier 2 skill first.
 `tda-handoff` (safety rules travel with the handoff).
 ## Bootstrap side-effect classification
 
-Do not infer purity from names such as `validate`, `check`, or `ensure`. Inspect or probe bootstrap/topology helpers for target creation, directory writes, registry mutation, or lock acquisition, and classify those effects before authorising the call.
+Do not infer purity from names such as `validate`, `check`, or `ensure`. Before probing any helper, perform static inspection, a dry-run execution, or isolated sandboxing to determine whether it creates targets, writes directories, mutates registries, or acquires locks, and classify those effects before authorising the call.
 
 Before delivery, re-read the active guardrails and verify that every invoked helper's observed effects match its authorised phase and ownership boundary.

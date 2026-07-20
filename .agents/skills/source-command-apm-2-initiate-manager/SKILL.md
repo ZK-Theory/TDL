@@ -116,4 +116,4 @@ Handoff is User-initiated when context window limits approach.
 **End of Command**
 ## Coordination identity guard
 
-Before consuming or clearing a non-empty APM handoff, compare its project/campaign identity with the requested role, supplied handover, tracker, and specification. A mismatch is foreign session state: preserve the bus untouched and proceed only from an explicitly authorised source. Bus presence alone never authorises destructive acknowledgement.
+Before consuming or clearing a non-empty APM handoff, compare the handoff identity tuple `(agent, outgoing, incoming, handoff, stage)` recorded in the non-empty APM handoff with the requested role, supplied handover, tracker, and specification; all five exact fields must match before the bus is cleared. Any mismatch is foreign session state: preserve the bus untouched and proceed only from an explicitly authorized source. Bus presence alone never authorizes destructive acknowledgement.

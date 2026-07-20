@@ -28,7 +28,7 @@ Before prescribing or adding a suppression:
 
 ## Pre-Delivery Check
 
-Confirm thread retrieval was complete under explicit UTF-8 decoding and every suppression is backed by exact scanner metadata plus a fresh remote result. Label unresolved metadata or pending reruns explicitly.
+Confirm thread retrieval was complete under explicit UTF-8 decoding and every suppression is backed by exact scanner metadata plus a fresh remote result. Label unresolved metadata or pending reruns explicitly. After a timeout or uncertain response, do not retry blindly: query by the exact head and review identifier, or use an equivalent idempotency mechanism, to determine whether the review already exists; record the confirmed result and ensure only one review is posted.
 ## Review-finding verification
 
 - Verify a scanner's claimed rule against the effective local configuration and a focused invocation. Preserve a valid style request while correcting an inaccurate enforcement rationale.
