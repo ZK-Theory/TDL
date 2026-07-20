@@ -18,8 +18,10 @@ Two tests:
 Primary backend is gudhi.hera.wasserstein_distance (Kerber-Morozov-Nigmetov
 geometric matching; no POT dependency), called with delta=1e-8 so the
 (1+delta) relative-error bound is exact to well below numerical precision.
-Falls back to a scipy linear_sum_assignment solve if hera is unavailable.
-The backend that actually ran is stamped in WassersteinNullResult.method.
+Falls back to an exact scipy linear_sum_assignment solve of the canonical
+augmented assignment if hera is unavailable (same estimand; O((n+m)^3), so
+slower on large diagrams). The backend that actually ran is stamped in
+WassersteinNullResult.method.
 
 References:
     Robinson, A., & Turner, K. (2017). Hypothesis testing for topological
@@ -93,7 +95,7 @@ def _compute_wasserstein_distance(
 
     except ImportError:
         warnings.warn(
-            "gudhi.wasserstein not available; falling back to the exact scipy "
+            "gudhi.hera not available; falling back to the exact scipy "
             "Hungarian solve (same estimand, O((n+m)^3) — slow on large diagrams). "
             "Install gudhi with hera support for fast exact distances: pip install gudhi",
             stacklevel=2,
@@ -160,7 +162,7 @@ class WassersteinNullResult:
         z_score: Standardised effect size vs. null distribution.
         wasserstein_order: The Wasserstein order used.
         n_null_simulations: Number of null diagrams tested.
-        method: 'gudhi' (exact, fast) or 'scipy' (exact Hungarian solve, slow
+        method: 'hera' (exact, fast) or 'scipy' (exact Hungarian solve, slow
             on large diagrams).
     """
 
