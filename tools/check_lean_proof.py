@@ -474,7 +474,11 @@ def _is_kernel_checked_equality_block(block: str) -> bool:
 def check_equality_obligations(
     files: dict[str, str], artefact_constants: list[dict]
 ) -> tuple[CheckResult, list[dict[str, object]]]:
-    """05a §3 item 5 - every artefact-bound constant needs a kernel-checked ``= value := by decide``.
+    """05a §3 item 5 - every artefact-bound constant needs a kernel-checked ``= value`` equality.
+
+    "Kernel-checked" means the equality is discharged by a tactic whose proof term the
+    kernel re-verifies - ``decide``, ``norm_num``, ``rfl``, ``simp``, or ``omega`` - never
+    ``native_decide`` (compiler trust) or ``sorry``/``admit``.
 
     A strict-inequality-only derivation fails (it never detects an inflated recorded
     value). A kernel value that differs from the recorded value fails AND emits a
@@ -519,7 +523,7 @@ def check_equality_obligations(
         elif saw_inequality:
             failures.append(
                 f"{name}: only an inequality bound was found; item 5 requires a kernel-checked "
-                "equality (= value := by decide)"
+                "equality (= value, discharged by decide/norm_num/rfl/simp/omega)"
             )
         else:
             failures.append(f"{name}: no kernel-checked equality evaluation found")
