@@ -498,7 +498,6 @@ def _object_definition(
             _object_definition(ref, proposal, indexes, cache)
     if object_id == "object/resource_request":
         rule = proposal["object_variant_rules"][0]
-        controlled = {branch["discriminator_const"] for branch in rule["branches"]}
         common = [
             item["field_name"]
             for item in source["fields"]
@@ -507,7 +506,6 @@ def _object_definition(
         ]
         result["required"] = common
         result["oneOf"] = [{"required": [branch["required_fields"][0]]} for branch in rule["branches"]]
-        del controlled
     return result
 
 
