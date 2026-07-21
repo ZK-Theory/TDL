@@ -1,6 +1,14 @@
 ---
 name: result-provenance-review
 description: Use when reviewing or producing TDL computational result files — caches, seeds, output paths, date suffixes, no-overwrite behavior, gitignored intermediates, or vault traceability — to confirm a result is reproducible and correctly recorded.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - output-provenance
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Result Provenance Review

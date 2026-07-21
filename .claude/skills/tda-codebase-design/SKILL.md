@@ -1,6 +1,13 @@
 ---
 name: tda-codebase-design
 description: Use when adding or refactoring a TDL pipeline module — embedding, null generation, PH computation, diagram distance, permutation testing, result serialization, provenance validation, plotting, or CLI orchestration — and the module boundary or interface is in question.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes: []
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Codebase Design

@@ -1,6 +1,13 @@
 ---
 name: tda-prototype-sandbox
 description: Use when building a disposable prototype to clarify a TDL design, interface, visualization, CLI, dashboard, or workflow idea without producing research evidence.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Prototype Sandbox

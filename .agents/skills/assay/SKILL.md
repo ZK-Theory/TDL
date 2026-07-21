@@ -1,6 +1,15 @@
 ---
 name: assay
 description: Use when a Discovery Harness backlog candidate needs viability scoring before any Spike or APM dispatch, especially for topology-earns-its-keep, data feasibility, novelty, PROMOTE/PARK/KILL, or assay scorecard work.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+  roles:
+    - orchestrator
+    - manager
+  runtime: agnostic
 ---
 
 # Assay

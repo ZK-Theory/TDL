@@ -1,6 +1,13 @@
 ---
 name: tda-visualisation-and-diagramming
 description: Use when creating or reviewing paper figures, diagnostic plots, Mapper diagrams, trajectory summaries, pipeline schematics or Mermaid diagrams, or exploratory visualizations — and when checking a figure's provenance and regenerability.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes: []
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Visualisation & Diagramming

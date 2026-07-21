@@ -1,6 +1,14 @@
 ---
 name: tda-scenario-stress-test
 description: Use when a TDL decision has multiple plausible branches — paper structure, adding a robustness check or baseline, an acceleration strategy, a methods trade-off — and needs structured risk analysis before it becomes a task brief.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - orchestrator
+    - manager
+  runtime: agnostic
 ---
 
 # TDA Scenario Stress Test

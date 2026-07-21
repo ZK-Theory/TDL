@@ -1,6 +1,13 @@
 ---
 name: tda-light-task-triage
 description: Use when sorting low-risk TDL-adjacent tasks — miscellaneous ideas, GitHub issues, vault cleanup, website tweaks, study tasks, small infrastructure chores — that do not touch research assurance lanes or result-bearing artifacts.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - orchestrator
+  runtime: agnostic
 ---
 
 # TDA Light Task Triage

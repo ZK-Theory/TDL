@@ -1,6 +1,14 @@
 ---
 name: null-operation-invariance-audit
 description: Use when a permutation/shuffle null is being designed or reviewed — to confirm the null operation actually perturbs the object the test statistic is computed on, rather than leaving it invariant.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - stochastic-null
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Null-Operation Invariance Audit

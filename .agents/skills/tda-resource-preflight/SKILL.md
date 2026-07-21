@@ -1,6 +1,15 @@
 ---
 name: tda-resource-preflight
 description: Use before launching compute that may exceed ~30 minutes — bootstraps, permutation nulls, Markov batteries, MICE refits, per-cluster or per-individual batteries, PH at high landmark count, or large ETL / memory-sensitive dataframe work.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - output-provenance
+  roles:
+    - operator
+    - manager
+  runtime: agnostic
 ---
 
 # TDA Resource Preflight

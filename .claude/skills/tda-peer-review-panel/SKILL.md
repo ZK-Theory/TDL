@@ -1,6 +1,14 @@
 ---
 name: tda-peer-review-panel
 description: Use when reviewing a paper section, methods description, abstract, introduction, pre-registration text, computational-log entry, result interpretation, or response-to-reviewer — to run separate specialist review passes instead of one generalist read.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - paper-claim
+  roles:
+    - claim-reviewer
+  runtime: agnostic
 ---
 
 # TDA Peer Review Panel

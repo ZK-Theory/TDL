@@ -1,6 +1,14 @@
 ---
 name: sensitivity-comparison-review
 description: Use when producing or reviewing sensitivity-analysis or comparison result JSONs — to confirm they retain every field needed for the comparison tables and figures that consume them.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - statistical-panel
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Sensitivity / Comparison Review

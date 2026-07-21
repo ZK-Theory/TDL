@@ -1,6 +1,14 @@
 ---
 name: commit-log
 description: Use at session end, after completing work worth committing — drafts the correctly prefixed commit message ([RESULT]/[DECISION]/[NEGATIVE]/[PIPELINE]/[DATA]/[EXPLORE]) and the matching Obsidian vault entry, both copy-paste ready.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - operator
+    - implementer
+  runtime: agnostic
 ---
 
 # /commit-log — Draft Commit Message and Vault Entry

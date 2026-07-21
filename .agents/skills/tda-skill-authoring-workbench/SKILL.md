@@ -1,6 +1,13 @@
 ---
 name: tda-skill-authoring-workbench
 description: Use when creating, reviewing, or refactoring TDL agent skills — deciding whether something should be a skill, reducing overlap between skills, or working the dual-tree authoring-and-sync mechanics for Claude Code and Codex.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - operator
+  runtime: agnostic
 ---
 
 # TDA Skill Authoring Workbench

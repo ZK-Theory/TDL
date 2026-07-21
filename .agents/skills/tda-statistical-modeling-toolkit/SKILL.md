@@ -1,6 +1,15 @@
 ---
 name: tda-statistical-modeling-toolkit
 description: Use when fitting or reviewing non-topological statistical models in TDL — GLMs, OLS/logit/probit, survival models, clustered models, bootstrap summaries, Bayesian robustness checks, simulation-based sensitivity checks, or power analysis — as baselines, robustness checks, or empirical context.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes:
+    - statistical-panel
+    - stochastic-null
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Statistical Modeling Toolkit

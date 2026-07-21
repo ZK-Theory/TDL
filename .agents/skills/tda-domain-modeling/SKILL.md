@@ -1,6 +1,16 @@
 ---
 name: tda-domain-modeling
 description: Use when a TDL term is ambiguous or drifting — a paper section uses stale notation, a contract introduces a new concept, a code name conflicts with project vocabulary, a result field names a quantity unclearly, or a new method decision should become a convention.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - topology
+    - representation
+  roles:
+    - implementer
+    - manager
+  runtime: agnostic
 ---
 
 # TDA Domain Modeling

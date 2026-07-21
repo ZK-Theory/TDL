@@ -1,6 +1,15 @@
 ---
 name: validate-topology
 description: Use when checking mathematical correctness of TDA results against known benchmarks and internal consistency checks — before trusting or reporting a topological result.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+  roles:
+    - verifier
+    - implementer
+  runtime: agnostic
 ---
 
 # /validate-topology — Validate Topological Results

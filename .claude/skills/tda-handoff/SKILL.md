@@ -1,6 +1,14 @@
 ---
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes: []
+  roles:
+    - manager
+    - operator
+  runtime: agnostic
 ---
 
 # TDA Handoff
