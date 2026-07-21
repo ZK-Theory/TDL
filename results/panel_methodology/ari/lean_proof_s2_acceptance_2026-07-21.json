@@ -1,0 +1,50 @@
+{
+  "admissible": false,
+  "failed_items": [
+    "no-holes",
+    "axiom-audit"
+  ],
+  "results": [
+    {
+      "item": "file-integrity",
+      "passed": true,
+      "detail": "promoted file hashes match manifest"
+    },
+    {
+      "item": "no-holes",
+      "passed": false,
+      "detail": "sorry/admit present: MaxAriBound.lean: sorry; MaxAriBound.lean: sorry; MaxAriBound.lean: sorry; MaxAriBound.lean: sorry"
+    },
+    {
+      "item": "declaration-kind",
+      "passed": true,
+      "detail": "only theorem/lemma/example declarations present"
+    },
+    {
+      "item": "trusted-computing-base",
+      "passed": true,
+      "detail": "no native_decide/extern/FFI evaluation"
+    },
+    {
+      "item": "constant-equality",
+      "passed": true,
+      "detail": "every artefact-bound constant pinned by kernel-checked equality"
+    },
+    {
+      "item": "non-vacuity-witness",
+      "passed": true,
+      "detail": "all declared non-vacuity witnesses present"
+    },
+    {
+      "item": "kernel-build",
+      "passed": true,
+      "detail": "lake build exit 0 (acceptor re-execution)"
+    },
+    {
+      "item": "axiom-audit",
+      "passed": false,
+      "detail": "sumSq_le_greedyFill: disallowed axioms ['sorryAx']; matrix_sumSq_le_rowConcentration: disallowed axioms ['sorryAx']; b9_pair_overlap_le: disallowed axioms ['sorryAx']; b9_ari_le: disallowed axioms ['sorryAx']; b9_pair_overlap_le_coarse: disallowed axioms ['sorryAx']"
+    }
+  ],
+  "discrepancies": []
+}
