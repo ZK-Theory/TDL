@@ -1,7 +1,7 @@
 # S2 — Statement Authorship & Referent Check: Fixed-Margin Max-ARI Concentration Bound
 
 **Date:** 2026-07-07 · **Review integrated:** 2026-07-20
-**Status:** Statements authored and revised under adversarial review; **countersigned by Stephen 2026-07-21** ("these are the statements I want certified"); owner decisions and claim grade (R2 certification / R3 paper-claim) resolved. **Sole remaining gate before Leanstral proof orchestration (Sonnet task per scout plan §7): the R2 referent-adequacy review by a fresh independent session (05a §3 item 9).**
+**Status:** Statements authored and revised under adversarial review; **countersigned by Stephen 2026-07-21**; owner decisions and claim grade (R2 certification / R3 paper-claim) resolved. **R2 referent-adequacy review complete 2026-07-21** (`../agentic-research-system/reviews/referent-adequacy-S2-max-ari-2026-07-21.md`, verdict `adequate_with_conditions`): **condition C1 applied** (two `List.sum` = 27,280 equalities appended to obligation G, verbatim + alone, so the review's adequacy carries over without a further R2 cycle); recommendation R1 applied (§4). **`statement_source` re-pins to the post-C1 blob of this file.** **Sole remaining gate before Leanstral proof orchestration (Sonnet task per scout plan §7): Stephen's one-line acknowledgement that the countersignature extends to the two-line C1 delta** (the review notes the countersignature predated C1). With that ack, proof search may proceed.
 **Statement author:** Claude (Fable 5) — per the statement/prover authorship split (scout plan §3.1): Leanstral must not alter these statements; it supplies proof terms and auxiliary *private lemmas* only. Auxiliary **definitions, notation, macros, and instances are statement-side objects** and follow the proposal-return loop, not prover authorship (05a M1). Any statement change (including "equivalent" re-encodings) stales this document and requires re-review.
 **Independent statement reviewer:** Stephen, or a fresh Fable/Opus session (scout plan §8 item 5) — NOT this session's continuation. **Epistemic grade (Stephen, 2026-07-21):** the S2 max-ARI *certification* is **R2** (a correction/verification affecting evidence validity, W5 §9), so a fresh independent session may perform the referent-adequacy review. The *downstream* step — promoting the normalised bracket into P01-A reviewer-facing prose — is separately **R3 claim promotion** and requires Stephen regardless (out of scope for this spike). **Countersignature on file (Stephen 2026-07-21). Remaining gate for the proof spike: the R2 referent-adequacy review by a fresh session independent of both author and prover, before proof search begins (05a §3 item 9).**
 **Hammer-proof rule (F6, resolved 2026-07-21):** the governing S3a/S3b prereg §8.4 restriction controls — no opaque hammer-only proofs unless short and auditable (stricter than 05a §3.4; 05a §8.2 precedence). See §5 item 3.
@@ -150,6 +150,10 @@ example : (121751376 - 27280) / 2 = 60862048 := by norm_num
 example : (omCounts.map (fun r => Nat.choose r 2)).sum = 72965958 := by decide
 example : (gmmCounts.map (fun c => Nat.choose c 2)).sum = 64376266 := by decide
 example : Nat.choose 27280 2 = 372085560 := by decide
+-- C1 (referent-adequacy review 2026-07-21): pin n so an inflated n cannot pass
+-- silently — n appears elsewhere in G only as a literal inside arithmetic identities.
+example : omCounts.sum = 27280 := by decide
+example : gmmCounts.sum = 27280 := by decide
 ```
 
 ### W — non-vacuity witness (mandatory; doubles as the lower-bound certificate)
@@ -213,7 +217,7 @@ If the fallback is taken, T5/T6 re-instantiate with `65560990` in place of `6086
 | Certified (on kernel acceptance) | NOT certified — remains on existing assurance |
 |---|---|
 | Pair-overlap upper bound 60,862,048 for the exact B9 margins (T2+T4), kernel-pinned exactly by **G** | That `fixed_margin_max_ari.py` correctly *implements* the greedy — irrelevant once the bound itself is proved |
-| Pair-overlap lower bound 59,684,973 via the concrete witness (W) | The observed ARI 0.2611807, the permutation null, the bootstrap CI (carried verbatim from T1.23c; separate provenance) |
+| Pair-overlap lower bound 59,684,973 via the concrete witness (W) | The observed ARI 0.2611807, the permutation null, the bootstrap CI, and the derived `normalised_ci_percentile_95` (all carried verbatim from / derived on T1.23c; separate provenance — R1) |
 | **ARI upper bound as an exact rational (T5)** and the **generic normalised-transfer principle (T6)** — the ARI/normalised claims §1 makes are now backed by authored statements (F1) | Any **concrete normalised constant**: the published `normalised_*` numbers multiply the certified bracket through the uncertified observed ARI (see §1 "Certified scope"), so T6 certifies only the transfer, not a normalised value. Also the **float** `ari` images — rounding enters only in the final divisions (documented; no claim depends on it) |
 | ARI monotone transfer at fixed margins (T3) over ℚ | That the margins in the JSON match the underlying clusterings — that is T1.23b/c provenance, already contract-checked (added to the §5 re-review checklist) |
 | Non-vacuity of the corollaries' hypotheses (W); falsifiability of the encoding (M) | The NW+2-opt search *quality* (heuristic; its output is certified only via W) |
