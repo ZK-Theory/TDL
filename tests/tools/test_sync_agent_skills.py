@@ -282,3 +282,51 @@ def test_run_sync_check_reports_mirror_edited_distinctly_from_diverged(
     out = capsys.readouterr().out
     assert "DIVERGED" in out and "skill-a" in out
     assert "MIRROR_EDITED" in out and "skill-b" in out
+
+
+def test_stale_mirror_file_edited_since_sync_is_mirror_edited(
+    trees_with_state: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stale dst file (absent in src) whose hash differs from the recorded
+    hash must be classified as MIRROR_EDITED, not silently removed."""
+    agents, claude, state_path = trees_with_state
+    _write(agents / "skill-a" / "SKILL.md", "src-content")
+    _write(claude / "skill-a" / "SKILL.md", "src-content")
+    # Extra file exists only in mirror and has been edited since last sync.
+    _write(claude / "skill-a" / "extra.md", "mirror-edited-content")
+    _write_state(
+        state_path,
+        {
+            "skill-a": {
+                "SKILL.md": "src-content",
+                "extra.md": "original-content",  # recorded ≠ current mirror content
+            },
+        },
+    )
+
+    exit_code = sas.run_sync(agents, claude, check_only=False, state_path=state_path)
+
+    assert exit_code == 1
+    # The edited stale file must NOT have been removed.
+    assert (claude / "skill-a" / "extra.md").exists()
+    assert (claude / "skill-a" / "extra.md").read_text(encoding="utf-8") == "mirror-edited-content"
+    err = capsys.readouterr().err
+    assert "skill-a" in err
+    assert "extra.md" in err
+
+
+def test_load_state_malformed_json_exits_2(
+    trees_with_state: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A malformed state file must produce exit code 2 via stderr, not a traceback."""
+    agents, claude, state_path = trees_with_state
+    _write(agents / "skill-a" / "SKILL.md", "content")
+    _write(claude / "skill-a" / "SKILL.md", "content")
+    state_path.write_text("{bad json", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        sas.run_sync(agents, claude, check_only=False, state_path=state_path)
+
+    assert exc_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "malformed state file" in err

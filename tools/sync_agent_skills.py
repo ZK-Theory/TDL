@@ -283,10 +283,19 @@ def _skill_state(skill_dir: Path) -> dict[str, str]:
 
 
 def _load_state(state_path: Path) -> dict[str, dict[str, str]] | None:
-    """Load the sync state file, or return None if absent."""
+    """Load the sync state file, or return None if absent.
+
+    Raises:
+        SystemExit: If the file exists but contains malformed JSON (exit code 2).
+    """
     if not state_path.exists():
         return None
-    return json.loads(state_path.read_text(encoding="utf-8"))
+    text = state_path.read_text(encoding="utf-8")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: malformed state file {state_path}: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 
 def _save_state(state_path: Path, state: dict[str, dict[str, str]]) -> None:
@@ -364,12 +373,17 @@ def _classify_diff(
             label = f"{rel} (stale in mirror, absent in authoring tree)"
             if recorded is None:
                 mirror_edited.append(label)
-            elif recorded.get(rel) is not None:
-                # Was present at last sync; src removed it → safe to remove
-                safe.append(label)
             else:
-                # Never present in src at last sync → manually added to mirror
-                mirror_edited.append(label)
+                recorded_hash = recorded.get(rel)
+                if recorded_hash is None:
+                    # Never present in src at last sync → manually added to mirror
+                    mirror_edited.append(label)
+                elif _sha256(dst_file) == recorded_hash:
+                    # dst unchanged since last sync; src removed it → safe to remove
+                    safe.append(label)
+                else:
+                    # dst was edited since last sync AND src removed it → mirror-edited
+                    mirror_edited.append(label)
 
     return mirror_edited, safe
 
