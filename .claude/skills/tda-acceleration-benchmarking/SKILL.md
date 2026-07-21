@@ -51,11 +51,19 @@ Accept an acceleration only if ALL hold:
    I/O, Python/GIL overhead, PH backend, or algorithmic complexity.
    Known repo case: exact W2 (gudhi) holds the GIL — threading gives zero
    parallelism; and ripser+loky degraded ~6.4x per-task under n_jobs=12
-   concurrency (memory-bandwidth contention, not core count).
+   concurrency (memory-bandwidth contention, not core count). A memory-
+   bandwidth-bound kernel can scale *negatively* under joblib/loky (exact W2
+   EMD did here, and loky repeatedly stalled): when it does, the reliable lever
+   is not a parallel backend but **independent serial processes over disjoint
+   input blocks** — block-partition the work, one process per block.
 3. Try the lowest-risk improvement first (vectorise → process pool → out-of-
    core → new backend → GPU/cloud).
 4. Benchmark the candidate at realistic scale, sweeping the worker count —
-   a single-configuration timing is not a benchmark. Verify stage parity against the
+   a single-configuration timing is not a benchmark; and for a variable-cost
+   kernel a two-sample timing is not one either — sample enough distinct inputs
+   to capture the per-input cost distribution (repo case: exact W2 EMD solve
+   time varied ~5× across pairs of one cache), or the projection rests on an
+   unrepresentative sample. Verify stage parity against the
    production unit before extrapolating. Label kernel-only timings as component
    benchmarks; they cannot project pipeline wall time without measured stage composition.
    For thread-based candidates, build an execution-locus table (stage → holds the GIL?)

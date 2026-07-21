@@ -66,7 +66,14 @@ for small deterministic unit tests and trivial calculations.
 5. Require, non-negotiably: the preflight-selected worker count and wall-time
    budget, chunked checkpointing with resume, progress reporting, date-suffixed
    outputs that never overwrite, recorded seeds, and a stated wall-time
-   estimate BEFORE launch. When the run is a multi-condition grid/battery
+   estimate BEFORE launch. Progress/checkpoint cadence must be **shorter than
+   the operator's patience** — an interval longer than the operator will wait
+   is indistinguishable from a stall and provokes destructive "fixes" (a kill,
+   or a rewrite of a healthy run). Size the first-output expectation by result
+   **ordering**, not rate alone: a cost-ordered queue that yields in submission
+   order can delay the first progress line far past a rate-based estimate while
+   the run is perfectly healthy, so emit an immediate heartbeat at launch,
+   before the first unit completes. When the run is a multi-condition grid/battery
    (multiple rungs, nulls, or parameters) under a budget that may truncate it,
    the loop order is part of the plan: sequence cells so the smallest
    COMPLETE, INTERPRETABLE design — every rung including any negative control,
@@ -148,6 +155,8 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 - [ ] Checkpoint/resume strategy and progress reporting specified.
 - [ ] Output overwrite protection and seeds specified.
 - [ ] Wall-time estimate recorded before launch.
+- [ ] Progress cadence shorter than operator patience; an immediate launch
+      heartbeat emitted (a cost-ordered / in-order-yield queue delays first real output).
 - [ ] Memory-per-worker × workers checked against the machine; disk checked.
 - [ ] Preflight record written.
 
