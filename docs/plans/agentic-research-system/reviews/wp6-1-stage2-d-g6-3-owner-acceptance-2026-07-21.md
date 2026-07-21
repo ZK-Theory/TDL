@@ -63,3 +63,21 @@ requested on this final tuple.
 | Pre-record subject head | `1a288c3006d0b36987bec8f5209eb6071b43e346` |
 
 No tests or contract gates were rerun for this provenance-only record.
+
+## Owner confirmation of external acceptance layer
+
+Statement provenance: owner-supplied task message
+Recorded date: 2026-07-22
+No acceptance timestamp is invented.
+
+The identities referred to as “listed above” are:
+
+- Acceptance-layer subject: `dd1a65a65009a6d2221c10dc0285ae0ec2c7a3ae`.
+- Acceptance record `.research-system/contracts/wp6-1-stage2-owner-acceptance-record.yaml`: blob `f1b73c729ed05c3bfdfcd50e0a916fa9fc70fff5`; SHA-256 `093d02bfbac5e6012c5f149abcf5b449a573863411f124fdcef928af79518ec4`.
+- Strict schema `.research-system/schemas/contracts/wp6-1-stage2-owner-acceptance-record.schema.json`: blob `fac31545f7e90d7025ede973bbd39d8de4941c20`; SHA-256 `708d2ec8a1d7fab8a15650814a9bf7318328a62a1f8f70c90c2659b9f2b23c2a`.
+- R11 review commit: `2f701c3b0f8b2ba3423c9ba07e0c5ce7a2813813`; report blob `496ff39639d405b50483d197858b1519e83270c8`; SHA-256 `a4bbcf3c0ce0c00d2f04d21f00bee2fb8a361e853e7f6f783447235b54e5dffa`; verdict `accept` (0 Critical / 0 Major / 0 Minor).
+
+> confirm that the WP6.1 Stage-2 external acceptance layer at dd1a65a65009a6d2221c10dc0285ae0ec2c7a3ae faithfully records and machine-binds my existing D-G6-3 decision. I accept the exact acceptance-record and strict-schema identities listed above, together with the R11 verdict of 0 Critical, 0 Major, and 0 Minor. This confirmation does not alter or re-accept the existing 173-schema tuple and does not authorize runtime implementation, registration, dispatch, reduction, projection, migration, hooks, PR merge, or any further Gate 6 transition.
+
+This is an audit provenance entry, not machine authority. The already accepted
+YAML acceptance record and strict schema remain authoritative and unchanged.
