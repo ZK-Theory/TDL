@@ -143,12 +143,15 @@ def test_wp6_1_coordinated_checkout_substitution_cannot_change_immutable_expecta
     candidate.write_bytes(
         approved_fact_annex_bytes(REPO_ROOT).replace(b"CreateScopeDefinition", b"CreateScopeAlias", 1)
     )
-    monkeypatch.setattr(span_editor, "FACT_ANNEX_PATH", str(candidate))
     relative = ".research-system/schemas/core/commands/create_scope_definition.schema.json"
-    mutated = (
+    baseline_bytes = {
+        path.relative_to(REPO_ROOT).as_posix(): path.read_bytes() for path in SCHEMA_ROOT.rglob("*.schema.json")
+    }
+    baseline_bytes[relative] = (
         (REPO_ROOT / relative)
         .read_bytes()
         .replace(b'"const": "CreateScopeDefinition"', b'"const": "CreateScopeAlias"', 1)
     )
-    with pytest.raises(ValueError, match="mutable baseline identity"):
-        build_stage2_overlays(REPO_ROOT, baseline_bytes={relative: mutated})
+    monkeypatch.setattr(span_editor, "approved_fact_annex_bytes", lambda _repo_root: candidate.read_bytes())
+    with pytest.raises(ValueError, match="fact-annex helper bytes diverge from immutable accepted source"):
+        build_stage2_overlays(REPO_ROOT, baseline_bytes=baseline_bytes)

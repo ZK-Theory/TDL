@@ -16,11 +16,24 @@ from typing import Any, Mapping
 
 import yaml
 
-from tests.research_system.contracts.wp6_1_schema_source import approved_fact_annex_bytes, source_rows
+from tests.research_system.contracts.wp6_1_schema_source import (
+    FACT_ANNEX_SOURCE,
+    approved_fact_annex_bytes,
+    approved_source_bytes,
+    source_rows,
+)
 
 
-FACT_ANNEX_PATH = ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"
 PROJECT_PATTERN = "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+
+
+def _bound_accepted_fact_annex_bytes(repo_root: Path) -> bytes:
+    """Require the imported helper to agree with the immutable Git object."""
+    helper_bytes = approved_fact_annex_bytes(repo_root)
+    immutable_bytes = approved_source_bytes(repo_root, FACT_ANNEX_SOURCE)
+    if helper_bytes != immutable_bytes:
+        raise ValueError("fact-annex helper bytes diverge from immutable accepted source")
+    return immutable_bytes
 
 
 def _slug(identifier: str) -> str:
@@ -688,8 +701,8 @@ def _schema_overlay(
 
 def build_stage2_overlays(repo_root: Path, *, baseline_bytes: Mapping[str, bytes] | None = None) -> dict[str, bytes]:
     # The accepted fact tuple is an immutable Git object.  Never derive Stage-2
-    # expectations from mutable checkout bytes.
-    proposal = yaml.safe_load(approved_fact_annex_bytes(repo_root))
+    # expectations from mutable checkout bytes or an unbound helper return.
+    proposal = yaml.safe_load(_bound_accepted_fact_annex_bytes(repo_root))
     indexes = _index(proposal)
     rows = source_rows(repo_root)
     command_specs = {item["row_key"]: item for item in proposal["command_payload_specs"]}
