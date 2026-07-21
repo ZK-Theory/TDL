@@ -1,7 +1,7 @@
 # 05a — W5 Addendum: `lean_proof` Evidence Class
 
-**Date:** 2026-07-07 · **Review integrated:** 2026-07-20
-**Status:** DRAFT — `review_pending`; requires Stephen's acceptance before any pack references it. Independent adversarial review completed (`../reviews/adversarial-05a-lean-proof-evidence-class-review-2026-07-20.md`, `accept_with_required_changes`); this revision applies all author-side required changes (C1, M1–M6, m1–m7). Owner decisions listed in §9 remain open.
+**Date:** 2026-07-07 · **Review integrated:** 2026-07-20 · **Accepted:** 2026-07-21 (Stephen)
+**Status:** ACCEPTED v0.2 — packs may reference this class. Independent adversarial review completed (`../reviews/adversarial-05a-lean-proof-evidence-class-review-2026-07-20.md`, `accept_with_required_changes`); this revision applies all author-side required changes (C1, M1–M6, m1–m7). All §9 owner decisions resolved by Stephen 2026-07-21. Implementation of the acceptor-side harness and W6 fixtures remains behind their own gates (§10).
 **Specification version:** 0.2 (extends W5 v0.2 via the §8.2 domain-pack interface; changes no core lifecycle, authority, or lane semantics)
 **Implementation authority:** None; this document creates no packs, contracts, adapters, role profiles, or Lean artefacts
 **Evidence basis:** S0 smoke test PASS (2026-07-04) — see the correction in §8 on the "local model / zero-token" premise; S1 gap survey + framing memo (2026-07-07); S2 statement-authorship document (`docs/plans/strategy/S2-statement-authorship-max-ari-bound-2026-07-07.md`); value assessment (`docs/plans/strategy/lean-integration-value-assessment-2026-07-07.md`)
@@ -107,15 +107,15 @@ The independent review (`../reviews/adversarial-05a-lean-proof-evidence-class-re
 
 ## 8. Correction to the cited evidence basis (M4)
 
-The scout plan (§§1, 2.2–2.3) and value assessment (§5) describe Leanstral as a **local** model at **zero API tokens**. The S0 vault `[RESULT]` (Computational-Log, 2026-07-04) records the opposite: **Leanstral requires a Mistral API key + Labs model enablement — it is an external metered API, not a local model.** This addendum's design does not depend on locality (the token-economics argument is unaffected in *relative* terms — proof search is still off Claude's budget — but calls are metered, and proof search is a third-party data-boundary crossing, which is why §2's `prover_data_exposure` field and §4's boundary sentence exist). Per the currency rule the dated scout plan and value assessment are **not** rewritten; Stephen's decision (§9) covers whether to file a one-line dated erratum in each pointing at the S0 vault entry.
+The scout plan (§§1, 2.2–2.3) and value assessment (§5) describe Leanstral as a **local** model at **zero API tokens**. The S0 vault `[RESULT]` (Computational-Log, 2026-07-04) records the opposite: **Leanstral requires a Mistral API key + Labs model enablement — it is an external API, not a local model.** It is, however, **currently free under Mistral's experimental Labs programme** (so the zero-*metered*-cost premise holds provisionally — via free hosting, not local execution, and not guaranteed to persist). This addendum's design does not depend on locality: the token-economics argument is unaffected in *relative* terms (proof search is off Claude's budget either way), but proof search is a third-party **data-boundary crossing**, which is why §2's `prover_data_exposure` field and §4's boundary sentence exist. Per the currency rule the dated scout plan and value assessment are **not** rewritten; **dated errata were filed 2026-07-21** in each (scout plan after §Scope decisions; value assessment §5) pointing at the S0 vault entry — resolving §9 decision 2.
 
-## 9. Owner decisions (Stephen)
+## 9. Owner decisions (Stephen) — RESOLVED 2026-07-21
 
-1. Accept the amended addendum (v0.2).
-2. Approve one-line dated errata to scout plan §§1–2.3 and value assessment §5 correcting the "local model / zero API tokens" premise against the S0 vault record (§8) — erratum, not rewrite.
-3. Confirm the R2 statement-reviewer independence rule (§3 item 9 / §4) as the class standard — it slightly raises the review cost of every future R2 instance.
-4. Decide whether the S2 pilot proceeds under this amended contract before or after formal re-acceptance of the addendum. The S2 document already meets the stricter rules, so the pilot need not block on re-acceptance.
-5. Resolve the hammer-proof rule divergence (S2 F6): §8.2 already gives a governing pre-registration precedence, so the S3a/S3b §8.4 restriction controls its instances — confirm S2 states which rule governs it.
+1. **Accept the amended addendum (v0.2). → ACCEPTED.** Status updated; packs may reference the class.
+2. **Errata to scout plan §§1–2.3 and value assessment §5. → APPROVED and filed 2026-07-21** (§8). Refined per Stephen: Leanstral is external but **free under Mistral's experimental Labs programme for now**, not local — the "zero-token" premise holds provisionally via free hosting, and the data-boundary crossing is real regardless.
+3. **R2 statement-reviewer independence rule (§3 item 9 / §4) as class standard. → CONFIRMED.** Every R2 `lean_proof` requires a referent-adequacy reviewer independent of the statement author, not just the prover.
+4. **S2 pilot sequencing. → BEFORE.** The pilot proceeds under this contract; it does not block on formal re-acceptance (moot now that v0.2 is accepted, but recorded: the S2 document already meets the stricter rules).
+5. **Hammer-proof rule divergence (S2 F6). → STRICTER GOVERNS.** The S3a/S3b prereg §8.4 restriction (no opaque hammer-only proofs unless short/auditable) controls its instances via §8.2 precedence; S2 §5 item 3 states this.
 
 ## 10. Later-work dependencies (unchanged gates)
 
