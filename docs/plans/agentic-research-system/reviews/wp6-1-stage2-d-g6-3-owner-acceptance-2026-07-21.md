@@ -1,5 +1,13 @@
 # WP6.1 Stage-2 D-G6-3 owner acceptance
 
+> This Markdown document is the human-readable audit rendering, not the sole
+> machine authority. The machine decision layer is
+> `.research-system/contracts/wp6-1-stage2-owner-acceptance-record.yaml`,
+> validated by
+> `.research-system/schemas/contracts/wp6-1-stage2-owner-acceptance-record.schema.json`.
+> Effective `accepted_exact_bytes_only` is derived from that external strict
+> record, the immutable candidate, and the immutable R10 review.
+
 ## Decision record
 
 Statement provenance: owner-supplied task message  
@@ -25,9 +33,11 @@ Acceptance timestamp: not recorded; none is invented.
 
 The manifests retain their embedded `pending_independent_review` and
 `pending_d_g6_3_owner_acceptance` values as immutable pre-decision
-candidate-state fields. This external decision record supplies the later
-owner decision without mutating any accepted schema, manifest, or strict
-validation-contract bytes.
+candidate-state fields. They are not live lifecycle authority. The external
+YAML acceptance record is the machine decision layer and derives the later
+owner decision against the immutable candidate and R10 review; this Markdown
+is its human-readable audit rendering. Neither changes any accepted schema,
+manifest, or strict validation-contract bytes.
 
 ## Decision boundary and hard stops
 
