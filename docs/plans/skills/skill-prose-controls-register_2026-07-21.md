@@ -88,12 +88,14 @@ below the escalation bar.
 ## Register
 
 ### adversarial-design-review
+
 | Quoted assertion | Class | Sketch (enforceable only) |
 |---|---|---|
 | "A report written to a `reviews/` path (never overwrite the reviewed documents)" | judgment-only | — |
 | "You MAY directly fix … unambiguous factual errors *after recording them in the report*. PROPOSE — never silently rewrite — any material governance … change." | judgment-only | — |
 | "confirm **every** decision, invariant, and test has an explicit disposition" (Completeness Gate) | judgment-only | — |
 | "A gate passes only on exact required-set closure, not merely because all supplied evidence passed." | judgment-only | — |
+
 Note: this skill is itself a human-review procedure; its "controls" are review obligations, not mechanizable checks.
 
 ### assay
