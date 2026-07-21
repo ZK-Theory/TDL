@@ -87,15 +87,18 @@ def _schema_value(definition: dict[str, Any], root: dict[str, Any]) -> Any:
         return max(1, definition.get("minimum", 1))
     if definition.get("type") == "boolean":
         return True
-    if definition.get("type") == ["string", "null"]:
-        return "value"
     pattern = definition.get("pattern", "")
     if "[0-9a-f]{64}" in pattern:
         return "a" * 64
     if "date-time" == definition.get("format"):
         return "2026-07-19T00:00:00Z"
+    prefix_match = re.search(r"\^([a-z]+)_", pattern)
+    if prefix_match:
+        return f"{prefix_match.group(1)}_01979c31-6710-7a2d-8d4b-6d2c62e07f51"
     if "uuid" in pattern:
         return "tsk_01979c31-6710-7a2d-8d4b-6d2c62e07f51"
+    if definition.get("type") == ["string", "null"]:
+        return "value"
     return "value"
 
 
@@ -233,6 +236,7 @@ _COMMAND_ROOT_REQUIRED = {
     "command_type",
     "schema_id",
     "schema_version",
+    "project_id",
     "submitted_at",
     "actor_id",
     "on_behalf_of_actor_id",

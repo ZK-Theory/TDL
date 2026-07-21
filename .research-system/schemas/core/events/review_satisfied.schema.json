@@ -6,32 +6,84 @@
           "additionalProperties": false,
           "properties": {
             "review_id": {
-              "minLength": 1,
-              "type": [
-                "string",
-                "null"
-              ],
-              "x-source-citation": "W2 §17 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `review.satisfy` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "satisfied_at": {
-              "format": "date-time",
-              "minLength": 1,
               "type": "string",
-              "x-source-citation": "W2 §17 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `review.satisfy` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §17 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `review.satisfy` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
-            "verdict_id": {
-              "minLength": 1,
+
+            "prior_review_state": {
               "type": "string",
-              "x-source-citation": "W2 §17 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `review.satisfy` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "minLength": 1,
+              "x-source-citation": "W2 §17 and 06d review rows",
+              "const": "verdict_recorded"
+            },
+            "policy_evaluation_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W2 §17 and 06d review rows"
+            },
+            "satisfaction_gate": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §17 and 06d review rows"
             }
           },
           "required": [
             "review_id",
-            "verdict_id",
-            "satisfied_at"
+            "prior_review_state",
+            "policy_evaluation_refs",
+            "satisfaction_gate"
           ],
           "type": "object",
           "x-source-citation": "W2 §17 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §3, owner row `review.satisfy` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "review_id": {
+              "type": "string",
+              "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "x-source-citation": "W2 §§6.1 and 17"
+            },
+            "prior_review_state": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §17 and 06d review rows",
+              "const": "changes_requested"
+            },
+            "policy_evaluation_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W2 §17 and 06d review rows"
+            },
+            "satisfaction_gate": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §17 and 06d review rows"
+            },
+            "unchanged_subject_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "x-source-citation": "W2 §17 and 06d review rows"
+            }
+          },
+          "required": [
+            "review_id",
+            "prior_review_state",
+            "policy_evaluation_refs",
+            "satisfaction_gate",
+            "unchanged_subject_sha256"
+          ],
+          "type": "object",
+          "x-source-citation": "06d owner row review.satisfy_after_changes, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields"
         }
       ]
     }
@@ -42,14 +94,14 @@
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
     "actor_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "causation_id": {
       "minLength": 1,
@@ -60,14 +112,14 @@
       "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "command_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "command_payload_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "command_schema_id": {
       "minLength": 1,
@@ -75,14 +127,14 @@
       "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     },
     "command_schema_sha256": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "command_schema_version": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
     "command_type": {
       "minLength": 1,
@@ -95,14 +147,14 @@
       "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "event_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "event_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "event_type": {
       "const": "ReviewSatisfied",
@@ -111,7 +163,8 @@
     "global_position": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "idempotency_key": {
       "minLength": 1,
@@ -120,31 +173,31 @@
     },
     "occurred_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": [
         "string",
         "null"
       ],
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "payload": {
       "$ref": "#/$defs/payload"
     },
     "previous_event_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "project_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "recorded_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "schema_id": {
       "const": "ars://core/event/ReviewSatisfied",
@@ -162,22 +215,25 @@
     "stream_version": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "transaction_count": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "transaction_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "transaction_index": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     }
   },
   "required": [

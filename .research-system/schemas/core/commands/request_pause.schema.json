@@ -6,34 +6,26 @@
           "additionalProperties": false,
           "properties": {
             "attempt_id": {
-              "minLength": 1,
-              "type": [
-                "string",
-                "null"
-              ],
-              "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "checkpoint_id": {
-              "minLength": 1,
               "type": "string",
-              "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "lease_id": {
-              "minLength": 1,
               "type": "string",
-              "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "^els_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
-            "pause_reason": {
-              "minLength": 1,
+            "checkpoint_deadline": {
               "type": "string",
-              "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "pattern": "Z$",
+              "format": "date-time",
+              "x-source-citation": "W8 §§7-18 and 06d operator rows"
             }
           },
           "required": [
             "attempt_id",
             "lease_id",
-            "checkpoint_id",
-            "pause_reason"
+            "checkpoint_deadline"
           ],
           "type": "object",
           "x-source-citation": "W8 §17.2, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_pause` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -47,14 +39,14 @@
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
     "actor_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "causation_id": {
       "minLength": 1,
@@ -65,9 +57,9 @@
       "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "command_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "command_type": {
       "const": "RequestPause",
@@ -90,7 +82,8 @@
     "expected_stream_version": {
       "minimum": 0,
       "type": "integer",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "idempotency_key": {
       "minLength": 1,
@@ -98,12 +91,12 @@
       "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "on_behalf_of_actor_id": {
-      "minLength": 1,
       "type": [
         "string",
         "null"
       ],
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "payload": {
       "$ref": "#/$defs/payload"
@@ -123,14 +116,19 @@
     },
     "submitted_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "target_stream_id": {
       "minLength": 1,
       "type": "string",
       "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "x-source-citation": "W2 §8.1 and 06d §1.2"
     }
   },
   "required": [
@@ -149,7 +147,8 @@
     "causation_id",
     "reason",
     "evidence_refs",
-    "payload"
+    "payload",
+    "project_id"
   ],
   "title": "WP6.1 proposed command schema: RequestPause",
   "type": "object",

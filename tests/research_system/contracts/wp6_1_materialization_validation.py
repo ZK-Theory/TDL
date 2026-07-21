@@ -17,6 +17,7 @@ import yaml
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 from tests.research_system.contracts import wp6_1_schema_source as schema_source
+from tests.research_system.contracts.wp6_1_stage2_span_editor import build_stage2_overlays
 
 
 WP6_1_CATALOGUE_SCHEMA_ID = "ars://contracts/wp6-1-owner-source-catalogue"
@@ -25,11 +26,23 @@ APPROVED_WP6_1_ANNEX_PATH = "docs/plans/agentic-research-system/implementation/0
 APPROVED_WP6_1_REVISION = "fe5f1d40bc8f05f061317c677b5891cea0711249"
 APPROVED_WP6_1_ANNEX_BLOB = "5e2eb60ca4419d1529506de6859fb027cff518af"
 APPROVED_WP6_1_ANNEX_SHA256 = "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"
+APPROVED_WP6_1_FACT_ANNEX_PATH = ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"
+APPROVED_WP6_1_FACT_REVISION = "da94bd62fbf19021f3046c19fae5117c19219c95"
+APPROVED_WP6_1_FACT_BLOB = "2f55b82f1a84cc0de081d38f8500c73a2083bac4"
+APPROVED_WP6_1_FACT_SHA256 = "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"
 APPROVED_WP6_1_ANNEX_ROW_BINDING_SHA256 = "ddb22f7f8b0347367082e3cd6458bf9dc2ed07ca52e3fdc4a8844325a6271e01"
 _TICK = chr(96)
 _ARROW = chr(0x2192)
 
 _SOURCE_ANNEX = {
+    "repository_path": APPROVED_WP6_1_FACT_ANNEX_PATH,
+    "reviewed_revision": APPROVED_WP6_1_FACT_REVISION,
+    "git_blob_id": APPROVED_WP6_1_FACT_BLOB,
+    "canonical_utf8_lf_sha256": APPROVED_WP6_1_FACT_SHA256,
+    "normalized_row_count": 104,
+    "expanded_edge_count": 182,
+}
+_OWNER_SOURCE_ANNEX = {
     "repository_path": APPROVED_WP6_1_ANNEX_PATH,
     "reviewed_revision": APPROVED_WP6_1_REVISION,
     "git_blob_id": APPROVED_WP6_1_ANNEX_BLOB,
@@ -252,6 +265,32 @@ def _verify_approved_annex_provenance(repo_root: Path) -> bytes:
         "approved annex canonical SHA-256 mismatch",
     )
     return result.stdout
+
+
+def _verify_fact_annex_provenance(repo_root: Path) -> bytes:
+    result = subprocess.run(
+        ["git", "show", f"{APPROVED_WP6_1_FACT_REVISION}:{APPROVED_WP6_1_FACT_ANNEX_PATH}"],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    _require(result.returncode == 0, "accepted fact annex revision is unavailable")
+    _require(
+        _git_blob_id(result.stdout, repo_root) == APPROVED_WP6_1_FACT_BLOB, "accepted fact annex Git blob mismatch"
+    )
+    _require(
+        hashlib.sha256(result.stdout).hexdigest() == APPROVED_WP6_1_FACT_SHA256,
+        "accepted fact annex canonical SHA-256 mismatch",
+    )
+    return result.stdout
+
+
+def _verify_stage2_overlay_bytes(repo_root: Path) -> None:
+    expected = build_stage2_overlays(repo_root)
+    _require(len(expected) == 173, "accepted Stage-2 overlay count mismatch")
+    for relative, data in expected.items():
+        _require((repo_root / relative).read_bytes() == data, f"localized Stage-2 schema mismatch: {relative}")
 
 
 def _parse_annex_bytes(data: bytes) -> list[_AnnexRow]:
@@ -972,7 +1011,7 @@ def validate_wp6_1_contract_materialization(
 
     schema_root = schema_root.resolve()
     repo_root = schema_root.parent.parent
-    _verify_all_generated_semantics(repo_root)
+    _verify_stage2_overlay_bytes(repo_root)
     identities_bytes, identities = _read_yaml(identities_path)
     _, catalogue = _read_yaml(catalogue_path)
     registry = _schema_registry(schema_root)
@@ -981,6 +1020,8 @@ def validate_wp6_1_contract_materialization(
 
     _require(identities["source_annex"] == _SOURCE_ANNEX, "identity source annex mismatch")
     _require(catalogue["source_annex"] == _SOURCE_ANNEX, "catalogue source annex mismatch")
+    _require(identities["owner_source_annex"] == _OWNER_SOURCE_ANNEX, "identity owner source annex mismatch")
+    _require(catalogue["owner_source_annex"] == _OWNER_SOURCE_ANNEX, "catalogue owner source annex mismatch")
     _require(identities["governance"] == _GOVERNANCE, "identity governance status mismatch")
     _require(catalogue["governance"] == _GOVERNANCE, "catalogue governance status mismatch")
     _require(catalogue["state_classes"] == _STATE_CLASSES, "closed state class mismatch")
@@ -1009,6 +1050,7 @@ def validate_wp6_1_contract_materialization(
         "identity manifest SHA-256 mismatch",
     )
 
+    _verify_fact_annex_provenance(repo_root)
     approved_annex_bytes = _verify_approved_annex_provenance(repo_root)
     annex_rows = _parse_annex_bytes(approved_annex_bytes)
     binding_surface = [[row.source_table, *row.cells] for row in annex_rows]

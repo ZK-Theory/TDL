@@ -5,46 +5,106 @@
         {
           "additionalProperties": false,
           "properties": {
-            "canonical_tail_hash": {
-              "minLength": 1,
-              "pattern": "^[0-9a-f]{64}$",
-              "type": "string",
-              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "control_store_id": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
             "destination_class": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
             "project_id": {
-              "minLength": 1,
               "type": "string",
-              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "snapshot_id": {
               "minLength": 1,
               "type": "string",
               "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
             },
-            "tail_hash": {
-              "minLength": 1,
-              "pattern": "^[0-9a-f]{64}$",
+            "store_identity": {
               "type": "string",
-              "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "minLength": 1,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "canonical_tail_position": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "canonical_tail_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "snapshot_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "replay_start_position": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "replay_end_position": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "schema_versions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "tool_versions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "encryption_class": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "redaction_class": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W8 §§18-19 and 06d backup operator rows"
+            },
+            "external_artefacts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/external_artefact_availability"
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W8 §§19-21 and 06d backup operator rows"
             }
           },
           "required": [
             "project_id",
-            "control_store_id",
-            "tail_hash",
             "destination_class",
-            "canonical_tail_hash",
-            "snapshot_id"
+            "snapshot_id",
+            "store_identity",
+            "canonical_tail_position",
+            "canonical_tail_sha256",
+            "snapshot_sha256",
+            "replay_start_position",
+            "replay_end_position",
+            "schema_versions",
+            "tool_versions",
+            "encryption_class",
+            "redaction_class",
+            "external_artefacts"
           ],
           "type": "object",
           "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.create_backup` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
@@ -58,14 +118,14 @@
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
     "actor_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "causation_id": {
       "minLength": 1,
@@ -76,9 +136,9 @@
       "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "command_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "command_type": {
       "const": "CreateBackup",
@@ -101,7 +161,8 @@
     "expected_stream_version": {
       "minimum": 0,
       "type": "integer",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "idempotency_key": {
       "minLength": 1,
@@ -109,12 +170,12 @@
       "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "on_behalf_of_actor_id": {
-      "minLength": 1,
       "type": [
         "string",
         "null"
       ],
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "payload": {
       "$ref": "#/$defs/payload"
@@ -134,14 +195,19 @@
     },
     "submitted_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "target_stream_id": {
       "minLength": 1,
       "type": "string",
       "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "x-source-citation": "W2 §8.1 and 06d §1.2"
     }
   },
   "required": [
@@ -160,7 +226,8 @@
     "causation_id",
     "reason",
     "evidence_refs",
-    "payload"
+    "payload",
+    "project_id"
   ],
   "title": "WP6.1 proposed command schema: CreateBackup",
   "type": "object",

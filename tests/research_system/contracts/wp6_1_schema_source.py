@@ -22,6 +22,10 @@ ANNEX_REVISION = "fe5f1d40bc8f05f061317c677b5891cea0711249"
 ANNEX_PATH = "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
 ANNEX_BLOB = "5e2eb60ca4419d1529506de6859fb027cff518af"
 ANNEX_SHA256 = "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"
+FACT_ANNEX_REVISION = "da94bd62fbf19021f3046c19fae5117c19219c95"
+FACT_ANNEX_PATH = ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"
+FACT_ANNEX_BLOB = "2f55b82f1a84cc0de081d38f8500c73a2083bac4"
+FACT_ANNEX_SHA256 = "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"
 W2_PATH = "docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
 W2_BLOB = "7e09a9c49605663bb50163840fff3ae4c8212748"
 W2_SHA256 = "dd5f45ec91cb4c10f0e8d1d99341ad16745bec21f58400b6643285224870f9c6"
@@ -41,6 +45,9 @@ class ApprovedSource:
 
 
 ANNEX_SOURCE = ApprovedSource("06d", ANNEX_PATH, ANNEX_REVISION, ANNEX_BLOB, ANNEX_SHA256)
+FACT_ANNEX_SOURCE = ApprovedSource(
+    "accepted-fact-annex", FACT_ANNEX_PATH, FACT_ANNEX_REVISION, FACT_ANNEX_BLOB, FACT_ANNEX_SHA256
+)
 W2_SOURCE = ApprovedSource("W2", W2_PATH, ANNEX_REVISION, W2_BLOB, W2_SHA256)
 W8_SOURCE = ApprovedSource("W8", W8_PATH, ANNEX_REVISION, W8_BLOB, W8_SHA256)
 
@@ -154,6 +161,10 @@ def approved_source_bytes(repo_root: Path, source: ApprovedSource) -> bytes:
 
 def approved_annex_bytes(repo_root: Path) -> bytes:
     return approved_source_bytes(repo_root, ANNEX_SOURCE)
+
+
+def approved_fact_annex_bytes(repo_root: Path) -> bytes:
+    return approved_source_bytes(repo_root, FACT_ANNEX_SOURCE)
 
 
 def _plain(value: str) -> str:

@@ -7,7 +7,10 @@ This oracle is intentionally literal: it is derived from W2, W8, and the
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 
 @dataclass(frozen=True)
@@ -274,3 +277,32 @@ PAYLOAD_EXPECTATIONS: dict[str, PayloadExpectation] = {
         "project_id", "backup_receipt_id", "restore_verdict", owner_command="verify_restore"
     ),
 }
+
+
+def _accepted_fact_expectations() -> dict[str, PayloadExpectation]:
+    """Derive the independent minimum-fact oracle from the accepted annex."""
+    proposal_path = (
+        Path(__file__).resolve().parents[3] / ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"
+    )
+    proposal = yaml.safe_load(proposal_path.read_bytes())
+    rules = {
+        rule["semantic_type"]: rule for rule in proposal["shared_schema_rules"] if rule["schema_kind"] == "command"
+    }
+    result: dict[str, PayloadExpectation] = {}
+    for spec in proposal["command_payload_specs"]:
+        selectors: dict[str, Any] = {}
+        rule = rules.get(spec["command_type"])
+        if rule and rule["variant_rule"] == "one_of_discriminator":
+            candidates = [
+                item
+                for item in rule["variant_const_values"]
+                if spec["variant_id"] == item["variant_id"] or spec["variant_id"].startswith(item["variant_id"] + "_")
+            ]
+            if candidates:
+                chosen = max(candidates, key=lambda item: len(item["variant_id"]))
+                selectors[rule["discriminator_field"]] = chosen["const_value"]
+        result[spec["row_key"]] = PayloadExpectation(frozenset(spec["required_field_names"]), tuple(selectors.items()))
+    return result
+
+
+PAYLOAD_EXPECTATIONS = _accepted_fact_expectations()

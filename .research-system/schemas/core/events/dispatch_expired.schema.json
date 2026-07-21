@@ -6,38 +6,127 @@
           "additionalProperties": false,
           "properties": {
             "dispatch_id": {
-              "minLength": 1,
-              "type": [
-                "string",
-                "null"
-              ],
-              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "expiry_reason": {
-              "minLength": 1,
               "type": "string",
-              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "observed_at": {
               "format": "date-time",
-              "minLength": 1,
               "type": "string",
-              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "Z$"
             },
-            "prior_status": {
-              "minLength": 1,
+            "observed_prior_state": {
               "type": "string",
-              "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "minLength": 1,
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows",
+              "const": "issued"
+            },
+            "observed_deadline": {
+              "type": "string",
+              "pattern": "Z$",
+              "format": "date-time",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "scheduler_authority_ref": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
             }
           },
           "required": [
             "dispatch_id",
-            "prior_status",
             "observed_at",
-            "expiry_reason"
+            "observed_prior_state",
+            "observed_deadline",
+            "scheduler_authority_ref"
           ],
           "type": "object",
           "x-source-citation": "W2 §12.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `dispatch.expire_issued` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dispatch_id": {
+              "type": "string",
+              "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "observed_prior_state": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows",
+              "const": "delivered"
+            },
+            "observed_deadline": {
+              "type": "string",
+              "pattern": "Z$",
+              "format": "date-time",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "observed_at": {
+              "type": "string",
+              "pattern": "Z$",
+              "format": "date-time",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "scheduler_authority_ref": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            }
+          },
+          "required": [
+            "dispatch_id",
+            "observed_prior_state",
+            "observed_deadline",
+            "observed_at",
+            "scheduler_authority_ref"
+          ],
+          "type": "object",
+          "x-source-citation": "06d owner row dispatch.expire_delivered, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dispatch_id": {
+              "type": "string",
+              "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "observed_prior_state": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows",
+              "const": "acknowledged"
+            },
+            "observed_deadline": {
+              "type": "string",
+              "pattern": "Z$",
+              "format": "date-time",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "observed_at": {
+              "type": "string",
+              "pattern": "Z$",
+              "format": "date-time",
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            },
+            "scheduler_authority_ref": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §12.1-12.2 and 06d dispatch rows"
+            }
+          },
+          "required": [
+            "dispatch_id",
+            "observed_prior_state",
+            "observed_deadline",
+            "observed_at",
+            "scheduler_authority_ref"
+          ],
+          "type": "object",
+          "x-source-citation": "06d owner row dispatch.expire_acknowledged, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields"
         }
       ]
     }
@@ -48,14 +137,14 @@
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
     "actor_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "causation_id": {
       "minLength": 1,
@@ -66,14 +155,14 @@
       "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "command_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "command_payload_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "command_schema_id": {
       "minLength": 1,
@@ -81,14 +170,14 @@
       "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     },
     "command_schema_sha256": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "command_schema_version": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
     "command_type": {
       "minLength": 1,
@@ -101,14 +190,14 @@
       "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "event_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "event_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "event_type": {
       "const": "DispatchExpired",
@@ -117,7 +206,8 @@
     "global_position": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "idempotency_key": {
       "minLength": 1,
@@ -126,31 +216,31 @@
     },
     "occurred_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": [
         "string",
         "null"
       ],
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "payload": {
       "$ref": "#/$defs/payload"
     },
     "previous_event_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "project_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "recorded_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "schema_id": {
       "const": "ars://core/event/DispatchExpired",
@@ -168,22 +258,25 @@
     "stream_version": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "transaction_count": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "transaction_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "transaction_index": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     }
   },
   "required": [

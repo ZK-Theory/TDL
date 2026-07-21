@@ -7,6 +7,7 @@
     "schema_version",
     "manifest_id",
     "source_annex",
+    "owner_source_annex",
     "governance",
     "normalized_row_count",
     "row_identity_multiset_sha256",
@@ -17,6 +18,7 @@
     "schema_version": {"const": "1.0.0"},
     "manifest_id": {"const": "wp6-1-schema-identities"},
     "source_annex": {"$ref": "#/$defs/sourceAnnex"},
+    "owner_source_annex": {"$ref": "#/$defs/ownerSourceAnnex"},
     "governance": {"$ref": "#/$defs/governance"},
     "normalized_row_count": {"const": 104},
     "row_identity_multiset_sha256": {"$ref": "#/$defs/sha256"},
@@ -44,14 +46,23 @@
         "expanded_edge_count"
       ],
       "properties": {
-        "repository_path": {
-          "const": "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-        },
+        "repository_path": {"const": ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"},
+        "reviewed_revision": {"const": "da94bd62fbf19021f3046c19fae5117c19219c95"},
+        "git_blob_id": {"const": "2f55b82f1a84cc0de081d38f8500c73a2083bac4"},
+        "canonical_utf8_lf_sha256": {"const": "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"},
+        "normalized_row_count": {"const": 104},
+        "expanded_edge_count": {"const": 182}
+      },
+      "additionalProperties": false
+    },
+    "ownerSourceAnnex": {
+      "type": "object",
+      "required": ["repository_path", "reviewed_revision", "git_blob_id", "canonical_utf8_lf_sha256", "normalized_row_count", "expanded_edge_count"],
+      "properties": {
+        "repository_path": {"const": "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"},
         "reviewed_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
         "git_blob_id": {"const": "5e2eb60ca4419d1529506de6859fb027cff518af"},
-        "canonical_utf8_lf_sha256": {
-          "const": "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"
-        },
+        "canonical_utf8_lf_sha256": {"const": "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"},
         "normalized_row_count": {"const": 104},
         "expanded_edge_count": {"const": 182}
       },

@@ -5,59 +5,780 @@
         {
           "additionalProperties": false,
           "properties": {
-            "attempt_id": {
-              "minLength": 1,
-              "type": [
-                "string",
-                "null"
-              ],
-              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "dispatch_id": {
-              "minLength": 1,
-              "type": [
-                "string",
-                "null"
-              ],
-              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "operational_profile_id": {
-              "minLength": 1,
+
+            "resource_id": {
               "type": "string",
-              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+              "pattern": "^(rsq|rgr|rcf)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "x-source-citation": "W8 §5 resource identity union"
             },
-            "requested_at": {
-              "format": "date-time",
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "resource_request_id": {
-              "minLength": 1,
-              "type": "string",
-              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
-            },
-            "task_id": {
-              "minLength": 1,
-              "type": [
-                "string",
-                "null"
-              ],
-              "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+            "resource_request": {
+              "$ref": "#/$defs/resource_request",
+              "x-source-citation": "W8 §§7 and 11.1-12 and 06d operator rows"
             }
           },
           "required": [
-            "resource_request_id",
-            "task_id",
-            "dispatch_id",
-            "attempt_id",
-            "operational_profile_id",
-            "requested_at"
+            "resource_id",
+            "resource_request"
           ],
           "type": "object",
-          "x-source-citation": "W8 §§7-8, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.request_resource_grant` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+          "x-source-citation": "06d owner row operator.request_resource_grant, ordered event 1; normalized immutable fact projection over complete W2/W8 family fields"
         }
       ]
+    },
+    "resource_request": {
+      "additionalProperties": false,
+      "properties": {
+        "resource_request_id": {
+          "type": "string",
+          "pattern": "^rsq_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §§5 and 7"
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §7"
+        },
+        "dispatch_id": {
+          "type": "string",
+          "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §7"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §7"
+        },
+        "route_id": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §7"
+        },
+        "operation_class": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §7"
+        },
+        "provider_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 provider requirements"
+        },
+        "runtime_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 runtime requirements"
+        },
+        "operational_profile": {
+          "type": "string",
+          "enum": [
+            "trivial",
+            "bounded",
+            "long_running"
+          ],
+          "x-source-citation": "W8 §11.1"
+        },
+        "operational_profile_policy_id": {
+          "type": "string",
+          "pattern": "^pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §7 operational-profile policy ID"
+        },
+        "operational_profile_revision": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "x-source-citation": "W8 §11.1"
+        },
+        "requesting_actor_id": {
+          "type": "string",
+          "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §7 requesting actor"
+        },
+        "requesting_profile": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §7 requesting profile"
+        },
+        "requesting_authority_grant_id": {
+          "type": "string",
+          "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §7 requesting authority"
+        },
+        "expected_control_store_position": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7 expected control-store position"
+        },
+        "requested_host_pool": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7"
+        },
+        "root_bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/root_binding"
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 typed roots"
+        },
+        "resource_ceilings": {
+          "$ref": "#/$defs/resource_ceilings",
+          "x-source-citation": "W8 §7 typed CPU/RAM/GPU/storage/IO estimates"
+        },
+        "network_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7"
+        },
+        "external_write_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 external-write constraints"
+        },
+        "sensitivity_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 sensitivity constraints"
+        },
+        "exclusive_resource_keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 exclusive resources"
+        },
+        "shared_resource_keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 shared resources"
+        },
+        "compatibility_keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7"
+        },
+        "runtime_distribution": {
+          "$ref": "#/$defs/runtime_distribution",
+          "x-source-citation": "W8 §7 range and uncertainty"
+        },
+        "deadline": {
+          "type": "string",
+          "pattern": "Z$",
+          "format": "date-time",
+          "x-source-citation": "W8 §7"
+        },
+        "checkpoint_interval_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7 checkpoint interval; not_applicable is represented only by profile evidence"
+        },
+        "benchmark_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7"
+        },
+        "projection_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 projection evidence"
+        },
+        "stop_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 stop rules"
+        },
+        "pause_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 pause rules"
+        },
+        "partial_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 Partial rules"
+        },
+        "escalation_rules": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 escalation rules"
+        },
+        "release_obligations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7 resource-release obligations"
+        },
+        "cleanup_obligations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7"
+        },
+        "trivial_profile_evidence": {
+          "$ref": "#/$defs/trivial_profile_evidence",
+          "x-source-citation": "W8 §§11.1-12 trivial profile evidence; branch-controlled presence"
+        },
+        "bounded_profile_evidence": {
+          "$ref": "#/$defs/bounded_profile_evidence",
+          "x-source-citation": "W8 §11.1 bounded profile evidence; branch-controlled presence"
+        },
+        "long_running_profile_evidence": {
+          "$ref": "#/$defs/long_running_profile_evidence",
+          "x-source-citation": "W8 §11.1 long-running profile evidence; branch-controlled presence"
+        }
+      },
+      "required": [
+        "resource_request_id",
+        "task_id",
+        "dispatch_id",
+        "attempt_id",
+        "route_id",
+        "operation_class",
+        "provider_requirements",
+        "runtime_requirements",
+        "operational_profile",
+        "operational_profile_policy_id",
+        "operational_profile_revision",
+        "requesting_actor_id",
+        "requesting_profile",
+        "requesting_authority_grant_id",
+        "expected_control_store_position",
+        "requested_host_pool",
+        "root_bindings",
+        "resource_ceilings",
+        "network_constraints",
+        "external_write_constraints",
+        "sensitivity_constraints",
+        "exclusive_resource_keys",
+        "shared_resource_keys",
+        "compatibility_keys",
+        "runtime_distribution",
+        "deadline",
+        "checkpoint_interval_seconds",
+        "benchmark_evidence_refs",
+        "projection_evidence_refs",
+        "stop_rules",
+        "pause_rules",
+        "partial_rules",
+        "escalation_rules",
+        "release_obligations",
+        "cleanup_obligations"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §§7 and 11.1",
+      "oneOf": [
+        {
+          "required": [
+            "trivial_profile_evidence"
+          ]
+        },
+        {
+          "required": [
+            "bounded_profile_evidence"
+          ]
+        },
+        {
+          "required": [
+            "long_running_profile_evidence"
+          ]
+        }
+      ]
+    },
+    "root_binding": {
+      "additionalProperties": false,
+      "properties": {
+        "root_kind": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1 names control/code/result/cache/paper/vault/external-data roots"
+        },
+        "canonical_uri": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        },
+        "workspace_identity": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        },
+        "access_mode": {
+          "type": "string",
+          "enum": [
+            "read_only",
+            "create_only",
+            "append_only",
+            "read_write"
+          ],
+          "x-source-citation": "W2 §12.1 selected generation rule"
+        },
+        "expected_branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        },
+        "expected_commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+          "x-source-citation": "W2 §12.1 selected algorithm-tagged Git identity"
+        },
+        "provenance_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        }
+      },
+      "required": [
+        "root_kind",
+        "canonical_uri",
+        "workspace_identity",
+        "access_mode",
+        "expected_branch",
+        "expected_commit",
+        "provenance_authority"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §12.1 and W8 §7"
+    },
+    "resource_ceilings": {
+      "additionalProperties": false,
+      "properties": {
+        "cpu_processes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7"
+        },
+        "cpu_threads": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7"
+        },
+        "ram_working_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7"
+        },
+        "ram_peak_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7"
+        },
+        "gpu_devices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W8 §7"
+        },
+        "storage_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7"
+        },
+        "io_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7"
+        }
+      },
+      "required": [
+        "cpu_processes",
+        "cpu_threads",
+        "ram_working_bytes",
+        "ram_peak_bytes",
+        "gpu_devices",
+        "storage_bytes",
+        "io_bytes"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §7"
+    },
+    "runtime_distribution": {
+      "additionalProperties": false,
+      "properties": {
+        "minimum_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7 requests state ranges"
+        },
+        "expected_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7 requests state ranges"
+        },
+        "maximum_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W8 §7 requests state ranges"
+        },
+        "uncertainty_basis": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §7"
+        }
+      },
+      "required": [
+        "minimum_seconds",
+        "expected_seconds",
+        "maximum_seconds",
+        "uncertainty_basis"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §7"
+    },
+    "trivial_profile_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "request_record_type": {
+          "type": "string",
+          "enum": [
+            "resource_request"
+          ],
+          "x-source-citation": "W8 §11.1 typed request"
+        },
+        "grant_record_type": {
+          "type": "string",
+          "enum": [
+            "resource_grant"
+          ],
+          "x-source-citation": "W8 §11.1 typed grant"
+        },
+        "lease_scope": {
+          "type": "string",
+          "enum": [
+            "command_scoped"
+          ],
+          "x-source-citation": "W8 §11.1 command-scoped lease"
+        },
+        "resource_ceilings_requirement": {
+          "type": "string",
+          "enum": [
+            "explicit_resource_ceilings"
+          ],
+          "x-source-citation": "W8 §11.1 explicit resource ceilings"
+        },
+        "terminal_receipt_kind": {
+          "type": "string",
+          "enum": [
+            "provider_receipt",
+            "operator_receipt"
+          ],
+          "x-source-citation": "W8 §11.1 terminal ProviderReceipt or OperatorReceipt"
+        },
+        "terminal_receipt_lease_release": {
+          "type": "string",
+          "enum": [
+            "releases_lease"
+          ],
+          "x-source-citation": "W8 §11.1 terminal receipt releases lease"
+        },
+        "terminal_receipt_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "x-source-citation": "W8 §11.1 terminal receipt closure evidence"
+        },
+        "benchmark": {
+          "$ref": "#/$defs/trivial_not_applicable_evidence",
+          "x-source-citation": "W8 §11.1 trivial benchmark explicit not_applicable disposition"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/trivial_not_applicable_evidence",
+          "x-source-citation": "W8 §11.1 trivial checkpoint explicit not_applicable disposition"
+        },
+        "periodic_heartbeat": {
+          "$ref": "#/$defs/trivial_not_applicable_evidence",
+          "x-source-citation": "W8 §§11.1-12 periodic-heartbeat not_applicable disposition"
+        },
+        "recovery": {
+          "$ref": "#/$defs/trivial_not_applicable_evidence",
+          "x-source-citation": "W8 §11.1 trivial recovery explicit not_applicable disposition"
+        },
+        "provider_command_process": {
+          "$ref": "#/$defs/trivial_provider_command_process",
+          "x-source-citation": "W8 §12 provider command/process identity"
+        }
+      },
+      "required": [
+        "request_record_type",
+        "grant_record_type",
+        "lease_scope",
+        "resource_ceilings_requirement",
+        "terminal_receipt_kind",
+        "terminal_receipt_lease_release",
+        "terminal_receipt_evidence_refs",
+        "benchmark",
+        "checkpoint",
+        "periodic_heartbeat",
+        "recovery",
+        "provider_command_process"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §§11.1-12"
+    },
+    "bounded_profile_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "heartbeat": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 bounded policy-selected heartbeat group"
+        },
+        "output_tail": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 bounded policy-selected output-tail group"
+        },
+        "stop": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 bounded policy-selected stop group"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 bounded policy-selected checkpoint group"
+        }
+      },
+      "required": [
+        "heartbeat",
+        "output_tail",
+        "stop",
+        "checkpoint"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §11.1 bounded profile"
+    },
+    "long_running_profile_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "benchmark": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 long-running applicable benchmark obligation"
+        },
+        "heartbeat": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 long-running applicable heartbeat obligation"
+        },
+        "process": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §§11.1-12 long-running applicable process obligation"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 long-running applicable checkpoint obligation"
+        },
+        "stop_recovery": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 long-running applicable stop/recovery obligation"
+        },
+        "backup": {
+          "$ref": "#/$defs/profile_evidence_disposition",
+          "x-source-citation": "W8 §11.1 long-running applicable backup obligation"
+        }
+      },
+      "required": [
+        "benchmark",
+        "heartbeat",
+        "process",
+        "checkpoint",
+        "stop_recovery",
+        "backup"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §11.1 long_running profile"
+    },
+    "trivial_not_applicable_evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "not_applicable"
+          ],
+          "x-source-citation": "W8 §§11.1-12 explicit not_applicable disposition"
+        },
+        "policy_id": {
+          "type": "string",
+          "pattern": "^pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §§11.1-12 policy ID"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §§11.1-12 rationale"
+        },
+        "applicability_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "x-source-citation": "W8 §§11.1-12 applicability evidence"
+        }
+      },
+      "required": [
+        "disposition",
+        "policy_id",
+        "rationale",
+        "applicability_evidence_refs"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §§11.1-12"
+    },
+    "trivial_provider_command_process": {
+      "additionalProperties": false,
+      "properties": {
+        "provider_command_id": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §12 provider command identity"
+        },
+        "process_identity_disposition": {
+          "type": "string",
+          "enum": [
+            "not_applicable"
+          ],
+          "x-source-citation": "W8 §§11.1-12 process identity not_applicable"
+        },
+        "process_identity_not_applicable_rationale": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §12 accepted explicit process-identity rationale"
+        }
+      },
+      "required": [
+        "provider_command_id",
+        "process_identity_disposition",
+        "process_identity_not_applicable_rationale"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §§11.1-12"
+    },
+    "profile_evidence_disposition": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "required",
+            "not_applicable"
+          ],
+          "x-source-citation": "W8 §11.1 explicitly required or not_applicable"
+        },
+        "policy_id": {
+          "type": "string",
+          "pattern": "^pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §11.1 policy ID"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W8 §11.1 rationale"
+        },
+        "applicability_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "x-source-citation": "W8 §11.1 applicability evidence"
+        }
+      },
+      "required": [
+        "disposition",
+        "policy_id",
+        "rationale",
+        "applicability_evidence_refs"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §11.1"
     }
   },
   "$id": "ars://core/event/ResourceGrantRequested",
@@ -66,14 +787,14 @@
   "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
   "properties": {
     "actor_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "causation_id": {
       "minLength": 1,
@@ -84,14 +805,14 @@
       "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "command_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "command_payload_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "command_schema_id": {
       "minLength": 1,
@@ -99,14 +820,14 @@
       "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
     },
     "command_schema_sha256": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "command_schema_version": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+      "x-source-citation": "06d §1.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
     "command_type": {
       "minLength": 1,
@@ -119,14 +840,14 @@
       "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
     },
     "event_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "event_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "event_type": {
       "const": "ResourceGrantRequested",
@@ -135,7 +856,8 @@
     "global_position": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "idempotency_key": {
       "minLength": 1,
@@ -144,31 +866,31 @@
     },
     "occurred_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": [
         "string",
         "null"
       ],
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "payload": {
       "$ref": "#/$defs/payload"
     },
     "previous_event_hash": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "project_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "recorded_at": {
       "format": "date-time",
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
     },
     "schema_id": {
       "const": "ars://core/event/ResourceGrantRequested",
@@ -186,22 +908,25 @@
     "stream_version": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "transaction_count": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     },
     "transaction_id": {
-      "minLength": 1,
       "type": "string",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "transaction_index": {
       "minimum": 1,
       "type": "integer",
-      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+      "x-source-citation": "W2 §9.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
     }
   },
   "required": [

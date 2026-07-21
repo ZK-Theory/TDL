@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -21,6 +20,10 @@ from tests.research_system.contracts.wp6_1_schema_source import (
     ANNEX_PATH,
     ANNEX_REVISION,
     ANNEX_SHA256,
+    FACT_ANNEX_BLOB,
+    FACT_ANNEX_PATH,
+    FACT_ANNEX_REVISION,
+    FACT_ANNEX_SHA256,
     COMMAND_ROOT_NAMES,
     EVENT_ROOT_NAMES,
     FieldSpec,
@@ -38,6 +41,7 @@ from tests.research_system.contracts.wp6_1_schema_source import (
     source_citation,
     source_rows,
 )
+from tests.research_system.contracts.wp6_1_stage2_span_editor import build_stage2_overlays
 
 
 MATERIALIZATION_STATUS = "proposed_materialized"
@@ -250,6 +254,17 @@ def _identity(identity: Mapping[str, str], *, kind: str, schema_bytes: bytes) ->
 
 def _source_annex() -> dict[str, Any]:
     return {
+        "repository_path": FACT_ANNEX_PATH,
+        "reviewed_revision": FACT_ANNEX_REVISION,
+        "git_blob_id": FACT_ANNEX_BLOB,
+        "canonical_utf8_lf_sha256": FACT_ANNEX_SHA256,
+        "normalized_row_count": 104,
+        "expanded_edge_count": 182,
+    }
+
+
+def _owner_source_annex() -> dict[str, Any]:
+    return {
         "repository_path": ANNEX_PATH,
         "reviewed_revision": ANNEX_REVISION,
         "git_blob_id": ANNEX_BLOB,
@@ -349,32 +364,16 @@ def generate_artifacts(repo_root: Path) -> dict[str, bytes]:
     event_groups = grouped_rows(rows, kind="event")
     if len(command_groups) != 87 or len(event_groups) != 86:
         raise RuntimeError("WP6.1 exact 87-command/86-event materialization counts differ")
-    artifacts: dict[str, bytes] = {}
-    for kind, groups in (("command", command_groups), ("event", event_groups)):
-        for path, group in sorted(groups.items()):
-            _, token, semantic_type = group[0]
-            artifacts[path] = (
-                json_bytes := json.dumps(
-                    _generated_schema(
-                        group,
-                        kind=kind,
-                        identity=schema_identity(token, semantic_type, kind),
-                        operations=operations,
-                    ),
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    indent=2,
-                ).encode("utf-8")
-                + b"\n"
-            )
-            if b"\r" in json_bytes or json_bytes.startswith(b"\xef\xbb\xbf"):
-                raise RuntimeError(f"non-canonical generated schema bytes: {path}")
+    artifacts: dict[str, bytes] = build_stage2_overlays(repo_root)
+    if len(artifacts) != 173:
+        raise RuntimeError("WP6.1 localized Stage-2 overlay did not produce exactly 173 schemas")
     identity_rows = _identity_rows(repo_root, rows, artifacts)
     identities: dict[str, Any] = {
         "schema_id": "ars://contracts/wp6-1-schema-identities",
         "schema_version": SCHEMA_VERSION,
         "manifest_id": "wp6-1-schema-identities",
         "source_annex": _source_annex(),
+        "owner_source_annex": _owner_source_annex(),
         "governance": _governance(),
         "normalized_row_count": 104,
         "row_identity_multiset_sha256": sha256_value(sorted(identity_rows, key=lambda row: row["key"])),
@@ -389,6 +388,7 @@ def generate_artifacts(repo_root: Path) -> dict[str, bytes]:
         "schema_version": SCHEMA_VERSION,
         "catalogue_id": "wp6-1-owner-source-catalogue",
         "source_annex": _source_annex(),
+        "owner_source_annex": _owner_source_annex(),
         "schema_identity_manifest": {
             "repository_path": identity_path,
             "schema_id": identities["schema_id"],
