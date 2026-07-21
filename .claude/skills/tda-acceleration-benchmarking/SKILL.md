@@ -57,7 +57,12 @@ Accept an acceleration only if ALL hold:
    is not a parallel backend but **independent serial processes over disjoint
    input blocks** — block-partition the work, one process per block.
 3. Try the lowest-risk improvement first (vectorise → process pool → out-of-
-   core → new backend → GPU/cloud).
+   core → new backend → GPU/cloud). When using a process pool, cap concurrent
+   processes at the **preflight-selected safe worker count** (from
+   `tda-resource-preflight`) — never spawn one process per input block
+   regardless of block count. Partition inputs into balanced, queueable blocks
+   sized so that each worker processes one block at a time; a queue-fed pool
+   avoids memory spikes from simultaneous large-block process startup.
 4. Benchmark the candidate at realistic scale, sweeping the worker count —
    a single-configuration timing is not a benchmark; and for a variable-cost
    kernel a two-sample timing is not one either — sample enough distinct inputs
@@ -84,6 +89,10 @@ hardware/environment · profile result · bottleneck classification · candidate
 harness = production entry point (yes/no) · benchmark result (worker sweep) ·
 execution-locus table (thread-based candidates only) ·
 numerical equivalence check (tolerance stated) ·
+benchmark_sample_count (number of timed repetitions per configuration) ·
+input_coverage (fraction of distinct real input types exercised; must be ≥ 1.0
+  unless stated PARTIAL with reason) ·
+benchmark_provenance (script path, git SHA, date) ·
 provenance impact · accepted/rejected decision + reason
 ```
 

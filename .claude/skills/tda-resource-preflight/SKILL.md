@@ -100,7 +100,10 @@ Write `resource_preflight_<task>_<YYYY-MM-DD>.json` alongside the run plan:
                 "selected_workers": null,
                 "selection_criterion": "lowest safe p75-projected wall time",
                 "checkpointing": true, "resume_supported": true,
-                "progress_reporting": true},
+                "progress_reporting": true,
+                "operator_patience": null,
+                "heartbeat_cadence": null,
+                "heartbeat_delivery": null},
   "benchmark": {"harness_is_production_entry_point": null,
                  "candidate_results": [],
                  "sweep_call_count": null,
@@ -166,6 +169,9 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
   shrink B or L, they are pre-registered parameters.
 - Memory per worker × workers exceeds the machine — reject that candidate and
   select a safe lower count, or move to out-of-core.
+- Heartbeat cadence is absent, equals or exceeds `operator_patience`, or no
+  launch heartbeat is recorded — the run is not auditable for responsiveness;
+  fix the preflight record before dispatching.
 
 ## Related Skills
 
