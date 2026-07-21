@@ -44,6 +44,7 @@ def build_bundle(
     repo_commit: str = REPO_COMMIT,
     build_log: str = "Build completed successfully.\nexit: 0\n",
     corrupt_hash: bool = False,
+    omit_derivable: bool = False,
 ) -> Path:
     """Write a promoted lean_proof bundle to disk and return its directory.
 
@@ -51,7 +52,7 @@ def build_bundle(
     re-execution tests can prove the harness never reads it for a verdict.
     """
     bundle = tmp_path / "bundle"
-    bundle.mkdir(exist_ok=True)
+    bundle.mkdir(parents=True, exist_ok=True)
     files = files or {"MaxAri.lean": BASELINE_LEAN}
     promoted = []
     for rel, text in files.items():
@@ -87,6 +88,11 @@ def build_bundle(
         "witness_obligations": [{"theorem": "max_ari_bound", "witness_example": "max_ari_witness"}],
         "native_decide_approved": [],
     }
+    if omit_derivable:
+        # Force the harness to derive imports (via _module_from_path) and default the
+        # lake project dir to ".".
+        manifest.pop("import_modules", None)
+        manifest.pop("lake_project_dir", None)
     if manifest_extra:
         manifest.update(manifest_extra)
 
@@ -286,6 +292,30 @@ def test_repo_commit_mismatch_is_env_error(tmp_path: Path) -> None:
         clp.accept_bundle(bundle, "0000000000000000", FakeToolchain())
 
 
+def test_absolute_promoted_path_rejected(tmp_path: Path) -> None:
+    """A manifest promoted_files path must be relative; an absolute path fails closed."""
+    bundle = build_bundle(tmp_path, manifest_extra={"promoted_files": [{"path": "/etc/passwd", "sha256": "0" * 64}]})
+    with pytest.raises(clp.BundleError):
+        clp.accept_bundle(bundle, REPO_COMMIT, FakeToolchain())
+
+
+def test_promoted_path_escape_rejected(tmp_path: Path) -> None:
+    """A ``..`` path that escapes the bundle after resolution is rejected."""
+    bundle = build_bundle(
+        tmp_path,
+        manifest_extra={"promoted_files": [{"path": "../../outside.lean", "sha256": "0" * 64}]},
+    )
+    with pytest.raises(clp.BundleError):
+        clp.accept_bundle(bundle, REPO_COMMIT, FakeToolchain())
+
+
+def test_malformed_promoted_entry_rejected(tmp_path: Path) -> None:
+    """A promoted_files entry with no string 'path' must raise BundleError, not a KeyError."""
+    bundle = build_bundle(tmp_path, manifest_extra={"promoted_files": [{"sha256": "0" * 64}]})
+    with pytest.raises(clp.BundleError):
+        clp.accept_bundle(bundle, REPO_COMMIT, FakeToolchain())
+
+
 # --------------------------------------------------------------------------- #
 # Positive path + C1 re-execution property                                    #
 # --------------------------------------------------------------------------- #
@@ -401,3 +431,48 @@ def test_native_decide_axiom_caught_by_audit(tmp_path: Path) -> None:
     outcome = clp.accept_bundle(bundle, REPO_COMMIT, tc)
     assert not outcome.admissible
     assert "axiom-audit" in outcome.failed_items
+
+
+def test_native_decide_approval_is_per_occurrence(tmp_path: Path) -> None:
+    """A per-hit approval waives only the matching occurrence, never every hit globally."""
+    approved_lean = (
+        "theorem max_ari_bound (h : 0 < nMax) : greedyValue margins ≤ maxAriBoundConst := by\n"
+        "  native_decide\n"
+        "lemma max_ari_witness : 0 < nMax := by decide\n"
+        "example : greedyValue margins = 60862048 := by decide\n"
+    )
+    other_lean = "theorem aux_bound : True := by native_decide\n"
+
+    # Approval matches the file that carries the approved occurrence -> that item passes.
+    bundle_one = build_bundle(
+        tmp_path / "one",
+        files={"MaxAri.lean": approved_lean},
+        manifest_extra={"native_decide_approved": [{"match": "MaxAri.lean", "rationale": "S0 smoke, kernel-audited"}]},
+    )
+    outcome_one = clp.accept_bundle(bundle_one, REPO_COMMIT, FakeToolchain())
+    assert "trusted-computing-base" not in outcome_one.failed_items
+
+    # The same approval must NOT waive an unrelated occurrence in a different file.
+    bundle_two = build_bundle(
+        tmp_path / "two",
+        files={"MaxAri.lean": approved_lean, "Aux.lean": other_lean},
+        manifest_extra={
+            "import_modules": ["MaxAri", "Aux"],
+            "native_decide_approved": [{"match": "MaxAri.lean", "rationale": "S0 smoke, kernel-audited"}],
+        },
+    )
+    outcome_two = clp.accept_bundle(bundle_two, REPO_COMMIT, FakeToolchain())
+    assert not outcome_two.admissible
+    assert "trusted-computing-base" in outcome_two.failed_items
+
+
+def test_manifest_defaults_derive_module_and_lake_dir(tmp_path: Path) -> None:
+    """With import_modules / lake_project_dir omitted, the harness derives them and still accepts."""
+    bundle = build_bundle(tmp_path, omit_derivable=True)
+    tc = FakeToolchain(
+        axioms={"max_ari_bound": "'max_ari_bound' depends on axioms: [propext, Classical.choice, Quot.sound]"}
+    )
+    outcome = clp.accept_bundle(bundle, REPO_COMMIT, tc)
+    assert outcome.admissible, outcome.failed_items
+    assert clp._module_from_path("MaxAri.lean") == "MaxAri"
+    assert clp._module_from_path("sub/Deep.lean") == "sub.Deep"

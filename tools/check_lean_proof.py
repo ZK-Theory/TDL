@@ -43,7 +43,7 @@ import subprocess  # noqa: S404 - the whole point of C1 is to shell out and re-e
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Protocol
 
 # --------------------------------------------------------------------------- #
@@ -332,25 +332,47 @@ def scan_declaration_kinds(files: dict[str, str]) -> CheckResult:
     return CheckResult("declaration-kind", True, "only theorem/lemma/example declarations present")
 
 
+def _native_hit_approved(hit: str, approved: list) -> bool:
+    """True iff some approval entry explicitly matches this specific hit.
+
+    An approval entry is either a bare string or an object with a ``match`` key; its
+    value is a substring that must appear in the hit descriptor (``"<file>: <token>"``).
+    This is per-occurrence by construction - a single approval never waives an
+    unrelated native_decide/FFI use elsewhere in the promoted set (05a §3 item 4).
+    """
+    for entry in approved:
+        matcher = entry.get("match") if isinstance(entry, dict) else entry
+        if isinstance(matcher, str) and matcher and matcher in hit:
+            return True
+    return False
+
+
 def scan_native_decide(files: dict[str, str], approved: list) -> CheckResult:
-    """05a §3 item 4 - reject native_decide / extern / FFI evaluation absent explicit approval."""
+    """05a §3 item 4 - reject native_decide / extern / FFI evaluation absent explicit approval.
+
+    Approval is evaluated *per hit*: each detected occurrence must be matched by a
+    specific approval entry, or it is rejected. A non-empty approval list is never a
+    global waiver.
+    """
     hits: list[str] = []
     for path, text in files.items():
         for match in _NATIVE_RE.finditer(strip_comments(text)):
             hits.append(f"{path}: {match.group(0)}")
-    if hits and not approved:
+    if not hits:
+        return CheckResult("trusted-computing-base", True, "no native_decide/extern/FFI evaluation")
+    approved = approved or []
+    unapproved = [hit for hit in hits if not _native_hit_approved(hit, approved)]
+    if unapproved:
         return CheckResult(
             "trusted-computing-base",
             False,
-            "native_decide/FFI evaluation without explicit requirement approval: " + "; ".join(hits),
+            "native_decide/FFI evaluation without explicit per-occurrence approval: " + "; ".join(unapproved),
         )
-    if hits:
-        return CheckResult(
-            "trusted-computing-base",
-            True,
-            f"native_decide/FFI present but approved by requirement ({approved}); found " + "; ".join(hits),
-        )
-    return CheckResult("trusted-computing-base", True, "no native_decide/extern/FFI evaluation")
+    return CheckResult(
+        "trusted-computing-base",
+        True,
+        "native_decide/FFI present but each occurrence explicitly approved; found " + "; ".join(hits),
+    )
 
 
 def parse_axiom_set(output: str) -> set[str]:
@@ -507,7 +529,31 @@ def load_manifest(bundle_dir: Path) -> dict:
             raise BundleError(f"manifest.json missing required key: {key}")
     if "commit" not in manifest.get("repo", {}):
         raise BundleError("manifest.json missing required key: repo.commit")
+    _validate_promoted_files(bundle_dir, manifest["promoted_files"])
     return manifest
+
+
+def _validate_promoted_files(bundle_dir: Path, promoted_files: object) -> None:
+    """Reject malformed or unsafe promoted_files entries (fail closed before any read).
+
+    Every entry must be an object carrying a non-empty string ``path`` that is
+    relative and, once resolved, stays inside ``bundle_dir`` - so a manifest can
+    neither trigger an uncaught KeyError downstream nor point the harness at an
+    absolute path or a ``..`` escape outside the bundle.
+    """
+    if not isinstance(promoted_files, list):
+        raise BundleError("manifest.json promoted_files must be a list")
+    bundle_root = bundle_dir.resolve()
+    for entry in promoted_files:
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str) or not entry["path"]:
+            raise BundleError(f"manifest.json promoted_files entry malformed (needs a string 'path'): {entry!r}")
+        rel = entry["path"]
+        # Catch drive/UNC (C:\..., \\host) and POSIX (/etc) absolutes on any host OS.
+        if PureWindowsPath(rel).is_absolute() or PurePosixPath(rel).is_absolute():
+            raise BundleError(f"manifest.json promoted_files path must be relative, not absolute: {rel}")
+        resolved = (bundle_dir / rel).resolve()
+        if not resolved.is_relative_to(bundle_root):
+            raise BundleError(f"manifest.json promoted_files path escapes the bundle: {rel}")
 
 
 def read_promoted_files(bundle_dir: Path, manifest: dict) -> dict[str, str]:
