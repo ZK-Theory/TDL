@@ -33,20 +33,76 @@ The common shape: **self-attestation of state** with **no re-validation trigger*
 ## Proposed mechanism
 
 Add a **state-verification step** to the dispatch/acceptance gates, driven by an
-explicit machine-checkable manifest in each Task Prompt rather than prose:
+explicit machine-checkable manifest in each Task Prompt rather than prose.
 
-1. **Extend `manager_dispatch_check` / `dispatch-readiness-guard`** (`.claude/hooks`)
-   to require, and then verify on disk, for every dispatched Task:
-   - each claimed **deliverable**: does the file already exist at the stated
-     path? (if yes → the lane is review-only, not a fresh dispatch — obs 58/80);
-   - each claimed **blocker**: is it still true right now? (re-run the one-line
-     check that established it — obs 70);
-   - each **planned_contract**: is it materialised in `contracts/`? (obs 68/73);
-   - each **input path**: is its root declared (committed vs `PROJ_ROOT`-only)
-     and does it resolve? (obs 74);
+### The Task-Prompt state manifest (define before the gate)
+
+"Machine-checkable manifest" is not itself an implementation contract; two gate
+implementations reading the same prose would diverge. So the manifest schema is
+fixed **first**, and the gate is written against it. Proposed shape — a
+`state_manifest:` block (YAML) in each Task Prompt, or a sidecar
+`contracts/manifests/task-state/<task>.yaml`:
+
+```yaml
+task_id: <string, required>          # identity anchor; every claim is scoped to this Task
+deliverables:                        # list; may be empty
+  - path: <repo-relative string, required>
+    root: worktree | proj_root       # required; resolves the path (default worktree)
+    owner_task: <task_id, required>  # which Task is expected to have produced it
+    completion_predicate: <string, required>
+      # a runnable one-liner that exits 0 iff the artifact is complete for THIS task
+      # (e.g. a jq field assertion, a schema-validate call, a row-count check)
+blockers:
+  - id: <string, required>
+    check: <string, required>        # one-liner; exit 0 == blocker STILL true
+planned_contracts:
+  - id: <string, required>           # contract identifier, not just a filename
+    path: <contracts/... string, required>
+    ready_status: <string, required> # the field+value that means "authorized/ready"
+                                     # (e.g. pending == false)
+inputs:                              # (obs 74) — as in the input-provenance manifest
+  - path: <string, required>
+    root: worktree | proj_root       # required
+outputs:
+  - path: <string, required>         # (obs 79) git-trackability is asserted, see below
+```
+
+**Status values / missing-field behaviour (fail closed):** a *required* field
+absent or unparseable → the gate **errors** (env-error, not a silent pass) and
+names the field. An empty list is legal and means "no claim of this kind".
+Every predicate/check one-liner is **executed**, not read: a claim whose command
+is missing or non-zero-exit-on-setup is treated as unverified → block.
+
+### The gate
+
+1. **Extend `dispatch-readiness-guard.sh`** — the wired `.claude/hooks`
+   enforcement point (registered in `.claude/settings.json`) — with
+   `shared.manager_dispatch_check` as its **read-only predicate** (the guard
+   invokes the check; the check computes PASS/FAIL and the guard enforces it).
+   For every dispatched Task the check verifies on disk:
+   - each **deliverable**: existence at `path` is necessary but **not
+     sufficient**. The lane is downgraded to review-only *only* when the file
+     exists **and** its `owner_task` matches **and** its `completion_predicate`
+     exits 0. A file that is stale, partial, or produced by an unrelated task
+     fails the predicate → fresh dispatch is retained (obs 58/80, but guarded
+     against false-suppression).
+   - each **blocker**: re-run `check`; exit 0 means still-true → the plan built
+     on it may proceed, otherwise the inherited assumption is stale and is
+     flagged (obs 70).
+   - each **planned_contract**: verify the file at `path` exists **and** that its
+     declared identifier matches `id` **and** that `ready_status` holds — a
+     contract file can exist while still `pending: true`, which is exactly the
+     infrastructure-ready-vs-contract-ready confusion this proposal prevents;
+     presence alone never satisfies the criterion (obs 68/73).
+   - each **input path**: is its `root` declared (committed vs `PROJ_ROOT`-only)
+     and does it resolve? (obs 74).
    - each **output path**: is it git-trackable, not gitignored? (obs 79).
 2. **A negative control** proving the gate fires: a fixture Task Prompt whose
-   deliverable already exists on disk must be blocked/flagged, not dispatched.
+   deliverable already exists on disk **and passes its completion predicate under
+   the matching `owner_task`** must be downgraded to review-only; a companion
+   fixture whose file exists but fails the predicate (stale/partial/foreign) must
+   **still** dispatch. Both directions are asserted so the gate cannot pass by
+   path-existence alone.
 3. **Skill propagation** (a short "verify state on disk before acting" step) to
    `pre-reg-to-dispatch`, `tda-handoff`, `tda-task-brief-from-plan`,
    `apm-communication` — pointing at the gate, not restating it.
