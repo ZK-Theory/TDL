@@ -22,8 +22,8 @@ printf '%s' "$INPUT" | python -c "
 import sys, json, re
 
 d = json.load(sys.stdin)
-ti = d.get('tool_input', {})
-fp = ti.get('file_path', ti.get('path', '')) or ''
+ti = d.get('tool_input') or {}
+fp = ti.get('file_path') or ti.get('path') or ''
 
 def emit(decision, reason=None):
     out = {'hookEventName': 'PreToolUse', 'permissionDecision': decision}
