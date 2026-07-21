@@ -5,6 +5,8 @@
 **Author:** Claude (Fable 5), interactive session with Stephen
 **Scope decisions (Stephen, 2026-07-04):** Lean enters the ARS as BOTH an assurance lane and a research-strand agent (not an APM worker — APM is being retired for ARS). All three maths framings stay open pending spikes. Plan lives here; Nexus College adjunct is a secondary strand.
 
+> **Erratum 2026-07-21.** §§1, 2.2–2.3 below describe Leanstral as "locally installed" / "run locally" at "zero API tokens". Per the S0 vault `[RESULT]` (2026-07-04), Leanstral is an **external Mistral Labs API** (`MISTRAL_API_KEY` + Labs enablement), not a local model — proof search crosses a data boundary to Mistral. It is currently **free under Mistral's experimental Labs programme** (so effectively zero-cost *for now*, via free hosting, not local execution; not guaranteed). The division-of-labour argument stands; the "local" and "zero-token" phrasings do not. See 05a §8 / §2 `prover_data_exposure`.
+
 ---
 
 ## 1. Purpose

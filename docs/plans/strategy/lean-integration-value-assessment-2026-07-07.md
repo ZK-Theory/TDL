@@ -64,9 +64,11 @@ T1.23d already accidentally has this shape: the achieving table is the witness f
 
 ## 5. Cost side (confirmed by S0)
 
+> **Erratum 2026-07-21.** This section (and the scout plan §§1, 2.2–2.3) described Leanstral as a *local* model. Per the S0 vault `[RESULT]` (2026-07-04), Leanstral is an **external Mistral Labs API** (requires `MISTRAL_API_KEY` + Labs enablement) — proof search is a data-boundary crossing to Mistral, not local execution. The zero-metered-cost premise holds **provisionally and for a different reason**: Mistral currently provides Leanstral **free under its experimental Labs programme**, not guaranteed to persist. The relative token argument (proof search off Claude's budget) is unaffected; the data-boundary and durability caveats are new. See 05a §8 and the `prover_data_exposure` field (05a §2).
+
 | Cost | Assessment |
 |---|---|
-| Claude tokens | Statement authorship + referent review only; proof search is local Leanstral, verification is the free kernel |
+| Claude tokens | Statement authorship + referent review only; proof search is off Claude's budget (external Leanstral, free under Mistral Labs *for now* — see erratum), verification is the free kernel |
 | Wall time | S2 statements are standard mathlib territory; days not weeks. S3a/S3b timeboxed with kill criteria already written |
 | Toolchain | Windows elan/lake works (S0); mathlib cache in place |
 | Real risks | (a) proving the wrong statement — mitigated by authorship split + non-vacuity witnesses + false-variant mutation checks (all in the W5 addendum contract); (b) formalisation time-sink — mitigated by stop rules and, now, the S3-pre adoption gate |
