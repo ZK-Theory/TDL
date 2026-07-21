@@ -583,8 +583,15 @@ def run_verify_state(claude_skills: Path, state_path: Path) -> int:
     edit (skill-observation 90). This mode gives the state file a watched
     failure of its own (invariant I2b: every gate ships a negative control).
 
-    Returns 0 when every recorded hash matches the mirror bytes, 1 on any drift,
-    2 when no state file exists.
+    Args:
+        claude_skills: Path to the ``.claude/skills/`` mirror directory.
+        state_path: Path to the ``skill_sync_state.json`` state file.
+
+    Returns:
+        0 when every recorded hash matches the mirror bytes and no whole-skill
+        drift is detected; 1 on any mismatch, missing mirror directory (for
+        skills not in SYNC_SKILLS as planned), or missing state entry for an
+        existing mirror skill; 2 when no state file exists.
     """
     state = _load_state(state_path)
     if state is None:
@@ -595,7 +602,15 @@ def run_verify_state(claude_skills: Path, state_path: Path) -> int:
     for name, recorded in sorted(state.items()):
         skill_dir = claude_skills / name
         if not skill_dir.is_dir():
-            continue  # recorded but not yet materialized in the mirror (planned)
+            # Distinguish genuinely planned skills (in SYNC_SKILLS but not yet
+            # authored) from deleted mirror directories (whole-skill drift).
+            if name in SYNC_SKILLS:
+                continue  # planned — not yet materialized, not a drift
+            mismatches.append(
+                f"{name}: recorded in state but mirror directory is missing"
+                f" (deleted? re-run sync or remove the state entry)"
+            )
+            continue
         actual = _skill_state(skill_dir)
         for rel, rec_hash in sorted(recorded.items()):
             recorded_count += 1
@@ -606,6 +621,19 @@ def run_verify_state(claude_skills: Path, state_path: Path) -> int:
                 mismatches.append(f"{name}/{rel}: recorded {rec_hash[:12]}… != actual {act_hash[:12]}…")
         for rel in sorted(set(actual) - set(recorded)):
             mismatches.append(f"{name}/{rel}: present in mirror but not recorded in state")
+    # Check mirror directories that exist but have no state entry.
+    # Skip excluded skills — they are intentionally not byte-mirrored and have
+    # no state entry by design (e.g. apm-communication, apm-N-*, source-command-*).
+    if claude_skills.is_dir():
+        state_names = set(state)
+        for skill_dir in sorted(claude_skills.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            name = skill_dir.name
+            if is_excluded(name):
+                continue
+            if name not in state_names:
+                mismatches.append(f"{name}: mirror directory exists but has no state entry (re-run sync to record it)")
     if mismatches:
         print("STATE DRIFT: recorded hashes do not match the mirror bytes:", file=sys.stderr)
         for m in mismatches:
@@ -620,7 +648,7 @@ def run_verify_state(claude_skills: Path, state_path: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point — parse args and dispatch to run_sync or run_check_guides."""
+    """Entry point — parse args and dispatch to run_sync, run_check_guides, or run_verify_state."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="verify trees are in step; exit 1 on divergence")
     parser.add_argument("--check-guides", action="store_true", help="verify RA markers present in Claude APM guides")
