@@ -494,6 +494,46 @@ def test_native_decide_equality_does_not_pin_constant() -> None:
     assert not result.passed
 
 
+def test_named_constant_pin_theorems_selects_only_named_equality_pins() -> None:
+    """obs 95 - only NAMED (theorem/lemma) ``= value`` pins enter the axiom-audit set;
+    an anonymous ``example`` (unauditable) and a ``≤`` bound theorem are excluded."""
+    consts = [{"name": "greedyValue margins", "recorded_value": "60862048"}]
+    # BASELINE pins the constant with an anonymous `example` and bounds it with a `≤`
+    # theorem — neither is a named equality pin, so nothing is added to the audit set.
+    assert clp.named_constant_pin_theorems({"F.lean": BASELINE_LEAN}, consts) == []
+    # A named lemma pinning the constant by `=` IS surfaced for the audit.
+    named = {"F.lean": "lemma greedy_pin : greedyValue margins = 60862048 := by norm_num\n"}
+    assert clp.named_constant_pin_theorems(named, consts) == ["greedy_pin"]
+
+
+def test_named_pin_lemma_axioms_are_audited(tmp_path: Path) -> None:
+    """obs 95 negative control - a constant pinned by a NAMED lemma whose proof invokes a
+    disallowed (imported) axiom must be INADMISSIBLE, even though that lemma is not a
+    manifest theorem and no manifest theorem depends on it.
+
+    Pre-fix this passed: the axiom audit only ranged over ``manifest.theorems`` (here just
+    ``max_ari_bound``, clean), so ``greedy_pin``'s disallowed axiom was never queried and
+    the bundle was wrongly admissible. The pin declaration is now threaded into the audit
+    set, so the gate fires.
+    """
+    lean = (
+        "theorem max_ari_bound (h : 0 < nMax) : greedyValue margins ≤ maxAriBoundConst := by\n"
+        "  decide\n"
+        "lemma max_ari_witness : 0 < nMax := by decide\n"
+        "lemma greedy_pin : greedyValue margins = 60862048 := by norm_num\n"
+    )
+    bundle = build_bundle(tmp_path, files={"MaxAri.lean": lean})
+    tc = FakeToolchain(
+        axioms={
+            "max_ari_bound": "'max_ari_bound' depends on axioms: [propext, Classical.choice, Quot.sound]",
+            "greedy_pin": "'greedy_pin' depends on axioms: [propext, EvilImportedAxiom]",
+        }
+    )
+    outcome = clp.accept_bundle(bundle, REPO_COMMIT, tc)
+    assert not outcome.admissible
+    assert "axiom-audit" in outcome.failed_items
+
+
 def test_kernel_build_builds_named_import_modules(tmp_path: Path) -> None:
     """obs 92 - the acceptor builds the promoted modules by name, so a lakefile
     with no default target cannot pass kernel-build on a vacuous bare build."""

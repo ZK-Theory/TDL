@@ -404,6 +404,12 @@ def parse_axiom_set(output: str) -> set[str]:
 def check_axioms(toolchain: LeanToolchain, project_dir: Path, imports: list[str], theorems: list[str]) -> CheckResult:
     """05a §3 item 3 - re-run ``#print axioms`` per theorem; axiom set must be a subset of the allowed set.
 
+    ``theorems`` is the audit set: the manifest theorems plus every named declaration that
+    pins an artefact constant by equality (obs 95, assembled in ``accept_bundle`` via
+    ``named_constant_pin_theorems``) - so item 3 audits the same auditable declarations
+    item 5 relies on. A named target that does not resolve under ``#print axioms`` produces
+    a "no #print axioms output" violation and fails closed.
+
     Also catches sorryAx (item 2) and native_decide's ``Lean.ofReduceBool`` (item 4)
     as defence in depth.
     """
@@ -533,6 +539,51 @@ def check_equality_obligations(
         CheckResult("constant-equality", True, "every artefact-bound constant pinned by kernel-checked equality"),
         discrepancies,
     )
+
+
+def named_constant_pin_theorems(files: dict[str, str], artefact_constants: list[dict]) -> list[str]:
+    """Names of the NAMED (theorem/lemma) declarations that pin an artefact constant by
+    ``= value`` — to be added to the ``#print axioms`` audit set (item 3).
+
+    Closes the equality/axiom scope gap (obs 95). ``check_equality_obligations`` verifies
+    a constant is pinned by a *kernel-checked* equality, but ``check_axioms`` (item 3) only
+    audits the axiom footprint of the theorems named in the manifest. A constant can be
+    pinned by an auxiliary ``lemma`` (§4 allows prover-authored private lemmas) that no
+    manifest theorem transitively depends on; without this, that lemma's proof could invoke
+    a disallowed axiom imported from the pinned external project and never be audited. By
+    surfacing every *named* pin here and threading it into ``check_axioms``, the "this
+    equality is kernel-checked" set and the "this equality's axioms are allowed" set cover
+    the same auditable declarations.
+
+    An anonymous ``example`` pin (the item-5 illustration in 05a §3, and the common
+    fixture form) has **no name** and cannot be ``#print axioms``-queried, so it is not
+    (and cannot be) covered here. Its trust rests on the acceptor's clean ``lake build``
+    (the kernel re-checks the proof term), the static sorry/native_decide scans (which
+    cover *all* promoted files including examples), the ``axiom``-in-promoted-files ban
+    (``scan_declaration_kinds``), and — for an axiom *imported* from the pinned, hashed
+    external project — the human Key-B(b) full-environment review over the independently
+    authored ``statement_source``. Requiring named pins to fully mechanize that last vector
+    would change item-5 admissibility and is a separate owner decision, not done here.
+
+    Note (real toolchain): a pin name that does not resolve under ``#print axioms`` (e.g. a
+    namespaced or ``private`` declaration whose queryable name differs from its source token)
+    yields "no #print axioms output" in ``check_axioms`` and fails **closed** (INADMISSIBLE),
+    never a silent skip.
+    """
+    const_names = [str(const["name"]) for const in artefact_constants]
+    pins: list[str] = []
+    for text in files.values():
+        for kind, name, block in iter_declarations(text):
+            # Only NAMED, proof-carrying, kernel-checked declarations can be axiom-audited;
+            # anonymous `example` (no name) and non-proof kinds are excluded by construction.
+            if kind not in ALLOWED_DECL_KINDS or kind == "example" or not name:
+                continue
+            if not _is_kernel_checked_equality_block(block):
+                continue
+            if any(op == "=" for const in const_names for op, _ in _equality_bindings(block, const)):
+                pins.append(name)
+    # Preserve first-seen order, drop duplicates.
+    return list(dict.fromkeys(pins))
 
 
 def check_witnesses(files: dict[str, str], witness_obligations: list[dict]) -> CheckResult:
@@ -670,17 +721,26 @@ def accept_bundle(
     results.append(scan_holes(files))
     results.append(scan_declaration_kinds(files))
     results.append(scan_native_decide(files, manifest.get("native_decide_approved") or []))
-    eq_result, eq_disc = check_equality_obligations(files, manifest.get("artefact_constants") or [])
+    artefact_constants = manifest.get("artefact_constants") or []
+    eq_result, eq_disc = check_equality_obligations(files, artefact_constants)
     results.append(eq_result)
     discrepancies.extend(eq_disc)
     results.append(check_witnesses(files, manifest.get("witness_obligations") or []))
+
+    # Axiom-audit set = manifest theorems PLUS every named declaration that pins an
+    # artefact constant by equality (obs 95). This makes the item-3 axiom audit cover the
+    # same auditable declarations the item-5 equality check trusts, so a named auxiliary
+    # lemma cannot pin a constant via a disallowed imported axiom that no manifest theorem
+    # depends on. (Anonymous `example` pins have no name to audit — see
+    # named_constant_pin_theorems for how their trust is established.)
+    audit_theorems = list(dict.fromkeys([*theorems, *named_constant_pin_theorems(files, artefact_constants)]))
 
     # Dynamic re-execution (item 0 governs items 1-7). The axiom audit needs a
     # successful build first; a failed build is already inadmissible.
     build_result = check_kernel_build(toolchain, lake_dir, imports)
     results.append(build_result)
     if build_result.passed:
-        results.append(check_axioms(toolchain, lake_dir, imports, theorems))
+        results.append(check_axioms(toolchain, lake_dir, imports, audit_theorems))
 
     admissible = all(r.passed for r in results)
     return AcceptanceOutcome(admissible=admissible, results=results, discrepancies=discrepancies)
