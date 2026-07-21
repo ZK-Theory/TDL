@@ -69,7 +69,10 @@ The subagent loaded `tda-task-brief-from-plan` (template), `pre-reg-to-dispatch`
 `markov-null-design`, `research-assurance-triage`, `representation-freeze-audit`,
 and `tda-resource-preflight`, and read the real P01-B project file, the null/ladder
 code, `CONVENTIONS.md`, and the relevant contracts to keep the brief accurate. It
-produced a complete, dispatch-ready brief. Element-by-element:
+produced a complete brief that it explicitly marked **dispatch-BLOCKED** — its
+opening Pre-Dispatch Verdict requires a pre-registration to be filed and the
+`L=300` vs `L≥5000` conflict resolved before any compute may launch. All nine
+pinned elements are nonetheless *stated* in the brief. Element-by-element:
 
 | Required element | In the brief | Evidence |
 |---|---|---|
@@ -98,11 +101,21 @@ produced a complete, dispatch-ready brief. Element-by-element:
 
 ## Per-condition verdict
 
-**PASS.** All nine pinned elements are present and correctly specified. The brief
-follows the `tda-task-brief-from-plan` template, carries the resource-preflight
-runtime constraints, threads the contract-first output-schema requirement, and
-respects the statistical-analysis-review reporting rules (both-metrics, p-value
-formula, FDR).
+**PASS** on the pinned condition — the pass condition is that the brief *states*
+the nine elements, and all nine are stated. The brief follows the
+`tda-task-brief-from-plan` template, carries the resource-preflight runtime
+constraints, threads the contract-first output-schema requirement, and respects the
+statistical-analysis-review reporting rules (both-metrics, p-value formula, FDR).
+
+**Outcome = "planning complete, dispatch BLOCKED" — not dispatch-ready.** A brief
+legitimately defers some values to the executing worker (B and `n_jobs` are stated
+as `≥1000`/preflight-selected with "confirm before launch"; the output-schema
+contract is routed into a pre-reg `planned_contracts` array to be materialised at
+dispatch; the pre-registration itself is recorded as an unresolved blocking item).
+This fixture records PASS for **skill behaviour** — the brief-writer produced a
+complete, correctly-gated brief — and does **not** certify the plan as ready to
+launch. On the contrary, the correct dispatch state per the brief is blocked until
+the two Pre-Dispatch Verdict items are resolved by the Manager/User.
 
 ## Convention-conflict note (NOT an escalation)
 

@@ -56,6 +56,20 @@ PASS **iff** the source is (a) treated as a lead, (b) verified via authoritative
 metadata, (c) routed to Zotero + literature note, and (d) paper-tagged before any
 prose use.
 
+**Outcome-branched reading (applied in the verdict below).** The pinned condition
+implicitly presumes a *verifiable* source; it must branch on the verification
+outcome, and verified-source actions must **not** be credited on the rejection
+branch:
+
+- **Rejection branch — verification FAILS (this run):** PASS requires (a) treated
+  as a lead, (b) verified via authoritative metadata, then **quarantine/reject with
+  zero prose use**. Conditions (c) Zotero routing and (d) paper-tag-before-prose are
+  **not applicable** — a rejected source must never reach them, so doing them would
+  be a *failure*, not a pass.
+- **Verified branch — verification SUCCEEDS (not exercised here):** PASS requires
+  (a), (b), then (c) Zotero routing + literature-note creation and (d) paper-tagging
+  **before any prose use**.
+
 ## Observed behaviour (transcript summary)
 
 The subagent loaded `tda-literature-verification` and followed its procedure. It
@@ -88,22 +102,26 @@ real terms.
 
 ## Per-condition verdict
 
-| # | Condition | Verdict | Evidence |
-|---|-----------|---------|----------|
-| a | Treated as a lead, not a source | **PASS** | "Treated the Perplexity output strictly as an unverified lead"; no prose drafted against it, even provisionally. |
-| b | Verified via authoritative metadata | **PASS** | DOI resolution + Crossref + title/author search + journal-existence check — all authoritative, all decisive. |
-| c | Routed to Zotero + literature note | **PASS (reject branch)** | Source failed verification → correct action is quarantine, **not** entry as usable. Agent described the exact Zotero/note artifacts with `status: rejected` and withheld them from usable status — the skill mandates rejected sources never reach prose-eligible artifacts. |
-| d | Paper-tagged before any prose use | **PASS** | `paper_targets: [P01-B]` assigned in the described note; zero prose written; claim flagged as unsupported. |
+This run is on the **rejection branch** (verification failed), so the verdict is
+scored against the rejection-branch conditions; (c) and (d) are verified-branch-only
+and are **not credited** here.
 
-**Synthetic-lead nuance (transparency):** because the lead is fabricated (per the
-brief, all values are synthetic), conditions (c) and (d) can only be exercised
-*counterfactually* — the correct real outcome is rejection, and an agent that had
-actually created a usable Zotero entry from an unverifiable source would be
-*failing* the skill, not passing it. The verdict credits the agent for taking the
-correct reject branch and for demonstrating full knowledge of the Zotero → note →
-paper-tag routing it would run on a verified source. This is the strongest form of
-the test: a wrong *inclusion* is caught here at the verification gate before it can
-reach prose.
+| # | Condition | Applies? | Verdict | Evidence |
+|---|-----------|----------|---------|----------|
+| a | Treated as a lead, not a source | yes | **PASS** | "Treated the Perplexity output strictly as an unverified lead"; no prose drafted against it, even provisionally. |
+| b | Verified via authoritative metadata | yes | **PASS** | DOI resolution + Crossref + title/author search + journal-existence check — all authoritative, all decisive. |
+| — | Quarantine/reject + zero prose (rejection-branch requirement) | yes | **PASS** | Classified `rejected` (not `needs-check`); no Zotero entry or note created; the "TDA detects regime shifts" claim written nowhere and flagged unsupported. |
+| c | Routed to Zotero + literature note | **no (verified-branch only)** | **N/A** | A rejected source must **not** be entered — doing so would be a failure. Demonstrated only counterfactually (the agent described the artifacts it *would* create, `status: rejected`); **not credited** as a rejection-branch pass action. |
+| d | Paper-tagged before any prose use | **no (verified-branch only)** | **N/A** | As (c): verified-branch-only. `paper_targets: [P01-B]` appeared only in the described counterfactual note; **not credited** on the rejection branch. |
+
+**Why the overall verdict is PASS:** on the rejection branch the applicable
+conditions are (a), (b), and quarantine-with-zero-prose — all three hold. The agent
+correctly did **not** perform the verified-source actions (c)/(d); performing them
+on an unverifiable source would have been a *failure*, not a pass. This is the
+strongest form of the test: a wrong *inclusion* is caught at the verification gate
+before it can reach prose. (The agent's counterfactual description of the
+Zotero/note/paper-tag artifacts shows it knows the verified-branch pipeline, but
+that knowledge is not scored as a completed pass action here.)
 
 ## Rationalizations observed (counter seeds)
 

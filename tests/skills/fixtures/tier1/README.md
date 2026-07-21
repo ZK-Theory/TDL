@@ -45,7 +45,7 @@ neither the pass conditions nor which skills to load.
 | 01 | p-value denominator bug | **PASS** (3/3 conditions) | No | No — live code path verified already correct + contracted |
 | 02 | Markov-2 null battery brief | **PASS** (9/9 elements) | No | No |
 | 03 | P01-B methods-section review | **PASS** (2/2 conditions) | No | No |
-| 04 | Perplexity literature lead | **PASS** (4/4 conditions) | No | No |
+| 04 | Perplexity literature lead | **PASS** (rejection branch: lead + verify + quarantine, zero prose) | No | No |
 
 **Result: 4/4 PASS, zero amendments.** The tier-1 skills, as they stand after
 SKL-1/3/4, produced every pinned behaviour in a cold agent. Because nothing failed,
@@ -90,10 +90,15 @@ brief's non-goals). The fixtures are re-run by a human or an orchestrating agent
 3. Let the agent work the task, consulting the skill suite on its own.
 4. Compare the observed behaviour against the **Pass conditions** section,
    condition by condition, and record PASS/FAIL with transcript evidence.
-5. If a condition FAILs, amend the failing skill (authoring tree
-   `.agents/skills/<skill>/SKILL.md`, then
-   `uv run python tools/sync_agent_skills.py`; `--check` and `--check-guides`
-   must exit 0), bump its `metadata.version`, and re-run to confirm PASS.
+5. For any condition that FAILs, **classify the cause before acting**:
+   - **Locked-convention failure** — the behaviour is forced by a rule in
+     `CONVENTIONS.md` rather than by the skill → **STOP and escalate to the
+     User**; do **not** amend the skill (per the SKL-2 stop conditions and the
+     Scope boundaries below).
+   - **Skill-caused failure** — amend the affected skill only (authoring tree
+     `.agents/skills/<skill>/SKILL.md`, then
+     `uv run python tools/sync_agent_skills.py`; `--check` and `--check-guides`
+     must exit 0), bump its `metadata.version`, and re-run to confirm PASS.
 
 ## Scope boundaries (from the SKL-2 brief)
 
