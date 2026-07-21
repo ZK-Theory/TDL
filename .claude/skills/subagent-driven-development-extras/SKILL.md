@@ -1,6 +1,14 @@
 ---
 name: subagent-driven-development-extras
 description: Complement superpowers:subagent-driven-development under a hard token/budget constraint. Use when the per-task reviewer-subagent mandate would exhaust the budget before implementation completes, especially for verbatim-transcription or otherwise machine-checkable tasks.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - manager
+    - orchestrator
+  runtime: agnostic
 ---
 
 # Subagent-Driven Development Extras

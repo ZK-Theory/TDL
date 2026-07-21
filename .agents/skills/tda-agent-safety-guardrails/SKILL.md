@@ -1,6 +1,14 @@
 ---
 name: tda-agent-safety-guardrails
 description: Use when configuring or reviewing agent safety boundaries in TDL — git operation rules, hook coverage, file-write boundaries, result-artifact protection, or destructive-command handling for Claude Code and Codex.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - operator
+    - verifier
+  runtime: agnostic
 ---
 
 # TDA Agent Safety Guardrails

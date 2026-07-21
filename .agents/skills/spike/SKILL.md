@@ -1,6 +1,16 @@
 ---
 name: spike
 description: Use when a Discovery Harness candidate has PROMOTE from /assay and needs a toy-scale feasibility probe, pre-registration, null-model check, or handoff into /pre-reg-to-dispatch.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+    - stochastic-null
+  roles:
+    - implementer
+    - orchestrator
+  runtime: agnostic
 ---
 
 # Spike

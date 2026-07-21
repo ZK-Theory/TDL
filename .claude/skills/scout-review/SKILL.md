@@ -1,6 +1,13 @@
 ---
 name: scout-review
 description: Use after Scout drops a new vault/00-Meta/Discovery/_inbox/YYYY-Www.md to triage the week's literature hits — cluster, drop noise, write a one-line relevance note per survivor, and shortlist PROMOTE candidates into _backlog.md for Assay.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - orchestrator
+  runtime: agnostic
 ---
 
 # Scout Review

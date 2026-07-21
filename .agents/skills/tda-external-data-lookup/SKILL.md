@@ -1,6 +1,14 @@
 ---
 name: tda-external-data-lookup
 description: Use when retrieving external economic, demographic, financial, regulatory, or contextual data — FRED, World Bank, Eurostat, ONS, SEC, market data — to support TDL papers or provide covariates and context.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes: []
+  roles:
+    - implementer
+    - operator
+  runtime: agnostic
 ---
 
 # TDA External Data Lookup

@@ -1,6 +1,14 @@
 ---
 name: using-git-worktrees-extras
 description: Complement superpowers:using-git-worktrees in multi-interpreter or optional-dependency repositories, and on Windows or sandboxed runtimes where a linked worktree may not be editable by the mandated tool. Use when the full baseline fails outside task scope or when manually created worktrees need operational readiness checks.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - operator
+    - implementer
+  runtime: agnostic
 ---
 
 # Using Git Worktrees Extras

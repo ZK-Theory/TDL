@@ -1,6 +1,14 @@
 ---
 name: tda-research-ideation-lab
 description: Use for explicitly speculative TDL idea generation — hypothesis exploration, alternative nulls, robustness-check candidates, future-paper branching, cross-project links — before any verification or implementation.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - orchestrator
+    - manager
+  runtime: agnostic
 ---
 
 # TDA Research Ideation Lab

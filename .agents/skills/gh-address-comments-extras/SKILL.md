@@ -1,6 +1,14 @@
 ---
 name: gh-address-comments-extras
 description: Complement github:gh-address-comments for Windows UTF-8 failures and external scanner remediation. Use when thread-fetch scripts decode GitHub JSON under a Windows locale, when check annotations omit scanner rule IDs, or before adding suppressions for Codacy, Semgrep, CodeQL, or similar PR checks.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - implementer
+    - operator
+  runtime: agnostic
 ---
 
 # GitHub Address Comments Extras

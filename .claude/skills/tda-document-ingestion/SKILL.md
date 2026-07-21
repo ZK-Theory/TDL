@@ -1,6 +1,14 @@
 ---
 name: tda-document-ingestion
 description: Use when converting PDFs, DOCX, XLSX, web captures, survey codebooks, appendices, or tables into vault-ready Markdown or structured artifacts for TDL.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes: []
+  roles:
+    - implementer
+    - operator
+  runtime: agnostic
 ---
 
 # TDA Document Ingestion

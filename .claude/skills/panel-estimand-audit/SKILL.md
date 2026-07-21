@@ -1,6 +1,14 @@
 ---
 name: panel-estimand-audit
 description: Use when a panel/longitudinal analysis defines or changes an estimand — ATE/ATT, escape probability, transition rate, ICC — to confirm the estimand is stated, stable across reruns, and aligned with the eligibility rule and denominator.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - statistical-panel
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Panel Estimand Audit

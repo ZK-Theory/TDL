@@ -1,6 +1,14 @@
 ---
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - verifier
+    - claim-reviewer
+  runtime: agnostic
 ---
 
 # Adversarial Design Review

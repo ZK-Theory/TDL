@@ -1,6 +1,15 @@
 ---
 name: tda-experiment
 description: Use when scaffolding and running a new TDA experiment — follows codebase conventions (domain data/topology/analysis modules, results output, seed recording).
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+    - output-provenance
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # /tda-experiment — Run a TDA Experiment

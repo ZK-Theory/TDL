@@ -1,6 +1,15 @@
 ---
 name: tda-statistical-analysis-review
 description: Use when reviewing statistical output headed for a paper — permutation tests, Markov memory-ladder results, confidence intervals, effect sizes, model fits, or statistical claims in P01-A/P01-B/P04 — after the numbers exist and before prose depends on them.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - statistical-panel
+    - stochastic-null
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # TDA Statistical Analysis Review

@@ -1,6 +1,14 @@
 ---
 name: schema-contract-design
 description: Use when adding a new math-correctness contract to contracts/ - formula, schema, invariant, or output_validation - to author it correctly against the meta-schema, wire its binding test, and manage the pending lifecycle.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - output-provenance
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # Schema / Contract Design

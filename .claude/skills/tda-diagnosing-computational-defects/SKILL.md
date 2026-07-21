@@ -1,6 +1,15 @@
 ---
 name: tda-diagnosing-computational-defects
 description: Use when a TDL result changes unexpectedly, a null model gives suspicious p-values, a permutation test looks inconsistent, a result JSON is schema-valid but semantically wrong, stochastic compute behaves non-deterministically, a fitted sample drifts, performance regresses, or a reviewer/CodeRabbit comment points at a real computational defect.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - output-provenance
+  roles:
+    - implementer
+    - verifier
+  runtime: agnostic
 ---
 
 # Diagnosing Computational Defects

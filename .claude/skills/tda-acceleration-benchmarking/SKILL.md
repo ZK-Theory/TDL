@@ -1,6 +1,14 @@
 ---
 name: tda-acceleration-benchmarking
 description: Use when a TDL job is slow, memory-heavy, repeated at scale, or proposed for GPU, cloud, Dask, Polars, or vectorisation acceleration — to prove the acceleration is justified before adopting it.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes: []
+  roles:
+    - implementer
+    - operator
+  runtime: agnostic
 ---
 
 # TDA Acceleration Benchmarking

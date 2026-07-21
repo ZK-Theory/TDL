@@ -1,6 +1,14 @@
 ---
 name: wasserstein-audit
 description: Use to scan manuscript drafts and the codebase for W₁ vs W₂ inconsistencies — project convention mandates Wasserstein-2 as the primary persistence-diagram metric.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # /wasserstein-audit — Audit Wasserstein Order Consistency

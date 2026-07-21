@@ -1,6 +1,14 @@
 ---
 name: tda-task-brief-from-plan
 description: Use when converting a research plan, note, review finding, or conversation into agent-ready TDL work — implementation tickets, compute tasks, or patch tasks for Claude Code or Codex.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes: []
+  roles:
+    - manager
+    - orchestrator
+  runtime: agnostic
 ---
 
 # TDA Task Brief From Plan
