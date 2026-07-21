@@ -1,6 +1,15 @@
 ---
 name: tda-trajectory-baselines
 description: Use when building or reviewing conventional non-topological baselines for trajectory work — clustering, classification, forecasting, anomaly detection, or survival/duration comparison — to contextualize a persistent-homology result.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes:
+    - statistical-panel
+    - representation
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Trajectory Baselines

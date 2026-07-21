@@ -1,6 +1,15 @@
 ---
 name: tda-representation-diagnostics
 description: Use when checking embedding stability, scaler/PCA/loadings behaviour, UMAP or t-SNE projections, observed/null coordinate-frame alignment, representation drift, or SHAP/feature explanations in TDL.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes:
+    - representation
+  roles:
+    - verifier
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Representation Diagnostics

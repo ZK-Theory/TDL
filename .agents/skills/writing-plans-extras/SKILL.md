@@ -1,6 +1,14 @@
 ---
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - manager
+    - implementer
+  runtime: agnostic
 ---
 
 # Writing Plans Extras

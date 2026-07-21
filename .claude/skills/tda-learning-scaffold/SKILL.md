@@ -1,6 +1,13 @@
 ---
 name: tda-learning-scaffold
 description: Use when creating structured learning material connected to TDA, topology, statistics, Lean, Manim, or adjacent mathematics — exercise sets, study plans, worked examples, formalization drills, explainer outlines.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes: []
+  roles:
+    - operator
+  runtime: agnostic
 ---
 
 # TDA Learning Scaffold

@@ -1,6 +1,15 @@
 ---
 name: tda-paper-dissemination-pack
 description: Use only after a TDL paper section or result set is stable — to convert it into public-facing web pages, talks, posters, slide decks, graphical abstracts, or explainer material.
+metadata:
+  version: "1.0.0"
+  tier: optional
+  lanes:
+    - paper-claim
+  roles:
+    - claim-reviewer
+    - operator
+  runtime: agnostic
 ---
 
 # TDA Paper Dissemination Pack

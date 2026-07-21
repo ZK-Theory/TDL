@@ -1,6 +1,14 @@
 ---
 name: topology-benchmark-review
 description: Use when a topological result (persistence diagram, W2/landscape distance, regime detection) is asserted as correct — to check it against known published benchmarks and the project's validation table before trusting it.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Topology Benchmark Review

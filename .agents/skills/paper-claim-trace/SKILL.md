@@ -1,6 +1,15 @@
 ---
 name: paper-claim-trace
 description: Use when turning TDL results into manuscript claims, table entries, figure captions, discussion prose, limitations, or disclosure text — to bind every claim to a result file and decision rule and to keep negative/weaker results honestly reported.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - paper-claim
+  roles:
+    - claim-reviewer
+    - verifier
+  runtime: agnostic
 ---
 
 # Paper Claim Trace

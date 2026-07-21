@@ -1,6 +1,14 @@
 ---
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - output-provenance
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # Contract-First TDD

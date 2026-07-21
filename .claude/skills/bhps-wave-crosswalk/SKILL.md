@@ -1,6 +1,15 @@
 ---
 name: bhps-wave-crosswalk
 description: Use before relying on any BHPS/USoc variable's coding across waves or across the survey bridge — looks up coding differences and generates correct harmonisation code. Trigger when an analysis assumes a variable is coded consistently between BHPS and Understanding Society.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - statistical-panel
+  roles:
+    - implementer
+    - verifier
+  runtime: agnostic
 ---
 
 # /bhps-wave-crosswalk — Verify BHPS/USoc Variable Coding

@@ -1,6 +1,15 @@
 ---
 name: paper-draft
 description: Use when starting or continuing a paper draft — loads _project.md status and open items, reads the current draft, and enforces the versioned vN-YYYY-MM draft convention (never overwrite a previous draft).
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - paper-claim
+  roles:
+    - implementer
+    - claim-reviewer
+  runtime: agnostic
 ---
 
 # /paper-draft — Start or Continue a Paper Draft

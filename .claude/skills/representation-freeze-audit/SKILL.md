@@ -1,6 +1,14 @@
 ---
 name: representation-freeze-audit
 description: Use when a TDL task touches PCA/UMAP/scaler fitting, frozen loadings, provisional vs frozen embeddings, GMM labels, state recoding, trajectory windows, or comparability of embeddings across cohorts/eras/surrogates.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - representation
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Representation Freeze Audit

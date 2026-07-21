@@ -1,6 +1,14 @@
 ---
 name: pre-reg-to-dispatch
 description: Use when an APM Manager is converting a pre-registration, decision rule, or amendment into a Task Prompt — to extract the parameters, decision rule, and outcome-to-prose mapping, and to detect when a task needs a pre-reg amendment filed BEFORE dispatch.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - output-provenance
+  roles:
+    - manager
+  runtime: agnostic
 ---
 
 # Pre-Registration to Dispatch

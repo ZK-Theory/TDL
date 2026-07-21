@@ -1,6 +1,15 @@
 ---
 name: tda-literature-verification
 description: Use when a new source, DOI, arXiv ID, or literature lead enters the project — from Perplexity, web search, a reviewer, Scout, or a citation in another paper — before it is cited, added to Zotero, or turned into a literature note.
+metadata:
+  version: "1.0.0"
+  tier: core
+  lanes:
+    - paper-claim
+  roles:
+    - verifier
+    - claim-reviewer
+  runtime: agnostic
 ---
 
 # TDA Literature Verification

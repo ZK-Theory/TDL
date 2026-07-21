@@ -1,6 +1,14 @@
 ---
 name: tda-graph-network-analysis
 description: Use when constructing or analysing Mapper graphs, employment-state transition graphs, household or social networks, relational trajectory graphs, or future graph-learning (GNN) work in TDL.
+metadata:
+  version: "1.0.0"
+  tier: specialist
+  lanes:
+    - topology
+  roles:
+    - implementer
+  runtime: agnostic
 ---
 
 # TDA Graph & Network Analysis

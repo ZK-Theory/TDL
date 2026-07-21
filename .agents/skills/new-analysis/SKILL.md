@@ -1,6 +1,16 @@
 ---
 name: new-analysis
 description: Use when starting a new computational TDA analysis for a paper — scaffolds the data → topology → analysis structure, output paths, and logging conventions for the research programme.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - topology
+    - output-provenance
+  roles:
+    - implementer
+    - manager
+  runtime: agnostic
 ---
 
 # /new-analysis — Start a New TDA Analysis

@@ -1,6 +1,15 @@
 ---
 name: statistical-design-audit
 description: Use when a TDL task involves p-values, permutation/bootstrap inference, denominators, FDR/multiple comparisons, estimands, eligibility rules, GLMM/Firth/svyglm, MICE, IPW, or Manski bounds — to check the statistical design is valid before trusting the numbers.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - statistical-panel
+    - stochastic-null
+  roles:
+    - verifier
+  runtime: agnostic
 ---
 
 # Statistical Design Audit

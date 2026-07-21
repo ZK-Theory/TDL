@@ -1,6 +1,16 @@
 ---
 name: reproducibility-package-review
 description: Use before a result set is relied on for a paper or handed off — to confirm every committed result can be regenerated end-to-end from committed scripts plus recorded seeds and parameters.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes:
+    - output-provenance
+    - paper-claim
+  roles:
+    - verifier
+    - claim-reviewer
+  runtime: agnostic
 ---
 
 # Reproducibility Package Review

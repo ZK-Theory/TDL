@@ -1,6 +1,14 @@
 ---
 name: executing-plans-extras
 description: Complement superpowers:executing-plans when an implementation plan specifies exact CLI, module, migration, or validation commands. Use whenever exit status alone could hide a no-op entrypoint or when completion depends on command output or a state transition.
+metadata:
+  version: "1.0.0"
+  tier: domain
+  lanes: []
+  roles:
+    - manager
+    - implementer
+  runtime: agnostic
 ---
 
 # Executing Plans Extras
