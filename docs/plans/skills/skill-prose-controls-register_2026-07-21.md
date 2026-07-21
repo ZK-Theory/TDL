@@ -32,7 +32,7 @@ names. Verified this session:
 | `results-vault-reminder.sh` | PostToolUse **reminder only** | Prints a `/vault-sync` nudge on a `results/**` write. Non-blocking. |
 | `mirror-tree-guard.sh` | PreToolUse **deny** | **NEW (this task).** Denies an agent `Write`/`Edit`/`MultiEdit` into the Claude-side mirror `.claude/skills/…` tree. Sync tool writes via Python and is unaffected. |
 | `.githooks/pre-commit` | git gate | Gate 0 `sync_agent_skills.py --check` (dual-tree parity, incl. `MIRROR_EDITED`); Gate 1 ruff; Gate 2 `contract_binding_check.py` (contract meta-schema, binding-test existence via AST, pytest of bound tests, JSON-schema validation of **staged** `results/` output files against `output_validation` contracts). |
-| `.githooks/commit-msg` | git gate | Rejects a subject line lacking one of `[RESULT|DECISION|NEGATIVE|PIPELINE|DATA|EXPLORE]` (merges/reverts/fixups/squashes skipped). |
+| `.githooks/commit-msg` | git gate | Rejects a subject line lacking one of `[RESULT\|DECISION\|NEGATIVE\|PIPELINE\|DATA\|EXPLORE]` (merges/reverts/fixups/squashes skipped). |
 | `.githooks/prepare-commit-msg` | git advisory | Suggests a prefix; never blocks. |
 | `contracts/**` | contracts (via Gate 2) | 120+ YAMLs present. Every contract named as an "Enforcing contract" by a skill was confirmed to exist on disk (see below). |
 | `tools/apm_task_prompt_check.py` | tool (exists, **not** auto-wired) | Present, but **not** referenced by `settings.json` or `.githooks/`. It is a manual/Manager-invoked check, not an automatic gate. The wired dispatch gate is `dispatch-readiness-guard.sh` (block-presence only). |
