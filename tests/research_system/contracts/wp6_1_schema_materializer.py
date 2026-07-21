@@ -49,6 +49,35 @@ REVIEW_STATUS = "pending_independent_review"
 ACCEPTANCE_STATUS = "pending_d_g6_3_owner_acceptance"
 SCHEMA_VERSION = "1.0.0"
 CONTRACT_ROOT = ".research-system/contracts"
+ACCEPTANCE_RECORD_PATH = ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml"
+ACCEPTANCE_RECORD_SCHEMA_ID = "ars://contracts/wp6-1-stage1-owner-acceptance-record"
+ACCEPTANCE_RECORD_BLOB = "42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83"
+ACCEPTANCE_RECORD_SHA256 = "70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648"
+ACCEPTANCE_STATEMENT = (
+    "I explicitly accept the Stage-1 WP6.1 schema-fact annex tuple reviewed at da94bd62fbf19021f3046c19fae5117c19219c95, "
+    "including the exact proposal, companion-schema, Markdown blobs/SHA-256 identities, schema ID/version, and all 14 "
+    "frozen decision-register entries listed in the R7 report. I authorize only deterministic generation of exactly 173 "
+    "schemas — 87 command and 86 event semantic identities — from those accepted bytes. The generated outputs require "
+    "their own later exact-byte validation, independent review, and owner decision. This acceptance does not authorize "
+    "runtime registration, dispatch, reduction, projection, migration, hooks, PR merge, or any Gate 6 transition."
+)
+ACCEPTED_DECISION_IDS = [
+    "proposal_decision/id_prefixes",
+    "proposal_decision/rule_evaluation_subject_id_grammar",
+    "proposal_decision/resource_operation_id_unions",
+    "proposal_decision/access_mode_vocabulary",
+    "proposal_decision/git_object_identity",
+    "proposal_decision/numeric_policy_bounds",
+    "proposal_decision/open_policy_vocabularies",
+    "proposal_decision/schema_id_scope",
+    "proposal_decision/shared_discriminators",
+    "proposal_decision/retention_and_sensitivity",
+    "proposal_decision/recovery_external_availability",
+    "proposal_decision/correction_subject_union",
+    "proposal_decision/resource_request_profile_discriminator",
+    "proposal_decision/review_condition_gate_relation",
+]
+ACCEPTED_DECISION_IDS_SHA256 = "401f42e827ba8cb75456a879177d0c9b4e1523f7a860a06802910280b6763395"
 
 
 def _citation_text(spec: FieldSpec | ObjectSpec) -> str:
@@ -271,6 +300,44 @@ def _owner_source_annex() -> dict[str, Any]:
         "canonical_utf8_lf_sha256": ANNEX_SHA256,
         "normalized_row_count": 104,
         "expanded_edge_count": 182,
+        "lineage_role": "historical_lineage",
+    }
+
+
+def _stage1_owner_acceptance() -> dict[str, Any]:
+    return {
+        "record": {
+            "repository_path": ACCEPTANCE_RECORD_PATH,
+            "schema_id": ACCEPTANCE_RECORD_SCHEMA_ID,
+            "schema_version": SCHEMA_VERSION,
+            "git_blob_id": ACCEPTANCE_RECORD_BLOB,
+            "canonical_utf8_lf_sha256": ACCEPTANCE_RECORD_SHA256,
+        },
+        "statement_provenance": "owner_supplied_task_delegation",
+        "recorded_date": "2026-07-21",
+        "acceptance_statement": ACCEPTANCE_STATEMENT,
+        "accepted_stage1_tuple": {
+            "reviewed_revision": FACT_ANNEX_REVISION,
+            "proposal_yaml": {
+                "repository_path": FACT_ANNEX_PATH,
+                "schema_id": "ars://contracts/wp6-1-schema-fact-annex-proposal",
+                "schema_version": SCHEMA_VERSION,
+                "git_blob_id": FACT_ANNEX_BLOB,
+                "canonical_utf8_lf_sha256": FACT_ANNEX_SHA256,
+            },
+            "proposal_markdown": {
+                "repository_path": "docs/plans/agentic-research-system/implementation/06e-wp6-1-schema-fact-annex-proposal.md",
+                "git_blob_id": "73677f4a49a9752f6536b103321f654cd8575075",
+                "canonical_utf8_lf_sha256": "4b997c85184d8a8842b5524ffe4595473697c3438b70c224685c0b291a4760d0",
+            },
+            "companion_schema": {
+                "repository_path": ".research-system/schemas/contracts/wp6-1-schema-fact-annex-proposal.schema.json",
+                "git_blob_id": "d9e82a041337dfa7df65408e93798aaf37841afe",
+                "canonical_utf8_lf_sha256": "7599bf7b2174a2e2e35362427a20ae1357f4c33d13b3d4324a05330ad67c21ec",
+            },
+            "decision_ids": ACCEPTED_DECISION_IDS,
+            "decision_ids_sha256": ACCEPTED_DECISION_IDS_SHA256,
+        },
     }
 
 
@@ -374,6 +441,7 @@ def generate_artifacts(repo_root: Path) -> dict[str, bytes]:
         "manifest_id": "wp6-1-schema-identities",
         "source_annex": _source_annex(),
         "owner_source_annex": _owner_source_annex(),
+        "stage1_owner_acceptance": _stage1_owner_acceptance(),
         "governance": _governance(),
         "normalized_row_count": 104,
         "row_identity_multiset_sha256": sha256_value(sorted(identity_rows, key=lambda row: row["key"])),
@@ -389,6 +457,7 @@ def generate_artifacts(repo_root: Path) -> dict[str, bytes]:
         "catalogue_id": "wp6-1-owner-source-catalogue",
         "source_annex": _source_annex(),
         "owner_source_annex": _owner_source_annex(),
+        "stage1_owner_acceptance": _stage1_owner_acceptance(),
         "schema_identity_manifest": {
             "repository_path": identity_path,
             "schema_id": identities["schema_id"],

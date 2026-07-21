@@ -15,12 +15,55 @@ owner_source_annex:
   canonical_utf8_lf_sha256: 96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7
   normalized_row_count: 104
   expanded_edge_count: 182
+  lineage_role: historical_lineage
+stage1_owner_acceptance:
+  record:
+    repository_path: .research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml
+    schema_id: ars://contracts/wp6-1-stage1-owner-acceptance-record
+    schema_version: 1.0.0
+    git_blob_id: 42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83
+    canonical_utf8_lf_sha256: 70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648
+  statement_provenance: owner_supplied_task_delegation
+  recorded_date: '2026-07-21'
+  acceptance_statement: I explicitly accept the Stage-1 WP6.1 schema-fact annex tuple reviewed at da94bd62fbf19021f3046c19fae5117c19219c95, including the exact proposal, companion-schema, Markdown blobs/SHA-256 identities, schema ID/version, and all 14 frozen decision-register entries listed in the R7 report. I authorize only deterministic generation of exactly 173 schemas — 87 command and 86 event semantic identities — from those accepted bytes. The generated outputs require their own later exact-byte validation, independent review, and owner decision. This acceptance does not authorize runtime registration, dispatch, reduction, projection, migration, hooks, PR merge, or any Gate 6 transition.
+  accepted_stage1_tuple:
+    reviewed_revision: da94bd62fbf19021f3046c19fae5117c19219c95
+    proposal_yaml:
+      repository_path: .research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml
+      schema_id: ars://contracts/wp6-1-schema-fact-annex-proposal
+      schema_version: 1.0.0
+      git_blob_id: 2f55b82f1a84cc0de081d38f8500c73a2083bac4
+      canonical_utf8_lf_sha256: d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441
+    proposal_markdown:
+      repository_path: docs/plans/agentic-research-system/implementation/06e-wp6-1-schema-fact-annex-proposal.md
+      git_blob_id: 73677f4a49a9752f6536b103321f654cd8575075
+      canonical_utf8_lf_sha256: 4b997c85184d8a8842b5524ffe4595473697c3438b70c224685c0b291a4760d0
+    companion_schema:
+      repository_path: .research-system/schemas/contracts/wp6-1-schema-fact-annex-proposal.schema.json
+      git_blob_id: d9e82a041337dfa7df65408e93798aaf37841afe
+      canonical_utf8_lf_sha256: 7599bf7b2174a2e2e35362427a20ae1357f4c33d13b3d4324a05330ad67c21ec
+    decision_ids:
+    - proposal_decision/id_prefixes
+    - proposal_decision/rule_evaluation_subject_id_grammar
+    - proposal_decision/resource_operation_id_unions
+    - proposal_decision/access_mode_vocabulary
+    - proposal_decision/git_object_identity
+    - proposal_decision/numeric_policy_bounds
+    - proposal_decision/open_policy_vocabularies
+    - proposal_decision/schema_id_scope
+    - proposal_decision/shared_discriminators
+    - proposal_decision/retention_and_sensitivity
+    - proposal_decision/recovery_external_availability
+    - proposal_decision/correction_subject_union
+    - proposal_decision/resource_request_profile_discriminator
+    - proposal_decision/review_condition_gate_relation
+    decision_ids_sha256: 401f42e827ba8cb75456a879177d0c9b4e1523f7a860a06802910280b6763395
 schema_identity_manifest:
   repository_path: .research-system/contracts/wp6-1-schema-identities.yaml
   schema_id: ars://contracts/wp6-1-schema-identities
   schema_version: 1.0.0
-  git_blob_id: 86b13535cac71d5d86e77be206eea9f40ecb223b
-  canonical_utf8_lf_sha256: 916124cd18da7b8d55d21b37d4b8b21f4f6f0bd86b5622add9d32ad8bc337e7d
+  git_blob_id: 54a2938d34cea9c4a88d23585ce012a86bc3209d
+  canonical_utf8_lf_sha256: d6d537088f41179b993b94991d5bf5790499cce80bf419c098ca899e794b37e7
   review_status: pending_independent_review
   acceptance_status: pending_d_g6_3_owner_acceptance
 governance:
@@ -288,7 +331,7 @@ decision_rule_evaluation_non_compensation:
   - decision_projection
   - rule_evaluation_projection
   - governance_correction_index
-catalogue_multiset_sha256: e64df7f19519c70af854a7d97503c1070bac50ec8f6214fc6ead0a515e271bf6
+catalogue_multiset_sha256: ac94f11120724b52f086d5c41378a3ebe4554da99cdb6de4bc95ab7983c9d601
 rows:
 - source_table: w2_lifecycle
   key: scope.create
@@ -304,11 +347,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/create_scope_definition.schema.json
     command_schema_id: ars://core/command/CreateScopeDefinition
     command_schema_version: 1.0.0
-    command_schema_sha256: a3ded3391bbdcfbdd841bf15319a0d9803b33aac4fb62ffcf19a26833c3163b4
+    command_schema_sha256: 0e1e3f8f9242a69559749b491048d7ce3983fada083cdc65475cc8ac9feb2856
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: e982a00d95eb74ced83e033851a6a2380b77dc097aa6cd3a797bf6bcde51c477
+    command_identity_contract_sha256: 32a2a0ae4cdbed7b29dec9399ecfedff5c89f293b80b0e24a6a38c5e0f5ddcb4
   ordered_events:
   - ScopeDefinitionCreated
   event_schema_bindings:
@@ -317,11 +360,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/scope_definition_created.schema.json
     event_schema_id: ars://core/event/ScopeDefinitionCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: 6f9d3435c5bd5da79e4b6364fc5e72ce9b696ddef541cb4452eea882be39af64
+    event_schema_sha256: 762fa323f2f7de43b0920cf09e099e1644cddce1f24fdc8b503f153bcb99b187
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 4c5acf90ec6035b2a1afc5d0d37e005d1d0d9808289e43356c813d9fa6c544ba
+    event_identity_contract_sha256: 56b54e12bc486f73d8499bffbaf4725cf54c50baec465b2f0be6adba973e033b
   reducers:
   - reduce_scope
   projections:
@@ -378,7 +421,7 @@ rows:
     reducer_projections_selector: '`reduce_scope`; scope, governance'
     authority_precondition: unique ID; complete versioned membership, dispositions, predicate, authority
     receipt_positive_negatives: '`R`; `pos_scope_create`; `NA`'
-  complete_record_sha256: 05d47317001ed5b8d09681fcc47dcb23ebd2d50e5be50b1bd261e98f9def7b3e
+  complete_record_sha256: 7711e911c997a11f5c09b96d64c447d82d0faeb1ffad9294cf0e992f4bba7f1c
 - source_table: w2_lifecycle
   key: scope.amend_revision
   owner_transition_discriminator: W2 §10 `open → open(new revision)`
@@ -487,11 +530,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/supersede_scope_definition.schema.json
     command_schema_id: ars://core/command/SupersedeScopeDefinition
     command_schema_version: 1.0.0
-    command_schema_sha256: 42906d15a80f1b4334364f6557b4323abe034010c57d2fe74c9292fe41829698
+    command_schema_sha256: 5ddb98ba38a55d18131275c3b64a112574eb92c6e01a6ceb7aeb08131d6bcb35
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: 8eef2a0971ebe4aa7fef72f8fa56a8a2842ebe0ce65730feb16f27783c05d1cb
+    command_identity_contract_sha256: d9c48cbafc736f4e0b7840d6c7c23f70dc18f1f3293b8ef24ee9604a704a71a4
   ordered_events:
   - ScopeDefinitionSuperseded
   event_schema_bindings:
@@ -500,11 +543,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/scope_definition_superseded.schema.json
     event_schema_id: ars://core/event/ScopeDefinitionSuperseded
     event_schema_version: 1.0.0
-    event_schema_sha256: 05097f9a9a7a5f8b633b02b075889c8ef98cd0c370a1c91c23f54e48dd41f9c5
+    event_schema_sha256: 421b6df251d583daa704738c35a5a52c7176261033a7c71053e50bc4766a0511
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 6aedbb8234af793ee884d4a757d7fe559e92042ca1ff0f74f7d6f3a8b0af92e3
+    event_identity_contract_sha256: 00b3c886d76f85f7b6fb7dcab415a676fb85d06a31186b4ac3d47d12cee811d0
   reducers:
   - reduce_scope
   projections:
@@ -566,7 +609,7 @@ rows:
     reducer_projections_selector: '`reduce_scope`; scope, governance'
     authority_precondition: replacement revision/ID, lineage, member disposition effects
     receipt_positive_negatives: '`R`; `pos_scope_supersede`; `NS`'
-  complete_record_sha256: 179c44e01fd6fccb9b1d13e84738fcfd27e32b02ffbdab08a1138d16c9727b4f
+  complete_record_sha256: 1649a431998a7034335d08c43dcc0045ef1ee87697254c910797d747b7649a71
 - source_table: w2_lifecycle
   key: scope.complete
   owner_transition_discriminator: W2 §10 `open → complete`
@@ -3963,11 +4006,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/start_attempt.schema.json
     command_schema_id: ars://core/command/StartAttempt
     command_schema_version: 1.0.0
-    command_schema_sha256: 52db45d1d875b96da853cbf2a057957fef454cfb4374c42552704c407d127cce
+    command_schema_sha256: d61da75848058fe7621d5052c2c0e27d0653ace6b48e7f3b901f06559efd4d43
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: 18dff346f45689496f7aefdf6a776c31f8d15eb1543f580e75043a64d221a50e
+    command_identity_contract_sha256: 2cf632eb71b6c87e508a0d9002d6e86164032e7907ec38efb3b808485a00a6ed
   ordered_events:
   - AttemptStarted
   event_schema_bindings:
@@ -3976,11 +4019,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/attempt_started.schema.json
     event_schema_id: ars://core/event/AttemptStarted
     event_schema_version: 1.0.0
-    event_schema_sha256: 40e5eb10a5131a00e197b0f8b39a3e9cd3eaf171c695139cbac8954f35aec2aa
+    event_schema_sha256: bb0e917b7f62367932fe52501f2834e562d0918948b5cf9e59e7035e179cc74c
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 5b5ee9bb3ecf27e819d0b386e675a1e02bbfcc5aebe2c28bb40452b013a70b19
+    event_identity_contract_sha256: a1284f343774f84a58aa08062f56017662a3369a79956f50deb329172d4ef497
   reducers:
   - reduce_attempt
   projections:
@@ -4034,7 +4077,7 @@ rows:
     reducer_projections_selector: '`reduce_attempt`; attempt, operations'
     authority_precondition: process/session identity and exact context/roots
     receipt_positive_negatives: '`R`; `pos_attempt_start`; `NE`'
-  complete_record_sha256: 4ca9927e304e9e430eaa60f2d866789c1cbb7e12262db878e98ac81fcaac16bd
+  complete_record_sha256: 0c54a05c8158577a97efa36ae65deafad56b7e95fae25edece5722157c2743b6
 - source_table: w2_lifecycle
   key: attempt.complete
   owner_transition_discriminator: W2 §12 `running → completed`
@@ -7271,11 +7314,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/record_review_verdict.schema.json
     command_schema_id: ars://core/command/RecordReviewVerdict
     command_schema_version: 1.0.0
-    command_schema_sha256: b40e4046fbec091e5a2083e30370753c8356334c32d59fe534f26292a7823a1d
+    command_schema_sha256: 70cca7ded4f9f3c0ef4e8301ea8fec98ac616faf42e61235f4abfacecde9cb9b
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: 7d9366d7aa6f73f1546f366db9c9a077a702ab2d2df63003e4fd5c72a182e349
+    command_identity_contract_sha256: 340ac4a0a443362154bd63259a52a6741fbf8abdbf477353c7f876ba7490347b
   ordered_events:
   - ReviewVerdictRecorded
   event_schema_bindings:
@@ -7284,11 +7327,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/review_verdict_recorded.schema.json
     event_schema_id: ars://core/event/ReviewVerdictRecorded
     event_schema_version: 1.0.0
-    event_schema_sha256: c393726527e6e89a0488297a8a53aeaa1d0664177513c19ff80f299497d24eb8
+    event_schema_sha256: af4dde406dd490e972bc9246707d1173785747f91b1fe996fc54cc85e20ceded
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 79337eeb4aad85311fecbf0071398e37aa048b76e50dd46fe2d45c2644c499f1
+    event_identity_contract_sha256: c1f89681996916cd66134df6db48702fdc66631234507d9d17ab034f93ec55f9
   reducers:
   - reduce_review
   projections:
@@ -7349,7 +7392,7 @@ rows:
     reducer_projections_selector: '`reduce_review`; review'
     authority_precondition: verdict evidence, context manifest, subject hash, independence
     receipt_positive_negatives: '`R`; `pos_review_record_verdict`; `NI`'
-  complete_record_sha256: 5d3020f3be12060552e33c1d3ffcf3dfdd90244db30332a1142e1f0d813fcaad
+  complete_record_sha256: 27a4c478a542528e9bc01df8a41483882d7ff1ebf25690325c5d90cd45b7ec13
 - source_table: w2_messages_governance
   key: review.request_changes
   owner_transition_discriminator: W2 §17 `verdict_recorded → changes_requested`
@@ -7364,11 +7407,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/request_review_changes.schema.json
     command_schema_id: ars://core/command/RequestReviewChanges
     command_schema_version: 1.0.0
-    command_schema_sha256: 7a0c004a43b2cfccaf6254a8f6ca637cfb86ab07d149c9127d6388bf5a3acbe5
+    command_schema_sha256: 5adf7f808b6eef70dd127a8f427a57e32f7473d775a811f3f683618ee0b24071
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: 985b37e62517fd4a78d01816324541c1001b31af71267ed08bad2b6f143e014f
+    command_identity_contract_sha256: 9d9cbfde55e88ac76674d783298f088c888957a5c6eef35d3d56801e90067dd4
   ordered_events:
   - ReviewChangesRequested
   event_schema_bindings:
@@ -7377,11 +7420,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/review_changes_requested.schema.json
     event_schema_id: ars://core/event/ReviewChangesRequested
     event_schema_version: 1.0.0
-    event_schema_sha256: b5dba39481484689e6d9ab5fc7bd659666a9fd8cf32a14d10b998308341eebee
+    event_schema_sha256: 181480e841debe8de538411feb7970d43f4accca8989e8035efd0661ded4104f
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: cd7762cc09f72175bd8db28e174904d8feb3284d197a2496869489b1b7a50678
+    event_identity_contract_sha256: 2d0ed264393785b1b428534f60a6d2e2ae4670ba06860366747fd0fd26d88457
   reducers:
   - reduce_review
   projections:
@@ -7442,7 +7485,7 @@ rows:
     reducer_projections_selector: '`reduce_review`; review'
     authority_precondition: authorized policy evaluation of verdict conditions
     receipt_positive_negatives: '`R`; `pos_review_request_changes`; `NI`'
-  complete_record_sha256: 88ba0193484eec29ab357c4693750cfe0081a74f7f97ee0386467f4be3b84583
+  complete_record_sha256: 5b313995aa5506cf03d013aaa609a26e4bc5125c6783905d712be0075f1cb2db
 - source_table: w2_messages_governance
   key: review.satisfy
   owner_transition_discriminator: W2 §17 `verdict_recorded → satisfied`
@@ -9671,11 +9714,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/create_backup.schema.json
     command_schema_id: ars://core/command/CreateBackup
     command_schema_version: 1.0.0
-    command_schema_sha256: a4a151b25b295ca81677acb7114a4aaf655902743264ef024f0bfe3ae2c552ae
+    command_schema_sha256: 16fe11c88fbfce48185fa666be93978f02416013addf83a4c2c3634884292a24
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: a59800fda2bf30121c5109b87c84861bc3144cada0e1c8a4c6fd62d2d73c11cf
+    command_identity_contract_sha256: 9f5744cf54129dd5f583e7a01133f83d08e9c6c3146254248ca39fe345d67cdf
   ordered_events:
   - BackupCreated
   event_schema_bindings:
@@ -9684,11 +9727,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/backup_created.schema.json
     event_schema_id: ars://core/event/BackupCreated
     event_schema_version: 1.0.0
-    event_schema_sha256: 8ad9e7d2185c972bcb521df74ccfaf2460fb4fd080906e26f785501cf7e6cd27
+    event_schema_sha256: 78741041eaa8ec5de1dbadfb0a5d549b222ccf2873aa579c9f2a0db4f432fa40
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: 052a0a78ade1ef30140adcb9d83edd048e3eeedde28f3598232dfd319a1090f3
+    event_identity_contract_sha256: 65e74bab38204be5795e49b4955b3ac596be9fdebecb2e676dd36fbbe31e7538
   reducers:
   - reduce_backup
   projections:
@@ -9745,7 +9788,7 @@ rows:
     reducer_projections_selector: '`reduce_backup`; backup, operations'
     authority_precondition: exact store/tail, snapshot, schema, external availability
     receipt_positive_negatives: '`R`; `pos_operator_create_backup`; `NA`'
-  complete_record_sha256: 3b693175dc9cb9b69740e2bd70614020a41f93f534dfa868002edf4116fa32fd
+  complete_record_sha256: e75ea8de7acdf88bdf8b9cc2b5fca638caa1a03d44c9edaf4df61b5802c00d0c
 - source_table: w8_operator
   key: operator.verify_restore
   owner_transition_discriminator: W8 §20 `verify_restore`
@@ -9762,11 +9805,11 @@ rows:
     command_schema_path: .research-system/schemas/core/commands/verify_restore.schema.json
     command_schema_id: ars://core/command/VerifyRestore
     command_schema_version: 1.0.0
-    command_schema_sha256: 8077d6297ea63764c90a0413ec3aaa74bd05c41fc280d58e54a33aa81b89960b
+    command_schema_sha256: 71a6d87010a59966618cce155c0ce9a33cc7d2c16ed9d2e6d682cd03532e8cfc
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    command_identity_contract_sha256: 41a6f2249abf8f1e20ca4ab84adec87560fbbf96f955586227a02a56ed12d719
+    command_identity_contract_sha256: eabc779d0cd5be20c20b9a81f702f9890ddc4f11f2610c32394c7c2d1b961cd4
   ordered_events:
   - RestoreVerified
   event_schema_bindings:
@@ -9775,11 +9818,11 @@ rows:
     event_schema_path: .research-system/schemas/core/events/restore_verified.schema.json
     event_schema_id: ars://core/event/RestoreVerified
     event_schema_version: 1.0.0
-    event_schema_sha256: e4c3ee6513f8abffc82c034f31c5e861ffb0da78db9993dfda873939c4baf99c
+    event_schema_sha256: 06e0443a572d3044757d6739c4d499ff3d995042e5dc2013889b61b8b67d04ba
     materialization_status: proposed_materialized
     review_status: pending_independent_review
     acceptance_status: pending_d_g6_3_owner_acceptance
-    event_identity_contract_sha256: c665f294dc90fc42bb776d3af0279a90d55c9a21ad65919bf94c4bb2cf05f77e
+    event_identity_contract_sha256: a67cb090675f4413727281285958d4e7bb3b11062b9ddd78cd7fb08d277d3e7d
   reducers:
   - reduce_backup
   projections:
@@ -9836,4 +9879,4 @@ rows:
     reducer_projections_selector: '`reduce_backup`; backup, operations'
     authority_precondition: store/project identity, chain, replay, endpoint, schemas, artefacts
     receipt_positive_negatives: '`R`; `pos_operator_verify_restore`; `NA`'
-  complete_record_sha256: cf40d4cda0e55cd405da1f6e0286ea0687f7e362fc6abc1180ec46a3d8bdaa2d
+  complete_record_sha256: dc2375757fd38b315078d09291fd79f6489574cea8aaecdf2662321b241eaa5f

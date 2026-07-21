@@ -16,7 +16,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from tests.research_system.contracts.wp6_1_schema_source import source_rows
+from tests.research_system.contracts.wp6_1_schema_source import approved_fact_annex_bytes, source_rows
 
 
 FACT_ANNEX_PATH = ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"
@@ -647,11 +647,24 @@ def _schema_overlay(
             queued.add(name)
             needed.append(name)
 
+    def collect_missing_refs(value: Any) -> None:
+        if isinstance(value, dict):
+            ref = value.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                name = ref.removeprefix("#/$defs/")
+                if name not in defs:
+                    queue_definition(name)
+            for child in value.values():
+                collect_missing_refs(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect_missing_refs(child)
+
+    # Object definitions referenced through array items (for example
+    # ``members.items.$ref``) are part of the accepted reusable-object closure;
+    # the previous direct-property scan missed these 14 local definitions.
     for variant in target_variants:
-        for field_schema in variant.get("properties", {}).values():
-            ref = field_schema.get("$ref") if isinstance(field_schema, dict) else None
-            if ref and ref.startswith("#/$defs/"):
-                queue_definition(ref.removeprefix("#/$defs/"))
+        collect_missing_refs(variant.get("properties", {}))
     while needed:
         name = needed.pop(0)
         object_id = f"object/{name}"
@@ -674,7 +687,9 @@ def _schema_overlay(
 
 
 def build_stage2_overlays(repo_root: Path, *, baseline_bytes: Mapping[str, bytes] | None = None) -> dict[str, bytes]:
-    proposal = yaml.safe_load((repo_root / FACT_ANNEX_PATH).read_bytes())
+    # The accepted fact tuple is an immutable Git object.  Never derive Stage-2
+    # expectations from mutable checkout bytes.
+    proposal = yaml.safe_load(approved_fact_annex_bytes(repo_root))
     indexes = _index(proposal)
     rows = source_rows(repo_root)
     command_specs = {item["row_key"]: item for item in proposal["command_payload_specs"]}
@@ -700,6 +715,11 @@ def build_stage2_overlays(repo_root: Path, *, baseline_bytes: Mapping[str, bytes
             )
             schema = json.loads(baseline)
             semantic_type = schema["$id"].rsplit("/", 1)[1]
+            expected_identity = {(spec["command_type"] if kind == "command" else spec["event_type"]) for spec in specs}
+            expected_id = f"ars://core/{kind}/{semantic_type}"
+            actual_identity = schema.get("properties", {}).get(f"{kind}_type", {}).get("const")
+            if schema.get("$id") != expected_id or actual_identity not in expected_identity:
+                raise ValueError(f"{relative}: mutable baseline identity is not bound to accepted da94 facts")
             try:
                 target = _schema_overlay(schema, kind, semantic_type, specs, proposal, indexes)
             except (KeyError, StopIteration, ValueError) as exc:

@@ -179,6 +179,41 @@
       ],
       "type": "object",
       "x-source-citation": "W2 §10.2 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `scope.create` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "member_disposition": {
+      "additionalProperties": false,
+      "properties": {
+        "member_id": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.2"
+        },
+        "member_kind": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.2"
+        },
+        "required_disposition": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "partial_accepted",
+            "deferred",
+            "superseded",
+            "removed_by_amendment",
+            "cancelled",
+            "rejected"
+          ],
+          "x-source-citation": "W2 §10.2"
+        }
+      },
+      "required": [
+        "member_id",
+        "member_kind",
+        "required_disposition"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §10.2"
     }
   },
   "$id": "ars://core/command/CreateScopeDefinition",

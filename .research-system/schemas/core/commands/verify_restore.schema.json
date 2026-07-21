@@ -91,6 +91,49 @@
           "x-source-citation": "W8 §19, §20 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/08-resource-checkpoint-and-operations.md; 06d §4, owner row `operator.verify_restore` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
         }
       ]
+    },
+    "external_artefact_availability": {
+      "additionalProperties": false,
+      "properties": {
+        "artefact_id": {
+          "type": "string",
+          "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W8 §19 external artefact manifest"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "x-source-citation": "W8 §19 external artefact manifest integrity"
+        },
+        "availability": {
+          "type": "string",
+          "enum": [
+            "available",
+            "missing",
+            "inaccessible",
+            "quarantined"
+          ],
+          "x-source-citation": "W8 §19 external artefact availability status"
+        },
+        "availability_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "x-source-citation": "W8 §§19-21 availability proof before writer lease"
+        }
+      },
+      "required": [
+        "artefact_id",
+        "content_sha256",
+        "availability",
+        "availability_evidence_refs"
+      ],
+      "type": "object",
+      "x-source-citation": "W8 §19"
     }
   },
   "$id": "ars://core/command/VerifyRestore",

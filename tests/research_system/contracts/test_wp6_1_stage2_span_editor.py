@@ -6,9 +6,12 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
+import tests.research_system.contracts.wp6_1_stage2_span_editor as span_editor
 from tests.research_system.contracts.wp6_1_stage2_span_editor import build_stage2_overlays
+from tests.research_system.contracts.wp6_1_schema_source import approved_fact_annex_bytes
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -104,6 +107,25 @@ def test_wp6_1_stage2_manifests_bind_accepted_annex_and_exact_schema_hashes() ->
             "expanded_edge_count": 182,
         }
         assert manifest["owner_source_annex"]["repository_path"].endswith("06d-wp6-1-owner-source-catalogue.md")
+        assert manifest["owner_source_annex"]["lineage_role"] == "historical_lineage"
+    assert identities["stage1_owner_acceptance"] == catalogue["stage1_owner_acceptance"]
+    acceptance = yaml.safe_load(
+        (REPO_ROOT / ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml").read_bytes()
+    )
+    assert (
+        identities["stage1_owner_acceptance"]["accepted_stage1_tuple"]["reviewed_revision"]
+        == "da94bd62fbf19021f3046c19fae5117c19219c95"
+    )
+    assert (
+        identities["stage1_owner_acceptance"]["record"]["canonical_utf8_lf_sha256"]
+        == hashlib.sha256(
+            (REPO_ROOT / ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml").read_bytes()
+        ).hexdigest()
+    )
+    assert (
+        acceptance["accepted_stage1_tuple"]["proposal_yaml"]["canonical_utf8_lf_sha256"]
+        == hashlib.sha256(approved_fact_annex_bytes(REPO_ROOT)).hexdigest()
+    )
     assert len(identities["rows"]) == len(catalogue["rows"]) == 104
     for row in identities["rows"]:
         command = row["command_schema_identity"]
@@ -112,3 +134,21 @@ def test_wp6_1_stage2_manifests_bind_accepted_annex_and_exact_schema_hashes() ->
         for event in row["event_schema_bindings"]:
             event_data = (REPO_ROOT / event["event_schema_path"]).read_bytes()
             assert event["event_schema_sha256"] == hashlib.sha256(event_data).hexdigest()
+
+
+def test_wp6_1_coordinated_checkout_substitution_cannot_change_immutable_expectations(
+    tmp_path: Path, monkeypatch
+) -> None:
+    candidate = tmp_path / "mutable-proposal.yaml"
+    candidate.write_bytes(
+        approved_fact_annex_bytes(REPO_ROOT).replace(b"CreateScopeDefinition", b"CreateScopeAlias", 1)
+    )
+    monkeypatch.setattr(span_editor, "FACT_ANNEX_PATH", str(candidate))
+    relative = ".research-system/schemas/core/commands/create_scope_definition.schema.json"
+    mutated = (
+        (REPO_ROOT / relative)
+        .read_bytes()
+        .replace(b'"const": "CreateScopeDefinition"', b'"const": "CreateScopeAlias"', 1)
+    )
+    with pytest.raises(ValueError, match="mutable baseline identity"):
+        build_stage2_overlays(REPO_ROOT, baseline_bytes={relative: mutated})

@@ -16,7 +16,7 @@ from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaRegistry
 from tests.research_system.contracts.wp6_1_schema_expectations import PAYLOAD_EXPECTATIONS, PayloadExpectation
 from tests.research_system.contracts.wp6_1_schema_materializer import generate_artifacts, materialize
-from tests.research_system.contracts.wp6_1_schema_source import git_blob_id
+from tests.research_system.contracts.wp6_1_schema_source import approved_fact_annex_bytes, git_blob_id
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -71,6 +71,8 @@ def _schema_value(definition: dict[str, Any], root: dict[str, Any]) -> Any:
         return _schema_value(root["$defs"][token], root)
     if "const" in definition:
         return definition["const"]
+    if "enum" in definition:
+        return definition["enum"][0]
     if definition.get("type") == "object":
         properties = definition.get("properties", {})
         required = list(definition.get("required", []))
@@ -88,8 +90,12 @@ def _schema_value(definition: dict[str, Any], root: dict[str, Any]) -> Any:
     if definition.get("type") == "boolean":
         return True
     pattern = definition.get("pattern", "")
+    if pattern.startswith("^git:"):
+        return "git:sha256:" + "a" * 64
     if "[0-9a-f]{64}" in pattern:
         return "a" * 64
+    if pattern.startswith("^[0-9]+\\."):
+        return "1.0.0"
     if "date-time" == definition.get("format"):
         return "2026-07-19T00:00:00Z"
     prefix_match = re.search(r"\^([a-z]+)_", pattern)
@@ -316,6 +322,60 @@ def test_wp6_1_generated_schemas_reject_toy_shell_fields_and_close_every_object(
         assert all(node.get("additionalProperties") is False for node in objects)
 
 
+_DANGLING_REF_SCHEMA_PATHS = (
+    "commands/create_scope_definition.schema.json",
+    "events/scope_definition_created.schema.json",
+    "commands/supersede_scope_definition.schema.json",
+    "events/scope_definition_superseded.schema.json",
+    "commands/start_attempt.schema.json",
+    "events/attempt_started.schema.json",
+    "commands/record_review_verdict.schema.json",
+    "events/review_verdict_recorded.schema.json",
+    "commands/request_review_changes.schema.json",
+    "events/review_changes_requested.schema.json",
+    "commands/create_backup.schema.json",
+    "events/backup_created.schema.json",
+    "commands/verify_restore.schema.json",
+    "events/restore_verified.schema.json",
+)
+
+
+def test_wp6_1_all_173_local_refs_close_and_fourteen_reusable_objects_validate() -> None:
+    schemas = _all_catalogue_schemas()
+    assert len(schemas) == 173
+    for identity, schema, _kind in schemas:
+        refs: list[str] = []
+
+        def collect(value: Any) -> None:
+            if isinstance(value, dict):
+                ref = value.get("$ref")
+                if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                    refs.append(ref.removeprefix("#/$defs/"))
+                for child in value.values():
+                    collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+
+        collect(schema)
+        assert all(token in schema.get("$defs", {}) for token in refs), identity
+
+    registry = SchemaRegistry(SCHEMA_ROOT)
+    affected = {f".research-system/schemas/core/{relative}" for relative in _DANGLING_REF_SCHEMA_PATHS}
+    assert len(affected) == 14
+    for identity, schema, kind in schemas:
+        path = identity[f"{kind}_schema_path"]
+        if path not in affected:
+            continue
+        instance = _valid_instance(schema)
+        registry.validate(schema["$id"], instance)
+        required = list(_resolve_local_reference(schema["$defs"]["payload"], schema)["oneOf"][0]["required"])
+        candidate = json.loads(json.dumps(instance))
+        candidate["payload"].pop(required[0])
+        with pytest.raises(SchemaError):
+            registry.validate(schema["$id"], candidate)
+
+
 def test_wp6_1_generated_roots_materialize_the_approved_command_and_event_envelopes() -> None:
     for _identity, schema, kind in _all_catalogue_schemas():
         expected = _COMMAND_ROOT_REQUIRED if kind == "command" else _EVENT_ROOT_REQUIRED
@@ -404,7 +464,7 @@ def test_wp6_1_public_registry_rejects_domain_omission_wrong_type_nested_extra_a
     instance = _valid_instance(schema)
     registry.validate(schema["$id"], instance)
     for mutator in (
-        lambda value: value["payload"].pop("assignee_id", None),
+        lambda value: value["payload"].pop("task_id", None),
         lambda value: value["payload"].__setitem__("message_type", 7),
         lambda value: value["payload"].__setitem__("nested_escape", {"unexpected": True}),
         lambda value: value["payload"].update({"message_type": "assignment", "subject_artefact_id": "art-1"}),
@@ -423,15 +483,15 @@ def test_wp6_1_scope_variants_bind_closed_member_and_disposition_facts() -> None
     assert member["additionalProperties"] is False
     assert set(member["required"]) == {"member_id", "member_kind", "required_disposition"}
     create_required = set(create["$defs"]["payload"]["oneOf"][0]["required"])
-    assert create_required >= {
+    assert create_required == {
         "new_scope_definition_id",
+        "revision",
         "members",
-        "dependencies",
+        "dependency_rules",
         "ordering_rules",
-        "completion_rule",
-        "authority_rule",
+        "completion_predicate",
+        "amendment_authority",
         "effective_at",
-        "supersession_rule",
     }
     for key in ("scope.amend_revision", "scope.complete"):
         schema = _schema(rows[key]["command_schema_identity"]["command_schema_path"])
@@ -452,7 +512,7 @@ _MESSAGE_UNIVERSAL = {
     "retention_class",
 }
 _MESSAGE_COMMAND_ID_FIELDS = {"new_message_id"}
-_MESSAGE_EVENT_ID_FIELDS = {"message_id"}
+_MESSAGE_EVENT_ID_FIELDS = {"new_message_id"}
 
 
 def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_exclusivity() -> None:
@@ -468,11 +528,11 @@ def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_
         for index, variant in enumerate(variants):
             required = set(variant["required"])
             identifier_fields = _MESSAGE_COMMAND_ID_FIELDS if kind == "command" else _MESSAGE_EVENT_ID_FIELDS
-            prohibited_identifier = "message_id" if kind == "command" else "new_message_id"
+            prohibited_identifier = "message_id" if kind == "command" else "message_id"
             assert required >= _MESSAGE_UNIVERSAL | identifier_fields
             assert prohibited_identifier not in required
-            assert {"required": ["body"]} in variant["oneOf"]
-            assert {"required": ["body_artefact_ref"]} in variant["oneOf"]
+            assert "body" in required
+            assert "body_artefact_ref" not in variant.get("properties", {})
             instance = _schema_value(schema, schema)
             instance["payload"] = _schema_value(variant, schema)
             registry.validate(schema["$id"], instance)
@@ -480,13 +540,27 @@ def test_wp6_1_message_command_and_event_variants_bind_universal_facts_and_body_
             missing["payload"].pop("typed_subject")
             with pytest.raises(SchemaError):
                 registry.validate(schema["$id"], missing)
+            extra_body = json.loads(json.dumps(instance))
+            extra_body["payload"]["body_artefact_ref"] = "art_01979c31-6710-7a2d-8d4b-6d2c62e07f51"
+            with pytest.raises(SchemaError):
+                registry.validate(schema["$id"], extra_body)
             assert index < 10
 
 
 def test_wp6_1_event_payloads_never_use_command_intent_new_identifier_fields() -> None:
+    proposal = yaml.safe_load(approved_fact_annex_bytes(REPO_ROOT))
+    accepted_new_ids: dict[str, set[str]] = {}
+    for spec in proposal["event_fact_specs"]:
+        accepted_new_ids.setdefault(spec["event_type"], set()).update(
+            field for field in spec["required_field_names"] if re.fullmatch(r"new_.*_id", field)
+        )
     event_schemas = [schema for _identity, schema, kind in _all_catalogue_schemas() if kind == "event"]
     assert len(event_schemas) == 86
     for schema in event_schemas:
         for variant in _payload_variants(schema):
             leaked = {field for field in variant.get("required", []) if re.fullmatch(r"new_.*_id", field)}
-            assert not leaked, f"{schema['$id']}: event payload leaks command-intent identifiers {sorted(leaked)}"
+            event_type = schema["properties"]["event_type"]["const"]
+            assert leaked == accepted_new_ids.get(event_type, set()), (
+                f"{schema['$id']}: event payload new identifiers differ from accepted da94 facts: "
+                f"{sorted(leaked)} != {sorted(accepted_new_ids.get(event_type, set()))}"
+            )

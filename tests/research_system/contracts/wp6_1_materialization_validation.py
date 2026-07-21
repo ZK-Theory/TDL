@@ -49,7 +49,12 @@ _OWNER_SOURCE_ANNEX = {
     "canonical_utf8_lf_sha256": APPROVED_WP6_1_ANNEX_SHA256,
     "normalized_row_count": 104,
     "expanded_edge_count": 182,
+    "lineage_role": "historical_lineage",
 }
+_STAGE1_ACCEPTANCE_PATH = ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml"
+_STAGE1_ACCEPTANCE_SCHEMA_ID = "ars://contracts/wp6-1-stage1-owner-acceptance-record"
+_STAGE1_ACCEPTANCE_BLOB = "42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83"
+_STAGE1_ACCEPTANCE_SHA256 = "70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648"
 _GOVERNANCE = {
     "producer": "pipe/ars-wp6-1-task-lifecycle owning Worker",
     "intended_independent_reviewer": "independent reviewer who did not implement the schemas",
@@ -246,6 +251,7 @@ def _read_yaml(path: Path) -> tuple[bytes, dict[str, Any]]:
     return data, value
 
 
+@lru_cache(maxsize=1)
 def _verify_approved_annex_provenance(repo_root: Path) -> bytes:
     result = subprocess.run(
         [
@@ -267,6 +273,7 @@ def _verify_approved_annex_provenance(repo_root: Path) -> bytes:
     return result.stdout
 
 
+@lru_cache(maxsize=1)
 def _verify_fact_annex_provenance(repo_root: Path) -> bytes:
     result = subprocess.run(
         ["git", "show", f"{APPROVED_WP6_1_FACT_REVISION}:{APPROVED_WP6_1_FACT_ANNEX_PATH}"],
@@ -286,6 +293,7 @@ def _verify_fact_annex_provenance(repo_root: Path) -> bytes:
     return result.stdout
 
 
+@lru_cache(maxsize=1)
 def _verify_stage2_overlay_bytes(repo_root: Path) -> None:
     expected = build_stage2_overlays(repo_root)
     _require(len(expected) == 173, "accepted Stage-2 overlay count mismatch")
@@ -1017,6 +1025,34 @@ def validate_wp6_1_contract_materialization(
     registry = _schema_registry(schema_root)
     registry.validate(WP6_1_IDENTITIES_SCHEMA_ID, identities)
     registry.validate(WP6_1_CATALOGUE_SCHEMA_ID, catalogue)
+    acceptance_bytes, acceptance = _read_yaml(repo_root / _STAGE1_ACCEPTANCE_PATH)
+    registry.validate(_STAGE1_ACCEPTANCE_SCHEMA_ID, acceptance)
+    _require(
+        hashlib.sha256(acceptance_bytes).hexdigest() == _STAGE1_ACCEPTANCE_SHA256, "Stage-1 acceptance SHA-256 mismatch"
+    )
+    _require(
+        _git_blob_id(acceptance_bytes, repo_root) == _STAGE1_ACCEPTANCE_BLOB, "Stage-1 acceptance Git blob mismatch"
+    )
+    expected_record = {
+        "repository_path": _STAGE1_ACCEPTANCE_PATH,
+        "schema_id": _STAGE1_ACCEPTANCE_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "git_blob_id": _STAGE1_ACCEPTANCE_BLOB,
+        "canonical_utf8_lf_sha256": _STAGE1_ACCEPTANCE_SHA256,
+    }
+    for manifest in (identities, catalogue):
+        _require(
+            manifest["stage1_owner_acceptance"]["record"] == expected_record,
+            "Stage-1 acceptance record identity mismatch",
+        )
+        _require(
+            manifest["stage1_owner_acceptance"]["accepted_stage1_tuple"] == acceptance["accepted_stage1_tuple"],
+            "Stage-1 accepted tuple mismatch",
+        )
+        _require(
+            manifest["stage1_owner_acceptance"]["acceptance_statement"] == acceptance["acceptance_statement"],
+            "Stage-1 acceptance statement mismatch",
+        )
 
     _require(identities["source_annex"] == _SOURCE_ANNEX, "identity source annex mismatch")
     _require(catalogue["source_annex"] == _SOURCE_ANNEX, "catalogue source annex mismatch")

@@ -12,6 +12,8 @@ from typing import Any
 
 import yaml
 
+from tests.research_system.contracts.wp6_1_schema_source import approved_fact_annex_bytes
+
 
 @dataclass(frozen=True)
 class PayloadExpectation:
@@ -281,10 +283,8 @@ PAYLOAD_EXPECTATIONS: dict[str, PayloadExpectation] = {
 
 def _accepted_fact_expectations() -> dict[str, PayloadExpectation]:
     """Derive the independent minimum-fact oracle from the accepted annex."""
-    proposal_path = (
-        Path(__file__).resolve().parents[3] / ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"
-    )
-    proposal = yaml.safe_load(proposal_path.read_bytes())
+    repo_root = Path(__file__).resolve().parents[3]
+    proposal = yaml.safe_load(approved_fact_annex_bytes(repo_root))
     rules = {
         rule["semantic_type"]: rule for rule in proposal["shared_schema_rules"] if rule["schema_kind"] == "command"
     }
