@@ -657,6 +657,37 @@ security probing, or third remediation cycle is authorized.<br>
 **Affected specifications:** P-038; W2 receipt/event/idempotency; W7 T2 subset and later
 runtime qualification; W8 cost boundary; WP6.2 T2; large-workflow assurance budgeting.
 
+### P-040 - WP6.2 T2 exact-byte contract acceptance
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Closes:** P-037's exact addendum, identity-manifest, reviewed-commit, and owner-
+acceptance gate<br>
+**Decision:** Accept the WP6.2 T2 contract/addendum candidate commit
+`391a92753d7f746fa91a6b5455c9ce0fd01baa52`, tree
+`0254c5416925126412867d61b3045ee1563abd0c`, for its exact bytes only. The
+candidate contains exactly 27 changed paths: 26 present blobs and the P-039-authorized
+deletion of the T2 pre-issue evidence manifest. The external decision record, rather
+than mutation of the accepted candidate, supplies the accepted lifecycle state.<br>
+**Review evidence:** Final static R3 review commit
+`655f4173db93447a068adc6e92621455c4abc85d`; report Git blob
+`1ad44c1f79ea9738f8ff5e2369bab3a32b4f940d`; raw-byte SHA-256
+`17906c4ae1916840dfe94aab3f5991d17e8037940802ec1338c49b53f9506fd8`;
+verdict `accept` with 0 Critical, 0 Major, and 0 Minor findings, 135/135 focused
+tests, 102/102 contracts, and independent reproduction of the 220-member protected
+aggregate.<br>
+**Exact acceptance record:**
+`reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md` records Stephen's direct
+confirmation and the exact candidate, handback, authority-addendum, catalogue,
+crosswalk, protected-membership, schema-identity, and R3-report identities.<br>
+**Boundary:** This closes the contract-candidate review and owner-acceptance gate only.
+It authorizes no runtime implementation, credential resolution, provider call, T3/T4,
+T1b, eligibility transition, result, claim, publication, accepted-artifact mutation,
+PR merge, or further Gate 6 transition. A later implementation brief or integration
+action requires separate authority.<br>
+**Affected specifications:** P-037; P-038; P-039; W2 receipt/event/idempotency; W7 T2
+authority/cost subset; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at
