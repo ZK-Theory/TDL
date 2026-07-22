@@ -38,6 +38,16 @@ def test_registry_validates_command_envelope():
     SchemaRegistry(SCHEMAS).validate("ars://core/command", _command_payload())
 
 
+def test_registry_rejects_malformed_command_submission_timestamp():
+    registry = SchemaRegistry(SCHEMAS)
+    payload = _command_payload()
+    registry.validate("ars://core/command", payload)
+
+    payload["submitted_at"] = "not-a-timestampZ"
+    with pytest.raises(SchemaError, match="submitted_at"):
+        registry.validate("ars://core/command", payload)
+
+
 def test_registry_rejects_non_uuid7_command_identity():
     payload = _command_payload()
     payload["command_id"] = "cmd_" + "1" * 32
@@ -98,6 +108,19 @@ def test_every_core_schema_declares_closed_object_contract():
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
         assert schema["$id"].startswith("ars://core/")
+        assert schema["type"] == "object"
+        assert schema["required"]
+        assert schema["properties"]
+        assert schema["additionalProperties"] is False
+
+
+def test_every_command_schema_declares_closed_object_contract():
+    paths = sorted((SCHEMAS / "core" / "commands").glob("*.schema.json"))
+    assert len(paths) == 87
+    for path in paths:
+        schema = json.loads(path.read_text(encoding="utf-8"))
+        assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+        assert schema["$id"].startswith("ars://core/command/")
         assert schema["type"] == "object"
         assert schema["required"]
         assert schema["properties"]

@@ -1,0 +1,631 @@
+{
+  "$defs": {
+    "payload": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "task_id": {
+              "type": "string",
+              "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+              "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "prior_revision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            },
+            "new_revision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            },
+            "replacement_definition": {
+              "$ref": "#/$defs/task_definition",
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            },
+            "changed_fields": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            },
+            "effective_boundary": {
+              "type": "string",
+              "minLength": 1,
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            },
+            "authority_evidence_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true,
+              "x-source-citation": "W2 §§10-11 and 06d task rows"
+            }
+          },
+          "required": [
+            "task_id",
+            "prior_revision",
+            "new_revision",
+            "replacement_definition",
+            "changed_fields",
+            "rationale",
+            "effective_boundary",
+            "authority_evidence_refs"
+          ],
+          "type": "object",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      ]
+    },
+    "task_revision_reference": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "minLength": 1,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "revision": {
+          "minimum": 1,
+          "type": "integer",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        },
+        "task_id": {
+          "minLength": 1,
+          "type": "string",
+          "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+        }
+      },
+      "required": [
+        "task_id",
+        "revision",
+        "content_hash"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §§10-11 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md; 06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "task_definition": {
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W2 §10.1 Identity"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "x-source-citation": "W2 §10.1 Identity"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/alias"
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Identity"
+        },
+        "project_id": {
+          "type": "string",
+          "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W2 §10.1 Identity"
+        },
+        "portfolio_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Identity"
+        },
+        "scope_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Identity"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Purpose"
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Purpose"
+        },
+        "bounded_scope": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Purpose"
+        },
+        "non_goals": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Purpose"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency"
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Dependency"
+        },
+        "governing_design_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Research design"
+        },
+        "risk_tier_request": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Research design"
+        },
+        "assurance_lanes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Assurance"
+        },
+        "machine_checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Assurance"
+        },
+        "human_questions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Assurance"
+        },
+        "independent_review_requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Assurance"
+        },
+        "expected_artefact_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Delivery"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Delivery"
+        },
+        "partial_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Delivery"
+        },
+        "prohibited_shortcuts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Delivery"
+        },
+        "root_binding_requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/root_binding"
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Execution"
+        },
+        "concurrency_mode": {
+          "type": "string",
+          "enum": [
+            "exclusive",
+            "comparative",
+            "redundant"
+          ],
+          "x-source-citation": "W2 §§10.1 and 12.6"
+        },
+        "resource_policy_ref": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Execution"
+        },
+        "checkpoint_expectation": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Execution"
+        },
+        "dispatch_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "amend_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "cancel_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "review_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "accept_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "reopen_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "supersede_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1 Authority"
+        },
+        "creator_actor_id": {
+          "type": "string",
+          "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W2 §10.1 Provenance"
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "Z$",
+          "format": "date-time",
+          "x-source-citation": "W2 §10.1 Provenance"
+        },
+        "source_import_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "x-source-citation": "W2 §10.1 Provenance"
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "x-source-citation": "W2 §10.1 Provenance"
+        }
+      },
+      "required": [
+        "task_id",
+        "revision",
+        "aliases",
+        "project_id",
+        "portfolio_refs",
+        "scope_refs",
+        "title",
+        "objective",
+        "bounded_scope",
+        "non_goals",
+        "dependencies",
+        "governing_design_refs",
+        "risk_tier_request",
+        "assurance_lanes",
+        "machine_checks",
+        "human_questions",
+        "independent_review_requirements",
+        "expected_artefact_types",
+        "acceptance_criteria",
+        "partial_criteria",
+        "prohibited_shortcuts",
+        "root_binding_requirements",
+        "concurrency_mode",
+        "resource_policy_ref",
+        "checkpoint_expectation",
+        "dispatch_authority",
+        "amend_authority",
+        "cancel_authority",
+        "review_authority",
+        "accept_authority",
+        "reopen_authority",
+        "supersede_authority",
+        "creator_actor_id",
+        "created_at",
+        "source_import_refs",
+        "content_sha256"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §10.1"
+    },
+    "alias": {
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §24.1"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §24.1"
+        },
+        "scope_id": {
+          "type": "string",
+          "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "x-source-citation": "W2 §§6.1 and 24.1"
+        }
+      },
+      "required": [
+        "namespace",
+        "value",
+        "scope_id"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §§10.1 and 24.1"
+    },
+    "dependency": {
+      "additionalProperties": false,
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1"
+        },
+        "subject_kind": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1"
+        },
+        "satisfaction_predicate": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §10.1"
+        }
+      },
+      "required": [
+        "subject_id",
+        "subject_kind",
+        "satisfaction_predicate"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §10.1 Dependency"
+    },
+    "root_binding": {
+      "additionalProperties": false,
+      "properties": {
+        "root_kind": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1 names control/code/result/cache/paper/vault/external-data roots"
+        },
+        "canonical_uri": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        },
+        "workspace_identity": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        },
+        "access_mode": {
+          "type": "string",
+          "enum": [
+            "read_only",
+            "create_only",
+            "append_only",
+            "read_write"
+          ],
+          "x-source-citation": "W2 §12.1 selected generation rule"
+        },
+        "expected_branch": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        },
+        "expected_commit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+          "x-source-citation": "W2 §12.1 selected algorithm-tagged Git identity"
+        },
+        "provenance_authority": {
+          "type": "string",
+          "minLength": 1,
+          "x-source-citation": "W2 §12.1"
+        }
+      },
+      "required": [
+        "root_kind",
+        "canonical_uri",
+        "workspace_identity",
+        "access_mode",
+        "expected_branch",
+        "expected_commit",
+        "provenance_authority"
+      ],
+      "type": "object",
+      "x-source-citation": "W2 §12.1 and W8 §7"
+    }
+  },
+  "$id": "ars://core/command/AmendTask",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Closed, proposed-only materialization from the reviewed WP6.1 owner source.",
+  "properties": {
+    "actor_id": {
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authority_grant_id": {
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "causation_id": {
+      "minLength": 1,
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "command_id": {
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "command_type": {
+      "const": "AmendTask",
+      "x-source-citation": "06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "correlation_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "evidence_refs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true,
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "expected_stream_version": {
+      "minimum": 0,
+      "type": "integer",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "maximum": 9007199254740991
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "on_behalf_of_actor_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "payload": {
+      "$ref": "#/$defs/payload"
+    },
+    "reason": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "schema_id": {
+      "const": "ars://core/command/AmendTask",
+      "x-source-citation": "06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "x-source-citation": "06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+    },
+    "submitted_at": {
+      "format": "date-time",
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md",
+      "pattern": "Z$"
+    },
+    "target_stream_id": {
+      "minLength": 1,
+      "type": "string",
+      "x-source-citation": "W2 §8.1 at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/design/02-task-event-and-artifact-schema.md"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "x-source-citation": "W2 §8.1 and 06d §1.2"
+    }
+  },
+  "required": [
+    "command_id",
+    "command_type",
+    "schema_id",
+    "schema_version",
+    "submitted_at",
+    "actor_id",
+    "on_behalf_of_actor_id",
+    "authority_grant_id",
+    "target_stream_id",
+    "expected_stream_version",
+    "idempotency_key",
+    "correlation_id",
+    "causation_id",
+    "reason",
+    "evidence_refs",
+    "payload",
+    "project_id"
+  ],
+  "title": "WP6.1 proposed command schema: AmendTask",
+  "type": "object",
+  "x-lifecycle": "proposed_materialized",
+  "x-source-citation": "06d §2, owner row `task.amend_revision` at fe5f1d40bc8f05f061317c677b5891cea0711249:docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"
+}
