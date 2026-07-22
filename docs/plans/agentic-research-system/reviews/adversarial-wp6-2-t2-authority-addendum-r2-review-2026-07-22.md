@@ -35,11 +35,20 @@ conversation was used.
 | W2, `design/02-task-event-and-artifact-schema.md` | subject blob `7e09a9c49605663bb50163840fff3ae4c8212748`; SHA-256 `dd5f45ec91cb4c10f0e8d1d99341ad16745bec21f58400b6643285224870f9c6` | Read, including IDs, commands, receipts, events, idempotency, replay, and tests. |
 | W7, `design/07-runtime-adapters-and-policy-parity.md` | subject blob `088ace2c30e702ac8df8d58629559c480e09a5bd`; SHA-256 `c9acab47d6b729b82e8081cf32681c6ebe0ddfdaa072c1adca8f91e01d967a85` | Sections 9 and 10 independently enumerated below. |
 | W8, `design/08-resource-checkpoint-and-operations.md` | subject blob `d26f24b9a6670b095d307fe531a7bb9b31c55311`; SHA-256 `84c80a8b499394fed65ed0d4e7fe1f4f9a85a8ccc23b299c85198e5d60e79a58` | Read for resource-grant, lease, stop, and proportionality obligations. |
-| 06b, `design/06b-w4-w5-routing-assurance-fixture-addendum-2026-06-30.md` | subject blob `1a169d415731d1073ed06dc7b163be848c4d6b0f`; SHA-256 `ae5612a018aa4f9383123497e629cc65239f2a15ce0581cb908f24e945b5d9d4` | Read for the T2 boundary and the eight named seams. |
+| 06b, `implementation/06b-wp6-2-live-capability-plan.md` | subject blob `4b8bc7e12df98d5760b0aede7bb7d37dfc8d49b9`; SHA-256 `365e90089307958b7c833c635e74e3c63e65aa72e3c03945ea8f304431edfe38` | Exact candidate bytes read in full; T2 boundary at lines 66-77 and eight-seam matrix at lines 193-219. |
 | Candidate handback, `handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md` | wrapper `bba49c11ef8cd37dee7fa571f712d77a954f6b16`; blob `58525864b62942159fc605d50abee9d2ddfa0046`; SHA-256 `36ab56c32d21c0cef29befd32b1202dccea323f0827dc18cc568d03e9ecd2048` | Identity verified; claims were independently checked rather than accepted. |
 
 No authority object was inaccessible or contradictory. P-038 therefore remains the
 conformance standard even where this review separately questions proportionality.
+
+**Provenance correction.** Report commit
+`38e9cfe3d4c3e2549f3f7b2b51fa98b6fa7c5409` incorrectly identified the W6 W4/W5
+fixture-reservation addendum as 06b. The exact source above is the WP6.2 live-capability
+plan. Re-evaluation against its complete 542-line content does not change the verdict or
+counts. It independently reinforces C3's opaque SecretReference and eight producer-seam
+boundary, C4's Task/dispatch/attempt binding, and M1's CostGrant ceilings and
+reservation/reconciliation requirements. C1, C2, M2, M3, and I1 derive from other exact
+authorities and are unaffected.
 
 ## Validation performed
 
@@ -69,6 +78,9 @@ conformance standard even where this review separately questions proportionality
   Both contract blobs are `6c2aa7f476f067aedf5bb6e5db544aad153206d0`, both declare
   `fb1d000f96b31a69f9f4c0adc53e0115f89e6d18`, and both resolve the actual skill to
   `487d883f1df718b1d61139434dfce70ef5fbe05d`. It is pre-existing, not candidate drift.
+- For the report-only provenance correction, verified the corrected 06b Git blob and raw
+  SHA-256 above and read its exact candidate content in full. Per owner instruction, no
+  tests, probes, or other validation commands were rerun.
 
 Green tests establish the implemented behavior only. They do not establish completeness
 when the schema, validator, expected values, and tests omit the same relation.
@@ -156,9 +168,14 @@ when the schema, validator, expected values, and tests omit the same relation.
    source-evidence identity/revision/hash, or currency/freshness. The repository's own
    positive semantic fixture omits required top-level schema fields and uses records that
    do not meet the manifest schema, yet the semantic test passes.
-4. **Independent expected source.** P-038 C3, W7, and 06b independently require the typed,
-   bound, fail-closed evidence surface. The candidate's expected-value module does not
-   supply an independent proof because it is imported by both materializer and validator.
+4. **Independent expected source.** P-038 C3 specifically requires the typed manifest and
+   its policy/scanner/source bindings. Correct 06b independently requires an opaque,
+   byte-free SecretReference bound to the exact Task/dispatch/attempt, route/profile,
+   adapter, and ProviderCommand (`implementation/06b-wp6-2-live-capability-plan.md:66-77`),
+   plus the eight pre-invocation producer-seam failures and zero-side-effect boundary
+   (`:193-219`). W7 supplies the provider command/receipt boundary. The candidate's
+   expected-value module does not supply an independent proof because it is imported by
+   both materializer and validator.
 5. **Existing tests.** The positive and negative scan tests prove recursive checking of the
    supplied eight payload objects only. No existing decisive test requires schema validity
    or rejects missing/stale/mismatched policy, scanner, producer, or source evidence.
@@ -194,7 +211,9 @@ when the schema, validator, expected values, and tests omit the same relation.
    the Issue authority-subject list, so those exact bindings cannot be enforced.
 4. **Independent expected source.** P-038 C4 and the addendum sections 4 and 11 independently
    require exact ID/revision/hash equality; W8 independently supplies ResourceGrant and
-   reservation semantics.
+   reservation semantics. Correct 06b lines 66-77 separately require resolved use to bind
+   the exact Task/dispatch/attempt, route/profile, adapter revision, ProviderCommand, and
+   CostGrant.
 5. **Existing tests.** Positive fixtures reproduce the same omissions. The subject-negative
    test mutates a RecordProviderReceipt reservation hash, and the missing-subject test
    removes the Task record, but no test rejects wrong/missing Task, Dispatch, Attempt, or
@@ -223,7 +242,9 @@ when the schema, validator, expected values, and tests omit the same relation.
    disposition. `validate_cost_evidence_relations` at lines 650-656 separately checks the
    four cross-object evidence fields. No mandatory composed validator requires both.
 4. **Independent expected source.** P-037, P-038 M1, and W8 independently specify the
-   arithmetic and cross-object agreement.
+   arithmetic and cross-object agreement. Correct 06b lines 70-77 also require token and
+   cost ceilings, reserved/consumed/refunded amounts, atomic reservation, and receipt
+   reconciliation; its lines 211-219 bind the rejection and positive-path relations.
 5. **Existing tests.** Existing tests are decisive for arithmetic, zero-cost authority, and
    the standalone evidence-equality helper. The normative crosswalk names only
    `validate_reconciliation` and omits the evidence helper and its test, so it does not
@@ -349,9 +370,9 @@ when the schema, validator, expected values, and tests omit the same relation.
 |---|---|---|---|---|---|---|
 | C1 Receipt 2.0 | Broad surface present | Status/duplicate subset only | W2 + P-038 | Required-field test | Rejected-events test | **Fail**: order/position/count/binding absent |
 | C2 five event envelopes | Hash fields present | Rebuild keyed by command ID | W2 + P-038 | Five-schema/rebuild tests | Same-command conflict/effect tests | **Fail**: logical tuple collision unproved |
-| C3 resolver/eight-seam evidence | Typed schemas present | Payload scan; provenance ignored; no schema prerequisite | W7 + 06b + P-038 | Eight supplied payloads | Supplied-payload detection | **Fail**: policy/scanner/source/staleness unbound |
-| C4 command relations | Most fields present | Target/version/order strong; subject triples conditional/incomplete | W2 + W8 + P-037/P-038 | Three command fixtures | Four relation mutations | **Fail**: Task/Dispatch/Attempt/prepared grant exactness incomplete |
-| M1 cost/reconciliation | Complete arithmetic/evidence fields | Arithmetic strong; evidence equality separate | W8 + P-037/P-038 | Integer/mode/equality tests | Arithmetic/equality tests | **Fail**: no composed mandatory gate |
+| C3 resolver/eight-seam evidence | Typed schemas present | Payload scan; provenance ignored; no schema prerequisite | 06b T2/§4 + W7 + P-038 | Eight supplied payloads | Supplied-payload detection | **Fail**: policy/scanner/source/staleness unbound |
+| C4 command relations | Most fields present | Target/version/order strong; subject triples conditional/incomplete | 06b T2 + W2 + W8 + P-037/P-038 | Three command fixtures | Four relation mutations | **Fail**: Task/Dispatch/Attempt/prepared grant exactness incomplete |
+| M1 cost/reconciliation | Complete arithmetic/evidence fields | Arithmetic strong; evidence equality separate | 06b T2/§4 + W8 + P-037/P-038 | Integer/mode/equality tests | Arithmetic/equality tests | **Fail**: no composed mandatory gate |
 | M2 W7 successors | Broad grouped representation | Completeness flags only | W7 §§9-10 + P-038 | Top-level required sets | Diagnostic-only gate | **Fail**: provider binding and per-obligation coverage |
 | M3 canonical IDs | Most strict; receipt stream loose | Strict helper not applied to receipt stream | W2 + W7 + P-038 | Selected top-level IDs | Selected prefix/case cases | **Fail**: receipt stream bypass |
 | Identity/crosswalk closure | 26 leaf identities exact; 214 aggregate asserted | Shared oracle and partial protected selector | P-038 + Git objects | Byte/materialization tests | Selected mutation tests | **Fail**: independent 214-set/oracle absent |
@@ -383,13 +404,15 @@ Three layers must remain distinct:
 
 1. **T2 contract stage.** It is proportionate and necessary to keep raw provider
    credentials out of canonical commands, events, receipts, and artifacts, and to bind an
-   opaque SecretReference by exact identity/revision/hash. This is a representation and
-   authority-boundary requirement. C3 concerns the evidentiary binding of that contract,
-   not a claim that a live secret path was exercised.
+   opaque SecretReference by exact identity/revision/hash. Correct 06b lines 66-77 define
+   that contract-stage boundary. This is a representation and authority-boundary
+   requirement. C3 concerns the evidentiary binding of that contract, not a claim that a
+   live secret path was exercised.
 2. **T3/T4 runtime stage.** Verification of the actual resolver, provider transport,
    exception path, telemetry, logging, persistence, and redaction path belongs to later
-   runtime work. This review grants no runtime authority and draws no conclusion about
-   those implementations.
+   runtime work. Correct 06b lines 78-90 expressly place provider-specific canary execution
+   and repetition of the T2 matrix in T3/T4. This review grants no runtime authority and
+   draws no conclusion about those implementations.
 3. **Reviewer-authored custom security probes.** Custom payloads, fuzzing, mutations,
    exploit demonstrations, credential-like inputs, scanners, penetration tests, and
    network/security tooling were intentionally omitted. Their omission is a validation
@@ -398,15 +421,16 @@ Three layers must remain distinct:
    tracing or repository-owned unchanged tests.
 
 The eight-seam pre-issue manifest is an accepted P-038 owner requirement, so this review
-must enforce it and cannot weaken or rewrite it. As a design-proportionality matter,
-requiring an exact ordered manifest across all eight producer seams at T2 is defensible as
-a fail-closed contract for a high-consequence pre-invocation boundary, but it may be
-over-specified: several seam checks concern behavior that can only be established on the
-real T3/T4 resolver/transport/logging path, and a T2 declaration can become ceremony
-rather than evidence. The owner should reconsider that allocation separately, deciding
+must enforce it and cannot weaken or rewrite it. Correct 06b lines 193-219 establish the
+same eight producer seams as a binding pre-issue matrix and explicitly make post-run scans
+defense in depth; the seam set is therefore not a reviewer invention. As a
+design-proportionality matter, requiring an exact ordered manifest across all eight seams
+at T2 is defensible as a fail-closed contract, but the manifest may still be an
+over-specified T2 evidence form because 06b assigns actual provider-specific canary
+execution to T3/T4. The owner should reconsider that allocation separately, deciding
 which minimal T2 invariants are representation-checkable and which evidence must be
-deferred to runtime qualification. That future design decision does not alter P-038's
-current authority or this conformance verdict.
+proved during runtime qualification. That future decision does not alter P-038's current
+authority or this conformance verdict.
 
 ## Practicality and residual risk
 
