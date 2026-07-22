@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-1-schema-identities",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "manifest_id",
+    "source_annex",
+    "owner_source_annex",
+    "stage1_owner_acceptance",
+    "governance",
+    "normalized_row_count",
+    "row_identity_multiset_sha256",
+    "rows"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-1-schema-identities"},
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"const": "wp6-1-schema-identities"},
+    "source_annex": {"$ref": "#/$defs/sourceAnnex"},
+    "owner_source_annex": {"$ref": "#/$defs/ownerSourceAnnex"},
+    "stage1_owner_acceptance": {"$ref": "#/$defs/stage1OwnerAcceptance"},
+    "governance": {"$ref": "#/$defs/governance"},
+    "normalized_row_count": {"const": 104},
+    "row_identity_multiset_sha256": {"$ref": "#/$defs/sha256"},
+    "rows": {
+      "type": "array",
+      "minItems": 104,
+      "maxItems": 104,
+      "items": {"$ref": "#/$defs/identityRow"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceAnnex": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "reviewed_revision",
+        "git_blob_id",
+        "canonical_utf8_lf_sha256",
+        "normalized_row_count",
+        "expanded_edge_count"
+      ],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"},
+        "reviewed_revision": {"const": "da94bd62fbf19021f3046c19fae5117c19219c95"},
+        "git_blob_id": {"const": "2f55b82f1a84cc0de081d38f8500c73a2083bac4"},
+        "canonical_utf8_lf_sha256": {"const": "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"},
+        "normalized_row_count": {"const": 104},
+        "expanded_edge_count": {"const": 182}
+      },
+      "additionalProperties": false
+    },
+    "ownerSourceAnnex": {
+      "type": "object",
+      "required": ["repository_path", "reviewed_revision", "git_blob_id", "canonical_utf8_lf_sha256", "normalized_row_count", "expanded_edge_count", "lineage_role"],
+      "properties": {
+        "repository_path": {"const": "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"},
+        "reviewed_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
+        "git_blob_id": {"const": "5e2eb60ca4419d1529506de6859fb027cff518af"},
+        "canonical_utf8_lf_sha256": {"const": "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"},
+        "normalized_row_count": {"const": 104},
+        "expanded_edge_count": {"const": 182},
+        "lineage_role": {"const": "historical_lineage"}
+      },
+      "additionalProperties": false
+    },
+    "stage1OwnerAcceptance": {
+      "type": "object",
+      "required": ["record", "statement_provenance", "recorded_date", "acceptance_statement", "accepted_stage1_tuple"],
+      "properties": {
+        "record": {
+          "type": "object",
+          "required": ["repository_path", "schema_id", "schema_version", "git_blob_id", "canonical_utf8_lf_sha256"],
+          "properties": {
+            "repository_path": {"const": ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml"},
+            "schema_id": {"const": "ars://contracts/wp6-1-stage1-owner-acceptance-record"},
+            "schema_version": {"const": "1.0.0"},
+            "git_blob_id": {"const": "42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83"},
+            "canonical_utf8_lf_sha256": {"const": "70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648"}
+          },
+          "additionalProperties": false
+        },
+        "statement_provenance": {"const": "owner_supplied_task_delegation"},
+        "recorded_date": {"const": "2026-07-21"},
+        "acceptance_statement": {"const": "I explicitly accept the Stage-1 WP6.1 schema-fact annex tuple reviewed at da94bd62fbf19021f3046c19fae5117c19219c95, including the exact proposal, companion-schema, Markdown blobs/SHA-256 identities, schema ID/version, and all 14 frozen decision-register entries listed in the R7 report. I authorize only deterministic generation of exactly 173 schemas — 87 command and 86 event semantic identities — from those accepted bytes. The generated outputs require their own later exact-byte validation, independent review, and owner decision. This acceptance does not authorize runtime registration, dispatch, reduction, projection, migration, hooks, PR merge, or any Gate 6 transition."},
+        "accepted_stage1_tuple": {"$ref": "#/$defs/acceptedStage1Tuple"}
+      },
+      "additionalProperties": false
+    },
+    "acceptedStage1Tuple": {
+      "type": "object",
+      "required": ["reviewed_revision", "proposal_yaml", "proposal_markdown", "companion_schema", "decision_ids", "decision_ids_sha256"],
+      "properties": {
+        "reviewed_revision": {"const": "da94bd62fbf19021f3046c19fae5117c19219c95"},
+        "proposal_yaml": {"$ref": "#/$defs/proposalYaml"},
+        "proposal_markdown": {"$ref": "#/$defs/proposalMarkdown"},
+        "companion_schema": {"$ref": "#/$defs/companionSchema"},
+        "decision_ids": {"const": ["proposal_decision/id_prefixes", "proposal_decision/rule_evaluation_subject_id_grammar", "proposal_decision/resource_operation_id_unions", "proposal_decision/access_mode_vocabulary", "proposal_decision/git_object_identity", "proposal_decision/numeric_policy_bounds", "proposal_decision/open_policy_vocabularies", "proposal_decision/schema_id_scope", "proposal_decision/shared_discriminators", "proposal_decision/retention_and_sensitivity", "proposal_decision/recovery_external_availability", "proposal_decision/correction_subject_union", "proposal_decision/resource_request_profile_discriminator", "proposal_decision/review_condition_gate_relation"]},
+        "decision_ids_sha256": {"const": "401f42e827ba8cb75456a879177d0c9b4e1523f7a860a06802910280b6763395"}
+      },
+      "additionalProperties": false
+    },
+    "proposalYaml": {
+      "type": "object",
+      "required": ["repository_path", "schema_id", "schema_version", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"},
+        "schema_id": {"const": "ars://contracts/wp6-1-schema-fact-annex-proposal"},
+        "schema_version": {"const": "1.0.0"},
+        "git_blob_id": {"const": "2f55b82f1a84cc0de081d38f8500c73a2083bac4"},
+        "canonical_utf8_lf_sha256": {"const": "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"}
+      },
+      "additionalProperties": false
+    },
+    "proposalMarkdown": {
+      "type": "object",
+      "required": ["repository_path", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": "docs/plans/agentic-research-system/implementation/06e-wp6-1-schema-fact-annex-proposal.md"},
+        "git_blob_id": {"const": "73677f4a49a9752f6536b103321f654cd8575075"},
+        "canonical_utf8_lf_sha256": {"const": "4b997c85184d8a8842b5524ffe4595473697c3438b70c224685c0b291a4760d0"}
+      },
+      "additionalProperties": false
+    },
+    "companionSchema": {
+      "type": "object",
+      "required": ["repository_path", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": ".research-system/schemas/contracts/wp6-1-schema-fact-annex-proposal.schema.json"},
+        "git_blob_id": {"const": "d9e82a041337dfa7df65408e93798aaf37841afe"},
+        "canonical_utf8_lf_sha256": {"const": "7599bf7b2174a2e2e35362427a20ae1357f4c33d13b3d4324a05330ad67c21ec"}
+      },
+      "additionalProperties": false
+    },
+    "governance": {
+      "type": "object",
+      "required": [
+        "producer",
+        "intended_independent_reviewer",
+        "intended_acceptor",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "producer": {"const": "pipe/ars-wp6-1-task-lifecycle owning Worker"},
+        "intended_independent_reviewer": {"const": "independent reviewer who did not implement the schemas"},
+        "intended_acceptor": {"const": "Stephen under D-G6-3"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "commandSchemaIdentity": {
+      "type": "object",
+      "required": [
+        "schema_token",
+        "command_schema_path",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "command_identity_contract_sha256",
+        "materialization_status",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "schema_token": {"type": "string", "pattern": "^cmd/[a-z0-9_]+$"},
+        "command_schema_path": {
+          "type": "string",
+          "pattern": "^\\.research-system/schemas/core/commands/[a-z0-9_]+\\.schema\\.json$"
+        },
+        "command_schema_id": {"type": "string", "pattern": "^ars://core/command/[A-Za-z][A-Za-z0-9]+$"},
+        "command_schema_version": {"const": "1.0.0"},
+        "command_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "command_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "materialization_status": {"const": "proposed_materialized"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "eventSchemaIdentity": {
+      "type": "object",
+      "required": [
+        "event_type",
+        "schema_token",
+        "event_schema_path",
+        "event_schema_id",
+        "event_schema_version",
+        "event_schema_sha256",
+        "event_identity_contract_sha256",
+        "materialization_status",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "event_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
+        "schema_token": {"type": "string", "pattern": "^evt/[a-z0-9_]+$"},
+        "event_schema_path": {
+          "type": "string",
+          "pattern": "^\\.research-system/schemas/core/events/[a-z0-9_]+\\.schema\\.json$"
+        },
+        "event_schema_id": {"type": "string", "pattern": "^ars://core/event/[A-Za-z][A-Za-z0-9]+$"},
+        "event_schema_version": {"const": "1.0.0"},
+        "event_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "event_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "materialization_status": {"const": "proposed_materialized"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "identityRow": {
+      "type": "object",
+      "required": [
+        "key",
+        "command_type",
+        "command_schema_identity",
+        "event_schema_bindings",
+        "row_identity_contract_sha256"
+      ],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"},
+        "command_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
+        "command_schema_identity": {"$ref": "#/$defs/commandSchemaIdentity"},
+        "event_schema_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/eventSchemaIdentity"}
+        },
+        "row_identity_contract_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

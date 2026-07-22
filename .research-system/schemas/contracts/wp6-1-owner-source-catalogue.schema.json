@@ -1,0 +1,596 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-1-owner-source-catalogue",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "catalogue_id",
+    "source_annex",
+    "owner_source_annex",
+    "stage1_owner_acceptance",
+    "schema_identity_manifest",
+    "governance",
+    "normalized_row_count",
+    "expanded_edge_count",
+    "state_classes",
+    "negative_profiles",
+    "correction_selector",
+    "decision_rule_evaluation_non_compensation",
+    "catalogue_multiset_sha256",
+    "rows"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-1-owner-source-catalogue"},
+    "schema_version": {"const": "1.0.0"},
+    "catalogue_id": {"const": "wp6-1-owner-source-catalogue"},
+    "source_annex": {"$ref": "#/$defs/sourceAnnex"},
+    "owner_source_annex": {"$ref": "#/$defs/ownerSourceAnnex"},
+    "stage1_owner_acceptance": {"$ref": "#/$defs/stage1OwnerAcceptance"},
+    "schema_identity_manifest": {"$ref": "#/$defs/schemaIdentityManifest"},
+    "governance": {"$ref": "#/$defs/governance"},
+    "normalized_row_count": {"const": 104},
+    "expanded_edge_count": {"const": 182},
+    "state_classes": {"$ref": "#/$defs/stateClasses"},
+    "negative_profiles": {"$ref": "#/$defs/negativeProfiles"},
+    "correction_selector": {"$ref": "#/$defs/correctionSelector"},
+    "decision_rule_evaluation_non_compensation": {"$ref": "#/$defs/nonCompensation"},
+    "catalogue_multiset_sha256": {"$ref": "#/$defs/sha256"},
+    "rows": {
+      "type": "array",
+      "minItems": 104,
+      "maxItems": 104,
+      "items": {"$ref": "#/$defs/catalogueRow"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "sourceAnnex": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "reviewed_revision",
+        "git_blob_id",
+        "canonical_utf8_lf_sha256",
+        "normalized_row_count",
+        "expanded_edge_count"
+      ],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"},
+        "reviewed_revision": {"const": "da94bd62fbf19021f3046c19fae5117c19219c95"},
+        "git_blob_id": {"const": "2f55b82f1a84cc0de081d38f8500c73a2083bac4"},
+        "canonical_utf8_lf_sha256": {"const": "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"},
+        "normalized_row_count": {"const": 104},
+        "expanded_edge_count": {"const": 182}
+      },
+      "additionalProperties": false
+    },
+    "ownerSourceAnnex": {
+      "type": "object",
+      "required": ["repository_path", "reviewed_revision", "git_blob_id", "canonical_utf8_lf_sha256", "normalized_row_count", "expanded_edge_count", "lineage_role"],
+      "properties": {
+        "repository_path": {"const": "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md"},
+        "reviewed_revision": {"const": "fe5f1d40bc8f05f061317c677b5891cea0711249"},
+        "git_blob_id": {"const": "5e2eb60ca4419d1529506de6859fb027cff518af"},
+        "canonical_utf8_lf_sha256": {"const": "96932fd752362eddb6da2da77bc0b56ccb8e83ced58e93c3b139e3248acb08f7"},
+        "normalized_row_count": {"const": 104},
+        "expanded_edge_count": {"const": 182},
+        "lineage_role": {"const": "historical_lineage"}
+      },
+      "additionalProperties": false
+    },
+    "stage1OwnerAcceptance": {
+      "type": "object",
+      "required": ["record", "statement_provenance", "recorded_date", "acceptance_statement", "accepted_stage1_tuple"],
+      "properties": {
+        "record": {
+          "type": "object",
+          "required": ["repository_path", "schema_id", "schema_version", "git_blob_id", "canonical_utf8_lf_sha256"],
+          "properties": {
+            "repository_path": {"const": ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml"},
+            "schema_id": {"const": "ars://contracts/wp6-1-stage1-owner-acceptance-record"},
+            "schema_version": {"const": "1.0.0"},
+            "git_blob_id": {"const": "42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83"},
+            "canonical_utf8_lf_sha256": {"const": "70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648"}
+          },
+          "additionalProperties": false
+        },
+        "statement_provenance": {"const": "owner_supplied_task_delegation"},
+        "recorded_date": {"const": "2026-07-21"},
+        "acceptance_statement": {"const": "I explicitly accept the Stage-1 WP6.1 schema-fact annex tuple reviewed at da94bd62fbf19021f3046c19fae5117c19219c95, including the exact proposal, companion-schema, Markdown blobs/SHA-256 identities, schema ID/version, and all 14 frozen decision-register entries listed in the R7 report. I authorize only deterministic generation of exactly 173 schemas — 87 command and 86 event semantic identities — from those accepted bytes. The generated outputs require their own later exact-byte validation, independent review, and owner decision. This acceptance does not authorize runtime registration, dispatch, reduction, projection, migration, hooks, PR merge, or any Gate 6 transition."},
+        "accepted_stage1_tuple": {"$ref": "#/$defs/acceptedStage1Tuple"}
+      },
+      "additionalProperties": false
+    },
+    "acceptedStage1Tuple": {
+      "type": "object",
+      "required": ["reviewed_revision", "proposal_yaml", "proposal_markdown", "companion_schema", "decision_ids", "decision_ids_sha256"],
+      "properties": {
+        "reviewed_revision": {"const": "da94bd62fbf19021f3046c19fae5117c19219c95"},
+        "proposal_yaml": {"$ref": "#/$defs/proposalYaml"},
+        "proposal_markdown": {"$ref": "#/$defs/proposalMarkdown"},
+        "companion_schema": {"$ref": "#/$defs/companionSchema"},
+        "decision_ids": {"const": ["proposal_decision/id_prefixes", "proposal_decision/rule_evaluation_subject_id_grammar", "proposal_decision/resource_operation_id_unions", "proposal_decision/access_mode_vocabulary", "proposal_decision/git_object_identity", "proposal_decision/numeric_policy_bounds", "proposal_decision/open_policy_vocabularies", "proposal_decision/schema_id_scope", "proposal_decision/shared_discriminators", "proposal_decision/retention_and_sensitivity", "proposal_decision/recovery_external_availability", "proposal_decision/correction_subject_union", "proposal_decision/resource_request_profile_discriminator", "proposal_decision/review_condition_gate_relation"]},
+        "decision_ids_sha256": {"const": "401f42e827ba8cb75456a879177d0c9b4e1523f7a860a06802910280b6763395"}
+      },
+      "additionalProperties": false
+    },
+    "proposalYaml": {
+      "type": "object",
+      "required": ["repository_path", "schema_id", "schema_version", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-1-schema-fact-annex-proposal.yaml"},
+        "schema_id": {"const": "ars://contracts/wp6-1-schema-fact-annex-proposal"},
+        "schema_version": {"const": "1.0.0"},
+        "git_blob_id": {"const": "2f55b82f1a84cc0de081d38f8500c73a2083bac4"},
+        "canonical_utf8_lf_sha256": {"const": "d52c9b4e923d7f31f7201213335a147ff48293f96c0aab7c9eb59f8e7ff96441"}
+      },
+      "additionalProperties": false
+    },
+    "proposalMarkdown": {
+      "type": "object",
+      "required": ["repository_path", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": "docs/plans/agentic-research-system/implementation/06e-wp6-1-schema-fact-annex-proposal.md"},
+        "git_blob_id": {"const": "73677f4a49a9752f6536b103321f654cd8575075"},
+        "canonical_utf8_lf_sha256": {"const": "4b997c85184d8a8842b5524ffe4595473697c3438b70c224685c0b291a4760d0"}
+      },
+      "additionalProperties": false
+    },
+    "companionSchema": {
+      "type": "object",
+      "required": ["repository_path", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": ".research-system/schemas/contracts/wp6-1-schema-fact-annex-proposal.schema.json"},
+        "git_blob_id": {"const": "d9e82a041337dfa7df65408e93798aaf37841afe"},
+        "canonical_utf8_lf_sha256": {"const": "7599bf7b2174a2e2e35362427a20ae1357f4c33d13b3d4324a05330ad67c21ec"}
+      },
+      "additionalProperties": false
+    },
+    "schemaIdentityManifest": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "schema_id",
+        "schema_version",
+        "git_blob_id",
+        "canonical_utf8_lf_sha256",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-1-schema-identities.yaml"},
+        "schema_id": {"const": "ars://contracts/wp6-1-schema-identities"},
+        "schema_version": {"const": "1.0.0"},
+        "git_blob_id": {"$ref": "#/$defs/sha1"},
+        "canonical_utf8_lf_sha256": {"$ref": "#/$defs/sha256"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "governance": {
+      "type": "object",
+      "required": [
+        "producer",
+        "intended_independent_reviewer",
+        "intended_acceptor",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "producer": {"const": "pipe/ars-wp6-1-task-lifecycle owning Worker"},
+        "intended_independent_reviewer": {"const": "independent reviewer who did not implement the schemas"},
+        "intended_acceptor": {"const": "Stephen under D-G6-3"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "stateClasses": {
+      "type": "object",
+      "required": [
+        "task_nonterminal",
+        "task_suspended",
+        "task_prior_active",
+        "task_blockable",
+        "task_input_requestable",
+        "task_pausable",
+        "attempt_nonterminal",
+        "attempt_retryable",
+        "review_nonterminal",
+        "decision_unresolved"
+      ],
+      "properties": {
+        "task_nonterminal": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "task_suspended": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "task_prior_active": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "task_blockable": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "task_input_requestable": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "task_pausable": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "attempt_nonterminal": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "attempt_retryable": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "review_nonterminal": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "decision_unresolved": {"$ref": "#/$defs/nonEmptyStringArray"}
+      },
+      "additionalProperties": false
+    },
+    "negativeProfiles": {
+      "type": "object",
+      "required": ["N0", "NE", "NA", "NI", "NC", "NS"],
+      "properties": {
+        "N0": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "NE": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "NA": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "NI": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "NC": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "NS": {"$ref": "#/$defs/nonEmptyStringArray"}
+      },
+      "additionalProperties": false
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "selectorMapping": {
+      "type": "object",
+      "required": ["corrected_record_kind", "owner_projection"],
+      "properties": {
+        "corrected_record_kind": {"type": "string", "minLength": 1},
+        "owner_projection": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "correctionSelector": {
+      "type": "object",
+      "required": ["selector_id", "governance_index", "mappings"],
+      "properties": {
+        "selector_id": {"const": "projection_selector/corrected_record_kind/v1"},
+        "governance_index": {"const": "governance_correction_index"},
+        "mappings": {
+          "type": "array",
+          "minItems": 15,
+          "maxItems": 15,
+          "items": {"$ref": "#/$defs/selectorMapping"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "nonCompensation": {
+      "type": "object",
+      "required": [
+        "decision_subject_kind",
+        "decision_id_source",
+        "decision_owner_projection",
+        "rule_evaluation_subject_kind",
+        "rule_evaluation_id_source",
+        "rule_evaluation_owner_projection",
+        "coordinated_candidate_runtime_substitution_rejects",
+        "unchanged_surfaces"
+      ],
+      "properties": {
+        "decision_subject_kind": {"const": "decision"},
+        "decision_id_source": {"const": "payload.new_decision_id"},
+        "decision_owner_projection": {"const": "decision"},
+        "rule_evaluation_subject_kind": {"const": "rule_evaluation"},
+        "rule_evaluation_id_source": {"const": "payload.new_rule_evaluation_id"},
+        "rule_evaluation_owner_projection": {"const": "rule_evaluation"},
+        "coordinated_candidate_runtime_substitution_rejects": {"const": true},
+        "unchanged_surfaces": {
+          "const": [
+            "event_tail",
+            "receipt_acceptance_state",
+            "decision_projection",
+            "rule_evaluation_projection",
+            "governance_correction_index"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "discriminator": {
+      "type": "object",
+      "required": ["field", "value"],
+      "properties": {
+        "field": {"type": "string", "minLength": 1},
+        "value": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "transition": {
+      "type": "object",
+      "required": ["kind", "from_state", "to_state", "discriminator"],
+      "properties": {
+        "kind": {"enum": ["edge", "state_neutral", "dimension_update", "operator_command"]},
+        "from_state": {"type": ["string", "null"]},
+        "to_state": {"type": ["string", "null"]},
+        "discriminator": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/discriminator"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "commandSchemaIdentity": {
+      "type": "object",
+      "required": [
+        "schema_token",
+        "command_schema_path",
+        "command_schema_id",
+        "command_schema_version",
+        "command_schema_sha256",
+        "command_identity_contract_sha256",
+        "materialization_status",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "schema_token": {"type": "string", "pattern": "^cmd/[a-z0-9_]+$"},
+        "command_schema_path": {
+          "type": "string",
+          "pattern": "^\\.research-system/schemas/core/commands/[a-z0-9_]+\\.schema\\.json$"
+        },
+        "command_schema_id": {"type": "string", "pattern": "^ars://core/command/[A-Za-z][A-Za-z0-9]+$"},
+        "command_schema_version": {"const": "1.0.0"},
+        "command_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "command_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "materialization_status": {"const": "proposed_materialized"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "eventSchemaIdentity": {
+      "type": "object",
+      "required": [
+        "event_type",
+        "schema_token",
+        "event_schema_path",
+        "event_schema_id",
+        "event_schema_version",
+        "event_schema_sha256",
+        "event_identity_contract_sha256",
+        "materialization_status",
+        "review_status",
+        "acceptance_status"
+      ],
+      "properties": {
+        "event_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
+        "schema_token": {"type": "string", "pattern": "^evt/[a-z0-9_]+$"},
+        "event_schema_path": {
+          "type": "string",
+          "pattern": "^\\.research-system/schemas/core/events/[a-z0-9_]+\\.schema\\.json$"
+        },
+        "event_schema_id": {"type": "string", "pattern": "^ars://core/event/[A-Za-z][A-Za-z0-9]+$"},
+        "event_schema_version": {"const": "1.0.0"},
+        "event_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "event_identity_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "materialization_status": {"const": "proposed_materialized"},
+        "review_status": {"const": "pending_independent_review"},
+        "acceptance_status": {"const": "pending_d_g6_3_owner_acceptance"}
+      },
+      "additionalProperties": false
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "rule_and_precondition",
+        "authority_subject_kind",
+        "authority_subject_id_source",
+        "authority_scope_source",
+        "authority_grant_id_source",
+        "authority_effective_at_source",
+        "authority_expires_at_source",
+        "allowed_actor_classes",
+        "prohibited_actor_classes"
+      ],
+      "properties": {
+        "rule_and_precondition": {"type": "string", "minLength": 1},
+        "authority_subject_kind": {"type": "string", "minLength": 1},
+        "authority_subject_id_source": {"type": "string", "minLength": 1},
+        "authority_scope_source": {
+          "const": ["envelope.project_id", "authority_subject_kind", "authority_subject_id_source"]
+        },
+        "authority_grant_id_source": {"const": "envelope.authority_grant_id"},
+        "authority_effective_at_source": {"const": "authority_grant.effective_at"},
+        "authority_expires_at_source": {"const": "authority_grant.expires_at"},
+        "allowed_actor_classes": {"const": ["human", "agent", "service"]},
+        "prohibited_actor_classes": {"const": ["importer"]}
+      },
+      "additionalProperties": false
+    },
+    "writeSetMember": {
+      "type": "object",
+      "required": ["stream_kind", "stream_id_source", "expected_version_source"],
+      "properties": {
+        "stream_kind": {"enum": ["dispatch", "task"]},
+        "stream_id_source": {"type": "string", "minLength": 1},
+        "expected_version_source": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "storedRelation": {
+      "type": "object",
+      "required": [
+        "dispatch_task_id_source",
+        "dispatch_task_revision_source",
+        "payload_task_id_source",
+        "payload_task_revision_source"
+      ],
+      "properties": {
+        "dispatch_task_id_source": {"const": "accepted_dispatch.task_id"},
+        "dispatch_task_revision_source": {"const": "accepted_dispatch.task_revision"},
+        "payload_task_id_source": {"const": "payload.task_id"},
+        "payload_task_revision_source": {"const": "payload.task_revision"}
+      },
+      "additionalProperties": false
+    },
+    "leaseRelation": {
+      "type": "object",
+      "required": ["lease_task_id_source", "lease_task_revision_source", "lease_dispatch_id_source"],
+      "properties": {
+        "lease_task_id_source": {"const": "active_lease.task_id"},
+        "lease_task_revision_source": {"const": "active_lease.task_revision"},
+        "lease_dispatch_id_source": {"const": "active_lease.dispatch_id"}
+      },
+      "additionalProperties": false
+    },
+    "atomicBinding": {
+      "type": "object",
+      "required": [
+        "group",
+        "cardinality",
+        "facets",
+        "dispatch_authority_subject_source",
+        "stored_relation",
+        "lease_relation",
+        "declared_write_set",
+        "ordered_events",
+        "acceptance_order",
+        "required_mutations",
+        "unchanged_surfaces"
+      ],
+      "properties": {
+        "group": {"const": "claim_dispatch_task_dispatch_v1"},
+        "cardinality": {"const": 2},
+        "facets": {"const": ["task.claim_start", "dispatch.claim"]},
+        "dispatch_authority_subject_source": {"const": "payload.dispatch_id"},
+        "stored_relation": {"$ref": "#/$defs/storedRelation"},
+        "lease_relation": {"$ref": "#/$defs/leaseRelation"},
+        "declared_write_set": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/writeSetMember"}
+        },
+        "ordered_events": {"const": ["DispatchClaimed", "TaskClaimStarted"]},
+        "acceptance_order": {
+          "const": [
+            "validate_dispatch_scoped_authority",
+            "load_accepted_dispatch_revision",
+            "verify_dispatch_stored_task_relation",
+            "verify_active_lease_relation",
+            "idempotency_lookup",
+            "version_and_tail_validation",
+            "position_allocation",
+            "atomic_event_publication",
+            "receipt_acceptance"
+          ]
+        },
+        "required_mutations": {
+          "const": [
+            "missing_task_facet",
+            "missing_dispatch_facet",
+            "missing_task_binding",
+            "stale_task_stream_version",
+            "foreign_current_task",
+            "stale_dispatch_task_relation",
+            "wrong_lease_task_subject",
+            "wrong_lease_dispatch_subject",
+            "concurrent_task_stream_race",
+            "missing_write_set_member",
+            "extra_write_set_member",
+            "dispatch_only_batch",
+            "dispatch_only_receipt"
+          ]
+        },
+        "unchanged_surfaces": {
+          "const": [
+            "task_stream",
+            "dispatch_stream",
+            "event_tail",
+            "receipt_acceptance_state",
+            "task_projection",
+            "dispatch_projection"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "annexBinding": {
+      "type": "object",
+      "required": [
+        "owner_transition_discriminator",
+        "command_event_identity",
+        "reducer_projections_selector",
+        "authority_precondition",
+        "receipt_positive_negatives"
+      ],
+      "properties": {
+        "owner_transition_discriminator": {"type": "string", "minLength": 1},
+        "command_event_identity": {"type": "string", "minLength": 1},
+        "reducer_projections_selector": {"type": "string", "minLength": 1},
+        "authority_precondition": {"type": "string", "minLength": 1},
+        "receipt_positive_negatives": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "catalogueRow": {
+      "type": "object",
+      "required": [
+        "key",
+        "source_table",
+        "command_type",
+        "owner_transition_discriminator",
+        "transition",
+        "command_schema_identity",
+        "ordered_events",
+        "event_schema_bindings",
+        "reducers",
+        "projections",
+        "projection_selector",
+        "authority",
+        "receipt",
+        "positive_test",
+        "negative_profile",
+        "expanded_negative_tests",
+        "atomic_binding",
+        "annex_binding",
+        "complete_record_sha256"
+      ],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"},
+        "source_table": {"enum": ["w2_lifecycle", "w2_messages_governance", "w8_operator"]},
+        "command_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
+        "owner_transition_discriminator": {"type": "string", "minLength": 1},
+        "transition": {"$ref": "#/$defs/transition"},
+        "command_schema_identity": {"$ref": "#/$defs/commandSchemaIdentity"},
+        "ordered_events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"}
+        },
+        "event_schema_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/eventSchemaIdentity"}
+        },
+        "reducers": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "projections": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "projection_selector": {"type": ["string", "null"]},
+        "authority": {"$ref": "#/$defs/authority"},
+        "receipt": {"const": "R"},
+        "positive_test": {"type": "string", "pattern": "^pos_[a-z0-9_]+$"},
+        "negative_profile": {"enum": ["N0", "NE", "NA", "NI", "NC", "NS"]},
+        "expanded_negative_tests": {"$ref": "#/$defs/nonEmptyStringArray"},
+        "atomic_binding": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/atomicBinding"}
+          ]
+        },
+        "annex_binding": {"$ref": "#/$defs/annexBinding"},
+        "complete_record_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

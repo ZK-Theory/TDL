@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-1-stage2-owner-acceptance-record",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "record_type",
+    "statement_provenance",
+    "recorded_date",
+    "acceptance_statement",
+    "accepted_candidate",
+    "r10_review",
+    "decision",
+    "hard_stops"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-1-stage2-owner-acceptance-record"},
+    "schema_version": {"const": "1.0.0"},
+    "record_type": {"const": "stage2_owner_acceptance"},
+    "statement_provenance": {"const": "owner_supplied_task_message"},
+    "recorded_date": {"const": "2026-07-21", "description": "Recorded date only; no acceptance timestamp is permitted."},
+    "acceptance_statement": {"const": "“I explicitly accept the Stage-2 WP6.1 generated-output tuple reviewed at c7e32755e9adb2f39f6a40056ef6058986c9263d: exactly 173 schemas—87 command schemas under tree 9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea and 86 event schemas under tree 154ffc4bdde82fe903718734687e7a62797b1f69, forming core tree b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46—plus the associated manifests and strict validation contracts. I accept the R10 verdict of 0 Critical, 0 Major, and 0 Minor and record D-G6-3 as accepted for these exact bytes only. This does not authorize runtime registration, dispatch, reduction, projection, migration, hooks, PR merge, or any further Gate 6 transition.”"},
+    "accepted_candidate": {"$ref": "#/$defs/acceptedCandidate"},
+    "r10_review": {"$ref": "#/$defs/r10Review"},
+    "decision": {"$ref": "#/$defs/decision"},
+    "hard_stops": {"$ref": "#/$defs/hardStops"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["repository_path", "schema_id", "schema_version", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"type": "string"},
+        "schema_id": {"type": "string"},
+        "schema_version": {"const": "1.0.0"},
+        "git_blob_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "canonical_utf8_lf_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "schemaIdentitiesArtifact": {
+      "allOf": [
+        {"$ref": "#/$defs/artifact"},
+        {"properties": {"repository_path": {"const": ".research-system/contracts/wp6-1-schema-identities.yaml"}, "schema_id": {"const": "ars://contracts/wp6-1-schema-identities"}, "git_blob_id": {"const": "54a2938d34cea9c4a88d23585ce012a86bc3209d"}, "canonical_utf8_lf_sha256": {"const": "d6d537088f41179b993b94991d5bf5790499cce80bf419c098ca899e794b37e7"}}}
+      ]
+    },
+    "ownerCatalogueArtifact": {
+      "allOf": [
+        {"$ref": "#/$defs/artifact"},
+        {"properties": {"repository_path": {"const": ".research-system/contracts/wp6-1-owner-source-catalogue.yaml"}, "schema_id": {"const": "ars://contracts/wp6-1-owner-source-catalogue"}, "git_blob_id": {"const": "1adc66921ee9c90d8786ff173748150922f1035e"}, "canonical_utf8_lf_sha256": {"const": "bddc6882b969d322cab88af99f15a214edec9ef90c5f563dc9a9fbd082a632ab"}}}
+      ]
+    },
+    "schemaIdentitiesContract": {
+      "allOf": [
+        {"$ref": "#/$defs/artifact"},
+        {"properties": {"repository_path": {"const": ".research-system/schemas/contracts/wp6-1-schema-identities.schema.json"}, "schema_id": {"const": "ars://contracts/wp6-1-schema-identities"}, "git_blob_id": {"const": "5857d1dbf80ca86d711641b1206267fa2fa44202"}, "canonical_utf8_lf_sha256": {"const": "43e20dd7307381c22237daf92bc53b405aaf88fe526dec38dcaffd8be0159e91"}}}
+      ]
+    },
+    "ownerCatalogueContract": {
+      "allOf": [
+        {"$ref": "#/$defs/artifact"},
+        {"properties": {"repository_path": {"const": ".research-system/schemas/contracts/wp6-1-owner-source-catalogue.schema.json"}, "schema_id": {"const": "ars://contracts/wp6-1-owner-source-catalogue"}, "git_blob_id": {"const": "8e7ae9079304e20de6d70f74f581d479391f8a31"}, "canonical_utf8_lf_sha256": {"const": "537ffab03f21c3ca8c8ec040ae65babf4c371d06f582dc56d82fd14c0d0736e5"}}}
+      ]
+    },
+    "stage1AcceptanceArtifact": {
+      "allOf": [
+        {"$ref": "#/$defs/artifact"},
+        {"properties": {"repository_path": {"const": ".research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml"}, "schema_id": {"const": "ars://contracts/wp6-1-stage1-owner-acceptance-record"}, "git_blob_id": {"const": "42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83"}, "canonical_utf8_lf_sha256": {"const": "70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648"}}}
+      ]
+    },
+    "stage1AcceptanceContract": {
+      "allOf": [
+        {"$ref": "#/$defs/artifact"},
+        {"properties": {"repository_path": {"const": ".research-system/schemas/contracts/wp6-1-stage1-owner-acceptance-record.schema.json"}, "schema_id": {"const": "ars://contracts/wp6-1-stage1-owner-acceptance-record"}, "git_blob_id": {"const": "63762c1555515ae9a2db071663d7fe9e2e86a96a"}, "canonical_utf8_lf_sha256": {"const": "ba0b1ebfa070c04b52923acd09810677c46936027b1197d01621fc941d2f4fe3"}}}
+      ]
+    },
+    "tree": {
+      "type": "object",
+      "required": ["tree_id", "schema_count"],
+      "properties": {
+        "tree_id": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "schema_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "commandTree": {
+      "allOf": [
+        {"$ref": "#/$defs/tree"},
+        {"properties": {"tree_id": {"const": "9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea"}, "schema_count": {"const": 87}}}
+      ]
+    },
+    "eventTree": {
+      "allOf": [
+        {"$ref": "#/$defs/tree"},
+        {"properties": {"tree_id": {"const": "154ffc4bdde82fe903718734687e7a62797b1f69"}, "schema_count": {"const": 86}}}
+      ]
+    },
+    "coreTree": {
+      "allOf": [
+        {"$ref": "#/$defs/tree"},
+        {"properties": {"tree_id": {"const": "b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46"}, "schema_count": {"const": 173}}}
+      ]
+    },
+    "contractArtifacts": {
+      "type": "object",
+      "required": ["schema_identities", "owner_source_catalogue", "schema_identities_contract", "owner_source_catalogue_contract", "stage1_owner_acceptance_record", "stage1_owner_acceptance_contract"],
+      "properties": {
+        "schema_identities": {"$ref": "#/$defs/schemaIdentitiesArtifact"},
+        "owner_source_catalogue": {"$ref": "#/$defs/ownerCatalogueArtifact"},
+        "schema_identities_contract": {"$ref": "#/$defs/schemaIdentitiesContract"},
+        "owner_source_catalogue_contract": {"$ref": "#/$defs/ownerCatalogueContract"},
+        "stage1_owner_acceptance_record": {"$ref": "#/$defs/stage1AcceptanceArtifact"},
+        "stage1_owner_acceptance_contract": {"$ref": "#/$defs/stage1AcceptanceContract"}
+      },
+      "additionalProperties": false
+    },
+    "acceptedCandidate": {
+      "type": "object",
+      "required": ["subject_commit", "command_schemas", "event_schemas", "core_schemas", "contract_artifacts"],
+      "properties": {
+        "subject_commit": {"const": "c7e32755e9adb2f39f6a40056ef6058986c9263d"},
+        "command_schemas": {"$ref": "#/$defs/commandTree"},
+        "event_schemas": {"$ref": "#/$defs/eventTree"},
+        "core_schemas": {"$ref": "#/$defs/coreTree"},
+        "contract_artifacts": {"$ref": "#/$defs/contractArtifacts"}
+      },
+      "additionalProperties": false
+    },
+    "reviewReport": {
+      "type": "object",
+      "required": ["repository_path", "git_blob_id", "canonical_utf8_lf_sha256"],
+      "properties": {
+        "repository_path": {"const": "docs/plans/agentic-research-system/reviews/adversarial-wp6-1-stage2-schema-overlay-r10-review-2026-07-21.md"},
+        "git_blob_id": {"const": "64e5f18a1b851f991689fdcc9db11bec0143539c"},
+        "canonical_utf8_lf_sha256": {"const": "383b4680ad2812941cad6b1c1907277f3f00c0fa43ab4aa8775f5bc9541088d8"}
+      },
+      "additionalProperties": false
+    },
+    "r10Verdict": {
+      "type": "object",
+      "required": ["disposition", "critical_findings", "major_findings", "minor_findings"],
+      "properties": {
+        "disposition": {"const": "accept"},
+        "critical_findings": {"const": 0},
+        "major_findings": {"const": 0},
+        "minor_findings": {"const": 0}
+      },
+      "additionalProperties": false
+    },
+    "r10Review": {
+      "type": "object",
+      "required": ["review_commit", "report", "verdict"],
+      "properties": {
+        "review_commit": {"const": "b1863e33106e02edaf3ccf0a18aa9385005b25bd"},
+        "report": {"$ref": "#/$defs/reviewReport"},
+        "verdict": {"$ref": "#/$defs/r10Verdict"}
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": ["decision_id", "outcome", "effective_scope"],
+      "properties": {
+        "decision_id": {"const": "D-G6-3"},
+        "outcome": {"const": "accepted"},
+        "effective_scope": {"const": "exact_bytes_only"}
+      },
+      "additionalProperties": false
+    },
+    "hardStops": {
+      "type": "object",
+      "required": ["runtime_registration_authorized", "dispatch_authorized", "reduction_authorized", "projection_authorized", "migration_authorized", "hooks_authorized", "pr_merge_authorized", "further_gate_6_transition_authorized", "implementation_start_authorized", "separate_owner_authorization_required"],
+      "properties": {
+        "runtime_registration_authorized": {"const": false},
+        "dispatch_authorized": {"const": false},
+        "reduction_authorized": {"const": false},
+        "projection_authorized": {"const": false},
+        "migration_authorized": {"const": false},
+        "hooks_authorized": {"const": false},
+        "pr_merge_authorized": {"const": false},
+        "further_gate_6_transition_authorized": {"const": false},
+        "implementation_start_authorized": {"const": false},
+        "separate_owner_authorization_required": {"const": true}
+      },
+      "additionalProperties": false
+    }
+  }
+}

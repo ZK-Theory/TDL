@@ -1,0 +1,81 @@
+schema_id: ars://contracts/wp6-1-stage2-owner-acceptance-record
+schema_version: 1.0.0
+record_type: stage2_owner_acceptance
+statement_provenance: owner_supplied_task_message
+recorded_date: '2026-07-21'
+acceptance_statement: >-
+  “I explicitly accept the Stage-2 WP6.1 generated-output tuple reviewed at c7e32755e9adb2f39f6a40056ef6058986c9263d: exactly 173 schemas—87 command schemas under tree 9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea and 86 event schemas under tree 154ffc4bdde82fe903718734687e7a62797b1f69, forming core tree b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46—plus the associated manifests and strict validation contracts. I accept the R10 verdict of 0 Critical, 0 Major, and 0 Minor and record D-G6-3 as accepted for these exact bytes only. This does not authorize runtime registration, dispatch, reduction, projection, migration, hooks, PR merge, or any further Gate 6 transition.”
+accepted_candidate:
+  subject_commit: c7e32755e9adb2f39f6a40056ef6058986c9263d
+  command_schemas:
+    tree_id: 9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea
+    schema_count: 87
+  event_schemas:
+    tree_id: 154ffc4bdde82fe903718734687e7a62797b1f69
+    schema_count: 86
+  core_schemas:
+    tree_id: b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46
+    schema_count: 173
+  contract_artifacts:
+    schema_identities:
+      repository_path: .research-system/contracts/wp6-1-schema-identities.yaml
+      schema_id: ars://contracts/wp6-1-schema-identities
+      schema_version: 1.0.0
+      git_blob_id: 54a2938d34cea9c4a88d23585ce012a86bc3209d
+      canonical_utf8_lf_sha256: d6d537088f41179b993b94991d5bf5790499cce80bf419c098ca899e794b37e7
+    owner_source_catalogue:
+      repository_path: .research-system/contracts/wp6-1-owner-source-catalogue.yaml
+      schema_id: ars://contracts/wp6-1-owner-source-catalogue
+      schema_version: 1.0.0
+      git_blob_id: 1adc66921ee9c90d8786ff173748150922f1035e
+      canonical_utf8_lf_sha256: bddc6882b969d322cab88af99f15a214edec9ef90c5f563dc9a9fbd082a632ab
+    schema_identities_contract:
+      repository_path: .research-system/schemas/contracts/wp6-1-schema-identities.schema.json
+      schema_id: ars://contracts/wp6-1-schema-identities
+      schema_version: 1.0.0
+      git_blob_id: 5857d1dbf80ca86d711641b1206267fa2fa44202
+      canonical_utf8_lf_sha256: 43e20dd7307381c22237daf92bc53b405aaf88fe526dec38dcaffd8be0159e91
+    owner_source_catalogue_contract:
+      repository_path: .research-system/schemas/contracts/wp6-1-owner-source-catalogue.schema.json
+      schema_id: ars://contracts/wp6-1-owner-source-catalogue
+      schema_version: 1.0.0
+      git_blob_id: 8e7ae9079304e20de6d70f74f581d479391f8a31
+      canonical_utf8_lf_sha256: 537ffab03f21c3ca8c8ec040ae65babf4c371d06f582dc56d82fd14c0d0736e5
+    stage1_owner_acceptance_record:
+      repository_path: .research-system/contracts/wp6-1-stage1-owner-acceptance-record.yaml
+      schema_id: ars://contracts/wp6-1-stage1-owner-acceptance-record
+      schema_version: 1.0.0
+      git_blob_id: 42d7ef3a2fb7f082a39634e4d81f47ebd8a81e83
+      canonical_utf8_lf_sha256: 70a37499528b7d5fdb2fb4627723ae726156c33229aeba5400fd382c752aa648
+    stage1_owner_acceptance_contract:
+      repository_path: .research-system/schemas/contracts/wp6-1-stage1-owner-acceptance-record.schema.json
+      schema_id: ars://contracts/wp6-1-stage1-owner-acceptance-record
+      schema_version: 1.0.0
+      git_blob_id: 63762c1555515ae9a2db071663d7fe9e2e86a96a
+      canonical_utf8_lf_sha256: ba0b1ebfa070c04b52923acd09810677c46936027b1197d01621fc941d2f4fe3
+r10_review:
+  review_commit: b1863e33106e02edaf3ccf0a18aa9385005b25bd
+  report:
+    repository_path: docs/plans/agentic-research-system/reviews/adversarial-wp6-1-stage2-schema-overlay-r10-review-2026-07-21.md
+    git_blob_id: 64e5f18a1b851f991689fdcc9db11bec0143539c
+    canonical_utf8_lf_sha256: 383b4680ad2812941cad6b1c1907277f3f00c0fa43ab4aa8775f5bc9541088d8
+  verdict:
+    disposition: accept
+    critical_findings: 0
+    major_findings: 0
+    minor_findings: 0
+decision:
+  decision_id: D-G6-3
+  outcome: accepted
+  effective_scope: exact_bytes_only
+hard_stops:
+  runtime_registration_authorized: false
+  dispatch_authorized: false
+  reduction_authorized: false
+  projection_authorized: false
+  migration_authorized: false
+  hooks_authorized: false
+  pr_merge_authorized: false
+  further_gate_6_transition_authorized: false
+  implementation_start_authorized: false
+  separate_owner_authorization_required: true
