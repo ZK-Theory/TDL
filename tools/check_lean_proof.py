@@ -100,6 +100,13 @@ _HOLE_RE = re.compile(r"(?<![\w.])(sorry|admit)(?![\w'])")
 _NATIVE_RE = re.compile(r"\bnative_decide\b|@\[\s*extern|@\[\s*implemented_by|\bimplemented_by\b|\bextern\b")
 _REL_OPS = ("=", "≤", "≥", "<", ">", "≠")
 
+#: Tactics that discharge a goal with a proof term the kernel re-checks. decide,
+#: norm_num, rfl, simp, and omega all qualify; native_decide (Lean.ofReduceBool /
+#: trustCompiler) and sorry/admit do not. `Nat.ble` is @[extern], so `decide`
+#: stalls on the S2 greedy/pair-count constants and they are pinned by `norm_num`
+#: — still kernel-checked, and must be allowed to anchor a constant (obs 86, 87).
+_KERNEL_TACTIC_RE = re.compile(r"\b(?:decide|norm_num|rfl|simp|omega)\b")
+
 
 # --------------------------------------------------------------------------- #
 # Errors (both map to EXIT_ENV_ERROR - fail closed)                           #
@@ -160,8 +167,8 @@ class LeanToolchain(Protocol):
         """True when the toolchain can actually be invoked (fail closed otherwise)."""
         ...
 
-    def lake_build(self, project_dir: Path) -> tuple[int, str]:
-        """Run ``lake build`` in ``project_dir``; return (exit_code, combined_output)."""
+    def lake_build(self, project_dir: Path, targets: list[str] | None = None) -> tuple[int, str]:
+        """Run ``lake build`` (optionally for named ``targets``) in ``project_dir``; return (exit_code, output)."""
         ...
 
     def print_axioms(self, project_dir: Path, imports: list[str], theorems: list[str]) -> dict[str, str]:
@@ -183,10 +190,10 @@ class RealLeanToolchain:
     def available(self) -> bool:
         return shutil.which("lake") is not None
 
-    def lake_build(self, project_dir: Path) -> tuple[int, str]:
+    def lake_build(self, project_dir: Path, targets: list[str] | None = None) -> tuple[int, str]:
         try:
             proc = subprocess.run(  # noqa: S603, S607 - fixed argv, trusted binary on PATH
-                ["lake", "build"],
+                ["lake", "build", *(targets or [])],
                 cwd=str(project_dir),
                 capture_output=True,
                 text=True,
@@ -290,16 +297,25 @@ def iter_declarations(text: str) -> list[tuple[str, str, str]]:
 
 
 def verify_file_integrity(bundle_dir: Path, manifest: dict) -> CheckResult:
-    """Recompute promoted-file hashes; metadata is suspicion, content is verdict."""
+    """Recompute promoted-file hashes; metadata is suspicion, content is verdict.
+
+    A text file's bytes differ between checkouts under ``core.autocrlf`` (LF vs
+    CRLF), so a raw sha256 can false-flag a byte-identical file (obs 71). Accept a
+    match against either the raw bytes OR the EOL-normalized (CRLF->LF) bytes: a
+    CRLF checkout of an LF-recorded bundle is then not a spurious integrity
+    failure, while a genuine content change still fails both.
+    """
     bad: list[str] = []
     for entry in manifest["promoted_files"]:
         recorded = entry.get("sha256")
         if not recorded:
             bad.append(f"{entry['path']}: no recorded sha256")
             continue
-        actual = hashlib.sha256((bundle_dir / entry["path"]).read_bytes()).hexdigest()
-        if actual != recorded:
-            bad.append(f"{entry['path']}: sha256 {actual} != recorded {recorded}")
+        data = (bundle_dir / entry["path"]).read_bytes()
+        raw = hashlib.sha256(data).hexdigest()
+        normalized = hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+        if recorded not in (raw, normalized):
+            bad.append(f"{entry['path']}: sha256 {raw} != recorded {recorded}")
     if bad:
         return CheckResult("file-integrity", False, "; ".join(bad))
     return CheckResult("file-integrity", True, "promoted file hashes match manifest")
@@ -405,20 +421,30 @@ def check_axioms(toolchain: LeanToolchain, project_dir: Path, imports: list[str]
     return CheckResult("axiom-audit", True, f"axiom set subset of {sorted(ALLOWED_AXIOMS)}")
 
 
-def check_kernel_build(toolchain: LeanToolchain, project_dir: Path) -> CheckResult:
+def check_kernel_build(toolchain: LeanToolchain, project_dir: Path, targets: list[str] | None = None) -> CheckResult:
     """05a §3 items 0/1 - the acceptor's own clean ``lake build`` must exit 0.
 
-    The producer ``build.log`` is never consulted here: the verdict comes only from
-    this re-execution (C1).
+    Builds the promoted modules by NAME when known (``targets``): a bare
+    ``lake build`` is a no-op that exits 0 when the lakefile configures no default
+    target (obs 92), which would pass this check vacuously. The producer
+    ``build.log`` is never consulted here: the verdict comes only from this
+    re-execution (C1).
     """
-    exit_code, _ = toolchain.lake_build(project_dir)
-    if exit_code == 0:
-        return CheckResult("kernel-build", True, "lake build exit 0 (acceptor re-execution)")
-    return CheckResult(
-        "kernel-build",
-        False,
-        f"lake build exit {exit_code} on acceptor re-execution; producer build.log is advisory only",
-    )
+    exit_code, output = toolchain.lake_build(project_dir, targets)
+    if exit_code != 0:
+        return CheckResult(
+            "kernel-build",
+            False,
+            f"lake build exit {exit_code} on acceptor re-execution; producer build.log is advisory only",
+        )
+    if not targets and re.search(r"no default targets|Nothing to build", output):
+        return CheckResult(
+            "kernel-build",
+            False,
+            "lake build exited 0 but built nothing (no default target and no promoted "
+            "modules named to build); acceptance cannot rest on a vacuous build",
+        )
+    return CheckResult("kernel-build", True, "lake build exit 0 (acceptor re-execution)")
 
 
 def _equality_bindings(block: str, const_name: str) -> list[tuple[str, str]]:
@@ -429,10 +455,30 @@ def _equality_bindings(block: str, const_name: str) -> list[tuple[str, str]]:
     return [(m.group(1), m.group(2).replace("_", "")) for m in pattern.finditer(block)]
 
 
+def _is_kernel_checked_equality_block(block: str) -> bool:
+    """True if a proof block closes with a kernel-checked tactic and no
+    compiler-trust (native_decide/FFI) or hole (sorry/admit) tactic.
+
+    05a §3 item 5 requires a constant to be pinned by a KERNEL-checked equality —
+    a proof term the kernel re-verifies. `decide` is one such tactic but not the
+    only one: `norm_num`/`rfl`/`simp`/`omega` are equally kernel-checked. The
+    previous literal ``"decide" in block`` test wrongly excluded `norm_num`, the
+    only viable tactic for the S2 greedy/pair-count constants (`Nat.ble` is
+    @[extern], so `decide` stalls). native_decide and sorry/admit stay rejected.
+    """
+    if _NATIVE_RE.search(block) or _HOLE_RE.search(block):
+        return False
+    return bool(_KERNEL_TACTIC_RE.search(block))
+
+
 def check_equality_obligations(
     files: dict[str, str], artefact_constants: list[dict]
 ) -> tuple[CheckResult, list[dict[str, object]]]:
-    """05a §3 item 5 - every artefact-bound constant needs a kernel-checked ``= value := by decide``.
+    """05a §3 item 5 - every artefact-bound constant needs a kernel-checked ``= value`` equality.
+
+    "Kernel-checked" means the equality is discharged by a tactic whose proof term the
+    kernel re-verifies - ``decide``, ``norm_num``, ``rfl``, ``simp``, or ``omega`` - never
+    ``native_decide`` (compiler trust) or ``sorry``/``admit``.
 
     A strict-inequality-only derivation fails (it never detects an inflated recorded
     value). A kernel value that differs from the recorded value fails AND emits a
@@ -450,8 +496,9 @@ def check_equality_obligations(
             for kind, _, block in iter_declarations(text):
                 if kind not in ALLOWED_DECL_KINDS:
                     continue
-                # Item 5 demands a KERNEL-checked equality: `by decide`, not native_decide/sorry.
-                if "decide" not in block or "native_decide" in block:
+                # Item 5 demands a KERNEL-checked equality (a proof term the kernel
+                # re-verifies): decide/norm_num/rfl/simp/omega, never native_decide/sorry.
+                if not _is_kernel_checked_equality_block(block):
                     continue
                 for op, literal in _equality_bindings(block, name):
                     if op == "=":
@@ -476,7 +523,7 @@ def check_equality_obligations(
         elif saw_inequality:
             failures.append(
                 f"{name}: only an inequality bound was found; item 5 requires a kernel-checked "
-                "equality (= value := by decide)"
+                "equality (= value, discharged by decide/norm_num/rfl/simp/omega)"
             )
         else:
             failures.append(f"{name}: no kernel-checked equality evaluation found")
@@ -630,7 +677,7 @@ def accept_bundle(
 
     # Dynamic re-execution (item 0 governs items 1-7). The axiom audit needs a
     # successful build first; a failed build is already inadmissible.
-    build_result = check_kernel_build(toolchain, lake_dir)
+    build_result = check_kernel_build(toolchain, lake_dir, imports)
     results.append(build_result)
     if build_result.passed:
         results.append(check_axioms(toolchain, lake_dir, imports, theorems))

@@ -31,7 +31,8 @@ this skill's output as implementation-ready or claim-ready.
 Accept an acceleration only if ALL hold:
 
 - the benchmark names the exact scheduled computational work unit and demonstrates
-  stage parity: representative distinct inputs, identical preprocessing and
+  stage parity: at least 3 representative distinct inputs spanning the realistic
+  size/shape range (each recorded by identifier), identical preprocessing and
   postprocessing, concurrency topology, and cache state;
 - wall-time improvement is material for that end-to-end unit at the realistic workload
   (n × B × L), not at toy scale;
@@ -51,11 +52,26 @@ Accept an acceleration only if ALL hold:
    I/O, Python/GIL overhead, PH backend, or algorithmic complexity.
    Known repo case: exact W2 (gudhi) holds the GIL — threading gives zero
    parallelism; and ripser+loky degraded ~6.4x per-task under n_jobs=12
-   concurrency (memory-bandwidth contention, not core count).
+   concurrency (memory-bandwidth contention, not core count). A memory-
+   bandwidth-bound kernel can scale *negatively* under joblib/loky (exact W2
+   EMD did here, and loky repeatedly stalled): when it does, the reliable lever
+   is not a parallel backend but **serial processes over disjoint input
+   blocks**, queued through a bounded pool of reusable worker processes capped
+   at the preflight-selected safe worker count (see step 3) — block-partition
+   the work; never spawn one process per block regardless of block count.
 3. Try the lowest-risk improvement first (vectorise → process pool → out-of-
-   core → new backend → GPU/cloud).
+   core → new backend → GPU/cloud). When using a process pool, cap concurrent
+   processes at the **preflight-selected safe worker count** (from
+   `tda-resource-preflight`) — never spawn one process per input block
+   regardless of block count. Partition inputs into balanced, queueable blocks
+   sized so that each worker processes one block at a time; a queue-fed pool
+   avoids memory spikes from simultaneous large-block process startup.
 4. Benchmark the candidate at realistic scale, sweeping the worker count —
-   a single-configuration timing is not a benchmark. Verify stage parity against the
+   a single-configuration timing is not a benchmark; and for a variable-cost
+   kernel a two-sample timing is not one either — sample enough distinct inputs
+   to capture the per-input cost distribution (repo case: exact W2 EMD solve
+   time varied ~5× across pairs of one cache), or the projection rests on an
+   unrepresentative sample. Verify stage parity against the
    production unit before extrapolating. Label kernel-only timings as component
    benchmarks; they cannot project pipeline wall time without measured stage composition.
    For thread-based candidates, build an execution-locus table (stage → holds the GIL?)
@@ -76,6 +92,10 @@ hardware/environment · profile result · bottleneck classification · candidate
 harness = production entry point (yes/no) · benchmark result (worker sweep) ·
 execution-locus table (thread-based candidates only) ·
 numerical equivalence check (tolerance stated) ·
+benchmark_sample_count (number of timed repetitions per configuration) ·
+input_coverage (fraction of distinct real input types exercised; must be ≥ 1.0
+  unless stated PARTIAL with reason) ·
+benchmark_provenance (script path, git SHA, date) ·
 provenance impact · accepted/rejected decision + reason
 ```
 

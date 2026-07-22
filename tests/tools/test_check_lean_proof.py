@@ -121,12 +121,14 @@ class FakeToolchain:
         self._axioms = axioms or {}
         self._available = is_available
         self.build_calls = 0
+        self.build_targets: list[str] | None = None
 
     def available(self) -> bool:
         return self._available
 
-    def lake_build(self, project_dir: Path) -> tuple[int, str]:
+    def lake_build(self, project_dir: Path, targets: list[str] | None = None) -> tuple[int, str]:
         self.build_calls += 1
+        self.build_targets = targets
         return self.build_exit, self.build_output
 
     def print_axioms(self, project_dir: Path, imports: list[str], theorems: list[str]) -> dict[str, str]:
@@ -464,6 +466,78 @@ def test_native_decide_approval_is_per_occurrence(tmp_path: Path) -> None:
     outcome_two = clp.accept_bundle(bundle_two, REPO_COMMIT, FakeToolchain())
     assert not outcome_two.admissible
     assert "trusted-computing-base" in outcome_two.failed_items
+
+
+def test_norm_num_equality_pins_constant(tmp_path: Path) -> None:
+    """A constant pinned by a kernel-checked ``norm_num`` equality anchors just
+    like ``decide`` — required because ``Nat.ble`` is @[extern] and ``decide``
+    stalls on the S2 greedy/pair-count constants (obs 86, 87)."""
+    lean = (
+        "theorem max_ari_bound (h : 0 < nMax) : greedyValue margins ≤ maxAriBoundConst := by\n"
+        "  decide\n"
+        "lemma max_ari_witness : 0 < nMax := by decide\n"
+        "lemma greedy_pin : greedyValue margins = 60862048 := by norm_num\n"
+    )
+    bundle = build_bundle(tmp_path, files={"MaxAri.lean": lean})
+    tc = FakeToolchain(
+        axioms={"max_ari_bound": "'max_ari_bound' depends on axioms: [propext, Classical.choice, Quot.sound]"}
+    )
+    outcome = clp.accept_bundle(bundle, REPO_COMMIT, tc)
+    assert outcome.admissible, outcome.failed_items
+
+
+def test_native_decide_equality_does_not_pin_constant() -> None:
+    """A native_decide "equality" is not kernel-checked and must NOT pin a constant
+    (guards against over-relaxing the accepted-tactic set)."""
+    files = {"F.lean": "example : greedyValue margins = 60862048 := by native_decide\n"}
+    result, _ = clp.check_equality_obligations(files, [{"name": "greedyValue margins", "recorded_value": "60862048"}])
+    assert not result.passed
+
+
+def test_kernel_build_builds_named_import_modules(tmp_path: Path) -> None:
+    """obs 92 - the acceptor builds the promoted modules by name, so a lakefile
+    with no default target cannot pass kernel-build on a vacuous bare build."""
+    bundle = build_bundle(tmp_path)  # import_modules = ["MaxAri"]
+    tc = FakeToolchain(
+        axioms={"max_ari_bound": "'max_ari_bound' depends on axioms: [propext, Classical.choice, Quot.sound]"}
+    )
+    outcome = clp.accept_bundle(bundle, REPO_COMMIT, tc)
+    assert outcome.admissible, outcome.failed_items
+    assert tc.build_targets == ["MaxAri"]
+
+
+def test_kernel_build_rejects_vacuous_bare_build(tmp_path: Path) -> None:
+    """obs 92 negative control - a bare build (no targets) reporting 'no default
+    targets' / 'Nothing to build' is NOT a pass."""
+    tc = FakeToolchain(build_output="warning: no default targets configured\nNothing to build.")
+    result = clp.check_kernel_build(tc, tmp_path, targets=None)
+    assert not result.passed
+
+
+def test_kernel_build_named_target_already_built_ok(tmp_path: Path) -> None:
+    """A named target that is already built ('Nothing to build') still passes."""
+    tc = FakeToolchain(build_output="Nothing to build.")
+    result = clp.check_kernel_build(tc, tmp_path, targets=["MaxAri"])
+    assert result.passed
+
+
+def test_file_integrity_tolerates_crlf_vs_lf(tmp_path: Path) -> None:
+    """obs 71 - a promoted file recorded from LF bytes but checked out as CRLF
+    still passes integrity; a genuine content change still fails both (see
+    test_tampered_file_rejected)."""
+    bundle = build_bundle(tmp_path)
+    lean_path = bundle / "MaxAri.lean"
+    lf_bytes = lean_path.read_bytes().replace(b"\r\n", b"\n")
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    manifest["promoted_files"][0]["sha256"] = hashlib.sha256(lf_bytes).hexdigest()
+    (bundle / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    # On-disk bytes are now CRLF; the recorded hash is of the LF-normalized bytes.
+    lean_path.write_bytes(lf_bytes.replace(b"\n", b"\r\n"))
+    tc = FakeToolchain(
+        axioms={"max_ari_bound": "'max_ari_bound' depends on axioms: [propext, Classical.choice, Quot.sound]"}
+    )
+    outcome = clp.accept_bundle(bundle, REPO_COMMIT, tc)
+    assert "file-integrity" not in outcome.failed_items
 
 
 def test_manifest_defaults_derive_module_and_lake_dir(tmp_path: Path) -> None:

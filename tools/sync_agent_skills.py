@@ -36,6 +36,7 @@ Modes:
     sync_agent_skills.py --check      # verify in step; exit 1 on any divergence
     sync_agent_skills.py --check-guides  # verify RA markers in .claude APM guides
     sync_agent_skills.py --force-mirror  # overwrite MIRROR_EDITED skills
+    sync_agent_skills.py --verify-state  # flag recorded != actual even when trees match
 
 Exit codes:
     0 — in step (or sync completed cleanly).
@@ -125,6 +126,8 @@ SYNC_SKILLS: set[str] = {
     "tda-paper-dissemination-pack",
     "tda-light-task-triage",
     "tda-large-workflow-supervision",
+    # Lean / Leanstral proof orchestration (2026-07-21)
+    "lean-proof",
     # Runtime-agnostic complements to plugin-owned (read-only) skills — the
     # guidance applies equally in Claude Code, which has the same plugin
     # skills available (2026-07-06 weekly review, Obs 27 / Obs 35).
@@ -273,14 +276,23 @@ def mirror_skill(src: Path, dst: Path) -> None:
 # --- Three-way state helpers -----------------------------------------------
 
 
-def _sha256(path: Path) -> str:
-    """SHA-256 hex digest of a file's raw bytes."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _content_hash(path: Path) -> str:
+    """EOL-normalized SHA-256 of a file, so its identity is checkout-independent.
+
+    Under Windows ``core.autocrlf`` a text file's on-disk bytes differ between
+    checkouts (LF vs CRLF), so a raw ``sha256(read_bytes())`` is not a stable
+    identity — it churns every recorded hash on a no-op mirror run and can
+    false-flag a mirror edit (cross-cutting Principle 5; skill-observations 71,
+    82, 89, 90). Normalizing CRLF -> LF before hashing mirrors git's own text
+    normalization and makes the recorded state stable across checkouts.
+    """
+    data = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def _skill_state(skill_dir: Path) -> dict[str, str]:
-    """SHA-256 of every file in skill_dir, keyed by POSIX relative path."""
-    return {f.relative_to(skill_dir).as_posix(): _sha256(f) for f in sorted(skill_dir.rglob("*")) if f.is_file()}
+    """EOL-normalized content hash of every file in skill_dir, keyed by POSIX relative path."""
+    return {f.relative_to(skill_dir).as_posix(): _content_hash(f) for f in sorted(skill_dir.rglob("*")) if f.is_file()}
 
 
 def _load_state(state_path: Path) -> dict[str, dict[str, str]] | None:
@@ -356,7 +368,7 @@ def _classify_diff(
             safe.append(rel)
             continue
 
-        if _sha256(dst_file) == recorded_hash:
+        if _content_hash(dst_file) == recorded_hash:
             # dst hasn't changed since last sync; src has → safe to overwrite
             safe.append(rel)
         else:
@@ -379,7 +391,7 @@ def _classify_diff(
                 if recorded_hash is None:
                     # Never present in src at last sync → manually added to mirror
                     mirror_edited.append(label)
-                elif _sha256(dst_file) == recorded_hash:
+                elif _content_hash(dst_file) == recorded_hash:
                     # dst unchanged since last sync; src removed it → safe to remove
                     safe.append(label)
                 else:
@@ -561,11 +573,91 @@ def run_check_guides(repo_root: Path) -> int:
     return 0
 
 
+def run_verify_state(claude_skills: Path, state_path: Path) -> int:
+    """Re-hash the mirror tree and flag recorded != actual, even when the
+    authoring and mirror trees are byte-identical.
+
+    ``run_sync``'s three-way classifier only consults the recorded hash on the
+    *divergence* branch (src != dst); when authoring == mirror (the normal case)
+    a stale or churned recorded hash is never compared, so a drifted state file
+    passes ``--check`` indefinitely and only bites at the first genuine mirror
+    edit (skill-observation 90). This mode gives the state file a watched
+    failure of its own (invariant I2b: every gate ships a negative control).
+
+    Args:
+        claude_skills: Path to the ``.claude/skills/`` mirror directory.
+        state_path: Path to the ``skill_sync_state.json`` state file.
+
+    Returns:
+        0 when every recorded hash matches the mirror bytes and no whole-skill
+        drift is detected; 1 on any mismatch, missing mirror directory (for
+        skills not in SYNC_SKILLS as planned), or missing state entry for an
+        existing mirror skill; 2 when no state file exists.
+    """
+    state = _load_state(state_path)
+    if state is None:
+        print(f"ERROR: no state file at {state_path}", file=sys.stderr)
+        return 2
+    mismatches: list[str] = []
+    recorded_count = 0
+    for name, recorded in sorted(state.items()):
+        skill_dir = claude_skills / name
+        if not skill_dir.is_dir():
+            # Distinguish genuinely planned skills (in SYNC_SKILLS but not yet
+            # authored) from deleted mirror directories (whole-skill drift).
+            if name in SYNC_SKILLS:
+                continue  # planned — not yet materialized, not a drift
+            mismatches.append(
+                f"{name}: recorded in state but mirror directory is missing"
+                f" (deleted? re-run sync or remove the state entry)"
+            )
+            continue
+        actual = _skill_state(skill_dir)
+        for rel, rec_hash in sorted(recorded.items()):
+            recorded_count += 1
+            act_hash = actual.get(rel)
+            if act_hash is None:
+                mismatches.append(f"{name}/{rel}: recorded but absent in mirror")
+            elif act_hash != rec_hash:
+                mismatches.append(f"{name}/{rel}: recorded {rec_hash[:12]}… != actual {act_hash[:12]}…")
+        for rel in sorted(set(actual) - set(recorded)):
+            mismatches.append(f"{name}/{rel}: present in mirror but not recorded in state")
+    # Check mirror directories that exist but have no state entry.
+    # Skip excluded skills — they are intentionally not byte-mirrored and have
+    # no state entry by design (e.g. apm-communication, apm-N-*, source-command-*).
+    if claude_skills.is_dir():
+        state_names = set(state)
+        for skill_dir in sorted(claude_skills.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            name = skill_dir.name
+            if is_excluded(name):
+                continue
+            if name not in state_names:
+                mismatches.append(f"{name}: mirror directory exists but has no state entry (re-run sync to record it)")
+    if mismatches:
+        print("STATE DRIFT: recorded hashes do not match the mirror bytes:", file=sys.stderr)
+        for m in mismatches:
+            print(f"  - {m}", file=sys.stderr)
+        print(
+            "\nRe-run `uv run python tools/sync_agent_skills.py` to re-baseline the state.",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"  state verified: {recorded_count} recorded hashes match the mirror bytes")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Entry point — parse args and dispatch to run_sync or run_check_guides."""
+    """Entry point — parse args and dispatch to run_sync, run_check_guides, or run_verify_state."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="verify trees are in step; exit 1 on divergence")
     parser.add_argument("--check-guides", action="store_true", help="verify RA markers present in Claude APM guides")
+    parser.add_argument(
+        "--verify-state",
+        action="store_true",
+        help="re-hash the mirror and flag recorded != actual even when trees are identical",
+    )
     parser.add_argument(
         "--force-mirror",
         action="store_true",
@@ -590,6 +682,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {agents_skills} not found", file=sys.stderr)
         return 2
     claude_skills.mkdir(parents=True, exist_ok=True)
+
+    if args.verify_state:
+        return run_verify_state(claude_skills, state_path)
 
     return run_sync(
         agents_skills,

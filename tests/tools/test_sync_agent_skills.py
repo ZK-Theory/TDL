@@ -315,6 +315,57 @@ def test_stale_mirror_file_edited_since_sync_is_mirror_edited(
     assert "extra.md" in err
 
 
+def test_content_hash_is_eol_invariant(tmp_path: Path) -> None:
+    """_content_hash must be identical for LF and CRLF encodings of the same
+    content — the checkout-independence fix (Principle 5; obs 71, 82, 89, 90)."""
+    lf = tmp_path / "lf.md"
+    crlf = tmp_path / "crlf.md"
+    lf.write_bytes(b"line one\nline two\n")
+    crlf.write_bytes(b"line one\r\nline two\r\n")
+    assert sas._content_hash(lf) == sas._content_hash(crlf)
+
+
+def test_verify_state_passes_when_recorded_matches(
+    trees_with_state: tuple[Path, Path, Path],
+) -> None:
+    """After a bootstrap sync, verify-state finds every recorded hash matching."""
+    agents, claude, state_path = trees_with_state
+    _write(agents / "skill-a" / "SKILL.md", "same")
+    _write(claude / "skill-a" / "SKILL.md", "same")
+    sas.run_sync(agents, claude, check_only=False, state_path=state_path)
+
+    assert sas.run_verify_state(claude, state_path) == 0
+
+
+def test_verify_state_detects_drift_when_trees_identical(
+    trees_with_state: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """recorded != actual mirror bytes must FAIL verify-state even though the
+    authoring and mirror trees are byte-identical (obs 90 success-branch blind
+    spot). This is the state file's negative control — proof it can go RED."""
+    agents, claude, state_path = trees_with_state
+    _write(agents / "skill-a" / "SKILL.md", "same")
+    _write(claude / "skill-a" / "SKILL.md", "same")
+    # State records a WRONG hash for the (byte-identical) mirror file.
+    _write_state(state_path, {"skill-a": {"SKILL.md": "stale-recorded-content"}})
+
+    exit_code = sas.run_verify_state(claude, state_path)
+
+    assert exit_code == 1
+    err = capsys.readouterr().err
+    assert "STATE DRIFT" in err
+    assert "skill-a/SKILL.md" in err
+
+
+def test_verify_state_no_state_file_exits_2(
+    trees_with_state: tuple[Path, Path, Path],
+) -> None:
+    """verify-state fails closed (exit 2) when no state file exists."""
+    _agents, claude, state_path = trees_with_state
+    assert not state_path.exists()
+    assert sas.run_verify_state(claude, state_path) == 2
+
+
 def test_load_state_malformed_json_exits_2(
     trees_with_state: tuple[Path, Path, Path], capsys: pytest.CaptureFixture[str]
 ) -> None:
