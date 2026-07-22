@@ -26,6 +26,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [05-p0-materialization-and-foundation-implementation-plan.md](05-p0-materialization-and-foundation-implementation-plan.md) | Review-pending Gate 4 master plan for the 37-case P0 closure and narrow production-intended foundation |
 | [proposals/wp6-2-t2-cost-grant-authority-and-versioning-ruling-2026-07-22.md](proposals/wp6-2-t2-cost-grant-authority-and-versioning-ruling-2026-07-22.md) | P-037 accepted ruling for the T2 CommandService transition family and non-destructive schema versioning; no implementation authority |
 | [proposals/wp6-2-t2-r1-remediation-authority-ruling-2026-07-22.md](proposals/wp6-2-t2-r1-remediation-authority-ruling-2026-07-22.md) | Accepted P-038 ruling authorizing one bounded T2 contract/addendum remediation and fresh R2; no runtime authority |
+| [proposals/wp6-2-t2-research-first-scope-and-r3-remediation-ruling-2026-07-22.md](proposals/wp6-2-t2-research-first-scope-and-r3-remediation-ruling-2026-07-22.md) | Proposed P-039 research-value gate, T2 security/W7 scope correction, and one final retained-finding remediation; pending exact owner acceptance |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
 | [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Owner-approved WP6 launch-basis plan at exact reviewed revision `fe5f1d40`: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, and consolidation sequencing |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
@@ -63,6 +64,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md) | R4 WP6 remediation review identifying RuleEvaluation ownership and Dispatch-bound Task integrity gaps |
 | [reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md) | R5 independent approval of exact WP6 remediation commit `fe5f1d40bc8f05f061317c677b5891cea0711249`; zero findings |
 | [reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md) | Durable R1 `rework_required` verdict and manager triage for exact T2 authority-addendum candidate `1144d6a6`; four Critical and three Major findings |
+| [reviews/wp6-2-t2-r2-static-review-triage-2026-07-22.md](reviews/wp6-2-t2-r2-static-review-triage-2026-07-22.md) | Manager triage of corrected R2 `rework_required` report, separating retained research-system integrity findings from premature security/runtime assurance |
 
 ## Handover prompts
 
