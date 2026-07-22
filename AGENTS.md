@@ -146,6 +146,13 @@ For multi-stage, review-heavy campaigns such as ARS work packages:
 - Each dispatch records lifecycle phase, context mode and budget, at most two
   primary skills, conditional skills, external-review owner, exact subject, one
   deliverable, validation ladder, and hard stops.
+- Apply the P-039 research-value gate before non-research assurance becomes
+  blocking. Runtime-only evidence defaults to the runtime stage; a proposed
+  second remediation stops for rescope, owner ruling, and a fresh task.
+- Declare management, candidate, review, and integration branch roles. Preserve
+  exact accepted subjects through integration unless re-authorized. Before
+  external review, count merge-base changed paths; CodeRabbit's hard limit is
+  100 files, so split dependency-safely when necessary.
 - Keep polling and external-review monitoring outside substantive supervisor,
   author, and reviewer tasks. Stephen triggers and monitors CodeRabbit unless he
   explicitly delegates that operation in the current task.

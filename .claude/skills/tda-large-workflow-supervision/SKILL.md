@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when exact-state handbacks, fresh-task rotation, bounded context inheritance, or one-cycle delivery control are needed.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: optional
   lanes: []
   roles:
@@ -38,6 +38,11 @@ through the relevant tier-1 or tier-2 skill.
 5. Read only OPEN observations matching selected skills plus active
    cross-cutting principles; never dump the complete observation log into the
    task context.
+6. Before a non-research assurance control becomes blocking, record its
+   research-value disposition: protected asset, credible failure path, why
+   existing controls are insufficient, cheapest adequate control, evidentiary
+   lifecycle stage, and bounded effort/stop. General hardening defaults to at
+   most 10% unless Stephen explicitly elevates it.
 
 ## Certification And Delivery
 
@@ -55,6 +60,12 @@ Before generation, inventory existing deterministic artifacts and compare their
 accepted identities or exact bytes. Regenerate only for a demonstrated mismatch
 and within explicit write authority.
 
+Read-only validation governs the launcher as well as the test process. If a suite
+resolves historical Git objects, use a history-bearing temporary clone with
+`core.autocrlf=false` and `core.longpaths=true`, not `git archive`. Use a verified
+external interpreter rather than an environment manager that can create ignored
+state in the review root; check ignored residue after hooks.
+
 ## Dispatch Envelope
 
 Every implementer or reviewer dispatch records:
@@ -65,7 +76,9 @@ Every implementer or reviewer dispatch records:
 - context mode, rotation condition, and fork policy;
 - at most two primary skills and triggered conditional skills;
 - focused, candidate-head, and integration validation boundaries;
-- external-review owner and permitted author-review cycles.
+- external-review owner, file-count limit, and permitted author-review cycles;
+- research-value disposition for each blocking non-research control; and
+- management, candidate, review, and integration branch roles plus merge strategy.
 
 Self-contained implementers and independent reviewers receive no parent history
 (`fork_turns="none"` in Codex). A small positive fork is allowed only for a direct
@@ -73,9 +86,27 @@ continuation with a recorded reason. Full-history inheritance is exceptional and
 forbidden after compaction. An implementer owns one vertical deliverable and at
 most one author-review-remediation cycle; a new semantic subject gets a fresh task.
 
+A proposed second remediation is a rescope event, not an automatic continuation.
+Stop for finding triage and owner ruling; any authorized exception uses a new exact
+subject and a fresh task without author/reviewer history.
+
 Stephen triggers and monitors CodeRabbit unless he explicitly delegates that
 operation in the current task. Do not poll, wait, schedule, or create review
 automations inside a substantive supervision, author, or reviewer task.
+
+## Integration And PR Packaging
+
+Keep management/governance, candidate, review, and integration roles explicit.
+Do not make meta-method commits candidate ancestry merely for routing convenience.
+An integration branch must preserve an exact accepted candidate as a reachable
+ancestor unless a new owner decision authorizes another identity treatment.
+
+Before opening or updating a PR, count merge-base paths with
+`git diff --name-only <base>...<head>`. CodeRabbit's hard limit is 100 files;
+target 90 or fewer where practical. Split larger work on semantic dependency
+boundaries, declare merge order/bases, keep contracts with their review evidence,
+and perform a final integration-seam review. Do not squash or rebase away an exact
+accepted subject.
 
 ## Exact-State Record
 
@@ -84,6 +115,11 @@ neutral project handoff path, never `.apm`. Record packet predecessor identity,
 exact current Git/worktree state, decisions, unresolved findings, validation
 evidence, one next action, and hard stops. Repository and owner records remain
 authoritative; the packet is a continuity aid, not self-attestation.
+
+Also record available efficiency evidence: task/turn count, active duration,
+context mode, compactions, inherited turns, validation invocations, regenerated
+artifacts, remediation count, external-review waits, and true/false stops. State
+when exact token telemetry is unavailable; never replace it with an estimate.
 
 ## Self-Test Prompts
 
@@ -95,6 +131,13 @@ authoritative; the packet is a continuity aid, not self-attestation.
   do not keep extending the same task because compaction succeeded.
 - *CodeRabbit is still running.* -> Return control to Stephen; do not poll or
   wait in the substantive task.
+- *A reviewer requests runtime security evidence during contract-only work.* ->
+  Apply the research-value/stage gate; defer evidence that needs the runtime
+  surface unless separately elevated.
+- *A second remediation appears necessary.* -> Stop for rescope and owner ruling;
+  do not continue the existing author or reviewer conversation.
+- *The proposed PR changes 104 files.* -> Split before external review and record
+  the integration seam; do not open an unreviewable PR.
 
 ## Completion Checklist
 
@@ -103,7 +146,9 @@ authoritative; the packet is a continuity aid, not self-attestation.
 - [ ] Packet/delta verified without unnecessary campaign replay.
 - [ ] Context, fork, skill, validation, and review-cycle budgets recorded.
 - [ ] Existing artifacts certified before any regeneration.
+- [ ] Research-value, branch topology, merge strategy, and PR file cap recorded.
 - [ ] Neutral exact-state handback emitted at completion or rotation.
+- [ ] Efficiency proxies and unavailable telemetry stated without estimation.
 
 ## Escalate Or Stop When
 
@@ -112,6 +157,8 @@ authoritative; the packet is a continuity aid, not self-attestation.
 - The exact writable root, subject revision, owner gate, or path scope is
   unresolved.
 - A second remediation cycle or post-compaction continuation would be needed.
+- PR packaging exceeds the external reviewer's file cap without an authorized,
+  dependency-safe split.
 
 ## Related Skills
 

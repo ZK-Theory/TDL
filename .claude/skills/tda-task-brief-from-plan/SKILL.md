@@ -2,7 +2,7 @@
 name: tda-task-brief-from-plan
 description: Use when converting a research plan, note, review finding, or conversation into agent-ready TDL work — implementation tickets, compute tasks, or patch tasks for Claude Code or Codex.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: core
   lanes: []
   roles:
@@ -43,6 +43,11 @@ One concrete outcome.
 - Conditional skills: <trigger -> skill>
 - External-review owner: Stephen | not applicable
 - Author-review cycle: <integer, normally 1>
+- Branch role / integration base: <candidate|review|integration> / <exact ref>
+- Merge strategy: <preserve accepted ancestor; no squash unless re-authorized>
+- External-review file cap: <integer; CodeRabbit hard limit 100>
+- Research-value disposition: <required now | deferred stage | separately elevated>
+- Efficiency evidence: <duration/turn/compaction/test metrics available at closeout>
 
 ## Non-goals
 What this task must not do.
@@ -119,6 +124,18 @@ When the agent must stop and ask or escalate.
   idempotency/concurrency rule, and schema-version disposition. A missing row
   requires a separately reviewed authority addendum; the implementer must not
   invent it.
+- **Research-value closure** precedes blocking non-research assurance. Record
+  the protected research asset, credible failure, insufficiency of current
+  controls, cheapest adequate control, evidence stage, and bounded effort/stop.
+  Runtime-only evidence defaults to runtime integration; general hardening may
+  not consume more than 10% without Stephen's explicit elevation.
+- **Integration is a separate lifecycle phase.** Declare management, candidate,
+  review, and integration branch roles and preserve an exact accepted candidate
+  as a reachable ancestor. Before external review, compute the merge-base file
+  count. CodeRabbit cannot review more than 100 files; target at most 90 and
+  split dependency-safely when the hard limit would be exceeded.
+- A second remediation cycle is a stop for finding rescope and owner ruling,
+  followed by a fresh task if authorized; it is not a bounded continuation.
 - Stephen triggers and monitors CodeRabbit unless he explicitly delegates that
   operation in the current task. Do not place review polling in the brief.
 
@@ -130,6 +147,10 @@ When the agent must stop and ask or escalate.
 - [ ] Assurance lanes marked; contract requirement resolved upstream.
 - [ ] Canonical-transition closure recorded for every canonical mutation, or
       the task stops before implementation.
+- [ ] Blocking non-research assurance has a proportional research-value and
+      lifecycle-stage disposition.
+- [ ] Branch roles, integration base/strategy, external-review file cap, and
+      second-cycle stop are explicit.
 - [ ] Inputs and outputs named by path.
 - [ ] Acceptance criteria machine-checkable where possible.
 - [ ] Validation commands listed.
@@ -146,6 +167,9 @@ When the agent must stop and ask or escalate.
   speculation.
 - The work is outcome-contingent on a decision rule — that is a
   pre-registration, so route to `pre-reg-to-dispatch`.
+
+- The proposed PR exceeds the external reviewer's file cap and no
+  dependency-safe stack has been declared.
 
 ## Related Skills
 

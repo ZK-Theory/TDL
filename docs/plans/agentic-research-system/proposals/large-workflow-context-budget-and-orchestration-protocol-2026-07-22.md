@@ -2,7 +2,8 @@
 
 **Date:** 2026-07-22
 **Status:** ADVISORY INTEGRATION APPROVED by Stephen on 2026-07-22; active as
-guidance, not a mandatory checker or convention lock
+guidance, not a mandatory checker or convention lock. Completed-cycle v1.1
+revisions are proposed by the 2026-07-23 assessment.
 **Scope:** Large, multi-stage, review-heavy workflows such as ARS WP5/WP6
 **Workflow system:** Standalone TDL supervision. APM lifecycle, Memory Bank, skills,
 state, guides, and checkers are out of scope and remain unchanged.
@@ -152,7 +153,7 @@ layer integrated.
 | `.agents/skills/tda-task-brief-from-plan/SKILL.md` | Add lifecycle, context, fork, skill, external-review, and cycle fields | Applied 2026-07-22; mirrored by sync tool |
 | `.agents/skills/tda-handoff/SKILL.md` | Make standalone repository handback paths first-class and remove `.apm` as the default for non-APM work | Applied 2026-07-22; mirrored by sync tool |
 | `docs/guides/large-workflow-supervision.md` | Standalone task assignment, rotation, and evidence guidance | Applied 2026-07-22 |
-| `tools/check_large_workflow_dispatch.py` | Optionally validate a strict standalone dispatch envelope and emit a positive budget signal | Separate implementation/review task after two successful trials |
+| `tools/check_large_workflow_dispatch.py` | Optionally validate mechanically decidable standalone dispatch fields and emit a positive readiness signal | Separate owner-approved implementation/review task after advisory v1.1 lands |
 | `tests/provenance/test_large_workflow_dispatch.py` | Negative controls including forbidden APM routing and review polling ownership | Same checker task |
 | `CONVENTIONS.md` | Lock the protocol only after accepted trial evidence | Separate owner decision |
 
@@ -248,7 +249,8 @@ author_review_cycle: 1
 
 ## 5. Proposed checker behavior
 
-After two successful trials, add `check_large_workflow_dispatch.py` with an optional
+After owner approval of the completed-cycle assessment, a separate task may add
+`check_large_workflow_dispatch.py` with an optional
 `--dispatch-envelope <path>` argument. It should reject:
 
 - absent exact subject, branch, workspace, or write owner;
@@ -302,4 +304,23 @@ skills, and a prose campaign packet rather than a mandatory schema.
 
 Stephen accepted advisory AGENTS/skill/guide integration on 2026-07-22.
 Mandatory checker enforcement and a `CONVENTIONS.md` lock remain separately deferred
-until a completed implementation/review/remediation cycle supplies supporting evidence.
+pending a separate owner decision. The completed-cycle evidence is assessed below.
+
+## 8. Completed-cycle evidence and v1.1 disposition
+
+The WP6.2 T2 contract cycle completed authoring, independent R1, remediation,
+independent R2, an exceptional owner-authorized rescope/final remediation, independent
+R3, and exact-byte owner acceptance. The assessment at
+`reviews/large-workflow-completed-cycle-assessment-2026-07-23.md` records at least
+266.7 minutes of timed author/reviewer activity, with exact token telemetry unavailable.
+
+The cycle validates the advisory state/rotation/review model but requires six revisions:
+apply P-039's research-value gate before scope freezes; treat a second remediation as a
+rescope/owner-decision event; separate management/candidate/review/integration branches;
+constrain read-only validation launchers; record efficiency proxies prospectively; and
+enforce CodeRabbit's 100-file PR capacity in packaging (target at most 90 where
+practical).
+
+This evidence threshold permits checker design, not self-activation. Mandatory CI or a
+`CONVENTIONS.md` lock remains a separate owner decision and must ship with negative
+controls plus a positive execution signal.
