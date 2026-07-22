@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import re
@@ -26,7 +27,8 @@ from tests.research_system.contracts.wp6_2_t2_expectations import (
     IDENTITY_MANIFEST_SCHEMA_PATH,
     MATERIALIZED_LEAF_PATHS,
     NEGATIVE_CASES,
-    PRE_ISSUE_SENTINEL_SEAMS,
+    PROTECTED_MEMBERSHIP_PATH,
+    PROTECTED_MEMBERSHIP_SCHEMA_PATH,
     PROTECTED_PROVIDER_BLOBS,
     PROTECTED_TREE_IDENTITIES,
     SCHEMA_IDENTITIES,
@@ -74,6 +76,15 @@ def _git(repo_root: Path, *args: str) -> str:
 
 def _git_blob(repo_root: Path, relative_path: str) -> str:
     return _git(repo_root, "hash-object", "--no-filters", "--", relative_path)
+
+
+def _git_object_bytes(repo_root: Path, object_spec: str) -> bytes:
+    return subprocess.run(
+        ["git", "cat-file", "blob", object_spec],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    ).stdout
 
 
 def _sha256(raw: bytes) -> str:
@@ -178,7 +189,6 @@ def validate_catalogue_semantics(catalogue: Mapping[str, Any], repo_root: Path) 
     _require(catalogue.get("writer") == WRITER, "writer mismatch")
     _require(catalogue.get("transition_family_closed") is True, "transition family is not closed")
     _require(catalogue.get("idempotency_tuple") == IDEMPOTENCY_TUPLE, "idempotency tuple mismatch")
-    _require(catalogue.get("pre_issue_sentinel_seams") == PRE_ISSUE_SENTINEL_SEAMS, "sentinel seam mismatch")
     expected_codes = {name: details["rejection_code"] for name, details in NEGATIVE_CASES.items()}
     _require(catalogue.get("negative_controls") == expected_codes, "negative-control set mismatch")
     _require(
@@ -250,6 +260,76 @@ def _validate_protected_bytes(repo_root: Path) -> None:
     _require(not changed, f"protected WP6.1/T1a/provider bytes changed: {changed}")
 
 
+def _derive_protected_paths(repo_root: Path, revision: str) -> list[str]:
+    all_paths = _git(repo_root, "ls-tree", "-r", "--name-only", revision).splitlines()
+    exact = {
+        ".research-system/schemas/adapters/provider-command.schema.json",
+        ".research-system/schemas/adapters/provider-receipt.schema.json",
+        ".research-system/contracts/wp6_2_live_grader_calibration_future_result_semantics.py",
+        "docs/plans/agentic-research-system/implementation/06d-wp6-1-owner-source-catalogue.md",
+        "docs/plans/agentic-research-system/implementation/06e-wp6-1-schema-fact-annex-proposal.md",
+    }
+    patterns = (
+        ".research-system/contracts/wp6-1-*",
+        ".research-system/schemas/contracts/wp6-1-*",
+        "tests/research_system/contracts/*wp6_1*",
+        ".research-system/contracts/wp6-2-live-grader-calibration-*",
+        ".research-system/schemas/contracts/wp6-2-live-grader-calibration-*",
+        "tests/research_system/unit/*wp6_2_live_grader_calibration*",
+    )
+    return sorted(
+        path
+        for path in all_paths
+        if path.startswith(".research-system/schemas/core/")
+        or path in exact
+        or any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+    )
+
+
+def _protected_member(repo_root: Path, revision: str, relative_path: str) -> dict[str, str]:
+    blob = _git(repo_root, "rev-parse", f"{revision}:{relative_path}")
+    raw = _git_object_bytes(repo_root, f"{revision}:{relative_path}")
+    return {
+        "repository_path": relative_path,
+        "git_blob_id": blob,
+        "raw_git_blob_sha256": _sha256(raw),
+    }
+
+
+def _protected_aggregate(members: Sequence[Mapping[str, str]]) -> str:
+    rows = [
+        f"{member['repository_path']}|{member['git_blob_id']}|{member['raw_git_blob_sha256']}\n"
+        for member in sorted(members, key=lambda item: item["repository_path"])
+    ]
+    return _sha256("".join(rows).encode("utf-8"))
+
+
+def validate_protected_membership_contract(contract: Mapping[str, Any], repo_root: Path) -> None:
+    baseline = contract.get("baseline_revision")
+    _require(isinstance(baseline, str), "protected baseline revision missing")
+    expected_paths = _derive_protected_paths(repo_root, baseline)
+    members = contract.get("members")
+    _require(isinstance(members, list), "protected membership missing")
+    by_path = {
+        member.get("repository_path"): member
+        for member in members
+        if isinstance(member, Mapping) and isinstance(member.get("repository_path"), str)
+    }
+    _require(len(by_path) == len(members), "protected membership path duplicate")
+    _require(sorted(by_path) == expected_paths, "protected membership exact-set mismatch")
+    _require(contract.get("protected_path_count") == len(expected_paths), "protected membership count mismatch")
+    baseline_members = [_protected_member(repo_root, baseline, path) for path in expected_paths]
+    for expected in baseline_members:
+        _require(
+            by_path[expected["repository_path"]] == expected,
+            f"protected baseline identity mismatch:{expected['repository_path']}",
+        )
+    aggregate = _protected_aggregate(baseline_members)
+    _require(contract.get("path_blob_rawsha_map_sha256") == aggregate, "protected membership aggregate mismatch")
+    current_members = [_protected_member(repo_root, "HEAD", path) for path in expected_paths]
+    _require(current_members == baseline_members, "protected predecessor bytes changed")
+
+
 def _expected_manifest_schema_identity(repo_root: Path, relative_path: str) -> tuple[str | None, str | None]:
     if relative_path.endswith(".schema.json"):
         schema = _load_json_bytes(_raw_utf8_lf(repo_root, relative_path), relative_path)
@@ -259,6 +339,8 @@ def _expected_manifest_schema_identity(repo_root: Path, relative_path: str) -> t
         return "ars://contracts/wp6-2-t2-cost-grant-authority-catalogue", "1.0.0"
     if relative_path == CROSSWALK_PATH:
         return "ars://contracts/wp6-2-t2-normative-crosswalk", "1.0.0"
+    if relative_path == PROTECTED_MEMBERSHIP_PATH:
+        return "ars://contracts/wp6-2-t2-protected-membership", "1.0.0"
     return None, None
 
 
@@ -276,6 +358,22 @@ def _validate_manifest(manifest: Mapping[str, Any], repo_root: Path, catalogue: 
             "hash_binding": "external_exact_state_review_and_owner_acceptance_only",
         },
         "manifest self-identity rule mismatch",
+    )
+    protected_contract = _load_yaml_bytes(
+        _raw_utf8_lf(repo_root, PROTECTED_MEMBERSHIP_PATH),
+        PROTECTED_MEMBERSHIP_PATH,
+    )
+    protected = manifest.get("protected_baseline")
+    _require(isinstance(protected, Mapping), "manifest protected baseline missing")
+    _require(
+        {
+            "start_revision": protected_contract["baseline_revision"],
+            "protected_path_count": protected_contract["protected_path_count"],
+            "path_blob_rawsha_map_sha256": protected_contract["path_blob_rawsha_map_sha256"],
+            "membership_contract_path": PROTECTED_MEMBERSHIP_PATH,
+        }.items()
+        <= protected.items(),
+        "manifest protected membership binding mismatch",
     )
     artifacts = manifest.get("artifacts")
     _require(isinstance(artifacts, list), "manifest artifacts missing")
@@ -359,6 +457,14 @@ def validate_t2_authority_contract(repo_root: Path) -> None:
     validate_catalogue_semantics(catalogue, repo_root)
     _validate_leaf_schemas(repo_root)
     _validate_protected_bytes(repo_root)
+    protected_raw = _raw_utf8_lf(repo_root, PROTECTED_MEMBERSHIP_PATH)
+    protected_contract = _load_yaml_bytes(protected_raw, PROTECTED_MEMBERSHIP_PATH)
+    protected_schema = _load_json_bytes(
+        _raw_utf8_lf(repo_root, PROTECTED_MEMBERSHIP_SCHEMA_PATH),
+        PROTECTED_MEMBERSHIP_SCHEMA_PATH,
+    )
+    _validate_json_schema(protected_schema, protected_contract, "protected membership")
+    validate_protected_membership_contract(protected_contract, repo_root)
 
     crosswalk_raw = _raw_utf8_lf(repo_root, CROSSWALK_PATH)
     crosswalk = _load_yaml_bytes(crosswalk_raw, CROSSWALK_PATH)
@@ -409,10 +515,12 @@ def _canonical_json_bytes(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
-def rebuild_idempotency_index(canonical_event_bytes: Sequence[bytes]) -> dict[str, tuple[str, str]]:
+def rebuild_idempotency_index(
+    canonical_event_bytes: Sequence[bytes],
+) -> dict[tuple[str, str, str, str], tuple[str, str]]:
     """Rebuild the T2 idempotency index from canonical serialized event bytes."""
 
-    index: dict[str, tuple[str, str]] = {}
+    index: dict[tuple[str, str, str, str], tuple[str, str]] = {}
     effects: set[tuple[str, str]] = set()
     effect_fields = {
         "CostGrantIssued": "cost_grant_id",
@@ -430,14 +538,31 @@ def rebuild_idempotency_index(canonical_event_bytes: Sequence[bytes]) -> dict[st
         _require(_canonical_json_bytes(event) == raw, "noncanonical event bytes")
         _require(isinstance(event, Mapping), "event must be an object")
         command_id = event.get("command_id")
+        actor_id = event.get("actor_id")
+        authority_scope = event.get("authority_scope")
+        command_type = event.get("command_type")
+        idempotency_key = event.get("idempotency_key")
         idempotency_hash = event.get("idempotency_key_hash")
         payload_hash = event.get("payload_hash")
         _require(
-            all(isinstance(item, str) for item in (command_id, idempotency_hash, payload_hash)),
+            all(
+                isinstance(item, str)
+                for item in (
+                    command_id,
+                    actor_id,
+                    authority_scope,
+                    command_type,
+                    idempotency_key,
+                    idempotency_hash,
+                    payload_hash,
+                )
+            ),
             "event index binding missing",
         )
-        binding = (idempotency_hash, payload_hash)
-        previous = index.setdefault(command_id, binding)
+        _require(_sha256(idempotency_key.encode("utf-8")) == idempotency_hash, "idempotency key hash mismatch")
+        logical_key = (actor_id, authority_scope, command_type, idempotency_key)
+        binding = (command_id, payload_hash)
+        previous = index.setdefault(logical_key, binding)
         _require(previous == binding, "idempotency_conflict")
         event_type = event.get("event_type")
         payload = event.get("payload")
@@ -450,42 +575,42 @@ def rebuild_idempotency_index(canonical_event_bytes: Sequence[bytes]) -> dict[st
     return index
 
 
-def validate_pre_issue_evidence(
-    manifest: Mapping[str, Any],
-    seam_payloads: Mapping[str, object],
-    *,
-    safe_sentinel: str,
-    prohibited_material: Sequence[str],
-) -> None:
-    """Scan the actual recursive serialized eight-seam payload surface."""
-
-    _require(list(seam_payloads) == PRE_ISSUE_SENTINEL_SEAMS, "pre_issue_seam_order_invalid")
-    seam_records = manifest.get("seams")
-    _require(isinstance(seam_records, list) and len(seam_records) == 8, "pre_issue_manifest_incomplete")
-    _require(
-        manifest.get("safe_synthetic_sentinel_hash") == _sha256(safe_sentinel.encode("utf-8")),
-        "pre_issue_sentinel_identity_mismatch",
-    )
-    expected_hashes: list[str] = []
-    needles = [safe_sentinel.encode("utf-8"), *(item.encode("utf-8") for item in prohibited_material)]
-    for expected_seam, record in zip(PRE_ISSUE_SENTINEL_SEAMS, seam_records, strict=True):
-        _require(isinstance(record, Mapping) and record.get("seam_id") == expected_seam, "pre_issue_seam_order_invalid")
-        raw = _canonical_json_bytes(seam_payloads[expected_seam])
-        _require(not any(needle and needle in raw for needle in needles), "secret_material_detected")
-        payload_hash = _sha256(raw)
-        _require(record.get("serialized_payload_hash") == payload_hash, "pre_issue_payload_hash_mismatch")
-        _require(record.get("outcome") == "no_prohibited_material_or_sentinel", "pre_issue_scan_failed")
-        expected_hashes.append(payload_hash)
-    aggregate = _sha256("\n".join(expected_hashes).encode("ascii"))
-    _require(manifest.get("aggregate_content_hash") == aggregate, "pre_issue_aggregate_hash_mismatch")
-
-
 def validate_receipt_v2(receipt: Mapping[str, Any], original: Mapping[str, Any] | None = None) -> None:
     outcome = receipt.get("outcome")
     events = receipt.get("events")
     _require(isinstance(events, list), "receipt_events_invalid")
     if outcome == "accepted":
         _require(bool(events) and receipt.get("event_batch_id") is not None, "accepted_receipt_missing_events")
+        command_type = receipt.get("command_type")
+        expected_types = {
+            "IssueCostGrant": ["CostGrantIssued"],
+            "AuthorizeProviderIssue": ["CostGrantReserved", "ProviderCommandIssued"],
+            "RecordProviderReceipt": ["ProviderReceiptRecorded", "CostGrantReconciled"],
+        }.get(command_type)
+        _require(expected_types is not None, "receipt_command_type_invalid")
+        _require(len(events) == len(expected_types), "receipt_event_count_mismatch")
+        _require(receipt.get("new_event_count") == len(events), "receipt_event_count_mismatch")
+        _require([event.get("event_type") for event in events] == expected_types, "receipt_event_order_mismatch")
+        _require(
+            [event.get("transaction_position") for event in events] == list(range(len(events))),
+            "receipt_transaction_position_mismatch",
+        )
+        event_ids = [event.get("event_id") for event in events]
+        _require(len(set(event_ids)) == len(event_ids), "receipt_event_id_duplicate")
+        for event in events:
+            validate_canonical_id(event.get("event_id"), "evt")
+            stream_prefix = "cgr" if str(event.get("event_type", "")).startswith("CostGrant") else "pcmd"
+            validate_canonical_id(event.get("stream_id"), stream_prefix)
+            prior = event.get("prior_stream_version")
+            resulting = event.get("resulting_stream_version")
+            _require(
+                isinstance(prior, int)
+                and not isinstance(prior, bool)
+                and isinstance(resulting, int)
+                and not isinstance(resulting, bool)
+                and resulting == prior + 1,
+                "receipt_stream_version_mismatch",
+            )
         _require(
             receipt.get("stable_reason") is None and receipt.get("unmet_preconditions") == [],
             "accepted_receipt_rejection_fields",
@@ -494,11 +619,14 @@ def validate_receipt_v2(receipt: Mapping[str, Any], original: Mapping[str, Any] 
         _require(original is not None and original.get("outcome") == "accepted", "duplicate_original_missing")
         for field in (
             "command_id",
+            "command_type",
             "idempotency_key_hash",
             "payload_hash",
             "event_batch_id",
             "events",
             "outcome_binding_hash",
+            "stable_reason",
+            "unmet_preconditions",
         ):
             _require(receipt.get(field) == original.get(field), f"duplicate_receipt_mismatch:{field}")
         _require(
@@ -510,6 +638,12 @@ def validate_receipt_v2(receipt: Mapping[str, Any], original: Mapping[str, Any] 
         )
     elif outcome in {"rejected", "conflict"}:
         _require(events == [] and receipt.get("event_batch_id") is None, "rejected_receipt_has_events")
+        _require(
+            receipt.get("new_event_count") == 0
+            and receipt.get("new_invocation_count") == 0
+            and receipt.get("original_accepted_receipt_hash") is None,
+            "rejected_receipt_side_effect",
+        )
         _require(
             isinstance(receipt.get("stable_reason"), str) and bool(receipt.get("unmet_preconditions")),
             "rejected_receipt_reason_missing",
@@ -560,25 +694,28 @@ def validate_command_relations(
             write_set[1].get("expected_stream_version") == payload.get("cost_grant_revision"),
             "cost grant expected version mismatch",
         )
-    for field in expected_row["authority_subject_fields"]:
-        if not field.endswith("_id"):
-            continue
-        stem = field[:-3]
+    expected_subject_fields = set(expected_row["authority_subject_fields"])
+    subject_stems = sorted(field[:-3] for field in expected_subject_fields if field.endswith("_id"))
+    for stem in subject_stems:
+        field = f"{stem}_id"
         revision_field = f"{stem}_revision"
         hash_field = f"{stem}_hash"
+        _require(
+            {field, revision_field, hash_field} <= expected_subject_fields,
+            f"authority subject expectation incomplete:{stem}",
+        )
+        _require(
+            all(name in payload for name in (field, revision_field, hash_field)),
+            f"authority subject identity incomplete:{stem}",
+        )
         subject = canonical_subjects.get(stem)
         _require(isinstance(subject, Mapping), f"authority subject missing:{stem}")
         _require(payload[field] == subject.get("id"), f"authority subject id mismatch:{stem}")
-        if revision_field in payload or hash_field in payload:
-            _require(
-                revision_field in payload and hash_field in payload,
-                f"authority subject identity incomplete:{stem}",
-            )
-            _require(
-                payload[revision_field] == subject.get("revision"),
-                f"authority subject revision mismatch:{stem}",
-            )
-            _require(payload[hash_field] == subject.get("content_hash"), f"authority subject hash mismatch:{stem}")
+        _require(
+            payload[revision_field] == subject.get("revision"),
+            f"authority subject revision mismatch:{stem}",
+        )
+        _require(payload[hash_field] == subject.get("content_hash"), f"authority subject hash mismatch:{stem}")
     _require(
         [event.get("event_type") for event in receipt_events] == expected_row["ordered_events"],
         "receipt event order mismatch",
@@ -656,21 +793,85 @@ def validate_cost_evidence_relations(*records: Mapping[str, Any]) -> None:
         _require(tuple(record.get(field) for field in fields) == expected, "cost evidence identity mismatch")
 
 
+def validate_t2_authority_cost_gate(
+    repo_root: Path,
+    *,
+    cost_grant: Mapping[str, Any],
+    reservation: Mapping[str, Any],
+    provider_receipt: Mapping[str, Any],
+    reconciliation: Mapping[str, Any],
+) -> None:
+    """Compose strict shape, integer arithmetic, and exact rate-evidence equality."""
+
+    schema_paths = {
+        "cost_grant": SCHEMA_IDENTITIES["cost_grant"]["path"],
+        "reservation": SCHEMA_IDENTITIES["CostGrantReserved"]["path"],
+        "provider_receipt": SCHEMA_IDENTITIES["provider_receipt_v2"]["path"],
+        "reconciliation": SCHEMA_IDENTITIES["CostGrantReconciled"]["path"],
+    }
+    loaded = {name: _load_json_bytes(_raw_utf8_lf(repo_root, path), path) for name, path in schema_paths.items()}
+    _validate_json_schema(loaded["cost_grant"], cost_grant, "cost grant")
+    _validate_json_schema(loaded["reservation"]["properties"]["payload"], reservation, "reservation")
+    _validate_json_schema(loaded["provider_receipt"], provider_receipt, "provider receipt")
+    _validate_json_schema(loaded["reconciliation"]["properties"]["payload"], reconciliation, "reconciliation")
+    validate_reconciliation(reconciliation)
+
+    reserved_tokens = reservation["reserved_tokens"]
+    _require(
+        (
+            reconciliation["reserved_input_tokens"],
+            reconciliation["reserved_output_tokens"],
+            reconciliation["reserved_total_tokens"],
+            reconciliation["reserved_cost_microunits"],
+        )
+        == (
+            reserved_tokens["input_tokens"],
+            reserved_tokens["output_tokens"],
+            reserved_tokens["total_tokens"],
+            reservation["reserved_cost_microunits"],
+        ),
+        "reservation reconciliation mismatch",
+    )
+    receipt_accounting = provider_receipt["token_accounting"]
+    _require(
+        (
+            receipt_accounting["actual_input_tokens"],
+            receipt_accounting["actual_output_tokens"],
+            receipt_accounting["actual_total_tokens"],
+            receipt_accounting["reserved_cost_microunits"],
+            receipt_accounting["consumed_cost_microunits"],
+            receipt_accounting["refund_cost_microunits"],
+        )
+        == (
+            reconciliation["actual_input_tokens"],
+            reconciliation["actual_output_tokens"],
+            reconciliation["actual_total_tokens"],
+            reconciliation["reserved_cost_microunits"],
+            reconciliation["consumed_cost_microunits"],
+            reconciliation["refund_cost_microunits"],
+        ),
+        "provider receipt reconciliation mismatch",
+    )
+    validate_cost_evidence_relations(
+        cost_grant["rate_evidence"],
+        reservation,
+        receipt_accounting,
+        reconciliation,
+    )
+
+
 def validate_provider_receipt_gates(receipt: Mapping[str, Any]) -> None:
     completeness = receipt.get("completeness")
     _require(isinstance(completeness, Mapping), "provider receipt completeness missing")
-    gates = (
-        "dispatch_gate_satisfied",
-        "delivery_gate_satisfied",
-        "reconciliation_gate_satisfied",
-        "review_gate_satisfied",
-    )
     if completeness.get("complete") is True:
-        _require(all(completeness.get(gate) is True for gate in gates), "complete provider receipt gate mismatch")
+        _require(completeness.get("reconciliation_gate_satisfied") is True, "complete provider receipt gate mismatch")
         _require(completeness.get("diagnostic_only") is False, "complete provider receipt diagnostic mismatch")
-        _require(receipt.get("delivery_proof", {}).get("disposition") == "proven", "complete delivery proof missing")
+        _require(receipt.get("delivery_binding", {}).get("disposition") == "proven", "complete delivery proof missing")
     else:
-        _require(all(completeness.get(gate) is False for gate in gates), "incomplete provider receipt satisfied gate")
+        _require(
+            completeness.get("reconciliation_gate_satisfied") is False,
+            "incomplete provider receipt satisfied gate",
+        )
         _require(completeness.get("diagnostic_only") is True, "incomplete provider receipt not diagnostic-only")
 
 
@@ -704,12 +905,3 @@ def validate_replay_observation(observation: Mapping[str, Any]) -> None:
     else:
         _require(observation.get("status") == "conflict", "different replay payload must conflict")
         _require(observation.get("rejection_code") == "idempotency_conflict", "wrong idempotency conflict code")
-
-
-def validate_pre_issue_rejection(observation: Mapping[str, Any]) -> None:
-    seam = observation.get("seam")
-    _require(seam in PRE_ISSUE_SENTINEL_SEAMS, "unknown pre-issue producer seam")
-    _require(observation.get("rejection_code") == "secret_material_detected", "wrong sentinel rejection")
-    _require(observation.get("reservation_count") == 0, "sentinel rejection reserved cost")
-    _require(observation.get("invocation_count") == 0, "sentinel reached provider invocation")
-    _require(observation.get("canonical_publication_count") == 0, "sentinel reached canonical publication")

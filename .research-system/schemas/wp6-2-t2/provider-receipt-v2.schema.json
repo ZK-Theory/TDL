@@ -1,7 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://adapters/provider-receipt/v2",
-  "title": "WP6.2 T2 complete W7 ProviderReceipt successor",
+  "title": "WP6.2 T2 authority and cost subset ProviderReceipt successor",
+  "x-t2-validation-scope": "t2_authority_cost_subset",
+  "x-deferred-qualification": "remaining_W7_sections_9_and_10_require_T3_T4_runtime_evidence",
   "x-successor-of": {
     "schema_id": "ars://adapters/provider-receipt",
     "schema_version": "1.0.0"
@@ -19,18 +21,14 @@
     "revision",
     "revision_hash",
     "command_binding",
-    "t2_authority_binding",
     "provider_binding",
-    "provider_native_ids",
+    "authority_binding",
+    "delivery_binding",
     "timestamps",
-    "delivery_proof",
     "token_accounting",
-    "actions",
     "terminal_outcome",
     "outputs",
     "lifecycle_evidence",
-    "resource_observations",
-    "cost_evidence",
     "evidence_disposition",
     "completeness"
   ],
@@ -56,88 +54,63 @@
     "command_binding": {
       "type": "object",
       "required": [
-        "provider_command_id",
-        "provider_command_revision",
-        "provider_command_hash"
+        "provider_command",
+        "w2_command",
+        "idempotency_key_hash",
+        "payload_hash"
       ],
       "properties": {
-        "provider_command_id": {
-          "type": "string",
-          "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        "provider_command": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
         },
-        "provider_command_revision": {
-          "type": "integer",
-          "minimum": 1
+        "w2_command": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
         },
-        "provider_command_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      },
-      "additionalProperties": false
-    },
-    "t2_authority_binding": {
-      "type": "object",
-      "required": [
-        "secret_reference_id",
-        "secret_reference_revision",
-        "secret_reference_hash",
-        "cost_grant_id",
-        "cost_grant_revision",
-        "cost_grant_hash",
-        "reservation_id",
-        "reservation_revision",
-        "reservation_hash",
-        "pre_issue_evidence_manifest_id",
-        "pre_issue_evidence_manifest_revision",
-        "pre_issue_evidence_manifest_hash"
-      ],
-      "properties": {
-        "secret_reference_id": {
-          "type": "string",
-          "pattern": "^srf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "secret_reference_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "secret_reference_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "cost_grant_id": {
-          "type": "string",
-          "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "cost_grant_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "cost_grant_hash": {
+        "idempotency_key_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
-        "reservation_id": {
-          "type": "string",
-          "pattern": "^crs_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "reservation_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "reservation_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "pre_issue_evidence_manifest_id": {
-          "type": "string",
-          "pattern": "^pem_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "pre_issue_evidence_manifest_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "pre_issue_evidence_manifest_hash": {
+        "payload_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         }
@@ -148,14 +121,11 @@
       "type": "object",
       "required": [
         "provider",
+        "provider_identity",
         "model",
-        "model_version",
-        "profile_id",
-        "profile_hash",
-        "adapter_revision",
-        "adapter_hash",
-        "policy_id",
-        "policy_hash"
+        "profile",
+        "adapter",
+        "policy"
       ],
       "properties": {
         "provider": {
@@ -164,267 +134,342 @@
             "codex"
           ]
         },
-        "model": {
-          "type": "string",
-          "minLength": 1
-        },
-        "model_version": {
-          "type": "string",
-          "minLength": 1
-        },
-        "profile_id": {
-          "type": "string",
-          "pattern": "^prf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "profile_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "adapter_revision": {
-          "type": "string",
-          "minLength": 1
-        },
-        "adapter_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "policy_id": {
-          "type": "string",
-          "pattern": "^pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "policy_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      },
-      "additionalProperties": false
-    },
-    "provider_native_ids": {
-      "type": "object",
-      "required": [
-        "request_id",
-        "session_id",
-        "response_id"
-      ],
-      "properties": {
-        "request_id": {
-          "oneOf": [
-            {
-              "type": "object",
-              "required": [
-                "disposition",
-                "value"
-              ],
-              "properties": {
-                "disposition": {
-                  "const": "exposed"
-                },
-                "value": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "required": [
-                "disposition",
-                "evidence"
-              ],
-              "properties": {
-                "disposition": {
-                  "const": "not_exposed"
-                },
-                "evidence": {
-                  "type": "object",
-                  "required": [
-                    "subject_id",
-                    "subject_revision",
-                    "subject_hash"
-                  ],
-                  "properties": {
-                    "subject_id": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-                    },
-                    "subject_revision": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "subject_hash": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  },
-                  "additionalProperties": false
-                }
-              },
-              "additionalProperties": false
-            }
-          ]
-        },
-        "session_id": {
-          "oneOf": [
-            {
-              "type": "object",
-              "required": [
-                "disposition",
-                "value"
-              ],
-              "properties": {
-                "disposition": {
-                  "const": "exposed"
-                },
-                "value": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "required": [
-                "disposition",
-                "evidence"
-              ],
-              "properties": {
-                "disposition": {
-                  "const": "not_exposed"
-                },
-                "evidence": {
-                  "type": "object",
-                  "required": [
-                    "subject_id",
-                    "subject_revision",
-                    "subject_hash"
-                  ],
-                  "properties": {
-                    "subject_id": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-                    },
-                    "subject_revision": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "subject_hash": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  },
-                  "additionalProperties": false
-                }
-              },
-              "additionalProperties": false
-            }
-          ]
-        },
-        "response_id": {
-          "oneOf": [
-            {
-              "type": "object",
-              "required": [
-                "disposition",
-                "value"
-              ],
-              "properties": {
-                "disposition": {
-                  "const": "exposed"
-                },
-                "value": {
-                  "type": "string",
-                  "minLength": 1
-                }
-              },
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "required": [
-                "disposition",
-                "evidence"
-              ],
-              "properties": {
-                "disposition": {
-                  "const": "not_exposed"
-                },
-                "evidence": {
-                  "type": "object",
-                  "required": [
-                    "subject_id",
-                    "subject_revision",
-                    "subject_hash"
-                  ],
-                  "properties": {
-                    "subject_id": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-                    },
-                    "subject_revision": {
-                      "type": "integer",
-                      "minimum": 1
-                    },
-                    "subject_hash": {
-                      "type": "string",
-                      "pattern": "^[0-9a-f]{64}$"
-                    }
-                  },
-                  "additionalProperties": false
-                }
-              },
-              "additionalProperties": false
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "timestamps": {
-      "type": "object",
-      "required": [
-        "issued_at",
-        "acknowledged_at",
-        "terminal_at"
-      ],
-      "properties": {
-        "issued_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "acknowledged_at": {
-          "type": [
-            "string",
-            "null"
+        "provider_identity": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
           ],
-          "format": "date-time"
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
         },
-        "terminal_at": {
-          "type": "string",
-          "format": "date-time"
+        "model": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "profile": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^prf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "adapter": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^adp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "policy": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^pol_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
     },
-    "delivery_proof": {
+    "authority_binding": {
+      "type": "object",
+      "required": [
+        "task",
+        "dispatch",
+        "attempt",
+        "resource_grant",
+        "cost_grant",
+        "reservation",
+        "secret_reference",
+        "provider_receipt"
+      ],
+      "properties": {
+        "task": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "dispatch": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "attempt": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "resource_grant": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^rgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "cost_grant": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "reservation": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^crs_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "secret_reference": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^srf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "provider_receipt": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^prcp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "delivery_binding": {
       "oneOf": [
         {
           "type": "object",
           "required": [
             "disposition",
-            "delivered_context_hash",
-            "delivered_payload_hash"
+            "rendered_payload_hash",
+            "delivered_context_hash"
           ],
           "properties": {
             "disposition": {
               "const": "proven"
             },
-            "delivered_context_hash": {
+            "rendered_payload_hash": {
               "type": "string",
               "pattern": "^[0-9a-f]{64}$"
             },
-            "delivered_payload_hash": {
+            "delivered_context_hash": {
               "type": "string",
               "pattern": "^[0-9a-f]{64}$"
             }
@@ -469,159 +514,83 @@
         }
       ]
     },
-    "token_accounting": {
+    "timestamps": {
       "type": "object",
       "required": [
-        "input_tokens",
-        "output_tokens",
-        "total_tokens",
-        "method",
-        "method_version",
-        "capacity_outcome"
+        "issued_at",
+        "terminal_at"
       ],
       "properties": {
-        "input_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "output_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "total_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "method": {
+        "issued_at": {
           "type": "string",
-          "minLength": 1
+          "format": "date-time"
         },
-        "method_version": {
+        "terminal_at": {
           "type": "string",
-          "minLength": 1
-        },
-        "capacity_outcome": {
-          "enum": [
-            "within_capacity",
-            "capacity_exceeded",
-            "unproven"
-          ]
+          "format": "date-time"
         }
       },
       "additionalProperties": false
     },
-    "actions": {
+    "token_accounting": {
       "type": "object",
       "required": [
-        "attempted",
-        "allowed",
-        "denied",
-        "completed"
+        "actual_input_tokens",
+        "actual_output_tokens",
+        "actual_total_tokens",
+        "accounting_method",
+        "reserved_cost_microunits",
+        "consumed_cost_microunits",
+        "refund_cost_microunits",
+        "currency",
+        "rate_evidence_id",
+        "rate_evidence_revision",
+        "rate_evidence_hash"
       ],
       "properties": {
-        "attempted": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "subject_id",
-              "subject_revision",
-              "subject_hash"
-            ],
-            "properties": {
-              "subject_id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              },
-              "subject_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "subject_hash": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "additionalProperties": false
-          }
+        "actual_input_tokens": {
+          "type": "integer",
+          "minimum": 0
         },
-        "allowed": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "subject_id",
-              "subject_revision",
-              "subject_hash"
-            ],
-            "properties": {
-              "subject_id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              },
-              "subject_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "subject_hash": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "additionalProperties": false
-          }
+        "actual_output_tokens": {
+          "type": "integer",
+          "minimum": 0
         },
-        "denied": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "subject_id",
-              "subject_revision",
-              "subject_hash"
-            ],
-            "properties": {
-              "subject_id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              },
-              "subject_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "subject_hash": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "additionalProperties": false
-          }
+        "actual_total_tokens": {
+          "type": "integer",
+          "minimum": 0
         },
-        "completed": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "subject_id",
-              "subject_revision",
-              "subject_hash"
-            ],
-            "properties": {
-              "subject_id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              },
-              "subject_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "subject_hash": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "additionalProperties": false
-          }
+        "accounting_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reserved_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refund_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "rate_evidence_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "rate_evidence_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rate_evidence_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       },
       "additionalProperties": false
@@ -630,25 +599,19 @@
       "type": "object",
       "required": [
         "status",
-        "provider_native_status",
-        "provider_error_class"
+        "normalized_error"
       ],
       "properties": {
         "status": {
           "enum": [
             "terminal",
             "duplicate",
-            "cancelled",
             "timed_out",
             "uncertain",
             "blocked"
           ]
         },
-        "provider_native_status": {
-          "type": "string",
-          "minLength": 1
-        },
-        "provider_error_class": {
+        "normalized_error": {
           "type": [
             "string",
             "null"
@@ -661,7 +624,7 @@
       "type": "object",
       "required": [
         "references",
-        "output_hash"
+        "aggregate_hash"
       ],
       "properties": {
         "references": {
@@ -690,7 +653,7 @@
             "additionalProperties": false
           }
         },
-        "output_hash": {
+        "aggregate_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         }
@@ -700,104 +663,44 @@
     "lifecycle_evidence": {
       "type": "object",
       "required": [
-        "cancellation",
-        "timeout",
-        "retry",
-        "duplicate",
+        "retry_count",
+        "duplicate_of_receipt",
         "reconciliation"
       ],
       "properties": {
-        "cancellation": {
-          "type": "object",
-          "required": [
-            "subject_id",
-            "subject_revision",
-            "subject_hash"
-          ],
-          "properties": {
-            "subject_id": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "subject_revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "subject_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0
         },
-        "timeout": {
-          "type": "object",
-          "required": [
-            "subject_id",
-            "subject_revision",
-            "subject_hash"
-          ],
-          "properties": {
-            "subject_id": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        "duplicate_of_receipt": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "id",
+                "revision",
+                "content_hash"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^prcp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "content_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
             },
-            "subject_revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "subject_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
+            {
+              "type": "null"
             }
-          },
-          "additionalProperties": false
-        },
-        "retry": {
-          "type": "object",
-          "required": [
-            "subject_id",
-            "subject_revision",
-            "subject_hash"
-          ],
-          "properties": {
-            "subject_id": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "subject_revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "subject_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
-        },
-        "duplicate": {
-          "type": "object",
-          "required": [
-            "subject_id",
-            "subject_revision",
-            "subject_hash"
-          ],
-          "properties": {
-            "subject_id": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "subject_revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "subject_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
+          ]
         },
         "reconciliation": {
           "type": "object",
@@ -825,111 +728,23 @@
       },
       "additionalProperties": false
     },
-    "resource_observations": {
-      "type": "object",
-      "required": [
-        "resource_grant_id",
-        "execution_lease_id",
-        "process_evidence"
-      ],
-      "properties": {
-        "resource_grant_id": {
-          "type": "string",
-          "pattern": "^rgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "execution_lease_id": {
-          "type": "string",
-          "pattern": "^els_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "process_evidence": {
-          "type": "object",
-          "required": [
-            "subject_id",
-            "subject_revision",
-            "subject_hash"
-          ],
-          "properties": {
-            "subject_id": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "subject_revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "subject_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "cost_evidence": {
-      "type": "object",
-      "required": [
-        "currency",
-        "rate_evidence_id",
-        "rate_evidence_revision",
-        "rate_evidence_hash"
-      ],
-      "properties": {
-        "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
-        },
-        "rate_evidence_id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "rate_evidence_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "rate_evidence_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      },
-      "additionalProperties": false
-    },
     "evidence_disposition": {
       "type": "object",
       "required": [
         "redaction",
-        "omitted_evidence"
+        "omission_declarations"
       ],
       "properties": {
         "redaction": {
           "const": "secret_and_restricted_material_removed"
         },
-        "omitted_evidence": {
+        "omission_declarations": {
           "type": "array",
           "items": {
-            "type": "object",
-            "required": [
-              "subject_id",
-              "subject_revision",
-              "subject_hash"
-            ],
-            "properties": {
-              "subject_id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              },
-              "subject_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "subject_hash": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "additionalProperties": false
-          }
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": false
@@ -938,26 +753,14 @@
       "type": "object",
       "required": [
         "complete",
-        "dispatch_gate_satisfied",
-        "delivery_gate_satisfied",
         "reconciliation_gate_satisfied",
-        "review_gate_satisfied",
         "diagnostic_only"
       ],
       "properties": {
         "complete": {
           "type": "boolean"
         },
-        "dispatch_gate_satisfied": {
-          "type": "boolean"
-        },
-        "delivery_gate_satisfied": {
-          "type": "boolean"
-        },
         "reconciliation_gate_satisfied": {
-          "type": "boolean"
-        },
-        "review_gate_satisfied": {
           "type": "boolean"
         },
         "diagnostic_only": {
@@ -982,7 +785,7 @@
       },
       "then": {
         "properties": {
-          "delivery_proof": {
+          "delivery_binding": {
             "properties": {
               "disposition": {
                 "const": "proven"
@@ -991,16 +794,7 @@
           },
           "completeness": {
             "properties": {
-              "dispatch_gate_satisfied": {
-                "const": true
-              },
-              "delivery_gate_satisfied": {
-                "const": true
-              },
               "reconciliation_gate_satisfied": {
-                "const": true
-              },
-              "review_gate_satisfied": {
                 "const": true
               },
               "diagnostic_only": {
@@ -1014,16 +808,7 @@
         "properties": {
           "completeness": {
             "properties": {
-              "dispatch_gate_satisfied": {
-                "const": false
-              },
-              "delivery_gate_satisfied": {
-                "const": false
-              },
               "reconciliation_gate_satisfied": {
-                "const": false
-              },
-              "review_gate_satisfied": {
                 "const": false
               },
               "diagnostic_only": {

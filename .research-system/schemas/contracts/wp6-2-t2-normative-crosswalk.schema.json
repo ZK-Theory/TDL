@@ -20,7 +20,7 @@
       "const": "1.0.0"
     },
     "crosswalk_id": {
-      "const": "wp6-2-t2-r1-normative-crosswalk"
+      "const": "wp6-2-t2-r3-normative-crosswalk"
     },
     "status": {
       "const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"
@@ -34,11 +34,13 @@
           "W8",
           "06b",
           "P-037",
-          "P-038"
+          "P-038",
+          "P-039",
+          "R2"
         ]
       },
-      "minItems": 6,
-      "maxItems": 6,
+      "minItems": 8,
+      "maxItems": 8,
       "uniqueItems": true
     },
     "oracle_source": {
@@ -65,7 +67,8 @@
               "C4",
               "M1",
               "M2",
-              "M3"
+              "M3",
+              "I1"
             ]
           },
           "authority_refs": {
@@ -116,8 +119,8 @@
         },
         "additionalProperties": false
       },
-      "minItems": 7,
-      "maxItems": 7
+      "minItems": 8,
+      "maxItems": 8
     }
   },
   "additionalProperties": false

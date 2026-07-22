@@ -153,8 +153,14 @@
         "resource_grant_revision",
         "resource_grant_hash",
         "task_id",
+        "task_revision",
+        "task_hash",
         "dispatch_id",
+        "dispatch_revision",
+        "dispatch_hash",
         "attempt_id",
+        "attempt_revision",
+        "attempt_hash",
         "route_id",
         "profile_id",
         "adapter_revision",
@@ -200,13 +206,37 @@
           "type": "string",
           "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
+        "task_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
         "dispatch_id": {
           "type": "string",
           "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
+        "dispatch_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dispatch_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
         "attempt_id": {
           "type": "string",
           "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "attempt_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "attempt_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         },
         "route_id": {
           "type": "string",

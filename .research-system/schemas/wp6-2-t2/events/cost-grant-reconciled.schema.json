@@ -16,6 +16,9 @@
     "transaction_index",
     "transaction_count",
     "command_id",
+    "authority_scope",
+    "command_type",
+    "idempotency_key",
     "idempotency_key_hash",
     "payload_hash",
     "correlation_id",
@@ -70,6 +73,16 @@
     "command_id": {
       "type": "string",
       "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "authority_scope": {
+      "const": "wp6.2.t2.provider.receipt.record"
+    },
+    "command_type": {
+      "const": "RecordProviderReceipt"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
     },
     "idempotency_key_hash": {
       "type": "string",

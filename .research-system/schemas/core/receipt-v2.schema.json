@@ -8,6 +8,7 @@
     "schema_version",
     "receipt_id",
     "outcome",
+    "command_type",
     "command_id",
     "idempotency_key_hash",
     "payload_hash",
@@ -39,6 +40,13 @@
         "conflict"
       ]
     },
+    "command_type": {
+      "enum": [
+        "IssueCostGrant",
+        "AuthorizeProviderIssue",
+        "RecordProviderReceipt"
+      ]
+    },
     "command_id": {
       "type": "string",
       "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -68,8 +76,10 @@
         "type": "object",
         "required": [
           "event_id",
+          "event_type",
           "transaction_position",
           "stream_id",
+          "prior_stream_version",
           "resulting_stream_version"
         ],
         "properties": {
@@ -77,13 +87,34 @@
             "type": "string",
             "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
           },
+          "event_type": {
+            "enum": [
+              "CostGrantIssued",
+              "CostGrantReserved",
+              "ProviderCommandIssued",
+              "ProviderReceiptRecorded",
+              "CostGrantReconciled"
+            ]
+          },
           "transaction_position": {
             "type": "integer",
             "minimum": 0
           },
           "stream_id": {
-            "type": "string",
-            "minLength": 1
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "string",
+                "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            ]
+          },
+          "prior_stream_version": {
+            "type": "integer",
+            "minimum": 0
           },
           "resulting_stream_version": {
             "type": "integer",

@@ -28,11 +28,18 @@ MUTATION_TEST_PATH: Final = "tests/research_system/contracts/test_wp6_2_t2_autho
 GITATTRIBUTES_PATH: Final = ".gitattributes"
 CROSSWALK_PATH: Final = ".research-system/contracts/wp6-2-t2-normative-crosswalk.yaml"
 CROSSWALK_SCHEMA_PATH: Final = ".research-system/schemas/contracts/wp6-2-t2-normative-crosswalk.schema.json"
+PROTECTED_MEMBERSHIP_PATH: Final = ".research-system/contracts/wp6-2-t2-protected-membership.yaml"
+PROTECTED_MEMBERSHIP_SCHEMA_PATH: Final = ".research-system/schemas/contracts/wp6-2-t2-protected-membership.schema.json"
 
 SCHEMA_IDENTITIES: Final = {
     "normative_crosswalk": {
         "path": CROSSWALK_SCHEMA_PATH,
         "schema_id": "ars://contracts/wp6-2-t2-normative-crosswalk",
+        "schema_version": "1.0.0",
+    },
+    "protected_membership": {
+        "path": PROTECTED_MEMBERSHIP_SCHEMA_PATH,
+        "schema_id": "ars://contracts/wp6-2-t2-protected-membership",
         "schema_version": "1.0.0",
     },
     "receipt_v2": {
@@ -48,11 +55,6 @@ SCHEMA_IDENTITIES: Final = {
     "cost_grant": {
         "path": ".research-system/schemas/wp6-2-t2/cost-grant.schema.json",
         "schema_id": "ars://wp6-2/t2/cost-grant",
-        "schema_version": "1.0.0",
-    },
-    "pre_issue_evidence_manifest": {
-        "path": ".research-system/schemas/wp6-2-t2/pre-issue-evidence-manifest.schema.json",
-        "schema_id": "ars://wp6-2/t2/pre-issue-evidence-manifest",
         "schema_version": "1.0.0",
     },
     "provider_command_v2": {
@@ -107,43 +109,52 @@ SCHEMA_IDENTITIES: Final = {
     },
 }
 
-EVENT_HASH_FIELDS: Final = {"command_id", "idempotency_key_hash", "payload_hash"}
+EVENT_HASH_FIELDS: Final = {
+    "command_id",
+    "actor_id",
+    "authority_scope",
+    "command_type",
+    "idempotency_key",
+    "idempotency_key_hash",
+    "payload_hash",
+}
 
 PROVIDER_COMMAND_W7_FIELDS: Final = {
+    "schema_id",
+    "schema_version",
     "provider_command_id",
-    "idempotency_key",
+    "revision",
+    "revision_hash",
+    "provider_binding",
     "w2_binding",
-    "routing_binding",
-    "context_binding",
-    "assurance_binding",
-    "resource_binding",
-    "t2_authority_binding",
-    "operation",
-    "permissions",
-    "receipt_expectation",
-    "lifecycle_policy",
+    "authority_binding",
+    "payload_binding",
+    "permission_binding",
+    "accounting_ceiling",
+    "lifecycle",
 }
 
 PROVIDER_RECEIPT_W7_FIELDS: Final = {
+    "schema_id",
+    "schema_version",
     "provider_receipt_id",
+    "revision",
+    "revision_hash",
     "command_binding",
-    "t2_authority_binding",
     "provider_binding",
-    "provider_native_ids",
+    "authority_binding",
+    "delivery_binding",
     "timestamps",
-    "delivery_proof",
     "token_accounting",
-    "actions",
     "terminal_outcome",
     "outputs",
     "lifecycle_evidence",
-    "resource_observations",
     "evidence_disposition",
     "completeness",
 }
 
-R1_FINDING_IDS: Final = {"C1", "C2", "C3", "C4", "M1", "M2", "M3"}
-CROSSWALK_AUTHORITIES: Final = {"W2", "W7", "W8", "06b", "P-037", "P-038"}
+R1_FINDING_IDS: Final = {"C1", "C2", "C3", "C4", "M1", "M2", "M3", "I1"}
+CROSSWALK_AUTHORITIES: Final = {"W2", "W7", "W8", "06b", "P-037", "P-038", "P-039", "R2"}
 
 EXPECTED_CROSSWALK: Final = {
     "C1": {
@@ -154,28 +165,29 @@ EXPECTED_CROSSWALK: Final = {
             "ars://core/receipt/v2#/properties/original_accepted_receipt_hash",
         ],
         "semantic_validators": ["validate_receipt_v2"],
-        "positive_tests": ["test_r1_red_c1_receipt_v2_proof_surface"],
-        "negative_tests": ["test_receipt_v2_outcome_relations_reject"],
+        "positive_tests": ["test_r3_receipt_v2_enforces_complete_ordered_proof"],
+        "negative_tests": ["test_r3_red_c1_receipt_v2_rejects_internally_inconsistent_proof"],
     },
     "C2": {
         "authority_refs": ["W2", "P-038"],
         "schema_properties": [
             "ars://wp6-2/t2/event/*#/properties/idempotency_key_hash",
+            "ars://wp6-2/t2/event/*#/properties/actor_id",
+            "ars://wp6-2/t2/event/*#/properties/authority_scope",
+            "ars://wp6-2/t2/event/*#/properties/command_type",
+            "ars://wp6-2/t2/event/*#/properties/idempotency_key",
             "ars://wp6-2/t2/event/*#/properties/payload_hash",
         ],
         "semantic_validators": ["rebuild_idempotency_index"],
         "positive_tests": ["test_rebuild_idempotency_index_from_canonical_event_bytes"],
-        "negative_tests": ["test_rebuilt_index_rejects_duplicate_effect"],
+        "negative_tests": ["test_r3_red_c2_logical_tuple_collision_is_command_id_independent"],
     },
     "C3": {
-        "authority_refs": ["W7", "06b", "P-038"],
-        "schema_properties": [
-            "ars://wp6-2/t2/secret-reference#/properties/resolver_id",
-            "ars://wp6-2/t2/pre-issue-evidence-manifest#/properties/seams",
-        ],
-        "semantic_validators": ["validate_pre_issue_evidence"],
-        "positive_tests": ["test_recursive_pre_issue_scan_accepts_clean_eight_seams"],
-        "negative_tests": ["test_recursive_pre_issue_scan_rejects_actual_serialized_seam"],
+        "authority_refs": ["W7", "06b", "P-039"],
+        "schema_properties": ["ars://wp6-2/t2/secret-reference#/strict_opaque_metadata_and_exact_binding"],
+        "semantic_validators": ["validate_t2_authority_contract"],
+        "positive_tests": ["test_secret_reference_remains_strict_opaque_metadata"],
+        "negative_tests": ["test_r3_red_c3_obsolete_evidence_system_is_absent_from_t2_surface"],
     },
     "C4": {
         "authority_refs": ["W2", "P-037", "P-038"],
@@ -193,26 +205,36 @@ EXPECTED_CROSSWALK: Final = {
             "ars://wp6-2/t2/cost-grant#/properties/rate_evidence",
             "ars://wp6-2/t2/event/CostGrantReconciled#/properties/payload",
         ],
-        "semantic_validators": ["validate_reconciliation"],
-        "positive_tests": ["test_integer_ceil_div_reconciliation"],
-        "negative_tests": ["test_reconciliation_actuals_and_refund_relations_reject"],
+        "semantic_validators": ["validate_t2_authority_cost_gate"],
+        "positive_tests": ["test_t2_authority_cost_gate_composes_schema_arithmetic_and_evidence"],
+        "negative_tests": ["test_t2_authority_cost_gate_rejects_each_cross_object_evidence_difference"],
     },
     "M2": {
-        "authority_refs": ["W7", "P-038"],
+        "authority_refs": ["W7", "P-039"],
         "schema_properties": [
-            "ars://adapters/provider-command/v2#/properties",
-            "ars://adapters/provider-receipt/v2#/properties",
+            "ars://adapters/provider-command/v2#/x-t2-validation-scope=t2_authority_cost_subset",
+            "ars://adapters/provider-receipt/v2#/x-t2-validation-scope=t2_authority_cost_subset",
         ],
         "semantic_validators": ["validate_provider_receipt_gates"],
-        "positive_tests": ["test_r1_red_m2_w7_successors_are_complete"],
-        "negative_tests": ["test_incomplete_provider_receipt_is_diagnostic_only"],
+        "positive_tests": ["test_provider_successors_cover_exact_t2_authority_cost_subset"],
+        "negative_tests": ["test_r3_red_m2_provider_successors_are_labeled_exact_t2_subset"],
     },
     "M3": {
         "authority_refs": ["W2", "W7", "P-038"],
-        "schema_properties": ["all_canonical_ids#/lowercase_uuidv7"],
-        "semantic_validators": ["validate_canonical_id"],
-        "positive_tests": ["test_r1_red_m3_canonical_ids_require_lowercase_uuidv7"],
-        "negative_tests": ["test_uuidv7_prefix_and_case_counterexamples"],
+        "schema_properties": ["ars://core/receipt/v2#/properties/events/items/properties/stream_id"],
+        "semantic_validators": ["validate_receipt_v2", "validate_canonical_id"],
+        "positive_tests": ["test_receipt_v2_permitted_stream_prefixes"],
+        "negative_tests": ["test_r3_red_m3_receipt_stream_id_uses_canonical_permitted_prefix"],
+    },
+    "I1": {
+        "authority_refs": ["P-039", "R2"],
+        "schema_properties": [
+            "ars://contracts/wp6-2-t2-protected-membership#/properties/members",
+            "ars://contracts/wp6-2-t2-normative-crosswalk#/properties/rows",
+        ],
+        "semantic_validators": ["validate_protected_membership_contract", "validate_crosswalk"],
+        "positive_tests": ["test_protected_membership_recomputes_exact_live_set"],
+        "negative_tests": ["test_r3_red_i1_protected_membership_is_explicit_and_omission_sensitive"],
     },
 }
 
@@ -226,12 +248,27 @@ EXPECTED_ROWS: Final = [
         "authority_scope": "wp6.2.t2.cost-grant.issue",
         "authority_subject": "resource_grant",
         "authority_subject_fields": [
+            "cost_grant_id",
+            "cost_grant_revision",
+            "cost_grant_hash",
             "resource_grant_id",
             "resource_grant_revision",
             "resource_grant_hash",
             "task_id",
+            "task_revision",
+            "task_hash",
             "dispatch_id",
+            "dispatch_revision",
+            "dispatch_hash",
             "attempt_id",
+            "attempt_revision",
+            "attempt_hash",
+            "provider_command_id",
+            "provider_command_revision",
+            "provider_command_hash",
+            "secret_reference_id",
+            "secret_reference_revision",
+            "secret_reference_hash",
         ],
         "reducers": ["cost_grant_reducer@1.0.0"],
         "projections": [
@@ -252,12 +289,27 @@ EXPECTED_ROWS: Final = [
             "cost_grant_id",
             "cost_grant_revision",
             "cost_grant_hash",
+            "resource_grant_id",
+            "resource_grant_revision",
+            "resource_grant_hash",
+            "task_id",
+            "task_revision",
+            "task_hash",
+            "dispatch_id",
+            "dispatch_revision",
+            "dispatch_hash",
+            "attempt_id",
+            "attempt_revision",
+            "attempt_hash",
             "provider_command_id",
             "provider_command_revision",
             "provider_command_hash",
             "secret_reference_id",
             "secret_reference_revision",
             "secret_reference_hash",
+            "reservation_id",
+            "reservation_revision",
+            "reservation_hash",
         ],
         "reducers": ["cost_grant_reducer@1.0.0", "provider_command_reducer@2.0.0"],
         "projections": [
@@ -278,6 +330,18 @@ EXPECTED_ROWS: Final = [
             "provider_command_id",
             "provider_command_revision",
             "provider_command_hash",
+            "resource_grant_id",
+            "resource_grant_revision",
+            "resource_grant_hash",
+            "task_id",
+            "task_revision",
+            "task_hash",
+            "dispatch_id",
+            "dispatch_revision",
+            "dispatch_hash",
+            "attempt_id",
+            "attempt_revision",
+            "attempt_hash",
             "provider_receipt_id",
             "provider_receipt_revision",
             "provider_receipt_hash",
@@ -287,6 +351,9 @@ EXPECTED_ROWS: Final = [
             "reservation_id",
             "reservation_revision",
             "reservation_hash",
+            "secret_reference_id",
+            "secret_reference_revision",
+            "secret_reference_hash",
         ],
         "reducers": ["provider_command_reducer@2.0.0", "cost_grant_reducer@1.0.0"],
         "projections": [
@@ -298,27 +365,7 @@ EXPECTED_ROWS: Final = [
     },
 ]
 
-PRE_ISSUE_SENTINEL_SEAMS: Final = [
-    "compiled_context_packet",
-    "generated_adapter_provider_file",
-    "rendered_provider_payload",
-    "argv_environment_config_provider_options",
-    "event_producer",
-    "receipt_producer",
-    "canonical_object_producer",
-    "fixture_evaluation_evidence_producer",
-]
-
 NEGATIVE_CASES: Final = {
-    **{
-        f"neg_secret_sentinel_{seam}": {
-            "rejection_code": "secret_material_detected",
-            "reservation_count": 0,
-            "invocation_count": 0,
-            "canonical_publication_count": 0,
-        }
-        for seam in PRE_ISSUE_SENTINEL_SEAMS
-    },
     "neg_secret_reference_missing": {"rejection_code": "secret_reference_missing"},
     "neg_secret_reference_wrong_type": {"rejection_code": "secret_reference_wrong_type"},
     "neg_secret_reference_expired": {"rejection_code": "secret_reference_expired"},
@@ -377,5 +424,7 @@ MATERIALIZED_LEAF_PATHS: Final = {
     MUTATION_TEST_PATH,
     CROSSWALK_PATH,
     CROSSWALK_SCHEMA_PATH,
+    PROTECTED_MEMBERSHIP_PATH,
+    PROTECTED_MEMBERSHIP_SCHEMA_PATH,
     *(identity["path"] for identity in SCHEMA_IDENTITIES.values()),
 }

@@ -16,6 +16,9 @@
     "transaction_index",
     "transaction_count",
     "command_id",
+    "authority_scope",
+    "command_type",
+    "idempotency_key",
     "idempotency_key_hash",
     "payload_hash",
     "correlation_id",
@@ -71,6 +74,16 @@
       "type": "string",
       "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
+    "authority_scope": {
+      "const": "wp6.2.t2.provider.issue"
+    },
+    "command_type": {
+      "const": "AuthorizeProviderIssue"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
     "idempotency_key_hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -115,10 +128,7 @@
         "input_microunits_per_million_tokens",
         "output_microunits_per_million_tokens",
         "rate_mode",
-        "zero_cost_authority",
-        "pre_issue_evidence_manifest_hash",
-        "pre_issue_evidence_manifest_id",
-        "pre_issue_evidence_manifest_revision"
+        "zero_cost_authority"
       ],
       "properties": {
         "cost_grant_id": {
@@ -223,18 +233,6 @@
               "type": "null"
             }
           ]
-        },
-        "pre_issue_evidence_manifest_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "pre_issue_evidence_manifest_id": {
-          "type": "string",
-          "pattern": "^pem_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "pre_issue_evidence_manifest_revision": {
-          "type": "integer",
-          "minimum": 1
         }
       },
       "additionalProperties": false

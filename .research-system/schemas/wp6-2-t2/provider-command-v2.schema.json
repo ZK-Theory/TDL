@@ -1,7 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "ars://adapters/provider-command/v2",
-  "title": "WP6.2 T2 complete W7 ProviderCommand successor",
+  "title": "WP6.2 T2 authority and cost subset ProviderCommand successor",
+  "x-t2-validation-scope": "t2_authority_cost_subset",
+  "x-deferred-qualification": "remaining_W7_sections_9_and_10_require_T3_T4_runtime_evidence",
   "x-successor-of": {
     "schema_id": "ars://adapters/provider-command",
     "schema_version": "1.0.0"
@@ -18,18 +20,13 @@
     "provider_command_id",
     "revision",
     "revision_hash",
-    "idempotency_key",
-    "w2_binding",
     "provider_binding",
-    "routing_binding",
-    "context_binding",
-    "assurance_binding",
-    "resource_binding",
-    "t2_authority_binding",
-    "operation",
-    "permissions",
-    "receipt_expectation",
-    "lifecycle_policy"
+    "w2_binding",
+    "authority_binding",
+    "payload_binding",
+    "permission_binding",
+    "accounting_ceiling",
+    "lifecycle"
   ],
   "properties": {
     "schema_id": {
@@ -50,51 +47,15 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
-    "idempotency_key": {
-      "type": "string",
-      "minLength": 1
-    },
-    "w2_binding": {
-      "type": "object",
-      "required": [
-        "command_id",
-        "command_revision",
-        "message_id",
-        "dispatch_id",
-        "expected_control_store_position"
-      ],
-      "properties": {
-        "command_id": {
-          "type": "string",
-          "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "command_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "message_id": {
-          "type": "string",
-          "pattern": "^msg_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "dispatch_id": {
-          "type": "string",
-          "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "expected_control_store_position": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false
-    },
     "provider_binding": {
       "type": "object",
       "required": [
         "provider",
+        "provider_identity",
         "model",
-        "model_version",
-        "adapter_revision",
-        "adapter_hash"
+        "profile",
+        "adapter",
+        "policy"
       ],
       "properties": {
         "provider": {
@@ -103,37 +64,7 @@
             "codex"
           ]
         },
-        "model": {
-          "type": "string",
-          "minLength": 1
-        },
-        "model_version": {
-          "type": "string",
-          "minLength": 1
-        },
-        "adapter_revision": {
-          "type": "string",
-          "minLength": 1
-        },
-        "adapter_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      },
-      "additionalProperties": false
-    },
-    "routing_binding": {
-      "type": "object",
-      "required": [
-        "route",
-        "profile",
-        "evaluation",
-        "policy",
-        "routing_evidence_snapshot_id",
-        "routing_evidence_snapshot_hash"
-      ],
-      "properties": {
-        "route": {
+        "provider_identity": {
           "type": "object",
           "required": [
             "id",
@@ -143,7 +74,30 @@
           "properties": {
             "id": {
               "type": "string",
-              "pattern": "^rte_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "model": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "revision": {
               "type": "integer",
@@ -179,7 +133,7 @@
           },
           "additionalProperties": false
         },
-        "evaluation": {
+        "adapter": {
           "type": "object",
           "required": [
             "id",
@@ -189,7 +143,7 @@
           "properties": {
             "id": {
               "type": "string",
-              "pattern": "^evl_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              "pattern": "^adp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "revision": {
               "type": "integer",
@@ -224,31 +178,21 @@
             }
           },
           "additionalProperties": false
-        },
-        "routing_evidence_snapshot_id": {
-          "type": "string",
-          "pattern": "^res_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "routing_evidence_snapshot_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
         }
       },
       "additionalProperties": false
     },
-    "context_binding": {
+    "w2_binding": {
       "type": "object",
       "required": [
-        "context_candidate",
-        "context_packet",
-        "context_addendum",
-        "exact_content_hash",
-        "reference_token_gate",
-        "provider_usable_input_gate",
-        "rendered_provider_payload_hash"
+        "command",
+        "expected_control_store_position",
+        "idempotency_key",
+        "idempotency_key_hash",
+        "payload_hash"
       ],
       "properties": {
-        "context_candidate": {
+        "command": {
           "type": "object",
           "required": [
             "id",
@@ -258,7 +202,7 @@
           "properties": {
             "id": {
               "type": "string",
-              "pattern": "^ctx_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "revision": {
               "type": "integer",
@@ -271,206 +215,106 @@
           },
           "additionalProperties": false
         },
-        "context_packet": {
-          "type": "object",
-          "required": [
-            "id",
-            "revision",
-            "content_hash"
-          ],
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^cpk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "content_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
+        "expected_control_store_position": {
+          "type": "integer",
+          "minimum": 0
         },
-        "context_addendum": {
-          "type": "object",
-          "required": [
-            "id",
-            "revision",
-            "content_hash"
-          ],
-          "properties": {
-            "id": {
-              "type": "string",
-              "pattern": "^cad_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            "revision": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "content_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1
         },
-        "exact_content_hash": {
+        "idempotency_key_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
-        "reference_token_gate": {
-          "type": "object",
-          "required": [
-            "method",
-            "method_version",
-            "observed_tokens",
-            "ceiling_tokens",
-            "passed",
-            "evidence_hash"
-          ],
-          "properties": {
-            "method": {
-              "enum": [
-                "exact",
-                "evaluated_conservative_upper_bound"
-              ]
-            },
-            "method_version": {
-              "type": "string",
-              "minLength": 1
-            },
-            "observed_tokens": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "ceiling_tokens": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "passed": {
-              "const": true
-            },
-            "evidence_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
-        },
-        "provider_usable_input_gate": {
-          "type": "object",
-          "required": [
-            "method",
-            "method_version",
-            "observed_tokens",
-            "ceiling_tokens",
-            "passed",
-            "evidence_hash"
-          ],
-          "properties": {
-            "method": {
-              "enum": [
-                "exact",
-                "evaluated_conservative_upper_bound"
-              ]
-            },
-            "method_version": {
-              "type": "string",
-              "minLength": 1
-            },
-            "observed_tokens": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "ceiling_tokens": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "passed": {
-              "const": true
-            },
-            "evidence_hash": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
-            }
-          },
-          "additionalProperties": false
-        },
-        "rendered_provider_payload_hash": {
+        "payload_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         }
       },
       "additionalProperties": false
     },
-    "assurance_binding": {
+    "authority_binding": {
       "type": "object",
       "required": [
-        "purpose",
-        "review_id",
-        "subject_visibility",
-        "evidence_visibility",
-        "prohibited_producer_material"
-      ],
-      "properties": {
-        "purpose": {
-          "enum": [
-            "model_work",
-            "independent_review",
-            "assurance_evidence"
-          ]
-        },
-        "review_id": {
-          "oneOf": [
-            {
-              "type": "string",
-              "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "subject_visibility": {
-          "enum": [
-            "public",
-            "internal",
-            "restricted_reference_only"
-          ]
-        },
-        "evidence_visibility": {
-          "enum": [
-            "public",
-            "internal",
-            "restricted_reference_only"
-          ]
-        },
-        "prohibited_producer_material": {
-          "type": "array",
-          "items": {
-            "enum": [
-              "credentials",
-              "raw_restricted_data",
-              "hidden_reasoning",
-              "full_transcripts"
-            ]
-          },
-          "uniqueItems": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "resource_binding": {
-      "type": "object",
-      "required": [
+        "task",
+        "dispatch",
+        "attempt",
         "resource_grant",
-        "execution_lease",
-        "stop_policy"
+        "cost_grant",
+        "reservation",
+        "secret_reference"
       ],
       "properties": {
+        "task": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "dispatch": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "attempt": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
         "resource_grant": {
           "type": "object",
           "required": [
@@ -494,7 +338,7 @@
           },
           "additionalProperties": false
         },
-        "execution_lease": {
+        "cost_grant": {
           "type": "object",
           "required": [
             "id",
@@ -504,7 +348,7 @@
           "properties": {
             "id": {
               "type": "string",
-              "pattern": "^els_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "revision": {
               "type": "integer",
@@ -517,7 +361,7 @@
           },
           "additionalProperties": false
         },
-        "stop_policy": {
+        "reservation": {
           "type": "object",
           "required": [
             "id",
@@ -527,7 +371,30 @@
           "properties": {
             "id": {
               "type": "string",
-              "pattern": "^stp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              "pattern": "^crs_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "secret_reference": {
+          "type": "object",
+          "required": [
+            "id",
+            "revision",
+            "content_hash"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^srf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "revision": {
               "type": "integer",
@@ -543,21 +410,49 @@
       },
       "additionalProperties": false
     },
-    "t2_authority_binding": {
+    "payload_binding": {
       "type": "object",
       "required": [
-        "task_id",
-        "dispatch_id",
-        "attempt_id",
-        "secret_reference_id",
-        "secret_reference_revision",
-        "secret_reference_hash",
-        "cost_grant_id",
-        "cost_grant_revision",
-        "cost_grant_hash",
-        "pre_issue_evidence_manifest_id",
-        "pre_issue_evidence_manifest_revision",
-        "pre_issue_evidence_manifest_hash",
+        "rendered_payload_hash",
+        "context_hash"
+      ],
+      "properties": {
+        "rendered_payload_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "context_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "permission_binding": {
+      "type": "object",
+      "required": [
+        "summary",
+        "effective_permissions_hash"
+      ],
+      "properties": {
+        "summary": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "effective_permissions_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "accounting_ceiling": {
+      "type": "object",
+      "required": [
         "token_ceilings",
         "cost_ceiling_microunits",
         "currency",
@@ -566,54 +461,6 @@
         "rate_evidence_hash"
       ],
       "properties": {
-        "task_id": {
-          "type": "string",
-          "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "dispatch_id": {
-          "type": "string",
-          "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "attempt_id": {
-          "type": "string",
-          "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "secret_reference_id": {
-          "type": "string",
-          "pattern": "^srf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "secret_reference_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "secret_reference_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "cost_grant_id": {
-          "type": "string",
-          "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "cost_grant_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "cost_grant_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "pre_issue_evidence_manifest_id": {
-          "type": "string",
-          "pattern": "^pem_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-        },
-        "pre_issue_evidence_manifest_revision": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "pre_issue_evidence_manifest_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
         "token_ceilings": {
           "type": "object",
           "required": [
@@ -660,145 +507,16 @@
       },
       "additionalProperties": false
     },
-    "operation": {
+    "lifecycle": {
       "type": "object",
       "required": [
-        "operation_class",
-        "rendered_payload_hash"
-      ],
-      "properties": {
-        "operation_class": {
-          "enum": [
-            "deliver_context",
-            "request_model_work",
-            "invoke_declared_tool",
-            "submit_ars_command",
-            "deliver_message",
-            "request_review",
-            "cancel_provider_work",
-            "query_provider_status"
-          ]
-        },
-        "rendered_payload_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      },
-      "additionalProperties": false
-    },
-    "permissions": {
-      "type": "object",
-      "required": [
-        "tools",
-        "roots",
-        "network",
-        "write",
-        "sensitivity",
-        "default_deny"
-      ],
-      "properties": {
-        "tools": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "uniqueItems": true
-        },
-        "roots": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": [
-              "subject_id",
-              "subject_revision",
-              "subject_hash"
-            ],
-            "properties": {
-              "subject_id": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-              },
-              "subject_revision": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "subject_hash": {
-                "type": "string",
-                "pattern": "^[0-9a-f]{64}$"
-              }
-            },
-            "additionalProperties": false
-          },
-          "uniqueItems": true
-        },
-        "network": {
-          "enum": [
-            "denied",
-            "allowlisted"
-          ]
-        },
-        "write": {
-          "enum": [
-            "denied",
-            "scoped"
-          ]
-        },
-        "sensitivity": {
-          "enum": [
-            "public",
-            "internal",
-            "restricted_reference_only"
-          ]
-        },
-        "default_deny": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "receipt_expectation": {
-      "type": "object",
-      "required": [
-        "required_fields",
-        "exact_delivery_proof_required",
-        "incomplete_is_diagnostic_only"
-      ],
-      "properties": {
-        "required_fields": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        },
-        "exact_delivery_proof_required": {
-          "const": true
-        },
-        "incomplete_is_diagnostic_only": {
-          "const": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "lifecycle_policy": {
-      "type": "object",
-      "required": [
-        "timeout_at",
+        "issued_at",
         "expires_at",
         "retry",
         "reconciliation"
       ],
       "properties": {
-        "timeout_at": {
+        "issued_at": {
           "type": "string",
           "format": "date-time"
         },

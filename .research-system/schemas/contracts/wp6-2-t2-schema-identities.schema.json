@@ -80,6 +80,7 @@
       "type": "object",
       "required": [
         "start_revision",
+        "membership_contract_path",
         "protected_path_count",
         "path_blob_rawsha_map_sha256",
         "command_tree",
@@ -91,8 +92,9 @@
       ],
       "properties": {
         "start_revision": {"const": "69a0fee6171fc25f936c8e3e03343bfbd0338440"},
-        "protected_path_count": {"const": 214},
-        "path_blob_rawsha_map_sha256": {"const": "b99f76f3406dc2bdf50b41051ffdb252681ea2ab7861d0fdc8a19da3dec52a65"},
+        "membership_contract_path": {"const": ".research-system/contracts/wp6-2-t2-protected-membership.yaml"},
+        "protected_path_count": {"const": 220},
+        "path_blob_rawsha_map_sha256": {"const": "74c911466203f64277b2189c5fc2455c5644fa24818193cac33c19bed4e5c84c"},
         "command_tree": {"const": "9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea"},
         "event_tree": {"const": "154ffc4bdde82fe903718734687e7a62797b1f69"},
         "core_tree": {"const": "b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46"},

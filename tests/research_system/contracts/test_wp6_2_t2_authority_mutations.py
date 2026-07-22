@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import copy
 import hashlib
 import json
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from tests.research_system.contracts import wp6_2_t2_authority_validation as validation
 from tests.research_system.contracts.wp6_2_t2_authority_validation import (
     T2ContractError,
     rebuild_idempotency_index,
@@ -17,8 +19,6 @@ from tests.research_system.contracts.wp6_2_t2_authority_validation import (
     validate_concurrency_observation,
     validate_cost_evidence_relations,
     validate_event_observation,
-    validate_pre_issue_evidence,
-    validate_pre_issue_rejection,
     validate_protected_snapshot,
     validate_provider_receipt_gates,
     validate_reconciliation,
@@ -27,10 +27,12 @@ from tests.research_system.contracts.wp6_2_t2_authority_validation import (
 )
 from tests.research_system.contracts.wp6_2_t2_expectations import (
     CATALOGUE_PATH,
+    CROSSWALK_PATH,
     NEGATIVE_CASES,
-    PRE_ISSUE_SENTINEL_SEAMS,
+    PROTECTED_MEMBERSHIP_PATH,
     PROTECTED_PROVIDER_BLOBS,
     PROTECTED_TREE_IDENTITIES,
+    SCHEMA_IDENTITIES,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -46,29 +48,6 @@ def test_each_negative_control_is_independently_required(test_id: str) -> None:
     mutated["negative_controls"].pop(test_id)
     with pytest.raises(T2ContractError, match="negative-control set mismatch"):
         validate_catalogue_semantics(mutated, REPO_ROOT)
-
-
-@pytest.mark.parametrize("seam", PRE_ISSUE_SENTINEL_SEAMS)
-@pytest.mark.parametrize(
-    ("field", "wrong_value"),
-    [
-        ("reservation_count", 1),
-        ("invocation_count", 1),
-        ("canonical_publication_count", 1),
-    ],
-)
-def test_secret_sentinel_negative_control_detects_every_side_effect(seam: str, field: str, wrong_value: int) -> None:
-    observation = {
-        "seam": seam,
-        "rejection_code": "secret_material_detected",
-        "reservation_count": 0,
-        "invocation_count": 0,
-        "canonical_publication_count": 0,
-    }
-    validate_pre_issue_rejection(observation)
-    observation[field] = wrong_value
-    with pytest.raises(T2ContractError):
-        validate_pre_issue_rejection(observation)
 
 
 @pytest.mark.parametrize(
@@ -243,9 +222,14 @@ def _canonical_bytes(value: object) -> bytes:
 
 
 def _event(event_type: str, effect_field: str, effect_id: str) -> dict[str, object]:
+    idempotency_key = "wp6-2-t2-replay-key"
     return {
         "command_id": "cmd_018f47a2-9b3c-7def-8abc-0123456789ab",
-        "idempotency_key_hash": "a" * 64,
+        "actor_id": "actor-a",
+        "authority_scope": "wp6.2.t2.provider.issue",
+        "command_type": "AuthorizeProviderIssue",
+        "idempotency_key": idempotency_key,
+        "idempotency_key_hash": hashlib.sha256(idempotency_key.encode()).hexdigest(),
         "payload_hash": "b" * 64,
         "event_type": event_type,
         "payload": {effect_field: effect_id},
@@ -258,7 +242,10 @@ def test_rebuild_idempotency_index_from_canonical_event_bytes() -> None:
         _event("ProviderCommandIssued", "provider_command_id", "pcmd_018f47a2-9b3c-7def-8abc-0123456789ab"),
     ]
     assert rebuild_idempotency_index([_canonical_bytes(event) for event in events]) == {
-        events[0]["command_id"]: ("a" * 64, "b" * 64)
+        ("actor-a", "wp6.2.t2.provider.issue", "AuthorizeProviderIssue", "wp6-2-t2-replay-key"): (
+            events[0]["command_id"],
+            "b" * 64,
+        )
     }
 
 
@@ -279,42 +266,6 @@ def test_rebuilt_index_rejects_conflicting_payload_binding() -> None:
     second["payload_hash"] = "c" * 64
     with pytest.raises(T2ContractError, match="idempotency_conflict"):
         rebuild_idempotency_index([_canonical_bytes(first), _canonical_bytes(second)])
-
-
-def _pre_issue_fixture() -> tuple[dict[str, object], dict[str, object], str]:
-    sentinel = "SAFE_SYNTHETIC_SENTINEL_T2"
-    payloads = {seam: {"nested": {"seam": seam, "value": "clean"}} for seam in PRE_ISSUE_SENTINEL_SEAMS}
-    hashes = [hashlib.sha256(_canonical_bytes(payloads[seam])).hexdigest() for seam in PRE_ISSUE_SENTINEL_SEAMS]
-    digest = "a" * 64
-    manifest = {
-        "safe_synthetic_sentinel_hash": hashlib.sha256(sentinel.encode()).hexdigest(),
-        "seams": [
-            {
-                "seam_id": seam,
-                "producer": {"subject_id": f"producer-{index}", "subject_revision": 1, "subject_hash": digest},
-                "source_evidence": [{"subject_id": f"evidence-{index}", "subject_revision": 1, "subject_hash": digest}],
-                "serialized_payload_hash": payload_hash,
-                "outcome": "no_prohibited_material_or_sentinel",
-            }
-            for index, (seam, payload_hash) in enumerate(zip(PRE_ISSUE_SENTINEL_SEAMS, hashes, strict=True))
-        ],
-        "aggregate_content_hash": hashlib.sha256("\n".join(hashes).encode("ascii")).hexdigest(),
-    }
-    return manifest, payloads, sentinel
-
-
-def test_recursive_pre_issue_scan_accepts_clean_eight_seams() -> None:
-    manifest, payloads, sentinel = _pre_issue_fixture()
-    validate_pre_issue_evidence(manifest, payloads, safe_sentinel=sentinel, prohibited_material=["REAL_SECRET"])
-
-
-@pytest.mark.parametrize("seam", PRE_ISSUE_SENTINEL_SEAMS)
-@pytest.mark.parametrize("material", ["SAFE_SYNTHETIC_SENTINEL_T2", "REAL_SECRET"])
-def test_recursive_pre_issue_scan_rejects_actual_serialized_seam(seam: str, material: str) -> None:
-    manifest, payloads, sentinel = _pre_issue_fixture()
-    payloads[seam] = {"recursive": {"list": ["clean", {"material": material}]}}
-    with pytest.raises(T2ContractError, match="secret_material_detected"):
-        validate_pre_issue_evidence(manifest, payloads, safe_sentinel=sentinel, prohibited_material=["REAL_SECRET"])
 
 
 def _command_fixture(
@@ -445,6 +396,47 @@ def _command_fixture(
                 "resulting_stream_version": 3,
             },
         ]
+    required_stems = {
+        "IssueCostGrant": {
+            "cost_grant",
+            "resource_grant",
+            "task",
+            "dispatch",
+            "attempt",
+            "provider_command",
+            "secret_reference",
+        },
+        "AuthorizeProviderIssue": {
+            "cost_grant",
+            "resource_grant",
+            "task",
+            "dispatch",
+            "attempt",
+            "provider_command",
+            "secret_reference",
+            "reservation",
+        },
+        "RecordProviderReceipt": {
+            "cost_grant",
+            "resource_grant",
+            "task",
+            "dispatch",
+            "attempt",
+            "provider_command",
+            "provider_receipt",
+            "secret_reference",
+            "reservation",
+        },
+    }[command_type]
+    for stem in required_stems:
+        identity = identities[stem]
+        command["payload"].update(
+            {
+                f"{stem}_id": identity["id"],
+                f"{stem}_revision": identity["revision"],
+                f"{stem}_hash": identity["content_hash"],
+            }
+        )
     return command, identities, events
 
 
@@ -525,17 +517,7 @@ def test_receipt_v2_outcome_relations_reject() -> None:
 
 
 def test_duplicate_receipt_binds_original_outcome_without_new_effects() -> None:
-    original = {
-        "outcome": "accepted",
-        "command_id": "cmd_018f47a2-9b3c-7def-8abc-0123456789ab",
-        "idempotency_key_hash": "a" * 64,
-        "payload_hash": "b" * 64,
-        "event_batch_id": "txb_018f47a2-9b3c-7def-8abc-0123456789ab",
-        "events": [{"event_id": "evt_018f47a2-9b3c-7def-8abc-0123456789ab"}],
-        "outcome_binding_hash": "c" * 64,
-        "stable_reason": None,
-        "unmet_preconditions": [],
-    }
+    original = _accepted_receipt_v2()
     duplicate = {
         **original,
         "outcome": "duplicate",
@@ -551,18 +533,15 @@ def test_duplicate_receipt_binds_original_outcome_without_new_effects() -> None:
 
 def test_incomplete_provider_receipt_is_diagnostic_only() -> None:
     receipt = {
-        "delivery_proof": {"disposition": "unable_to_prove"},
+        "delivery_binding": {"disposition": "unable_to_prove"},
         "completeness": {
             "complete": False,
-            "dispatch_gate_satisfied": False,
-            "delivery_gate_satisfied": False,
             "reconciliation_gate_satisfied": False,
-            "review_gate_satisfied": False,
             "diagnostic_only": True,
         },
     }
     validate_provider_receipt_gates(receipt)
-    receipt["completeness"]["review_gate_satisfied"] = True
+    receipt["completeness"]["reconciliation_gate_satisfied"] = True
     with pytest.raises(T2ContractError, match="incomplete provider receipt satisfied gate"):
         validate_provider_receipt_gates(receipt)
 
@@ -580,3 +559,417 @@ def test_incomplete_provider_receipt_is_diagnostic_only() -> None:
 def test_uuidv7_prefix_and_case_counterexamples(value: str) -> None:
     with pytest.raises(T2ContractError, match="canonical_id_invalid"):
         validate_canonical_id(value, "srf")
+
+
+def _accepted_receipt_v2() -> dict[str, object]:
+    suffix = "018f47a2-9b3c-7def-8abc-0123456789ab"
+    return {
+        "schema_id": "ars://core/receipt/v2",
+        "schema_version": "2.0.0",
+        "receipt_id": f"rcp_{suffix}",
+        "outcome": "accepted",
+        "command_type": "AuthorizeProviderIssue",
+        "command_id": f"cmd_{suffix}",
+        "idempotency_key_hash": "a" * 64,
+        "payload_hash": "b" * 64,
+        "event_batch_id": f"txb_{suffix}",
+        "events": [
+            {
+                "event_id": f"evt_{suffix}",
+                "event_type": "CostGrantReserved",
+                "transaction_position": 0,
+                "stream_id": f"cgr_{suffix}",
+                "prior_stream_version": 2,
+                "resulting_stream_version": 3,
+            },
+            {
+                "event_id": "evt_018f47a2-9b3c-7def-8abc-0123456789ac",
+                "event_type": "ProviderCommandIssued",
+                "transaction_position": 1,
+                "stream_id": f"pcmd_{suffix}",
+                "prior_stream_version": 0,
+                "resulting_stream_version": 1,
+            },
+        ],
+        "stable_reason": None,
+        "unmet_preconditions": [],
+        "original_accepted_receipt_hash": None,
+        "outcome_binding_hash": "c" * 64,
+        "new_event_count": 2,
+        "new_invocation_count": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["count", "position", "order", "event_id", "stream_version"],
+)
+def test_r3_red_c1_receipt_v2_rejects_internally_inconsistent_proof(mutation: str) -> None:
+    receipt = _accepted_receipt_v2()
+    if mutation == "count":
+        receipt["new_event_count"] = 1
+    elif mutation == "position":
+        receipt["events"][1]["transaction_position"] = 0
+    elif mutation == "order":
+        receipt["events"].reverse()
+    elif mutation == "event_id":
+        receipt["events"][1]["event_id"] = receipt["events"][0]["event_id"]
+    else:
+        receipt["events"][0]["resulting_stream_version"] = 4
+    with pytest.raises(T2ContractError):
+        validate_receipt_v2(receipt)
+
+
+def test_r3_red_c2_logical_tuple_collision_is_command_id_independent() -> None:
+    first = _event("CostGrantReserved", "reservation_id", "crs_018f47a2-9b3c-7def-8abc-0123456789ab")
+    second = _event(
+        "ProviderCommandIssued",
+        "provider_command_id",
+        "pcmd_018f47a2-9b3c-7def-8abc-0123456789ab",
+    )
+    for event in (first, second):
+        idempotency_key = "provider-issue-01"
+        event.update(
+            {
+                "actor_id": "act_018f47a2-9b3c-7def-8abc-0123456789ab",
+                "authority_scope": "wp6.2.t2.provider.issue",
+                "command_type": "AuthorizeProviderIssue",
+                "idempotency_key": idempotency_key,
+                "idempotency_key_hash": hashlib.sha256(idempotency_key.encode()).hexdigest(),
+            }
+        )
+    second["command_id"] = "cmd_018f47a2-9b3c-7def-8abc-0123456789ac"
+    with pytest.raises(T2ContractError, match="idempotency_conflict"):
+        rebuild_idempotency_index([_canonical_bytes(first), _canonical_bytes(second)])
+
+
+def test_r3_red_c4_every_applicable_authority_subject_is_a_complete_triple() -> None:
+    required_stems = {
+        "IssueCostGrant": {
+            "cost_grant",
+            "resource_grant",
+            "task",
+            "dispatch",
+            "attempt",
+            "provider_command",
+            "secret_reference",
+        },
+        "AuthorizeProviderIssue": {
+            "cost_grant",
+            "resource_grant",
+            "task",
+            "dispatch",
+            "attempt",
+            "provider_command",
+            "secret_reference",
+            "reservation",
+        },
+        "RecordProviderReceipt": {
+            "cost_grant",
+            "resource_grant",
+            "task",
+            "dispatch",
+            "attempt",
+            "provider_command",
+            "provider_receipt",
+            "secret_reference",
+            "reservation",
+        },
+    }
+    for command_type, stems in required_stems.items():
+        schema = json.loads((REPO_ROOT / SCHEMA_IDENTITIES[command_type]["path"]).read_text(encoding="utf-8"))
+        payload_required = set(schema["properties"]["payload"]["required"])
+        for stem in stems:
+            assert {f"{stem}_id", f"{stem}_revision", f"{stem}_hash"} <= payload_required
+
+
+def test_r3_red_m1_one_composed_gate_includes_schema_arithmetic_and_evidence() -> None:
+    assert callable(getattr(validation, "validate_t2_authority_cost_gate", None))
+
+
+def _authority_cost_fixtures() -> tuple[dict[str, object], ...]:
+    suffix = "018f47a2-9b3c-7def-8abc-0123456789ab"
+    digest = "a" * 64
+    timestamp = "2026-07-22T12:00:00Z"
+
+    def triple(prefix: str) -> dict[str, object]:
+        return {"id": f"{prefix}_{suffix}", "revision": 1, "content_hash": digest}
+
+    def content_ref(prefix: str) -> dict[str, object]:
+        return {
+            "subject_id": f"{prefix}_{suffix}",
+            "subject_revision": 1,
+            "subject_hash": digest,
+        }
+
+    rate_binding = {
+        "currency": "USD",
+        "rate_evidence_id": f"rate_{suffix}",
+        "rate_evidence_revision": 1,
+        "rate_evidence_hash": digest,
+    }
+    cost_grant = {
+        "schema_id": "ars://wp6-2/t2/cost-grant",
+        "schema_version": "1.0.0",
+        "cost_grant_id": f"cgr_{suffix}",
+        "revision": 1,
+        "content_hash": digest,
+        "resource_grant_id": f"rgr_{suffix}",
+        "resource_grant_revision": 1,
+        "resource_grant_hash": digest,
+        "authority_grant_id": f"agr_{suffix}",
+        "scope": {
+            "task_id": f"tsk_{suffix}",
+            "dispatch_id": f"dsp_{suffix}",
+            "attempt_id": f"att_{suffix}",
+            "route_id": f"rte_{suffix}",
+            "profile_id": f"prf_{suffix}",
+            "adapter_revision": "adapter-1",
+            "provider_command_id": f"pcmd_{suffix}",
+            "provider_command_revision": 1,
+            "provider_command_hash": digest,
+        },
+        "secret_reference_id": f"srf_{suffix}",
+        "secret_reference_revision": 1,
+        "secret_reference_hash": digest,
+        "provider_command_schema_id": "ars://adapters/provider-command/v2",
+        "provider_command_schema_version": "2.0.0",
+        "token_ceilings": {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
+        "cost_ceiling_microunits": 1000,
+        "rate_evidence": {
+            **rate_binding,
+            "effective_at": timestamp,
+            "expires_at": "2026-07-23T12:00:00Z",
+            "mode": "metered",
+            "input_microunits_per_million_tokens": 10000,
+            "output_microunits_per_million_tokens": 20000,
+            "zero_cost_authority": None,
+        },
+        "initial_accounting": {
+            "reserved_microunits": 0,
+            "consumed_microunits": 0,
+            "refunded_microunits": 0,
+        },
+        "expires_at": "2026-07-23T12:00:00Z",
+        "idempotency_identity": {
+            "actor_id": f"act_{suffix}",
+            "authority_scope": "wp6.2.t2.cost-grant.issue",
+            "command_type": "IssueCostGrant",
+            "idempotency_key": "issue-cost-grant-01",
+        },
+        "revocation_binding": {
+            "authority_grant_id": f"agr_{suffix}",
+            "resource_grant_id": f"rgr_{suffix}",
+            "new_issue_rule": "require_both_current_projections_active",
+            "reconciliation_rule": "reconcile_every_previously_accepted_reservation",
+        },
+    }
+    reservation = {
+        "cost_grant_id": f"cgr_{suffix}",
+        "reservation_id": f"crs_{suffix}",
+        "provider_command_id": f"pcmd_{suffix}",
+        "reserved_tokens": {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150},
+        "reserved_cost_microunits": 1000,
+        "remaining_cost_microunits": 0,
+        **rate_binding,
+        "input_microunits_per_million_tokens": 10000,
+        "output_microunits_per_million_tokens": 20000,
+        "rate_mode": "metered",
+        "zero_cost_authority": None,
+    }
+    provider_receipt = {
+        "schema_id": "ars://adapters/provider-receipt/v2",
+        "schema_version": "2.0.0",
+        "provider_receipt_id": f"prcp_{suffix}",
+        "revision": 1,
+        "revision_hash": digest,
+        "command_binding": {
+            "provider_command": triple("pcmd"),
+            "w2_command": triple("cmd"),
+            "idempotency_key_hash": digest,
+            "payload_hash": digest,
+        },
+        "provider_binding": {
+            "provider": "claude",
+            "provider_identity": triple("prv"),
+            "model": triple("mdl"),
+            "profile": triple("prf"),
+            "adapter": triple("adp"),
+            "policy": triple("pol"),
+        },
+        "authority_binding": {
+            "task": triple("tsk"),
+            "dispatch": triple("dsp"),
+            "attempt": triple("att"),
+            "resource_grant": triple("rgr"),
+            "cost_grant": triple("cgr"),
+            "reservation": triple("crs"),
+            "secret_reference": triple("srf"),
+            "provider_receipt": triple("prcp"),
+        },
+        "delivery_binding": {
+            "disposition": "proven",
+            "rendered_payload_hash": digest,
+            "delivered_context_hash": digest,
+        },
+        "timestamps": {"issued_at": timestamp, "terminal_at": timestamp},
+        "token_accounting": {
+            "actual_input_tokens": 100,
+            "actual_output_tokens": 50,
+            "actual_total_tokens": 150,
+            "accounting_method": "provider_receipt_exact",
+            "reserved_cost_microunits": 1000,
+            "consumed_cost_microunits": 2,
+            "refund_cost_microunits": 998,
+            **rate_binding,
+        },
+        "terminal_outcome": {"status": "terminal", "normalized_error": None},
+        "outputs": {"references": [], "aggregate_hash": digest},
+        "lifecycle_evidence": {
+            "retry_count": 0,
+            "duplicate_of_receipt": None,
+            "reconciliation": content_ref("rec"),
+        },
+        "evidence_disposition": {
+            "redaction": "secret_and_restricted_material_removed",
+            "omission_declarations": [],
+        },
+        "completeness": {
+            "complete": True,
+            "reconciliation_gate_satisfied": True,
+            "diagnostic_only": False,
+        },
+    }
+    reconciliation = {
+        **_valid_reconciliation(),
+        "cost_grant_id": f"cgr_{suffix}",
+        "reservation_id": f"crs_{suffix}",
+        "provider_command_id": f"pcmd_{suffix}",
+        "provider_receipt_id": f"prcp_{suffix}",
+        "remaining_cost_microunits": 0,
+        **rate_binding,
+    }
+    return cost_grant, reservation, provider_receipt, reconciliation
+
+
+def test_t2_authority_cost_gate_composes_schema_arithmetic_and_evidence() -> None:
+    cost_grant, reservation, provider_receipt, reconciliation = _authority_cost_fixtures()
+    validation.validate_t2_authority_cost_gate(
+        REPO_ROOT,
+        cost_grant=cost_grant,
+        reservation=reservation,
+        provider_receipt=provider_receipt,
+        reconciliation=reconciliation,
+    )
+
+
+@pytest.mark.parametrize(
+    ("record_index", "field", "wrong_value"),
+    [
+        (0, "currency", "GBP"),
+        (1, "rate_evidence_id", "rate_018f47a2-9b3c-7def-8abc-0123456789ac"),
+        (2, "rate_evidence_revision", 2),
+        (3, "rate_evidence_hash", "b" * 64),
+    ],
+)
+def test_t2_authority_cost_gate_rejects_each_cross_object_evidence_difference(
+    record_index: int,
+    field: str,
+    wrong_value: object,
+) -> None:
+    cost_grant, reservation, provider_receipt, reconciliation = _authority_cost_fixtures()
+    evidence_records = [
+        cost_grant["rate_evidence"],
+        reservation,
+        provider_receipt["token_accounting"],
+        reconciliation,
+    ]
+    evidence_records[record_index][field] = wrong_value
+    with pytest.raises(T2ContractError, match="cost evidence identity mismatch"):
+        validation.validate_t2_authority_cost_gate(
+            REPO_ROOT,
+            cost_grant=cost_grant,
+            reservation=reservation,
+            provider_receipt=provider_receipt,
+            reconciliation=reconciliation,
+        )
+
+
+def test_r3_red_m3_receipt_stream_id_uses_canonical_permitted_prefix() -> None:
+    receipt = _accepted_receipt_v2()
+    receipt["events"][0]["stream_id"] = "CGR_018f47a2-9b3c-7def-8abc-0123456789ab"
+    with pytest.raises(T2ContractError, match="canonical_id_invalid"):
+        validate_receipt_v2(receipt)
+
+
+def test_r3_red_i1_protected_membership_is_explicit_and_omission_sensitive() -> None:
+    contract_path = REPO_ROOT / PROTECTED_MEMBERSHIP_PATH
+    schema_path = REPO_ROOT / ".research-system/schemas/contracts/wp6-2-t2-protected-membership.schema.json"
+    assert contract_path.is_file() and schema_path.is_file()
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    mutated = copy.deepcopy(contract)
+    mutated["members"].pop()
+    with pytest.raises(T2ContractError):
+        validation.validate_protected_membership_contract(mutated, REPO_ROOT)
+
+
+def test_protected_membership_recomputes_exact_live_set() -> None:
+    contract = yaml.safe_load((REPO_ROOT / PROTECTED_MEMBERSHIP_PATH).read_text(encoding="utf-8"))
+    validation.validate_protected_membership_contract(contract, REPO_ROOT)
+
+
+def test_protected_membership_expected_side_has_no_materializer_dependency() -> None:
+    materializer_source = (REPO_ROOT / "tests/research_system/contracts/wp6_2_t2_schema_materializer.py").read_text(
+        encoding="utf-8"
+    )
+    validator_source = (REPO_ROOT / "tests/research_system/contracts/wp6_2_t2_authority_validation.py").read_text(
+        encoding="utf-8"
+    )
+    materializer_imports = {
+        node.module for node in ast.walk(ast.parse(materializer_source)) if isinstance(node, ast.ImportFrom)
+    }
+    validator_imports = {
+        node.module for node in ast.walk(ast.parse(validator_source)) if isinstance(node, ast.ImportFrom)
+    }
+    assert "tests.research_system.contracts.wp6_2_t2_authority_validation" not in materializer_imports
+    assert "_derive_protected_paths" not in materializer_source
+    assert "tests.research_system.contracts.wp6_2_t2_schema_materializer" not in validator_imports
+
+
+def test_r3_red_c3_obsolete_evidence_system_is_absent_from_t2_surface() -> None:
+    scoped_paths = {
+        CROSSWALK_PATH,
+        CATALOGUE_PATH,
+        "tests/research_system/contracts/wp6_2_t2_expectations.py",
+        "tests/research_system/contracts/wp6_2_t2_schema_materializer.py",
+        "tests/research_system/contracts/wp6_2_t2_authority_validation.py",
+        "tests/research_system/contracts/test_wp6_2_t2_authority_contract.py",
+        "tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py",
+        "docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md",
+    }
+    forbidden = (
+        "PreIssue" + "EvidenceManifest",
+        "pre_issue_evidence_" + "manifest",
+        "PRE_ISSUE_" + "SENTINEL_SEAMS",
+    )
+    offenders = {
+        path: token
+        for path in scoped_paths
+        for token in forbidden
+        if token in (REPO_ROOT / path).read_text(encoding="utf-8")
+    }
+    assert not offenders
+    assert "pre_issue_evidence_" + "manifest" not in SCHEMA_IDENTITIES
+    removed_schema_path = ".research-system/schemas/wp6-2-t2/" + "pre-issue-evidence-" + "manifest.schema.json"
+    assert not (REPO_ROOT / removed_schema_path).exists()
+
+
+def test_r3_red_m2_provider_successors_are_labeled_exact_t2_subset() -> None:
+    command = json.loads((REPO_ROOT / SCHEMA_IDENTITIES["provider_command_v2"]["path"]).read_text(encoding="utf-8"))
+    receipt = json.loads((REPO_ROOT / SCHEMA_IDENTITIES["provider_receipt_v2"]["path"]).read_text(encoding="utf-8"))
+    assert command["x-t2-validation-scope"] == "t2_authority_cost_subset"
+    assert receipt["x-t2-validation-scope"] == "t2_authority_cost_subset"
+    assert not (
+        {"context_binding", "assurance_binding", "resource_binding", "receipt_expectation"} & set(command["properties"])
+    )
+    assert not ({"provider_native_ids", "actions", "resource_observations"} & set(receipt["properties"]))

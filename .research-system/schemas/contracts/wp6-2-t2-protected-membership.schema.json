@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-t2-protected-membership",
+  "title": "WP6.2 T2 exact protected predecessor membership",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "contract_id",
+    "status",
+    "baseline_revision",
+    "derivation",
+    "protected_path_count",
+    "aggregate_algorithm",
+    "path_blob_rawsha_map_sha256",
+    "members"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-2-t2-protected-membership"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "contract_id": {
+      "const": "wp6-2-t2-r3-protected-membership"
+    },
+    "status": {
+      "const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"
+    },
+    "baseline_revision": {
+      "const": "69a0fee6171fc25f936c8e3e03343bfbd0338440"
+    },
+    "derivation": {
+      "const": "exact_union_of_accepted_core_wp6_1_t1a_and_provider_1_0_paths_at_baseline_revision"
+    },
+    "protected_path_count": {
+      "const": 220
+    },
+    "aggregate_algorithm": {
+      "const": "sha256_utf8_lf_sorted_path_pipe_git_blob_pipe_raw_git_blob_sha256_rows"
+    },
+    "path_blob_rawsha_map_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "repository_path",
+          "git_blob_id",
+          "raw_git_blob_sha256"
+        ],
+        "properties": {
+          "repository_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "git_blob_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "raw_git_blob_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 220,
+      "maxItems": 220,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

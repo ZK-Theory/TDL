@@ -17,7 +17,6 @@
     "replay_rule",
     "versioning_rule",
     "universal_rejection_effects",
-    "pre_issue_sentinel_seams",
     "stable_rejection_codes",
     "negative_controls",
     "protected_predecessors",
@@ -29,7 +28,7 @@
     "catalogue_id": {"const": "wp6-2-t2-cost-grant-authority-catalogue"},
     "catalogue_version": {"const": "1.0.0"},
     "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"},
-    "governing_decision": {"const": "P-037_and_P-038"},
+    "governing_decision": {"const": "P-037_and_P-038_as_amended_by_P-039"},
     "authority_addendum_path": {"type": "string", "minLength": 1},
     "writer": {"const": "research_system.command.service.CommandService"},
     "transition_family_closed": {"const": true},
@@ -56,13 +55,6 @@
         "automatic_retry": {"const": false}
       },
       "additionalProperties": false
-    },
-    "pre_issue_sentinel_seams": {
-      "type": "array",
-      "items": {"type": "string", "minLength": 1},
-      "minItems": 8,
-      "maxItems": 8,
-      "uniqueItems": true
     },
     "stable_rejection_codes": {
       "type": "array",

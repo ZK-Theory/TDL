@@ -22,7 +22,8 @@ from tests.research_system.contracts.wp6_2_t2_expectations import (
     EXPECTED_ROWS,
     IDENTITY_MANIFEST_PATH,
     IDENTITY_MANIFEST_SCHEMA_PATH,
-    PRE_ISSUE_SENTINEL_SEAMS,
+    PROTECTED_MEMBERSHIP_PATH,
+    PROTECTED_MEMBERSHIP_SCHEMA_PATH,
     PROVIDER_COMMAND_W7_FIELDS,
     PROVIDER_RECEIPT_W7_FIELDS,
     R1_FINDING_IDS,
@@ -47,6 +48,10 @@ def test_required_t2_contract_artifacts_exist() -> None:
         CATALOGUE_SCHEMA_PATH,
         IDENTITY_MANIFEST_PATH,
         IDENTITY_MANIFEST_SCHEMA_PATH,
+        CROSSWALK_PATH,
+        CROSSWALK_SCHEMA_PATH,
+        PROTECTED_MEMBERSHIP_PATH,
+        PROTECTED_MEMBERSHIP_SCHEMA_PATH,
         *(identity["path"] for identity in SCHEMA_IDENTITIES.values()),
     }
     missing = sorted(path for path in required_paths if not (REPO_ROOT / path).is_file())
@@ -77,6 +82,8 @@ def test_catalogue_and_manifest_pass_strict_schemas_with_format_checking() -> No
     for document_path, schema_path in (
         (CATALOGUE_PATH, CATALOGUE_SCHEMA_PATH),
         (IDENTITY_MANIFEST_PATH, IDENTITY_MANIFEST_SCHEMA_PATH),
+        (CROSSWALK_PATH, CROSSWALK_SCHEMA_PATH),
+        (PROTECTED_MEMBERSHIP_PATH, PROTECTED_MEMBERSHIP_SCHEMA_PATH),
     ):
         document = _load_yaml(document_path)
         schema = _load_json(schema_path)
@@ -124,11 +131,10 @@ def _valid_secret_reference() -> dict[str, object]:
             "reconciliation_rule": "reconcile_every_previously_accepted_reservation",
         },
         "redaction_proof": {
-            "policy_id": "wp6-2-t2-secret-sentinel-policy",
+            "policy_id": "wp6-2-t2-opaque-secret-reference-policy",
             "policy_version": "1.0.0",
             "evidence_sha256": digest,
-            "status": "no_secret_material_observed",
-            "checked_seams": PRE_ISSUE_SENTINEL_SEAMS,
+            "status": "opaque_metadata_only_no_raw_credential_or_resolution",
         },
     }
 
@@ -175,7 +181,7 @@ def test_complete_t2_semantic_and_content_address_binding() -> None:
     validate_t2_authority_contract(REPO_ROOT)
 
 
-def test_r1_red_c1_receipt_v2_proof_surface() -> None:
+def test_r3_receipt_v2_enforces_complete_ordered_proof() -> None:
     schema = _load_json(SCHEMA_IDENTITIES["receipt_v2"]["path"])
     required = set(schema["required"])
     assert {
@@ -189,7 +195,7 @@ def test_r1_red_c1_receipt_v2_proof_surface() -> None:
     assert schema["x-major-version-dispatch"] == "exact_major_version_required"
 
 
-def test_r1_red_c2_all_event_envelopes_rebuild_idempotency() -> None:
+def test_all_event_envelopes_carry_complete_logical_idempotency_tuple() -> None:
     for event_type in (
         "CostGrantIssued",
         "CostGrantReserved",
@@ -201,12 +207,14 @@ def test_r1_red_c2_all_event_envelopes_rebuild_idempotency() -> None:
         assert EVENT_HASH_FIELDS <= set(schema["required"]), event_type
 
 
-def test_r1_red_c3_typed_resolver_and_pre_issue_manifest() -> None:
+def test_secret_reference_remains_strict_opaque_metadata() -> None:
     secret_schema = _load_json(SCHEMA_IDENTITIES["secret_reference"]["path"])
     assert secret_schema["properties"]["resolver_id"]["type"] == "object"
-    manifest = _load_json(SCHEMA_IDENTITIES["pre_issue_evidence_manifest"]["path"])
-    assert manifest["properties"]["pre_issue_evidence_manifest_id"]["pattern"].startswith("^pem_")
-    assert manifest["properties"]["seams"]["minItems"] == len(PRE_ISSUE_SENTINEL_SEAMS)
+    serialized = json.dumps(secret_schema, sort_keys=True)
+    assert "credential_value" not in serialized
+    assert "secret_bytes" not in serialized
+    redaction_properties = secret_schema["properties"]["redaction_proof"]["properties"]
+    assert set(redaction_properties) == {"policy_id", "policy_version", "evidence_sha256", "status"}
 
 
 def test_r1_red_c4_relational_invariants_are_normative() -> None:
@@ -234,18 +242,19 @@ def test_r1_red_m1_cost_modes_and_integer_formula_are_bound() -> None:
     )
 
 
-def test_r1_red_m2_w7_successors_are_complete() -> None:
+def test_provider_successors_cover_exact_t2_authority_cost_subset() -> None:
     command = _load_json(SCHEMA_IDENTITIES["provider_command_v2"]["path"])
     receipt = _load_json(SCHEMA_IDENTITIES["provider_receipt_v2"]["path"])
-    assert PROVIDER_COMMAND_W7_FIELDS <= set(command["required"])
-    assert PROVIDER_RECEIPT_W7_FIELDS <= set(receipt["required"])
-    native_ids = receipt["properties"]["provider_native_ids"]["properties"]
-    assert set(native_ids) == {"request_id", "session_id", "response_id"}
-    without_native_ids = {key: value for key, value in receipt["properties"].items() if key != "provider_native_ids"}
-    assert '"not_exposed"' not in json.dumps(without_native_ids, sort_keys=True)
+    for schema, expected in (
+        (command, PROVIDER_COMMAND_W7_FIELDS),
+        (receipt, PROVIDER_RECEIPT_W7_FIELDS),
+    ):
+        assert schema["x-t2-validation-scope"] == "t2_authority_cost_subset"
+        assert set(schema["required"]) == expected
+        assert schema["x-deferred-qualification"] == "remaining_W7_sections_9_and_10_require_T3_T4_runtime_evidence"
 
 
-def test_r1_red_m3_canonical_ids_require_lowercase_uuidv7() -> None:
+def test_receipt_v2_permitted_stream_prefixes() -> None:
     schema = _load_json(SCHEMA_IDENTITIES["secret_reference"]["path"])
     validator = Draft202012Validator(schema)
     valid = _valid_secret_reference()
@@ -255,7 +264,6 @@ def test_r1_red_m3_canonical_ids_require_lowercase_uuidv7() -> None:
     assert list(validator.iter_errors(valid))
     expected_prefixes = {
         "cost_grant": ("cost_grant_id", "cgr_"),
-        "pre_issue_evidence_manifest": ("pre_issue_evidence_manifest_id", "pem_"),
         "provider_command_v2": ("provider_command_id", "pcmd_"),
         "provider_receipt_v2": ("provider_receipt_id", "prcp_"),
     }
@@ -263,6 +271,9 @@ def test_r1_red_m3_canonical_ids_require_lowercase_uuidv7() -> None:
         candidate = _load_json(SCHEMA_IDENTITIES[schema_name]["path"])
         pattern = candidate["properties"][field]["pattern"]
         assert pattern.startswith(f"^{prefix}") and "-7[0-9a-f]{3}-[89ab]" in pattern
+    receipt = _load_json(SCHEMA_IDENTITIES["receipt_v2"]["path"])
+    stream_id = receipt["properties"]["events"]["items"]["properties"]["stream_id"]
+    assert {item["pattern"][:5] for item in stream_id["oneOf"]} == {"^cgr_", "^pcmd"}
 
 
 def test_r1_red_machine_crosswalk_has_independent_complete_oracle() -> None:
