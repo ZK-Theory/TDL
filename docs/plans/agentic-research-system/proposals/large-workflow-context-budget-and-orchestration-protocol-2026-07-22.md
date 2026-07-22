@@ -1,14 +1,15 @@
 # Large-Workflow Context Budget and Orchestration Protocol
 
 **Date:** 2026-07-22
-**Status:** V1 ASSESSED `revise_and_retrial` - not an active general ARS gate or
-convention lock
+**Status:** V2 ASSESSED `approve_advisory_integration` recommended - Stephen
+activation pending; not an active general ARS gate or convention lock
 **Scope:** Large, multi-stage, review-heavy workflows such as ARS WP5/WP6
 **Workflow system:** Standalone TDL supervision. APM lifecycle, Memory Bank, skills,
 state, guides, and checkers are out of scope and remain unchanged.
-**Owner decision:** On 2026-07-22 Stephen approved V1, then clarified from its handback
-that this process is entirely independent of APM. V1 is useful certification evidence
-but did not reach delivery. The revised standalone V2 must run before integration.
+**Owner decision:** On 2026-07-22 Stephen clarified that this process is independent of
+APM. V1 validated certification and rotation. V2 validated standalone delta reuse and
+fail-closed supervision by stopping at a genuine missing T2 transition authority. The
+advisory integration surface below still requires Stephen's explicit activation.
 
 ## 1. Problem
 
@@ -275,8 +276,9 @@ exploration, certify-before-regenerate behavior, and zero external-review waits 
 dropped assurance. It did not dispatch T2, exercise implementation/review/remediation,
 or produce exact token telemetry. It also incorrectly loaded an APM Manager skill.
 
-V2 must start from the V1 packet rather than repeat intake, explicitly reject APM
-routing, supervise only WP6.2 T2, and record:
+V2 started from the V1 packet without repeating intake, rejected APM routing, stayed
+below budget with zero compactions, and stopped before dispatch because T2 lacked an
+accepted canonical transition family. It recorded:
 
 - supervisor rotations and context at rotation;
 - fork modes used;
@@ -286,19 +288,18 @@ routing, supervise only WP6.2 T2, and record:
 - review/remediation rounds;
 - any dropped requirement or false stop attributable to the protocol.
 
-Return the exact-state V2 handback to the instruction-design task and issue one of
-three verdicts: `revise_and_retrial`, `approve_advisory_integration`, or `reject`.
-A successful V2 may authorize the documentation, AGENTS, skill, and guide
-updates through a normal reviewed PR. A second successful large workflow may justify
-the mandatory checker, its negative controls, and the `CONVENTIONS.md` lock.
+The V2 verdict is `approve_advisory_integration` recommended. On Stephen's activation,
+the documentation, AGENTS, standalone skill, task-brief, handoff, and neutral guide
+updates may proceed through a normal reviewed PR. A later completed implementation/
+review/remediation cycle may justify the mandatory checker, its negative controls, and
+the `CONVENTIONS.md` lock.
 
 ## 7. Trial decision and deferred decisions
 
-For V2 Stephen's APM correction is binding. The advisory defaults remain 80k/first-
-compaction rotation, one implementer cycle, no-history independent review, at most two
-primary skills, and a prose campaign packet rather than a mandatory schema.
+Stephen's APM correction is binding. The advisory defaults remain 80k/first-compaction
+rotation, one implementer cycle, no-history independent review, at most two primary
+skills, and a prose campaign packet rather than a mandatory schema.
 
-After the trial Stephen will decide whether to revise and retrial, approve advisory
-AGENTS/skill/guide integration, or reject the method. Mandatory checker enforcement
-and a `CONVENTIONS.md` lock remain separately deferred until a second successful large
-workflow supplies supporting evidence.
+Stephen must now accept, amend, or reject advisory AGENTS/skill/guide integration.
+Mandatory checker enforcement and a `CONVENTIONS.md` lock remain separately deferred
+until a completed implementation/review/remediation cycle supplies supporting evidence.
