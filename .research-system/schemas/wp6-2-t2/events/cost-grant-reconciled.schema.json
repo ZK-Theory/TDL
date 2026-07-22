@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/t2/event/CostGrantReconciled",
+  "title": "WP6.2 T2 CostGrantReconciled",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "event_id",
+    "event_type",
+    "project_id",
+    "stream_id",
+    "stream_version",
+    "global_position",
+    "transaction_id",
+    "transaction_index",
+    "transaction_count",
+    "command_id",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "authority_grant_id",
+    "recorded_at",
+    "payload",
+    "previous_event_hash",
+    "event_hash"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://wp6-2/t2/event/CostGrantReconciled"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f-]+$"
+    },
+    "event_type": {
+      "const": "CostGrantReconciled"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f-]+$"
+    },
+    "stream_id": {
+      "type": "string",
+      "pattern": "^cgr_[0-9a-f-]+$"
+    },
+    "stream_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "global_position": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "transaction_id": {
+      "type": "string",
+      "pattern": "^txb_[0-9a-f-]+$"
+    },
+    "transaction_index": {
+      "const": 1
+    },
+    "transaction_count": {
+      "const": 2
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^cmd_[0-9a-f-]+$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "causation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f-]+$"
+    },
+    "authority_grant_id": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f-]+$"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "cost_grant_id",
+        "reservation_id",
+        "provider_command_id",
+        "provider_receipt_id",
+        "actual_input_tokens",
+        "actual_output_tokens",
+        "actual_total_tokens",
+        "reserved_cost_microunits",
+        "consumed_cost_microunits",
+        "refund_microunits",
+        "refund_disposition",
+        "remaining_cost_microunits"
+      ],
+      "properties": {
+        "cost_grant_id": {
+          "type": "string",
+          "pattern": "^cgr_[0-9a-f-]+$"
+        },
+        "reservation_id": {
+          "type": "string",
+          "pattern": "^crsv_[0-9a-f-]+$"
+        },
+        "provider_command_id": {
+          "type": "string",
+          "pattern": "^pcmd_[0-9a-f-]+$"
+        },
+        "provider_receipt_id": {
+          "type": "string",
+          "pattern": "^prcp_[0-9a-f-]+$"
+        },
+        "actual_input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actual_output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actual_total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refund_microunits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refund_disposition": {
+          "enum": [
+            "fully_consumed",
+            "refunded"
+          ]
+        },
+        "remaining_cost_microunits": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "previous_event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

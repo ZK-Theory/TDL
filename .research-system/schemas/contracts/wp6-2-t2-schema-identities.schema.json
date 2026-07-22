@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-t2-schema-identities",
+  "title": "WP6.2 T2 schema and authority identity manifest",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "manifest_id",
+    "manifest_version",
+    "status",
+    "self_identity",
+    "candidate_lifecycle",
+    "protected_baseline",
+    "artifacts",
+    "authority_rows",
+    "test_identities",
+    "hash_dependency_graph"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://contracts/wp6-2-t2-schema-identities"},
+    "schema_version": {"const": "1.0.0"},
+    "manifest_id": {"const": "wp6-2-t2-schema-identities"},
+    "manifest_version": {"const": "1.0.0"},
+    "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"},
+    "self_identity": {"$ref": "#/$defs/self_identity"},
+    "candidate_lifecycle": {"$ref": "#/$defs/candidate_lifecycle"},
+    "protected_baseline": {"$ref": "#/$defs/protected_baseline"},
+    "artifacts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/artifact"},
+      "minItems": 1
+    },
+    "authority_rows": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/authority_row"},
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "test_identities": {"$ref": "#/$defs/test_identities"},
+    "hash_dependency_graph": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "leaf_exact_bytes_to_identity_manifest"},
+        {"const": "identity_manifest_to_external_independent_review"},
+        {"const": "external_independent_review_to_stephen_exact_hash_acceptance"}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git_blob": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "semver_or_null": {"type": ["string", "null"], "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "schema_id_or_null": {"type": ["string", "null"], "pattern": "^ars://"},
+    "self_identity": {
+      "type": "object",
+      "required": ["repository_path", "schema_id", "schema_version", "hash_binding"],
+      "properties": {
+        "repository_path": {"const": ".research-system/contracts/wp6-2-t2-schema-identities.yaml"},
+        "schema_id": {"const": "ars://contracts/wp6-2-t2-schema-identities"},
+        "schema_version": {"const": "1.0.0"},
+        "hash_binding": {"const": "external_exact_state_review_and_owner_acceptance_only"}
+      },
+      "additionalProperties": false
+    },
+    "candidate_lifecycle": {
+      "type": "object",
+      "required": ["review_status", "acceptance_status", "runtime_implementation_authorized"],
+      "properties": {
+        "review_status": {"const": "pending_fresh_independent_review"},
+        "acceptance_status": {"const": "pending_stephen_exact_hash_acceptance"},
+        "runtime_implementation_authorized": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "protected_baseline": {
+      "type": "object",
+      "required": [
+        "start_revision",
+        "protected_path_count",
+        "path_blob_rawsha_map_sha256",
+        "command_tree",
+        "event_tree",
+        "core_tree",
+        "provider_command_1_0_0_blob",
+        "provider_receipt_1_0_0_blob"
+      ],
+      "properties": {
+        "start_revision": {"const": "ca2674fd39553a16bb583e80fc1463ce7bc59d5f"},
+        "protected_path_count": {"const": 207},
+        "path_blob_rawsha_map_sha256": {"const": "343aea6cf106a1d14abfab8ea62dd15dd4132878f3d8992922749c7c086a8e92"},
+        "command_tree": {"const": "9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea"},
+        "event_tree": {"const": "154ffc4bdde82fe903718734687e7a62797b1f69"},
+        "core_tree": {"const": "b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46"},
+        "provider_command_1_0_0_blob": {"const": "9eb58609b9703674912e64f019db3cd4fb147a9c"},
+        "provider_receipt_1_0_0_blob": {"const": "8ac904e6c0b16e45034bcdc2221970d6a3ef13a8"}
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": [
+        "artifact_role",
+        "repository_path",
+        "canonical_schema_id",
+        "schema_version",
+        "git_blob_id",
+        "raw_utf8_lf_sha256"
+      ],
+      "properties": {
+        "artifact_role": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "repository_path": {"type": "string", "minLength": 1},
+        "canonical_schema_id": {"$ref": "#/$defs/schema_id_or_null"},
+        "schema_version": {"$ref": "#/$defs/semver_or_null"},
+        "git_blob_id": {"$ref": "#/$defs/git_blob"},
+        "raw_utf8_lf_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "authority": {
+      "type": "object",
+      "required": ["scope", "subject", "subject_fields"],
+      "properties": {
+        "scope": {"type": "string", "pattern": "^wp6\\.2\\.t2\\."},
+        "subject": {"type": "string", "minLength": 1},
+        "subject_fields": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "receipt": {
+      "type": "object",
+      "required": ["schema_id", "schema_version", "accepted_rule", "duplicate_rule"],
+      "properties": {
+        "schema_id": {"const": "ars://core/receipt"},
+        "schema_version": {"const": "1.0.0"},
+        "accepted_rule": {"type": "string", "minLength": 10},
+        "duplicate_rule": {"type": "string", "minLength": 10}
+      },
+      "additionalProperties": false
+    },
+    "test_identity": {
+      "type": "object",
+      "required": ["positive", "negative"],
+      "properties": {
+        "positive": {"type": "string", "pattern": "^pos_[a-z0-9_]+$"},
+        "negative": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^neg_[a-z0-9_]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "authority_row": {
+      "type": "object",
+      "required": [
+        "key",
+        "ordered_event_set",
+        "reducers",
+        "projections",
+        "stream_write_set",
+        "authority",
+        "receipt",
+        "test_identity"
+      ],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z_]+\\.[a-z_]+$"},
+        "ordered_event_set": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "reducers": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "projections": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "stream_write_set": {
+          "type": "array",
+          "items": {"enum": ["cost_grant", "provider_command"]},
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "authority": {"$ref": "#/$defs/authority"},
+        "receipt": {"$ref": "#/$defs/receipt"},
+        "test_identity": {"$ref": "#/$defs/test_identity"}
+      },
+      "additionalProperties": false
+    },
+    "test_identities": {
+      "type": "object",
+      "required": [
+        "expected_set_path",
+        "semantic_validator_path",
+        "binding_test_paths",
+        "positive_tests",
+        "negative_tests"
+      ],
+      "properties": {
+        "expected_set_path": {"const": "tests/research_system/contracts/wp6_2_t2_expectations.py"},
+        "semantic_validator_path": {"const": "tests/research_system/contracts/wp6_2_t2_authority_validation.py"},
+        "binding_test_paths": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "tests/research_system/contracts/test_wp6_2_t2_authority_contract.py"},
+            {"const": "tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py"}
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "positive_tests": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^pos_[a-z0-9_]+$"},
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "negative_tests": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^neg_[a-z0-9_]+$"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

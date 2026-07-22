@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-2/t2/event/CostGrantIssued",
+  "title": "WP6.2 T2 CostGrantIssued",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "event_id",
+    "event_type",
+    "project_id",
+    "stream_id",
+    "stream_version",
+    "global_position",
+    "transaction_id",
+    "transaction_index",
+    "transaction_count",
+    "command_id",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "authority_grant_id",
+    "recorded_at",
+    "payload",
+    "previous_event_hash",
+    "event_hash"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://wp6-2/t2/event/CostGrantIssued"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f-]+$"
+    },
+    "event_type": {
+      "const": "CostGrantIssued"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f-]+$"
+    },
+    "stream_id": {
+      "type": "string",
+      "pattern": "^cgr_[0-9a-f-]+$"
+    },
+    "stream_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "global_position": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "transaction_id": {
+      "type": "string",
+      "pattern": "^txb_[0-9a-f-]+$"
+    },
+    "transaction_index": {
+      "const": 0
+    },
+    "transaction_count": {
+      "const": 1
+    },
+    "command_id": {
+      "type": "string",
+      "pattern": "^cmd_[0-9a-f-]+$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "causation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f-]+$"
+    },
+    "authority_grant_id": {
+      "type": "string",
+      "pattern": "^agr_[0-9a-f-]+$"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "cost_grant_id",
+        "cost_grant_revision",
+        "cost_grant_hash",
+        "resource_grant_id",
+        "resource_grant_revision",
+        "resource_grant_hash",
+        "task_id",
+        "dispatch_id",
+        "attempt_id",
+        "route_id",
+        "profile_id",
+        "adapter_revision",
+        "secret_reference_id",
+        "secret_reference_revision",
+        "secret_reference_hash",
+        "provider_command_id",
+        "provider_command_revision",
+        "provider_command_hash",
+        "token_ceilings",
+        "cost_ceiling_microunits",
+        "currency",
+        "rate_evidence_hash",
+        "expires_at",
+        "grant_status",
+        "available_cost_microunits"
+      ],
+      "properties": {
+        "cost_grant_id": {
+          "type": "string",
+          "pattern": "^cgr_[0-9a-f-]+$"
+        },
+        "cost_grant_revision": {
+          "const": 1
+        },
+        "cost_grant_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "resource_grant_id": {
+          "type": "string",
+          "pattern": "^rgr_[0-9a-f-]+$"
+        },
+        "resource_grant_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resource_grant_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^tsk_[0-9a-f-]+$"
+        },
+        "dispatch_id": {
+          "type": "string",
+          "pattern": "^dsp_[0-9a-f-]+$"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^att_[0-9a-f-]+$"
+        },
+        "route_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "adapter_revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secret_reference_id": {
+          "type": "string",
+          "pattern": "^sref_[0-9a-f-]+$"
+        },
+        "secret_reference_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "secret_reference_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "provider_command_id": {
+          "type": "string",
+          "pattern": "^pcmd_[0-9a-f-]+$"
+        },
+        "provider_command_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider_command_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "token_ceilings": {
+          "type": "object",
+          "required": [
+            "input_tokens",
+            "output_tokens",
+            "total_tokens"
+          ],
+          "properties": {
+            "input_tokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "output_tokens": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total_tokens": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "cost_ceiling_microunits": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "rate_evidence_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "grant_status": {
+          "const": "active"
+        },
+        "available_cost_microunits": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "previous_event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "event_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

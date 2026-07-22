@@ -4,3 +4,9 @@
 .research-system/contracts/wp6-1-schema-identities.yaml text eol=lf
 .research-system/schemas/core/commands/** text eol=lf
 .research-system/schemas/core/events/** text eol=lf
+.research-system/contracts/wp6-2-t2-*.yaml text eol=lf
+.research-system/schemas/contracts/wp6-2-t2-*.schema.json text eol=lf
+.research-system/schemas/wp6-2-t2/** text eol=lf
+docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md text eol=lf
+docs/plans/agentic-research-system/handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md text eol=lf
+tests/research_system/contracts/*wp6_2_t2* text eol=lf

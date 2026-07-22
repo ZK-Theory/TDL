@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://adapters/provider-command/v2",
+  "title": "WP6.2 T2 ProviderCommand required-field successor",
+  "x-successor-of": {
+    "schema_id": "ars://adapters/provider-command",
+    "schema_version": "1.0.0"
+  },
+  "x-reader-compatibility": {
+    "v2_reader": "may_read_v1_for_audit_only",
+    "v1_reader": "must_reject_v2",
+    "t2_issue": "requires_v2"
+  },
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "provider_command_id",
+    "revision",
+    "revision_hash",
+    "provider",
+    "model",
+    "profile_id",
+    "adapter_revision",
+    "policy_hash",
+    "context_hash",
+    "rendered_payload_hash",
+    "idempotency_key",
+    "operation",
+    "timeout_s",
+    "wrapper_accounting",
+    "resource_grant_id",
+    "execution_lease_id",
+    "t2_binding",
+    "token_ceiling",
+    "cost_ceiling_microunits",
+    "currency",
+    "rate_evidence_hash",
+    "pre_issue_evidence_manifest_hash",
+    "expires_at",
+    "authorized"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://adapters/provider-command/v2"
+    },
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "provider_command_id": {
+      "type": "string",
+      "pattern": "^pcmd_[0-9a-f-]+$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "revision_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "provider": {
+      "enum": [
+        "claude",
+        "codex"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "policy_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "context_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rendered_payload_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operation": {
+      "enum": [
+        "request_model_work"
+      ]
+    },
+    "timeout_s": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "wrapper_accounting": {
+      "type": "object",
+      "required": [
+        "accounting_method",
+        "accounting_version",
+        "provider_capacity_tokens",
+        "managed_packet_tokens",
+        "reserved_wrapper_tokens",
+        "rendered_total_tokens"
+      ],
+      "properties": {
+        "accounting_method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accounting_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_capacity_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "managed_packet_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reserved_wrapper_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rendered_total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "resource_grant_id": {
+      "type": "string",
+      "pattern": "^rgr_[0-9a-f-]+$"
+    },
+    "execution_lease_id": {
+      "type": "string",
+      "pattern": "^els_[0-9a-f-]+$"
+    },
+    "t2_binding": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "dispatch_id",
+        "attempt_id",
+        "route_id",
+        "secret_reference_id",
+        "secret_reference_revision",
+        "secret_reference_hash",
+        "cost_grant_id",
+        "cost_grant_revision",
+        "cost_grant_hash"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "pattern": "^tsk_[0-9a-f-]+$"
+        },
+        "dispatch_id": {
+          "type": "string",
+          "pattern": "^dsp_[0-9a-f-]+$"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^att_[0-9a-f-]+$"
+        },
+        "route_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "secret_reference_id": {
+          "type": "string",
+          "pattern": "^sref_[0-9a-f-]+$"
+        },
+        "secret_reference_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "secret_reference_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cost_grant_id": {
+          "type": "string",
+          "pattern": "^cgr_[0-9a-f-]+$"
+        },
+        "cost_grant_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cost_grant_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "token_ceiling": {
+      "type": "object",
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "total_tokens"
+      ],
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "cost_ceiling_microunits": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "rate_evidence_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pre_issue_evidence_manifest_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "authorized": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}

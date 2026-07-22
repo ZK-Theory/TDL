@@ -1,0 +1,356 @@
+schema_id: ars://contracts/wp6-2-t2-cost-grant-authority-catalogue
+schema_version: 1.0.0
+catalogue_id: wp6-2-t2-cost-grant-authority-catalogue
+catalogue_version: 1.0.0
+status: proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance
+governing_decision: P-037
+authority_addendum_path: docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md
+writer: research_system.command.service.CommandService
+transition_family_closed: true
+idempotency_tuple:
+- actor_id
+- authority_scope
+- command_type
+- idempotency_key
+replay_rule: original_receipt_no_second_grant_reservation_issue_invocation_provider_receipt_reconciliation_or_refund
+versioning_rule: new_T2_identities_1_0_0_required_ProviderCommand_ProviderReceipt_successors_2_0_0_no_historical_rewrite
+universal_rejection_effects:
+  canonical_event_count: 0
+  provider_invocation_count: 0
+  automatic_retry: false
+pre_issue_sentinel_seams:
+- compiled_context_packet
+- generated_adapter_provider_file
+- rendered_provider_payload
+- argv_environment_config_provider_options
+- event_producer
+- receipt_producer
+- canonical_object_producer
+- fixture_evaluation_evidence_producer
+stable_rejection_codes:
+- secret_material_detected
+- secret_reference_missing
+- secret_reference_wrong_type
+- secret_reference_expired
+- secret_reference_revoked
+- secret_reference_identity_mismatch
+- cost_grant_missing
+- cost_grant_wrong_type
+- cost_grant_zero
+- cost_grant_exhausted
+- cost_grant_expired
+- cost_grant_revoked
+- cost_grant_identity_mismatch
+- cost_grant_insufficient_balance
+- provider_command_identity_mismatch
+- provider_receipt_identity_mismatch
+- provider_receipt_incomplete
+- reconciliation_actuals_invalid
+- stale_stream_version
+- idempotency_conflict
+- event_batch_order_invalid
+- event_batch_incomplete
+- reducer_missing
+- projection_missing
+- schema_identity_mismatch
+- schema_hash_mismatch
+- protected_artifact_modified
+negative_controls:
+  neg_secret_sentinel_compiled_context_packet: secret_material_detected
+  neg_secret_sentinel_generated_adapter_provider_file: secret_material_detected
+  neg_secret_sentinel_rendered_provider_payload: secret_material_detected
+  neg_secret_sentinel_argv_environment_config_provider_options: secret_material_detected
+  neg_secret_sentinel_event_producer: secret_material_detected
+  neg_secret_sentinel_receipt_producer: secret_material_detected
+  neg_secret_sentinel_canonical_object_producer: secret_material_detected
+  neg_secret_sentinel_fixture_evaluation_evidence_producer: secret_material_detected
+  neg_secret_reference_missing: secret_reference_missing
+  neg_secret_reference_wrong_type: secret_reference_wrong_type
+  neg_secret_reference_expired: secret_reference_expired
+  neg_secret_reference_revoked: secret_reference_revoked
+  neg_secret_reference_identity_mismatch: secret_reference_identity_mismatch
+  neg_cost_grant_missing: cost_grant_missing
+  neg_cost_grant_wrong_type: cost_grant_wrong_type
+  neg_cost_grant_zero: cost_grant_zero
+  neg_cost_grant_exhausted: cost_grant_exhausted
+  neg_cost_grant_expired: cost_grant_expired
+  neg_cost_grant_revoked: cost_grant_revoked
+  neg_cost_grant_identity_mismatch: cost_grant_identity_mismatch
+  neg_cost_grant_insufficient_balance: cost_grant_insufficient_balance
+  neg_provider_command_identity_mismatch: provider_command_identity_mismatch
+  neg_provider_receipt_identity_mismatch: provider_receipt_identity_mismatch
+  neg_provider_receipt_incomplete: provider_receipt_incomplete
+  neg_reconciliation_actuals_invalid: reconciliation_actuals_invalid
+  neg_concurrent_over_reservation: cost_grant_exhausted
+  neg_stale_cost_grant_stream_version: stale_stream_version
+  neg_stale_provider_command_stream_version: stale_stream_version
+  neg_idempotency_payload_conflict: idempotency_conflict
+  neg_accepted_command_replay: null
+  neg_atomic_event_order_swap: event_batch_order_invalid
+  neg_atomic_batch_partial: event_batch_incomplete
+  neg_reducer_missing: reducer_missing
+  neg_projection_missing: projection_missing
+  neg_schema_alias_substitution: schema_identity_mismatch
+  neg_schema_version_substitution: schema_identity_mismatch
+  neg_schema_hash_substitution: schema_hash_mismatch
+  neg_provider_command_v1_mutation: protected_artifact_modified
+  neg_provider_receipt_v1_mutation: protected_artifact_modified
+  neg_wp6_1_t1a_protected_bytes_mutation: protected_artifact_modified
+protected_predecessors:
+  command_tree: 9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea
+  event_tree: 154ffc4bdde82fe903718734687e7a62797b1f69
+  core_tree: b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46
+  provider_command_1_0_0:
+    repository_path: .research-system/schemas/adapters/provider-command.schema.json
+    git_blob_id: 9eb58609b9703674912e64f019db3cd4fb147a9c
+  provider_receipt_1_0_0:
+    repository_path: .research-system/schemas/adapters/provider-receipt.schema.json
+    git_blob_id: 8ac904e6c0b16e45034bcdc2221970d6a3ef13a8
+rows:
+- key: cost_grant.issue
+  command_type: IssueCostGrant
+  command_schema_identity:
+    repository_path: .research-system/schemas/wp6-2-t2/commands/issue-cost-grant.schema.json
+    schema_id: ars://wp6-2/t2/command/IssueCostGrant
+    schema_version: 1.0.0
+    git_blob_id: 4257fe0ace2661d4e8fd3a2a8e222cbf740595f0
+    raw_utf8_lf_sha256: daf66128cd938d1949dce599176a61ab84dfbd007392b75fa5b1b00a2d4425f4
+  ordered_events:
+  - CostGrantIssued
+  event_schema_bindings:
+  - event_type: CostGrantIssued
+    repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-issued.schema.json
+    schema_id: ars://wp6-2/t2/event/CostGrantIssued
+    schema_version: 1.0.0
+    git_blob_id: cd94ca72c949ddb9c64fa53dd35928db6ca0dbb4
+    raw_utf8_lf_sha256: fbc17c7eb3e292e432f1998e9048577f837cee8f4ad6b2ed133ab26ce5afd52b
+  target_stream_role: cost_grant
+  write_set:
+  - cost_grant
+  write_set_contract:
+  - stream_role: cost_grant
+    stream_id_field: cost_grant_id
+    expected_version_field: write_set[0].expected_stream_version
+  authority_scope: wp6.2.t2.cost-grant.issue
+  authority_subject: resource_grant
+  authority_subject_fields:
+  - resource_grant_id
+  - resource_grant_revision
+  - resource_grant_hash
+  - task_id
+  - dispatch_id
+  - attempt_id
+  reducers:
+  - cost_grant_reducer@1.0.0
+  projections:
+  - cost_grant_balance_projection@1.0.0
+  - cost_grant_authorization_projection@1.0.0
+  concurrency_rule: create_new_cost_grant_stream_at_expected_version_zero
+  expiry_revocation_rule: issue_requires_current_resource_and_authority_grants_no_T2_expiry_or_revoke_command
+  receipt_binding:
+    schema_id: ars://core/receipt
+    schema_version: 1.0.0
+    accepted_rule: one_CostGrantIssued_event
+    duplicate_rule: original_receipt_no_events
+  atomic_batch:
+    required: true
+    transaction_count: 1
+    ordered_event_types:
+    - CostGrantIssued
+  positive_test: pos_issue_cost_grant
+  negative_tests:
+  - neg_stale_cost_grant_stream_version
+  - neg_idempotency_payload_conflict
+  - neg_accepted_command_replay
+  - neg_reducer_missing
+  - neg_projection_missing
+  - neg_schema_alias_substitution
+  - neg_schema_version_substitution
+  - neg_schema_hash_substitution
+  - neg_provider_command_v1_mutation
+  - neg_provider_receipt_v1_mutation
+  - neg_wp6_1_t1a_protected_bytes_mutation
+- key: provider_issue.authorize
+  command_type: AuthorizeProviderIssue
+  command_schema_identity:
+    repository_path: .research-system/schemas/wp6-2-t2/commands/authorize-provider-issue.schema.json
+    schema_id: ars://wp6-2/t2/command/AuthorizeProviderIssue
+    schema_version: 1.0.0
+    git_blob_id: 4c7eadb7ca51bcd6a8e898476408f8e0a140d3e7
+    raw_utf8_lf_sha256: bfbb7813b2e43bc71d1c5143ec485a07ba6274bcb332bb925d3a3ef5f0c3a4ab
+  ordered_events:
+  - CostGrantReserved
+  - ProviderCommandIssued
+  event_schema_bindings:
+  - event_type: CostGrantReserved
+    repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reserved.schema.json
+    schema_id: ars://wp6-2/t2/event/CostGrantReserved
+    schema_version: 1.0.0
+    git_blob_id: bf0159683e15ca30035bfa3c8149c3596a89ed8b
+    raw_utf8_lf_sha256: ed828f74a63b15db5ca4811a2c5461f44e22374f1ca823506e0fd806320a1754
+  - event_type: ProviderCommandIssued
+    repository_path: .research-system/schemas/wp6-2-t2/events/provider-command-issued.schema.json
+    schema_id: ars://wp6-2/t2/event/ProviderCommandIssued
+    schema_version: 1.0.0
+    git_blob_id: be70759ff461319a772ee564f21375780325dd3d
+    raw_utf8_lf_sha256: 19e19baef5b6864e5de3710e2fd1771ee893538409b93d0f2c51008d0c518fe8
+  target_stream_role: cost_grant
+  write_set:
+  - cost_grant
+  - provider_command
+  write_set_contract:
+  - stream_role: cost_grant
+    stream_id_field: cost_grant_id
+    expected_version_field: write_set[0].expected_stream_version
+  - stream_role: provider_command
+    stream_id_field: provider_command_id
+    expected_version_field: write_set[1].expected_stream_version
+  authority_scope: wp6.2.t2.provider.issue
+  authority_subject: cost_grant_provider_command
+  authority_subject_fields:
+  - cost_grant_id
+  - cost_grant_revision
+  - cost_grant_hash
+  - provider_command_id
+  - provider_command_revision
+  - provider_command_hash
+  - secret_reference_id
+  - secret_reference_revision
+  - secret_reference_hash
+  reducers:
+  - cost_grant_reducer@1.0.0
+  - provider_command_reducer@2.0.0
+  projections:
+  - cost_grant_balance_projection@1.0.0
+  - provider_command_lifecycle_projection@2.0.0
+  concurrency_rule: arbitrate_on_cost_grant_expected_version_exactly_one_winner_no_auto_retry
+  expiry_revocation_rule: new_issue_requires_unexpired_secret_and_cost_grant_plus_current_external_grants
+  receipt_binding:
+    schema_id: ars://core/receipt
+    schema_version: 1.0.0
+    accepted_rule: one_atomic_two_event_receipt_before_invocation
+    duplicate_rule: original_receipt_no_reservation_issue_or_invocation
+  atomic_batch:
+    required: true
+    transaction_count: 2
+    ordered_event_types:
+    - CostGrantReserved
+    - ProviderCommandIssued
+  positive_test: pos_authorize_provider_issue_atomic
+  negative_tests:
+  - neg_secret_sentinel_compiled_context_packet
+  - neg_secret_sentinel_generated_adapter_provider_file
+  - neg_secret_sentinel_rendered_provider_payload
+  - neg_secret_sentinel_argv_environment_config_provider_options
+  - neg_secret_sentinel_event_producer
+  - neg_secret_sentinel_receipt_producer
+  - neg_secret_sentinel_canonical_object_producer
+  - neg_secret_sentinel_fixture_evaluation_evidence_producer
+  - neg_secret_reference_missing
+  - neg_secret_reference_wrong_type
+  - neg_secret_reference_expired
+  - neg_secret_reference_revoked
+  - neg_secret_reference_identity_mismatch
+  - neg_cost_grant_missing
+  - neg_cost_grant_wrong_type
+  - neg_cost_grant_zero
+  - neg_cost_grant_exhausted
+  - neg_cost_grant_expired
+  - neg_cost_grant_revoked
+  - neg_cost_grant_identity_mismatch
+  - neg_cost_grant_insufficient_balance
+  - neg_provider_command_identity_mismatch
+  - neg_concurrent_over_reservation
+  - neg_stale_cost_grant_stream_version
+  - neg_stale_provider_command_stream_version
+  - neg_idempotency_payload_conflict
+  - neg_accepted_command_replay
+  - neg_atomic_event_order_swap
+  - neg_atomic_batch_partial
+  - neg_reducer_missing
+  - neg_projection_missing
+  - neg_schema_alias_substitution
+  - neg_schema_version_substitution
+  - neg_schema_hash_substitution
+- key: provider_receipt.record
+  command_type: RecordProviderReceipt
+  command_schema_identity:
+    repository_path: .research-system/schemas/wp6-2-t2/commands/record-provider-receipt.schema.json
+    schema_id: ars://wp6-2/t2/command/RecordProviderReceipt
+    schema_version: 1.0.0
+    git_blob_id: c10ef513cc2ea32b5abd7acc1101c29a3362f8b7
+    raw_utf8_lf_sha256: cf4b9e4e74fc6bf151fd8dab9fac4ccd39d4f124989e71b62cc381db9db81ebe
+  ordered_events:
+  - ProviderReceiptRecorded
+  - CostGrantReconciled
+  event_schema_bindings:
+  - event_type: ProviderReceiptRecorded
+    repository_path: .research-system/schemas/wp6-2-t2/events/provider-receipt-recorded.schema.json
+    schema_id: ars://wp6-2/t2/event/ProviderReceiptRecorded
+    schema_version: 1.0.0
+    git_blob_id: 2b0d4bd75546d24f2a4de5d3608eca33cae48701
+    raw_utf8_lf_sha256: 89aa60808fa78d3c7080c1c324baff1817c48f382e35f8c8c821aa9ce610f57d
+  - event_type: CostGrantReconciled
+    repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reconciled.schema.json
+    schema_id: ars://wp6-2/t2/event/CostGrantReconciled
+    schema_version: 1.0.0
+    git_blob_id: 6f73dfb3bb6cd9a61756072395e3aac20725f7e6
+    raw_utf8_lf_sha256: d9a55298a286d5c6cee25c4b86a75e0aca3e69cb6a078e209b829f6ad3f707b9
+  target_stream_role: provider_command
+  write_set:
+  - provider_command
+  - cost_grant
+  write_set_contract:
+  - stream_role: provider_command
+    stream_id_field: provider_command_id
+    expected_version_field: write_set[0].expected_stream_version
+  - stream_role: cost_grant
+    stream_id_field: cost_grant_id
+    expected_version_field: write_set[1].expected_stream_version
+  authority_scope: wp6.2.t2.provider.receipt.record
+  authority_subject: issued_provider_command_reservation
+  authority_subject_fields:
+  - provider_command_id
+  - provider_command_revision
+  - provider_command_hash
+  - provider_receipt_id
+  - provider_receipt_revision
+  - provider_receipt_hash
+  - cost_grant_id
+  - reservation_id
+  reducers:
+  - provider_command_reducer@2.0.0
+  - cost_grant_reducer@1.0.0
+  projections:
+  - provider_command_lifecycle_projection@2.0.0
+  - provider_receipt_binding_projection@2.0.0
+  - cost_grant_balance_projection@1.0.0
+  concurrency_rule: both_expected_versions_must_match_and_reconciliation_is_single_acceptance
+  expiry_revocation_rule: reconcile_previously_accepted_reservation_even_after_later_expiry_or_revocation
+  receipt_binding:
+    schema_id: ars://core/receipt
+    schema_version: 1.0.0
+    accepted_rule: one_atomic_receipt_and_reconciliation_batch_with_exact_actuals
+    duplicate_rule: original_receipt_no_second_provider_receipt_reconciliation_or_refund
+  atomic_batch:
+    required: true
+    transaction_count: 2
+    ordered_event_types:
+    - ProviderReceiptRecorded
+    - CostGrantReconciled
+  positive_test: pos_record_provider_receipt_atomic
+  negative_tests:
+  - neg_provider_receipt_identity_mismatch
+  - neg_provider_receipt_incomplete
+  - neg_reconciliation_actuals_invalid
+  - neg_stale_cost_grant_stream_version
+  - neg_stale_provider_command_stream_version
+  - neg_idempotency_payload_conflict
+  - neg_accepted_command_replay
+  - neg_atomic_event_order_swap
+  - neg_atomic_batch_partial
+  - neg_reducer_missing
+  - neg_projection_missing
+  - neg_schema_alias_substitution
+  - neg_schema_version_substitution
+  - neg_schema_hash_substitution
