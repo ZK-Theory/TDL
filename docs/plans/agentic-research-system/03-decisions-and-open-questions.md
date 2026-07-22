@@ -624,6 +624,39 @@ candidate commit, and approving verdict before any T2 implementation brief may i
 **Affected specifications:** P-037; W2 receipt/event/idempotency contracts; W7 provider
 command/receipt contracts; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
 
+### P-039 - WP6.2 T2 research-first scope and final remediation
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-038's C3/M2 scope and evidence timing; preserves P-037's three command
+families, ordered event batches, sole-writer rule, and immutable accepted bytes<br>
+**Decision:** Apply a research-value gate before non-research assurance becomes blocking:
+name the protected research asset, concrete failure path, insufficiency of existing
+controls, cheapest adequate control, evidentiary lifecycle stage, and bounded effort.
+Prioritize mathematical/statistical/result assurance, data/provenance/reproducibility,
+then minimal operational enablement. General hardening is separately justified and
+defaults to at most 10% of the dispatched workflow budget.<br>
+**T2 scope correction:** Retain strict opaque `SecretReference` metadata and exact
+authority binding, but remove `PreIssueEvidenceManifest` and eight-seam scanner/sentinel
+evidence as T2 blocking artifacts; defer that runtime evidence to T3/T4 against actual
+adapter surfaces. Validate only the P-037 authority/cost/provenance subset of
+ProviderCommand/ProviderReceipt 2.0 at T2; defer complete W7 runtime qualification to
+T3/T4.<br>
+**Final-cycle authority:** Authorize one final contract-only remediation of corrected R2
+findings C1, C2, C4, M1, M3, and I1, plus the explicit C3/M2 scope reduction, followed
+by one fresh static R3. If R3 remains `rework_required`, stop; no third remediation cycle
+is authorized.<br>
+**Exact accepted proposal:**
+`proposals/wp6-2-t2-research-first-scope-and-r3-remediation-ruling-2026-07-22.md` at
+manager commit `1301d8a5f089d27270c36b216967000a35472efc`, Git blob
+`1c6703b37579a0ffa35bfec0f9cccc7180a37f79`, raw-byte SHA-256
+`959ebeafa67368ffc87592134fd9c0caf385b4b562278789273563844295492f`.<br>
+**Boundary:** No runtime code, credential resolution, provider call, T3/T4, T1b,
+eligibility, result, claim, publication, accepted-artifact mutation, reviewer-authored
+security probing, or third remediation cycle is authorized.<br>
+**Affected specifications:** P-038; W2 receipt/event/idempotency; W7 T2 subset and later
+runtime qualification; W8 cost boundary; WP6.2 T2; large-workflow assurance budgeting.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at
