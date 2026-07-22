@@ -31,7 +31,8 @@ this skill's output as implementation-ready or claim-ready.
 Accept an acceleration only if ALL hold:
 
 - the benchmark names the exact scheduled computational work unit and demonstrates
-  stage parity: representative distinct inputs, identical preprocessing and
+  stage parity: at least 3 representative distinct inputs spanning the realistic
+  size/shape range (each recorded by identifier), identical preprocessing and
   postprocessing, concurrency topology, and cache state;
 - wall-time improvement is material for that end-to-end unit at the realistic workload
   (n × B × L), not at toy scale;
