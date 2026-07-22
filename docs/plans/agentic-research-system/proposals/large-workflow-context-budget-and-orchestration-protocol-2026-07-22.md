@@ -1,12 +1,14 @@
 # Large-Workflow Context Budget and Orchestration Protocol
 
 **Date:** 2026-07-22
-**Status:** APPROVED FOR ONE ADVISORY TRIAL - not an active general ARS gate or
+**Status:** V1 ASSESSED `revise_and_retrial` - not an active general ARS gate or
 convention lock
 **Scope:** Large, multi-stage, review-heavy workflows such as ARS WP5/WP6
-**Owner decision:** On 2026-07-22 Stephen approved a trial on the first WP after
-WP6.1. The proposed skill, guide, checker, or `CONVENTIONS.md` changes remain pending
-post-trial assessment and separate approval.
+**Workflow system:** Standalone TDL supervision. APM lifecycle, Memory Bank, skills,
+state, guides, and checkers are out of scope and remain unchanged.
+**Owner decision:** On 2026-07-22 Stephen approved V1, then clarified from its handback
+that this process is entirely independent of APM. V1 is useful certification evidence
+but did not reach delivery. The revised standalone V2 must run before integration.
 
 ## 1. Problem
 
@@ -30,13 +32,14 @@ worktree ownership, and fail-closed behavior.
 
 Every large workflow maintains one compact campaign-state packet outside the model
 conversation. It contains exact identities and current decisions, not copied plans or
-logs. A fresh Manager reconstructs from this packet plus the named authorities.
+logs. A fresh supervisor reconstructs from this packet plus the named authorities.
 
 Required fields:
 
 ```yaml
 schema: tdl.large-workflow-state/v1
 campaign_id: <stable-id>
+workflow_system: standalone
 snapshot_utc: <timestamp>
 base_revision: <sha>
 active_units:
@@ -57,20 +60,28 @@ hard_stops: []
 The packet is replaced only by a newer packet that names its predecessor identity.
 It is not self-authoritative: repository and owner records remain the verdict.
 
-### 2.2 Rotation budget
+### 2.2 Separate certification intake from delivery supervision
 
-- Manager: rotate at first auto-compaction or approximately 80k live input tokens.
-- Worker: one vertical deliverable and at most one author-review-remediation cycle.
+Certification/intake may reconstruct a campaign broadly and emit the first exact-state
+packet. Delivery supervision starts fresh from that packet, verifies its hash and
+current remote delta, and reads only the selected deliverable's authorities plus files
+changed since the packet. It must not repeat the full campaign reconstruction unless
+the delta invalidates the packet. Either phase may rotate independently.
+
+### 2.3 Rotation budget
+
+- Supervisor: rotate at first auto-compaction or approximately 80k live input tokens.
+- Implementer: one vertical deliverable and at most one author-review-remediation cycle.
 - Reviewer: one exact subject; a new exact semantic subject gets a fresh reviewer task.
-- Polling/monitoring never lives in a substantive Manager, author, or reviewer task.
+- Polling/monitoring never lives in a substantive supervisor, author, or reviewer task.
 
 The 80k value is a starting threshold. A 64k cap produced a 53%-56% theoretical replay
 reduction in sampled WP6 records; 80k produced 44%-47%. Restart overhead makes a
 30%-45% net reduction a more realistic initial expectation.
 
-### 2.3 Context inheritance
+### 2.4 Context inheritance
 
-- Self-contained Worker or independent reviewer: no inherited conversation history.
+- Self-contained implementer or independent reviewer: no inherited conversation history.
   In Codex, use `fork_turns="none"`.
 - Direct continuation: a small positive turn count with an explicit reason.
 - Full-history inheritance: exceptional, justified in the dispatch record, and
@@ -78,27 +89,27 @@ reduction in sampled WP6 records; 80k produced 44%-47%. Restart overhead makes a
 
 Cold independent review is both cheaper and more independent.
 
-### 2.4 Skill budget
+### 2.5 Skill budget
 
 Every brief records `lifecycle_phase`, at most two `primary_skills`, and conditional
 secondary skills. Startup reads only OPEN observations matching selected skills plus
 active cross-cutting principles. The full observation log is never emitted into model
 context.
 
-### 2.5 External review ownership
+### 2.6 External review ownership
 
 Stephen triggers and monitors CodeRabbit manually. Agents do not request, trigger,
 poll, schedule, or wait on it unless explicitly instructed in the current task. Agents
 process findings only after Stephen supplies them or says the review has concluded.
 
-### 2.6 Certify before regenerate
+### 2.7 Certify before regenerate
 
 A stage transition changes the decision or evidence sought; it does not imply rebuilding
 deterministic artifacts. Before generation, inventory existing outputs and compare their
 exact bytes and accepted identities with the new contract. Regenerate only after a
 specific mismatch and within explicit authority.
 
-### 2.7 Validation ladder
+### 2.8 Validation ladder
 
 1. Edit loop: focused red/green check and lint for touched behavior.
 2. Candidate head: affected package or contract gate.
@@ -106,7 +117,7 @@ specific mismatch and within explicit authority.
 4. Later exact-head change: rerun validation proportional to the changed semantic
    surface; never reuse an old-head claim without an explicit unchanged-surface proof.
 
-### 2.8 Model routing
+### 2.9 Model routing
 
 When Stephen authorizes model overrides:
 
@@ -119,7 +130,7 @@ When Stephen authorizes model overrides:
 
 Model routing never overrides an assurance requirement or independence rule.
 
-### 2.9 Stacked-PR closure
+### 2.10 Stacked-PR closure
 
 A clean review stack is not integrated merely because every PR is individually
 mergeable. Record the intended integration branch. Merge the bottom layer first,
@@ -136,12 +147,12 @@ layer integrated.
 | `C:\Users\steph\.Codex\AGENTS.md` | Record Stephen-owned CodeRabbit operation | Applied 2026-07-22 from explicit user instruction |
 | global `AGENTS.md` | Add large-workflow rotation, fork, and skill-budget rules | After owner approval of this proposal |
 | repo `AGENTS.md` | Point WP-style campaigns to this protocol; retain worktree rules | After approval |
-| `.agents/skills/apm-2-initiate-manager/SKILL.md` | Load/verify campaign packet; declare budget at initiation | After approval; sync mirror |
-| `.agents/skills/apm-6-handoff-manager/SKILL.md` | Trigger handoff at budget boundary and emit compact exact state | After approval; sync mirror |
+| `.agents/skills/tda-large-workflow-supervision/SKILL.md` | New standalone certification/delivery supervision workflow; explicitly reject APM routing | After successful V2 and owner approval; sync mirror |
 | `.agents/skills/tda-task-brief-from-plan/SKILL.md` | Add lifecycle, context, fork, skill, external-review, and cycle fields | After approval; sync mirror |
-| `.codex/apm-guides/task-assignment.md` | Make the fields mandatory for large workflows and forbid full-history independent review | After approval |
-| `shared/manager_dispatch_check.py` | Optionally validate a strict dispatch-envelope file and emit a positive budget signal | Separate implementation/review task |
-| `tests/provenance/test_manager_dispatch_check.py` | Negative controls for absent/invalid context fields and forbidden review polling ownership | Same checker task |
+| `.agents/skills/tda-handoff/SKILL.md` | Make standalone repository handback paths first-class and remove `.apm` as the default for non-APM work | After approval; sync mirror |
+| `docs/guides/large-workflow-supervision.md` | Standalone task assignment, rotation, and evidence guidance | After approval |
+| `tools/check_large_workflow_dispatch.py` | Optionally validate a strict standalone dispatch envelope and emit a positive budget signal | Separate implementation/review task after two successful trials |
+| `tests/provenance/test_large_workflow_dispatch.py` | Negative controls including forbidden APM routing and review polling ownership | Same checker task |
 | `CONVENTIONS.md` | Lock the protocol only after accepted trial evidence | Separate owner decision |
 
 Skill edits must land in `.agents/skills`, be registered if a new skill is created, and
@@ -156,51 +167,56 @@ be mirrored through `tools/sync_agent_skills.py`; never edit the mirror directly
 
 For multi-stage, review-heavy campaigns such as ARS work packages:
 
+- First declare the workflow system. For `standalone`, do not load APM skills, state,
+  Memory Bank, guides, or checkers.
 - Keep current campaign state in a compact exact-state artifact. Rotate the
   coordinating task at first auto-compaction or approximately 80k live input
   tokens; do not rely on compaction as long-term continuity.
-- Self-contained Workers and independent reviewers receive no parent conversation
+- Self-contained implementers and independent reviewers receive no parent conversation
   history (`fork_turns="none"` in Codex). A bounded positive fork is only for a
   direct continuation. Full-history inheritance requires an explicit reason and is
   forbidden after compaction.
 - Each dispatch records lifecycle phase, context mode/budget, at most two primary
   skills, conditional skills, external-review owner, exact subject, one deliverable,
   validation ladder, and hard stops.
-- Keep polling and external-review monitoring outside substantive Manager, author,
+- Keep polling and external-review monitoring outside substantive supervisor, author,
   and reviewer tasks.
 - Certify existing deterministic artifacts before authorizing regeneration.
 ```
 
-### 4.2 `apm-2-initiate-manager` insertion
+### 4.2 Proposed standalone supervision skill
 
 Add after the normal initiation reads:
 
 ```markdown
-### Large-workflow budget declaration
+### Standalone large-workflow initiation
 
-When the Plan contains multiple implementation/review/remediation rounds, locate the
-current campaign-state packet before dispatch. Verify every SHA/branch/worktree against
-live state, declare the Manager rotation threshold, and report the next single vertical
-action. Do not preload historical Task Logs unless a current dependency or unresolved
-finding points to them. At first compaction or the declared threshold, initiate Manager
-handoff rather than continuing from the compacted conversation.
+First declare `workflow_system: standalone`. Do not load APM skills, `.apm` state, the
+APM Memory Bank, or APM guides/checkers. Select either `certify` or `deliver` supervision.
+Certification may reconstruct the campaign and emit an exact-state packet. Delivery
+starts from that packet, verifies its hash and current remote delta, then reads only the
+selected deliverable's authorities and changed dependencies. Declare the rotation
+threshold and one vertical action before dispatch.
 ```
 
-### 4.3 `apm-6-handoff-manager` replacement trigger
+### 4.3 `tda-handoff` standalone addition
 
 Replace the user-only/context-window trigger with:
 
 ```markdown
-Handoff is required when the User requests it, at first auto-compaction in a large
-workflow, or when the declared context budget is reached. The handoff log remains
-supplementary. The handoff prompt carries exact current state by identity and path,
-does not copy plans/reports/logs, and names one next vertical action plus hard stops.
+For `workflow_system: standalone`, write the exact-state handback to the explicitly
+authorized neutral repository path, never `.apm/memory`. Handoff is required when the
+User requests it, at first auto-compaction, or when the declared context budget is
+reached. It carries exact current state by identity and path, does not copy plans,
+reports, or logs, and names one next vertical action plus hard stops.
 ```
 
 ### 4.4 `tda-task-brief-from-plan` template addition
 
 ```markdown
 ## Execution context
+- Workflow system: standalone | apm
+- Supervision phase: certify | deliver
 - Lifecycle phase: plan | materialize | implement | review | remediate | integrate
 - Context mode: fresh | bounded continuation
 - Context budget: <tokens or observable rotation condition>
@@ -214,7 +230,9 @@ does not copy plans/reports/logs, and names one next vertical action plus hard s
 ### 4.5 Dispatch-envelope YAML
 
 ```yaml
+workflow_system: standalone
 lifecycle_phase: review
+supervision_phase: deliver
 context_mode: fresh
 context_budget_tokens: 80000
 fork_turns: none
@@ -229,7 +247,7 @@ author_review_cycle: 1
 
 ## 5. Proposed checker behavior
 
-After a documentation-only trial, extend `manager_dispatch_check` with an optional
+After two successful trials, add `check_large_workflow_dispatch.py` with an optional
 `--dispatch-envelope <path>` argument. It should reject:
 
 - absent exact subject, branch, workspace, or write owner;
@@ -240,22 +258,27 @@ After a documentation-only trial, extend `manager_dispatch_check` with an option
 - a second author-review cycle without a fresh-task identity;
 - generation authorization without a reuse/certification disposition;
 - a stacked child PR whose base is not the declared integration branch at merge time;
-- a stack closeout without final reachability proof for every reviewed layer.
+- a stack closeout without final reachability proof for every reviewed layer;
+- `workflow_system: standalone` combined with any APM skill, state path, guide, or
+  checker.
 
 The same change must include negative controls proving each rejection fires and a
 positive execution signal in the rendered dispatch-readiness block. Do not make the
-checker mandatory until one real WP-style trial demonstrates that the envelope is
-stable and not duplicating authority already held elsewhere.
+checker mandatory until two completed delivery trials demonstrate that the envelope is
+stable, useful, and not duplicating authority already held elsewhere.
 
 ## 6. Trial and acceptance
 
-Close legacy WP6.1 work in a separate task. Trial measurement begins only in a fresh
-Manager task after all WP6.1 layers are proven on `origin/main`; otherwise the trial
-would inherit the very context pattern it is intended to test.
+V1 closed WP6.1 state reconstruction in a fresh standalone task and rotated at its
+first compaction. It proved exact-state certification, fresh `fork_turns: none`
+exploration, certify-before-regenerate behavior, and zero external-review waits without
+dropped assurance. It did not dispatch T2, exercise implementation/review/remediation,
+or produce exact token telemetry. It also incorrectly loaded an APM Manager skill.
 
-Trial the prose protocol on the next WP6 Manager and record:
+V2 must start from the V1 packet rather than repeat intake, explicitly reject APM
+routing, supervise only WP6.2 T2, and record:
 
-- Manager rotations and context at rotation;
+- supervisor rotations and context at rotation;
 - fork modes used;
 - primary/conditional skill counts;
 - duplicate generation avoided;
@@ -263,17 +286,17 @@ Trial the prose protocol on the next WP6 Manager and record:
 - review/remediation rounds;
 - any dropped requirement or false stop attributable to the protocol.
 
-Return the exact-state trial handback to the instruction-design task and issue one of
+Return the exact-state V2 handback to the instruction-design task and issue one of
 three verdicts: `revise_and_retrial`, `approve_advisory_integration`, or `reject`.
-A successful first trial may authorize the documentation, AGENTS, skill, and guide
+A successful V2 may authorize the documentation, AGENTS, skill, and guide
 updates through a normal reviewed PR. A second successful large workflow may justify
 the mandatory checker, its negative controls, and the `CONVENTIONS.md` lock.
 
 ## 7. Trial decision and deferred decisions
 
-For the first trial Stephen approved the advisory defaults: 80k/first-compaction
-Manager rotation, one Worker cycle, no-history independent review, at most two primary
-skills, and a prose campaign packet rather than a mandatory schema.
+For V2 Stephen's APM correction is binding. The advisory defaults remain 80k/first-
+compaction rotation, one implementer cycle, no-history independent review, at most two
+primary skills, and a prose campaign packet rather than a mandatory schema.
 
 After the trial Stephen will decide whether to revise and retrial, approve advisory
 AGENTS/skill/guide integration, or reject the method. Mandatory checker enforcement

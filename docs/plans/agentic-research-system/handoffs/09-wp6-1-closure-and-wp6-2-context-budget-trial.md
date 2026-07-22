@@ -1,7 +1,7 @@
 # WP6.1 Closure and WP6.2 Context-Budget Trial Handoff
 
 **Created:** 2026-07-22
-**Status:** Experimental handoff on `codex/wp6-manager-efficiency-instructions`
+**Status:** V1 completed; superseded for continuation by handoff 10
 **Purpose:** Close the existing WP6.1 review stack without importing its accumulated
 context into the first context-budgeted Manager trial, then trial the proposed method
 on WP6.2 and return an exact-state handback for assessment.
@@ -9,6 +9,9 @@ on WP6.2 and return an exact-state handback for assessment.
 This runbook deliberately uses two fresh tasks. WP6.1 closure is not part of the
 efficiency trial. The trial begins only after all three WP6.1 layers are proven present
 on `origin/main`.
+
+The process is standalone TDL supervision, not APM. V1 incorrectly loaded an APM
+Manager skill; the assessment and corrected V2 prompt are recorded in handoff 10.
 
 ## Fixed sequence
 
@@ -104,7 +107,7 @@ finding dispositions, validation commands/counts, accepted-tree identity proof, 
 any residual risk. Do not begin WP6.2 in this task.
 ```
 
-## Prompt B — run the first context-budgeted trial on WP6.2
+## Prompt B — historical V1 context-budgeted trial on WP6.2
 
 Start this only after Prompt A proves all three WP6.1 layers are on `origin/main`.
 Create a fresh Manager task from the updated main line. Do not fork or continue the
@@ -203,7 +206,8 @@ CONVENTIONS.md.
 - **Now:** keep this branch experimental and use the prompts by exact commit or paste.
 - **After trial 1:** assess here, revise if necessary, and ask Stephen to approve the
   resulting advisory rules.
-- **Advisory integration:** merge approved documentation, `AGENTS.md`, APM skill, task
-  brief, and guide changes through a normal reviewed PR with skill-sync validation.
+- **Advisory integration:** merge approved documentation, `AGENTS.md`, standalone
+  supervision skill, task-brief, handoff, and guide changes through a normal reviewed
+  PR with skill-sync validation. Existing APM machinery remains untouched.
 - **After trial 2:** decide separately whether evidence justifies the strict dispatch
   checker, its negative controls, and a `CONVENTIONS.md` lock.

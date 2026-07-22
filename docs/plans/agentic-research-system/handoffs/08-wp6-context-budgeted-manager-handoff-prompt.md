@@ -4,6 +4,7 @@
 **State snapshot:** `origin/main` and GitHub PR metadata refreshed 2026-07-22
 **Purpose:** Start a fresh coordinating Manager for the remaining WP6 work without
 replaying the long WP6 campaign context.
+**Workflow system:** Standalone TDL supervision. This is not an APM-managed process.
 **Authority boundary:** This prompt authorizes coordination, exact-state
 reconstruction, and preparation or dispatch only where the governing WP6 plan and
 recorded owner decisions already authorize it. It does not itself authorize a merge,
@@ -26,30 +27,33 @@ artifacts. Historical summaries are attack lists and locators, not current autho
 1. Invoke `research-observer`, but load only OPEN observations matching skills you
    actually select plus the active cross-cutting principles. Do not dump the complete
    observation log into context.
-2. Stephen owns CodeRabbit operation. Do not request, trigger, poll, schedule, wait on,
+2. Declare `workflow_system: standalone`. Do not invoke numbered APM skills, read or
+   update `.apm` campaign state, use the APM Memory Bank, or apply APM guides/checkers.
+   A generic Manager/Worker role name does not confer APM lifecycle ownership.
+3. Stephen owns CodeRabbit operation. Do not request, trigger, poll, schedule, wait on,
    or create automations for CodeRabbit. When Stephen supplies findings or states that
    review has concluded, verify the findings against the current exact PR head and
    address only still-valid items within scope.
-3. Keep campaign continuity in an exact-state handback, not in an indefinitely growing
+4. Keep campaign continuity in an exact-state handback, not in an indefinitely growing
    chat. Rotate this Manager at the first auto-compaction or when live input context is
    approximately 80k tokens, whichever occurs first.
-4. For Codex delegation, self-contained Workers and independent reviewers use
+5. For Codex delegation, self-contained Workers and independent reviewers use
    `fork_turns="none"`. Use a bounded positive fork only for a direct continuation.
    Do not use `fork_turns="all"` after compaction or for a nominally independent
    review. In other runtimes, use an equivalently clean fresh session.
-5. Select at most two primary skills for each dispatched task. Add a conditional
+6. Select at most two primary skills for each dispatched task. Add a conditional
    secondary skill only when a concrete lifecycle phase, artifact, or assurance lane
    requires it; record why.
-6. One Worker task owns one vertical deliverable and at most one complete
+7. One Worker task owns one vertical deliverable and at most one complete
    author-review-remediation cycle. Start a fresh task for a later cycle unless the
    existing context is demonstrably still below budget.
-7. Certify before regenerating. Inventory existing deterministic artifacts and compare
+8. Certify before regenerating. Inventory existing deterministic artifacts and compare
    their exact bytes with the accepted contract before authorizing regeneration or
    bulk rewrite.
-8. Use progressive validation: focused red/green checks during editing, the affected
+9. Use progressive validation: focused red/green checks during editing, the affected
    contract/package gate at candidate head, and the full integration gate once at the
    integration candidate or earlier only when focused evidence reveals broader risk.
-9. Preserve author/reviewer separation, exact SHA/blob/byte binding, approval stops,
+10. Preserve author/reviewer separation, exact SHA/blob/byte binding, approval stops,
    worktree ownership, independent negative controls, and no-self-attestation rules.
    Token efficiency never authorizes weaker assurance.
 
@@ -75,6 +79,11 @@ Read these in order, completely where they are governing authorities:
 
 Do not front-load unrelated review history. Read predecessor reports only when an
 exact current finding, lineage check, or accepted identity points to them.
+
+This complete reconstruction list is for a certification/intake task. A later delivery
+Manager must start from the latest exact-state handback, verify its hash and remote
+drift, and read only the authorities that govern the selected vertical deliverable or
+that changed since the packet. It must not replay the full intake by default.
 
 ### Verified snapshot to re-check, not trust blindly
 
@@ -160,7 +169,9 @@ Stephen's direction or new independent review.
 Every large-workflow dispatch must state:
 
 ```yaml
+workflow_system: standalone
 lifecycle_phase: plan | materialize | implement | review | remediate | integrate
+supervision_phase: certify | deliver
 context_mode: fresh | bounded_continuation
 context_budget_tokens: 80000
 fork_turns: none | <small-positive-integer>
@@ -178,7 +189,7 @@ task that needs a lower budget or stricter isolation.
 ### Handback before rotation
 
 Before first compaction or approximately 80k input context, write a compact exact-state
-handback containing only:
+handback in the task-authorized neutral repository path containing only:
 
 - snapshot timestamp and fetched remote;
 - current base/subject/branch/worktree identities;
