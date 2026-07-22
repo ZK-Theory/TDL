@@ -22,10 +22,15 @@ entry.
 
 ## Where It Goes
 
-Write to `.apm/memory/handoffs/YYYY-MM-DD-<task>.md` (gitignored runtime
-state), or wherever the receiving runtime can read. Session commentary worth
-preserving long-term goes to the vault daily note via `vault-sync`, not the
-handoff.
+For `workflow_system: standalone`, write to the explicitly authorized neutral
+repository path, normally the active project's existing `handoffs/` directory.
+If the project has no handoff directory, use `docs/handoffs/` only when that
+path is in scope; otherwise return the handback in the final response and ask
+the receiver to place it. Never default standalone state into `.apm`.
+
+APM work does not use this skill: its numbered APM handoff skills own paths and
+Memory Bank state. Session commentary worth preserving long-term goes to the
+vault daily note via `vault-sync`, not the handoff.
 
 ## Handoff Document
 
@@ -35,6 +40,8 @@ handoff.
 ## Purpose of next session
 ## Active paper / project
 ## Current state
+## Workflow system            (standalone; otherwise use the owning workflow)
+## Packet predecessor         (path plus content identity, when applicable)
 ## Files and artifacts        (paths, not content)
 ## Commands run               (exact, re-runnable)
 ## Contracts and validation   (what is bound, what passed)
@@ -43,6 +50,7 @@ handoff.
 ## Open risks
 ## Suggested skills
 ## Next actions
+## Rotation evidence          (budget/compaction trigger, when applicable)
 ## Do-not-do list
 ## Sensitive information redacted
 ```
@@ -69,9 +77,16 @@ resuming), it must additionally: bound scope with explicit hard stops
 **blocking**, not advisory; and repeat the `results/` provenance rule above.
 An open-ended handoff is read maximally by an autonomous agent.
 
+For a standalone large workflow, handoff is also required at first
+auto-compaction or the declared context-budget threshold. Record one next
+vertical action, exact Git/worktree identities, unresolved findings, validation
+evidence, and hard stops; do not copy plans, reviews, or logs into the packet.
+
 ## Completion Checklist
 
 - [ ] Active paper / project identified.
+- [ ] Workflow system and neutral path are explicit; standalone state is not
+      stored under `.apm`.
 - [ ] State summarized without duplicating artifacts — paths and commands
       only.
 - [ ] Contracts / validation status and result-provenance status included
@@ -92,4 +107,4 @@ An open-ended handoff is read maximally by an autonomous agent.
 
 `tda-task-brief-from-plan` (when the next session's work deserves a formal
 brief) · `commit-log` · `vault-sync` · the numbered APM handoff skills for
-APM agents.
+APM agents Â· `tda-large-workflow-supervision` (context-budget rotation).

@@ -124,6 +124,7 @@ SYNC_SKILLS: set[str] = {
     "tda-learning-scaffold",
     "tda-paper-dissemination-pack",
     "tda-light-task-triage",
+    "tda-large-workflow-supervision",
     # Runtime-agnostic complements to plugin-owned (read-only) skills — the
     # guidance applies equally in Claude Code, which has the same plugin
     # skills available (2026-07-06 weekly review, Obs 27 / Obs 35).

@@ -1,7 +1,7 @@
 # Large-Workflow Context-Budget V2 Trial Assessment
 
 **Date:** 2026-07-22
-**Verdict:** `approve_advisory_integration` recommended; Stephen activation pending
+**Verdict:** `approve_advisory_integration`; activated by Stephen on 2026-07-22
 **Workflow system:** Standalone TDL supervision; not APM
 **Evidence:**
 `../handoffs/trials/gate6-wp6-2-t2-context-budget-v2-exact-state-handback.md`

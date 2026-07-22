@@ -117,7 +117,10 @@
     "SKILL.md": "89c20e9a6354ebbc22d795ef88eabdc2bd1d75abf4baac0a2f059d236d9d0c4d"
   },
   "tda-handoff": {
-    "SKILL.md": "1092db60213b0d042fa2bd824c9d4110b49f71da8e64804ed62aa72e1d9f71a5"
+    "SKILL.md": "52e24f4fbba906a322681966b29f3f90c7cc2cc653b69a67662a681626eb8030"
+  },
+  "tda-large-workflow-supervision": {
+    "SKILL.md": "5d5f3b8ecca01cf61926253aa5fb9db86c0df635bce310582fe9c65e7443b4e1"
   },
   "tda-learning-scaffold": {
     "SKILL.md": "a083527f92201dfe5a9ba3ab124a31f03a2bc9b371e6f73645887248e6fc6470"
@@ -159,7 +162,7 @@
     "SKILL.md": "334c2285fbb0beb7ac5c8f02acc2a38d108c1c2aea120cf80c96ff8dc8a5dc1d"
   },
   "tda-task-brief-from-plan": {
-    "SKILL.md": "94d1b06444ef0ead7c7efad6a8b2335fa39beec30d03afa4ed252bd25a12444f"
+    "SKILL.md": "0d2a63638ad17e74e6d4356649043c1c9f14d15f9c7cec4579a235ed75df3d3a"
   },
   "tda-trajectory-baselines": {
     "SKILL.md": "495593c34ddd73b99853578a285013490face47761c0e9d83fc768645c3cdd26"

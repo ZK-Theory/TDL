@@ -1,15 +1,15 @@
 # Large-Workflow Context Budget and Orchestration Protocol
 
 **Date:** 2026-07-22
-**Status:** V2 ASSESSED `approve_advisory_integration` recommended - Stephen
-activation pending; not an active general ARS gate or convention lock
+**Status:** ADVISORY INTEGRATION APPROVED by Stephen on 2026-07-22; active as
+guidance, not a mandatory checker or convention lock
 **Scope:** Large, multi-stage, review-heavy workflows such as ARS WP5/WP6
 **Workflow system:** Standalone TDL supervision. APM lifecycle, Memory Bank, skills,
 state, guides, and checkers are out of scope and remain unchanged.
 **Owner decision:** On 2026-07-22 Stephen clarified that this process is independent of
 APM. V1 validated certification and rotation. V2 validated standalone delta reuse and
 fail-closed supervision by stopping at a genuine missing T2 transition authority. The
-advisory integration surface below still requires Stephen's explicit activation.
+advisory integration surface below was activated by Stephen on 2026-07-22.
 
 ## 1. Problem
 
@@ -146,12 +146,12 @@ layer integrated.
 | Target | Proposed change | Activation |
 |---|---|---|
 | `C:\Users\steph\.Codex\AGENTS.md` | Record Stephen-owned CodeRabbit operation | Applied 2026-07-22 from explicit user instruction |
-| global `AGENTS.md` | Add large-workflow rotation, fork, and skill-budget rules | After owner approval of this proposal |
-| repo `AGENTS.md` | Point WP-style campaigns to this protocol; retain worktree rules | After approval |
-| `.agents/skills/tda-large-workflow-supervision/SKILL.md` | New standalone certification/delivery supervision workflow; explicitly reject APM routing | After successful V2 and owner approval; sync mirror |
-| `.agents/skills/tda-task-brief-from-plan/SKILL.md` | Add lifecycle, context, fork, skill, external-review, and cycle fields | After approval; sync mirror |
-| `.agents/skills/tda-handoff/SKILL.md` | Make standalone repository handback paths first-class and remove `.apm` as the default for non-APM work | After approval; sync mirror |
-| `docs/guides/large-workflow-supervision.md` | Standalone task assignment, rotation, and evidence guidance | After approval |
+| global `AGENTS.md` | Add large-workflow rotation, fork, and skill-budget rules | Applied 2026-07-22 after owner approval |
+| repo `AGENTS.md` | Point WP-style campaigns to this protocol; retain worktree rules | Applied 2026-07-22 after owner approval |
+| `.agents/skills/tda-large-workflow-supervision/SKILL.md` | New standalone certification/delivery supervision workflow; explicitly reject APM routing | Applied 2026-07-22; mirrored by sync tool |
+| `.agents/skills/tda-task-brief-from-plan/SKILL.md` | Add lifecycle, context, fork, skill, external-review, and cycle fields | Applied 2026-07-22; mirrored by sync tool |
+| `.agents/skills/tda-handoff/SKILL.md` | Make standalone repository handback paths first-class and remove `.apm` as the default for non-APM work | Applied 2026-07-22; mirrored by sync tool |
+| `docs/guides/large-workflow-supervision.md` | Standalone task assignment, rotation, and evidence guidance | Applied 2026-07-22 |
 | `tools/check_large_workflow_dispatch.py` | Optionally validate a strict standalone dispatch envelope and emit a positive budget signal | Separate implementation/review task after two successful trials |
 | `tests/provenance/test_large_workflow_dispatch.py` | Negative controls including forbidden APM routing and review polling ownership | Same checker task |
 | `CONVENTIONS.md` | Lock the protocol only after accepted trial evidence | Separate owner decision |
@@ -300,6 +300,6 @@ Stephen's APM correction is binding. The advisory defaults remain 80k/first-comp
 rotation, one implementer cycle, no-history independent review, at most two primary
 skills, and a prose campaign packet rather than a mandatory schema.
 
-Stephen must now accept, amend, or reject advisory AGENTS/skill/guide integration.
+Stephen accepted advisory AGENTS/skill/guide integration on 2026-07-22.
 Mandatory checker enforcement and a `CONVENTIONS.md` lock remain separately deferred
 until a completed implementation/review/remediation cycle supplies supporting evidence.

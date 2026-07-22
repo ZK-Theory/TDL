@@ -130,6 +130,30 @@ For every Codex worktree dispatch that will write:
 - Use the project research prefix convention for every commit subject: `[RESULT]`, `[DECISION]`, `[NEGATIVE]`, `[PIPELINE]`, `[DATA]`, or `[EXPLORE]`, followed by the paper identifier such as `P01-A:`. Never use a bare task-management or generic implementation subject when committing Worker output.
 - When a task prompt specifies an allowed prefix family, choose from that family and keep the subject within the same project convention.
 
+## Large-workflow context discipline
+
+For multi-stage, review-heavy campaigns such as ARS work packages:
+
+- Declare the workflow system first. For `standalone`, do not load APM skills,
+  state, Memory Bank, guides, or checkers.
+- Keep current campaign state in a compact exact-state artifact. Rotate the
+  coordinating task at first auto-compaction or approximately 80k live input
+  tokens; do not use compaction as long-term continuity.
+- Give self-contained implementers and independent reviewers no parent
+  conversation history (`fork_turns="none"` in Codex). Use a bounded positive
+  fork only for a direct continuation with a recorded reason. Full-history
+  inheritance is exceptional and forbidden after compaction.
+- Each dispatch records lifecycle phase, context mode and budget, at most two
+  primary skills, conditional skills, external-review owner, exact subject, one
+  deliverable, validation ladder, and hard stops.
+- Keep polling and external-review monitoring outside substantive supervisor,
+  author, and reviewer tasks. Stephen triggers and monitors CodeRabbit unless he
+  explicitly delegates that operation in the current task.
+- Certify existing deterministic artifacts before authorizing regeneration.
+
+Use `tda-large-workflow-supervision` for the operating procedure and
+`docs/guides/large-workflow-supervision.md` for dispatch and rotation examples.
+
 ## After editing
 
 If a file's structure changes substantially (function added, signature changed, class moved), no re-index step is needed — the next `Grep` or `Read` picks up the change directly from disk.
