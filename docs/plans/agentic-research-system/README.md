@@ -68,6 +68,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md) | R5 independent approval of exact WP6 remediation commit `fe5f1d40bc8f05f061317c677b5891cea0711249`; zero findings |
 | [reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md) | Durable R1 `rework_required` verdict and manager triage for exact T2 authority-addendum candidate `1144d6a6`; four Critical and three Major findings |
 | [reviews/wp6-2-t2-r2-static-review-triage-2026-07-22.md](reviews/wp6-2-t2-r2-static-review-triage-2026-07-22.md) | Manager triage of corrected R2 `rework_required` report, separating retained research-system integrity findings from premature security/runtime assurance |
+| [reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md](reviews/wp6-2-t2-r3-owner-acceptance-2026-07-22.md) | P-040 exact-byte owner acceptance of final WP6.2 T2 candidate `391a9275`, grounded in the zero-finding static R3 verdict; no runtime authority |
 
 ## Handover prompts
 
