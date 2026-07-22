@@ -1,10 +1,23 @@
 # WP6.2 T2 Research-First Scope and R3 Remediation Ruling
 
 **Date:** 2026-07-22
-**Decision ID:** P-039 (proposed)
-**Status:** PROPOSED - pending Stephen's exact acceptance
+**Decision ID:** P-039
+**Status:** ACCEPTED by Stephen on 2026-07-22
 **Amends:** P-038 scope and evidence timing; preserves P-037's command family
 **Scope:** one final T2 contract remediation and fresh static R3; no runtime
+
+## Owner acceptance
+
+Stephen accepted this ruling at its pre-acceptance identity on 2026-07-22:
+
+| Item | Accepted identity |
+|---|---|
+| Manager commit | `1301d8a5f089d27270c36b216967000a35472efc` |
+| Proposal Git blob | `1c6703b37579a0ffa35bfec0f9cccc7180a37f79` |
+| Proposal raw-byte SHA-256 | `959ebeafa67368ffc87592134fd9c0caf385b4b562278789273563844295492f` |
+
+The acceptance authorizes the one final contract-only remediation and fresh static R3
+defined below. It does not accept the future candidate or authorize runtime work.
 
 ## Why a new ruling is required
 
@@ -154,4 +167,3 @@ contract-only remediation of C1, C2, C4, M1, M3, and I1 followed by fresh static
 This authorizes no runtime implementation, credential resolution, provider call, T3/T4,
 T1b, eligibility, result, claim, publication, or third remediation cycle.
 ```
-
