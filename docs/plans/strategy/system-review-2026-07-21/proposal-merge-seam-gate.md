@@ -20,9 +20,16 @@ was validated once, in isolation, and the seam had no watched failure.
 
 **Option A — require branches up to date before merge (lightest).**
 Enable GitHub branch protection "Require branches to be up to date before
-merging" on `main`. This forces each PR to re-run CI against `main`'s current
-tip before it can merge, so the second PR is tested against the first's merged
-state. Cheap, no new CI, but serializes merges.
+merging" on `main`, with the **full pytest suite as the named required status
+check** — a CI workflow (e.g. `.github/workflows/ci.yml` running
+`uv run pytest`) registered as a required check on `main`. "Up to date" only
+re-validates the seam if that check actually runs the suite; naming the workflow
+is what makes the gate real rather than nominal. This forces each PR to rebase
+onto `main`'s current tip and re-run the suite before it can merge, so the second
+PR is tested against the first's merged state. Cheap (no new *kind* of CI beyond
+a suite-running workflow), but serializes merges. **Prerequisite:** the repo must
+have such a workflow wired as a required check; if none exists today, standing it
+up is part of adopting Option A.
 
 **Option B — a merge-queue / prospective-merge-commit suite run (strongest).**
 Adopt a merge queue (or a required status check that runs the full suite on the

@@ -97,12 +97,27 @@ is missing or non-zero-exit-on-setup is treated as unverified → block.
    - each **input path**: is its `root` declared (committed vs `PROJ_ROOT`-only)
      and does it resolve? (obs 74).
    - each **output path**: is it git-trackable, not gitignored? (obs 79).
-2. **A negative control** proving the gate fires: a fixture Task Prompt whose
-   deliverable already exists on disk **and passes its completion predicate under
-   the matching `owner_task`** must be downgraded to review-only; a companion
-   fixture whose file exists but fails the predicate (stale/partial/foreign) must
-   **still** dispatch. Both directions are asserted so the gate cannot pass by
-   path-existence alone.
+2. **Validation fixtures — one paired positive/negative control per predicate**,
+   so every branch of the gate has a watched failure and cannot pass by
+   path-existence alone. Each fixture is a Task Prompt manifest with a documented
+   expected outcome:
+   - **deliverable** — file exists **and** passes its completion predicate under
+     the matching `owner_task` → downgraded to review-only; companion file exists
+     but fails the predicate (stale/partial/foreign `owner_task`) → **still**
+     dispatched.
+   - **blocker** — `check` exits 0 (still-true) → dependent plan proceeds;
+     companion `check` exits non-zero (stale assumption) → **flagged/blocked**.
+   - **planned_contract** — file exists with `ready_status` satisfied → passes;
+     companion file exists but `pending: true` → **blocked** (presence ≠ ready).
+   - **input** — path resolves under its declared `root` → passes; companion with
+     an unresolved or wrong `root` (committed-vs-`PROJ_ROOT` mismatch) →
+     **errored/blocked**.
+   - **output** — path is git-trackable → passes; companion path that is
+     gitignored/untrackable → **blocked** (obs 79).
+   - **fully-valid positive** — a manifest where every predicate holds → dispatched
+     cleanly, proving the gate is not blocking unconditionally.
+   Both directions of each predicate are asserted; the expected outcome is
+   recorded alongside each fixture so a regression that inverts a branch is caught.
 3. **Skill propagation** (a short "verify state on disk before acting" step) to
    `pre-reg-to-dispatch`, `tda-handoff`, `tda-task-brief-from-plan`,
    `apm-communication` — pointing at the gate, not restating it.
