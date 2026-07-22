@@ -2,30 +2,72 @@
 # repowise-hook-start
 # Auto-syncs the repowise wiki after each commit (background, non-blocking).
 # Tracked in .githooks/ (NOT .git/hooks/) because this repo sets
-# core.hooksPath=.githooks — a copy in .git/hooks is silently ignored. Guarded by
-# `command -v repowise`, so it is a no-op on any clone/CI without repowise.
+# core.hooksPath=.githooks — a copy in .git/hooks is silently ignored. It is a
+# no-op on any clone/CI where no updater (`repowise`, or `uv` able to run it) is
+# available: the updater is resolved BEFORE any state file is written, so an
+# unconfigured checkout writes nothing.
 # (Originally installed by `repowise hook install` into .git/hooks, where it never
 # fired; relocated here 2026-07-21 per the weekly system review, obs 94.)
 {
   ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+  # .repowise is repo-relative and could be attacker-controlled in a hostile
+  # clone; refuse to operate through a symlinked state dir (writes could be
+  # redirected outside the checkout).
   [ -d "$ROOT/.repowise" ] || exit 0
+  [ -L "$ROOT/.repowise" ] && exit 0
+
+  # Resolve an updater up front. If none is available this hook is a true no-op:
+  # it must not write .update.queued / .update.log on a checkout it cannot update.
+  # `uv run repowise` is the project's normal invocation path, so it is an
+  # accepted executor — the guard is "an updater exists", not "repowise is on PATH".
+  if command -v repowise >/dev/null 2>&1; then
+    UPDATER="repowise"
+  elif command -v uv >/dev/null 2>&1; then
+    UPDATER="uv run repowise"
+  else
+    exit 0
+  fi
+
   HEAD=$(git rev-parse HEAD 2>/dev/null) || HEAD=""
   TS=$(date +%s 2>/dev/null) || TS=""
-  if [ -n "$TS" ]; then
-    printf '{"target_commit":"%s","queued_at":%s}\n' "$HEAD" "$TS" \
-      > "$ROOT/.repowise/.update.queued" 2>/dev/null || true
-  fi
+
+  # Skip any state write whose target is a symlink (no-follow-ish: test then
+  # write). Not atomic against a TOCTOU race, but it closes the committed-symlink
+  # redirect that a shell `>` would otherwise follow.
+  QUEUED="$ROOT/.repowise/.update.queued"
   LOG="$ROOT/.repowise/.update.log"
-  {
+  if [ -n "$TS" ] && [ ! -L "$QUEUED" ]; then
+    printf '{"target_commit":"%s","queued_at":%s}\n' "$HEAD" "$TS" \
+      > "$QUEUED" 2>/dev/null || true
+  fi
+  if [ ! -L "$LOG" ]; then
     printf '\n--- post-commit hook fired at %s for HEAD %s ---\n' \
-      "$(date 2>/dev/null)" "$HEAD"
-  } >> "$LOG" 2>/dev/null || true
+      "$(date 2>/dev/null)" "$HEAD" >> "$LOG" 2>/dev/null || true
+  fi
+
+  # Serialize + coalesce: one updater per repo behind an atomic mkdir lock.
+  # A concurrent commit that cannot take the lock exits; its work is absorbed
+  # because the lock holder re-reads HEAD and re-runs until HEAD stops moving,
+  # so rapid commits never spawn overlapping `repowise update` processes.
+  LOCK="$ROOT/.repowise/.update.lock"
   (
     cd "$ROOT" || exit 1
-    if command -v repowise >/dev/null 2>&1; then
-      repowise update >> "$LOG" 2>&1
-    elif command -v uv >/dev/null 2>&1; then
-      uv run repowise update >> "$LOG" 2>&1
+    # Reclaim a stale lock: a holder killed with SIGKILL cannot fire its trap,
+    # which would otherwise wedge the updater permanently (a silent-dead-hook
+    # failure). 30 min comfortably exceeds a normal full re-index.
+    if [ -d "$LOCK" ] && [ -n "$(find "$LOCK" -maxdepth 0 -mmin +30 2>/dev/null)" ]; then
+      rmdir "$LOCK" 2>/dev/null || true
+    fi
+    if mkdir "$LOCK" 2>/dev/null; then
+      trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM
+      last=""
+      while :; do
+        cur=$(git rev-parse HEAD 2>/dev/null) || break
+        [ "$cur" = "$last" ] && break
+        last="$cur"
+        # shellcheck disable=SC2086
+        $UPDATER update >> "$LOG" 2>&1
+      done
     fi
   ) &
 } >/dev/null 2>&1
