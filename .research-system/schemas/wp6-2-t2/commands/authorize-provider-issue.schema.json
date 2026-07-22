@@ -32,7 +32,7 @@
     },
     "command_id": {
       "type": "string",
-      "pattern": "^cmd_[0-9a-f-]+$"
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "command_type": {
       "const": "AuthorizeProviderIssue"
@@ -43,25 +43,25 @@
     },
     "actor_id": {
       "type": "string",
-      "pattern": "^act_[0-9a-f-]+$"
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "on_behalf_of_actor_id": {
       "type": [
         "string",
         "null"
       ],
-      "pattern": "^act_[0-9a-f-]+$"
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
       "type": "string",
-      "pattern": "^agr_[0-9a-f-]+$"
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_scope": {
       "const": "wp6.2.t2.provider.issue"
     },
     "target_stream_id": {
       "type": "string",
-      "pattern": "^cgr_[0-9a-f-]+$"
+      "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "write_set": {
       "type": "array",
@@ -79,7 +79,7 @@
             },
             "stream_id": {
               "type": "string",
-              "pattern": "^cgr_[0-9a-f-]+$"
+              "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "expected_stream_version": {
               "type": "integer",
@@ -101,7 +101,7 @@
             },
             "stream_id": {
               "type": "string",
-              "pattern": "^pcmd_[0-9a-f-]+$"
+              "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             },
             "expected_stream_version": {
               "type": "integer",
@@ -149,7 +149,7 @@
         "properties": {
           "subject_id": {
             "type": "string",
-            "minLength": 1
+            "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
           },
           "subject_revision": {
             "type": "integer",
@@ -171,6 +171,7 @@
         "cost_grant_id",
         "cost_grant_revision",
         "cost_grant_hash",
+        "reservation_id",
         "provider_command_id",
         "provider_command_revision",
         "provider_command_hash",
@@ -180,14 +181,23 @@
         "requested_tokens",
         "reserved_cost_microunits",
         "expected_available_microunits",
+        "currency",
+        "rate_evidence_id",
+        "rate_evidence_revision",
+        "rate_evidence_hash",
+        "input_microunits_per_million_tokens",
+        "output_microunits_per_million_tokens",
+        "rate_mode",
+        "zero_cost_authority",
         "rendered_payload_hash",
         "pre_issue_evidence_manifest_id",
+        "pre_issue_evidence_manifest_revision",
         "pre_issue_evidence_manifest_hash"
       ],
       "properties": {
         "cost_grant_id": {
           "type": "string",
-          "pattern": "^cgr_[0-9a-f-]+$"
+          "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "cost_grant_revision": {
           "type": "integer",
@@ -197,9 +207,13 @@
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
+        "reservation_id": {
+          "type": "string",
+          "pattern": "^crs_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
         "provider_command_id": {
           "type": "string",
-          "pattern": "^pcmd_[0-9a-f-]+$"
+          "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "provider_command_revision": {
           "type": "integer",
@@ -211,7 +225,7 @@
         },
         "secret_reference_id": {
           "type": "string",
-          "pattern": "^sref_[0-9a-f-]+$"
+          "pattern": "^srf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "secret_reference_revision": {
           "type": "integer",
@@ -252,13 +266,77 @@
           "type": "integer",
           "minimum": 1
         },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "rate_evidence_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "rate_evidence_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rate_evidence_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "input_microunits_per_million_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_microunits_per_million_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rate_mode": {
+          "enum": [
+            "metered",
+            "zero_cost_authorized"
+          ]
+        },
+        "zero_cost_authority": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "subject_id",
+                "subject_revision",
+                "subject_hash"
+              ],
+              "properties": {
+                "subject_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "subject_revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "subject_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "rendered_payload_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
         "pre_issue_evidence_manifest_id": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^pem_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "pre_issue_evidence_manifest_revision": {
+          "type": "integer",
+          "minimum": 1
         },
         "pre_issue_evidence_manifest_hash": {
           "type": "string",
@@ -269,5 +347,13 @@
     }
   },
   "additionalProperties": false,
-  "x-materialized-filename": "authorize-provider-issue.schema.json"
+  "x-materialized-filename": "authorize-provider-issue.schema.json",
+  "x-semantic-validation": [
+    "target_write_set_payload_identity",
+    "issue_expected_version_zero",
+    "deterministic_reservation_identity",
+    "authority_subject_identity_revision_hash",
+    "receipt_grant_and_reservation_identity_revision_hash",
+    "ordered_events_and_resulting_versions"
+  ]
 }

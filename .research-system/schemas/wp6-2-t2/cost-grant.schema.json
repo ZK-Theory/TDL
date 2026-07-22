@@ -36,7 +36,7 @@
     },
     "cost_grant_id": {
       "type": "string",
-      "pattern": "^cgr_[0-9a-f-]+$"
+      "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "revision": {
       "const": 1
@@ -47,7 +47,7 @@
     },
     "resource_grant_id": {
       "type": "string",
-      "pattern": "^rgr_[0-9a-f-]+$"
+      "pattern": "^rgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "resource_grant_revision": {
       "type": "integer",
@@ -59,7 +59,7 @@
     },
     "authority_grant_id": {
       "type": "string",
-      "pattern": "^agr_[0-9a-f-]+$"
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "scope": {
       "type": "object",
@@ -77,23 +77,23 @@
       "properties": {
         "task_id": {
           "type": "string",
-          "pattern": "^tsk_[0-9a-f-]+$"
+          "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "dispatch_id": {
           "type": "string",
-          "pattern": "^dsp_[0-9a-f-]+$"
+          "pattern": "^dsp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "attempt_id": {
           "type": "string",
-          "pattern": "^att_[0-9a-f-]+$"
+          "pattern": "^att_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "route_id": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^rte_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "profile_id": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^prf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "adapter_revision": {
           "type": "string",
@@ -101,7 +101,7 @@
         },
         "provider_command_id": {
           "type": "string",
-          "pattern": "^pcmd_[0-9a-f-]+$"
+          "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "provider_command_revision": {
           "type": "integer",
@@ -116,7 +116,7 @@
     },
     "secret_reference_id": {
       "type": "string",
-      "pattern": "^sref_[0-9a-f-]+$"
+      "pattern": "^srf_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "secret_reference_revision": {
       "type": "integer",
@@ -160,52 +160,138 @@
       "minimum": 1
     },
     "rate_evidence": {
-      "type": "object",
-      "required": [
-        "currency",
-        "input_microunits_per_million_tokens",
-        "output_microunits_per_million_tokens",
-        "source_id",
-        "source_version",
-        "source_hash",
-        "effective_at",
-        "expires_at"
-      ],
-      "properties": {
-        "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "currency",
+            "rate_evidence_id",
+            "rate_evidence_revision",
+            "rate_evidence_hash",
+            "effective_at",
+            "expires_at",
+            "mode",
+            "input_microunits_per_million_tokens",
+            "output_microunits_per_million_tokens",
+            "zero_cost_authority"
+          ],
+          "properties": {
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "rate_evidence_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "rate_evidence_revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "rate_evidence_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "effective_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "mode": {
+              "const": "metered"
+            },
+            "input_microunits_per_million_tokens": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "output_microunits_per_million_tokens": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "zero_cost_authority": {
+              "type": "null"
+            }
+          },
+          "additionalProperties": false
         },
-        "input_microunits_per_million_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "output_microunits_per_million_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "source_id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "source_version": {
-          "type": "string",
-          "minLength": 1
-        },
-        "source_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "effective_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "expires_at": {
-          "type": "string",
-          "format": "date-time"
+        {
+          "type": "object",
+          "required": [
+            "currency",
+            "rate_evidence_id",
+            "rate_evidence_revision",
+            "rate_evidence_hash",
+            "effective_at",
+            "expires_at",
+            "mode",
+            "input_microunits_per_million_tokens",
+            "output_microunits_per_million_tokens",
+            "zero_cost_authority"
+          ],
+          "properties": {
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "rate_evidence_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "rate_evidence_revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "rate_evidence_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "effective_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "mode": {
+              "const": "zero_cost_authorized"
+            },
+            "input_microunits_per_million_tokens": {
+              "const": 0
+            },
+            "output_microunits_per_million_tokens": {
+              "const": 0
+            },
+            "zero_cost_authority": {
+              "type": "object",
+              "required": [
+                "subject_id",
+                "subject_revision",
+                "subject_hash"
+              ],
+              "properties": {
+                "subject_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9]*_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "subject_revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "subject_hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
     },
     "initial_accounting": {
       "type": "object",
@@ -242,7 +328,7 @@
       "properties": {
         "actor_id": {
           "type": "string",
-          "pattern": "^act_[0-9a-f-]+$"
+          "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "authority_scope": {
           "const": "wp6.2.t2.cost-grant.issue"
@@ -268,11 +354,11 @@
       "properties": {
         "authority_grant_id": {
           "type": "string",
-          "pattern": "^agr_[0-9a-f-]+$"
+          "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "resource_grant_id": {
           "type": "string",
-          "pattern": "^rgr_[0-9a-f-]+$"
+          "pattern": "^rgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "new_issue_rule": {
           "const": "require_both_current_projections_active"
@@ -284,5 +370,6 @@
       "additionalProperties": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "x-cost-formula": "ceil_div(actual_input_tokens*input_microunits_per_million_tokens,1000000)+ceil_div(actual_output_tokens*output_microunits_per_million_tokens,1000000)"
 }

@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://contracts/wp6-2-t2-normative-crosswalk",
+  "title": "WP6.2 T2 normative crosswalk",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "crosswalk_id",
+    "status",
+    "authorities",
+    "oracle_source",
+    "rows"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://contracts/wp6-2-t2-normative-crosswalk"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "crosswalk_id": {
+      "const": "wp6-2-t2-r1-normative-crosswalk"
+    },
+    "status": {
+      "const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"
+    },
+    "authorities": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "W2",
+          "W7",
+          "W8",
+          "06b",
+          "P-037",
+          "P-038"
+        ]
+      },
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true
+    },
+    "oracle_source": {
+      "const": "tests/research_system/contracts/wp6_2_t2_expectations.py#EXPECTED_CROSSWALK"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "authority_refs",
+          "schema_properties",
+          "semantic_validators",
+          "positive_tests",
+          "negative_tests"
+        ],
+        "properties": {
+          "finding_id": {
+            "enum": [
+              "C1",
+              "C2",
+              "C3",
+              "C4",
+              "M1",
+              "M2",
+              "M3"
+            ]
+          },
+          "authority_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "schema_properties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "semantic_validators": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "positive_tests": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "negative_tests": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 7,
+      "maxItems": 7
+    }
+  },
+  "additionalProperties": false
+}

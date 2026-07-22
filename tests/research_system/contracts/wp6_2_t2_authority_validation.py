@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -15,6 +16,10 @@ from research_system.schema_registry import SchemaRegistry
 from tests.research_system.contracts.wp6_2_t2_expectations import (
     CATALOGUE_PATH,
     CATALOGUE_SCHEMA_PATH,
+    CROSSWALK_AUTHORITIES,
+    CROSSWALK_PATH,
+    CROSSWALK_SCHEMA_PATH,
+    EXPECTED_CROSSWALK,
     EXPECTED_ROWS,
     IDEMPOTENCY_TUPLE,
     IDENTITY_MANIFEST_PATH,
@@ -27,6 +32,10 @@ from tests.research_system.contracts.wp6_2_t2_expectations import (
     SCHEMA_IDENTITIES,
     START_REVISION,
     WRITER,
+)
+
+UUID7_RE = re.compile(
+    r"^(?P<prefix>[a-z][a-z0-9]*)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
 
 
@@ -208,8 +217,8 @@ def validate_catalogue_semantics(catalogue: Mapping[str, Any], repo_root: Path) 
             [item["stream_role"] for item in row.get("write_set_contract", [])] == expected["write_set"],
             f"write-set contract mismatch: {expected['key']}",
         )
-        _require(row.get("receipt_binding", {}).get("schema_id") == "ars://core/receipt", "receipt schema mismatch")
-        _require(row.get("receipt_binding", {}).get("schema_version") == "1.0.0", "receipt version mismatch")
+        _require(row.get("receipt_binding", {}).get("schema_id") == "ars://core/receipt/v2", "receipt schema mismatch")
+        _require(row.get("receipt_binding", {}).get("schema_version") == "2.0.0", "receipt version mismatch")
         referenced_negatives.update(row.get("negative_tests", []))
     _require(referenced_negatives == set(NEGATIVE_CASES), "row negative-test coverage mismatch")
 
@@ -248,6 +257,8 @@ def _expected_manifest_schema_identity(repo_root: Path, relative_path: str) -> t
         return schema.get("$id"), version
     if relative_path == CATALOGUE_PATH:
         return "ars://contracts/wp6-2-t2-cost-grant-authority-catalogue", "1.0.0"
+    if relative_path == CROSSWALK_PATH:
+        return "ars://contracts/wp6-2-t2-normative-crosswalk", "1.0.0"
     return None, None
 
 
@@ -349,6 +360,15 @@ def validate_t2_authority_contract(repo_root: Path) -> None:
     _validate_leaf_schemas(repo_root)
     _validate_protected_bytes(repo_root)
 
+    crosswalk_raw = _raw_utf8_lf(repo_root, CROSSWALK_PATH)
+    crosswalk = _load_yaml_bytes(crosswalk_raw, CROSSWALK_PATH)
+    crosswalk_schema = _load_json_bytes(
+        _raw_utf8_lf(repo_root, CROSSWALK_SCHEMA_PATH),
+        CROSSWALK_SCHEMA_PATH,
+    )
+    _validate_json_schema(crosswalk_schema, crosswalk, "normative crosswalk")
+    validate_crosswalk(crosswalk)
+
     manifest_raw = _raw_utf8_lf(repo_root, IDENTITY_MANIFEST_PATH)
     manifest = _load_yaml_bytes(manifest_raw, IDENTITY_MANIFEST_PATH)
     manifest_schema = _load_json_bytes(
@@ -363,6 +383,14 @@ def validate_t2_authority_contract(repo_root: Path) -> None:
     _require(registry.contains(manifest_schema["$id"]), "manifest schema registry omission")
 
 
+def validate_crosswalk(crosswalk: Mapping[str, Any]) -> None:
+    _require(set(crosswalk.get("authorities", [])) == CROSSWALK_AUTHORITIES, "crosswalk authority set mismatch")
+    rows = crosswalk.get("rows")
+    _require(isinstance(rows, list), "crosswalk rows missing")
+    actual = {row.get("finding_id"): {key: value for key, value in row.items() if key != "finding_id"} for row in rows}
+    _require(actual == EXPECTED_CROSSWALK, "crosswalk independent-oracle mismatch")
+
+
 def validate_event_observation(command_type: str, event_types: Sequence[str]) -> None:
     expected_by_command = {row["command_type"]: row["ordered_events"] for row in EXPECTED_ROWS}
     _require(command_type in expected_by_command, "unknown T2 command")
@@ -371,24 +399,279 @@ def validate_event_observation(command_type: str, event_types: Sequence[str]) ->
     _require(list(event_types) == expected, "event_batch_order_invalid")
 
 
+def validate_canonical_id(value: object, prefix: str) -> None:
+    _require(isinstance(value, str), "canonical_id_invalid")
+    match = UUID7_RE.fullmatch(value)
+    _require(match is not None and match.group("prefix") == prefix, "canonical_id_invalid")
+
+
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+
+
+def rebuild_idempotency_index(canonical_event_bytes: Sequence[bytes]) -> dict[str, tuple[str, str]]:
+    """Rebuild the T2 idempotency index from canonical serialized event bytes."""
+
+    index: dict[str, tuple[str, str]] = {}
+    effects: set[tuple[str, str]] = set()
+    effect_fields = {
+        "CostGrantIssued": "cost_grant_id",
+        "CostGrantReserved": "reservation_id",
+        "ProviderCommandIssued": "provider_command_id",
+        "ProviderReceiptRecorded": "provider_receipt_id",
+        "CostGrantReconciled": "reservation_id",
+    }
+    for raw in canonical_event_bytes:
+        _require(isinstance(raw, bytes), "event_bytes_required")
+        try:
+            event = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise T2ContractError("invalid canonical event bytes") from exc
+        _require(_canonical_json_bytes(event) == raw, "noncanonical event bytes")
+        _require(isinstance(event, Mapping), "event must be an object")
+        command_id = event.get("command_id")
+        idempotency_hash = event.get("idempotency_key_hash")
+        payload_hash = event.get("payload_hash")
+        _require(
+            all(isinstance(item, str) for item in (command_id, idempotency_hash, payload_hash)),
+            "event index binding missing",
+        )
+        binding = (idempotency_hash, payload_hash)
+        previous = index.setdefault(command_id, binding)
+        _require(previous == binding, "idempotency_conflict")
+        event_type = event.get("event_type")
+        payload = event.get("payload")
+        _require(event_type in effect_fields and isinstance(payload, Mapping), "unknown T2 event effect")
+        effect_id = payload.get(effect_fields[event_type])
+        _require(isinstance(effect_id, str), "event effect identity missing")
+        effect = (event_type, effect_id)
+        _require(effect not in effects, "duplicate replay effect")
+        effects.add(effect)
+    return index
+
+
+def validate_pre_issue_evidence(
+    manifest: Mapping[str, Any],
+    seam_payloads: Mapping[str, object],
+    *,
+    safe_sentinel: str,
+    prohibited_material: Sequence[str],
+) -> None:
+    """Scan the actual recursive serialized eight-seam payload surface."""
+
+    _require(list(seam_payloads) == PRE_ISSUE_SENTINEL_SEAMS, "pre_issue_seam_order_invalid")
+    seam_records = manifest.get("seams")
+    _require(isinstance(seam_records, list) and len(seam_records) == 8, "pre_issue_manifest_incomplete")
+    _require(
+        manifest.get("safe_synthetic_sentinel_hash") == _sha256(safe_sentinel.encode("utf-8")),
+        "pre_issue_sentinel_identity_mismatch",
+    )
+    expected_hashes: list[str] = []
+    needles = [safe_sentinel.encode("utf-8"), *(item.encode("utf-8") for item in prohibited_material)]
+    for expected_seam, record in zip(PRE_ISSUE_SENTINEL_SEAMS, seam_records, strict=True):
+        _require(isinstance(record, Mapping) and record.get("seam_id") == expected_seam, "pre_issue_seam_order_invalid")
+        raw = _canonical_json_bytes(seam_payloads[expected_seam])
+        _require(not any(needle and needle in raw for needle in needles), "secret_material_detected")
+        payload_hash = _sha256(raw)
+        _require(record.get("serialized_payload_hash") == payload_hash, "pre_issue_payload_hash_mismatch")
+        _require(record.get("outcome") == "no_prohibited_material_or_sentinel", "pre_issue_scan_failed")
+        expected_hashes.append(payload_hash)
+    aggregate = _sha256("\n".join(expected_hashes).encode("ascii"))
+    _require(manifest.get("aggregate_content_hash") == aggregate, "pre_issue_aggregate_hash_mismatch")
+
+
+def validate_receipt_v2(receipt: Mapping[str, Any], original: Mapping[str, Any] | None = None) -> None:
+    outcome = receipt.get("outcome")
+    events = receipt.get("events")
+    _require(isinstance(events, list), "receipt_events_invalid")
+    if outcome == "accepted":
+        _require(bool(events) and receipt.get("event_batch_id") is not None, "accepted_receipt_missing_events")
+        _require(
+            receipt.get("stable_reason") is None and receipt.get("unmet_preconditions") == [],
+            "accepted_receipt_rejection_fields",
+        )
+    elif outcome == "duplicate":
+        _require(original is not None and original.get("outcome") == "accepted", "duplicate_original_missing")
+        for field in (
+            "command_id",
+            "idempotency_key_hash",
+            "payload_hash",
+            "event_batch_id",
+            "events",
+            "outcome_binding_hash",
+        ):
+            _require(receipt.get(field) == original.get(field), f"duplicate_receipt_mismatch:{field}")
+        _require(
+            receipt.get("original_accepted_receipt_hash") == _sha256(_canonical_json_bytes(original)),
+            "duplicate_original_hash_mismatch",
+        )
+        _require(
+            receipt.get("new_event_count") == 0 and receipt.get("new_invocation_count") == 0, "duplicate_side_effect"
+        )
+    elif outcome in {"rejected", "conflict"}:
+        _require(events == [] and receipt.get("event_batch_id") is None, "rejected_receipt_has_events")
+        _require(
+            isinstance(receipt.get("stable_reason"), str) and bool(receipt.get("unmet_preconditions")),
+            "rejected_receipt_reason_missing",
+        )
+    else:
+        raise T2ContractError("receipt_outcome_invalid")
+
+
+def validate_command_relations(
+    command: Mapping[str, Any],
+    canonical_subjects: Mapping[str, Mapping[str, Any]],
+    receipt_events: Sequence[Mapping[str, Any]],
+) -> None:
+    """Enforce cross-object identities independently of JSON Schema shape."""
+
+    command_type = command.get("command_type")
+    expected_row = next((row for row in EXPECTED_ROWS if row["command_type"] == command_type), None)
+    _require(expected_row is not None, "unknown T2 command")
+    payload = command.get("payload")
+    write_set = command.get("write_set")
+    _require(isinstance(payload, Mapping) and isinstance(write_set, list), "command relation surface missing")
+    _require(len(write_set) == len(expected_row["write_set"]), "write_set relation mismatch")
+    role_id_fields = {"cost_grant": "cost_grant_id", "provider_command": "provider_command_id"}
+    for item, role in zip(write_set, expected_row["write_set"], strict=True):
+        _require(item.get("stream_role") == role, "write_set role mismatch")
+        _require(
+            item.get("stream_id") == payload.get(role_id_fields[role]), "target/write_set/payload identity mismatch"
+        )
+    target_field = role_id_fields[expected_row["target_stream_role"]]
+    _require(command.get("target_stream_id") == payload.get(target_field), "target/write_set/payload identity mismatch")
+    if command_type == "IssueCostGrant":
+        _require(write_set[0].get("expected_stream_version") == 0, "issue expected version must be zero")
+    elif command_type == "AuthorizeProviderIssue":
+        _require(
+            write_set[0].get("expected_stream_version") == payload.get("cost_grant_revision"),
+            "cost grant expected version mismatch",
+        )
+        _require(write_set[1].get("expected_stream_version") == 0, "provider command expected version must be zero")
+        command_id = command.get("command_id")
+        _require(isinstance(command_id, str) and "_" in command_id, "command identity invalid")
+        _require(payload.get("reservation_id") == f"crs_{command_id.split('_', 1)[1]}", "reservation identity mismatch")
+    elif command_type == "RecordProviderReceipt":
+        _require(
+            write_set[0].get("expected_stream_version") == payload.get("provider_command_revision"),
+            "provider command expected version mismatch",
+        )
+        _require(
+            write_set[1].get("expected_stream_version") == payload.get("cost_grant_revision"),
+            "cost grant expected version mismatch",
+        )
+    for field in expected_row["authority_subject_fields"]:
+        if not field.endswith("_id"):
+            continue
+        stem = field[:-3]
+        revision_field = f"{stem}_revision"
+        hash_field = f"{stem}_hash"
+        subject = canonical_subjects.get(stem)
+        _require(isinstance(subject, Mapping), f"authority subject missing:{stem}")
+        _require(payload[field] == subject.get("id"), f"authority subject id mismatch:{stem}")
+        if revision_field in payload or hash_field in payload:
+            _require(
+                revision_field in payload and hash_field in payload,
+                f"authority subject identity incomplete:{stem}",
+            )
+            _require(
+                payload[revision_field] == subject.get("revision"),
+                f"authority subject revision mismatch:{stem}",
+            )
+            _require(payload[hash_field] == subject.get("content_hash"), f"authority subject hash mismatch:{stem}")
+    _require(
+        [event.get("event_type") for event in receipt_events] == expected_row["ordered_events"],
+        "receipt event order mismatch",
+    )
+    for event, item in zip(receipt_events, write_set, strict=True):
+        _require(event.get("stream_id") == item.get("stream_id"), "receipt event stream mismatch")
+        _require(
+            event.get("resulting_stream_version") == item.get("expected_stream_version") + 1,
+            "receipt resulting version mismatch",
+        )
+
+
 def validate_reconciliation(payload: Mapping[str, Any]) -> None:
     input_tokens = payload.get("actual_input_tokens")
     output_tokens = payload.get("actual_output_tokens")
     total_tokens = payload.get("actual_total_tokens")
+    reserved_input = payload.get("reserved_input_tokens")
+    reserved_output = payload.get("reserved_output_tokens")
+    reserved_total = payload.get("reserved_total_tokens")
     reserved = payload.get("reserved_cost_microunits")
     consumed = payload.get("consumed_cost_microunits")
-    refund = payload.get("refund_microunits")
+    refund = payload.get("refund_cost_microunits")
     disposition = payload.get("refund_disposition")
-    values = [input_tokens, output_tokens, total_tokens, reserved, consumed, refund]
+    input_rate = payload.get("input_microunits_per_million_tokens")
+    output_rate = payload.get("output_microunits_per_million_tokens")
+    values = [
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        reserved_input,
+        reserved_output,
+        reserved_total,
+        reserved,
+        consumed,
+        refund,
+        input_rate,
+        output_rate,
+    ]
     _require(
         all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in values),
         "reconciliation_actuals_invalid",
     )
     _require(total_tokens == input_tokens + output_tokens, "reconciliation_actuals_invalid")
-    _require(consumed <= reserved, "reconciliation_actuals_invalid")
+    _require(input_tokens <= reserved_input and output_tokens <= reserved_output, "reconciliation_actuals_invalid")
+    _require(total_tokens <= reserved_total, "reconciliation_actuals_invalid")
+    mode = payload.get("rate_mode")
+    zero_authority = payload.get("zero_cost_authority")
+    if mode == "metered":
+        _require(input_rate > 0 and output_rate > 0 and zero_authority is None, "reconciliation_actuals_invalid")
+    elif mode == "zero_cost_authorized":
+        _require(
+            input_rate == 0 and output_rate == 0 and isinstance(zero_authority, Mapping),
+            "reconciliation_actuals_invalid",
+        )
+        _require(
+            set(zero_authority) == {"subject_id", "subject_revision", "subject_hash"}, "reconciliation_actuals_invalid"
+        )
+    else:
+        raise T2ContractError("reconciliation_actuals_invalid")
+    expected_consumed = (input_tokens * input_rate + 999_999) // 1_000_000 + (
+        output_tokens * output_rate + 999_999
+    ) // 1_000_000
+    _require(consumed == expected_consumed and consumed <= reserved, "reconciliation_actuals_invalid")
     _require(refund == reserved - consumed, "reconciliation_actuals_invalid")
     expected_disposition = "fully_consumed" if refund == 0 else "refunded"
     _require(disposition == expected_disposition, "reconciliation_actuals_invalid")
+
+
+def validate_cost_evidence_relations(*records: Mapping[str, Any]) -> None:
+    _require(bool(records), "cost evidence missing")
+    fields = ("currency", "rate_evidence_id", "rate_evidence_revision", "rate_evidence_hash")
+    expected = tuple(records[0].get(field) for field in fields)
+    _require(all(value is not None for value in expected), "cost evidence missing")
+    for record in records[1:]:
+        _require(tuple(record.get(field) for field in fields) == expected, "cost evidence identity mismatch")
+
+
+def validate_provider_receipt_gates(receipt: Mapping[str, Any]) -> None:
+    completeness = receipt.get("completeness")
+    _require(isinstance(completeness, Mapping), "provider receipt completeness missing")
+    gates = (
+        "dispatch_gate_satisfied",
+        "delivery_gate_satisfied",
+        "reconciliation_gate_satisfied",
+        "review_gate_satisfied",
+    )
+    if completeness.get("complete") is True:
+        _require(all(completeness.get(gate) is True for gate in gates), "complete provider receipt gate mismatch")
+        _require(completeness.get("diagnostic_only") is False, "complete provider receipt diagnostic mismatch")
+        _require(receipt.get("delivery_proof", {}).get("disposition") == "proven", "complete delivery proof missing")
+    else:
+        _require(all(completeness.get(gate) is False for gate in gates), "incomplete provider receipt satisfied gate")
+        _require(completeness.get("diagnostic_only") is True, "incomplete provider receipt not diagnostic-only")
 
 
 def validate_concurrency_observation(observation: Mapping[str, Any]) -> None:

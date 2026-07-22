@@ -1,0 +1,68 @@
+schema_id: ars://contracts/wp6-2-t2-normative-crosswalk
+schema_version: 1.0.0
+crosswalk_id: wp6-2-t2-r1-normative-crosswalk
+status: proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance
+authorities:
+- W2
+- W7
+- W8
+- 06b
+- P-037
+- P-038
+oracle_source: tests/research_system/contracts/wp6_2_t2_expectations.py#EXPECTED_CROSSWALK
+rows:
+- finding_id: C1
+  authority_refs: [W2, P-037, P-038]
+  schema_properties:
+  - ars://core/receipt/v2#/properties/outcome
+  - ars://core/receipt/v2#/properties/events
+  - ars://core/receipt/v2#/properties/original_accepted_receipt_hash
+  semantic_validators: [validate_receipt_v2]
+  positive_tests: [test_r1_red_c1_receipt_v2_proof_surface]
+  negative_tests: [test_receipt_v2_outcome_relations_reject]
+- finding_id: C2
+  authority_refs: [W2, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/event/*#/properties/idempotency_key_hash
+  - ars://wp6-2/t2/event/*#/properties/payload_hash
+  semantic_validators: [rebuild_idempotency_index]
+  positive_tests: [test_rebuild_idempotency_index_from_canonical_event_bytes]
+  negative_tests: [test_rebuilt_index_rejects_duplicate_effect]
+- finding_id: C3
+  authority_refs: [W7, 06b, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/secret-reference#/properties/resolver_id
+  - ars://wp6-2/t2/pre-issue-evidence-manifest#/properties/seams
+  semantic_validators: [validate_pre_issue_evidence]
+  positive_tests: [test_recursive_pre_issue_scan_accepts_clean_eight_seams]
+  negative_tests: [test_recursive_pre_issue_scan_rejects_actual_serialized_seam]
+- finding_id: C4
+  authority_refs: [W2, P-037, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/command/*#/x-semantic-validation
+  - ars://wp6-2/t2/command/RecordProviderReceipt#/properties/payload
+  semantic_validators: [validate_command_relations]
+  positive_tests: [test_command_relations_positive_fixtures]
+  negative_tests: [test_command_relations_counterexamples]
+- finding_id: M1
+  authority_refs: [W8, P-037, P-038]
+  schema_properties:
+  - ars://wp6-2/t2/cost-grant#/properties/rate_evidence
+  - ars://wp6-2/t2/event/CostGrantReconciled#/properties/payload
+  semantic_validators: [validate_reconciliation]
+  positive_tests: [test_integer_ceil_div_reconciliation]
+  negative_tests: [test_reconciliation_actuals_and_refund_relations_reject]
+- finding_id: M2
+  authority_refs: [W7, P-038]
+  schema_properties:
+  - ars://adapters/provider-command/v2#/properties
+  - ars://adapters/provider-receipt/v2#/properties
+  semantic_validators: [validate_provider_receipt_gates]
+  positive_tests: [test_r1_red_m2_w7_successors_are_complete]
+  negative_tests: [test_incomplete_provider_receipt_is_diagnostic_only]
+- finding_id: M3
+  authority_refs: [W2, W7, P-038]
+  schema_properties: [all_canonical_ids#/lowercase_uuidv7]
+  semantic_validators: [validate_canonical_id]
+  positive_tests: [test_r1_red_m3_canonical_ids_require_lowercase_uuidv7]
+  negative_tests: [test_uuidv7_prefix_and_case_counterexamples]

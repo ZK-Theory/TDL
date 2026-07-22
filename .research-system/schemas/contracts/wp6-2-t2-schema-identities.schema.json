@@ -85,16 +85,18 @@
         "command_tree",
         "event_tree",
         "core_tree",
+        "receipt_1_0_0_blob",
         "provider_command_1_0_0_blob",
         "provider_receipt_1_0_0_blob"
       ],
       "properties": {
-        "start_revision": {"const": "ca2674fd39553a16bb583e80fc1463ce7bc59d5f"},
-        "protected_path_count": {"const": 207},
-        "path_blob_rawsha_map_sha256": {"const": "343aea6cf106a1d14abfab8ea62dd15dd4132878f3d8992922749c7c086a8e92"},
+        "start_revision": {"const": "69a0fee6171fc25f936c8e3e03343bfbd0338440"},
+        "protected_path_count": {"const": 214},
+        "path_blob_rawsha_map_sha256": {"const": "b99f76f3406dc2bdf50b41051ffdb252681ea2ab7861d0fdc8a19da3dec52a65"},
         "command_tree": {"const": "9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea"},
         "event_tree": {"const": "154ffc4bdde82fe903718734687e7a62797b1f69"},
         "core_tree": {"const": "b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46"},
+        "receipt_1_0_0_blob": {"const": "f204b3b71d6839bc866ba1251c8b87cc814ee0ce"},
         "provider_command_1_0_0_blob": {"const": "9eb58609b9703674912e64f019db3cd4fb147a9c"},
         "provider_receipt_1_0_0_blob": {"const": "8ac904e6c0b16e45034bcdc2221970d6a3ef13a8"}
       },
@@ -139,8 +141,8 @@
       "type": "object",
       "required": ["schema_id", "schema_version", "accepted_rule", "duplicate_rule"],
       "properties": {
-        "schema_id": {"const": "ars://core/receipt"},
-        "schema_version": {"const": "1.0.0"},
+        "schema_id": {"const": "ars://core/receipt/v2"},
+        "schema_version": {"const": "2.0.0"},
         "accepted_rule": {"type": "string", "minLength": 10},
         "duplicate_rule": {"type": "string", "minLength": 10}
       },

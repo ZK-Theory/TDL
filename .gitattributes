@@ -1,9 +1,11 @@
+.gitattributes text eol=lf
 .research-system/evals/fixtures/** text eol=lf
 .research-system/evals/p0-variant-matrix.yaml text eol=lf
 .research-system/contracts/wp6-1-owner-source-catalogue.yaml text eol=lf
 .research-system/contracts/wp6-1-schema-identities.yaml text eol=lf
 .research-system/schemas/core/commands/** text eol=lf
 .research-system/schemas/core/events/** text eol=lf
+.research-system/schemas/core/receipt-v2.schema.json text eol=lf
 .research-system/contracts/wp6-2-t2-*.yaml text eol=lf
 .research-system/schemas/contracts/wp6-2-t2-*.schema.json text eol=lf
 .research-system/schemas/wp6-2-t2/** text eol=lf

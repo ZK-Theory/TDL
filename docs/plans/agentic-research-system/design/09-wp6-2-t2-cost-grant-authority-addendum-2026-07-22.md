@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-22
 **Status:** `proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance`
-**Decision authority:** P-020, P-035, P-036, P-037, and the accepted T2 ruling dated 2026-07-22
+**Decision authority:** P-020, P-035, P-036, P-037, and accepted remediation ruling P-038
 **Scope:** WP6.2 T2 contract materialization only
 **Runtime authority:** None
 
@@ -47,6 +47,8 @@ Git blob `8ac904e6c0b16e45034bcdc2221970d6a3ef13a8`. Neither file may be edited.
 |---|---|---:|---|---|
 | SecretReference | `ars://wp6-2/t2/secret-reference` | 1.0.0 | `.research-system/schemas/wp6-2-t2/secret-reference.schema.json` | new strict identity |
 | CostGrant | `ars://wp6-2/t2/cost-grant` | 1.0.0 | `.research-system/schemas/wp6-2-t2/cost-grant.schema.json` | new strict identity |
+| PreIssueEvidenceManifest | `ars://wp6-2/t2/pre-issue-evidence-manifest` | 1.0.0 | `.research-system/schemas/wp6-2-t2/pre-issue-evidence-manifest.schema.json` | new strict evidence identity |
+| Receipt successor | `ars://core/receipt/v2` | 2.0.0 | `.research-system/schemas/core/receipt-v2.schema.json` | T2 proof surface; Receipt 1.0.0 remains byte-identical and audit-only |
 | ProviderCommand successor | `ars://adapters/provider-command/v2` | 2.0.0 | `.research-system/schemas/wp6-2-t2/provider-command-v2.schema.json` | required-field successor; 1.0.0 is audit-only for T2 |
 | ProviderReceipt successor | `ars://adapters/provider-receipt/v2` | 2.0.0 | `.research-system/schemas/wp6-2-t2/provider-receipt-v2.schema.json` | required-field successor; 1.0.0 is audit-only for T2 |
 
@@ -80,10 +82,14 @@ reconciliation, or refund. The same tuple with a different payload hash returns
 `idempotency_conflict`. A stale expected version returns `stale_stream_version`.
 Neither rejection is auto-rebased.
 
-Accepted and duplicate outcomes use `ars://core/receipt` 1.0.0. A duplicate receipt
-must be byte-equivalent in its outcome bindings to the original accepted receipt.
-Rejected and conflict receipts are non-canonical operational audit records and must
-contain a stable reason code and zero T2 event IDs.
+Accepted and duplicate outcomes use `ars://core/receipt/v2` 2.0.0. They bind the
+command, idempotency-key hash, payload hash, event-batch identity, and canonical
+ordered events; each event binds its ID, transaction position, stream ID, and
+resulting stream version. A duplicate carries the byte-equivalent original outcome
+binding and records zero new event or invocation. Rejected and conflict receipts
+carry no event entries and bind a stable reason plus unmet preconditions. Exact major
+version dispatch is mandatory; Receipt 1.0.0 remains audit-readable but cannot prove
+the T2 pre-invocation gate.
 
 ## 4. Exact authority catalogue
 
@@ -119,7 +125,7 @@ contain a stable reason code and zero T2 event IDs.
   `provider_command_reducer@2.0.0`.
 - **Projections:** `cost_grant_balance_projection@1.0.0` and
   `provider_command_lifecycle_projection@2.0.0`.
-- **Reservation identity:** `crsv_` plus the UUID portion of the accepted command
+- **Reservation identity:** `crs_` plus the UUIDv7 portion of the accepted command
   ID. Only CommandService constructs it; callers cannot substitute it.
 - **Effect:** reserve the requested token/cost ceiling and record the exact command
   issue atomically before transport invocation. Provider invocation is permitted
@@ -156,9 +162,12 @@ The semantic identities are:
 ```text
 actual_total_tokens = actual_input_tokens + actual_output_tokens
 0 <= consumed_cost_microunits <= reserved_cost_microunits
-refund_microunits = reserved_cost_microunits - consumed_cost_microunits
-refund_disposition = fully_consumed  iff refund_microunits = 0
-refund_disposition = refunded       iff refund_microunits > 0
+consumed_cost_microunits =
+  ceil_div(actual_input_tokens * input_microunits_per_million_tokens, 1_000_000)
+  + ceil_div(actual_output_tokens * output_microunits_per_million_tokens, 1_000_000)
+refund_cost_microunits = reserved_cost_microunits - consumed_cost_microunits
+refund_disposition = fully_consumed  iff refund_cost_microunits = 0
+refund_disposition = refunded       iff refund_cost_microunits > 0
 ```
 
 The receipt/provider/profile/adapter/policy/context/rendered-payload/command/grant/
@@ -167,8 +176,9 @@ over-consumption, inconsistent totals, or a refund mismatch rejects the full bat
 
 ## 5. SecretReference and pre-issue producer seams
 
-SecretReference is opaque and byte-free. It records only an ID, revision/hash,
-provider and credential class, resolver ID/version, exact allowed identity scope,
+SecretReference is opaque and byte-free. It uses `srf_` plus a lowercase UUIDv7 and
+records only an ID, revision/hash, provider and credential class, a typed canonical
+secret-resolver registry URI/revision/hash, resolver version, exact allowed identity scope,
 expiry, existing authority/resource revocation bindings, and redaction proof. Its
 strict schema has no field capable of carrying a secret, raw environment value,
 provider token, credential text, or transcript.
@@ -188,6 +198,14 @@ all eight consumed producer seams, in this exact order:
 A sentinel at any seam returns `secret_material_detected`, with zero reservation,
 zero invocation, and zero canonical publication. A post-run scan is defense in depth
 and cannot compensate for a failed or absent pre-issue check.
+
+The `pem_` PreIssueEvidenceManifest binds those eight seams in order, the producer,
+policy, and scanner identities/versions/hashes, safe synthetic sentinel identity and
+hash (never its value), source-evidence references and hashes, per-seam outcomes, and
+an aggregate content hash. The validator canonical-serializes and recursively scans
+the actual eight payload objects. Counters and aggregate self-attestation are not
+accepted substitutes; a missing, stale, failed, or mismatched seam blocks publication
+and invocation.
 
 ## 6. CostGrant state, expiry, and revocation
 
@@ -268,3 +286,58 @@ binding, concurrency rule, or version disposition cannot be preserved without a 
 canonical transition. This addendum authorizes no T2 runtime implementation, T3/T4,
 provider call, T1b, eligibility transition, result, claim, migration, or mutation of
 accepted artifacts.
+
+## 10. P-038 relational and replay closure
+
+All five T2 event envelopes require `idempotency_key_hash` and `payload_hash`. The
+independent validator rebuilds the command-to-idempotency/payload index from canonical
+event bytes and rejects a conflicting binding or duplicate grant, reservation,
+invocation, provider-receipt, reconciliation, or refund effect.
+
+Shape validation is followed by independent relational validation. Target stream,
+declared write-set stream, and payload entity IDs must agree. `IssueCostGrant` creates
+its stream at expected version zero. `AuthorizeProviderIssue` binds the CostGrant
+expected version to its exact revision, creates the ProviderCommand stream at version
+zero, and derives `crs_<command UUIDv7>` deterministically. `RecordProviderReceipt`
+binds exact CostGrant and reservation IDs, revisions, and hashes in addition to the
+ProviderCommand and ProviderReceipt. Every authority-subject ID/revision/hash is
+compared with the independently supplied canonical object. Receipt event order,
+stream IDs, and resulting versions must match the accepted write set.
+
+## 11. Closed cost and rate modes
+
+Actual input, output, and total tokens may not exceed their respective reserved
+ceilings. Cost arithmetic is integer-only. `metered` requires both per-million rates
+to be positive and no zero-cost authority. `zero_cost_authorized` requires both rates
+to be zero and an exact authority ID/revision/hash. Currency and the rate-evidence
+ID/revision/hash are equal across grant, reservation, ProviderReceipt, and
+reconciliation; the refund cannot be negative.
+
+## 12. Complete W7 successors and identifiers
+
+ProviderCommand 2.0 binds every W7 section 9 class: W2 command/message/dispatch and
+control-store position; W4 route/profile/evaluation/policy and exact `res_` snapshot;
+W3 candidate/packet/addendum, content hash, and both token gates; W5 purpose and
+visibility; W8 resource grant, lease, and stop policy; normalized operation and
+rendered hash; permissions/default deny; receipt expectations; and timeout, expiry,
+retry, and reconciliation policy.
+
+ProviderReceipt 2.0 binds every W7 section 10 class: command/provider/model/profile/
+adapter/policy identities; native IDs; issue/acknowledgement/terminal timestamps;
+delivery proof; token/capacity accounting; actions; terminal/native outcome; outputs;
+lifecycle evidence; W8 resource/process observations; and redaction/omission evidence.
+Typed `not_exposed` with evidence is confined to provider request/session/response
+IDs. Inability to prove delivery makes the receipt incomplete and diagnostic-only;
+dispatch, delivery, reconciliation, and review gates remain false.
+
+Every canonical ID uses a lowercase UUIDv7 suffix. The accepted W7 `pcmd_` and
+`prcp_` aliases remain. New T2 identities use `srf_`, `cgr_`, `crs_`, and `pem_`.
+
+## 13. Independent normative crosswalk
+
+`.research-system/contracts/wp6-2-t2-normative-crosswalk.yaml` maps W2, W7, W8,
+06b, P-037, and P-038 to exact schema properties, semantic validators, and positive
+and negative tests for C1-C4 and M1-M3. Its expected mapping is a separately authored
+literal oracle in `wp6_2_t2_expectations.py`; neither surface is derived from the
+schema materializer. This crosswalk and its strict schema remain proposed candidate
+evidence and confer no runtime or acceptance authority.

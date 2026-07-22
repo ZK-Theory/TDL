@@ -16,6 +16,8 @@
     "transaction_index",
     "transaction_count",
     "command_id",
+    "idempotency_key_hash",
+    "payload_hash",
     "correlation_id",
     "causation_id",
     "actor_id",
@@ -34,18 +36,18 @@
     },
     "event_id": {
       "type": "string",
-      "pattern": "^evt_[0-9a-f-]+$"
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "event_type": {
       "const": "ProviderReceiptRecorded"
     },
     "project_id": {
       "type": "string",
-      "pattern": "^prj_[0-9a-f-]+$"
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "stream_id": {
       "type": "string",
-      "pattern": "^pcmd_[0-9a-f-]+$"
+      "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "stream_version": {
       "type": "integer",
@@ -57,7 +59,7 @@
     },
     "transaction_id": {
       "type": "string",
-      "pattern": "^txb_[0-9a-f-]+$"
+      "pattern": "^txb_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "transaction_index": {
       "const": 0
@@ -67,7 +69,15 @@
     },
     "command_id": {
       "type": "string",
-      "pattern": "^cmd_[0-9a-f-]+$"
+      "pattern": "^cmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "idempotency_key_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "payload_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "correlation_id": {
       "type": "string",
@@ -79,11 +89,11 @@
     },
     "actor_id": {
       "type": "string",
-      "pattern": "^act_[0-9a-f-]+$"
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "authority_grant_id": {
       "type": "string",
-      "pattern": "^agr_[0-9a-f-]+$"
+      "pattern": "^agr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
     "recorded_at": {
       "type": "string",
@@ -104,11 +114,11 @@
       "properties": {
         "provider_command_id": {
           "type": "string",
-          "pattern": "^pcmd_[0-9a-f-]+$"
+          "pattern": "^pcmd_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "provider_receipt_id": {
           "type": "string",
-          "pattern": "^prcp_[0-9a-f-]+$"
+          "pattern": "^prcp_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "provider_receipt_revision": {
           "type": "integer",
@@ -120,11 +130,11 @@
         },
         "cost_grant_id": {
           "type": "string",
-          "pattern": "^cgr_[0-9a-f-]+$"
+          "pattern": "^cgr_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "reservation_id": {
           "type": "string",
-          "pattern": "^crsv_[0-9a-f-]+$"
+          "pattern": "^crs_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
         },
         "provider_terminal_status": {
           "enum": [

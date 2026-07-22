@@ -3,7 +3,7 @@ schema_version: 1.0.0
 catalogue_id: wp6-2-t2-cost-grant-authority-catalogue
 catalogue_version: 1.0.0
 status: proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance
-governing_decision: P-037
+governing_decision: P-037_and_P-038
 authority_addendum_path: docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md
 writer: research_system.command.service.CommandService
 transition_family_closed: true
@@ -12,8 +12,8 @@ idempotency_tuple:
 - authority_scope
 - command_type
 - idempotency_key
-replay_rule: original_receipt_no_second_grant_reservation_issue_invocation_provider_receipt_reconciliation_or_refund
-versioning_rule: new_T2_identities_1_0_0_required_ProviderCommand_ProviderReceipt_successors_2_0_0_no_historical_rewrite
+replay_rule: Receipt_2_0_original_outcome_binding_no_second_grant_reservation_issue_invocation_provider_receipt_reconciliation_or_refund
+versioning_rule: new_T2_identities_1_0_0_and_Receipt_ProviderCommand_ProviderReceipt_successors_2_0_0_no_historical_rewrite
 universal_rejection_effects:
   canonical_event_count: 0
   provider_invocation_count: 0
@@ -100,6 +100,9 @@ protected_predecessors:
   command_tree: 9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea
   event_tree: 154ffc4bdde82fe903718734687e7a62797b1f69
   core_tree: b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46
+  receipt_1_0_0:
+    repository_path: .research-system/schemas/core/receipt.schema.json
+    git_blob_id: f204b3b71d6839bc866ba1251c8b87cc814ee0ce
   provider_command_1_0_0:
     repository_path: .research-system/schemas/adapters/provider-command.schema.json
     git_blob_id: 9eb58609b9703674912e64f019db3cd4fb147a9c
@@ -113,8 +116,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/commands/issue-cost-grant.schema.json
     schema_id: ars://wp6-2/t2/command/IssueCostGrant
     schema_version: 1.0.0
-    git_blob_id: 4257fe0ace2661d4e8fd3a2a8e222cbf740595f0
-    raw_utf8_lf_sha256: daf66128cd938d1949dce599176a61ab84dfbd007392b75fa5b1b00a2d4425f4
+    git_blob_id: 19cbe7e5a061661a2e7ebd57e148b4427c5b6dcc
+    raw_utf8_lf_sha256: c9b56ce5c5603d0b36db76c05567dd3d872077d6300658a36107bd4ef6947528
   ordered_events:
   - CostGrantIssued
   event_schema_bindings:
@@ -122,8 +125,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-issued.schema.json
     schema_id: ars://wp6-2/t2/event/CostGrantIssued
     schema_version: 1.0.0
-    git_blob_id: cd94ca72c949ddb9c64fa53dd35928db6ca0dbb4
-    raw_utf8_lf_sha256: fbc17c7eb3e292e432f1998e9048577f837cee8f4ad6b2ed133ab26ce5afd52b
+    git_blob_id: da7187873071b35a09410f1f83db26b71d12bbbf
+    raw_utf8_lf_sha256: d601c8ea60d589d30533e3e5a05a7d1773e69b1815e9f5aec97edac8a8728514
   target_stream_role: cost_grant
   write_set:
   - cost_grant
@@ -148,10 +151,10 @@ rows:
   concurrency_rule: create_new_cost_grant_stream_at_expected_version_zero
   expiry_revocation_rule: issue_requires_current_resource_and_authority_grants_no_T2_expiry_or_revoke_command
   receipt_binding:
-    schema_id: ars://core/receipt
-    schema_version: 1.0.0
-    accepted_rule: one_CostGrantIssued_event
-    duplicate_rule: original_receipt_no_events
+    schema_id: ars://core/receipt/v2
+    schema_version: 2.0.0
+    accepted_rule: canonical_ordered_CostGrantIssued_proof
+    duplicate_rule: byte_equivalent_original_outcome_binding_zero_new_effects
   atomic_batch:
     required: true
     transaction_count: 1
@@ -176,8 +179,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/commands/authorize-provider-issue.schema.json
     schema_id: ars://wp6-2/t2/command/AuthorizeProviderIssue
     schema_version: 1.0.0
-    git_blob_id: 4c7eadb7ca51bcd6a8e898476408f8e0a140d3e7
-    raw_utf8_lf_sha256: bfbb7813b2e43bc71d1c5143ec485a07ba6274bcb332bb925d3a3ef5f0c3a4ab
+    git_blob_id: d7fb29989b99d52ebb5f39e43cd6f2828276ac59
+    raw_utf8_lf_sha256: be7f95f811d69ac340a5c551ea1ba19a0a00e576ae0ad66916a7a07e2d0f625a
   ordered_events:
   - CostGrantReserved
   - ProviderCommandIssued
@@ -186,14 +189,14 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reserved.schema.json
     schema_id: ars://wp6-2/t2/event/CostGrantReserved
     schema_version: 1.0.0
-    git_blob_id: bf0159683e15ca30035bfa3c8149c3596a89ed8b
-    raw_utf8_lf_sha256: ed828f74a63b15db5ca4811a2c5461f44e22374f1ca823506e0fd806320a1754
+    git_blob_id: f873f5e97fcad4f49bb497eb041519912ef9be55
+    raw_utf8_lf_sha256: f19fa8b7f516678ebc86e8f6986328c3e854ed98c834d9ab6b194774cc73f8b2
   - event_type: ProviderCommandIssued
     repository_path: .research-system/schemas/wp6-2-t2/events/provider-command-issued.schema.json
     schema_id: ars://wp6-2/t2/event/ProviderCommandIssued
     schema_version: 1.0.0
-    git_blob_id: be70759ff461319a772ee564f21375780325dd3d
-    raw_utf8_lf_sha256: 19e19baef5b6864e5de3710e2fd1771ee893538409b93d0f2c51008d0c518fe8
+    git_blob_id: 086a9cc3471847ef39e1f804723e161fa9b641ee
+    raw_utf8_lf_sha256: 6755159cb97ccca2c19f4b54fd4b615a8a77255b41582f8f61f4fb7be9771fd7
   target_stream_role: cost_grant
   write_set:
   - cost_grant
@@ -226,10 +229,10 @@ rows:
   concurrency_rule: arbitrate_on_cost_grant_expected_version_exactly_one_winner_no_auto_retry
   expiry_revocation_rule: new_issue_requires_unexpired_secret_and_cost_grant_plus_current_external_grants
   receipt_binding:
-    schema_id: ars://core/receipt
-    schema_version: 1.0.0
-    accepted_rule: one_atomic_two_event_receipt_before_invocation
-    duplicate_rule: original_receipt_no_reservation_issue_or_invocation
+    schema_id: ars://core/receipt/v2
+    schema_version: 2.0.0
+    accepted_rule: one_atomic_two_event_proof_before_invocation
+    duplicate_rule: byte_equivalent_original_outcome_binding_zero_new_effects
   atomic_batch:
     required: true
     transaction_count: 2
@@ -278,8 +281,8 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/commands/record-provider-receipt.schema.json
     schema_id: ars://wp6-2/t2/command/RecordProviderReceipt
     schema_version: 1.0.0
-    git_blob_id: c10ef513cc2ea32b5abd7acc1101c29a3362f8b7
-    raw_utf8_lf_sha256: cf4b9e4e74fc6bf151fd8dab9fac4ccd39d4f124989e71b62cc381db9db81ebe
+    git_blob_id: ffe84c969a39997e8da2c82713772af339700a62
+    raw_utf8_lf_sha256: adcc96c2da7cc9cc0673a8d76ff61b6b21edc2ad0c719ef71b7733b802a56396
   ordered_events:
   - ProviderReceiptRecorded
   - CostGrantReconciled
@@ -288,14 +291,14 @@ rows:
     repository_path: .research-system/schemas/wp6-2-t2/events/provider-receipt-recorded.schema.json
     schema_id: ars://wp6-2/t2/event/ProviderReceiptRecorded
     schema_version: 1.0.0
-    git_blob_id: 2b0d4bd75546d24f2a4de5d3608eca33cae48701
-    raw_utf8_lf_sha256: 89aa60808fa78d3c7080c1c324baff1817c48f382e35f8c8c821aa9ce610f57d
+    git_blob_id: cf9f0b676aef8270380f9181f15e55ddb65f0e98
+    raw_utf8_lf_sha256: b6aa2c8ca0e469e1e5578a5fb47f19524dc0a1152a1d4a8d7b051fe426b64004
   - event_type: CostGrantReconciled
     repository_path: .research-system/schemas/wp6-2-t2/events/cost-grant-reconciled.schema.json
     schema_id: ars://wp6-2/t2/event/CostGrantReconciled
     schema_version: 1.0.0
-    git_blob_id: 6f73dfb3bb6cd9a61756072395e3aac20725f7e6
-    raw_utf8_lf_sha256: d9a55298a286d5c6cee25c4b86a75e0aca3e69cb6a078e209b829f6ad3f707b9
+    git_blob_id: 3ede01718f23198f58ae19d96e4c830ab8ccaf56
+    raw_utf8_lf_sha256: f3b36a8965aa764ad03ed5dab6ebba95c9cc2bd43a5bf2db58a0eddd98ad2183
   target_stream_role: provider_command
   write_set:
   - provider_command
@@ -317,7 +320,11 @@ rows:
   - provider_receipt_revision
   - provider_receipt_hash
   - cost_grant_id
+  - cost_grant_revision
+  - cost_grant_hash
   - reservation_id
+  - reservation_revision
+  - reservation_hash
   reducers:
   - provider_command_reducer@2.0.0
   - cost_grant_reducer@1.0.0
@@ -328,10 +335,10 @@ rows:
   concurrency_rule: both_expected_versions_must_match_and_reconciliation_is_single_acceptance
   expiry_revocation_rule: reconcile_previously_accepted_reservation_even_after_later_expiry_or_revocation
   receipt_binding:
-    schema_id: ars://core/receipt
-    schema_version: 1.0.0
-    accepted_rule: one_atomic_receipt_and_reconciliation_batch_with_exact_actuals
-    duplicate_rule: original_receipt_no_second_provider_receipt_reconciliation_or_refund
+    schema_id: ars://core/receipt/v2
+    schema_version: 2.0.0
+    accepted_rule: one_atomic_receipt_and_reconciliation_proof_with_exact_actuals
+    duplicate_rule: byte_equivalent_original_outcome_binding_zero_new_effects
   atomic_batch:
     required: true
     transaction_count: 2

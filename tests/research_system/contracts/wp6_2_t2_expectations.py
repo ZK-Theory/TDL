@@ -25,8 +25,21 @@ SCHEMA_MATERIALIZER_PATH: Final = "tests/research_system/contracts/wp6_2_t2_sche
 EXPECTATIONS_PATH: Final = "tests/research_system/contracts/wp6_2_t2_expectations.py"
 CONTRACT_TEST_PATH: Final = "tests/research_system/contracts/test_wp6_2_t2_authority_contract.py"
 MUTATION_TEST_PATH: Final = "tests/research_system/contracts/test_wp6_2_t2_authority_mutations.py"
+GITATTRIBUTES_PATH: Final = ".gitattributes"
+CROSSWALK_PATH: Final = ".research-system/contracts/wp6-2-t2-normative-crosswalk.yaml"
+CROSSWALK_SCHEMA_PATH: Final = ".research-system/schemas/contracts/wp6-2-t2-normative-crosswalk.schema.json"
 
 SCHEMA_IDENTITIES: Final = {
+    "normative_crosswalk": {
+        "path": CROSSWALK_SCHEMA_PATH,
+        "schema_id": "ars://contracts/wp6-2-t2-normative-crosswalk",
+        "schema_version": "1.0.0",
+    },
+    "receipt_v2": {
+        "path": ".research-system/schemas/core/receipt-v2.schema.json",
+        "schema_id": "ars://core/receipt/v2",
+        "schema_version": "2.0.0",
+    },
     "secret_reference": {
         "path": ".research-system/schemas/wp6-2-t2/secret-reference.schema.json",
         "schema_id": "ars://wp6-2/t2/secret-reference",
@@ -35,6 +48,11 @@ SCHEMA_IDENTITIES: Final = {
     "cost_grant": {
         "path": ".research-system/schemas/wp6-2-t2/cost-grant.schema.json",
         "schema_id": "ars://wp6-2/t2/cost-grant",
+        "schema_version": "1.0.0",
+    },
+    "pre_issue_evidence_manifest": {
+        "path": ".research-system/schemas/wp6-2-t2/pre-issue-evidence-manifest.schema.json",
+        "schema_id": "ars://wp6-2/t2/pre-issue-evidence-manifest",
         "schema_version": "1.0.0",
     },
     "provider_command_v2": {
@@ -86,6 +104,115 @@ SCHEMA_IDENTITIES: Final = {
         "path": ".research-system/schemas/wp6-2-t2/events/cost-grant-reconciled.schema.json",
         "schema_id": "ars://wp6-2/t2/event/CostGrantReconciled",
         "schema_version": "1.0.0",
+    },
+}
+
+EVENT_HASH_FIELDS: Final = {"command_id", "idempotency_key_hash", "payload_hash"}
+
+PROVIDER_COMMAND_W7_FIELDS: Final = {
+    "provider_command_id",
+    "idempotency_key",
+    "w2_binding",
+    "routing_binding",
+    "context_binding",
+    "assurance_binding",
+    "resource_binding",
+    "t2_authority_binding",
+    "operation",
+    "permissions",
+    "receipt_expectation",
+    "lifecycle_policy",
+}
+
+PROVIDER_RECEIPT_W7_FIELDS: Final = {
+    "provider_receipt_id",
+    "command_binding",
+    "t2_authority_binding",
+    "provider_binding",
+    "provider_native_ids",
+    "timestamps",
+    "delivery_proof",
+    "token_accounting",
+    "actions",
+    "terminal_outcome",
+    "outputs",
+    "lifecycle_evidence",
+    "resource_observations",
+    "evidence_disposition",
+    "completeness",
+}
+
+R1_FINDING_IDS: Final = {"C1", "C2", "C3", "C4", "M1", "M2", "M3"}
+CROSSWALK_AUTHORITIES: Final = {"W2", "W7", "W8", "06b", "P-037", "P-038"}
+
+EXPECTED_CROSSWALK: Final = {
+    "C1": {
+        "authority_refs": ["W2", "P-037", "P-038"],
+        "schema_properties": [
+            "ars://core/receipt/v2#/properties/outcome",
+            "ars://core/receipt/v2#/properties/events",
+            "ars://core/receipt/v2#/properties/original_accepted_receipt_hash",
+        ],
+        "semantic_validators": ["validate_receipt_v2"],
+        "positive_tests": ["test_r1_red_c1_receipt_v2_proof_surface"],
+        "negative_tests": ["test_receipt_v2_outcome_relations_reject"],
+    },
+    "C2": {
+        "authority_refs": ["W2", "P-038"],
+        "schema_properties": [
+            "ars://wp6-2/t2/event/*#/properties/idempotency_key_hash",
+            "ars://wp6-2/t2/event/*#/properties/payload_hash",
+        ],
+        "semantic_validators": ["rebuild_idempotency_index"],
+        "positive_tests": ["test_rebuild_idempotency_index_from_canonical_event_bytes"],
+        "negative_tests": ["test_rebuilt_index_rejects_duplicate_effect"],
+    },
+    "C3": {
+        "authority_refs": ["W7", "06b", "P-038"],
+        "schema_properties": [
+            "ars://wp6-2/t2/secret-reference#/properties/resolver_id",
+            "ars://wp6-2/t2/pre-issue-evidence-manifest#/properties/seams",
+        ],
+        "semantic_validators": ["validate_pre_issue_evidence"],
+        "positive_tests": ["test_recursive_pre_issue_scan_accepts_clean_eight_seams"],
+        "negative_tests": ["test_recursive_pre_issue_scan_rejects_actual_serialized_seam"],
+    },
+    "C4": {
+        "authority_refs": ["W2", "P-037", "P-038"],
+        "schema_properties": [
+            "ars://wp6-2/t2/command/*#/x-semantic-validation",
+            "ars://wp6-2/t2/command/RecordProviderReceipt#/properties/payload",
+        ],
+        "semantic_validators": ["validate_command_relations"],
+        "positive_tests": ["test_command_relations_positive_fixtures"],
+        "negative_tests": ["test_command_relations_counterexamples"],
+    },
+    "M1": {
+        "authority_refs": ["W8", "P-037", "P-038"],
+        "schema_properties": [
+            "ars://wp6-2/t2/cost-grant#/properties/rate_evidence",
+            "ars://wp6-2/t2/event/CostGrantReconciled#/properties/payload",
+        ],
+        "semantic_validators": ["validate_reconciliation"],
+        "positive_tests": ["test_integer_ceil_div_reconciliation"],
+        "negative_tests": ["test_reconciliation_actuals_and_refund_relations_reject"],
+    },
+    "M2": {
+        "authority_refs": ["W7", "P-038"],
+        "schema_properties": [
+            "ars://adapters/provider-command/v2#/properties",
+            "ars://adapters/provider-receipt/v2#/properties",
+        ],
+        "semantic_validators": ["validate_provider_receipt_gates"],
+        "positive_tests": ["test_r1_red_m2_w7_successors_are_complete"],
+        "negative_tests": ["test_incomplete_provider_receipt_is_diagnostic_only"],
+    },
+    "M3": {
+        "authority_refs": ["W2", "W7", "P-038"],
+        "schema_properties": ["all_canonical_ids#/lowercase_uuidv7"],
+        "semantic_validators": ["validate_canonical_id"],
+        "positive_tests": ["test_r1_red_m3_canonical_ids_require_lowercase_uuidv7"],
+        "negative_tests": ["test_uuidv7_prefix_and_case_counterexamples"],
     },
 }
 
@@ -155,7 +282,11 @@ EXPECTED_ROWS: Final = [
             "provider_receipt_revision",
             "provider_receipt_hash",
             "cost_grant_id",
+            "cost_grant_revision",
+            "cost_grant_hash",
             "reservation_id",
+            "reservation_revision",
+            "reservation_hash",
         ],
         "reducers": ["provider_command_reducer@2.0.0", "cost_grant_reducer@1.0.0"],
         "projections": [
@@ -225,15 +356,16 @@ NEGATIVE_CASES: Final = {
 PROTECTED_TREE_IDENTITIES: Final = {
     ".research-system/schemas/core/commands": "9ea0aec47e0032a2a4732f8cd230b2751bd6b7ea",
     ".research-system/schemas/core/events": "154ffc4bdde82fe903718734687e7a62797b1f69",
-    ".research-system/schemas/core": "b88ac9c83705d36b3c19f5c5172e0fa4aa7ebb46",
 }
 
 PROTECTED_PROVIDER_BLOBS: Final = {
+    ".research-system/schemas/core/receipt.schema.json": "f204b3b71d6839bc866ba1251c8b87cc814ee0ce",
     ".research-system/schemas/adapters/provider-command.schema.json": "9eb58609b9703674912e64f019db3cd4fb147a9c",
     ".research-system/schemas/adapters/provider-receipt.schema.json": "8ac904e6c0b16e45034bcdc2221970d6a3ef13a8",
 }
 
 MATERIALIZED_LEAF_PATHS: Final = {
+    GITATTRIBUTES_PATH,
     ADDENDUM_PATH,
     CATALOGUE_PATH,
     CATALOGUE_SCHEMA_PATH,
@@ -243,5 +375,7 @@ MATERIALIZED_LEAF_PATHS: Final = {
     EXPECTATIONS_PATH,
     CONTRACT_TEST_PATH,
     MUTATION_TEST_PATH,
+    CROSSWALK_PATH,
+    CROSSWALK_SCHEMA_PATH,
     *(identity["path"] for identity in SCHEMA_IDENTITIES.values()),
 }

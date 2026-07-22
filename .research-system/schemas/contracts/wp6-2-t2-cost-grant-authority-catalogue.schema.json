@@ -29,7 +29,7 @@
     "catalogue_id": {"const": "wp6-2-t2-cost-grant-authority-catalogue"},
     "catalogue_version": {"const": "1.0.0"},
     "status": {"const": "proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance"},
-    "governing_decision": {"const": "P-037"},
+    "governing_decision": {"const": "P-037_and_P-038"},
     "authority_addendum_path": {"type": "string", "minLength": 1},
     "writer": {"const": "research_system.command.service.CommandService"},
     "transition_family_closed": {"const": true},
@@ -139,8 +139,8 @@
       "type": "object",
       "required": ["schema_id", "schema_version", "accepted_rule", "duplicate_rule"],
       "properties": {
-        "schema_id": {"const": "ars://core/receipt"},
-        "schema_version": {"const": "1.0.0"},
+        "schema_id": {"const": "ars://core/receipt/v2"},
+        "schema_version": {"const": "2.0.0"},
         "accepted_rule": {"type": "string", "minLength": 10},
         "duplicate_rule": {"type": "string", "minLength": 10}
       },
@@ -265,6 +265,7 @@
         "command_tree",
         "event_tree",
         "core_tree",
+        "receipt_1_0_0",
         "provider_command_1_0_0",
         "provider_receipt_1_0_0"
       ],
@@ -272,6 +273,7 @@
         "command_tree": {"$ref": "#/$defs/git_blob"},
         "event_tree": {"$ref": "#/$defs/git_blob"},
         "core_tree": {"$ref": "#/$defs/git_blob"},
+        "receipt_1_0_0": {"$ref": "#/$defs/protected_path_blob"},
         "provider_command_1_0_0": {"$ref": "#/$defs/protected_path_blob"},
         "provider_receipt_1_0_0": {"$ref": "#/$defs/protected_path_blob"}
       },
