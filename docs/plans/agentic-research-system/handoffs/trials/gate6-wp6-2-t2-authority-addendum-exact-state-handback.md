@@ -96,8 +96,9 @@ At candidate commit `1144d6a6d0feb28473fb540d41ff03bff79eec24`:
 | Schema identity manifest | `df4d8563e84fd8f169f190c079836d39f81ea53c` | `62eefc787d61302f2a0829b9c7a2cf713a6a9308bca2b78e64a650a86e67a514` |
 | Authority catalogue | `0280ecf24ef838ea9cc40f510b8a2fd0d6e6d773` | `89c0d41c9512829e52dca3e564f442f24dbf5aed6654192798fd51677a6f7544` |
 
-The identity manifest binds 22 leaf artifacts. All 22 were independently checked for
-UTF-8/LF bytes. Its dependency graph is acyclic: the manifest does not claim its own
+The identity manifest binds 21 leaf artifacts. Together with the externally bound
+manifest itself, the candidate set contains 22 artifacts; all 22 were independently
+checked for UTF-8/LF bytes. Its dependency graph is acyclic: the manifest does not claim its own
 hash and is instead bound externally by this handback, Git history, review, and any
 later owner-acceptance record.
 
