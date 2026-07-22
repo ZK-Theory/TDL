@@ -59,7 +59,7 @@ successor identities without changing accepted WP6.1 bytes.
 
 ## Method disposition
 
-On Stephen's approval, advisory integration should update only:
+Stephen's 2026-07-22 approval activated only:
 
 - global/repository large-workflow instructions;
 - a new standalone supervision skill;

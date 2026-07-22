@@ -559,6 +559,40 @@ alter the reviewed requirements.<br>
 **Affected specifications:** WP6 master and WP6.1/WP6.2 child plans; P-035; D-G6-3;
 Gate 6 launch and dispatch-planning controls.
 
+### P-037 - WP6.2 T2 cost-grant authority and versioning
+
+**Date:** 2026-07-22<br>
+**Status:** Accepted by Stephen<br>
+**Amends:** P-035/P-036 by supplying the previously missing T2 canonical-transition
+authority; does not alter the accepted WP6.1/T1a bytes or the WP6.2 dependency graph<br>
+**Decision:** The existing project-wide `CommandService` remains the sole canonical
+writer. A separately content-addressed WP6.2 T2 authority addendum must define exactly
+these command families: `IssueCostGrant -> CostGrantIssued`;
+`AuthorizeProviderIssue -> [CostGrantReserved, ProviderCommandIssued]` as one atomic
+ordered batch; and `RecordProviderReceipt -> [ProviderReceiptRecorded,
+CostGrantReconciled]` as one atomic ordered batch. Replay returns the original receipt
+and emits no duplicate reservation, issue, provider invocation, receipt,
+reconciliation, or refund. No direct or second cost writer is permitted.<br>
+**Versioning rule:** New `SecretReference`, `CostGrant`, command, and event identities
+begin at `1.0.0`. A required-field expansion of accepted `ProviderCommand` or
+`ProviderReceipt` uses an explicit `2.0.0` successor; `1.1.0` is reserved for genuinely
+optional backward-compatible additions. Historical schemas and records are never
+rewritten.<br>
+**Evidence:** The V2 exact-state handback and its assessment verified that P-020 and W2
+already settle writer ownership and general versioning, while the accepted 06d
+catalogue and current `CommandService` omit the exact T2 transition family. Stephen's
+2026-07-22 reply `Approve both` accepted the dedicated ruling together with the
+standalone-workflow advisory integration.<br>
+**Boundary:** This decision authorizes contract/addendum authorship and fresh
+independent review only. It authorizes no runtime implementation, T3/T4, live provider
+call, T1b, eligibility transition, result, claim, or mutation of accepted WP6.1/T1a
+artifacts.<br>
+**Remaining gate:** Fresh independent review followed by Stephen's acceptance of the
+exact addendum and identity-manifest repository paths, Git blobs, raw-byte SHA-256
+identities, and reviewed commit before any T2 implementation brief may issue.<br>
+**Affected specifications:** W2 command/event/versioning contract; W7 provider
+command/receipt contract; W8 resource/cost boundary; WP6.2 T2; D-G6-3.
+
 ## W11 specification status (non-decision)
 
 The WP6.5 specification-only draft exists at

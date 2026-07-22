@@ -1,16 +1,17 @@
 # WP6.2 T2 Cost-Grant Authority and Versioning Ruling
 
 **Date:** 2026-07-22
-**Status:** PROPOSED — Stephen decision required before authority-addendum authorship
-or T2 implementation
+**Status:** ACCEPTED by Stephen on 2026-07-22 under P-037; authorizes
+authority-addendum authorship and independent review, not T2 implementation
 **Scope:** WP6.2 T2 only; no T3/T4, live call, T1b, eligibility, result, or claim
 
-## Decision required
+## Owner decision
 
-V2 proved that T2's cost semantics are accepted but its exact canonical transition
-family is not. Choose whether to accept the recommended ruling below. Acceptance
-authorizes authorship and independent review of a content-addressed T2 authority
-addendum only; it does not authorize runtime implementation.
+V2 proved that T2's cost semantics were accepted but its exact canonical transition
+family was not. Stephen accepted the recommended ruling on 2026-07-22 by replying
+`Approve both` to the paired advisory-integration and T2-ruling decision. That
+acceptance authorizes authorship and independent review of a content-addressed T2
+authority addendum only; it does not authorize runtime implementation.
 
 ## Existing authority that remains unchanged
 
