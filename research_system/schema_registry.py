@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,24 @@ _AUTHORITY_SCHEMA_IDS = frozenset(
         "ars://core/event/ReleaseGateDecisionPublished",
     }
 )
+
+_RFC3339_DATE_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$")
+
+
+def _is_rfc3339_date_time(value: object) -> bool:
+    """Provide the Draft 2020-12 date-time check when its optional dependency is absent."""
+    if not isinstance(value, str) or _RFC3339_DATE_TIME.fullmatch(value) is None:
+        return False
+    normalized = value[:-1] + "+00:00" if value[-1] in "Zz" else value
+    try:
+        datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    return True
+
+
+if "date-time" not in Draft202012Validator.FORMAT_CHECKER.checkers:
+    Draft202012Validator.FORMAT_CHECKER.checks("date-time")(_is_rfc3339_date_time)
 
 
 class SchemaRegistry:
@@ -60,7 +80,10 @@ class SchemaRegistry:
         if schema is None:
             raise SchemaError(f"unknown schema: {schema_id}")
         errors = sorted(
-            Draft202012Validator(schema).iter_errors(value),
+            Draft202012Validator(
+                schema,
+                format_checker=Draft202012Validator.FORMAT_CHECKER,
+            ).iter_errors(value),
             key=lambda error: list(error.absolute_path),
         )
         if errors:
