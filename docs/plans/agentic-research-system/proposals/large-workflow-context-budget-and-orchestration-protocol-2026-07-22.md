@@ -1,10 +1,12 @@
 # Large-Workflow Context Budget and Orchestration Protocol
 
 **Date:** 2026-07-22
-**Status:** PROPOSED - not an active ARS gate or convention lock
+**Status:** APPROVED FOR ONE ADVISORY TRIAL - not an active general ARS gate or
+convention lock
 **Scope:** Large, multi-stage, review-heavy workflows such as ARS WP5/WP6
-**Decision required:** Stephen must approve the protocol and its thresholds before
-the proposed skill, guide, checker, or `CONVENTIONS.md` changes are activated.
+**Owner decision:** On 2026-07-22 Stephen approved a trial on the first WP after
+WP6.1. The proposed skill, guide, checker, or `CONVENTIONS.md` changes remain pending
+post-trial assessment and separate approval.
 
 ## 1. Problem
 
@@ -117,6 +119,16 @@ When Stephen authorizes model overrides:
 
 Model routing never overrides an assurance requirement or independence rule.
 
+### 2.9 Stacked-PR closure
+
+A clean review stack is not integrated merely because every PR is individually
+mergeable. Record the intended integration branch. Merge the bottom layer first,
+retarget each surviving child PR to the integration branch, and re-verify that its
+delta is exactly the reviewed layer before merging it. The final integration check
+must prove every layer and accepted identity reachable from the integration head.
+Never merge a child PR while it still targets an intermediate branch and call that
+layer integrated.
+
 ## 3. Update map
 
 | Target | Proposed change | Activation |
@@ -226,7 +238,9 @@ After a documentation-only trial, extend `manager_dispatch_check` with an option
 - missing rotation condition;
 - `external_review_owner` other than `stephen` when CodeRabbit is named;
 - a second author-review cycle without a fresh-task identity;
-- generation authorization without a reuse/certification disposition.
+- generation authorization without a reuse/certification disposition;
+- a stacked child PR whose base is not the declared integration branch at merge time;
+- a stack closeout without final reachability proof for every reviewed layer.
 
 The same change must include negative controls proving each rejection fires and a
 positive execution signal in the rendered dispatch-readiness block. Do not make the
@@ -234,6 +248,10 @@ checker mandatory until one real WP-style trial demonstrates that the envelope i
 stable and not duplicating authority already held elsewhere.
 
 ## 6. Trial and acceptance
+
+Close legacy WP6.1 work in a separate task. Trial measurement begins only in a fresh
+Manager task after all WP6.1 layers are proven on `origin/main`; otherwise the trial
+would inherit the very context pattern it is intended to test.
 
 Trial the prose protocol on the next WP6 Manager and record:
 
@@ -245,14 +263,19 @@ Trial the prose protocol on the next WP6 Manager and record:
 - review/remediation rounds;
 - any dropped requirement or false stop attributable to the protocol.
 
-Accept or revise the protocol only after that trial. A successful trial may authorize
-the skill/guide updates; a second successful large workflow may justify the checker and
-`CONVENTIONS.md` lock.
+Return the exact-state trial handback to the instruction-design task and issue one of
+three verdicts: `revise_and_retrial`, `approve_advisory_integration`, or `reject`.
+A successful first trial may authorize the documentation, AGENTS, skill, and guide
+updates through a normal reviewed PR. A second successful large workflow may justify
+the mandatory checker, its negative controls, and the `CONVENTIONS.md` lock.
 
-## 7. Owner decisions requested
+## 7. Trial decision and deferred decisions
 
-1. Approve, amend, or reject the 80k/first-compaction Manager rotation threshold.
-2. Approve the one-cycle Worker default and no-history independent-review rule.
-3. Approve the stage-scoped maximum of two primary skills.
-4. Choose whether the first trial uses an advisory campaign packet or a strict schema.
-5. After the trial, decide whether to activate the skill/guide edits and dispatch gate.
+For the first trial Stephen approved the advisory defaults: 80k/first-compaction
+Manager rotation, one Worker cycle, no-history independent review, at most two primary
+skills, and a prose campaign packet rather than a mandatory schema.
+
+After the trial Stephen will decide whether to revise and retrial, approve advisory
+AGENTS/skill/guide integration, or reject the method. Mandatory checker enforcement
+and a `CONVENTIONS.md` lock remain separately deferred until a second successful large
+workflow supplies supporting evidence.

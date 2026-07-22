@@ -74,6 +74,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [handoffs/06-wp6-plan-suite-adversarial-review-prompt.md](handoffs/06-wp6-plan-suite-adversarial-review-prompt.md) | Executed fresh-agent review prompt for the WP6 plan suite; retained as review provenance |
 | [handoffs/07-w9-gate7-legacy-integration-authoring-brief.md](handoffs/07-w9-gate7-legacy-integration-authoring-brief.md) | W9/Gate 7 legacy-integration authoring brief with its own gates |
 | [handoffs/08-wp6-context-budgeted-manager-handoff-prompt.md](handoffs/08-wp6-context-budgeted-manager-handoff-prompt.md) | Fresh WP6 Manager entry prompt with exact-state reconstruction, no agent-operated CodeRabbit, and context-budget rotation |
+| [handoffs/09-wp6-1-closure-and-wp6-2-context-budget-trial.md](handoffs/09-wp6-1-closure-and-wp6-2-context-budget-trial.md) | Two-task runbook for narrow PR155/stack closure, a fresh WP6.2 context-budget trial, and evidence-based post-trial integration |
 
 ## Governing constraints
 
