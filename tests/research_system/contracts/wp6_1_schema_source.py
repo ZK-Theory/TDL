@@ -37,6 +37,16 @@ TICK = chr(96)
 
 @dataclass(frozen=True)
 class ApprovedSource:
+    """Immutable identity for a reviewed Git-backed source.
+
+    Attributes:
+        name: Human-readable source name used in validation messages.
+        path: Repository-relative source path.
+        revision: Git revision containing the approved bytes.
+        blob: Expected Git blob ID for the source bytes.
+        sha256: Expected canonical UTF-8/LF SHA-256 digest.
+    """
+
     name: str
     path: str
     revision: str
@@ -54,6 +64,14 @@ W8_SOURCE = ApprovedSource("W8", W8_PATH, ANNEX_REVISION, W8_BLOB, W8_SHA256)
 
 @dataclass(frozen=True)
 class SourceCitation:
+    """Citation binding a model element to an approved source location.
+
+    Attributes:
+        source: Approved source identity.
+        section: Source section containing the cited material.
+        row_key: Optional owner-row key for row-level citations.
+    """
+
     source: ApprovedSource
     section: str
     row_key: str | None = None
@@ -65,6 +83,25 @@ class SourceCitation:
 
 @dataclass(frozen=True)
 class FieldSpec:
+    """Typed payload field and its reviewed source citations.
+
+    Attributes:
+        name: Field name.
+        json_type: JSON Schema primitive type.
+        citations: Sources supporting the field definition.
+        const: Optional required constant value.
+        nullable: Whether the field accepts null.
+        item_type: Optional array item type.
+        object_spec: Optional nested object specification.
+        ref_name: Optional reusable-definition name.
+        required: Whether the field is required.
+        enum: Optional allowed string values.
+        minimum: Optional numeric lower bound.
+        format: Optional JSON Schema format.
+        pattern: Optional string pattern.
+        item_pattern: Optional array-item pattern.
+    """
+
     name: str
     json_type: str
     citations: tuple[SourceCitation, ...]
@@ -83,6 +120,14 @@ class FieldSpec:
 
 @dataclass(frozen=True)
 class ObjectSpec:
+    """Closed object payload specification.
+
+    Attributes:
+        fields: Ordered fields in the object.
+        citations: Sources supporting the object definition.
+        exclusive_required: Required-field alternatives for variants.
+    """
+
     fields: tuple[FieldSpec, ...]
     citations: tuple[SourceCitation, ...]
     exclusive_required: tuple[tuple[str, ...], ...] = ()
@@ -90,6 +135,14 @@ class ObjectSpec:
 
 @dataclass(frozen=True)
 class OperationSpec:
+    """Command and event payload specifications for one owner row.
+
+    Attributes:
+        row_key: Exact owner-row key.
+        command_payload: Command payload specification.
+        event_payloads: Ordered event type and payload pairs.
+    """
+
     row_key: str
     command_payload: ObjectSpec
     event_payloads: tuple[tuple[str, ObjectSpec], ...]
@@ -97,6 +150,21 @@ class OperationSpec:
 
 @dataclass(frozen=True)
 class SourceRow:
+    """Normalized owner-catalogue row used to resolve schema identities.
+
+    Attributes:
+        source_table: Source table or section name.
+        key: Exact owner-row key.
+        owner_transition: Owner transition description.
+        command_event_identity: Command/event identity text.
+        command_token: Command token.
+        command_type: Semantic command type.
+        events: Ordered event type and token pairs.
+        reducer_projection: Reducer and projection binding.
+        authority: Authority binding.
+        receipt_tests: Receipt and test binding.
+    """
+
     source_table: str
     key: str
     owner_transition: str
@@ -110,14 +178,41 @@ class SourceRow:
 
 
 def canonical_json_bytes(value: Any) -> bytes:
+    """Serialize a value as deterministic UTF-8 JSON bytes.
+
+    Args:
+        value: JSON-compatible value to serialize.
+
+    Returns:
+        Canonical JSON encoded as UTF-8 bytes.
+    """
+
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def sha256_value(value: Any) -> str:
+    """Return the SHA-256 digest of a value's canonical JSON bytes.
+
+    Args:
+        value: JSON-compatible value to hash.
+
+    Returns:
+        Lowercase hexadecimal SHA-256 digest.
+    """
+
     return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
 
 
 def canonical_yaml_bytes(value: Any) -> bytes:
+    """Serialize a value as deterministic UTF-8/LF YAML bytes.
+
+    Args:
+        value: YAML-compatible value to serialize.
+
+    Returns:
+        Canonical YAML encoded as UTF-8 bytes with LF line endings.
+    """
+
     import yaml
 
     text = yaml.safe_dump(value, allow_unicode=True, sort_keys=False, width=4096)
@@ -125,7 +220,19 @@ def canonical_yaml_bytes(value: Any) -> bytes:
 
 
 def git_blob_id(repo_root: Path, data: bytes) -> str:
-    """Ask Git for the raw, no-filter blob identity; never use SHA-1 directly."""
+    """Return Git's raw, no-filter blob identity for bytes.
+
+    Args:
+        repo_root: Repository in which Git should compute the blob ID.
+        data: Exact bytes to identify.
+
+    Returns:
+        Git blob ID for ``data``.
+
+    Raises:
+        RuntimeError: If Git cannot compute the blob identity.
+    """
+
     result = subprocess.run(
         ["git", "hash-object", "--no-filters", "--stdin"],
         cwd=repo_root,
@@ -140,6 +247,20 @@ def git_blob_id(repo_root: Path, data: bytes) -> str:
 
 
 def approved_source_bytes(repo_root: Path, source: ApprovedSource) -> bytes:
+    """Load and verify exact approved source bytes from immutable Git.
+
+    Args:
+        repo_root: Repository containing the approved revision.
+        source: Expected source path, revision, blob, and digest.
+
+    Returns:
+        Verified canonical UTF-8/LF source bytes.
+
+    Raises:
+        RuntimeError: If the object is unavailable, identities mismatch, or
+            the bytes are not canonical UTF-8/LF.
+    """
+
     result = subprocess.run(
         ["git", "show", f"{source.revision}:{source.path}"],
         cwd=repo_root,
@@ -156,14 +277,36 @@ def approved_source_bytes(repo_root: Path, source: ApprovedSource) -> bytes:
         raise RuntimeError(f"approved WP6.1 {source.name} SHA-256 mismatch")
     if data.startswith(b"\xef\xbb\xbf") or b"\r" in data:
         raise RuntimeError(f"approved WP6.1 {source.name} bytes are not UTF-8/LF canonical")
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"approved WP6.1 {source.name} bytes are not UTF-8/LF canonical") from exc
     return data
 
 
 def approved_annex_bytes(repo_root: Path) -> bytes:
+    """Return the verified historical 06d annex bytes.
+
+    Args:
+        repo_root: Repository containing the approved revision.
+
+    Returns:
+        Verified canonical bytes for the 06d owner-source catalogue.
+    """
+
     return approved_source_bytes(repo_root, ANNEX_SOURCE)
 
 
 def approved_fact_annex_bytes(repo_root: Path) -> bytes:
+    """Return the verified accepted Stage-1 fact-annex proposal bytes.
+
+    Args:
+        repo_root: Repository containing the accepted proposal revision.
+
+    Returns:
+        Verified canonical bytes for the accepted fact annex.
+    """
+
     return approved_source_bytes(repo_root, FACT_ANNEX_SOURCE)
 
 
@@ -216,18 +359,59 @@ def _parse_rows(data: bytes) -> list[SourceRow]:
 
 
 def source_rows(repo_root: Path) -> list[SourceRow]:
+    """Parse the approved 104-row owner catalogue.
+
+    Args:
+        repo_root: Repository containing the approved annex revision.
+
+    Returns:
+        Ordered normalized owner rows.
+
+    Raises:
+        RuntimeError: If the approved source or row cardinality is invalid.
+    """
+
     return _parse_rows(approved_annex_bytes(repo_root))
 
 
 def source_citation(row: SourceRow) -> str:
+    """Render the canonical citation for an owner row.
+
+    Args:
+        row: Normalized owner row to cite.
+
+    Returns:
+        Human-readable source citation string.
+    """
+
     return _row_citation(row).text()
 
 
 def snake(value: str) -> str:
+    """Convert a CamelCase token to lowercase snake case.
+
+    Args:
+        value: Token to convert.
+
+    Returns:
+        Lowercase snake-case representation.
+    """
+
     return re.sub(r"(?<!^)(?=[A-Z])", "_", value).lower()
 
 
 def schema_identity(token: str, semantic_type: str, kind: str) -> dict[str, str]:
+    """Build the reviewed schema identity for a command or event token.
+
+    Args:
+        token: Source token whose suffix names the schema file.
+        semantic_type: Semantic command or event type.
+        kind: Either ``"command"`` or ``"event"``.
+
+    Returns:
+        Mapping containing the schema path, ID, version, and token fields.
+    """
+
     suffix = token.split("/", 1)[1]
     if kind == "command":
         return {
@@ -246,6 +430,16 @@ def schema_identity(token: str, semantic_type: str, kind: str) -> dict[str, str]
 
 
 def grouped_rows(rows: Iterable[SourceRow], *, kind: str) -> dict[str, list[tuple[SourceRow, str, str]]]:
+    """Group owner rows by their command or event schema path.
+
+    Args:
+        rows: Normalized owner rows.
+        kind: Either ``"command"`` or ``"event"``.
+
+    Returns:
+        Mapping from schema path to contributing row, token, and type tuples.
+    """
+
     grouped: dict[str, list[tuple[SourceRow, str, str]]] = {}
     for row in rows:
         values = (
@@ -1271,7 +1465,20 @@ def _validate_object_spec(spec: ObjectSpec, *, context: str) -> None:
 
 
 def resolve_operation_specs(repo_root: Path, rows: Iterable[SourceRow]) -> dict[str, OperationSpec]:
-    """Resolve the exact 104-row semantic model after verifying all sources."""
+    """Resolve the exact 104-row semantic model after verifying all sources.
+
+    Args:
+        repo_root: Repository containing the approved source revisions.
+        rows: Normalized owner rows to resolve.
+
+    Returns:
+        Mapping from owner-row key to its command and event specifications.
+
+    Raises:
+        RuntimeError: If approved sources, row identity, cardinality, or field
+            enumeration checks fail.
+    """
+
     approved_source_bytes(repo_root, W2_SOURCE)
     approved_source_bytes(repo_root, W8_SOURCE)
     row_list = list(rows)
@@ -1297,6 +1504,12 @@ def resolve_operation_specs(repo_root: Path, rows: Iterable[SourceRow]) -> dict[
 
 
 def command_root_spec() -> ObjectSpec:
+    """Return the reviewed common command-envelope specification.
+
+    Returns:
+        Closed command root object specification.
+    """
+
     citation = (SourceCitation(W2_SOURCE, "§8.1"),)
     fields = []
     for name in COMMAND_ROOT_NAMES:
@@ -1316,6 +1529,12 @@ def command_root_spec() -> ObjectSpec:
 
 
 def event_root_spec() -> ObjectSpec:
+    """Return the reviewed common event-envelope specification.
+
+    Returns:
+        Closed event root object specification.
+    """
+
     w2 = SourceCitation(W2_SOURCE, "§9.2")
     annex = SourceCitation(ANNEX_SOURCE, "§1.1")
     fields = []

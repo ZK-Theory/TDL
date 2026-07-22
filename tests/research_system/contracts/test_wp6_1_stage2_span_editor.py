@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
 import tests.research_system.contracts.wp6_1_stage2_span_editor as span_editor
+import tests.research_system.contracts.wp6_1_schema_source as schema_source
 from tests.research_system.contracts.wp6_1_stage2_span_editor import build_stage2_overlays
 from tests.research_system.contracts.wp6_1_schema_source import approved_fact_annex_bytes
 
@@ -134,6 +137,31 @@ def test_wp6_1_stage2_manifests_bind_accepted_annex_and_exact_schema_hashes() ->
         for event in row["event_schema_bindings"]:
             event_data = (REPO_ROOT / event["event_schema_path"]).read_bytes()
             assert event["event_schema_sha256"] == hashlib.sha256(event_data).hexdigest()
+
+
+def test_wp6_1_approved_source_bytes_accepts_valid_utf8_lf() -> None:
+    data = schema_source.approved_source_bytes(REPO_ROOT, schema_source.FACT_ANNEX_SOURCE)
+    assert data == approved_fact_annex_bytes(REPO_ROOT)
+    assert b"\r" not in data
+    data.decode("utf-8")
+
+
+def test_wp6_1_approved_source_bytes_rejects_invalid_utf8(monkeypatch: pytest.MonkeyPatch) -> None:
+    invalid = b"\xff"
+    source = replace(
+        schema_source.FACT_ANNEX_SOURCE,
+        blob="synthetic-blob",
+        sha256=hashlib.sha256(invalid).hexdigest(),
+    )
+    result = SimpleNamespace(returncode=0, stdout=invalid, stderr=b"")
+    monkeypatch.setattr(schema_source, "git_blob_id", lambda _repo_root, _data: "synthetic-blob")
+    monkeypatch.setattr(schema_source.subprocess, "run", lambda *_args, **_kwargs: result)
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"approved WP6\.1 accepted-fact-annex bytes are not UTF-8/LF canonical",
+    ):
+        schema_source.approved_source_bytes(REPO_ROOT, source)
 
 
 def test_wp6_1_coordinated_checkout_substitution_cannot_change_immutable_expectations(
