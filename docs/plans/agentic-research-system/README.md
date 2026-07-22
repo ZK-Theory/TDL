@@ -26,6 +26,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [05-p0-materialization-and-foundation-implementation-plan.md](05-p0-materialization-and-foundation-implementation-plan.md) | Review-pending Gate 4 master plan for the 37-case P0 closure and narrow production-intended foundation |
 | [proposals/large-workflow-context-budget-and-orchestration-protocol-2026-07-22.md](proposals/large-workflow-context-budget-and-orchestration-protocol-2026-07-22.md) | Stephen-activated standalone advisory protocol; strict checker and convention enforcement remain deferred |
 | [proposals/wp6-2-t2-cost-grant-authority-and-versioning-ruling-2026-07-22.md](proposals/wp6-2-t2-cost-grant-authority-and-versioning-ruling-2026-07-22.md) | P-037 accepted ruling for the T2 CommandService transition family and non-destructive schema versioning; no implementation authority |
+| [proposals/wp6-2-t2-r1-remediation-authority-ruling-2026-07-22.md](proposals/wp6-2-t2-r1-remediation-authority-ruling-2026-07-22.md) | Proposed P-038 ruling closing the R1 receipt, idempotency, secret-boundary, identity, cost, and W7 completeness gaps; pending exact owner acceptance |
 | [reviews/large-workflow-context-budget-v1-trial-assessment-2026-07-22.md](reviews/large-workflow-context-budget-v1-trial-assessment-2026-07-22.md) | V1 `revise_and_retrial` assessment: certification succeeded, delivery remained untested, and accidental APM coupling was removed |
 | [reviews/large-workflow-context-budget-v2-trial-assessment-2026-07-22.md](reviews/large-workflow-context-budget-v2-trial-assessment-2026-07-22.md) | V2 `approve_advisory_integration` recommendation after efficient packet reuse and a verified fail-closed authority stop |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
@@ -64,6 +65,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r3-review-2026-07-17.md) | R3 WP6 remediation review identifying strict-schema, independent-oracle, authority, concurrency, and selector gaps |
 | [reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r4-review-2026-07-17.md) | R4 WP6 remediation review identifying RuleEvaluation ownership and Dispatch-bound Task integrity gaps |
 | [reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md](reviews/adversarial-wp6-plan-suite-remediation-r5-review-2026-07-17.md) | R5 independent approval of exact WP6 remediation commit `fe5f1d40bc8f05f061317c677b5891cea0711249`; zero findings |
+| [reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md](reviews/adversarial-wp6-2-t2-authority-addendum-r1-review-2026-07-22.md) | Durable R1 `rework_required` verdict and manager triage for exact T2 authority-addendum candidate `1144d6a6`; four Critical and three Major findings |
 
 ## Handover prompts
 
