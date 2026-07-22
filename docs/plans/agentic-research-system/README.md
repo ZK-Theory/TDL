@@ -24,6 +24,7 @@ The objective is not to automate research judgment away. It is to make agent act
 | [03-decisions-and-open-questions.md](03-decisions-and-open-questions.md) | Accepted directions, assumptions requiring confirmation, and bounded design decisions |
 | [04-parallel-specification-and-foundation-pilot-plan.md](04-parallel-specification-and-foundation-pilot-plan.md) | P-026 parallel lanes, specification sequence, foundation scope, gates, and greenfield pilot boundary |
 | [05-p0-materialization-and-foundation-implementation-plan.md](05-p0-materialization-and-foundation-implementation-plan.md) | Review-pending Gate 4 master plan for the 37-case P0 closure and narrow production-intended foundation |
+| [proposals/large-workflow-context-budget-and-orchestration-protocol-2026-07-22.md](proposals/large-workflow-context-budget-and-orchestration-protocol-2026-07-22.md) | Review-pending protocol for context budgets, fresh delegation, stage-scoped skill loading, user-owned external review, and certify-before-regenerate behavior in large workflows |
 | [implementation/README.md](implementation/README.md) | Ordered index for the P0 work packages, the Gate 5 suite, and the draft WP6 suite |
 | [implementation/06-wp6-gate6-readiness-and-integration-plan.md](implementation/06-wp6-gate6-readiness-and-integration-plan.md) | Owner-approved WP6 launch-basis plan at exact reviewed revision `fe5f1d40`: Gate A closure (A2–A8), Gate 6 preflight, W11 portfolio/Discovery integration, and consolidation sequencing |
 | [implementation/06a-wp6-1-runtime-task-lifecycle-plan.md](implementation/06a-wp6-1-runtime-task-lifecycle-plan.md) | Owner-approved WP6.1 dispatch-plan content at exact reviewed revision `fe5f1d40`: rich Task/ScopeDefinition runtime and W8 operator surface; future materialization gates remain |
@@ -69,6 +70,10 @@ The objective is not to automate research judgment away. It is to make agent act
 | [handoffs/02-adversarial-review-prompt.md](handoffs/02-adversarial-review-prompt.md) | Executed adversarial-review brief; retained as review provenance |
 | [handoffs/03-post-review-continuation-prompt.md](handoffs/03-post-review-continuation-prompt.md) | W3 authoring continuity brief; retained as provenance after P-028 acceptance |
 | [handoffs/04-p0-review-and-implementation-handover-prompt.md](handoffs/04-p0-review-and-implementation-handover-prompt.md) | Fresh-agent entry point for the P0 plan review gate and explicitly approved foundation implementation |
+| [handoffs/05-gate5-orchestration-handover-prompt.md](handoffs/05-gate5-orchestration-handover-prompt.md) | Historical Gate 5 orchestration handover retained as provenance |
+| [handoffs/06-wp6-plan-suite-adversarial-review-prompt.md](handoffs/06-wp6-plan-suite-adversarial-review-prompt.md) | Executed fresh-agent review prompt for the WP6 plan suite; retained as review provenance |
+| [handoffs/07-w9-gate7-legacy-integration-authoring-brief.md](handoffs/07-w9-gate7-legacy-integration-authoring-brief.md) | W9/Gate 7 legacy-integration authoring brief with its own gates |
+| [handoffs/08-wp6-context-budgeted-manager-handoff-prompt.md](handoffs/08-wp6-context-budgeted-manager-handoff-prompt.md) | Fresh WP6 Manager entry prompt with exact-state reconstruction, no agent-operated CodeRabbit, and context-budget rotation |
 
 ## Governing constraints
 
