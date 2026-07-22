@@ -73,7 +73,10 @@ for small deterministic unit tests and trivial calculations.
    **ordering**, not rate alone: a cost-ordered queue that yields in submission
    order can delay the first progress line far past a rate-based estimate while
    the run is perfectly healthy, so emit an immediate heartbeat at launch,
-   before the first unit completes. When the run is a multi-condition grid/battery
+   before the first unit completes. Record all three — operator patience,
+   heartbeat cadence, and heartbeat delivery channel (log file, progress bar, or
+   message-bus entry) — in the preflight record so responsiveness is auditable.
+   When the run is a multi-condition grid/battery
    (multiple rungs, nulls, or parameters) under a budget that may truncate it,
    the loop order is part of the plan: sequence cells so the smallest
    COMPLETE, INTERPRETABLE design — every rung including any negative control,
